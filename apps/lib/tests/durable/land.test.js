@@ -88,7 +88,8 @@ test('clause 1: the six landing steps are job steps written in order, merge writ
     assert.equal(result.job.step, 'publish');
     const payload = name => result.job.steps.find(s => s.name === name).payload;
     assert.deepEqual(payload('compose'), { candidate, base, candidateTree: treeOf(repo, candidate), baseTree: treeOf(repo, base) });
-    assert.deepEqual(payload('prove'), { receipt: `${treeOf(repo, candidate)}@${treeOf(repo, base)}`, reused: true, verdict: 'green', code: null });
+    // The receipt key carries the tooling tree (1411384ebb); with no pin yet it is the candidate's own tree.
+    assert.deepEqual(payload('prove'), { receipt: `${treeOf(repo, candidate)}@${treeOf(repo, base)}@${treeOf(repo, candidate)}`, reused: true, verdict: 'green', code: null });
     assert.equal(calls.prove, 0, 'a green receipt at the composition trees is reused, not run');
     assert.deepEqual(payload('merge'), { commit: candidate, tooling: treeOf(repo, candidate) });
     assert.deepEqual(toolingPin(repo), { tree: treeOf(repo, candidate), commit: candidate }, 'merge writes the tooling pin for the landed commit');
@@ -222,14 +223,15 @@ test('clause 1: land writes a landed batch through the same finish sequence; a r
   });
 });
 
-test('clause 1: pullboard merged and pullboard land both call the land cell, and merged records only inside its record step [C7]', () => {
+test('clause 1: pullboard merged and pullboard land merged calls the land cell, land only offers the land job, and merged records only inside its record step [C7]', () => {
   const source = name => readFileSync(new URL(`../../../cli/src/io/commands/${name}.js`, import.meta.url), 'utf8');
   const merged = source('merged');
   const land = source('land');
   assert.match(merged, /import \{ landMerged \} from '[./]+packages\/land\/index\.js';/);
   assert.match(merged, /await landMerged\(board\.db, \{/, 'merged runs its landing as the finish sequence');
-  assert.match(land, /import \{ landBatch \} from '[./]+packages\/land\/index\.js';/);
-  assert.match(land, /await landBatch\(board\.db, \{/, 'land writes its batch through the same sequence');
+  // pullboard land only offers the land job since #6807 (land.js LAND_OFFER_ONLY); the runner's land job runs landBatch.
+  assert.doesNotMatch(land, /landBatch/, 'land runs no host batch: it offers the land job');
+  assert.match(land, /offerLanding\(ctx, ctx\.info\.root/, 'land offers the same runner land job');
   const record = merged.slice(merged.indexOf('const record = async'), merged.indexOf('let announced'));
   assert.equal(merged.match(/ordered\(ctx, board, '(merged|recordTrainLanding)'/g).length, 2);
   assert.match(record, /ordered\(ctx, board, 'merged'/, 'the hand loop retires: the merge record is the record step');

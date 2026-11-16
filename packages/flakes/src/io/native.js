@@ -21,9 +21,12 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  dirname,
   join,
 } from 'node:path';
+import { pairReds } from './pair.js';
 import {
+  addWorktree,
   headCommit,
   headTree,
   invalidateGitFacts,
@@ -36,10 +39,11 @@ import {
   mainPolicy,
 } from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
-import { runProfiledShell } from "../../../gate/index.js";
+import { runProfiledShellAsync } from "../../../gate/index.js";
 import { runFrozenProof } from "../../../gate/index.js";
 import {
   committedTest,
+  tapFailures,
   tapTests,
 } from "../../../gate/index.js";
 
@@ -76,10 +80,10 @@ export function flakeSource(root, { commit, main, privateCheck = false } = {}) {
 /** Use only a known structured Node runner; arbitrary shell, Jest and Vitest commands are never replaced. */
 function nodePrefix(command, config, root, pin) {
   const executable = '(?:node|/[^\\s\'";|&`$]+/node)';
-  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:packages/gate|apps/cli)/src/io/run/tests\\.js)(?:\\s|$)', 'u');
+  const own = new RegExp('^(' + executable + ')\\s+((?:\\./)?(?:[A-Za-z0-9_-]+/)+src/io/run/tests\\.js)(?:\\s|$)', 'u');
   const builtin = new RegExp('^(' + executable + ')\\s+--test(?:\\s|$)', 'u');
   const match = own.exec(command);
-  if (match) return knownRunner(root, pin) ? match[1] + ' ' + match[2] : null;
+  if (match) return knownRunner(root, pin, match[2]) ? match[1] + ' ' + match[2] : null;
   const native = builtin.exec(command);
   if (native) {
     const rest = command.slice(native[0].length);
@@ -88,18 +92,37 @@ function nodePrefix(command, config, root, pin) {
   }
   if (new RegExp('^' + executable + '\\s', 'u').test(command)) return null;
   const configured = typeof config.affectedTests === 'string' ? own.exec(config.affectedTests) : null;
-  return configured && knownRunner(root, pin) && config.affectedTests.trim() === configured[1] + ' ' + configured[2]
+  return configured && knownRunner(root, pin, configured[2]) && config.affectedTests.trim() === configured[1] + ' ' + configured[2]
     ? config.affectedTests.trim() : null;
 }
 
-/** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
-function knownRunner(root, pin) {
+/**
+ * The structured Node runner prefix a paired rerun of `command` may use at the pinned head and main, or null when the
+ * command has none. Why exported: a pulled gate job pairs its own reds, so the submitting host names the prefix [C7].
+ *
+ * @param {string} root
+ * @param {string | null | undefined} command
+ * @param {object} config
+ * @param {{ head: string, main: string | null }} pin
+ * @returns {string | null}
+ */
+export function pairPrefix(root, command, config, pin) {
+  return typeof command === 'string' && command.trim() ? nodePrefix(command.trim(), config, root, pin) : null;
+}
+
+/**
+ * Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo: the command's
+ * own runner file, named relative to the repo, must match this tool's shipped copy of it at the candidate and at main.
+ * Why by command: the runner entry moves between packages and apps, so this package names none and keeps no list.
+ */
+function knownRunner(root, pin, runner) {
+  const file = runner.replace(/^\.\//u, '');
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../apps/cli/src/io/run/tests.js", import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL('../../../../' + file, import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
-      if (!committedTest(root, commit, 'apps/cli/src/io/run/tests.js')) return false;
-      const source = tryGit(root, ['rev-parse', '--verify', commit + ':apps/cli/src/io/run/tests.js']);
+      if (!committedTest(root, commit, file)) return false;
+      const source = tryGit(root, ['rev-parse', '--verify', commit + ':' + file]);
       return source.status === 0 && source.stdout === bundled.stdout;
     });
   } catch { return false; }
@@ -137,9 +160,9 @@ function targetResults(run, root, names) {
 }
 
 /** Run an exact-target private source comparison, preserving the trusted check's full receipt. */
-function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
+async function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
   const item = { item_id: submitDiagnostic ? lease.proof.item : 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
-  const check = submitDiagnostic ? runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : checkAtCommit(root, item, { gateLease: lease });
+  const check = submitDiagnostic ? await runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : await checkAtCommit(root, item, { gateLease: lease });
   const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : '';
   return { ...(check.proofReceiptId ? { proofReceiptId: check.proofReceiptId } : {}), isGreen: check.state === 'pass', unverified: check.state === 'unverified', output, log: check.outputPath,
     executionRoot: check.executionRoot, executionSourceUnchanged: check.executionSourceUnchanged, profilePath: check.profilePath, profile: check.profile,
@@ -227,7 +250,7 @@ async function observeFailure({ root, outputRoot = root, config, pin, run, comma
   }
   const pairedReceipts = [];
   for (const [file, group] of groups) {
-    const pairedRun = probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain);
+    const pairedRun = await probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain);
     if (kind === 'submit' && pairedRun?.proofReceiptId) pairedReceipts.push(pairedRun.proofReceiptId);
   }
   const observations = [];
@@ -275,13 +298,13 @@ export function recordedMainResults(cachedMain, file, names) {
  * Run one candidate probe and one main probe for every failing case of one file, selecting the cases by exact name,
  * then classify each case from its own result in those two shared receipts.
  */
-function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain) {
+async function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedMain) {
   const names = group.map(entry => entry.failure.name);
   const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
   const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
   const submitDiagnostic = lease?.proof?.kind === 'submit' && Boolean(lease.proof.diagnosticAdmission);
-  const pairRun = pin.privateCheck || submitDiagnostic ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
-    : runProfiledShell(root, selected, { gateLease: lease });
+  const pairRun = pin.privateCheck || submitDiagnostic ? await privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
+    : await runProfiledShellAsync(root, selected, { gateLease: lease });
   // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
   // probe that ran in a local private copy has no remote receipt to check.
   const gaps = [];
@@ -292,7 +315,7 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group, cachedM
   const recorded = pin.main && pin.main !== pin.head && committedTest(root, pin.main, file) ? recordedMainResults(cachedMain, file, names) : null;
   if (recorded) mainResults = recorded;
   else if (pin.main && pin.main !== pin.head && committedTest(root, pin.main, file)) {
-    mainRun = privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
+    mainRun = await privateProbe(root, pin.main, selected, lease, pin.main, checkAtCommit);
     const mainGap = mainRun.executionRunner ? remoteGap(mainRun, pin, 'main remote') : null;
     if (mainGap) gaps.push(mainGap);
     if (!mainRun.unverified && !mainGap) mainResults = targetResults(mainRun, root, names);
@@ -334,4 +357,42 @@ async function recordObservations(pending, observations, { record, recordBatch }
     }
     throw error;
   }
+}
+
+// Budget: the receipt keeps the last 1500 characters of the red output and at most 20 failing cases.
+const TAIL = 1500;
+const MOST_CASES = 20;
+
+/** The base commit's tree, checked out by git into a throwaway worktree beside the landing checkout; null when git refuses. */
+function baseTree(root, base) {
+  if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(String(base))) return null;
+  const folder = join(dirname(root), `pair-main-${randomUUID()}`);
+  try { addWorktree(root, ['--detach', '--force', folder, base]); return folder; } catch { return null; }
+}
+
+/** Remove the worktree baseTree made, with git's own bookkeeping. */
+function dropBaseTree(root, folder) { tryGit(root, ['worktree', 'remove', '--force', folder]); }
+
+/**
+ * Read a red land check: its failing cases by file and name, and with flakes.rerun on one paired rerun of each at the
+ * merged tree and one at the base trunk the job merged onto. The original red stays the job's verdict.
+ *
+ * @param {{ root: string, base: string, output: string, role: string, flakes: { rerun: boolean, prefixes?: Record<string, string | null> }, head: string, tree: string }} input
+ * @returns {Promise<{ role: string, head: string, tree: string, tail: string, failures: { file: string, name: string }[], load: object, pairs: object[] | null } | null>} null when the output names no failing case.
+ */
+export async function diagnoseLandingRed({ root, base, output, role, flakes, head, tree }) {
+  let rows = null;
+  try { rows = tapFailures(output, root); } catch { rows = null; }
+  const failures = (Array.isArray(rows) ? rows : []).filter(row => row?.file && row.name).slice(0, MOST_CASES).map(({ file, name }) => ({ file, name: String(name).slice(0, 500) }));
+  if (!failures.length) return null;
+  const load = { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) };
+  let pairs = null;
+  if (flakes.rerun === true) {
+    let main = null;
+    try {
+      const { NODE_TEST_CONTEXT, ...env } = process.env;
+      pairs = await pairReds({ root, phases: [{ role, status: 1, failures }], flakes, mainRoot: () => (main = baseTree(root, base)), env });
+    } catch { pairs = null; } finally { if (main) dropBaseTree(root, main); }
+  }
+  return { role, head, tree, tail: output.length > TAIL ? output.slice(-TAIL) : output, failures, load, pairs };
 }

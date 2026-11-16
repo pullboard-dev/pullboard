@@ -8,7 +8,7 @@ import { IN_STATE } from '../shared.js';
  */
 export const MOVES = [
   {
-    verb: 'withdraw', from: ['open', 'claimed', 'submitted'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED',
+    verb: 'withdraw', from: ['open', 'claimed', 'submitted', 'verified'], to: 'withdrawn', by: ['coordinator'], refuse: 'CLOSED',
     guards: ['joined', 'coordinatorOnly', 'noteGiven', 'itemExists', 'mainRedUnchanged', IN_STATE],
     sets: ['item_withdrawn_reason'], command: 'pullboard withdraw <id> <reason>',
   },

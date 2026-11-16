@@ -1,5 +1,6 @@
 import { readMainAudit } from '../../../../../packages/gate/index.js';
 import { writeFileSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
 import { waitForFixtureProgress } from '../progress.js';
 /** Shared board observations and owned-process helpers for real landing fixtures [B3,R3]. */
 import assert from 'node:assert/strict';
@@ -20,6 +21,30 @@ export function onBoard(box, action, clock) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
+/**
+ * The board's runner land jobs, oldest first: the items each offered, when a runner first claimed it, and its last receipt.
+ * Why: under pull dispatch a landing is a runner land job, not a host landing batch, so journeys read its job record [P7,#6577].
+ *
+ * @param {object} box - The e2e project box.
+ * @returns {{ id: string, items: number[], offeredAt: number, claimedAt: number | null, receipt: object | null }[]}
+ */
+export function landJobs(box) {
+  // @pullboard-board-file journey: a read-only look at the land jobs the real CLI and runner wrote.
+  const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    // The loopback runner writes this board while a journey polls it, so a read waits out its write lock, never failing on it.
+    // budget: wait ceiling for one runner write transaction, never a speed assertion.
+    db.exec('PRAGMA busy_timeout = 10000');
+    return db.prepare("SELECT job_id, job_created FROM job WHERE job_kind = 'land' ORDER BY job_created, job_id").all().map(job => {
+      const steps = db.prepare('SELECT job_step_name AS name, job_step_payload AS payload, job_step_at AS at FROM job_step WHERE job_step_job = ? ORDER BY job_step_seq, job_step_id').all(job.job_id);
+      const offered = JSON.parse(steps.find(step => step.name === 'offered')?.payload ?? '{}');
+      const receipts = steps.filter(step => step.name === 'receipt');
+      return { id: job.job_id, items: (offered.payload?.items ?? []).map(entry => entry.id), offeredAt: job.job_created,
+        claimedAt: steps.find(step => step.name === 'claimed')?.at ?? null, receipt: receipts.length ? JSON.parse(receipts.at(-1).payload).receipt : null };
+    });
+  } finally { db.close(); }
+}
+
 /** Return append-only public events for receipt and replay assertions. */
 export function events(box) { return onBoard(box, (board) => store.events(board)); }
 
@@ -29,9 +54,23 @@ export function calls(box) {
 }
 
 
+/** Commands that stay a real process: they settle pulled jobs or can outlast the worker thread's 45 s wait, or the call is about start-up. */
+const REAL_PROCESS = new Set(['submit', 'verify', 'land', 'test', 'resume', 'tour', 'version']);
+
+/**
+ * One sync fixture call: answered by the box's warm worker thread, or a real process when the command is in REAL_PROCESS or
+ * PULLBOARD_JOURNEY_MODE=process. Appends a parity record for the call when PULLBOARD_PARITY_RECORD is set [C7,U149].
+ */
+function quick(box, cwd, ...args) {
+  const real = process.env.PULLBOARD_JOURNEY_MODE === 'process' || typeof box.runSync !== 'function' || REAL_PROCESS.has(args[0]);
+  const result = real ? box.run(cwd, ...args) : box.runSync(cwd, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(box.parityRecord({ dir: box.dir, env: box.env, cwd, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
 /** Run a successful JSON command, retaining child context if any actual hook or check refuses. */
 export function json(box, cwd, ...args) {
-  const result = box.run(cwd, ...args, '--json');
+  const result = quick(box, cwd, ...args, '--json');
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   return JSON.parse(result.out);
 }
@@ -143,7 +182,7 @@ export async function settleRecordedSourceWake(box, helpers) {
 export function recordManualMergedItems(box, entries) {
   for (const entry of entries) {
     box.git(box.repo, 'merge', '-q', '--no-ff', '-m', `chore(merge): land fixture ${entry.item} [G1]`, entry.commit);
-    const merged = box.run(box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
+    const merged = quick(box, box.repo, 'merged', String(entry.item), box.git(box.repo, 'rev-parse', 'HEAD'));
     assert.equal(merged.code, 0, merged.err);
   }
 }

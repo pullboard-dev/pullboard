@@ -40,10 +40,10 @@ const BETWEEN_MS = 500;
 
 /** Tabs pressed in order from the Items address, each with the content that proves it drew. */
 export const TAB_TARGETS = Object.freeze([
-  ['shouts', '#feed .conversation-row, #feed .shout'],
+  ['shouts', '#feed .sx-th, #feed .sx-dayrule'],
   ['spec', '#spec-list .row'],
   ['doctrine', '#doctrine-list .row'],
-  ['activity', '#activity > *'],
+  ['activity', '#activity .act-cols'],
   ['roadmap', '#roadmap-list > [data-key] .milestone-head'],
   ['dashboard', '#dashboard > *'],
   ['items', '#chain .row'],
@@ -85,7 +85,7 @@ function pageScript() {
     requestAnimationFrame(rows);
     const feedback = (sample) => sample.kind === 'tab'
       ? document.querySelector('.tab.on')?.dataset.tab === sample.tab && visible(document.querySelector('.tab.on'))
-      : visible(document.querySelector('#detail h2')) && new RegExp('#' + sample.item + '(?!\\d)').test(document.querySelector('#detail h2').textContent);
+      : visible(document.querySelector('#detail h2')) && new RegExp('#' + sample.item + '(?!\\d)').test(document.querySelector('#detail .item-panel-head').textContent);
     const drawn = (sample) => sample.kind !== 'tab' || (typeof view === 'object' && view.tab === sample.tab
       && visible(document.querySelector('[data-pane="' + sample.tab + '"]')) && [...document.querySelectorAll(sample.target)].some(visible));
     addEventListener('mousedown', (event) => {

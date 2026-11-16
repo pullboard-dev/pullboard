@@ -1,5 +1,5 @@
 /** Browser-safe pure configuration and output policies: no node: built-in, no shell [C7,D3]. */
-export { CONFIG_FILE, isConfigFile } from './src/logic/config-file.js';
+export { CONFIG_FILE, isConfigFile } from '../kernel/browser.js';
 export {
   exitRulesDefaults,
   exitRulesConfigProblems,

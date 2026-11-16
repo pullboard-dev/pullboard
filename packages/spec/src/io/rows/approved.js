@@ -2,11 +2,9 @@
 import {
   existsSync,
   mkdirSync,
-  mkdtempSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   parseSpec,
@@ -22,6 +20,7 @@ import {
   CONFIG_FILE,
   configFromSource,
 } from '../../../../config/index.js';
+import { scratchFolder } from '../../../../config/index.js';
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 
@@ -59,7 +58,7 @@ function boardApprovals(file, { openBoardReadOnly, rowDecisions, boardBusyError 
 
 /** Verify staged receipts using staged trust files anchored to the already committed opt-in. */
 function stagedApprovals(root, decisions) {
-  const snapshot = mkdtempSync(join(tmpdir(), 'pullboard-staged-approval-'));
+  const snapshot = scratchFolder('pullboard-staged-approval-');
   try {
     mkdirSync(join(snapshot, '.pullboard'));
     for (const file of TRUST_FILES) {

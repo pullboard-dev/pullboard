@@ -1,12 +1,10 @@
 /** Replay exact recorded board-tool intent on pinned main; every resulting head needs fresh proof [C7,V4,V6]. */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cleanGitEnvironment } from '../../../git/index.js';
@@ -15,6 +13,8 @@ import { invalidateGitFacts } from '../../../git/index.js';
 import { recordedToolCommits } from '../../../git/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../../../codemap/light.js';
 import { Refused } from '../../../kernel/index.js';
+import { mkdtempSync } from 'node:fs';
+import { scratchBase } from '../../../kernel/light.js';
 
 /** Execute a bounded fixed executable, keeping complete diagnostics in the caller's private log. */
 function execute(root, executable, args, log, { input, env = {} } = {}) {
@@ -38,7 +38,7 @@ function replay(root, command, custody, log) {
 export function regenerateToolChange(root, source, main, { item }) {
   const recipes = recordedToolCommits(root, main, source);
   if (!recipes) return null;
-  const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tool-regeneration-')));
+  const directory = realpathSync(mkdtempSync(join(scratchBase(), 'pullboard-tool-regeneration-')));
   const checkout = join(directory, 'checkout');
   const log = [];
   const git = (cwd, args, options) => execute(cwd, 'git', ['--no-replace-objects', ...args], log, options);

@@ -64,13 +64,13 @@ function revert(directory, guard) {
  * @param {any} item - with item_commit and the frozen check
  * @param {object} [lease] - the held gate slot, shared with the restored run
  * @param {{ checkAtCommit: Function }} ports - The caller owns trusted check execution.
- * @returns {string} the line the verdict note carries, or '' when no guard is named
+ * @returns {Promise<string>} the line the verdict note carries, or '' when no guard is named
  */
-export function guardRevertNote(root, item, lease, { checkAtCommit }) {
+export async function guardRevertNote(root, item, lease, { checkAtCommit }) {
   const guard = guardOf(item);
   if (!guard) return '';
   let problem = '';
-  const run = checkAtCommit(root, item, { gateLease: lease, guard, mutate: (directory) => { problem = revert(directory, guard); return problem; } });
+  const run = await checkAtCommit(root, item, { gateLease: lease, guard, mutate: (directory) => { problem = revert(directory, guard); return problem; } });
   problem ||= run.guardProblem ?? '';
   if (problem) throw new Refused('GUARD_NOT_FOUND', `#${item.item_id}'s guard ${guard.text} cannot be reverted: ${problem}`);
   if (run.state === 'pass') {

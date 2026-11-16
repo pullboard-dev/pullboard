@@ -63,10 +63,10 @@ const VIEW_STOP_TIMEOUT_MS = 5_000;
 const LANES = ['core', 'view', 'coordinator', 'docs'];
 const VIEWER_ACTIONS = [
   // Shouts opens on its conversation list since 3a98fbee36; a thread's shouts show only after a press.
-  ['tab:shouts', 'shouts', '#feed .conversation-row, #feed .shout'],
+  ['tab:shouts', 'shouts', '#feed .sx-th, #feed .sx-dayrule'],
   ['tab:spec', 'spec', '#spec-list .row'],
   ['tab:doctrine', 'doctrine', '#doctrine-list .row'],
-  ['tab:activity', 'activity', '#activity > *'],
+  ['tab:activity', 'activity', '#activity .act-cols'],
   // Release milestones nest their head in the shared release header since 0ab202b994.
   ['tab:roadmap', 'roadmap', '#roadmap-list > [data-key] .milestone-head'],
   ['tab:items', 'items', '#chain .row'],
@@ -336,7 +336,16 @@ async function waitPaintedAndStable(chrome, network, name, selector, condition, 
     return !!node && !!rect && !node.closest('[hidden]') && !document.body.classList.contains('switching')
       && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0 && (${condition});
   })()`;
-  await chrome.waitFor(ready, ACTION_TIMEOUT_MS); // budget: 60-second hang ceiling for an unreachable UI condition, not a speed bar.
+  try {
+    await chrome.waitFor(ready, ACTION_TIMEOUT_MS); // budget: 60-second hang ceiling for an unreachable UI condition, not a speed bar.
+  } catch (error) {
+    // Name what the page held when the hang ceiling hit, so a never-ready target is read from the run's own log.
+    const held = await chrome.stable(`(() => ({ tab: view.tab, root: view.root, dataRoot: data?.root, on: [...document.querySelectorAll('.tab.on')].map(node => node.dataset.tab),
+      paneHidden: document.querySelector('[data-pane="' + view.tab + '"]')?.hidden, target: document.querySelector(${JSON.stringify(selector)}) ? 1 : 0,
+      body: document.body.className, address: location.pathname + location.hash }))()`)
+      .catch((reason) => ({ unread: String(reason) }));
+    throw new Error(`${error.message}; the page held ${JSON.stringify(held)}`, { cause: error });
+  }
   const startAt = firstLoad ? '0' : `window.__pb606?.marks[${JSON.stringify(name)}]`;
   const expression = `(() => {
     const node = ${target}, style = node && getComputedStyle(node), rect = node?.getBoundingClientRect();
@@ -435,6 +444,18 @@ async function typeKey(chrome, value) {
   await chrome.send('Input.dispatchKeyEvent', { type: 'keyUp', key: value, code, windowsVirtualKeyCode: keyCode });
 }
 
+/** Scroll the Items list so a row far down is drawn: the list draws only the rows near the screen (#6676), as a person would scroll to it. */
+async function scrollRowIntoView(chrome, id) {
+  await chrome.stable(`(() => {
+    const index = itemsList.shown.findIndex(item => item.id === ${id});
+    if (index < 0) throw new Error('item ${id} is not in the shown Items list');
+    const chain = document.querySelector('#chain');
+    window.scrollTo(0, Math.max(0, chain.getBoundingClientRect().top + window.scrollY + index * itemsPitch - innerHeight / 3));
+    return true;
+  })()`);
+  await chrome.waitFor(`!!document.querySelector('#chain .row[data-item="${id}"]')`);
+}
+
 /** Begin measuring the next native input of the requested type without including setup waits. */
 async function beginAction(chrome, name, eventType) {
   await chrome.stable(`window.__pb606Begin(${JSON.stringify(name)}, ${JSON.stringify(eventType)})`);
@@ -481,18 +502,13 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     if (projects > 1) {
       const other = listed.find(project => project.root !== measuredRoot);
       if (!other) throw new Error('the project-switch sample needs another registered board');
-      if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
-        await press(chrome, "document.querySelector('#proj-switch')");
-      }
+      // press reaches a row in the closed project list through the switcher itself, as a person does.
       /** Find the listed project without interpolating fixture paths into a CSS selector. */
       const row = root => `[...document.querySelectorAll('#proj-list .repo[data-root]')].find(node => node.dataset.root === ${JSON.stringify(root)})`;
       await beginAction(chrome, 'switchProjectSetup', 'mousedown');
       await press(chrome, row(other.root));
       await waitPaintedAndStable(chrome, network, 'switchProjectSetup', '#status-board',
         `view.root === ${JSON.stringify(other.root)} && data?.root === ${JSON.stringify(other.root)}`);
-      if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
-        await press(chrome, "document.querySelector('#proj-switch')");
-      }
       await beginAction(chrome, 'switchProject', 'mousedown');
       await press(chrome, row(measuredRoot));
       actions.push(await waitPaintedAndStable(chrome, network, 'switchProject', '#chain .row',
@@ -506,6 +522,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
         `document.querySelector('.tab.on')?.dataset.tab === ${JSON.stringify(tab)}`));
     }
 
+    await scrollRowIntoView(chrome, board.smallItemId);
     const smallRow = `document.querySelector('#chain .row[data-item="${board.smallItemId}"]')`;
     await beginAction(chrome, 'openSmallItem', 'mousedown');
     await press(chrome, smallRow);
@@ -513,6 +530,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     actions.push(await waitPaintedAndStable(chrome, network, 'openSmallItem', '#detail .item-panel',
       `view.item === ${board.smallItemId} && document.querySelector('#detail .item-panel-head h2')?.textContent.includes(${JSON.stringify(board.smallItemTitle)})`));
 
+    await scrollRowIntoView(chrome, board.longestHistoryItemId);
     const longRow = `document.querySelector('#chain .row[data-item="${board.longestHistoryItemId}"]')`;
     await beginAction(chrome, 'openLongestHistoryItem', 'mousedown');
     await press(chrome, longRow);
@@ -525,13 +543,16 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       await typeKey(chrome, character);
       await pause(90); // budget: reproduce the measured person's 90ms key cadence; the search sample starts at the first keydown.
     }
-    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#find-results [data-find]',
-      `document.querySelector('#q').value === 'Small' && !document.querySelector('#find-results').hidden`));
+    // Search opens the command palette (f3505cc3a2): the typed words land in #pal-q and its rows are the results.
+    actions.push(await waitPaintedAndStable(chrome, network, 'search', '#pal-overlay .pal-r',
+      `document.querySelector('#pal-q')?.value === 'Small' && !!document.querySelector('#pal-overlay .pal-r')`));
+    await chrome.stable("(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()");
 
     await beginAction(chrome, 'idleSetup', 'mousedown');
     await press(chrome, "document.querySelector('[data-tab=\"shouts\"]')");
+    // Older threads fold under Earlier, so the tab is ready on a row or the fold.
     // A live shout updates its conversation row's preview, so the feed's text still shows each write as it lands.
-    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .conversation-row, #feed .shout',
+    await waitPaintedAndStable(chrome, network, 'idleSetup', '#feed .sx-th, #feed .sx-dayrule',
       `document.querySelector('.tab.on')?.dataset.tab === 'shouts'`);
     const liveMessages = Array.from({ length: Math.ceil(idleMs / liveEveryMs) }, (_, index) =>
       `Live stress update ${index + 1} for seed ${board.seed}, run ${runIndex + 1}.`);
@@ -552,10 +573,10 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       if ([...window.__pb606IdleExpected.values()].some(at => at !== null)) {
         throw new Error('a live update marker was already present before this idle sample');
       }
-      })()`, "document.querySelector('#feed .conversation-row, #feed .shout')");
+      })()`, "document.querySelector('#shouts-threads')");
     let liveBoard = null;
     let liveWrites = 0;
-    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#feed .conversation-row, #feed .shout')");
+    const idleStart = await chrome.stable('performance.now()', "document.querySelector('#shouts-threads')");
     const wallStart = nodePerformance.now();
     const liveWriteOffsetsMs = [];
     try {
@@ -573,6 +594,17 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
     } finally {
       if (liveBoard) closeBoard(liveBoard);
     }
+    // Under load the last live write's response bytes can land just after the fixed window; wait (bounded, never
+    // throwing) until every marker has rendered so the sample holds its bytes. The window's start and checks are unchanged.
+    await chrome.stable(`(async () => {
+      const deadline = performance.now() + 10000; // budget: ten-second hang ceiling for the render wait, not action performance.
+      while (performance.now() < deadline) {
+        window.__pb606IdleScan?.();
+        if ([...(window.__pb606IdleExpected?.values() ?? [])].every(at => at !== null)) return true;
+        await new Promise(resolve => setTimeout(resolve, 50)); // budget: poll tick for the render wait, not action performance.
+      }
+      return false;
+    })()`, "document.querySelector('#shouts-threads')");
     const idle = await chrome.stable(`(() => {
       window.__pb606IdleScan?.();
       const endAt = performance.now();
@@ -581,7 +613,7 @@ async function measureRun(board, runIndex, executable, idleMs, liveEveryMs, proj
       report.renderedWrites = renderedAtMs.filter(({ at }) => Number.isFinite(at) && at <= endAt).length;
       report.renderedAtMs = renderedAtMs.map(({ at }) => Number.isFinite(at) ? at - ${idleStart} : null);
       return report;
-    })()`, "document.querySelector('#feed .conversation-row, #feed .shout')");
+    })()`, "document.querySelector('#shouts-threads')");
     idle.liveWriteOffsetsMs = liveWriteOffsetsMs;
     Object.assign(idle, network.snapshot('idleWithLiveWrites', idleStart, idle.endMs, idle.timeOrigin));
     idle.liveWrites = liveWrites;

@@ -28,8 +28,11 @@ import {
   runFixtureGit,
 } from './child.js';
 import {
-  fixtureMachineSettings,
+  fixtureSettledMachine,
 } from './testkit.js';
+import {
+  settleSubmit,
+} from './submit/settle.js';
 
 const BIN = join(import.meta.dirname, '../../pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -40,9 +43,32 @@ function put(root, file, text) {
   writeFileSync(join(root, file), text);
 }
 
-/** Run the actual command with isolated identity and machine settings. */
-export function cli(box, root, ...args) {
+/** The actual command once, with isolated identity and machine settings. */
+function once(box, root, args) {
   return runFixtureChild(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: box.env, encoding: 'utf8' });
+}
+
+/**
+ * Run the actual command. A pull submit returns queued at once, so a queued submit waits here for the loopback local
+ * runner's gate job and prints the pulled receipt's gate under `gate`, the shape these journeys read [P7,C7,#6249].
+ */
+export function cli(box, root, ...args) {
+  const result = once(box, root, args);
+  if (args[0] !== 'submit' || result.status !== 0) return result;
+  let submitted;
+  try { submitted = JSON.parse(result.stdout); } catch { return result; }
+  if (!submitted?.queued) return result;
+  const pid = submitted.localRunner?.pid;
+  if (pid && !box.runnerPids.includes(pid)) box.runnerPids.push(pid);
+  const deadline = Date.now() + 180_000;
+  for (;;) {
+    const shown = once(box, root, ['show', String(submitted.item ?? submitted.id), '--no-next']);
+    let job = null;
+    try { job = shown.status === 0 ? JSON.parse(shown.stdout).gateJob ?? null : null; } catch { /* a partial read; read again */ }
+    if (job?.step === 'done') return { ...result, stdout: JSON.stringify({ ...submitted, gate: job.gate, gateJob: job }) };
+    assert.ok(Date.now() < deadline, `gate for #${submitted.item} did not settle (last step ${job?.step ?? 'none'})`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+  }
 }
 
 /** Commit fixture changes normally, retaining real Git history. */
@@ -63,7 +89,7 @@ function source(expected) {
 export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion = 'The change works.', cancelled = false, affected, autoFileMainReds = false, companion = false, extra = {} } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   // A background board writer can outlive its command by a moment; retry the ENOTEMPTY it races rather than fail the case [C7].
-  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 60, retryDelay: 500 }));
   const root = join(directory, 'repo');
   mkdirSync(root);
   const env = { ...process.env };
@@ -76,12 +102,14 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, criterion 
     GIT_AUTHOR_NAME: 'Frozen fixture', GIT_AUTHOR_EMAIL: 'frozen@example.invalid',
     GIT_COMMITTER_NAME: 'Frozen fixture', GIT_COMMITTER_EMAIL: 'frozen@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'), PULLBOARD_MACHINE_HOME: join(directory, 'machine'),
+    // The nested pullboard test starts at once; the outer gated run owns the load budget (#7257).
+    PULLBOARD_FIXTURE_BOARD: '1',
     CODEX_SESSION_ID: 'known-main-affected-fixture', PULLBOARD_MODEL: 'Fixture Model',
   });
-  // These submits settle their gate in the submitting process, so the fixture pins controller dispatch (#6249).
-  mkdirSync(env.PULLBOARD_MACHINE_HOME, { recursive: true });
-  fixtureMachineSettings(env.PULLBOARD_MACHINE_HOME, { gate: { runnerDispatch: 'controller' } });
-  const box = { directory, root, env };
+  // A submit is a pulled gate job the loopback local runner takes; cli() waits for its receipt [P7,#6249].
+  fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
+  const box = { directory, root, env, runnerPids: [] };
+  t.after(() => { for (const pid of box.runnerPids) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } } });
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
   put(directory, 'bin/pullboard', `#!/bin/sh\nexec ${word(process.execPath)} ${word(BIN)} "$@"\n`);
   chmodSync(join(directory, 'bin/pullboard'), 0o755);
@@ -131,6 +159,42 @@ export function rows(box, sql, ...args) {
 export function fileMainRed(box) {
   const result = cli(box, box.root, 'add', 'core', 'Main red: affected case needs repair', '--specs', 'G1',
     '--criterion', 'The affected case passes on main.', '--check', 'node test/runner.js test/affected.test.js', '--brief', 'Files: test/affected.test.js\nTest: affected case');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return JSON.parse(result.stdout).item.item_id;
+}
+
+
+/**
+ * Submit the claimed item and wait for its pulled gate job, then (unless `submitted` is false, as for a red gate) for the item to be submitted: a red in main's own cases
+ * settles once main's receipts record [P7,C7,#6249]. `submission` is the recorded submit's detail, or null while none is.
+ */
+export async function settledSubmit(t, box, { submitted = true } = {}) {
+  const result = once(box, box.builder, ['submit', String(box.item), '--no-next']);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const run = (cwd, ...args) => {
+    const shown = runFixtureChild(process.execPath, [BIN, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    return { code: shown.status, out: shown.stdout ?? '', err: shown.stderr ?? '' };
+  };
+  let shown = null;
+  const until = document => { shown = document; return document?.item_status === 'submitted'; };
+  const settled = await settleSubmit(t, { repo: box.builder, env: box.env, run }, JSON.parse(result.stdout), submitted ? { until, deadlineMs: 75_000 } : {})
+    .catch(error => { throw new Error(`${error.message.split('\n')[0]}; item ${shown?.item_status}; thread:\n${JSON.stringify((shown?.thread ?? []).slice(-6)).slice(0, 3000)}`); });
+  const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1", box.item)[0];
+  return { ...settled, submission: event ? JSON.parse(event.event_detail) : null };
+}
+
+/** Two real cases red on main and unchanged by the item, so each needs its own owner. */
+export const SHARED = "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\n"
+  + "test('alpha case [G1]', () => assert.equal(1, 2));\ntest('beta case [G1]', () => assert.equal(1, 3));\n";
+
+/** File an open repair whose check names the shared file and whose criterion names one case (or none). */
+export function fileCaseRepair(box, criterion) {
+  const args = ['add', 'core', `Main red: ${criterion}`, '--specs', 'G1',
+    '--criterion', criterion, '--check', 'node test/runner.js test/affected.test.js', '--brief', 'Files: test/affected.test.js\nTest: shared cases'];
+  let result = cli(box, box.root, ...args);
+  // The second repair reads like the first by design: answer the near-duplicate guard with the nearest id it names.
+  const nearest = /DUPLICATE_LIKELY[\s\S]*?#(\d+)/u.exec(result.stdout + result.stderr)?.[1];
+  if (result.status !== 0 && nearest) result = cli(box, box.root, ...args, '--not-duplicate-of', `${nearest} each repair owns a different case`);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }

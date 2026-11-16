@@ -29,11 +29,13 @@ import vm from 'node:vm';
 import {
   stableChrome,
   press,
+  pressTab,
   tapTouch,
 } from './stable.js';
 import { closeBoard } from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { fetchFresh } from '../http.js';
+import { main as viewMain } from '../native.js';
 import {
   guardChromeGroup,
   requireBrowserSlot,
@@ -70,6 +72,29 @@ function build(box, p, id, file) {
   box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
   // Setup names its next item explicitly; the native handoff itself is tested by post-move-handoff cases.
   box.run(p.web, 'submit', String(id), '--no-next');
+}
+
+/**
+ * The in-process twin of build: the same claim, commit and submit, with the CLI calls awaited in this process instead of launched.
+ * Why: a journey's before() seeds a whole board, and a launch per call ran it past the wall limit.
+ */
+async function buildLocal(box, p, id, file, { queued = false } = {}) {
+  const key = `${p.baseBranch}:${id}`;
+  let branch = p.itemBranches.get(key);
+  if (!branch) {
+    branch = `${p.baseBranch}-item-${id}`;
+    box.git(p.web, 'switch', '-q', '-c', branch, p.baseBranch);
+    p.itemBranches.set(key, branch);
+  } else {
+    box.git(p.web, 'switch', '-q', branch);
+  }
+  p.branch = branch;
+  await box.inProcess(p.web, 'claim', String(id));
+  mkdirSync(join(p.web, 'web'), { recursive: true });
+  writeFileSync(join(p.web, 'web', file), `${file}\n`);
+  box.git(p.web, 'add', '-A');
+  box.git(p.web, 'commit', '-q', '-m', `feat(web): ${file} [G1]`);
+  await (queued ? box.inProcessQueued : box.inProcess)(p.web, 'submit', String(id), '--no-next');
 }
 
 /**
@@ -126,8 +151,69 @@ function throwIfFixtureAborted(signal) {
   if (signal?.aborted) throw fixtureAbortError(signal);
 }
 
-/** Start the real view and wait for a complete HTTP answer, rather than just its printed link. */
-async function startView(box, { bin = BIN, signal, onOwned } = {}) {
+/**
+ * Start the production view in this process on a free loopback port, giving this process the machine's environment until stop() is called.
+ * Why: the view child cost seconds to start, and the view reads its board registry from the environment on every request, so a
+ * browser that reaches it directly needs that environment in place for as long as the view runs [C7,#8362].
+ */
+async function startViewInProcess(box) {
+  const saved = { ...process.env };
+  const restore = () => { for (const key of Object.keys(process.env)) delete process.env[key]; Object.assign(process.env, saved); };
+  for (const key of Object.keys(process.env)) delete process.env[key];
+  Object.assign(process.env, box.env, { PULLBOARD_VIEW_FOREGROUND: '1' });
+  let stdout = '';
+  let stderr = '';
+  let pending;
+  let timer;
+  let link;
+  try {
+    const ready = new Promise((found, fail) => {
+      timer = setTimeout(() => fail(new Error(`view readiness deadline (30000ms) expired; stderr:\n${stderr}`)), 30_000); // budget: hang ceiling for view readiness; no throughput claim.
+      pending = viewMain(['view', '--no-open', '--port', '0', '--json'], {
+        cwd: box.dir,
+        stdin: process.stdin,
+        stdout: { isTTY: false, write(text) {
+          stdout += String(text);
+          try { found(JSON.parse(stdout)); } catch { /* Wait until the one JSON document is complete. */ }
+          return true;
+        } },
+        stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
+      }).then((code) => { fail(new Error(`view exited before readiness with code ${code}; stderr:\n${stderr}`)); return code; }, (error) => { fail(error); });
+    });
+    link = new URL((await ready).url);
+  } catch (error) {
+    clearTimeout(timer);
+    process.emit('SIGTERM');
+    await pending;
+    restore();
+    throw error;
+  }
+  clearTimeout(timer);
+  let stopped;
+  /** Stop this view once and put the previous environment back. */
+  const stop = () => {
+    stopped ??= (async () => { process.emit('SIGTERM'); await pending; restore(); })();
+    return stopped;
+  };
+  let cookie;
+  try {
+    const opened = await fetchLive(link, { redirect: 'manual', signal: AbortSignal.timeout(30_000) });
+    assert.equal(opened.status, 303, 'the printed link exchanges its key');
+    cookie = (opened.headers.get('set-cookie') ?? '').split(';')[0];
+    await opened.arrayBuffer();
+    const ready = await fetchLive(new URL(opened.headers.get('location') ?? '/', link), { headers: { cookie }, signal: AbortSignal.timeout(30_000) });
+    assert.equal(ready.status, 200, 'the view answers before the test fetches its page');
+    await ready.arrayBuffer();
+  } catch (error) {
+    await stop();
+    throw error;
+  }
+  return { link, key: link.searchParams.get('k'), cookie, base: `http://127.0.0.1:${link.port}`, stop };
+}
+
+/** Start the real view and wait for a complete HTTP answer, rather than just its printed link; inProcess runs it in this process instead of a child [C7]. */
+async function startView(box, { bin = BIN, signal, onOwned, inProcess = false } = {}) {
+  if (inProcess) return startViewInProcess(box);
   throwIfFixtureAborted(signal);
   const child = spawn(process.execPath, [bin, 'view', '--no-open', '--port', '0'], { cwd: box.dir, env: { ...box.env, PULLBOARD_VIEW_FOREGROUND: '1' } });
   let stopPromise;
@@ -257,7 +343,16 @@ function element(id) {
     focus() {},
     scrollIntoView() { this.scrolled += 1; },
     getBoundingClientRect: () => ({ top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0 }),
+    // The palette's search box hint is added beside its box.
+    parentNode: { appendChild() {} },
     querySelectorAll: () => [],
+    querySelector: () => null,
+    prepend() {},
+    // The notch preview appends its veil and panel to the body and listens on the element and its document [#6651].
+    append() {},
+    contains: () => false,
+    removeEventListener() {},
+    replaceWith() {},
   };
 }
 
@@ -285,7 +380,8 @@ function target({ id = '', classes = '', ...data }) {
   const matches = (selector) => {
     if (selector.startsWith('#')) return selector.slice(1) === id;
     if (selector.startsWith('.')) return classes.split(' ').includes(selector.slice(1));
-    const attribute = /^\[data-([a-z-]+)\]$/.exec(selector);
+    // A click target is never the root element, so a `:not(:root)` guard on a data selector always holds.
+    const attribute = /^\[data-([a-z-]+)\](?::not\(:root\))?$/.exec(selector);
     return attribute ? attribute[1].replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) in data : false;
   };
   const self = { id, dataset: data, hasAttribute: name => matches('[' + name + ']'), closest: (selectors) => (selectors.split(',').some((selector) => matches(selector.trim())) ? self : null) };
@@ -340,28 +436,46 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
   const known = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
   const elements = new Map();
   const node = (id) => {
-    if (!elements.has(id)) elements.set(id, element(id));
+    if (!elements.has(id)) elements.set(id, Object.assign(element(id), { ownerDocument: document }));
     return elements.get(id);
   };
   const clicks = [];
   const inflight = new Set();
   const requests = [];
   const document = {
-    body: element('body'),
+    body: Object.assign(element('body'), { appendChild() {} }),
     documentElement: element('html'),
     hidden: false,
     getElementById: (id) => (known.has(id) ? node(id) : null),
+    // The palette builds its overlay at load: a created element is a plain node the page may append and listen on.
+    createElement: () => Object.assign(element('created'), { ownerDocument: document }),
+    querySelector: () => null,
     querySelectorAll: (selector) => (selector === '[data-ago]' ? [...elements.values()].flatMap(ageNodes) : []),
     addEventListener: (type, listener) => { if (type === 'click') clicks.push(listener); },
   };
+  document.body.ownerDocument = document;
   // The body starts with the classes its markup gives it, as at first paint.
   for (const name of (/<body class="([^"]*)">/.exec(html)?.[1] ?? '').split(' ').filter(Boolean)) document.body.classList.add(name);
   let release = () => {};
   const held = new Promise((done) => { release = done; });
   if (!hold) release();
+  // The page's own timers, so close() can stop a page whose server is gone: its retry timers re-arm forever and
+  // would keep the test file's process from exiting (#8027).
+  const timers = new Set();
+  let closed = false;
+  /** Run a page timer like the browser's, held so close() can cancel it. */
+  const pageTimeout = (callback, ms, ...args) => {
+    if (closed) return 0;
+    const timer = setTimeout(() => { timers.delete(timer); callback(...args); }, ms);
+    timers.add(timer);
+    return timer;
+  };
+  /** Cancel a page timer the page itself clears. */
+  const pageClearTimeout = (timer) => { timers.delete(timer); clearTimeout(timer); };
   const context = vm.createContext({
     document,
     location: { search: '' },
+    navigator: { platform: '', userAgent: '' },
     URLSearchParams,
     structuredClone,
     innerWidth: width,
@@ -370,8 +484,8 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
     setInterval: () => 0,
     ...(later ? { Date: daysOn(later) } : {}),
     ...(store ? { localStorage: store } : {}),
-    setTimeout,
-    clearTimeout,
+    setTimeout: pageTimeout,
+    clearTimeout: pageClearTimeout,
     fetch: (path, init = {}) => {
       requests.push({ path, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : null });
       const answer = held.then(() => fetchLive(`${view.base}${path}`, { ...init, headers: { ...init.headers, ...session }, signal: init.signal ?? AbortSignal.timeout(30_000) })).then(async (res) => {
@@ -384,11 +498,20 @@ async function openPage(view, { width = 1280, later = 0, store = null, hold = fa
       return answer;
     },
   });
+  // The page reads window.scrollY to keep the reading position; this page never scrolls.
+  context.scrollY = 0;
+  context.window = context;
   vm.runInContext(script, context);
   if (!hold) await settle(inflight);
   return {
     html,
     requests,
+    /** Stop the page as closing its tab would: no timer it set, or sets later, runs. */
+    close() {
+      closed = true;
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    },
     // Let the held requests go, and wait for what they bring.
     async release() {
       release();
@@ -536,6 +659,15 @@ const meet = (a, b, gap = 0) => a.left - gap < b.right && b.left - gap < a.right
 function accept(box, p, id) {
   box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
   box.run(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
+/**
+ * The in-process twin of accept: the coordinator's accept, awaited in this process instead of launched.
+ */
+async function acceptLocal(box, p, id) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  await box.inProcess(p.repo, 'verify', String(id), 'accept', '--note', 'the page shows it', '--as', 'coordinator');
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
@@ -1047,14 +1179,19 @@ async function openShoutConversation(chrome, key = 'none') {
 async function shoutsAt(chrome, width, scheme) {
   await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
   await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] });
-  await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches && document.querySelector('#feed .shout')?.getBoundingClientRect().width > 0`);
+  await chrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${scheme})').matches && document.querySelector('#feed .sx-th')?.getBoundingClientRect().width > 0`);
   await chrome.stable('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
 }
 
 /** Open the project picker when a phone hides it, then choose a rendered project or group. */
 async function pickProject(chrome, find) {
-  if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
+  // Under 900 px the switcher lives in the Menu drawer, whose project button opens the project list (dcf117ebc6).
+  if (await chrome.stable('innerWidth <= 900')) {
+    await chrome.click("document.querySelector('#menu-btn')");
+    await chrome.click("document.querySelector('#mdrawer-proj')");
+  } else if (await chrome.stable("getComputedStyle(document.querySelector('#side .side-body')).display === 'none'")) {
     await chrome.click("document.querySelector('#proj-switch')");
+    await chrome.click('document.querySelector("[data-proj-all]")');
   }
   await chrome.click(find);
   await chrome.waitFor("!document.body.classList.contains('switching') && data?.root === view.root");
@@ -1067,14 +1204,13 @@ async function travel(chrome, step) {
 }
 
 /**
- * Choose a Show or Lane option from the Items toolbar's Filter menu as a person does: open the menu, press the
- * option, and wait for the menu to close (#429). A choice is "state:<state>" or "lane:<lane>".
+ * Choose a Show or Lane option from the strip's Items controls as a person does: press the Show button, or pick the
+ * lane in the Lane select. A choice is "state:<state>" or "lane:<lane>".
  */
 async function chooseFilter(chrome, choice) {
-  await press(chrome, "document.querySelector('#filter-toggle')");
-  await chrome.waitFor("!document.querySelector('#filter-menu').hidden");
-  await press(chrome, `document.querySelector('#filter-menu [data-filter-choice="${choice}"]')`);
-  await chrome.waitFor("document.querySelector('#filter-menu').hidden");
+  const [kind, value] = [choice.slice(0, choice.indexOf(':')), choice.slice(choice.indexOf(':') + 1)];
+  if (kind === 'state') await press(chrome, `document.querySelector('#page-controls [data-page-ctl="state"][data-value="${value}"]')`);
+  else await chrome.stable(`(() => { const select = document.querySelector('#page-controls select[data-page-ctl="lane"]'); select.value = ${JSON.stringify(value)}; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
 }
 
 /** Wait for a condition after a press; if it never arrives, say what the page shows and where the press landed. */
@@ -1136,16 +1272,16 @@ async function readRoadmap(chrome) {
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), clip = title.querySelector('.milestone-title') ?? title, style = getComputedStyle(clip), box = word.getBoundingClientRect();
             return {
               id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
               marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
-              seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
+              seen: box.width > 0 && box.height > 0 && getComputedStyle(word).visibility === 'visible',
               chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...(title.querySelector('.milestone-title') ?? title).childNodes].slice(1).map((node) => node.textContent).join(''), // the id and title share .milestone-title (10d605f572)
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
-              // Since b83469ff53 the title's ellipsis is set on .milestone-title, inside .t beside the after-chips.
-              cut: clip.scrollWidth > clip.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
+              // Since b83469ff53 the title's ellipsis is set on .milestone-title, inside .t beside the after-chips; since be3d0c2d76 .t is a block, so the inline span never overflows and the cut shows on .t.
+              cut: [clip, title].some((node) => node.scrollWidth > node.clientWidth), ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
             };
           }),
         };
@@ -1159,7 +1295,7 @@ async function readRoadmap(chrome) {
  * and the bar's edges. The tab picked now is picked again afterwards.
  */
 async function tabBar(chrome) {
-  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].map(tab => tab.dataset.tab)");
+  const tabs = await chrome.stable("[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length).map(tab => tab.dataset.tab)");
   const picked = await chrome.stable("document.querySelector('#tabs .tab.on')?.dataset.tab");
   const layouts = [];
   try {
@@ -1167,12 +1303,12 @@ async function tabBar(chrome) {
       await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(on)}))`);
       layouts.push(await chrome.stable(`(() => {
         const bar = document.querySelector('#tabs');
-        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].map(tab => {
+        return { on: ${JSON.stringify(on)}, bar: [bar.getBoundingClientRect().left, bar.getBoundingClientRect().right], tabs: [...bar.querySelectorAll('.tab')].filter(tab => tab.getClientRects().length).map(tab => {
           const range = document.createRange(); range.selectNodeContents(tab.firstChild);
           const box = tab.getBoundingClientRect(), label = range.getBoundingClientRect();
           return { tab: tab.dataset.tab, top: box.top, bottom: box.bottom, left: box.left, right: box.right, labelLeft: label.left, labelRight: label.right };
         }) };
-      })()`, "document.querySelectorAll('#tabs, #tabs .tab')"));
+      })()`, "[document.querySelector('#tabs'), ...[...document.querySelectorAll('#tabs .tab')].filter(tab => tab.getClientRects().length)]"));
     }
   } finally {
     await chrome.stable(`[...document.querySelectorAll('#tabs .tab')].forEach(tab => tab.classList.toggle('on', tab.dataset.tab === ${JSON.stringify(picked)}))`);
@@ -1267,4 +1403,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };

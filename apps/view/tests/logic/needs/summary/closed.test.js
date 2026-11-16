@@ -1,4 +1,4 @@
-/** Needs you starts closed: one quiet line when empty, otherwise two-line rows that open only when the person opens them [N26,B26]. */
+/** Rulings starts closed: one quiet line when empty, otherwise two-line rows that open only when the person opens them [N26,B26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { needsPanelHtml } from '../../../../index.js';
@@ -13,13 +13,13 @@ const calls = [
     rows: [{ id: 'G1', kind: 'spec', text: 'Keep one.', items: [10] }, { id: 'G2', kind: 'spec', text: 'Keep two.', items: [11] }] },
   { kind: 'decision', id: 7, ref: 'coordinator', text: 'Which wording ships?', at: '2026-11-02T00:00:00Z' },
   { kind: 'sentinel-draft', id: 's1', ref: 'file-size', check: 'node checks.js', directory: '.', every: 'hourly', owner: 'coordinator', at: '2026-11-03T00:00:00Z' },
-  { kind: 'agent-approved', id: 'G3', agent: 'Corey Olson', approvedAt: '2026-11-04T00:00:00Z', commit: 'a'.repeat(40) },
+  { kind: 'agent-approved', id: 'G3', agent: 'Sample Approver', approvedAt: '2026-11-04T00:00:00Z', commit: 'a'.repeat(40) },
   { kind: 'draft', count: 4 },
 ];
 const project = { holds: [], items: [], spec: [{ id: 'G3', text: 'Keep three.', gate: 'test/g3.test.js' }] };
 const opened = html => (html.match(/<details[^>]* open>/gu) || []).length;
 
-test('every Needs-you row is closed by default, in the full list and the Dashboard summary [N26,B26]', () => {
+test('every Rulings row is closed by default, in the full list and the Dashboard summary [N26,B26]', () => {
   for (const compact of [false, true]) {
     const model = needsPanelModel(calls, project, { person: true, compact });
     const html = needsPanelHtml(compact ? { ...model, headerSeparately: true } : model);
@@ -41,21 +41,17 @@ test('only the rows the person opened render open, and closing one takes it back
 
 test('the top of Items is one quiet line when nothing needs the person, and rows otherwise [N26,B26]', () => {
   const empty = needsPanelHtml(needsPanelModel([], { holds: [] }, { person: true, quiet: true }));
-  assert.match(empty, /^<li class="needs-quiet"><span class="needs-quiet-badge" aria-hidden="true"><svg[^]*?<\/svg><\/span><p><b>Nothing needs you\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span><\/p><\/li>$/u);
+  assert.match(empty, /^<li class="needs-quiet"><span class="needs-quiet-badge" aria-hidden="true"><svg[^]*?<\/svg><\/span><p><b>Nothing to rule on\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span><\/p><\/li>$/u);
   assert.equal(needsPanelHtml(needsPanelModel([], { holds: [] }, { person: true })), '', 'callers that do not ask for the line get nothing');
   const busy = needsPanelHtml(needsPanelModel(calls, project, { person: true, quiet: true }));
-  assert.doesNotMatch(busy, /Nothing needs you/u, 'any call replaces the quiet line');
+  assert.doesNotMatch(busy, /Nothing to rule on/u, 'any call replaces the quiet line');
   assert.equal(opened(busy), 0);
 });
 
-test('the Dashboard Needs you is one quiet line when nothing needs the person [N26]', () => {
+test('the Dashboard draws no Rulings card; rulings live in the notch (#6847) [N26]', () => {
   const input = dashboardData({ populated: true });
   const model = dashboardModel(input.project, input.events, { now: input.clockBase, complete: true });
-  const html = dashboardHtml(model);
-  const start = html.indexOf('aria-label="Needs you"'), card = html.slice(html.lastIndexOf('<section', start), html.indexOf('</section>', start) + 10);
-  assert.match(card, /^<section class="dash-card needs-card needs-quiet" aria-label="Needs you"><span class="needs-quiet-badge"><svg[^]*?<\/svg><\/span><p><b>Nothing needs you\.<\/b> <span class="needs-quiet-note">When a decision is yours, it shows up here and on your phone\.<\/span><\/p><\/section>$/u);
-  assert.doesNotMatch(card, /<h2>|<ol/u, 'no heading or list around the empty line');
-  const busy = dashboardHtml(model, { needs: '<li class="needs-call">row</li>' });
-  assert.doesNotMatch(busy, /Nothing needs you/u);
-  assert.match(busy, /<section class="dash-card needs-card" aria-label="Needs you"><header class="needs-card-header"><h2>Needs you<\/h2><\/header><ol class="needs home-needs"><li class="needs-call">row<\/li><\/ol><\/section>/u);
+  for (const html of [dashboardHtml(model), dashboardHtml(model, { needs: '<li class="needs-call">row</li>' })]) {
+    assert.doesNotMatch(html, /aria-label="Rulings"|needs-card|Nothing to rule on|needs-call/u);
+  }
 });

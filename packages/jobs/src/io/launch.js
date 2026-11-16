@@ -46,20 +46,20 @@ function launchctl(args) {
 }
 
 /** The pid launchd reports for a loaded job, or null while it has none. */
-async function jobPid(domain, label) {
-  const pid = /^\s*pid = (\d+)$/mu.exec((await launchctl(['print', `${domain}/${label}`])).stdout)?.[1];
+async function jobPid(domain, label, run = launchctl) {
+  const pid = /^\s*pid = (\d+)$/mu.exec((await run(['print', `${domain}/${label}`])).stdout)?.[1];
   return pid ? Number(pid) : null;
 }
 
 /** Boot out jobs whose process has ended and remove their files; a running job is left alone. */
-async function sweep(folder, domain) {
+async function sweep(folder, domain, run = launchctl) {
   let names = [];
   try { names = readdirSync(folder).filter(name => name.startsWith(LAUNCH_LABEL_PREFIX) && name.endsWith('.plist')); } catch { return; }
   for (const name of names) {
     const label = name.slice(0, -'.plist'.length);
-    const shown = await launchctl(['print', `${domain}/${label}`]);
+    const shown = await run(['print', `${domain}/${label}`]);
     if (shown.status === 0 && /^\s*pid = \d+$/mu.test(shown.stdout)) continue;
-    if (shown.status === 0) await launchctl(['bootout', `${domain}/${label}`]);
+    if (shown.status === 0) await run(['bootout', `${domain}/${label}`]);
     try { unlinkSync(join(folder, name)); } catch { /* Another sweep removed it. */ }
   }
 }
@@ -74,28 +74,28 @@ async function sweep(folder, domain) {
  *
  * @param {string} command - The executable.
  * @param {string[]} args - Its arguments.
- * @param {{ cwd?: string, env?: NodeJS.ProcessEnv, log?: string, home?: string, launchd?: boolean }} [options] - log is a file path for both output streams; launchd false forces the plain spawn.
+ * @param {{ cwd?: string, env?: NodeJS.ProcessEnv, log?: string, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - log is a file path for both output streams; launchd false forces the plain spawn; launcher stands in for launchctl, so a test can make the gui bootstrap fail.
  * @returns {Promise<{ pid: number | null, launchd: boolean, label?: string }>}
  */
-export async function spawnReachable(command, args, { cwd = process.cwd(), env = process.env, log, home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard'), launchd = existsSync(LAUNCHCTL) } = {}) {
+export async function spawnReachable(command, args, { cwd = process.cwd(), env = process.env, log, home = process.env.PULLBOARD_MACHINE_HOME ?? join(homedir(), '.pullboard'), launchd = existsSync(LAUNCHCTL), launcher = launchctl } = {}) {
   const uid = typeof process.getuid === 'function' ? process.getuid() : null;
-  const started = launchd && uid !== null ? await launched(command, args, { cwd, env, log, home, uid }) : null;
+  const started = launchd && uid !== null ? await launched(command, args, { cwd, env, log, home, uid, run: launcher }) : null;
   return started ?? detached(command, args, { cwd, env, log });
 }
 
 /** Load a one-shot launchd job running the command and answer its pid, or null when launchd refused it. */
-async function launched(command, args, { cwd, env, log, home, uid }) {
+async function launched(command, args, { cwd, env, log, home, uid, run }) {
   const domain = `gui/${uid}`, folder = join(home, 'launchd'), label = LAUNCH_LABEL_PREFIX + randomUUID();
   const file = join(folder, `${label}.plist`);
   try {
     mkdirSync(folder, { recursive: true, mode: 0o700 });
-    await sweep(folder, domain);
+    await sweep(folder, domain, run);
     writeFileSync(file, launchJobPlist(label, [command, ...args], { cwd, env, log }), { mode: 0o600 });
-    if ((await launchctl(['bootstrap', domain, file])).status !== 0) { unlinkSync(file); return null; }
+    if ((await run(['bootstrap', domain, file])).status !== 0) { unlinkSync(file); return null; }
   } catch { return null; }
   const until = Date.now() + START_WAIT_MS;
-  let pid = await jobPid(domain, label);
-  while (pid === null && Date.now() < until) { await pause(20); pid = await jobPid(domain, label); }
+  let pid = await jobPid(domain, label, run);
+  while (pid === null && Date.now() < until) { await pause(20); pid = await jobPid(domain, label, run); }
   return { pid, launchd: true, label };
 }
 
@@ -110,4 +110,29 @@ function detached(command, args, { cwd, env, log }) {
     return { pid: child.pid ?? null, launchd: false };
   } catch { return { pid: null, launchd: false }; }
   finally { if (typeof out === 'number') closeSync(out); }
+}
+
+/**
+ * Start `command args` as a detached child with the given stdio and return the child, for a caller that must hold its
+ * handle (a descriptor handed over, an IPC channel). Why: every detached start lives in this file, the one entry point [C7].
+ *
+ * @param {string} command - The executable.
+ * @param {string[]} args - Its arguments.
+ * @param {{ cwd: string, env: NodeJS.ProcessEnv, stdio: import('node:child_process').StdioOptions }} options
+ * @returns {import('node:child_process').ChildProcess}
+ */
+export function spawnDetachedChild(command, args, { cwd, env, stdio }) {
+  return spawn(command, args, { cwd, env, detached: true, stdio });
+}
+
+/**
+ * Signal a detached child's whole process group, the one entry point that stops a process tree [C7,#6751].
+ * Why: a detached start leads its own group, so the negative pid reaches the children it spawned; a gone group is no error.
+ *
+ * @param {number} pid - The group leader's pid.
+ * @param {NodeJS.Signals | number} [signal] - Signal to send, TERM by default.
+ * @returns {boolean} True when the signal was delivered, false when the group is already gone.
+ */
+export function stopProcessTree(pid, signal = 'SIGTERM') {
+  try { process.kill(-pid, signal); return true; } catch (error) { if (error?.code === 'ESRCH') return false; throw error; }
 }

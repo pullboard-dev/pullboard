@@ -38,14 +38,14 @@ function repo(t) {
   return { root, git, branch, base: git('rev-parse', 'main') };
 }
 
-test('main adding a far-away registry entry leaves the reviewed change fresh [E8,V8,#2896]', t => {
+test('verify.freshness.far-registry-entry: main adding a far-away registry entry leaves the reviewed change fresh [E8,V8,#2896]', t => {
   const { root, git, branch, base } = repo(t);
   const checked = branch('item', list => { list.splice(2, 0, '  "item-added": "cell",'); return list; });
   git('merge', '-q', '--ff-only', branch('landed', list => { list.splice(17, 0, '  "main-added": "cell",'); return list; }));
   assert.equal(composesUnchanged(root, { base, checked, tip: git('rev-parse', 'main'), paths: ['registry.json'] }), true);
 });
 
-test('a conflicting or hunk-changing main edit keeps the verdict stale [E8,V8,#2896]', t => {
+test('verify.freshness.conflicting-edit: a conflicting or hunk-changing main edit keeps the verdict stale [E8,V8,#2896]', t => {
   const { root, git, branch, base } = repo(t);
   const checked = branch('item', list => { list[5] = '  "entry-05": "item",'; return list; });
   git('merge', '-q', '--ff-only', branch('conflict', list => { list[5] = '  "entry-05": "main",'; return list; }));
@@ -63,7 +63,7 @@ test('a conflicting or hunk-changing main edit keeps the verdict stale [E8,V8,#2
     'a whitespace-only main edit beside the change is not byte-identical');
 });
 
-test('two items adding registry entries in sequence both stay fresh [E8,V8,#2896]', t => {
+test('verify.freshness.sequential-entries: two items adding registry entries in sequence both stay fresh [E8,V8,#2896]', t => {
   const { root, git, branch, base } = repo(t);
   const first = branch('first', list => { list.splice(3, 0, '  "first-added": "cell",'); return list; });
   const second = branch('second', list => { list.splice(16, 0, '  "second-added": "cell",'); return list; });
@@ -73,7 +73,7 @@ test('two items adding registry entries in sequence both stay fresh [E8,V8,#2896
   assert.match(git('show', 'main:registry.json'), /first-added[\s\S]*second-added/u);
 });
 
-test('main editing a nearby line that only changes the hunk context leaves the reviewed change fresh [E8,V8]', t => {
+test('verify.freshness.nearby-context: main editing a nearby line that only changes the hunk context leaves the reviewed change fresh [E8,V8]', t => {
   // Two lines away merges cleanly, yet it sat inside the reviewed hunk's three-line context; on 6 Nov such edits sent
   // accepted items back for an identical re-review. The patch id now carries no context lines.
   const { root, git, branch, base } = repo(t);

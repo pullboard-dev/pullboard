@@ -15,11 +15,12 @@ import {
   test,
 } from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
-import { openBoard } from '../../../../lib/index.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../../tests/fixtures/testkit.js';
+import { openKitBoard } from '../../../tests/fixtures/board.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -32,10 +33,14 @@ const {
  *
  * Why: the ownership routing (814a7def2a) replaced the immediate OUTSIDE_LANE refusal for proved foreign paths; the owner decides.
  */
-async function assertWaitsOnOwner(box, id, submitted, paths, label = '') {
+async function assertWaitsOnOwner(t, box, id, submitted, paths, label = '') {
   assert.equal(submitted.code, 0, `${label} ${submitted.out}${submitted.err}`);
-  const waiting = JSON.parse(submitted.out).waitingOwner;
-  assert.deepEqual(waiting.owners, ['coordinator'], label);
+  // A pulled gate settles on the machine's runner; the green proof of foreign paths is routed to its owner when its receipt applies [P7,C7,#7705].
+  await settleSubmit(t, { repo: box.repo, env: box.env, run: box.inProcess }, JSON.parse(submitted.out));
+  const board = openKitBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  let waiting;
+  try { waiting = store.ownershipWait(board, id); } finally { store.closeBoard(board); }
+  assert.deepEqual(waiting?.owners, ['coordinator'], label);
   for (const path of paths) assert.equal(waiting.paths.includes(path), true, `${label} ${path}`);
   const item = JSON.parse((await box.inProcess(box.repo, 'show', String(id), '--json')).out);
   assert.equal(item.item_status, 'open', label);
@@ -50,7 +55,7 @@ test('accept independently refuses a historically unchecked foreign submission [
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized');
   const commit = attackCommit(box, box.web);
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openKitBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') }); }
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'foreign-review');
@@ -74,7 +79,7 @@ test('clause 1: replacement refs cannot conceal the real submitted foreign paths
   const submitted = await box.inProcess(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 1);
   assert.equal(JSON.parse(submitted.out).error.code, 'DIRTY', 'the underlying tree differs from the visible one, so submit refuses before the lane check');
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openKitBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: 'synthetic unchecked tree' }); }
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'replacement-review');
@@ -101,7 +106,7 @@ test('replacement refs cannot turn a red committed owned tree into a clean green
   assert.equal(JSON.parse(submitted.out).error.code, 'DIRTY', 'the underlying tree differs from the files the gate would execute');
 });
 
-test('a detached coordinator review cannot become a new claim policy [V4,V16]', async () => {
+test('a detached coordinator review cannot become a new claim policy [V4,V16]', async t => {
   const box = project('test ! -f web/RED');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Detached policy', '--specs', 'G1').code, 0);
   const config = JSON.parse(readFileSync(join(box.web, 'pullboard.json'), 'utf8'));
@@ -116,5 +121,5 @@ test('a detached coordinator review cannot become a new claim policy [V4,V16]', 
   assert.match(JSON.parse(refused.out).error.message, /return to its main branch/);
   box.git(box.repo, 'switch', '-q', 'main');
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
-  await assertWaitsOnOwner(box, 1, await box.inProcess(box.web, 'submit', '1', '--json'), ['pullboard.json']);
+  await assertWaitsOnOwner(t, box, 1, await box.inProcess(box.web, 'submit', '1', '--json'), ['pullboard.json']);
 });

@@ -32,7 +32,7 @@ function page(options = {}) {
   ];
   const palette = pbPalette({
     document: doc, mac: true, box,
-    pages: () => ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost'].map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })),
+    pages: () => options.pages ?? ['items', 'shouts', 'roadmap', 'spec', 'doctrine', 'dashboard', 'activity', 'cost'].map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1) })),
     hasTab: () => true,
     items: () => { calls.fetch += 0; return items; },
     go: (target) => calls.go.push(target),
@@ -48,13 +48,18 @@ function page(options = {}) {
 }
 const field = { closest: (selector) => (/input/.test(selector) ? {} : null) };
 
-test('clause 1: the search box reads "Search or jump to…" and a press on it opens the palette [U94,#6616]', () => {
+test('clause 1: the search box reads "Search" and a press on it opens the palette [U94,#6616]', () => {
   const { palette, box, overlay } = page();
-  assert.equal(box.placeholder, 'Search or jump to…');
+  assert.equal(box.placeholder, 'Search');
   let prevented = false;
   box.mousedown({ button: 0, preventDefault() { prevented = true; } });
   assert.ok(prevented && palette.isOpen(), 'pressing the box opens the palette instead of focusing the field');
-  assert.match(overlay.innerHTML, /placeholder="Search items, or jump to a page…"/);
+  assert.match(overlay.innerHTML, /placeholder="Search"/);
+});
+
+test('clause 1: under 900 px the search box says just "Search" [N26]', () => {
+  globalThis.matchMedia = () => ({ matches: true });
+  try { assert.equal(page().box.placeholder, 'Search'); } finally { delete globalThis.matchMedia; }
 });
 
 test('clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes it [U94,#6616]', () => {
@@ -104,6 +109,23 @@ test('clause 1: arrow keys move the pick, Enter opens it, and a pick goes where 
   assert.deepEqual(calls.go, ['tab:shouts', 'item:3186'], 'an item opens by its id');
 });
 
+test('clause 1: a page row reads title, then one subtitle once, then its count, each in its own element [N26]', () => {
+  const { press, results } = page({ pages: [{ id: 'spec', name: 'Spec', count: '314' }, { id: 'dashboard', name: 'Dashboard', count: '' }] });
+  press('/');
+  const rows = results.innerHTML.split('<button').slice(1);
+  assert.equal(rows.length, 2 + 4, 'two pages and the four actions');
+  assert.match(rows[0], /<span>Spec<\/span><small>What the product must do<\/small><span class="pal-end"><em>314<\/em><kbd>g e<\/kbd><\/span>/u);
+  assert.equal(rows[0].split('What the product must do').length, 2, 'the subtitle appears once');
+  assert.doesNotMatch(rows[0], /Spec[^<]*What the product/u, 'the title does not carry the subtitle');
+  assert.match(rows[1], /<span>Dashboard<\/span><small>Every number on the board<\/small><span class="pal-end"><kbd>g d<\/kbd><\/span>/u, 'no count draws no count');
+});
+
+test('clause 1: the mounted page reads each page name from its title element, apart from its subtitle and count [N26]', () => {
+  const script = paletteScript();
+  assert.match(script, /querySelector\('\.tab-name b, \.side-name'\)/u, 'the name comes from the title, not the whole button text');
+  assert.match(script, /querySelector\('\[data-nav-fact\]'\)/u, 'the count comes from the page fact');
+});
+
 test('clause 2: g then a page letter jumps to that page, and a late or unknown second key does nothing [U94,#6616]', () => {
   const letters = { i: 'items', s: 'shouts', r: 'roadmap', e: 'spec', o: 'doctrine', d: 'dashboard', a: 'activity', c: 'cost' };
   for (const [letter, tab] of Object.entries(letters)) {
@@ -111,6 +133,9 @@ test('clause 2: g then a page letter jumps to that page, and a late or unknown s
     press('g'); press(letter);
     assert.deepEqual(calls.go, ['tab:' + tab], `g ${letter} opens ${tab}`);
   }
+  const gone = page();
+  gone.press('g'); gone.press('p');
+  assert.deepEqual(gone.calls.go, ['tab:dashboard'], 'g p, the retired Progress letter, opens Dashboard');
   const { press, calls } = page();
   press('g'); press('x');
   press('i');
@@ -128,7 +153,7 @@ test('clause 2: ? lists the shortcuts, \\ moves the navigation, Esc closes [U94,
   const { palette, press, calls, overlay } = page();
   press('?');
   assert.ok(palette.isHelp());
-  for (const text of ['Keyboard shortcuts', 'g i', 'g s', 'g r', 'g e', 'g o', 'g d', 'g a', 'g c', 'Search or jump anywhere', '⌘K', 'Move the navigation', 'Esc']) assert.ok(overlay.innerHTML.includes(text), `the list has ${text}`);
+  for (const text of ['Keyboard shortcuts', 'g i', 'g s', 'g r', 'g e', 'g o', 'g d', 'g a', 'g c', 'Search anywhere', '⌘K', 'Move the navigation', 'Esc']) assert.ok(overlay.innerHTML.includes(text), `the list has ${text}`);
   press('Escape');
   assert.ok(!palette.isHelp() && overlay.innerHTML === '', 'Esc closes the list');
   press('?');
@@ -165,4 +190,13 @@ test('clause 1: the hosted page mounts it with one hook and the palette reads th
   assert.match(prose, /\$\{historyLoadingScript\(\)\}\$\{paletteScript\(\)\}<\/script>/u, 'the page script ends with the one hook');
   const actions = readFileSync(new URL('../../../src/io/page/actions.js', import.meta.url), 'utf8');
   assert.doesNotMatch(actions, /event\.key !== '\/'/u, 'the old "/" focus handler is gone, so "/" opens the palette only');
+});
+
+test('clause 1: the mounted script runs in a page that has no navigator [C7,#6719]', () => {
+  const part = { innerHTML: '', classList: { toggle() {} }, setAttribute() {}, focus() {}, setSelectionRange() {}, scrollIntoView() {} };
+  const overlay = { innerHTML: '', addEventListener() {}, setAttribute() {}, querySelector: () => part, querySelectorAll: () => [] };
+  const document = { body: { appendChild() {} }, activeElement: null, createElement: () => overlay, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] };
+  const box = { placeholder: 'Search', parentNode: { appendChild() {} }, addEventListener() {} };
+  const run = new Function('navigator', 'document', '$', 'data', 'go', 'flipTheme', 'stateLabel', paletteScript());
+  assert.doesNotThrow(() => run(undefined, document, () => box, { project: { items: [] } }, () => {}, () => {}, () => ''), 'no navigator means no platform to read, not a crash');
 });

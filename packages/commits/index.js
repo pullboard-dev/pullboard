@@ -5,6 +5,7 @@ export * from "./light.js";
 export { pendingCommitSignoffProblem } from "./src/io/signoff.js";
 export * from "./src/io/revert.js";
 export * from "./src/io/hooks.js";
+export { staleHookProblems } from "./src/io/stale-hooks.js";
 export * from "./src/io/note.js";
 export * from "./src/logic/why.js";
 export * from "./src/logic/bindings.js";

@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { privateFixtureFiles } from '../../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../../gate/tests/fixtures/child.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { claimRefreshStart } from '../../../../../src/io/main/red/refresh/flight.js';

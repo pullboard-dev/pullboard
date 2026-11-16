@@ -1,8 +1,5 @@
 /** Argument and lane helpers for `pullboard add` and `pullboard edit`. Split from src/cli.js, which re-exports it [C7]. */
-import { dependencyValues } from '../../../../packages/items/index.js';
-import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { main } from './main.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
 import { outOfLane } from '../../../../packages/seats/index.js';
@@ -11,27 +8,37 @@ import { briefFiles } from '../../../../packages/items/index.js';
 import { startCheckBaseline } from '../../../../packages/gate/index.js';
 import { runnerBaselineCommand } from '../../../../packages/gate/index.js';
 import { offerCheckBaseline } from '../../../../packages/api/index.js';
+import { queueFor } from '../../../../packages/api/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../packages/config/index.js';
+import { runnerDispatchMode } from '../../../../packages/config/index.js';
 import { getItem } from '../../../../packages/store/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { primaryCheckoutRoot } from './worktree.js';
 import { ordered } from './claim.js';
+import { textArg } from './read.js';
+export { editAfter } from './read.js';
+export { textArg } from './read.js';
+
+/** The detached baseline worker, an executable of the lib app; the gate package spawns it by this path. */
+const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baseline.js', import.meta.url));
 
 /**
  * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
  * With no registered runners the machine is its own runner, as for a gate [P7]; the check never runs on this host (#2520, #3851).
  * Why not the detached worker: it has no runner of its own to run the check on, so the baseline stayed pending forever (#6560).
+ * Only under gate.runnerDispatch pull, as for a hosted landing: under controller nothing here pulls the job, so a
+ * waited add sat out the whole wait and left a detached local runner behind (#6233).
  *
  * @returns {Promise<boolean>} True when the job is offered and the local runner runs; false leaves the baseline to the worker.
  */
 async function offerLocalBaseline(ctx, board, id, baseline) {
   const root = ctx.info.root;
-  if (!localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
+  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
   const host = primaryCheckoutRoot(ctx.info);
   if (!host) return false;
-  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline) });
+  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
   return (await ensureLocalRunner(host)).running;
 }
 
@@ -53,40 +60,11 @@ async function settled(board, id) {
  */
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
   try { if (await offerLocalBaseline(ctx, board, id, baseline)) return options.wait ? settled(board, id) : undefined; } catch { /* the worker below leaves it pending */ }
-  try { return await startCheckBaseline(ctx.info.root, id, baseline, options); }
+  try { return await startCheckBaseline(ctx.info.root, id, baseline, { ...options, worker: BASELINE_WORKER }); }
   catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
   }
-}
-/** Parse an edit's dependency replacement, with the explicit word `none` meaning clear all. */
-export function editAfter(text) {
-  if (text === undefined) return undefined;
-  if (text.trim() === 'none') return [];
-  const parts = text.split(',').map((part) => part.trim());
-  if (!text.trim() || parts.some((part) => !part || part === 'none')) {
-    throw new Refused('USAGE', 'use --after <id>[,<id>...] or --after none');
-  }
-  return dependencyValues(parts);
-}
-/**
- * Text a command was given as --<name> "..." or as --<name>-file <file>, or undefined when neither.
- * A file carries text past the shell exactly: backticks, dollar signs and quotes included.
- *
- * @param {any} io
- * @param {any} values
- * @param {string} name
- * @returns {string | undefined}
- */
-export function textArg(io, values, name) {
-  const path = values[`${name}-file`];
-  if (values[name] !== undefined && path !== undefined) {
-    throw new Refused('USAGE', `give the ${name} once: --${name} "..." or --${name}-file <file>`);
-  }
-  if (path === undefined) return values[name];
-  const file = resolve(io.cwd, path);
-  if (!existsSync(file)) throw new Refused('NO_FILE', `no file ${path}`);
-  return readFileSync(file, 'utf8');
 }
 /**
  * The brief a command was given, from --brief or --brief-file.

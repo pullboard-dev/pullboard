@@ -5,7 +5,6 @@ import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -14,7 +13,7 @@ import { packageFiles } from '../index.js';
 import { cellLintReport } from '../../codemap/index.js';
 import { readCellLintBaseline } from '../../codemap/index.js';
 import { cellLintGrowth } from '../../codemap/index.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 import { mkdtempSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -22,7 +21,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 
-/** Create actual files and an explicit root import map; no source modules execute during reports. */
+/** Create actual files and an explicit root import map; no source modules execute during reports. Reports stage first because the lint reads tracked files. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -35,11 +34,27 @@ function fixture(t) {
   put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
   put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
   put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, remove, git, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
+  return { root, put, remove, git, report: () => { git('add', '-A'); return cellLintReport(root, { importsIn, commonJsIn }); } };
 }
 
+let realRepository = null;
+/** This repository's cell lint report and committed baseline, built once: the report is the slow part, and both real-repository cases below read the same one. */
+function realReport() {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  realRepository ??= { root, report: cellLintReport(root, { importsIn, commonJsIn }), baseline: readCellLintBaseline(root) };
+  return realRepository;
+}
+
+test('clause 2: a report over the real repository succeeds and prints with the growth against the committed index.json, as --report does [C7,CD64]', () => {
+  // lints.js --report is cellLintReport, then cellLintGrowth against the stored baseline, printed as JSON: the same calls, over the same tree, without a second multi-minute report.
+  const { report, baseline } = realReport();
+  const growth = cellLintGrowth(report, baseline);
+  assert.ok(Array.isArray(growth), 'the real index.json binds boundaries-012 and strays-001, so the growth is computed');
+  assert.doesNotThrow(() => JSON.stringify({ ...report, growth }, null, 2), 'the report prints');
+});
+
 test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = fileURLToPath(new URL('../../../', import.meta.url)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
+  const { report, baseline } = realReport();
   const growth = cellLintGrowth(report, baseline);
   for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
   assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
@@ -49,17 +64,16 @@ test('the actual discovered command loader reaches command run and its literal h
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    ['src/discovery.js', 'packages/kernel/index.js'].includes(file)
-      || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', "import { routing } from '../../../src/routing.js'; export function run() { return routing(); } export const unused = 1;\n");
+    ['src/discovery.js', 'packages/kernel/index.js', 'packages/kernel/light.js'].includes(file)
+      || file.startsWith('packages/kernel/src/') || file === 'apps/cli/src/io/commands/index.js') });
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../cli/src/io/commands/index.js'; COMMANDS.next();\n");
+  box.put('apps/cli/src/io/commands/next.js', "import { routing } from '../../../../../src/routing.js'; export function run() { return routing(); } export const unused = 1;\n");
   box.put('src/routing.js', 'export function routing() { return 1; }\n');
   box.put('src/not-a-command.js', 'export const unused = 1;\n');
   const report = box.report();
-  assert.ok(!report.metrics.unreachable.findings.some(row => ['apps/demo/commands/next.js', 'src/routing.js'].includes(row.key)));
-  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['apps/demo/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
-  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'apps/demo/commands/next.js#unused'));
+  assert.ok(!report.metrics.unreachable.findings.some(row => ['apps/cli/src/io/commands/next.js', 'src/routing.js'].includes(row.key)));
+  assert.ok(!report.metrics.unreachableExports.findings.some(row => ['apps/cli/src/io/commands/next.js#run', 'src/routing.js#routing'].includes(row.key)));
+  assert.ok(report.metrics.unreachableExports.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js#unused'));
   assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/not-a-command.js'));
 });
 
@@ -84,13 +98,13 @@ test('discovered command reach requires the exact kernel front door and discover
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
-    file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
-  box.put('apps/demo/commands/index.js', readFileSync(join(source, 'apps/cli/src/io/commands/index.js'), 'utf8').replace("'../../../../../packages/", "'../../../packages/"));
-  box.put('apps/demo/index.js', "import { COMMANDS } from './commands/index.js'; COMMANDS.next();\n");
-  box.put('apps/demo/commands/next.js', 'export function run() {}\n');
-  appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
-  copyPackageFiles(source, box.root, { files: ['packages/kernel/index.js'] });
+    file === 'packages/kernel/index.js' || file === 'packages/kernel/light.js' || file.startsWith('packages/kernel/src/')
+      || file === 'apps/cli/src/io/commands/index.js') });
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../cli/src/io/commands/index.js'; COMMANDS.next();\n");
+  box.put('apps/cli/src/io/commands/next.js', 'export function run() {}\n');
+  appendFileSync(join(box.root, 'packages/kernel/light.js'), '\n// changed provider\n');
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
+  copyPackageFiles(source, box.root, { files: ['packages/kernel/light.js'] });
   appendFileSync(join(box.root, 'packages/kernel/src/logic/discovery.js'), '\n// changed discovery\n');
-  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/demo/commands/next.js'));
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'apps/cli/src/io/commands/next.js'));
 });

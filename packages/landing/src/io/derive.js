@@ -49,6 +49,18 @@ export function amendLandingEngines(root, hooks = []) {
   return engines;
 }
 
+/**
+ * Refresh the test registries and badge documents on a merged tree and amend them into its last merge, as a batch's derive did; resolves the paths staged.
+ * Why: a pulled land job runs no batch, so main kept hand-edited registries and stale badges until it called this after amendLandingEngines (#7027) [C7].
+ * @param {string} root A checkout of the merged tree.
+ * @param {{ base?: string, badges?: { path: string, text: string }[], hooks?: string[] }} [options] - base: the commit the merges started from.
+ */
+export async function amendLandingRegistries(root, { base = 'HEAD^1', badges = [], hooks = [] } = {}) {
+  const staged = [...await stageTestRegistries(root, base), ...stageBadgeDocuments(root, badges)];
+  if (git(root, ['diff', '--cached', '--name-only']).trim()) git(root, [...hooks, 'commit', '--amend', '--no-edit']);
+  return staged;
+}
+
 /** Run a git command in `cwd`, feeding `input` on stdin; resolves its status and stdout bytes. Async so a leased caller's timer keeps firing. */
 export function gitStdin(cwd, args, input = '') {
   return new Promise((resolve, reject) => {

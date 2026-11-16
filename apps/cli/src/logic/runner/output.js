@@ -60,6 +60,33 @@ export function tapCaseErrors(text, root, { cases = Infinity, errorBytes = 600 }
 }
 
 /**
+ * The files Node's native spec reporter names in its failure footer: after the line `✖ failing tests:`, each failure
+ * starts `test at <file>:<line>:<col>`. Colour codes are ignored; a location under root is made relative, and one
+ * outside it, or a location printed anywhere but the footer, names no file. Why: a spec-reported red has no TAP account,
+ * so its cases cannot be named, yet the footer still says which files failed, so the board can compare them with main [V1,C7].
+ *
+ * @param {string} text - The phase's output.
+ * @param {string} root - The checkout the phase ran in.
+ * @param {{ files?: number }} [limits] - At most this many files.
+ * @returns {string[]} The failed files, sorted; none when the output has no footer.
+ */
+export function specFailureFiles(text, root, { files = 100 } = {}) {
+  const found = new Set();
+  let footer = false;
+  for (const raw of String(text).split(/\r?\n/u)) {
+    const line = raw.replace(/\u001b\[[0-9;]*[A-Za-z]/gu, '').trim();
+    if (line === '✖ failing tests:') { footer = true; continue; }
+    const at = footer ? /^test at (.+):\d+:\d+$/u.exec(line) : null;
+    if (!at) continue;
+    let path = at[1].startsWith('file://') ? decodeURIComponent(at[1].slice('file://'.length)) : at[1];
+    if (path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+    path = path.replace(/^(?:\.\/)+/u, '');
+    if (path && !path.startsWith('/') && !path.includes('\\') && !path.split('/').includes('..') && found.size < files) found.add(path);
+  }
+  return [...found].sort();
+}
+
+/**
  * The last lines of a phase's output that say why it exited, with the run's closing counts, timing frames, phase line,
  * Node warnings and blank lines left out. Why: those trailers fill the end of every run, so a plain tail of a crashed
  * or killed proof can end on counts that name nothing.
@@ -100,6 +127,10 @@ export function fitReceipt(receipt, limit) {
   const size = () => Buffer.byteLength(JSON.stringify(receipt));
   const phases = Array.isArray(receipt.phases) ? receipt.phases : [];
   for (const phase of phases) if (Array.isArray(phase.errors)) phase.errorCount ??= phase.errors.length;
+  // Per-case outcomes are all or nothing: a partial list would read as cases the phase never ran, so a receipt over its cap drops them first.
+  for (const phase of phases) if (size() > limit && phase.testOutcomes) delete phase.testOutcomes;
+  // The runtime rows are all or nothing for the same reason, and drop with them.
+  for (const phase of phases) if (size() > limit && phase.testRuntimes) delete phase.testRuntimes;
   for (let keep = 2000; size() > limit && keep >= 50; keep = Math.floor(keep / 2)) {
     for (const phase of phases) for (const key of ['tail', 'exit']) if (typeof phase[key] === 'string' && phase[key].length > keep) phase[key] = phase[key].slice(-keep);
   }

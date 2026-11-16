@@ -17,6 +17,7 @@ import {
   gzipSync,
   gunzipSync,
 } from 'node:zlib';
+import { storeName } from '../store-names.js';
 
 export const TEST_RESULT_VERSION = 2;
 export const TEST_RESULT_STORE_ENV = 'PULLBOARD_TEST_RESULT_STORE';
@@ -85,20 +86,20 @@ export function storeTestResult(store, entry) {
   mkdirSync(join(store, 'green'), { recursive: true, mode: 0o700 });
   if (entry.status === 'fail') {
     publish(join(store, 'red', entry.key), entry);
-    publish(join(directory, `${entry.key}.json`), entry);
+    publish(join(directory, storeName(entry.key)), entry);
     return true;
   }
   try { statSync(join(store, 'red', entry.key)); return false; } catch { /* Only never-red keys can be green. */ }
   // Keep the first completed origin; an unfinished worker cannot prevent a later real completion.
   try {
-    const prior = JSON.parse(readFileSync(join(store, 'green', `${entry.key}.json`), 'utf8'));
+    const prior = JSON.parse(readFileSync(join(store, 'green', storeName(entry.key)), 'utf8'));
     if (validTestResult(prior) && prior.key === entry.key && prior.status === 'pass'
       && (prior.origin.completion || !entry.origin.request)
       && (!testResultOutcomes(entry) || testResultOutcomes(prior))) entry = prior;
   } catch { /* A missing or damaged entry is replaced by this complete receipt. */ }
-  publish(join(store, 'green', `${entry.key}.json`), entry);
+  publish(join(store, 'green', storeName(entry.key)), entry);
   // A concurrent red is still authoritative at lookup, regardless of publication order.
-  publish(join(directory, `${entry.key}.json`), entry);
+  publish(join(directory, storeName(entry.key)), entry);
   return true;
 }
 
@@ -115,7 +116,7 @@ export function selectedTestResults(store, inputKeys) {
         let entry = JSON.parse(readFileSync(join(store, 'inputs', inputKey, name), 'utf8'));
         // The tombstone remains authoritative if a green publish raced its bucket update.
         try { entry = JSON.parse(readFileSync(join(store, 'red', entry.key), 'utf8')); } catch { /* No local red. */ }
-        if (validTestResult(entry) && entry.inputKey === inputKey && name === `${entry.key}.json`) records.push(entry);
+        if (validTestResult(entry) && entry.inputKey === inputKey && name === storeName(entry.key)) records.push(entry);
       } catch { /* Invalid data is a cache miss. */ }
     }
   }
@@ -164,7 +165,7 @@ export function completedTestResult(entry) {
 export function retainTestResultCompletion(store, receipt) {
   const directory = join(store, 'completions');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const path = join(directory, `${receipt.id}.json`);
+  const path = join(directory, storeName(receipt.id));
   // This is the native protocol body as received, including its complete output digest and packet.
   try { writeFileSync(path, JSON.stringify(receipt) + '\n', { flag: 'wx', mode: 0o600 }); }
   catch (error) { if (error.code !== 'EEXIST' || readFileSync(path, 'utf8') !== JSON.stringify(receipt) + '\n') throw error; }

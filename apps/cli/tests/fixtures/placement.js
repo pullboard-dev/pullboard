@@ -33,6 +33,8 @@ export async function plannedProject(t, { companionLanes = false } = {}) {
   mkdirSync(join(box.repo, 'packages/codemap/data/plan'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/codemap/data/plan/seed.json'), JSON.stringify({ source: 'placement fixture',
     sha256: 'fixture', order: ['app:view'], cells: { 'app:view': [existing] }, tests: {} }) + '\n');
+  // The plan reads tracked files, so the fixture sources are staged before it is computed.
+  box.git(box.repo, 'add', '-A');
   const plan = computePlan(box.repo);
   writePlan(box.repo, plan);
   assert.deepEqual(stalePlanRows(box.repo, plan), [], 'every planned source really exists');

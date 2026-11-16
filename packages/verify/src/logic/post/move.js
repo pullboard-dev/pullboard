@@ -36,7 +36,7 @@ async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listIt
   return idle(['the queue changed during dispatch; run pullboard next']);
 }
 
-/** Extend the acknowledged result through supplied native next/read operations; opt-out performs neither. */
+/** Extend the acknowledged result through supplied native next/read operations, and an optional seat top-up; opt-out performs none. */
 export async function completeMoveHandoff(ctx, completedId, values, primary, services) {
   if (values['no-next']) return primary;
   let next;
@@ -48,10 +48,17 @@ export async function completeMoveHandoff(ctx, completedId, values, primary, ser
     const message = 'the next native assignment could not be confirmed; run pullboard next';
     next = { ...idle([message], { code, message }), unavailable: true };
   }
-  const result = { ...primary, next };
+  // A seat still holding build work below its N takes one more ready item; a fresh claim already is that one [C7,#7461].
+  let more = [];
+  if (next.item && next.held && !next.review && services.topUp) {
+    try { more = await services.topUp(ctx); }
+    catch (error) { if (!(error instanceof Refused)) throw error; }
+  }
+  const result = { ...primary, next: { ...next, ...(more.length ? { more: more.map(found => ({ item: found.item, itemFolder: found.itemFolder })) } : {}) } };
   ctx.io.result?.(result);
   if (next.item) {
     ctx.io.say(`next ${next.review ? 'review reserved' : next.held ? 'work held' : 'build claimed'}: #${next.item.item_id} ${next.item.item_title}`);
+    for (const found of more) ctx.io.say(`also claimed: #${found.item.item_id} ${found.item.item_title}; build it in ${found.itemFolder}`);
     if (next.companions) ctx.io.say(`review tree checked out at ${next.companions.commit}; patch-set digest: ${next.companions.digest}; companions: ${next.companions.keys.join(', ')}`);
     if (next.item.item_check) ctx.io.say(`check: ${next.item.item_check}`);
   } else {

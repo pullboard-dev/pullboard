@@ -1,7 +1,7 @@
 /**
  * `pullboard tour` (N10): the method in thirty seconds, on a throwaway repo. A coordinator and two
  * scripted agents run real pullboard and git commands: a builder submits work that misses an edge,
- * a second agent finds it and rejects, and the rework is accepted. No model runs and nothing leaves
+ * a second agent finds it and rejects, and the rework is accepted and landed by the lander. No model runs and nothing leaves
  * the machine; the repo stays behind to look around in.
  */
 import { spawnSync } from 'node:child_process';
@@ -9,19 +9,20 @@ import { Readable } from 'node:stream';
 import {
   chmodSync,
   mkdirSync,
-  mkdtempSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { tmpdir } from 'node:os';
 import {
   basename,
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { slowestSteps } from '../logic/tour-steps.js';
+import { typed } from '../logic/tour-steps.js';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
+import { scratchFolder } from '../../../../packages/config/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
@@ -80,28 +81,9 @@ function paint(text, code, enabled) {
 }
 
 /**
- * Arguments as a person would type them.
- *
- * @param {string[]} args
- * @returns {string}
- */
-const typed = (args) => args.map((arg) => (/[\s"'$|()]/.test(arg) ? JSON.stringify(arg) : arg)).join(' ');
-
-/**
  * A step that did not do what the script expects, with what it printed.
  */
 class TourStopped extends Error {}
-
-/**
- * The three slowest commands the tour ran, with their times, so a slow tour says where its time went (N10).
- *
- * @param {{ label: string, ms: number }[]} timings
- * @returns {string}
- */
-function slowestSteps(timings) {
-  const slowest = [...timings].sort((a, b) => b.ms - a.ms).slice(0, 3);
-  return `slowest steps: ${slowest.map(({ label, ms }) => `${label} ${Math.round(ms)} ms`).join('; ')}`;
-}
 
 /**
  * Block for a moment, so a person can read along.
@@ -121,7 +103,7 @@ function pause(ms) {
 export async function tour(io) {
   const color = colorEnabled(io);
   const pace = io.stdout.isTTY ? 1 : 0;
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-tour-')));
+  const dir = realpathSync(scratchFolder('pullboard-tour-'));
   const shims = join(dir, '.bin');
   mkdirSync(shims);
   writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
@@ -220,6 +202,17 @@ export async function tour(io) {
     }
     throw new TourStopped(`the gate of #${args[1]} did not settle in two minutes; pullboard runner local shows this machine's runner`);
   };
+  /**
+   * Wait for the land job the accept offered to merge the item onto main: this machine's runner takes it, as any
+   * board's does, and the item records merged. Why: the tour shows the real landing path, never a hand merge (#7750).
+   */
+  const landed = async (who, id) => {
+    for (const until = Date.now() + 120_000; Date.now() < until; await new Promise((done) => setTimeout(done, 250))) {
+      const shown = await pb(who, ['show', id], { label: '', show: null });
+      if (/^progress: landed/mu.test(shown)) { io.say(`       #${id} landed on main by the land job`); return; }
+    }
+    throw new TourStopped(`the land job for #${id} did not land it in two minutes; pullboard runner local shows this machine's runner`);
+  };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });
@@ -238,7 +231,10 @@ export async function tour(io) {
     await pb('coordinator', ['init'], { label: '', show: null });
     write('coordinator', { 'pullboard.json': `${JSON.stringify(CONFIG, null, 2)}\n`, 'SPEC.md': SPEC });
     run('coordinator', 'git', ['add', '-A'], { label: '' });
-    run('coordinator', 'git', ['commit', '-q', '-m', 'chore: the greeter, on pullboard'], { label: '' });
+    // The first commit is hidden and no step shows its hook, so plumbing writes it and the hook's seconds are not spent here.
+    const tree = run('coordinator', 'git', ['write-tree'], { label: '', show: null });
+    const root = run('coordinator', 'git', ['commit-tree', tree, '-m', 'chore: the greeter, on pullboard'], { label: '', show: null });
+    run('coordinator', 'git', ['update-ref', 'HEAD', root], { label: '', show: null });
 
     step(1, 'The person approved one spec row. The coordinator files it as work.');
     io.say('   G1: greet(name) returns "Hello, <name>!"; a blank name greets the world: "Hello, world!"');
@@ -281,9 +277,8 @@ export async function tour(io) {
     if (color) run('review-1', process.execPath, ['--test', '--test-reporter=tap'], { label: 'node --test   # after restoring the fix', show: /^# (pass|fail)/, tone: 'green' });
     await pb('review-1', ['verify', '1', 'accept', '--note', 'removed the blank-name fix: its new test failed; restored, both pass'], { show: /^verified/, tone: 'green' });
 
-    step(8, 'The coordinator merges it. The ledger is the receipt.');
-    run('coordinator', 'git', ['merge', '-q', '--ff-only', 'app/1']);
-    await pb('coordinator', ['merged', '1', second]);
+    step(8, 'The lander lands it: a land job merges it onto main. The ledger is the receipt.');
+    await landed('coordinator', '1');
     await pb('coordinator', ['ledger'], { show: /^\| (#|1 )|verified by a second agent/ });
     // A pulled gate started this machine's local runner for the demo; it stops with the tour.
     await pb('coordinator', ['runner', 'local', '--off'], { label: '', show: null });

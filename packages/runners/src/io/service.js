@@ -65,7 +65,7 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   while (pending.length) {
     const path = pending.pop();
     if (files[path] !== undefined) continue;
-    // A directory a module lists at run time (`new URL('./', import.meta.url)`) has no text to copy; what it holds is copied when imported.
+    // A directory has no text to copy: a folder a module lists was expanded where it was named, and an ancestor is only a base.
     if (statSync(posix.join(root, path), { throwIfNoEntry: false })?.isDirectory()) continue;
     // A dot-file at the repo root is generated on the machine that runs it (the runner source manifest) and is read as optional.
     if (generated.has(path) && !statSync(posix.join(root, path), { throwIfNoEntry: false })) continue;
@@ -97,6 +97,8 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       const before = code.slice(Math.max(0, string.start - 24), string.start);
       const isData = URL_BEFORE.test(before) && URL_AFTER.test(code.slice(string.end, string.end + 40));
       if (!isData && !IMPORT_BEFORE.test(before)) continue;
+      // A string joined to another (`import('./stale-' + 'test-sweep.js')`) is half a specifier: a computed load the module declares and keeps out of the closure.
+      if (/^\s*\+/u.test(code.slice(string.end, string.end + 8))) continue;
       const specifier = string.text;
       if (specifier.startsWith('node:')) continue;
       if (isData && (specifier.includes('${') || /\.[cm]?js$/u.test(specifier))) continue;
@@ -107,11 +109,30 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
       const target = posix.normalize(posix.join(posix.dirname(path), specifier));
       if (target.startsWith('../')) throw new Refused('RUNNER_SERVICE_IMPORT', `${path} imports ${specifier}, outside the repo`);
       if (isData && /^\.[^/]+$/u.test(target)) generated.add(target);
-      pending.push(target);
+      pending.push(...(isData ? listedFolder(root, path, target) ?? [target] : [target]));
     }
   }
   for (const path of present) files[path] ??= readFileSync(posix.join(root, path), 'utf8');
   return files;
+}
+
+/**
+ * Every file in a folder a module names next to itself (`new URL('../../logic/engines/', import.meta.url)`), by repo
+ * path, or null when the target is not such a folder. The module lists that folder at run time from wherever it is
+ * installed, so the runner needs all of it, imported or not (#8734: the engine leaves went missing once nothing imported
+ * them). A folder holding the module (`new URL('../../../', import.meta.url)`) is a base for other paths, never listed whole.
+ *
+ * @param {string} root - The repo root.
+ * @param {string} path - The repo path of the module naming the folder.
+ * @param {string} target - The folder's repo path.
+ * @returns {string[] | null}
+ */
+function listedFolder(root, path, target) {
+  const folder = target.replace(/\/+$/u, '');
+  if (!statSync(posix.join(root, folder), { throwIfNoEntry: false })?.isDirectory()) return null;
+  if (folder === '.' || path.startsWith(`${folder}/`)) return [];
+  return readdirSync(posix.join(root, folder), { recursive: true }).map(name => posix.join(folder, name))
+    .filter(name => statSync(posix.join(root, name)).isFile());
 }
 
 /**

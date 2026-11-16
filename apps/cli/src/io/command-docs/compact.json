@@ -1,0 +1,11 @@
+{
+  "name": "compact",
+  "help": "  pullboard compact [--dry-run]       archive job steps of items landed or withdrawn over 30 days ago into a gzip file beside the board, then shrink the board file\n",
+  "required": {
+    "days": "number",
+    "jobs": "number",
+    "rows": "number",
+    "before": "number",
+    "after": "number"
+  }
+}

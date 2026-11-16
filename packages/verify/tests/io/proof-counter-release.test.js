@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { proofCounter } from '../../src/io/proof/counters.js';
 
-test('[C7] proofCounter keeps no prepared statement alive past its connection closing', async () => {
+test('verify.proof.counter-release: [C7] proofCounter keeps no prepared statement alive past its connection closing', async () => {
   setFlagsFromString('--expose-gc');
   const collect = runInNewContext('gc');
   const refs = [];

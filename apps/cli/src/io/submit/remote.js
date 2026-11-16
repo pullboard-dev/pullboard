@@ -154,7 +154,11 @@ async function remoteCells(encoded) {
   }
   const objects = git('rev-parse', '--path-format=absolute', '--git-path', 'objects').toString().trim();
   if (!objects || /[\r\n]/u.test(objects)) throw new Error('invalid object directory');
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-cells-trusted-'));
+  // A named scratch root (PULLBOARD_SCRATCH) holds throwaway folders; unset keeps the OS temp root.
+  const named = process.env.PULLBOARD_SCRATCH;
+  const { existsSync } = await import('node:fs');
+  const { isAbsolute } = await import('node:path');
+  const directory = mkdtempSync(join(named && isAbsolute(named) && existsSync(named) ? named : tmpdir(), 'pullboard-cells-trusted-'));
   try {
     const metadata = join(directory, '.objects');
     git('init', '--quiet', '--bare', metadata);

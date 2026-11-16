@@ -18,14 +18,15 @@ export const FALLBACK_BUDGET_MS = 1000;
  * Why: a command that sees none opens no write handle, so `next` and `status` stay read-only on a healthy board.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the jobs are read from its handle [P7,#9080].
  * @returns {{ id: string, kind: string, step: string, leaseOwner: string, lapsedMs: number }[]}
  */
-export function lapsedGateJobs(db, { now = Date.now() } = {}) {
-  return reclaimLapsed(db, { now }).filter((job) => {
+export function lapsedGateJobs(db, { now = Date.now(), runs = null } = {}) {
+  const jobs = runs?.db ?? db;
+  return reclaimLapsed(jobs, { now }).filter((job) => {
     // A gate-drive job is listed too, so a stale one is ended; it is never driven here (#4071, SM2).
     if (job.kind !== 'gate' && job.kind !== GATE_DRIVE_KIND) return false;
-    const view = jobView(db, job.id);
+    const view = jobView(jobs, job.id);
     return Boolean(view) && phaseOf(view) !== 'verdict';
   });
 }
@@ -44,31 +45,33 @@ export const GATE_JOB_NO_PROGRESS_MS = 20 * 60_000;
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ id: string }[]} lapsed - The lapsed gate jobs this pass read.
- * @param {{ owner: string, now: number, active?: (view: { item: number|null, candidate: string|null }) => boolean | null }} options
+ * @param {{ owner: string, now: number, runs?: { db: import('node:sqlite').DatabaseSync } | null, active?: (view: { item: number|null, candidate: string|null }) => boolean | null }} options
+ *   runs: the board's runs holder while runs_store is on; the job rows are read and ended there [P7,#9080].
  *   active answers whether the job's item is still submitted at its candidate (null when unknown); without it only
  *   the no-progress rule applies.
  * @returns {{ id: string, ended: 'stale' | 'infrastructure', lastStep: string | null }[]}
  */
-export function endDeadGateJobs(db, lapsed, { owner, now, active }) {
+export function endDeadGateJobs(db, lapsed, { owner, now, active, runs = null }) {
+  const jobs = runs?.db ?? db;
   const ended = [];
   for (const { id } of lapsed) {
-    const view = jobView(db, id);
+    const view = jobView(jobs, id);
     if (!view || view.step === 'done') continue;
     const last = view.steps.reduce((latest, step) => (!latest || step.at > latest.at ? step : latest), null);
     const lastStep = last?.name ?? null;
     let still = null;
     try { still = typeof active === 'function' ? active(view) : null; } catch { still = null; }
     if (still === false) {
-      writeStep(db, id, 'withdrawn', { stale: true, reason: view.kind === GATE_DRIVE_KIND
+      writeStep(jobs, id, 'withdrawn', { stale: true, reason: view.kind === GATE_DRIVE_KIND
         ? 'its hand-off ended, another replaced it, or its item left the claim the hand-off serves'
         : 'its item is no longer submitted at the head its hand-off submitted', lastStep }, { now });
-      finishJob(db, id, owner, { now });
+      finishJob(jobs, id, owner, { now });
       ended.push({ id, ended: 'stale', lastStep });
     } else if (view.kind === 'gate' && now - (last?.at ?? view.created ?? now) >= GATE_JOB_NO_PROGRESS_MS) {
       // A gate-drive job is resumed by its hand-off's recovery (#3995), so only a stale one is ended here.
-      writeStep(db, id, 'ended', { infrastructure: true, code: 'GATE_JOB_NO_PROGRESS', lastStep,
+      writeStep(jobs, id, 'ended', { infrastructure: true, code: 'GATE_JOB_NO_PROGRESS', lastStep,
         reason: `no step for ${Math.round((now - (last?.at ?? now)) / 60_000)} min after ${lastStep ?? 'its creation'}` }, { now });
-      finishJob(db, id, owner, { now });
+      finishJob(jobs, id, owner, { now });
       ended.push({ id, ended: 'infrastructure', lastStep });
     }
   }
@@ -103,20 +106,20 @@ function withinBudget(drive, budgetMs) {
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle, opened for writing.
  * @param {{ owner: string, now?: () => number, budgetMs?: number, drive?: typeof driveOnce, lapsed?: ReturnType<typeof lapsedGateJobs> } & Record<string, any>} options
  *   owner is this command's driver id; lapsed is a list the caller already read with lapsedGateJobs, so the pass
- *   does not read it again; the rest (repo, runner, plan, transport, sections) passes to driveOnce.
+ *   does not read it again; runs: the board's runs holder while runs_store is on, for the lapsed read, the endings and the drive; the rest (repo, runner, plan, transport, sections) passes to driveOnce.
  * @returns {Promise<{ lapsed: number, driven: string | null, transition?: string | null, phase?: string,
  *   pending?: boolean, code?: string }>}
  */
-export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, active, ...options } = /** @type {any} */ ({})) {
+export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, active, runs = null, ...options } = /** @type {any} */ ({})) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'reclaimPass needs a driver id to hold the lease: pass { owner }.');
-  const ended = new Set(endDeadGateJobs(db, known ?? lapsedGateJobs(db, { now: now() }), { owner, now: now(), active }).map(row => row.id));
+  const ended = new Set(endDeadGateJobs(db, known ?? lapsedGateJobs(db, { now: now(), runs }), { owner, now: now(), active, runs }).map(row => row.id));
   // A gate-drive job runs a whole submit gate that only its hand-off worker can drive; the fallback ends a stale one
   // above and leaves a live one to the worker and its recovery.
-  const lapsed = (known ?? lapsedGateJobs(db, { now: now() })).filter(row => !ended.has(row.id) && row.kind !== GATE_DRIVE_KIND);
+  const lapsed = (known ?? lapsedGateJobs(db, { now: now(), runs })).filter(row => !ended.has(row.id) && row.kind !== GATE_DRIVE_KIND);
   if (!lapsed.length) return { lapsed: 0, driven: null };
   const job = lapsed[0].id;
   try {
-    const outcome = await withinBudget(Promise.resolve().then(() => drive(db, job, { ...options, owner, now })), budgetMs);
+    const outcome = await withinBudget(Promise.resolve().then(() => drive(db, job, { ...options, owner, now, runs })), budgetMs);
     if ('pending' in outcome) return { lapsed: lapsed.length, driven: job, pending: true };
     const result = { lapsed: lapsed.length, driven: job, transition: outcome.transition, phase: outcome.phase };
     return outcome.code ? { ...result, code: outcome.code } : result;

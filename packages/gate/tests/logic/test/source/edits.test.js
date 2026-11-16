@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../fixtures/child.js';
 
 const PREFIX = "import { cpSync, readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
 const options = { file: 'test/data-reads.test.js', moves: [['packages/git/index.js', 'packages/git/src/io/main.js']], readSource: () => null };

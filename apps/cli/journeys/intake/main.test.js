@@ -51,7 +51,8 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
   assert.equal(item.outside.sandbox.tree, box.tree);
   assert.deepEqual(item.outside.sandbox.runs.map(run => run.environment.node), ['22.13.1', '24.21.0']);
   assert.equal(item.outside.ownerApproval, null);
-  refusal(await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env }), 'OUTSIDE_OWNER_APPROVAL');
+  // Landing is a runner job now: `land` only offers it, and the job's publish step refuses an unapproved outside item (publish.js publicationInputs) [C7].
+  await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
   fixtureJSON(box, box.repo, 'intake', 'approve', id);
   item = fixtureJSON(box, box.repo, 'show', id);

@@ -19,7 +19,7 @@ import {
 import {
   gitConfig,
   repoInfo,
-} from "../../../git/index.js";
+} from "../../../git/light.js";
 import { homedir } from 'node:os';
 
 /** The ledger of refusals that stopped someone's command, beside the board in Git's common folder. */
@@ -45,25 +45,30 @@ export function recordBlock(commonDir, block) {
 const TAIL_SLACK_MS = 3_600_000;
 
 /**
- * The ledger text from `offset` to the end. A read that starts mid-file drops its first partial line.
+ * The ledger bytes from `offset` to the end, read once into an unfilled buffer and cut to what was read.
  *
  * @param {string} file
  * @param {number} offset
- * @returns {string}
+ * @returns {Buffer}
  */
-function readFrom(file, offset) {
+export function readLedgerBytes(file, offset) {
   const fd = openSync(file, 'r');
   try {
-    const bytes = Buffer.alloc(fstatSync(fd).size - offset);
+    const bytes = Buffer.allocUnsafe(Math.max(0, fstatSync(fd).size - offset));
     let length = 0;
     while (length < bytes.length) {
       const count = readSync(fd, bytes, length, bytes.length - length, offset + length);
       if (count === 0) break;
       length += count;
     }
-    const text = bytes.subarray(0, length).toString('utf8');
-    return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
+    return bytes.subarray(0, length);
   } finally { closeSync(fd); }
+}
+
+/** The ledger text in `bytes` read from `offset`; a read that starts mid-file drops its first partial line. */
+function ledgerText(bytes, offset) {
+  const text = bytes.toString('utf8');
+  return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
 }
 
 /**
@@ -124,19 +129,25 @@ function stampOf(line) {
  * only drop another key from a returned block's pending keys, never the block itself.
  *
  * @param {string} commonDir
- * @param {{ since?: Date, mentioning?: string[] }} [options]
+ * @param {{ since?: Date, mentioning?: string[], read?: (file: string, offset: number) => Buffer }} [options] - `read` replaces the
+ *   ledger reader, for a test that counts reads.
  * @returns {any[]}
  */
-export function readBlocks(commonDir, { since, mentioning } = {}) {
+export function readBlocks(commonDir, { since, mentioning, read = readLedgerBytes } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
   const size = statSync(file).size;
   let text;
-  for (let window = 262_144; ; window *= 2) {
+  if (!since) {
+    // With no bound every line counts, so the whole ledger is read once; a ledger naming none of the words is never decoded.
+    const bytes = read(file, 0);
+    if (mentioning && !mentioning.some(word => bytes.includes(word))) return [];
+    text = ledgerText(bytes, 0);
+  } else for (let window = 262_144; ; window *= 2) {
     const offset = Math.max(0, size - window);
-    text = readFrom(file, offset);
-    if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
+    text = ledgerText(read(file, offset), offset);
+    if (offset === 0 || reachesBefore(text, from - TAIL_SLACK_MS)) break;
   }
   if (mentioning && !mentioning.some(word => text.includes(word))) return [];
   const blocks = new Map();
@@ -233,19 +244,36 @@ export function blockOwner(audience, info) {
   return audience === 'agent' ? key({ audience, seat: info.root }) : audience;
 }
 
-/** Record only the matching completed move's clear, leaving later or unrelated blocks intact. */
-export function clearCompletedBlocks(io, { requirePersonChannel }, now = io.clock?.now?.() ?? new Date()) {
+/**
+ * Whether a completed command could clear a block: it names a move and this board has a block ledger. Lets the CLI skip
+ * loading the person channel check after every read when nothing can clear [C7,#6483].
+ */
+export function blocksMayClear(io) {
+  let info;
+  try { info = repoInfo(io.cwd); } catch { return false; }
+  return existsSync(join(info.commonDir, BLOCKS_FILE)) && blockMoveKeys(io).length > 0;
+}
+
+/**
+ * Record only the matching completed move's clear, leaving later or unrelated blocks intact.
+ * The person-channel check loads only when a person's block could clear, so a read that clears an agent's block loads no person cell [#6483].
+ */
+export async function clearCompletedBlocks(io, { loadPersonCheck }, now = io.clock?.now?.() ?? new Date()) {
   let info;
   try { info = repoInfo(io.cwd); } catch { return; }
   const moveKeys = blockMoveKeys(io);
   if (!moveKeys.length) return;
   const owners = new Set([blockOwner('agent', info)]);
   if (info.isMain) owners.add('coordinator');
-  try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
   try {
     // A move key is a hex digest, so a block naming it holds it verbatim in its line.
-    const ids = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
-      && owners.has(block.owner) && Date.parse(block.at) <= now.getTime()).map(block => block.id);
+    const matching = readBlocks(info.commonDir, { mentioning: moveKeys }).filter(block => block.id && (block.moveKeys ?? [block.moveKey]).some(move => moveKeys.includes(move))
+      && Date.parse(block.at) <= now.getTime());
+    if (matching.some(block => block.owner === 'person')) {
+      const requirePersonChannel = await loadPersonCheck();
+      try { requirePersonChannel(io.personChannel); owners.add('person'); } catch { /* An agent's success cannot clear a person's block. */ }
+    }
+    const ids = matching.filter(block => owners.has(block.owner)).map(block => block.id);
     if (!ids.length) return;
     appendFileSync(join(info.commonDir, BLOCKS_FILE), JSON.stringify({ kind: 'clear', at: now.toISOString(), ids, moveKeys }) + '\n');
   } catch (error) { io.err(`pullboard: the move completed, but its earlier block could not be cleared (${error.message})`); }

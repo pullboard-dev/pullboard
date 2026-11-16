@@ -159,6 +159,31 @@ function save(file, data) {
   finally { rmSync(temporary, { force: true }); }
 }
 
+const LOCKED = /\b(?:database is locked|SQLITE_BUSY)\b/iu;
+/** Reruns of one inventory production after a lock stop; a lock that outlasts them is an infrastructure stop, never a red [C7]. */
+export const INVENTORY_LOCK_RETRIES = 3;
+
+/**
+ * Run `work`, and when it fails only because a SQLite database was locked, run it again up to `retries` more times.
+ * Why: the producer's file lock waits 60 s, and on 15 Nov a runner's inventory ended 'database is locked' because
+ * another gate held the lock for longer; the lock always frees, so the gate waits and runs the production again (#8415).
+ * Any other failure, and the last lock failure, goes up unchanged so a real red is never masked.
+ *
+ * @template T
+ * @param {() => Promise<T>} work
+ * @param {{ retries?: number, pause?: (ms: number) => Promise<unknown>, pauseMs?: number }} [options]
+ * @returns {Promise<T>}
+ */
+export async function retryLockedProduction(work, { retries = INVENTORY_LOCK_RETRIES, pause = ms => new Promise(done => setTimeout(done, ms)), pauseMs = 5_000 } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try { return await work(); }
+    catch (error) {
+      if (attempt >= retries || !LOCKED.test(String(error?.message ?? error))) throw error;
+      await pause(pauseMs * 2 ** attempt);
+    }
+  }
+}
+
 /**
  * Build a verified accepted tree off-path, reusing the nearest compatible completed ancestor where possible.
  * `trunk` is the accepted commit or ref the produced commit must descend into: main's branch on the coordinator, the
@@ -166,14 +191,14 @@ function save(file, data) {
  *
  * @param {string} root - Absolute repository root.
  * @param {string} commit - The accepted commit whose inventory is produced.
- * @param {{ withCheckout: Function, withLock: Function, trunk?: string }} ports
+ * @param {{ withCheckout: Function, withLock: Function, trunk?: string, lockRetry?: object }} ports
  */
-export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main' } = {}) {
+export async function warmAcceptedCells(root, commit, { withCheckout, withLock, trunk = 'refs/heads/main', lockRetry = {} } = {}) {
   if (typeof withCheckout !== 'function' || typeof withLock !== 'function') throw new TypeError('accepted cells warm needs checkout and lock ports');
   git(root, ['merge-base', '--is-ancestor', commit, trunk], { env: gitChildEnv(root) });
   if (!git(root, ['ls-tree', '--name-only', commit, '--', 'packages/codemap/data/plan/cells.json'], { env: gitChildEnv(root) })) return { available: false, cause: 'no-cells-plan' };
   // The pinned commit's checker is recorded here: produceAcceptedCells warms in-process only when the running tooling is
-  // the pinned one and otherwise re-runs apps/cli/src/io/landing/audit.js from the pinned checkout, so readers find it by the commit alone.
+  // the pinned one and otherwise re-runs the app's landing audit from the pinned checkout, so readers find it by the commit alone.
   const identity = acceptedCellsIdentity(root, commit, { pinned: true }), key = acceptedInventoryKey(identity);
   let prior;
   const ancestors = git(root, ['log', '--first-parent', '--max-count=201', '--format=%H %T', commit], { env: gitChildEnv(root) }).split('\n').slice(1);
@@ -185,9 +210,9 @@ export async function warmAcceptedCells(root, commit, { withCheckout, withLock, 
   }
   let mode = 'cache';
   const originalPreloads = identity.preloads;
-  const result = await withCheckout(root, commit, checkout => warmAcceptedInventory({ ...identity, root: checkout, commit, withLock,
+  const result = await retryLockedProduction(() => withCheckout(root, commit, checkout => warmAcceptedInventory({ ...identity, root: checkout, commit, withLock,
     parsers: { importsIn, commonJsIn }, withImportParseCache, eligible: () => preloadFingerprint() === originalPreloads,
-    prior, onMode: value => { mode = value; } }));
+    prior, onMode: value => { mode = value; } })), lockRetry);
   if (!result?.available) throw new Error(result?.unavailable ?? 'accepted cells inventory checkout failed');
   const file = join(identity.directory, `${key}.inventory.gz`), stat = lstatSync(file);
   save(join(identity.directory, `${key}.ready.json`), { version: 1, tree: identity.tree, checker: identity.checker, preloads: identity.preloads, key, bytes: stat.size, modified: stat.mtimeMs, digest: result.descriptor.digest, mode, ancestor: prior?.commit ?? null });
@@ -277,6 +302,7 @@ function stillPending(commit, message) {
  * live, calling `beat` after each poll so the job log shows the wait is alive. A producer that is dead or absent is
  * nudged once more; if it is still not running after that, or dies again, the wait ends at once with a clear
  * CELLS_INVENTORY_PENDING stop instead of sleeping out the deadline. limitMs bounds the whole wait.
+ * `workerUrl` is the app's landing audit entry, passed in because no package names an app; without it no re-nudge starts.
  * Why: a landing starts a 2 to 5 minute producer, longer than the quick infrastructure retries, so the gate waits on
  * the producer instead of spending those retries (#3316).
  *
@@ -286,7 +312,7 @@ function stillPending(commit, message) {
  * @returns {Promise<{ available: true, waited: number }>}
  */
 export async function waitForAcceptedCells(root, commit, { now = Date.now, sleep = defaultSleep, limitMs = 15 * 60_000, intervalMs = 15_000,
-  workerUrl = new URL('../../../../apps/cli/src/io/landing/audit.js', import.meta.url), read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
+  workerUrl, read = readAcceptedCells, nudge = nudgeAcceptedCells, owner = ownerState, beat = () => {} } = {}) {
   const started = now(), deadline = started + limitMs;
   let renudged = false;
   for (let waited = 0; ; waited += 1) {

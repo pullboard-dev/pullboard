@@ -42,12 +42,14 @@ export function pageStore() {
     /** Write a part's markup only when it differs from what this part last drew, apart from its ages. */
     paint(element, html) {
       if (!element) return false;
-      const markup = String(html ?? ''), key = markup.replace(AGES, '$1');
-      const kept = painted.get(element);
-      // A part someone else rewrote since has a new first node, and is drawn again.
-      if (kept && kept.key === key && kept.first === element.firstChild) return false;
+      const markup = String(html ?? ''), kept = painted.get(element);
+      // A part someone else rewrote since has a new first node, and is drawn again. The very markup a part last drew is
+      // not read again for its ages (#6851).
+      if (kept && kept.markup === markup && kept.first === element.firstChild) return false;
+      const key = markup.replace(AGES, '$1');
+      if (kept && kept.key === key && kept.first === element.firstChild) { kept.markup = markup; return false; }
       element.innerHTML = markup;
-      painted.set(element, { key, first: element.firstChild });
+      painted.set(element, { key, markup, first: element.firstChild });
       return true;
     },
     /** Note where each scrolled part stands before a draw. */

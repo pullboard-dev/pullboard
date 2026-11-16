@@ -6,8 +6,11 @@
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
+  "pushGate": { "shardMinutes": 40 },
   "landing": {
     "manualOverride": false,
+    "ledgerMainReds": true,
+    "shardProof": true,
     "publish": "separate",
     "perItem": false,
     "parallel": true,
@@ -133,12 +136,17 @@
     }
   ],
   "spec": "SPEC.md",
+  "specBoards": {
+    "upgrades": "../pullboard-upgrades"
+  },
   "verify": {
     "policy": "any",
     "unrelatedTrunkMoves": true,
     "composeAtAdmission": true,
-    "family": "require",
-    "familyRelaxAt": 5
+    "family": "prefer",
+    "familyRelaxAt": 5,
+    "folderTicks": true,
+    "titleTicks": true
   },
   "check": {
     "timeout": "60m"
@@ -219,6 +227,7 @@
         "apps/cli/journeys/doctrine/main.test.js",
         "apps/cli/journeys/doctrine/redesign.test.js",
         "apps/cli/journeys/export/addresses.test.js",
+        "apps/cli/journeys/export/addresses-history.test.js",
         "apps/cli/journeys/export/shouts.test.js",
         "apps/cli/journeys/export/control.test.js",
         "apps/cli/journeys/export/fetch.test.js",
@@ -229,7 +238,10 @@
         "apps/cli/journeys/fact/snapshot/",
         "apps/cli/journeys/hold/demo.test.js",
         "apps/cli/journeys/hold/demo-widths.test.js",
+        "apps/cli/journeys/hold/demo-widths/",
         "apps/cli/journeys/inbox/projects.test.js",
+        "apps/cli/journeys/inbox/sidebar-needs.test.js",
+        "apps/cli/journeys/inbox/sidebar-switcher.test.js",
         "apps/cli/journeys/inbox/sidebar.test.js",
         "apps/cli/journeys/inbox/tabs.test.js",
         "apps/cli/journeys/init/browser.test.js",
@@ -240,6 +252,7 @@
         "apps/cli/journeys/init/home.test.js",
         "apps/cli/journeys/init/origin/",
         "apps/cli/journeys/init/perf.test.js",
+        "apps/cli/journeys/init/perf/",
         "apps/cli/journeys/init/provenance.test.js",
         "apps/cli/journeys/init/scope.test.js",
         "apps/cli/journeys/init/speed.test.js",
@@ -300,7 +313,9 @@
         "apps/cli/journeys/shout/prose.test.js",
         "apps/cli/journeys/shout/references.test.js",
         "apps/cli/journeys/shout/rows.test.js",
-        "apps/cli/journeys/shout/search.test.js",
+        "apps/cli/journeys/shout/journeys/search-ages.test.js",
+        "apps/cli/journeys/shout/journeys/search-capture.test.js",
+        "apps/cli/journeys/shout/journeys/search-fixture.js",
         "apps/cli/journeys/shout/shouts.test.js",
         "apps/cli/journeys/shout/shouts/",
         "apps/cli/journeys/shout/shouts/redesign.test.js",
@@ -361,7 +376,7 @@
         "packages/gate/tests/fixtures/cockpit/probe.mjs",
         "packages/gate/tests/io/static/style.test.js",
         "packages/gate/tests/stable.test.js",
-        "packages/codemap/data/plan/46-app-view.json"
+        "packages/codemap/data/plan/47-app-view.json"
       ],
       "specs": [
         "N26",
@@ -379,7 +394,7 @@
     "packages/gate/data/tests/tiers.json",
     "packages/gate/data/baselines/cli-launches.json",
     "packages/codemap/data/plan/45-app-view.json",
-    "packages/codemap/data/plan/46-app-view.json",
+    "packages/codemap/data/plan/47-app-view.json",
     "apps/cli/journeys/view/detail.test.js"
   ],
   "commits": {
@@ -414,6 +429,19 @@
   "claims": {
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
-    "perSeat": 2
+    "perSeat": 5
+  },
+  "protect": {
+    "blocked": [
+      ".env",
+      ".env.*",
+      "*.env",
+      ".envrc"
+    ],
+    "allowed": [
+      ".env.example",
+      "apps/cli/tests/fixtures/upgrade-093/board.sqlite"
+    ],
+    "secrets": true
   }
 }

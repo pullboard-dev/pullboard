@@ -7,6 +7,8 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from '../apps/cli/tests/fixtures/e2e.js';
 import { runFixtureGit } from '../apps/cli/tests/fixtures/child.js';
+import { settleLand } from '../apps/cli/tests/fixtures/land/settle.js';
+import { settledGateJob } from '../apps/cli/tests/fixtures/submit/settle.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const FIXTURE_MODEL = 'Badge fixture';
@@ -35,7 +37,7 @@ test('README board-count badges read tracked main endpoint documents [I10,B3,V1]
   }
 });
 
-test('landing rewrites stale tracked board badge counts inside the containing merge [B3,V1]', () => {
+test('landing rewrites stale tracked board badge counts inside the containing merge [B3,V1]', async () => {
   const check = 'node --test --test-reporter=tap web/badge.test.cjs';
   const box = e2e.project(check, e2e.sandbox({ declareFamilies: true }), { withWorktree: false });
   // These are fresh fixture CLIs; retain native admission while avoiding nested Node worker suppression.
@@ -70,11 +72,9 @@ test('landing rewrites stale tracked board badge counts inside the containing me
   const commit = box.git(web, 'rev-parse', 'HEAD');
   const submitted = box.run(web, 'submit', String(id));
   assert.equal(submitted.code, 0, submitted.err || submitted.out);
-  const checkLog = box.git(web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
-  const proof = readFileSync(resolve(web, checkLog), 'utf8');
-  assert.match(proof, /ok 1 - the badge probe passes \[G1\]/u, 'submit executes the real probe body');
-  assert.match(proof, /# tests 1\b/u);
-  assert.match(proof, /# fail 0\b/u);
+  // Under pull the gate runs the real probe on a runner; the item reaches review once its receipt is green, so wait for that settle [C7].
+  await settledGateJob(box, id);
+  assert.equal(JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).item_status, 'submitted', 'the green pulled gate put the item in review');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
     const accepted = box.run(box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'The real native probe passed.');
@@ -84,7 +84,8 @@ test('landing rewrites stale tracked board badge counts inside the containing me
   for (const [name, document] of stale) assert.deepEqual(JSON.parse(box.git(box.repo, 'show', `HEAD:docs/badges/${name}.json`)), document);
   const result = box.run(box.repo, 'land', '--json');
   assert.equal(result.code, 0, result.err || result.out);
-  const landed = JSON.parse(result.out);
+  // The pulled land offers a runner job; settleLand reads its receipt in the inline shape [C7].
+  const landed = await settleLand(box, JSON.parse(result.out));
   assert.deepEqual(landed.landed, [id]);
   const item = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
   assert.equal(item.item_merged_commit, landed.batch.tip);

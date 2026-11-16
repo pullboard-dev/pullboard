@@ -168,7 +168,7 @@ Every field is untrusted. Beyond CR3-CR7:
 
 ## Who it affects
 
-Opted-in repositories and their outside contributors. Off by default. This repository turns it on with 0.9.4.
+Opted-in repositories and their outside contributors. Off by default. This repository starts with 0.9.4: its issue templates use records, and `pullboard contribute check` checks one. The skill, profiles and the full gate follow.
 
 ## Measure
 

@@ -12,9 +12,11 @@ import {
   resolve,
 } from 'node:path';
 import { createAuthHandler } from '../../../index.js';
+import { AUTH_DATABASE_FILE } from '../../../index.js';
 import { createRelayAuth } from '../../../index.js';
 import { createGitHubClient } from '../../../index.js';
 import { createRelayHandler } from '../../../index.js';
+import { health } from './health.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 const NODE_UID = 1000;
@@ -55,14 +57,6 @@ function dropPrivileges() {
   }
 }
 
-/** Handle the Railway readiness probe without exposing storage or configuration. */
-function health(req, res) {
-  if (req.method !== 'GET' || new URL(req.url, 'http://localhost').pathname !== '/health') return false;
-  res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
-  res.end('ok\n');
-  return true;
-}
-
 /** Start the authenticated opaque relay on Railway's assigned port and public origin. */
 async function startRelay() {
   const publicOrigin = process.env.PULLBOARD_PUBLIC_ORIGIN || '';
@@ -87,7 +81,7 @@ async function startRelay() {
     throw new Refused('RELAY_USER', 'start as the image node user, or set RAILWAY_RUN_UID=0 so startup can prepare the volume and drop privileges');
   }
   const auth = createRelayAuth({
-    database: join(data, 'auth.sqlite'),
+    database: join(data, AUTH_DATABASE_FILE),
     github: createGitHubClient({
       clientId: process.env.GITHUB_APP_CLIENT_ID || '',
       clientSecret: process.env.GITHUB_APP_CLIENT_SECRET || '',

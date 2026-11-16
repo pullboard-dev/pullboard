@@ -1,10 +1,13 @@
 import { allItemsNeedingRescope } from '../../../store/index.js';
 import { landingBatches } from '../../../store/index.js';
+import { readBoardMeta } from '../../../store/index.js';
 import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
+import { noReviewerSupplyFindings } from './supply.js';
+import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -12,6 +15,9 @@ import { eligibilityProblem } from '../../../verify/index.js';
 import { lineSettings } from '../../../state/light.js';
 import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
+import { declaredLimitProblem } from '../../../verify/index.js';
+import { builderFamilyOf } from '../../../verify/index.js';
+import { canonicalFamily } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../items/index.js';
@@ -162,6 +168,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
+  report.waiting.push(...capacityWorsenedFindings(db, at, finding));
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
       subject: `${stale.kind}:${stale.id}`, key: `STALE_ROW_DECISION:${stale.kind}:${stale.id}`,
@@ -194,6 +201,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
     }));
   }
 
+  report.stuck.push(...noReviewerSupplyFindings(board, items, listAgents(board), at, finding, item => item.item_updated_at, { limitProblem: declaredLimitProblem, familyOf: (b, item) => canonicalFamily(b, builderFamilyOf(b, item)) }));
   const history = itemHistory(db, items.map((item) => item.item_id));
   const trunk = trunkTip(root);
   const releases = roadmap(board);
@@ -364,6 +372,22 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
           owner, detail: { reason: item.item_hold_reason, by: holder },
         }));
       }
+    }
+  }
+
+  // Behind holds.requireOwner (off by default): a hold whose recorded deadline has passed is the owner's to lift or renew [C7,#8541].
+  if (machineSettings?.holds?.requireOwner === true) {
+    for (const item of items.filter(entry => entry.item_hold_reason)) {
+      let record = null;
+      try { record = JSON.parse(readBoardMeta(db, `hold_owner:${item.item_id}`) ?? 'null'); } catch { record = null; }
+      if (!record || !(Date.parse(record.deadline) <= at)) continue;
+      found(report.stuck, finding('HOLD_LAPSED', item, {
+        since: record.deadline, now: at,
+        title: 'hold past its deadline',
+        why: `${record.owner} owns the hold, which lapsed ${record.deadline}: ${firstLine(item.item_hold_reason)}`,
+        next: `lift the hold with pullboard hold ${item.item_id} --off, or hold it again with a new --deadline`, command: `pullboard hold ${item.item_id} --off`,
+        owner: { role: 'coordinator', who: record.owner }, detail: { reason: item.item_hold_reason, owner: record.owner, deadline: record.deadline },
+      }));
     }
   }
 

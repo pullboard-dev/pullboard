@@ -41,11 +41,14 @@ import {
   relayOn,
   relayMachineContext,
   relayRecover,
+  relayRecoverParked,
   relayRevoke,
   relayStatus,
   relayTokens,
   syncRelay,
 } from '../../../../../packages/link/index.js';
+import { outdatedSenderLine } from '../../../../../packages/link/index.js';
+import { replaceOutdatedSender } from '../../../../../packages/link/index.js';
 import {
   basename,
 } from 'node:path';
@@ -57,6 +60,9 @@ import {
   withBoard,
   whoAmI,
 } from '../entry.js';
+
+/** Refusals that leave nothing more to recover once an outdated sender was replaced: nothing is parked here. */
+const SENDER_ONLY_RECOVERY = new Set(['B26_PERSON_CHANNEL', 'RELAY_LINKED', 'RELAY_NOTHING_PARKED', 'RELAY_OUTBOX_WAITING']);
 
 /** Run `pullboard relay` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
@@ -79,7 +85,26 @@ export async function run(io, { first, second, rest, values }) {
     return 0;
   }
   if (first === 'recover') {
-    if (second || rest.length || !values.skip || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover --skip <exact blocked next sequence>');
+    if (second || rest.length || values.url || values.all) throw new Refused('USAGE', 'pullboard relay recover, or pullboard relay recover --skip <exact blocked next sequence>');
+    if (!values.skip) {
+      // One command, no choices: it resolves every move the relay refused for good, in place, under the same board id (#6693).
+      // A sender an older pullboard started refuses every new move; replacing it is the recovery, and it needs no
+      // person: it only restarts this machine's own sender (#7938).
+      const stopped = replaceOutdatedSender(context(io).info.root, io.launchRelaySender);
+      if (stopped) io.say(`relay recovery replaced the old relay sender: ${outdatedSenderLine(stopped)}; this version's sender now sends the waiting moves`);
+      let resolved;
+      try {
+        requirePersonChannel('terminal', process.env, { command: 'pullboard relay recover' });
+        resolved = await relayRecoverParked(context(io).info.root, io);
+      } catch (error) {
+        if (!stopped || !(error instanceof Refused) || !SENDER_ONLY_RECOVERY.has(error.code)) throw error;
+        io.result?.({ stoppedSender: stopped.pid, engine: stopped.engine, current: stopped.current });
+        return 0;
+      }
+      io.result?.(resolved);
+      io.say(`relay recovery published a checkpoint at sequence ${resolved.sequence} under board ${resolved.board}; ${resolved.recovered.length} parked ${resolved.recovered.length === 1 ? 'move is' : 'moves are'} resolved, with no rejoin and no lost history`);
+      return 0;
+    }
     requirePersonChannel('terminal');
     const result = await relayRecover(context(io).info.root, Number(values.skip), io);
     io.result?.(result);

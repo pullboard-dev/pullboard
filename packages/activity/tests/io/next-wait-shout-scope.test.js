@@ -11,8 +11,8 @@ import { takeWaitShouts } from '../../index.js';
 
 /** A board with the asked seat (web lane), a sender, and a seat in another lane; shouts go through the real inbox. */
 function fixture(t) {
-  const repo = cellRepo(t);
-  const board = cellBoard(t, repo.boardFile);
+  const repo = cellRepo(t, { real: true });
+  const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   const asked = cellSeat(board, { lane: 'web', path: `${repo.root}/a` });
   const sender = cellSeat(board, { lane: 'api', path: `${repo.root}/b` });
   const rival = cellSeat(board, { lane: 'web', path: `${repo.root}/c` });

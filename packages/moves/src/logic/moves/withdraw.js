@@ -3,6 +3,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { MAIN_RED_WITHDRAW_ENGINE } from "../../../../state/light.js";
+import { WITHDRAW_NEXT } from "../table/next.js";
 
 /** Preserve historical floors while versioning the conditional expected-item write [H16]. */
 function minimumEngine(args, board, at) {
@@ -18,12 +19,4 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 
 export default Object.freeze({ operation: "withdraw", order: 20, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
-  nextSteps: Object.freeze({
-  "STALE_MAIN_RED": "rerun the native main audit against the current frozen item",
-  "CLOSED": "read its state with pullboard show <id>, then take open work: pullboard next",
-  "COORDINATOR_ONLY": "ask the coordinator to do it: pullboard shout coordinator --kind question \"<what you need>\"",
-  "NOTE_REQUIRED": "add --note \"<what happened>\"",
-  "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
-  "NO_ITEM": "find the item id: pullboard list --all",
-  "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again"
-}) });
+  nextSteps: WITHDRAW_NEXT });

@@ -2,8 +2,8 @@
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { doctrineFile } from '../../../../config/index.js';
-import { loadConfig } from '../../../../config/index.js';
+import { doctrineFile } from '../../../../config/light.js';
+import { loadConfig } from '../../../../config/light.js';
 import { parseSpec } from '../main.js';
 
 /** Read each current file once per projection; raw source stays private to this lookup. */

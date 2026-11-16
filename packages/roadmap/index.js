@@ -4,4 +4,4 @@ export * from "./src/logic/milestones.js";
 export * from "./src/logic/placement.js";
 export * from "./src/logic/main.js";
 
-export { workProgress, itemProgress, progressLine, progressWaits, restatesBoardState } from "./src/logic/progress.js";
+export { isLanded, workProgress, itemProgress, progressLine, progressWaits, restatesBoardState } from "./src/logic/progress.js";

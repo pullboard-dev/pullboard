@@ -23,14 +23,15 @@ import { treeOf } from '../../../pin/index.js';
  * @param {{ id: string, item: number | null, candidate: string | null }} gate - The gate's job view.
  * @param {string} tree - The candidate tree the gate judged.
  * @param {unknown} failures - The failing cases: `[{ file, case }]`.
- * @param {{ now?: number }} [options]
+ * @param {{ now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {string[]} The flake-diagnose job ids, one per distinct case.
  */
-export function queueFlakeDiagnoses(db, gate, tree, failures, { now = Date.now() } = {}) {
+export function queueFlakeDiagnoses(db, gate, tree, failures, { now = Date.now(), runs = null } = {}) {
+  const jobs = runs?.db ?? db;
   return diagnoseTargets(failures).map(({ file, case: testCase }) => {
     const id = flakeDiagnoseKey(tree, file, testCase);
-    createJob(db, { id, kind: FLAKE_DIAGNOSE_KIND, item: gate.item, candidate: gate.candidate, now });
-    writeStep(db, id, 'queued', { tree, file, case: testCase, gate: gate.id }, { now });
+    createJob(jobs, { id, kind: FLAKE_DIAGNOSE_KIND, item: gate.item, candidate: gate.candidate, now });
+    writeStep(jobs, id, 'queued', { tree, file, case: testCase, gate: gate.id }, { now });
     return id;
   });
 }
@@ -41,18 +42,19 @@ export function queueFlakeDiagnoses(db, gate, tree, failures, { now = Date.now()
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job
- * @param {{ owner: string, now?: number }} options
+ * @param {{ owner: string, now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {{ state: 'done' | 'leased' | 'diagnose' | 'attach', target: { tree: string, file: string, case: string, item: number | null, candidate: string | null }, diagnosed: { result: unknown } | null }}
  */
-export function startFlakeDiagnose(db, job, { owner, now = Date.now() } = {}) {
+export function startFlakeDiagnose(db, job, { owner, now = Date.now(), runs = null } = {}) {
+  const jobs = runs?.db ?? db;
   if (!owner) throw new Refused('DRIVE_OWNER', 'A flake diagnostic needs a driver id to hold the lease: pass { owner }.');
-  const view = jobView(db, job);
+  const view = jobView(jobs, job);
   if (!view || view.kind !== FLAKE_DIAGNOSE_KIND) throw new Refused('JOB_MISSING', `No flake-diagnose job ${job}: queue it with queueFlakeDiagnoses.`);
   const queued = stepPayload(view, 'queued');
   const target = { tree: queued.tree, file: queued.file, case: queued.case, item: view.item, candidate: view.candidate };
   const diagnosed = stepPayload(view, 'diagnosed');
   if (stepPayload(view, 'attached')) return { state: 'done', target, diagnosed };
-  const held = (view.leaseOwner === owner && renewLease(db, job, owner, { now })) || takeJob(db, job, owner, { now }).taken;
+  const held = (view.leaseOwner === owner && renewLease(jobs, job, owner, { now })) || takeJob(jobs, job, owner, { now }).taken;
   if (!held) return { state: 'leased', target, diagnosed };
   return { state: diagnosed ? 'attach' : 'diagnose', target, diagnosed };
 }
@@ -63,13 +65,14 @@ export function startFlakeDiagnose(db, job, { owner, now = Date.now() } = {}) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job
- * @param {{ owner: string, result: unknown, now?: number }} options
+ * @param {{ owner: string, result: unknown, now?: number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {{ result: unknown }} The stored diagnosis.
  */
-export function finishFlakeDiagnose(db, job, { owner, result, now = Date.now() }) {
-  const diagnosed = writeStep(db, job, 'diagnosed', { result: result ?? null }, { now }).payload;
-  writeStep(db, job, 'attached', { item: jobView(db, job).item }, { now });
-  releaseLease(db, job, owner, { now });
+export function finishFlakeDiagnose(db, job, { owner, result, now = Date.now(), runs = null }) {
+  const jobs = runs?.db ?? db;
+  const diagnosed = writeStep(jobs, job, 'diagnosed', { result: result ?? null }, { now }).payload;
+  writeStep(jobs, job, 'attached', { item: jobView(jobs, job).item }, { now });
+  releaseLease(jobs, job, owner, { now });
   return diagnosed;
 }
 
@@ -81,18 +84,20 @@ export function finishFlakeDiagnose(db, job, { owner, result, now = Date.now() }
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {string} job - The flake-diagnose job id.
  * @param {{ owner: string, diagnose: (target: { tree: string, file: string, case: string, item: number | null, candidate: string | null }) => unknown | Promise<unknown>,
- *   attach?: (attached: { item: number | null, tree: string, file: string, case: string, result: unknown }) => unknown | Promise<unknown>, now?: () => number }} options
+ *   attach?: (attached: { item: number | null, tree: string, file: string, case: string, result: unknown }) => unknown | Promise<unknown>, now?: () => number,
+ *   runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {Promise<{ transition: string | null, job: ReturnType<typeof jobView>, code?: string }>}
  */
-export async function driveFlakeDiagnose(db, job, { owner, diagnose, attach, now = Date.now } = {}) {
+export async function driveFlakeDiagnose(db, job, { owner, diagnose, attach, now = Date.now, runs = null } = {}) {
+  const jobs = runs?.db ?? db;
   if (typeof diagnose !== 'function') throw new Refused('FLAKE_DIAGNOSE_RUN', 'driveFlakeDiagnose needs the diagnostic to run: pass { diagnose }.');
-  const begun = startFlakeDiagnose(db, job, { owner, now: now() });
-  if (begun.state === 'done') return { transition: null, job: jobView(db, job) };
-  if (begun.state === 'leased') return { transition: null, job: jobView(db, job), code: 'JOB_LEASED' };
+  const begun = startFlakeDiagnose(db, job, { owner, now: now(), runs });
+  if (begun.state === 'done') return { transition: null, job: jobView(jobs, job) };
+  if (begun.state === 'leased') return { transition: null, job: jobView(jobs, job), code: 'JOB_LEASED' };
   const result = begun.diagnosed ? begun.diagnosed.result : await diagnose(begun.target);
   await attach?.({ ...begun.target, result: result ?? null });
-  finishFlakeDiagnose(db, job, { owner, result, now: now() });
-  return { transition: 'attached', job: jobView(db, job) };
+  finishFlakeDiagnose(db, job, { owner, result, now: now(), runs });
+  return { transition: 'attached', job: jobView(jobs, job) };
 }
 
 /**
@@ -106,16 +111,17 @@ export async function driveFlakeDiagnose(db, job, { owner, diagnose, attach, now
  *
  * @param {(run: object, context: object) => Promise<void>} observe - The flakes cell's observer.
  * @param {{ withDb: (work: (db: import('node:sqlite').DatabaseSync) => any) => Promise<any>, gate: { id: string, item: number | null, candidate: string },
- *   repo: string, owner: string, cases: (run: object, root: string) => { file: string, case: string }[] }} options
+ *   repo: string, owner: string, cases: (run: object, root: string) => { file: string, case: string }[],
+ *   runs?: { db: import('node:sqlite').DatabaseSync } | null }} options - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {(run: object, context: { root: string }) => Promise<void>} An observer with the same `main` and `recordRun`.
  */
-export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases }) {
+export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases, runs = null }) {
   return Object.assign(async (run, context) => {
     let owed = [];
     try {
       const tree = treeOf(repo, gate.candidate);
-      owed = await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root))
-        .map(id => ({ id, begun: startFlakeDiagnose(db, id, { owner }) })));
+      owed = await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root), { runs })
+        .map(id => ({ id, begun: startFlakeDiagnose(db, id, { owner, runs }) })));
     } catch { owed = null; /* An unreadable board never stops the diagnostic itself. */ }
     if (owed && owed.length && owed.every(entry => entry.begun.state !== 'diagnose')) return;
     await observe(run, context);
@@ -126,7 +132,7 @@ export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases 
         for (const { id, begun } of owed) {
           if (begun.state !== 'diagnose') continue;
           const seen = observations.find(row => row.file === begun.target.file && row.name === begun.target.case) ?? null;
-          finishFlakeDiagnose(db, id, { owner, result: seen ?? { classification: 'unclassified', error: run.flakeDiagnostics?.error ?? null } });
+          finishFlakeDiagnose(db, id, { owner, runs, result: seen ?? { classification: 'unclassified', error: run.flakeDiagnostics?.error ?? null } });
         }
       });
     } catch { /* The observation is already on the board through the observer; only the job record is missing. */ }
@@ -134,7 +140,7 @@ export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases 
     // Record the jobs alone, with no slot and no observer, so a verdict can return before a diagnostics slot is asked for [C7].
     queue: async (run, context) => {
       const tree = treeOf(repo, gate.candidate);
-      await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root)));
+      await withDb(db => queueFlakeDiagnoses(db, gate, tree, cases(run, context.root), { runs }));
     } });
 }
 
@@ -143,10 +149,11 @@ export function jobbedFlakeObserver(observe, { withDb, gate, repo, owner, cases 
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {number} item
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null }} [options] - runs: the board's runs holder while runs_store is on (boardRunsHolder); the job rows go to its handle and not to `db` [P7,#9080].
  * @returns {{ job: string, tree: string, file: string, case: string, gate: string, result: unknown }[]}
  */
-export function flakeDiagnosesFor(db, item) {
-  return jobsOf(db, { kind: FLAKE_DIAGNOSE_KIND, item })
+export function flakeDiagnosesFor(db, item, { runs = null } = {}) {
+  return jobsOf(runs?.db ?? db, { kind: FLAKE_DIAGNOSE_KIND, item })
     .filter(view => stepPayload(view, 'attached'))
     .map(view => {
       const target = stepPayload(view, 'queued');

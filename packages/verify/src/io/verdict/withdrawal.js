@@ -1,7 +1,7 @@
 /** Append-only withdrawal bindings and derived review-history annotations [V2,V6,H16]. */
-import { Refused } from '../../../../kernel/index.js';
+import { Refused } from '../../../../kernel/light.js';
 import { VERDICT_WITHDRAW_ENGINE } from '../../../../state/light.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../state/light.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../state/light.js';
 
 /** Pair immutable verdict rows with their corresponding immutable acceptance/rejection events. */
@@ -12,9 +12,9 @@ function verdictPairs(board, id) {
 }
 
 /** Reuse an existing ordered read when supplied; standalone callers still load their own immutable pairs. */
-export function verdictWithdrawals(board, id, pairs = verdictPairs(board, id)) {
+export function verdictWithdrawals(board, id, pairs = verdictPairs(board, id), reopens = board.db.prepare("SELECT * FROM event WHERE item_id = ? AND event_kind = 'reopen' ORDER BY event_id").all(id)) {
   const result = new Map();
-  for (const row of board.db.prepare("SELECT * FROM event WHERE item_id = ? AND event_kind = 'reopen' ORDER BY event_id").all(id)) {
+  for (const row of reopens) {
     const detail = JSON.parse(row.event_detail), binding = detail.withdrawnVerdict;
     if (!binding) continue;
     const pair = pairs.find(({ verdict, event }) => verdict.verdict_id === binding.verdictId

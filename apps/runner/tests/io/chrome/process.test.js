@@ -88,7 +88,7 @@ const runner={host:${JSON.stringify(HOST)},slots:1,browser:0};
 const ready=${JSON.stringify(ready)},release=${JSON.stringify(release)};
 // The private job is held on an observable filesystem handshake, never a guessed time margin.
 const readyWatcher=watch(${JSON.stringify(directory)});
-const running=runOnRunnerAsync(process.cwd(),${JSON.stringify(`node -e ${shellQuote(job)}`)},{runner});
+const running=runOnRunnerAsync(process.cwd(),${JSON.stringify(`node -e ${shellQuote(job)}`)},{runner,metadata:{item:'fixture',kind:'remote-command'}});
 const readiness=(async()=>{while(!existsSync(ready))await once(readyWatcher,'change');})();
 try {await Promise.race([readiness,running.then(()=>{throw new Error('job exited before readiness');})]);}
 finally {readyWatcher.close();}
@@ -108,7 +108,7 @@ try {
   assert.equal(first.exitCode,0,JSON.stringify(first));
   assert.equal(foreign.exitCode,null);
   assert.equal(foreign.signalCode,null);
-  const second=await runOnRunnerAsync(process.cwd(),'printf next-job',{runner});
+  const second=await runOnRunnerAsync(process.cwd(),'printf next-job',{runner,metadata:{item:'fixture',kind:'remote-command'}});
   assert.equal(second.exitCode,0,JSON.stringify(second));
   assert.equal(second.output,'next-job');
   assert.equal(foreign.exitCode,null);

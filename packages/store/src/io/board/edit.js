@@ -2,6 +2,9 @@ import { lightDiagnosisProblem } from '../../logic/item/diagnosis.js';
 import { CLAUSE_EVIDENCE_ENGINE } from '../../../../state/index.js';
 import { requireCriterionEvidence } from '../../../../state/index.js';
 import { saveExpectedBuildMinutes } from '../expected.js';
+import { saveReadinessCommand } from '../readiness.js';
+import { validateReadinessCommand } from '../readiness.js';
+import { READINESS_ENGINE } from '../../../../state/light.js';
 import { validateExpectedBuildMinutes } from '../../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../state/light.js';
 import { validateMachineVerification } from '../../../../verify/index.js';
@@ -38,7 +41,7 @@ import { stripPerItemFullSuiteCriterion } from "../../../../items/index.js";
 import { PER_ITEM_FULL_SUITE_ENGINE } from "../../../../state/light.js";
 import { COORDINATOR } from "../../../../config/index.js";
 import { loadConfig } from "../../../../config/index.js";
-import { requireOwnLaneCheck } from "../../../../verify/light.js";
+import { requireOwnLaneCheck } from "../../../../verify/index.js";
 import { laneOf } from "../../../../seats/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { Refused } from "../../../../kernel/index.js";
@@ -57,18 +60,18 @@ import { persistShout } from "./shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
+export function editItem(board, id, { agentId, title, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen = false }) {
   if (preserveFrozen && (agentId !== COORDINATOR || reason !== 'S10 full-suite strip' || criterion === undefined
     || brief !== undefined || route !== undefined || check !== undefined || after !== undefined || checkBaseline !== undefined
     || correction !== undefined || freeze !== undefined || sensitive !== undefined || reviewFamily !== undefined
-    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined
+    || reviewTier !== undefined || checkTiming !== undefined || expectedBuildMinutes !== undefined || readinessCommand !== undefined
     || barActor !== undefined || referenceAuthors !== undefined || referenceAuthority !== undefined)) {
     throw new Refused('COORDINATOR_ONLY', 'preserving a frozen bar is limited to the coordinator’s exact S10 criterion strip');
   }
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen });
+    const { item, next, command, unfreeze, bar, widened, evidenceWarnings } = validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen });
     if (preserveFrozen) {
       const engine = board.executionEngineVersion ?? ENGINE_VERSION;
       const stripped = stripPerItemFullSuiteCriterion(item.item_criterion);
@@ -100,6 +103,7 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
     }
     saveCheckTiming(board, id, checkTiming);
     saveExpectedBuildMinutes(board, id, expectedBuildMinutes);
+    saveReadinessCommand(board, id, readinessCommand);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
@@ -119,6 +123,7 @@ export function editItem(board, id, { agentId, title, brief, route, criterion, c
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(checkTiming === undefined ? {} : { checkTiming }),
       ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),
+      ...(readinessCommand === undefined ? {} : { readinessCommand: readinessCommand.trim() }),
       ...(next.item_after !== item.item_after ? { after: itemDependencies.dependencyValues(next) } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
@@ -150,9 +155,11 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, preserveFrozen = false }) {
+export function validateItemEdit(board, id, { agentId, title, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand, preserveFrozen = false }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
+  validateReadinessCommand(readinessCommand);
+  if (readinessCommand !== undefined && engine < READINESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring a readiness command');
   validateExpectedBuildMinutes(expectedBuildMinutes);
   if (expectedBuildMinutes !== undefined && engine < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
   validateMachineVerification(board, { ...itemById(board, id), ...(criterion === undefined ? {} : { item_criterion: criterion }), ...(check === undefined ? {} : { item_check: check }) }, { agentId, machineVerified, machineCommands });
@@ -170,7 +177,7 @@ export function validateItemEdit(board, id, { agentId, title, brief, route, crit
   }
   const command = editCheck(agentId, check, widened);
   if (title !== undefined && (typeof title !== 'string' || !title.trim())) throw new Refused('USAGE', 'the new title cannot be empty: pass --title "the new title"');
-  if ([title, brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes].every((value) => value === undefined)) {
+  if ([title, brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, machineVerified, machineCommands, expectedBuildMinutes, readinessCommand].every((value) => value === undefined)) {
     throw new Refused('USAGE', 'say what changes: --brief "...", --title "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));

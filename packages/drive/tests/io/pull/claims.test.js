@@ -5,6 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
+import { testGit as pullGit } from '../../fixtures/git.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
@@ -67,7 +68,7 @@ function runnerCache(t) {
 test('#6546 clause 1: a job whose handler throws is released with its reason, not re-claimed within 30 s, and backs off longer on each repeat [C7]', async t => {
   const board = boardBehindFetch(t, { id: 'land:5888', kind: 'land' });
   const handlers = { land: async () => { throw new Error('git fetch failed: no such ref'); } };
-  const served = await serveRunner({ board: BOARD, runner: 'r-throw', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-throw', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
   assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome]), [['land:5888', 'released']]);
   const view = jobView(board.db, 'land:5888');
   const released = view.steps.find(step => step.name === 'released');
@@ -106,7 +107,7 @@ async t => {
   const board = boardBehindFetch(t, { id: 'gate:long', kind: 'gate', candidate: commit, run }, { trunk, answered, down: call => call.action === 'renew' && outage !== null && outage.until > Date.now() });
   const renewalsBefore = () => board.calls.filter(action => action === 'renew').length;
   const said = [];
-  const running = serveRunner({ board: BOARD, runner: 'r-long', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, trunkPack: async () => {},
+  const running = serveRunner({ git: pullGit, board: BOARD, runner: 'r-long', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, trunkPack: async () => {},
     say: line => { said.push(line); },
     timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 300 } });
   assert.equal((await back).renewed, true, 'the board renewed the lapsed lease no runner had claimed');
@@ -118,4 +119,61 @@ async t => {
   const view = jobView(board.db, 'gate:long');
   assert.deepEqual([board.attempt, view.steps.find(step => step.name === 'receipt')?.payload.runner], [1, 'r-long'], 'one claim, one receipt, by the runner that ran it');
   assert.ok(renewalsBefore() >= 3, `the runner renewed its lease while the job ran: ${renewalsBefore()} renewals`);
+});
+
+test('#7815 clause 1: a land job keeps its lease through a board outage under a minute, renews when the board answers, and no second runner claims it [C7]', { timeout: 30_000 }, // budget: one handler held through a 0.4 s outage, no git.
+async t => {
+  // The first renewal starts an outage of renewals 50 s long on the board's clock; the handler never renews on its own
+  // until its proof is done, as a land job's proof does not, and the proof runs on past the lease its claim was given.
+  let outage = null, recovered = false, back;
+  const answeredAgain = new Promise(resolve => { back = resolve; });
+  const answered = call => {
+    if (call.action !== 'renew') return;
+    if (outage === null) { outage = { until: Date.now() + 400 }; board.offset += 50_000; } else { recovered = true; back(); }
+  };
+  const board = boardBehindFetch(t, { id: 'land:7815', kind: 'land' }, { answered, down: call => call.action === 'renew' && outage !== null && outage.until > Date.now() });
+  const rivals = [];
+  const handlers = { land: async (_claim, { renew }) => {
+    await answeredAgain;
+    board.offset += LEASE_MS - 30_000;
+    rivals.push(board.claim('r-rival'));
+    return { outcome: (await renew()) ? 'green' : 'lease-lost' };
+  } };
+  const said = [];
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-land', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {},
+    say: line => { said.push(line); }, timing: { renewMs: 100, renewRetryMs: 50, leaseMs: 300 } });
+  assert.ok(said.some(line => line.startsWith('renewal skipped')), `the runner saw the outage: ${said.join('\n')}`);
+  assert.equal(recovered, true, 'the runner renewed again once the board answered');
+  assert.deepEqual(rivals, [null], 'no second runner claimed the job while its holder kept renewing');
+  assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome, entry.receipt?.outcome]), [['land:7815', 'posted', 'green']], said.join('\n'));
+  assert.equal(board.attempt, 1, 'one claim');
+});
+
+test('#6680 clause 1: a serve with a free slot claims an offered job within one idle poll, and a second claim never waits for the first job to end [C7]', { timeout: 30_000 }, // budget: two handler jobs on a stand-in board, no git, the sleep injected.
+async t => {
+  // The board answers empty once, then offers two jobs; the first job cannot end until the second has started in its own slot.
+  const naps = [], claimedAfterNaps = [], posted = [];
+  let polls = 0, secondStarted;
+  const bothRunning = new Promise(resolve => { secondStarted = resolve; });
+  const stop = new AbortController();
+  const fetchImpl = async (_url, { body }) => {
+    const call = JSON.parse(body);
+    let reply = { recorded: true };
+    if (call.action === 'claim') {
+      polls += 1;
+      const job = polls === 2 ? 'j1' : polls === 3 ? 'j2' : null;
+      if (job) claimedAfterNaps.push([job, naps.length]);
+      reply = job ? { claim: { job, kind: 'land', needs: [], run: [], candidate: null, base: null, attempt: 1, token: `r-poll:${job}` }, trunk: 'unused' } : { claim: null };
+    } else if (call.action === 'receipt') { posted.push(call.job); if (posted.length === 2) stop.abort(); }
+    return { status: 200, json: async () => reply };
+  };
+  const handlers = { land: async claim => {
+    if (claim.job === 'j1') await bothRunning; else secondStarted();
+    return { outcome: 'green' };
+  } };
+  const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-poll', capabilities: [], cache: runnerCache(t), jobs: 2, signal: stop.signal, fetchImpl, handlers, trunkPack: async () => {},
+    sleep: async ms => { naps.push(ms); await new Promise(resolve => setImmediate(resolve)); } });
+  assert.deepEqual(claimedAfterNaps, [['j1', 1], ['j2', 1]], 'the offered job is claimed after one idle poll, and the next claim follows at once, with no further wait');
+  assert.equal(naps[0], 2_000, 'the idle poll before the first claim is the 2 s default');
+  assert.deepEqual(served.jobs.map(entry => entry.job).sort(), ['j1', 'j2'], 'the first job ran beside the second, so the claim never waited behind it');
 });

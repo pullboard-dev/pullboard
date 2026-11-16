@@ -6,7 +6,7 @@ import {
   checkedItem,
 } from '../../../../../packages/git/tests/fixtures/flakes.js';
 import { runCliInProcess } from '../process.js';
-import { fixtureSettledMachine } from '../testkit.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -24,8 +24,6 @@ export async function cliLocal(box, cwd, ...args) {
 /** Prepare one genuinely submitted and accepted candidate with a private local bare destination. */
 export async function readyLanding(t, rerun) {
   const box = flakyProject(t, { alwaysPass: 'controlled', rerun });
-  // The landing and its submit settle in these commands' own processes [P7].
-  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME);
   const remote = join(box.scratch, 'private-origin.git');
   box.git('init', '-q', '--bare', remote);
   box.git('remote', 'add', 'origin', remote);
@@ -37,6 +35,8 @@ export async function readyLanding(t, rerun) {
   commitCandidate(builder, 'chore: prepare controlled landing candidate');
   const submitted = await cliLocal(box, builder.root, 'submit', String(id));
   assert.equal(submitted.code, 0, JSON.stringify(submitted.document));
+  // The submit is a pulled gate job: the item has its commit only once the machine's local runner posts the receipt [P7,C7].
+  await whenRunnerSettles(box.env, async () => (await cliLocal(box, box.root, 'show', String(id))).document?.item_commit, { deadlineMs: 180_000, what: `the gate for #${id}` });
   const head = (await cliLocal(box, box.root, 'show', String(id))).document.item_commit;
   const reviewer = privateBuilder(box);
   reviewer.git('checkout', '-q', '--detach', head);
@@ -55,4 +55,10 @@ export async function readyLanding(t, rerun) {
   writeFileSync(box.counter, '');
   writeFileSync(box.counter + '.mode', 'paired');
   return { ...box, remote, base, id };
+}
+
+/** Wait for the offered land job's receipt to settle the item (a red returns it to its builder) and return the item's row [P7,C7]. */
+export async function settleLand(box) {
+  await whenRunnerSettles(box.env, async () => (await cliLocal(box, box.root, 'show', String(box.id))).document?.item_status !== 'verified', { deadlineMs: 180_000, what: `the land job for #${box.id}` });
+  return (await cliLocal(box, box.root, 'show', String(box.id))).document;
 }

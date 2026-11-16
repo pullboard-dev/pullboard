@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  pulledRedLines,
+  pulledWaitingLines,
   queuedGateLines,
   supersededStop,
 } from '../../../src/logic/show/gate.js';
@@ -39,4 +41,32 @@ test('clause 1: only an infrastructure stop is ever superseded; a red gate keeps
   const red = { ...STOP, state: 'red', error: { code: 'GATE_RED', message: 'red', next: 'fix it' } };
   assert.equal(supersededStop(red, { item_status: 'claimed', item_owner: 'core-1869', item_frozen_digest: 'new' }), false);
   assert.match(lines(red, { item_status: 'claimed', item_owner: 'core-1869', item_frozen_digest: 'new' }), /GATE_RED: red\nnext: fix it/u);
+});
+
+test('a red pulled gate prints GATE_RED, each case once, a bounded tail and its full log; a green or submitted one prints nothing [C7,V10]', () => {
+  const errors = [{ file: 'test/a.test.js', name: 'first', error: 'first detail\nmore' }, { file: 'test/a.test.js', name: 'second', error: 'second detail' }];
+  const gate = { green: false, counts: { passed: 400, failed: 4, skipped: 0 }, logPath: '/kept/check.log', logRunner: 'r1',
+    phases: [{ role: 'check', status: 1, errors }, { role: 'proof', status: 1, errors }, { role: 'extra', status: 2, exit: Array.from({ length: 30 }, (_, n) => `line ${n}`).join('\n') }] };
+  const red = pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'claimed' });
+  assert.match(red[0], /^GATE_RED: gate job gate:1 is red: 400 passed, 4 failed; its full log is on runner r1/u);
+  assert.deepEqual(red.filter(line => line.includes('::')), ['  test/a.test.js :: first: first detail more', '  test/a.test.js :: second: second detail']);
+  assert.equal(red.filter(line => line.startsWith('  extra | ')).length, 10, 'a phase that names no case prints its last 10 lines');
+  assert.equal(red.at(-1), 'full log: /kept/check.log');
+  assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'done', gate: { ...gate, green: true } }, { item_id: 1, item_status: 'claimed' }), []);
+  assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'done', gate }, { item_id: 1, item_status: 'submitted' }), []);
+  assert.deepEqual(pulledRedLines({ id: 'gate:1', step: 'claimed', gate: null }, { item_id: 1, item_status: 'claimed' }), []);
+});
+
+const DEFERRED = { green: false, deferred: true, phases: [{ role: 'proof', status: 1, exit: 'full suite deferred' }] };
+
+test('clause 1: a done gate whose receipt is deferred to shard jobs prints no GATE_RED line [C7]', () => {
+  assert.deepEqual(pulledRedLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'claimed' }), []);
+});
+
+test('clause 2: show names a deferred gate as passed its checks and waiting on its shard jobs [C7]', () => {
+  const [line, ...rest] = pulledWaitingLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'claimed' });
+  assert.deepEqual(rest, []);
+  assert.match(line, /^GATE_WAITING: gate job gate:2 passed its checks; its proof waits on its shard jobs/u);
+  assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: { ...DEFERRED, deferred: false } }, { item_id: 2, item_status: 'claimed' }), [], 'a plain red is not waiting');
+  assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'submitted' }), []);
 });

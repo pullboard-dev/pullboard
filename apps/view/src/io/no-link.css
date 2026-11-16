@@ -1,13 +1,13 @@
 /* The no-link page: the view's own tokens (prepended from main.css) on one calm card [N26]. */
 html { background: var(--ground); color: var(--ink); font: var(--text-md)/var(--leading-body) var(--sans); -webkit-font-smoothing: antialiased; }
 body { box-sizing: border-box; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: var(--space-5); }
-.no-link { box-sizing: border-box; width: 100%; max-width: 440px; padding: var(--space-8) var(--space-7); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
+.no-link { box-sizing: border-box; width: 100%; max-width: 440px; padding: var(--space-8) var(--space-7); border: var(--border); border-radius: var(--radius-card); background: var(--surface); }
 .no-link-brand { display: flex; align-items: center; gap: var(--space-3); margin: 0 0 var(--space-7); font-weight: 700; font-size: var(--text-lg); }
 .no-link-brand svg { flex: none; width: 22px; height: 22px; }
 .no-link-brand .no-link-bar { fill: var(--accent); }
 .no-link h1 { margin: 0 0 var(--space-3); font-size: var(--text-2xl); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); }
 .no-link p { margin: 0; color: var(--ink-muted); }
 .no-link p + p { margin-top: var(--space-3); }
-.no-link .no-link-own { margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--line-soft); }
+.no-link .no-link-own { margin-top: var(--space-6); padding-top: var(--space-5); border-top: var(--border-row); }
 .no-link a { color: var(--accent-strong); font-weight: 600; text-underline-offset: 2px; }
 .no-link a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }

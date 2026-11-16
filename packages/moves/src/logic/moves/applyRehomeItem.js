@@ -1,4 +1,4 @@
-import { frozenCheckTiming } from "../../../../items/light.js";
+import { frozenCheckTiming } from "../../../../items/browser.js";
 import { CHECK_TIMING_ENGINE } from "../../../../state/light.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../state/light.js";
 import { PRIVATE_REHOME_ENGINE } from "../../../../state/light.js";

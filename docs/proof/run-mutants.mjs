@@ -18,8 +18,8 @@ const OLD_NODE = ['apps/cli/journeys/version/node.test.js', 'an older Node is to
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
   ['N31', 'init and prompt know no run guide', [['apps/cli/src/io/skills.js', "  run: 'pullboard-run',\n", '']], GUIDE, 'red'],
-  ['N31', 'AGENTS.md does not name the run guide', [['packages/config/src/io/templates.js', ' The agent in the main checkout runs the whole team by the run guide (the pullboard-run skill).', '']], GUIDE, 'red'],
-  ['N31', 'the guide drops the rule against merging unverified history', [['skills/pullboard-run/SKILL.md', '   Never merge a commit whose history holds another item\'s commit that is not yet verified.', '   Merge in any order.']], GUIDE, 'red'],
+  ['N31', 'the guide lets the coordinator merge by hand', [['skills/pullboard-run/SKILL.md', 'Never merge by hand.', 'Merge by hand when quicker.']], GUIDE, 'red'],
+  ['N31', 'the guide lets the coordinator guess what the person wants', [['skills/pullboard-run/SKILL.md', '8. **Ask, never guess:**', '8. **Decide:**']], GUIDE, 'red'],
   ['N32', 'an empty spec is not sent to the person', [['apps/cli/src/io/resume.js', "  if (!live.length && (rows.length || !card.all.length)) return \"turn what the person wants into spec rows with them: the pullboard-decompose skill (pullboard prompt decompose)\";\n", '']], STAGES, 'red'],
   ['N32', 'draft rows are planned before the person approves them', [['apps/cli/src/io/resume.js', "  if (live.length && !approved.length) return 'the person approves rows in SPEC.md; then plan them: the pullboard-plan skill';\n", '']], STAGES, 'red'],
   ['N32', "the coordinator's own claim jumps the spec", [['apps/cli/src/io/resume.js', "  const live = rows.filter((row) => !['wont', 'retired'].includes(row.status));\n", "  if (card.holding.length) return buildNext(card);\n  const live = rows.filter((row) => !['wont', 'retired'].includes(row.status));\n"]], STAGES, 'red'],
@@ -37,7 +37,7 @@ const MUTANTS = [
   ['C4', 'a file git ignores is not added by force', [['apps/cli/src/io/worktree.js', "  const force = differ.some(({ ignored }) => ignored) ? ' -f' : '';", "  const force = '';"]], IGNORED_OR_DELETED, 'red'],
   ['C4', 'a deleted config is sent to init', [['apps/cli/src/io/read.js', "    if (tryGit(info.root, ['cat-file', '-e', `HEAD:${CONFIG_FILE}`]).status === 0) {", '    if (false) {']], IGNORED_OR_DELETED, 'red'],
   ['C4', 'a worktree with no config is told to run init', [['apps/cli/src/io/read.js', '  const config = configHere(info);', '  const config = loadConfig(info.root);']], IGNORED_OR_DELETED, 'red'],
-  ['N31', 'the guide does not say to commit before the first worktree', [['skills/pullboard-run/SKILL.md', ' A worktree starts from the last commit, so first commit what init wrote, the spec and the lanes; `pullboard worktree` refuses until they are.', '']], GUIDE, 'red'],
+  ['N31', 'the guide does not say to commit before the first worktree', [['skills/pullboard-run/SKILL.md', '4. **Build:** commit what init wrote, the spec and the lanes first; worktrees start from the last commit.', '4. **Build:**']], GUIDE, 'red'],
   ['P3', 'an older Node runs on into a stack trace', [['apps/cli/pullboard.js', 'if (major < 22 || (major === 22 && minor < 13)) {', 'if (false) {']], OLD_NODE, 'red'],
   ['P3', 'Node 22.12 passes the check', [['apps/cli/pullboard.js', 'if (major < 22 || (major === 22 && minor < 13)) {', 'if (major < 22 || (major === 22 && minor < 12)) {']], OLD_NODE, 'red'],
 ];

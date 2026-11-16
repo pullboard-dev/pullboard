@@ -7,6 +7,7 @@ import { Refused } from '../../../kernel/index.js';
 import { MAX_BLOB_BYTES } from './source/scan.js';
 import { objectRecord } from './source/scan.js';
 import { cachedScan } from './source/scan.js';
+import { historicalScanExempt } from './source/scan.js';
 import { protectedHistoryPath } from './source/scan.js';
 import { scannerTree } from './source/scan.js';
 import { sourceGit } from './source/scan.js';
@@ -22,6 +23,7 @@ import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
+import { storeName } from './store-names.js';
 
 const MAX_HISTORY_TAGS = 1_024;
 
@@ -140,7 +142,7 @@ function cleanPackFile(root, protect) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   if (existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'))) return null;
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
-  return join(home, 'pack-scan', `${createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)}.json`);
+  return join(home, 'pack-scan', storeName(createHash('sha256').update(JSON.stringify([tree, protect])).digest('hex').slice(0, 32)));
 }
 
 /** The saved clean commits, newest first; a missing or unreadable file is empty. */
@@ -222,8 +224,8 @@ export function historyPack(root, source, tips, directory, tags = [], knownTagOb
             cursor = nul + 1 + source.commit.length / 2;
           }
           if (cursor !== data.length) throw new Refused('RUNNER_SOURCE', 'invalid historical tree; keep this run local');
-        } else if (protectedHistoryPath(path, config.protect)
-          || secretsIn(data.toString('utf8').split(/\r?\n/u).map((text, line) => ({ path, line: line + 1, text }))).length) {
+        } else if (protectedHistoryPath(path, config.protect) || (!historicalScanExempt(object, type)
+          && secretsIn(data.toString('utf8').split(/\r?\n/u).map((text, line) => ({ path, line: line + 1, text }))).length)) {
           throw new Refused('RUNNER_SECRET', 'historical source failed its transfer scan; remove the private history or keep this run local');
         }
       }

@@ -10,7 +10,7 @@ import { readAnalysisMemo } from '../../../src/io/static/scope.js';
 import { staticScopeFromEnv } from '../../../src/io/static/scope.js';
 import { writeAnalysisMemo } from '../../../src/io/static/scope.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../fixtures/child.js';
 import { privateFixtureFiles } from '../../../tests/fixtures/child.js';
 
 const sandboxes = [];
@@ -60,7 +60,8 @@ test('clause 1: given changed paths, a static class that reads none of them is n
   assert.equal(named['test-waits'].reads('packages/gate/src/io/a.js'), false);
   assert.equal(named['test-waits'].reads('packages/gate/tests/io/a.test.js'), true);
   assert.equal(named['prose-commands'].reads('packages/gate/src/io/a.js'), false);
-  assert.deepEqual(STATIC_TREE_CHECKS.filter(check => check.reads('docs/guide.md')).map(check => check.name), ['doctrine']);
+  // 4ecd45f084 made layout a static class that reads every path, so a docs change selects it beside doctrine.
+  assert.deepEqual(STATIC_TREE_CHECKS.filter(check => check.reads('docs/guide.md')).map(check => check.name), ['layout', 'doctrine']);
   // The file-local import-style class reads only the changed sources.
   const sources = [{ file: 'src/a.js', source: 'export const a = 1;\n' }, { file: 'src/b.js', source: 'export const b = 1;\n' }], read = [];
   const memory = { changed: ['src/b.js'], cache: () => ({ get: file => { read.push(file); return []; } }) };

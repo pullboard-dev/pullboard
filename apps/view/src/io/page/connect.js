@@ -15,7 +15,12 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { itemLanded } from "../../logic/counts.js";
+import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
+import { pipelineWatchModel } from "../../logic/pipeline/watch.js";
+import { pipelineWatchHtml } from "../../logic/pipeline/watch.js";
+import { pipelineRuntime } from "../pipeline/runtime.js";
 import { lifecycleDiagramHtml } from "../../logic/lifecycle/diagram.js";
 import { timelineHtml as renderTimelineHtml } from "../../logic/timeline/render.js";
 import { timelineBodyHtml } from "../../logic/timeline/body.js";
@@ -27,10 +32,28 @@ import { timelineBodyHtml } from "../../logic/timeline/body.js";
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart2(scope) {
-  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
+  const { firstRunCoordinate, sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, activityFlow, activityPageHtml, activityTipHtml, activityStep, activityStart, activityRuntime, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, comparisonHtml, dashboardRuntime, STAR_KEY, closePageDialog, connection, drawHosted, homeCapacity, homeRules, hostedBrowser, hostedReleaseDistance, hostedReleaseNote, hostedState, lifecycle, lifecycleEvent, lifecycleMove, openPageDialog, personNeeds, releaseHosted, releaseInfo, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, staleChip, transportModule } = scope;
 return `let detailRead = null;
 const addressedShouts = new Map();
 const $ = (id) => document.getElementById(id);
+/**
+ * The page's one runtime stylesheet: geometry that only the running page can measure (a windowing spacer, a menu's
+ * position, a scroll margin). An element names its rule with data-geo="key" and the rule is written here, so no element
+ * carries an inline style; the sheet is built through the style API, which the page's policy allows. Declarations are
+ * { 'css-property': 'value' }; a key given null or no declarations drops its rule.
+ */
+const geometryRules = new Map();
+let geometrySheet = null;
+function geometry(key, declarations) {
+  if (declarations && Object.keys(declarations).length) {
+    const rule = '[data-geo="' + key + '"]{' + Object.entries(declarations).map(([property, value]) => property + ':' + value).join(';') + '}';
+    if (geometryRules.get(key) === rule) return;
+    geometryRules.set(key, rule);
+  } else if (!geometryRules.delete(key)) return;
+  if (typeof CSSStyleSheet !== 'function' || !('adoptedStyleSheets' in document)) return;
+  if (!geometrySheet) { geometrySheet = new CSSStyleSheet(); document.adoptedStyleSheets = [...document.adoptedStyleSheets, geometrySheet]; }
+  geometrySheet.replaceSync([...geometryRules.values()].join(''));
+}
 const sharedRowHtml = (${sharedRowHtml.toString()});
 const activityWords = (${activityWords.toString()});
 const activityModel = (${activityModel.toString()});
@@ -38,11 +61,30 @@ const activityFilters = (${activityFilters.toString()});
 const segmentedToggle = (${segmentedToggle.toString()});
 const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
+const activityFlow = (${activityFlow.toString()});
+const activityPageHtml = (${activityPageHtml.toString()});
+const activityTipHtml = (${activityTipHtml.toString()});
+const activityStep = (${activityStep.toString()});
+const activityStart = (${activityStart.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
+const itemLanded = (${itemLanded.toString()});
 const dashboardModel = (${dashboardModel.toString()});
+const comparisonHtml = (${comparisonHtml.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
 const dashboardWhen = iso => when(iso);
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})({ coordinate: ${firstRunCoordinate === true} }), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, agentsTable: () => view.tab === 'dashboard' && view.addressDetail === 'agents', floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+// The Activity page: the board's last hours of events and the live snapshot, drawn into #activity (#6916).
+const activityView = (${activityRuntime.toString()})({ flow: activityFlow, html: activityPageHtml, tip: activityTipHtml, step: activityStep, start: activityStart, api, boardPath,
+  current: () => view.root, view: () => view, project: () => data?.project, active: () => view.tab === 'activity',
+  itemHref: id => itemAddress(id),
+  working: project => store.select('nav-numbers', [project, view.allAgents, Math.floor(Date.now() / 60_000)], navNumbers).agentIds,
+  controls: () => pageControlsHtml({ tab: 'activity', by: view.activityBy || null, people: view.activityPeople || [], activity: view.activityFilter || 'all', counts: view.activityCounts || null, win: view.activityWin || 24 }),
+  onFilter: value => { view.activityFilter = value; address(); drawPageControls(); }, after: () => drawPageControls(), drawn: () => drawHistoryNotes(),
+  remember: (root, value) => value === undefined ? (Number(keep('pb.activity.left.' + root)) || null) : keep('pb.activity.left.' + root, String(value)) });
+// The Insights Pipeline page (#6869): the held event history the Dashboard reads, this machine's CPU samples, and the pure model and markup.
+const pipelineView = (${pipelineRuntime.toString()})({ model: (${pipelineWatchModel.toString()}), html: (${pipelineWatchHtml.toString()}), history: project => dashboardView.history(project), api, current: () => view.root,
+  redraw: () => { if (view.tab === 'pipeline' && data?.project) render(); }, windowMinutes: () => ({ '15m': 15, '30m': 30, '3h': 180 })[view.pipelineWindow] ?? 60,
+  itemsHref: ids => itemsIdsHref(ids), itemHref: id => itemAddress(id), openItems: ids => openPipelineItems(ids), machineHere: privateCost });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -268,22 +310,37 @@ function theme(pick) {
   const now = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.dataset.scheme = now;
   // The open-board screens carry the same toggle in their own header (#764), as the sidebar is hidden there.
-  for (const button of [$('theme'), $('ob-theme')]) {
+  for (const label of document.querySelectorAll('[data-theme-label]')) label.textContent = pick === 'light' ? 'Light' : pick === 'dark' ? 'Dark' : 'System';
+  for (const button of [$('ob-theme')]) {
     button.title = now === 'dark' ? 'Dark theme: switch to light' : 'Light theme: switch to dark';
     button.setAttribute('aria-label', button.title);
   }
 }
 theme(keep('pb.theme'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => theme(keep('pb.theme')));
-/** Collapse the sidebar into the tab bar on a wide screen, or bring it back, as the person last chose. */
-function collapseSide(collapsed) {
-  if (collapsed) document.documentElement.dataset.side = 'collapsed';
-  else delete document.documentElement.dataset.side;
-  $('side-toggle').setAttribute('aria-pressed', String(collapsed));
-  $('side-toggle').title = collapsed ? 'Show the project list' : 'Collapse the project list';
-  $('side-toggle').setAttribute('aria-label', $('side-toggle').title);
+/** The project list is always the switcher's dropdown, never a docked sidebar. */
+document.documentElement.dataset.side = 'collapsed';
+/** The navigation sits at the top or in the sidebar, as the pin last chose on this device; a phone always gets the top. */
+const widePage = matchMedia('(min-width: 901px)');
+function placeNav() {
+  const layout = navLayout({ stored: keep('pb.nav'), wide: widePage.matches });
+  document.documentElement.dataset.nav = layout;
+  const pin = document.getElementById('nav-pin');
+  if (!pin) return;
+  const words = layout === 'side' ? 'Move the navigation to the top' : 'Move the navigation to the sidebar';
+  pin.setAttribute?.('aria-pressed', String(layout === 'side'));
+  pin.setAttribute?.('aria-label', words);
+  pin.title = words + ' (\\\\)';
+  pin.querySelector?.('.pg')?.classList?.toggle('up', layout === 'side');
 }
-collapseSide(keep('pb.side') === 'collapsed');
+/** The pin flips the layout and this device remembers it. */
+function flipNav() {
+  keep('pb.nav', document.documentElement.dataset.nav === 'side' ? 'top' : 'side');
+  placeNav();
+  placeControls();
+}
+placeNav();
+widePage.addEventListener?.('change', () => { placeNav(); placeControls(); });
 const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 // Inline code: a short chip stays whole on its line; one wider than a phone line's worth may wrap. Width
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
@@ -297,10 +354,13 @@ const agoLong = (iso) => { const short = ago(iso); return short === 'now' ? 'now
 const ago = (iso) => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 2880 ? Math.round(m / 60) + 'h' : Math.round(m / 1440) + 'd'; };
 // An age as the page shows it: the moment it counts from stays on it, so tickAges can move it on.
 const age = (iso) => '<time data-ago="' + esc(iso) + '">' + ago(iso) + '</time>';
-const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ') + clock(iso);
+// The browser's date words come from formatters made once: making one per moment cost an item's history 100 ms (#6851).
+const dateWords = {};
+const dateFormat = (name, options) => dateWords[name] || (dateWords[name] = new Intl.DateTimeFormat([], options));
+const clock = (iso) => dateFormat('clock', { hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(iso));
+const when = (iso) => (new Date(iso).toDateString() === new Date().toDateString() ? '' : dateFormat('day', { month: 'short', day: 'numeric' }).format(new Date(iso)) + ' ') + clock(iso);
 /** Keep the Roadmap detail's existing local display at the browser boundary. */
-const roadmapTime = iso => { const moment = new Date(iso), clock = moment.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); return moment.toDateString() === new Date().toDateString() ? clock : moment.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + clock; };
+const roadmapTime = iso => { const moment = new Date(iso), clock = dateFormat('roadmap', { hour: 'numeric', minute: '2-digit' }).format(moment); return moment.toDateString() === new Date().toDateString() ? clock : dateFormat('day', { month: 'short', day: 'numeric' }).format(moment) + ' ' + clock; };
 // A day as a feed names it: Today, Yesterday, or its weekday and date.
 const dayName = (iso) => {
   const then = new Date(iso).toDateString(), today = new Date();
@@ -498,7 +558,7 @@ const ruleSourceTitle = (row) => row.standardVersion != null ? 'Pullboard v' + r
 // The same data-in, HTML-out renderer runs here and in the pure view tests.
 const recordRow = (${recordRowHtml.toString()});
 const count = (n, one, many = one) => n + ' ' + (n === 1 ? one : many);
-// What needs the person in a project, as its Needs-you list counts it: only the person's calls (B26),
+// What needs the person in a project, as its Rulings list counts it: only the person's calls (B26),
 // the decisions passed up to them, spec rows waiting for them, and held lanes, which only the main
 // checkout, the person's seat, can set. Work waiting for a verdict or sent back belongs to the agents,
 // and the line under the project says so without counting it.
@@ -530,6 +590,7 @@ const pipelineStage = (${pipelineStage.toString()});
 const itemStagePresentation = (${itemStagePresentation.toString()});
 const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
 const itemStageKey = (${itemStageKey.toString()});
+const stageSentence = (${stageSentence.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */
@@ -582,13 +643,16 @@ const span = (ms) => {
  */
 function timeline(item, { newestFirst = false } = {}) {
   const fromThread = Array.isArray(item.thread) && item.thread.length > 0;
-  const entries = (fromThread
+  const recorded = fromThread
     ? item.thread
-    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry })))
-    // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
-    // verifier's background review-comparison receipts stay out of the person's history.
-    .filter((entry) => !['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
-      && !(entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: ')));
+    : item.history.filter((entry) => entry.kind !== 'fact').map((entry, eventId) => ({ type: 'move', eventId: eventId + 1, ...entry }));
+  // Bookkeeping records are not states or findings: usage, rule-based milestone placement, and the
+  // verifier's background review-comparison receipts stay out of the person's history.
+  const bookkeeping = (entry) => ['usage', 'shared-usage', 'milestone_placed'].includes(entry.kind)
+    || (entry.type === 'fact' && String(entry.text ?? '').startsWith('Review comparison: '));
+  const entries = recorded.filter((entry) => !bookkeeping(entry));
+  // A placement keeps its event identity with the row of the event before it, so every API event is still found once [B33,B29].
+  const folded = recorded.flatMap((entry, at) => entry.kind === 'milestone_placed' ? [{ eventId: entry.eventId, after: recorded.slice(0, at).findLast((before) => !bookkeeping(before))?.eventId ?? null }] : []);
   // Native thread moves keep their event detail nested; project it through the shared lifecycle adapter
   // before replay so retained refreezes and other declared event facts match the API history projection.
   const replayEntries = entries.map((entry) => entry.type === 'move' && fromThread
@@ -611,7 +675,7 @@ function timeline(item, { newestFirst = false } = {}) {
     : entry);
   const presentedSteps = steps.map((step) => ({ ...step, kindLabel: eventWords(step.kind), momentLabel: eventMoment(step.kind), timeLabel: step.at ? when(step.at) : '',
     ageHtml: step.at ? age(step.at) : '', model: modelFor(step.by) }));
-  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW,
+  return renderTimelineHtml({ entries: presentedEntries, steps: presentedSteps, flow: FLOW, folded,
     open: view.timelineOpen?.get(JSON.stringify([view.root, item.id])) || [], newestFirst });
 }
 

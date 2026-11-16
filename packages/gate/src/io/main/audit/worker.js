@@ -86,6 +86,7 @@ import {
   mainRedFilesProven,
   mainRedFrozenCheck,
 } from '../../test/economics.js';
+import { storeName } from '../../store-names.js';
 
 /** Run Git with the same sanitized repository environment as ordinary native code. */
 function git(root, args, encoding = 'utf8') {
@@ -269,7 +270,7 @@ export async function closeAuditedMainReds(root, job, plan, receipt, write, open
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
 async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead, collectCellsBacklog) {
-  const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
+  const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, storeName(key));
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
   if (saved?.cleanupNeeded && saved.cleanupNeeded !== source) throw new Error('main audit cleanup path is not the owned source');
@@ -368,14 +369,14 @@ async function audit(root, directory, job, write, options, testValueServices, ex
 }
 /**
  * Run the audit's board-command budget check, when the composition root supplies one, for the newest audited tip. A
- * breach is filed to the lane owning the CLI entry, or the newest landed item's lane when the coordinator owns it.
+ * breach is filed to the lane owning the CLI entry the caller names (ownerPath), or the newest landed item's lane when the coordinator owns it.
  * Why it never throws: a measurement that fails must not leave an audit obligation incomplete.
  */
-async function checkCommandBudget(root, { directory, job, write, openBoardForRead }, check) {
+async function checkCommandBudget(root, { directory, job, write, openBoardForRead, ownerPath }, check) {
   if (typeof check !== 'function') return;
   try {
     const config = policyAt(root, job.tip).config;
-    const owner = laneOf(config, 'apps/cli/pullboard.js');
+    const owner = laneOf(config, ownerPath);
     const lane = owner && owner !== 'coordinator' ? owner : job.items?.[0]?.lane ?? Object.keys(config.lanes)[0];
     await check({ directory, job, lane, write, read: action => readBoard(repoInfo(root), action, openBoardForRead) });
   } catch (error) {
@@ -430,13 +431,13 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
         visited.add(key);
         try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices, openBoardForRead, services.cellsBacklog); }
         catch (error) {
-          const file = join(directory, `${key}.json`);
+          const file = join(directory, storeName(key));
           const saved = readMainAudit(file) ?? job;
           saveMainAudit(file, { ...saved, incomplete: true, error: String(error.message) });
           // A refused notice or malformed job must not prevent remaining obligations.
         }
       }
-      if (jobs.length) await checkCommandBudget(root, { directory, job: jobs.at(-1), write, openBoardForRead }, services.commandBudget);
+      if (jobs.length) await checkCommandBudget(root, { directory, job: jobs.at(-1), write, openBoardForRead, ownerPath: services.commandBudgetOwnerPath }, services.commandBudget);
       const next = await withFileLock(lock, () => {
         const owner = readMainAudit(ownerFile);
         if (owner?.pid !== process.pid || owner.token !== token) throw new Error('main audit ownership changed');

@@ -39,7 +39,7 @@ test('a runner request naming every test file of this repository builds a spec u
     const started = performance.now();
     try {
       const request = await requestFor(process.cwd(), command, { runner: { host: 'hop-harness-runner', slots: 1, browser: 0 },
-        source: { commit, tree }, metadata: {} }, { privateCheckEnvelope });
+        source: { commit, tree }, metadata: { item: 'fixture', kind: 'remote-command' } }, { privateCheckEnvelope });
       try { process.stdout.write(JSON.stringify({ bytes: Buffer.byteLength(JSON.stringify(request.spec)), inlined, ms: performance.now() - started })); }
       finally { request.cleanup(); }
     } catch (error) {

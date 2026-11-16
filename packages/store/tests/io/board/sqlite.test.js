@@ -7,7 +7,7 @@ import {
   applyEngineMove,
   prepareEngineMove,
 } from '../../../../state/index.js';
-import { fixtureBoard } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../board/tests/fixtures/board.js';
 
 const AT = '2026-10-27T00:00:00.000Z';
 const clock = { now: () => new Date(AT) };

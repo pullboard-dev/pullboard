@@ -104,13 +104,14 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   box.git(box.repo, 'add', 'src/new.js', 'packages/codemap/data/plan/temporary-edges.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: retain a bounded temporary edge [G1]');
   // The bars name src/git.js, so the web lane owns src/ and claim's cross-ownership guard stays out of the way.
-  const { lanes } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'src/'] } } });
+  const { lanes, claims } = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  // Two claims on one seat: the sibling folder is the point of the case, and the fixture seat holds one by default.
+  fixturePolicy(box, { claims: { ...claims, perSeat: 2 }, lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'src/'] } } });
   box.git(box.web, 'merge', '-q', 'main');
   const folders = [];
   for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
     ['No edge exception', 'Use the canonical front door.']]) {
-    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json'));
+    const added = (await fixtureAdd(box.runLocal, box.repo, 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--accept-green', 'fixture check keeps passing', '--wait', '--json'));
     assert.equal(added.code, 0, added.out + added.err);
     const id = JSON.parse(added.out).item.item_id;
     const claimed = (await box.runLocal(box.web, 'claim', String(id), '--json'));

@@ -5,7 +5,7 @@ import * as store from '../../index.js';
 import { addMilestone } from '../../index.js';
 import { editMilestoneItems } from '../../index.js';
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../state/light.js';
-import { fixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 
 /** A default board with two releases, seeded from work recorded before automatic placement. */
 function placementBoard(t) {

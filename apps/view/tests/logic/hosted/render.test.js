@@ -38,6 +38,40 @@ test('Settings loading, unavailable and empty states cannot display stale row va
   assert.match(settingsContentHtml({ rows: [] }, 'board'), /No settings in this scope/u);
 });
 
+test('clause 1: Settings shows a refused inventory as a plain-words problem that names the setting [N26,O5,O6,C7]', () => {
+  const raw = '[BAD_SETTINGS] setting gate.timingRunner has an unsupported type; restore its documented value';
+  const html = settingsContentHtml({ error: raw });
+  assert.match(html, /role="alert">gate\.timingRunner holds the wrong kind of value\. Set it back to its documented value, then choose Refresh\.<\/p>/u);
+  assert.doesNotMatch(html, /BAD_SETTINGS|unsupported type/u);
+  assert.match(html, /class="settings-head"/u);
+  assert.match(html, /data-settings-scope="board"/u);
+});
+
+test('clause 2: Settings draws every other setting beside the one with a problem [N26,O5,O6,C7]', () => {
+  const bad = { scope: 'machine', key: 'gate.runnersOnly', label: 'Runners only', value: null, default: false, source: 'file', description: 'x', error: { message: 'Runners only (gate.runnersOnly) holds the wrong kind of value.', fix: 'Set gate.runnersOnly back to false.' } };
+  const good = { scope: 'machine', key: 'gateSlots', label: 'Slots', value: 2, default: 2, source: 'file', description: 'y' };
+  const rows = settingsContentHtml({ rows: [bad, good] }, 'machine');
+  assert.match(rows, /data-setting-key="gate\.runnersOnly"[^]*?setting-error[^]*?holds the wrong kind of value/u);
+  assert.match(rows, /data-setting-key="gateSlots"/u);
+});
+
+test('clause 1: Settings drops the machine\'s internal resource rows and keeps grouped cards with their changed counts [N26,O5,O6,C7]', () => {
+  const row = (key, extra = {}) => ({ scope: 'machine', key, label: key, description: 'd', group: 'Capacity', unit: 'count', value: 3, default: 1, source: '/x/settings.json', ...extra });
+  const rows = [row('gateSlots', { cli: 'gateSlots' }), row('resources.test-file-loan:abc123.capacity'), row('resources.submit-handoff-workers.capacity'), row('resources.runner:mini-4.capacity'), row('resources.custom.capacity'), row('gate.queue.reviewsFirst', { group: 'Order', value: true, default: false })];
+  const html = settingsContentHtml({ rows }, 'machine');
+  assert.doesNotMatch(html, /test-file-loan|submit-handoff|runner:mini/u, 'internal resource rows never appear');
+  assert.match(html, /data-setting-key="resources\.custom\.capacity"/u, 'a resource a person set still shows');
+  assert.match(html, /<h2 class="hd1">Capacity<\/h2>[^]*?2 changed[^]*?<h2 class="hd1">Order<\/h2>[^]*?1 changed/u, 'each group is a card with its changed count');
+});
+
+test('clause 2: every changed row with a command has a copy button, and name, key and description each sit on one line [N26,O5,O6,C7]', () => {
+  const base = { scope: 'machine', label: 'Scratch folder', description: 'A long sentence.', group: 'Capacity', unit: 'text', source: '/x/settings.json' };
+  const html = settingsContentHtml({ rows: [{ ...base, key: 'scratch', cli: 'scratch', value: '/tmp/my scratch', default: '/tmp/scratch' }, { ...base, key: 'gateSlots', cli: 'gateSlots', value: 4, default: 2 }] }, 'machine');
+  assert.match(html, /data-copy-command="pullboard settings scratch &#39;\/tmp\/my scratch&#39;"/u, 'a text value is quoted for the shell');
+  assert.match(html, /data-copy-command="pullboard settings gateSlots 4"/u);
+  assert.equal((html.match(/class="set-title"/gu) || []).length, 2, 'name and key share one title line');
+});
+
 test('the star line renders the supplied repository address without reading a manifest [N26,C7]', () => {
   const html = starHtml('https://example.invalid/repo?x="<&');
   assert.match(html, /id="star-line" hidden/u);

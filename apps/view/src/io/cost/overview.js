@@ -1,5 +1,5 @@
 /** Render a private costAnalytics/1 projection; arithmetic and attribution remain server-owned [N26]. */
-export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, vendorClasses = [] } = {}) {
+export function costOverviewHtml(data = {}, opened = null, { vendorClasses = [], waiting = '', updating = false } = {}) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const duration = ms => ms == null ? '' : ms < 3600000 ? Math.max(1, Math.round(ms / 60000)) + ' min' : ms < 36000000 ? (ms / 3600000).toFixed(1) + ' h' : Math.round(ms / 3600000) + ' h';
   const percent = value => value == null ? '' : Math.round(value * 100) + '%';
@@ -14,7 +14,7 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, 
   const track = (value, max, tone) => '<svg class="cost-time-bar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="6"></rect><rect class="' + tone + '" width="' + (max > 0 ? Math.min(100, 100 * value / max) : 0) + '" height="6"></rect></svg>';
   const calls = [['building', data.builders], ['verifying', data.verifiers]].map(([role, group]) => {
     const rows = group?.rows ?? [], best = rows.find(row => row.model === group?.best), runner = rows.find(row => row.model === group?.runnerUp), tone = pill(group?.verdict);
-    if (!best || !tone) return '<article class="cost-model-call"><div class="cost-call-head"><span class="cost-kicker">' + role + '</span></div><p class="cost-why">No model has enough observations yet.</p></article>';
+    if (!best || !tone) return '<div class="cost-verdict"><h3 class="hd2">' + role + '</h3><span class="cost-vtext">No model has enough observations yet.</span></div>';
     const lacking = rows.filter(row => !row.judged && row.model !== best.model).sort((a, b) => (b.built ?? b.accepts ?? 0) - (a.built ?? a.accepts ?? 0))[0];
     const call = role === 'building' ? (group.verdict === 'nothing-to-compare' ? best.label + ' builds' : best.label + ' builds best') : (group.verdict === 'nothing-to-compare' ? 'Keep ' + best.label + ' verifying' : best.label + ' verifies best');
     const why = role === 'building'
@@ -23,7 +23,8 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, 
     const next = group.verdict === 'clear' ? 'Put it on your ' + (role === 'building' ? 'build' : 'verify') + ' seats.'
       : group.verdict === 'leaning' ? 'Keep it on most ' + (role === 'building' ? 'build' : 'verify') + ' seats. The ranges overlap, so more items will settle it.'
       : lacking ? 'Give ' + esc(lacking.label) + ' a few ' + (role === 'building' ? 'build' : 'verify') + ' seats until it has 30' + (role === 'building' ? ' builds' : ' accepts') + ', to compare.' : 'Give a second model seats until it reaches 30.';
-    return '<article class="cost-model-call"><div class="cost-call-head"><span class="cost-kicker">' + role + '</span><span class="cost-confidence ' + tone[0] + '">' + tone[1] + '</span></div><p class="cost-call">' + dot(call, best.vendor).replace('<span class="cost-model-dot">', '<span class="cost-call-dot">') + '</p><p class="cost-why">' + why + '</p><p class="cost-next">' + next + '</p></article>';
+    const plain = (why + ' ' + next).replace(/<[^>]+>/gu, '');
+    return '<div class="cost-verdict"><h3 class="hd2">' + role + '</h3><p class="cost-call">' + dot(call, best.vendor).replace('<span class="cost-model-dot">', '<span class="cost-call-dot">') + '</p><span class="cost-vtext" title="' + esc(plain) + '">' + why + ' <span class="cost-next">' + next + '</span></span><span class="cost-conf">' + tone[1] + '</span></div>';
   }).join('');
   const dayHours = day => ((day.firstTimeMs ?? 0) + (day.sentBackMs ?? 0)) / 3600000;
   const peak = Math.max(0, ...(data.days ?? []).map(dayHours));
@@ -59,26 +60,22 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false, 
     const name = building ?? verifying, few = !(building?.judged || verifying?.judged);
     return '<tr' + (few ? ' class="few"' : '') + '><th scope="row"><span class="cost-model-name"><i class="' + vendorClass(name.vendor) + '" aria-hidden="true"></i>' + esc(name.label) + ' <small>' + esc(name.vendor) + '</small></span></th><td>' + (building ? esc(building.built) : '<span class="faint">—</span>') + '</td><td>' + interval(building, 'building') + '</td><td>' + (building && !building.tooFew && building.typicalItemMs != null ? esc(duration(building.typicalItemMs)) : '<span class="faint">—</span>') + '</td><td class="vsep">' + (verifying ? esc(verifying.verdicts) : '<span class="faint">—</span>') + '</td><td>' + interval(verifying, 'verifying') + '</td></tr>';
   }).join('');
-  const unrecorded = data.unknownBuilderModelShare ?? 0, total = totals.itemCount ?? data.allItems ?? 0;
-  const gap = unrecorded > 0 ? '<p class="cost-gapnote"><b>' + esc(percent(unrecorded)) + ' of items don\'t record which model built them</b>, so this is judged on the other ' + esc(Math.max(0, total - Math.round(unrecorded * total))) + '. Every agent recording its model makes these calls sharper.</p>' : '';
-  const longestMax = Math.max(1, ...(data.longest ?? []).map(row => row.agentMs ?? 0));
-  const items = (data.longest ?? []).map(row => {
-    const sessions = opened === row.id ? '<div class="cost-detail"><div class="cost-sessions">' + (row.sessions ?? []).map(s => '<div class="cost-session"><span>' + dot(s.label, s.model ?? s.label) + (s.count == null ? '' : '<small>' + esc(s.count) + ' session' + (s.count === 1 ? '' : 's') + '</small>') + '</span><span class="cost-time">' + (s.agentMs == null ? '' : track(s.agentMs, row.agentMs ?? s.agentMs, 'right') + '<b>' + esc(duration(s.agentMs)) + '</b>') + '</span><span class="num">' + (s.tokensIn == null || s.tokensIn === 0 ? 'No token count' : esc(tokens(s.tokensIn)) + ' tokens in') + '</span></div>').join('') + '</div><div class="cost-path">' + (row.sentBack ? '<span class="x">✕ Sent back ' + esc(row.sentBack) + '×</span>' : '') + '<span class="ok">✓ Verified' + (row.verifiedBy ? ' by ' + esc(row.verifiedBy) : '') + (row.landedAt && landed(row.landedAt) ? ' · <time datetime="' + esc(row.landedAt) + '">landed ' + esc(landed(row.landedAt)) + '</time>' : '') + '</span><a href="/items/' + esc(row.id) + '" data-go="item:' + esc(row.id) + '">Open #' + esc(row.id) + ' →</a></div></div>' : '';
-    return '<button class="cost-row' + (row.sentBack ? ' back' : '') + '" type="button" data-cost-row="' + esc(row.id) + '" aria-expanded="' + (opened === row.id) + '"><span class="cost-row-main"><span class="cost-row-title"><b class="id">#' + esc(row.id) + '</b><span class="cost-title">' + esc(row.title) + '</span></span><span class="cost-row-models">' + [...new Map((row.sessions ?? []).map(s => [s.label, s])).values()].map(s => dot(s.label, s.model ?? s.label)).join('') + '</span></span><span class="cost-time">' + (row.agentMs == null ? '' : track(row.agentMs, longestMax, row.sentBack ? 'back' : 'right') + '<b>' + esc(duration(row.agentMs)) + '</b>') + '</span>' + (row.sentBack ? '<span class="cost-sb">' + esc(row.sentBack) + '× back</span>' : '<span></span>') + '</button>' + sessions;
-  }).join('');
+  /** One dense table of hours, share and sent-back share per model or per lane [N26]. */
+  const spreadList = (title, list) => '<div class="cost-spread"><div class="cost-spread-head"><h3 class="hd2">' + title + '</h3><span>Hours</span><span>Share</span><span>Sent back</span></div>' + (list ?? []).map(row => '<div class="cost-spread-row"><span class="cost-spread-name">' + (title === 'By model' ? dot(row.label, row.key ?? row.label) : esc(row.label)) + '</span><b>' + esc(duration(row.agentMs)) + '</b><span>' + esc(percent(row.share)) + '</span><span class="' + (row.sentBackShare > 0 ? 'bad' : 'faint') + '">' + esc(percent(row.sentBackShare)) + '</span></div>').join('') + ((list ?? []).length ? '' : '<p class="cost-note">Not recorded yet.</p>') + '</div>';
   const share = back.agentMsShare, firstMs = totals.agentMs != null && back.agentMs != null ? totals.agentMs - back.agentMs : null;
   const lock = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M5.5 7V5.2a2.5 2.5 0 015 0V7" fill="none" stroke="currentColor" stroke-width="1.5"></path></svg>';
-  return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><h1>Cost</h1><nav class="cost-periods" aria-label="Time period">' + [['today', 'Today'], ['7d', '7 days'], ['30d', '30 days']].map(([id, label]) => '<button data-cost-window="' + id + '" aria-pressed="' + (data.window === id) + '">' + label + '</button>').join('') + '</nav><span class="cost-private">' + lock + 'Only you see this</span></header>'
-    + (hasPrices ? '' : '<section class="cost-card cost-prices"><span>Showing agent time. <b>Want dollars?</b> Tell your coordinator agent:</span><span class="cost-copy"><code>Add model prices to Pullboard</code><button data-cost-copy type="button">Copy</button></span></section>')
-    + '<div class="cost-overview"><article class="cost-card cost-summary"><div><p class="cost-kicker">Agent time</p><p class="cost-big">' + (totals.agentMs == null ? 'Not recorded' : esc(Math.round(totals.agentMs / 3600000)) + '<small>hours</small>') + '</p><p class="cost-note">for ' + bold(totals.itemCount) + ' landed items · ' + bold(duration(totals.medianItemMs) || '—') + ' for a typical item</p></div><div><p class="cost-kicker">Sent back</p><p class="cost-say"><b class="bad">' + esc(percent(back.itemShare)) + '</b> of items were sent back.' + (share == null ? '' : ' They took <b class="bad">' + esc(percent(share)) + '</b> of the time.') + '</p>'
-    + (share == null ? '' : '<svg class="cost-split" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Agent time split"><rect class="right" width="' + Math.max(0, 100 * (1 - share) - 0.5) + '" height="10"></rect><rect class="back" x="' + (100 * (1 - share) + 0.5) + '" width="' + Math.max(0, 100 * share - 0.5) + '" height="10"></rect></svg><div class="cost-keys"><span><i class="right"></i>Right first time ' + bold(duration(firstMs)) + '</span><span><i class="back"></i>Sent back ' + bold(duration(back.agentMs)) + '</span></div>') + '</div></article>'
-    + '<article class="cost-card cost-chart"><div class="cost-chart-head"><span class="cost-kicker">Agent time each day</span><span class="cost-chart-legend"><span><i></i>Right first time</span><span><i class="back"></i>Sent back</span></span></div>' + (known.length || (data.days ?? []).length ? chart : '') + '</article></div>'
-    + '<section class="cost-card cost-model-card"><div class="cost-sec"><h2>Models</h2><span class="cost-sub">Which models earn their seat</span></div><div class="cost-model-calls">' + calls + '</div>' + gap + '<div class="cost-model-table-wrap"><table class="cost-model-table"><thead><tr><th class="grp-gap"></th><th colspan="3" class="grp">Building</th><th colspan="2" class="grp vsep">Verifying</th></tr><tr><th>Model</th><th>Built</th><th>Passed first time <span class="sm">· bar shows likely range</span></th><th>Typical item</th><th class="vsep">Verdicts</th><th>Accepted, came back later</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>'
-    + '<section class="cost-card cost-longest"><div class="cost-sec"><h2>Took the longest</h2><span class="cost-sub">Click one to see who worked on it</span></div>' + items + '<button class="cost-all" data-cost-all type="button">All ' + esc(data.allItems) + ' items →</button></section></section>';
+  const heading = '<section class="cost-page" aria-label="Cost"><div class="shd cost-private-row"><span class="cap2 cost-private">' + lock + 'Only you see this</span>' + (updating ? '<span class="cap2 cost-updating" role="status">Updating…</span>' : '') + '</div>';
+  if (waiting) return heading + '<section class="cost-card cost-waiting" role="status">' + esc(waiting) + '</section></section>';
+  return heading
+    + '<section class="cost-sect"><div class="shd"><h2 class="hd1">Models</h2><span class="cap2">Which models earn their seat</span></div><div class="cost-card cost-model-card"><div class="cost-model-calls">' + calls + '</div><div class="cost-model-table-wrap"><table class="cost-model-table"><thead><tr><th class="grp-gap"></th><th colspan="3" class="grp">Building</th><th colspan="2" class="grp vsep">Verifying</th></tr><tr><th>Model</th><th>Built</th><th>Passed first time <span class="sm">· bar shows likely range</span></th><th>Typical item</th><th class="vsep">Verdicts</th><th>Accepted, came back later</th></tr></thead><tbody>' + rows + '</tbody></table></div></div></section>'
+    + '<section class="cost-sect"><div class="shd"><h2 class="hd1">Agent time</h2></div><div class="cost-card cost-overview"><article class="cost-summary"><div class="cost-line"><b class="cost-total">' + (totals.agentMs == null ? 'Not recorded' : esc(duration(totals.agentMs))) + '</b><span>' + bold(totals.itemCount) + ' landed items</span><span>' + bold(duration(totals.medianItemMs) || '—') + ' typical item</span><span title="Sent back: a reject or a reopen, as the Dashboard and Pipeline count it"><b class="bad">' + esc(percent(back.itemShare)) + '</b> of items sent back' + (share == null ? '' : ', <b class="bad">' + esc(percent(share)) + '</b> of the time') + (back.agentMs == null ? '' : ' · ' + bold(duration(back.agentMs))) + '</span></div>'
+    + (share == null ? '' : '<svg class="cost-split" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="Agent time split"><rect class="right" width="' + Math.max(0, 100 * (1 - share) - 0.5) + '" height="10"></rect><rect class="back" x="' + (100 * (1 - share) + 0.5) + '" width="' + Math.max(0, 100 * share - 0.5) + '" height="10"></rect></svg>')
+    + '<div class="cost-spreads">' + spreadList('By model', data.byModel) + spreadList('By lane', data.byLane) + '</div></article>'
+    + '<article class="cost-chart"><div class="cost-chart-head"><h3 class="hd2">Agent time each day</h3><span class="cost-chart-legend"><span><i></i>Right first time</span><span><i class="back"></i>Sent back</span></span></div>' + (known.length || (data.days ?? []).length ? chart : '') + '</article></div></section></section>';
 }
 
 /** Bind the Cost controls to the host's private projection and navigation services [N26]. */
-export function bindCostOverview(element, { readWindow, openItem, showAll, copyText, hasPrices = false } = {}) {
+export function bindCostOverview(element, { readWindow, openItem, showAll } = {}) {
   let selected = '7d', opened = null, model = null;
   /** Refresh only the currently selected window, ignoring late responses from earlier selections. */
   async function load(window) {
@@ -87,7 +84,7 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
       const result = await readWindow(window);
       if (selected !== window) return;
       model = result;
-      element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses });
+      element.innerHTML = costOverviewHtml(model, opened, { vendorClasses: modelTables.vendorClasses });
       element.querySelector('[data-cost-window="' + window + '"]')?.focus();
     } catch (error) {
       if (selected !== window) return;
@@ -95,13 +92,12 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
     }
   }
   element.addEventListener('click', event => {
-    const target = event.target.closest('[data-cost-window],[data-cost-row],[data-cost-copy],[data-cost-all],[data-go]');
+    const target = event.target.closest('[data-cost-window],[data-cost-row],[data-cost-all],[data-go]');
     if (!target) return;
     if (target.dataset.costWindow) { void load(target.dataset.costWindow); return; }
-    if (target.dataset.costCopy !== undefined) { void copyText('Add model prices to Pullboard'); return; }
     if (target.dataset.costAll !== undefined) { showAll(); return; }
     if (target.dataset.go?.startsWith('item:')) { event.preventDefault(); openItem(Number(target.dataset.go.slice(5))); return; }
-    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { hasPrices, vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
+    if (target.dataset.costRow) { const id = Number(target.dataset.costRow); opened = opened === id ? null : id; element.innerHTML = costOverviewHtml(model, opened, { vendorClasses: modelTables.vendorClasses }); element.querySelector('[data-cost-row="' + id + '"]')?.focus(); }
   });
   return load(selected);
 }

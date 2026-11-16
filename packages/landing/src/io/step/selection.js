@@ -7,6 +7,7 @@ import { runnerSourceHold } from '../../logic/hold.js';
 import { deferredLandingPriorities } from '../../logic/land/collisions.js';
 import { landingBatchSize } from '../../logic/batch/size.js';
 import { roundFailures } from '../../logic/batch/size.js';
+import { LANDING_RED_LIMIT } from '../../../../store/index.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -305,8 +306,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   return { ready, blocked };
 }
 
-/** How many landing batches in a row may end red for one item at one commit before it returns to its builder. */
-export const LANDING_RED_LIMIT = 3;
+export { LANDING_RED_LIMIT };
 
 /** Batch states that end a landing with nothing landed. */
 const RED_ENDS = new Set(['blocked', 'test-defect', 'flaky']);

@@ -18,7 +18,10 @@ import {
   spawn,
   spawnSync,
 } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+} from 'node:fs';
 import {
   join,
   resolve,
@@ -29,13 +32,16 @@ import {
 } from 'node:url';
 
 const ROOT = resolve(fileURLToPath(new URL('../../../..', import.meta.url)));
+/** The CLI entry the package manifest names as its pullboard bin, so this file names no app path. */
+const CLI = join(ROOT, JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).bin.pullboard);
 const HARNESSES = join(ROOT, 'packages/gate/tests/fixtures/pipeline');
 
 /** Where each harness name lives under the pipeline folder, since the layout move gave the files shorter names. */
 export const HARNESS_FILES = Object.freeze({
-  'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
-  'foreign-sweep': 'sweep', 'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a',
-  'ready-budget': 'budget', 'runner-spec': 'spec', 'stale-dispatcher': 'dispatcher',
+  'analysis-on-runner': 'analysis-on-runner', 'board-commands': 'board/commands', 'board-write': 'board/write', 'dead-worker-requeue': 'requeue', e2e: 'e2e',
+  'landing-reopen': 'a-reject-or-reopen-during-landing', 'import-undeclared': 'board-restored-from-an-export-with-an-un', 'live-driver': 'driver', 'merged-twice': 'pullboard-merged-run-twice', 'orphan-worker': 'worker', 'proof-lanes': 'lanes', 'shout-scope': 'a-shout-names-an-item-this-seat-cannot-a', 'next-claim-fresh': 'next-resumes-a-claim-that-changed-in-the',
+  'red-at-claim': 'a-red-from-an-older-head-shown-at-claim', 'landing-run': 'landing-run-fails-or-its-proof-is-not-gr', 'sleep-past-leases': 'machine-sleeps-past-every-lease', 'main-test': 'queued-main-test-job-never-driven', 'red-notice': 'red-notice-after-the-claim-lapsed', 'review-held': 'review-held-on-an-item-that-was-withdraw',
+  'ready-budget': 'budget', 'runner-spec': 'spec',
 });
 
 /** Board command latency target per command, from the 2 Nov speed rule. */
@@ -53,10 +59,6 @@ export const HOPS = Object.freeze([
   { id: 'submit-queued', stage: 'Gate', hop: 'submit → queued', harness: 'e2e',
     invariant: 'Submit returns with the gate queued on the submitted commit; it never waits on the gate.',
     live: report => phase(report, 'queued', null) },
-  { id: 'dispatcher-launch', stage: 'Gate', hop: 'dispatcher launches worker', harness: 'e2e',
-    invariant: 'One dispatcher per machine, on the tool root\'s committed tooling, starts the gate driver.' },
-  { id: 'stale-dispatcher', stage: 'Gate', hop: 'dispatcher on stale tools hands over', harness: 'stale-dispatcher', fix: '1989322098',
-    invariant: 'A dispatcher on an older tools copy stops launching and hands over to one on the current tooling within 45 s.' },
   { id: 'worker-lease', stage: 'Gate', hop: 'worker heartbeats and lease', harness: 'e2e',
     invariant: 'A running driver is alive and renews its 2-minute lease every 5 s; no gap reaches half the lease.',
     live: report => cause(report, 'SUBMIT_HANDOFF_DEAD') },
@@ -83,8 +85,6 @@ export const HOPS = Object.freeze([
   { id: 'dead-requeue', stage: 'Gate', hop: 'dead worker → requeue', harness: 'dead-worker-requeue', fix: '3a89d81fc5',
     invariant: 'A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red.',
     live: report => phase(report, 'requeue', 20_000) },
-  { id: 'foreign-sweep', stage: 'Gate', hop: 'another machine queue\'s sweep', harness: 'foreign-sweep', fix: '044d6c6c18',
-    invariant: 'A dispatcher from another machine home never recovers this home\'s gates; this home retries its own dead gate.' },
   { id: 'green-review', stage: 'Review', hop: 'green → review', harness: 'e2e',
     invariant: 'A green gate puts the item in review, waiting on an independent reviewer.' },
   { id: 'accept-merged', stage: 'Land', hop: 'accept → landing batch → merged', harness: 'e2e',
@@ -93,6 +93,8 @@ export const HOPS = Object.freeze([
     invariant: 'An item reopened between selection and merge drops out of the landing batch: main never takes its commit and it records no merge.' },
   { id: 'shout-scope', stage: 'All', hop: 'a shout names an item this seat cannot act on', harness: 'shout-scope',
     invariant: 'A shout ends next --wait only for an item open in the seat\'s lane, claimed by it or reservable by it; any other shout is printed and the wait goes on.' },
+  { id: 'next-claim-fresh', stage: 'All', hop: 'next resumes a claim that changed in the same moment', harness: 'next-claim-fresh',
+    invariant: 'next prints you hold #N only after re-reading, in the read that prints, that the seat holds #N with a live lease; a lapsed lease selects again.' },
   { id: 'merged-twice', stage: 'Land', hop: 'pullboard merged run twice', harness: 'merged-twice',
     invariant: 'A second merged for a recorded item appends nothing and names the record; a different commit is refused MERGED_ALREADY.' },
   { id: 'command-latency', stage: 'All', hop: 'board command latency', harness: 'board-commands',
@@ -103,6 +105,30 @@ export const HOPS = Object.freeze([
     invariant: 'A write in a busy checkout answers, and holds the board lock under 1 s, past a slow same-session command, a long reader, a gate worker and dead holders.' },
   { id: 'import-undeclared', stage: 'All', hop: 'board restored from an export with an undeclared status', harness: 'import-undeclared',
     invariant: 'An import whose item row carries an undeclared status is refused UNDECLARED_STATE before anything is inserted.' },
+  { id: 'red-at-head', stage: 'Build', hop: 'red gate at the current head is shown at claim', harness: 'red-at-claim',
+    invariant: 'A red gate is handed back at claim when it ran on the item\'s current commit.' },
+  { id: 'red-older-head', stage: 'Build', hop: 'red gate from an older head is not shown at claim', harness: 'red-at-claim',
+    invariant: 'A red gate that ran on an older head is never handed back once the item moved to a new commit.' },
+  { id: 'landing-run-throws', stage: 'Land', hop: 'landing run that throws ends failed', harness: 'landing-run',
+    invariant: 'A landing run that throws ends failed with its lease freed, and the next landing starts.' },
+  { id: 'landing-run-stalled', stage: 'Land', hop: 'landing run with a stalled batch ends failed', harness: 'landing-run',
+    invariant: 'A landing run whose batch stalled, so its proof is not green, ends failed with its lease freed.' },
+  { id: 'sleep-past-leases', stage: 'Gate', hop: 'machine sleeps past every lease', harness: 'sleep-past-leases',
+    invariant: 'After a sleep past every lease, the fallback ends the job whose item moved on and drives only the live one.' },
+  { id: 'main-test-offered', stage: 'Gate', hop: 'queued main-test job is offered or ended', harness: 'main-test',
+    invariant: 'A queued main-test job is offered at its main commit, or ended unoffered with why: none stays queued.' },
+  { id: 'main-test-lapsed', stage: 'Gate', hop: 'taken main-test job is renewed or lapses', harness: 'main-test',
+    invariant: 'A main-test job a runner took is renewed while it runs, and listed as lapsed once its lease runs out.' },
+  { id: 'red-notice-live', stage: 'Build', hop: 'red notice for a live claim', harness: 'red-notice',
+    invariant: 'A red notice for a live claim says it stays claimed until the lease.' },
+  { id: 'red-notice-lapsed', stage: 'Build', hop: 'red notice after the claim lapsed', harness: 'red-notice',
+    invariant: 'A red notice read after the lease ran out says the claim lapsed, never that it stays claimed.' },
+  { id: 'review-held-verdict', stage: 'Review', hop: 'review job ends with a verdict', harness: 'review-held',
+    invariant: 'A verdict ends the item\'s review job in the same transaction, freeing its lease.' },
+  { id: 'review-held-withdraw', stage: 'Review', hop: 'review job ends with a withdraw', harness: 'review-held',
+    invariant: 'A withdraw ends the item\'s review job in the same transaction, freeing its lease.' },
+  { id: 'review-held-reopen', stage: 'Review', hop: 'review job ends with a reopen', harness: 'review-held',
+    invariant: 'A reopen ends the item\'s review job in the same transaction, freeing its lease.' },
 ]);
 
 /**
@@ -258,12 +284,12 @@ export function renderMatrix(rows, meta) {
  * @returns {{ report: object | null, statusMs: number | undefined }}
  */
 function liveReceipts(since) {
-  const health = spawnSync(process.execPath, [join(ROOT, 'apps/cli/pullboard.js'), 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
+  const health = spawnSync(process.execPath, [CLI, 'gate-health', '--since', since, '--json'], { cwd: process.cwd(), encoding: 'utf8', timeout: 120_000 });
   let report = null;
   try { report = health.status === 0 ? JSON.parse(health.stdout).report : null; }
   catch (error) { process.stderr.write(`gate-health answered unreadable JSON: ${error.message}\n`); }
   const started = performance.now();
-  const status = spawnSync(process.execPath, [join(ROOT, 'apps/cli/pullboard.js'), 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
+  const status = spawnSync(process.execPath, [CLI, 'status'], { cwd: process.cwd(), encoding: 'utf8', timeout: 60_000 });
   return { report, statusMs: status.status === 0 ? performance.now() - started : undefined };
 }
 

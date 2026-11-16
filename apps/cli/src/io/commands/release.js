@@ -1,23 +1,22 @@
 import { existsSync } from 'node:fs';
 import { claimWorktreeSnapshot } from '../../../../../packages/seats/index.js';
 import { relayRecovered } from '../../../../../packages/link/index.js';
-import { prepareStaleObservation } from '../../../../../packages/health/index.js';
-import { pinClaimHandoff } from '../../../../../packages/health/index.js';
 import { staleReleaseNote } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../../../../../packages/store/index.js';
+import { reviewReleaseReasonsRequired } from '../../../../../packages/config/index.js';
 import { cleanItemFolders } from '../item/folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
+import { actOn } from '../board/access.js';
+import { ordered } from '../claim.js';
+import { idArg } from '../context.js';
 import {
-  actOn,
-  idArg,
-  ordered,
-  textArg,
   editAfter,
-} from '../entry.js';
+  textArg,
+} from '../read.js';
 
 /**
  * A seat whose session ends releases its build claims at once (#1225), keeping its work at a board ref, so no claim
@@ -28,6 +27,7 @@ async function releaseOnSessionEnd(io) {
     const held = store.itemsInStatus(board, 'claimed', me.id).filter(item => item.item_parent_id === null);
     const released = [];
     for (const item of held) {
+      const { pinClaimHandoff } = await import('../../../../../packages/health/index.js');
       const handoff = pinClaimHandoff(board, { id: item.item_id, actor: me.id }, item);
       const shown = handoff.changedFiles.slice(0, 8);
       const more = handoff.changedCount - shown.length;
@@ -58,6 +58,7 @@ export async function run(io, args) {
     const problem = releaseReasonProblem(reasonCode, args[2]);
     if (problem) throw problem;
     staleReleaseNote(args[2]);
+    const { prepareStaleObservation } = await import('../../../../../packages/health/index.js');
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
@@ -67,6 +68,14 @@ export async function run(io, args) {
     args.push({ leaseLapse: true, staleClaim: observed, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
   } else {
     refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
+    const item = store.getItem(board, args[0]);
+    const isReview = item.item_status === 'submitted' && store.reviewHolder(board, item) === me.id;
+    // A review's reason may be typed as `too large` or `too-large`; the recorded code is the upper-case form [C7,#8920].
+    const typed = typeof values.reason === 'string' ? values.reason.trim().toUpperCase().replace(/[\s-]+/gu, '_') : values.reason;
+    if (isReview && store.REVIEW_RELEASE_REASONS.includes(typed)) values.reason = typed;
+    if (isReview && reviewReleaseReasonsRequired() && !store.REVIEW_RELEASE_REASONS.includes(values.reason)) {
+      throw new Refused('REVIEW_RELEASE_REASON', `a review release names why it was dropped: --reason ${store.REVIEW_RELEASE_REASONS.join('|')} (--note still gives the one-line reason)`, 'run pullboard release <id> --reason BAR|FAMILY|INFRA|TOO_LARGE --note "why"');
+    }
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
     args.push({ ...(blockedOn ? { blockedOn } : {}), worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, values.reason);

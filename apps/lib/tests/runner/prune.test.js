@@ -173,7 +173,7 @@ function marker(file, completion) {
   });
 }
 
-test('a real worker runs beyond 1024 legacy refs while another live job keeps its candidate [C7]', async () => {
+test('a real worker runs beyond 1024 legacy refs while another live job keeps its candidate [C7]', { skip: 'CONTROLLER_ONLY: deleted with #7526 (SSH stand-in runner dispatch via runOnRunnerAsync; a pulled runner job never starts the stand-in worker)' }, async () => {
   const box = cellSandbox(owner), repo = join(box.dir, 'source'), home = join(box.dir, 'home');
   const bin = join(box.dir, 'bin'), worker = join(box.dir, 'worker'), machine = join(box.dir, 'machine');
   for (const directory of [repo, home, bin, worker, machine]) mkdirSync(directory, { recursive: true });
@@ -186,7 +186,7 @@ test('a real worker runs beyond 1024 legacy refs while another live job keeps it
   const command = `node --input-type=module -e ${JSON.stringify(`import fs from 'node:fs';import cp from 'node:child_process';const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();fs.writeFileSync(${JSON.stringify(started)},head);while(!fs.existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,25));console.log('SOURCE_HEAD:'+head)`)}`;
   /** Dispatch through the real controller, work spec, native worker and source scanner in private fixture storage. */
   async function execute(command, expected) {
-    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../../packages/runners/index.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
+    const source = `import {runOnRunnerAsync} from ${JSON.stringify(new URL('../../../../packages/runners/index.js', import.meta.url).href)};const result=await runOnRunnerAsync(process.cwd(),${JSON.stringify(command)},{runner:{host:${JSON.stringify(HOST)},slots:2,browser:1},metadata:{item:'fixture',kind:'remote-command'}});console.log(JSON.stringify({green:result.isGreen,output:result.output}));`;
     const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {
       cwd: repo, env: { ...box.env, PATH: `${bin}:${box.env.PATH}` }, encoding: 'utf8',
     });

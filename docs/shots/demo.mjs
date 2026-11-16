@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { browser, waitForDemoBoard } from './capture-browser.mjs';
 import { FIXED_TIME, isolatedEnv } from './demo-env.mjs';
 import { renderTour } from './tour-renderer.mjs';
+import { centerScroll, pagerAction } from './roadmap-steps.mjs';
 import { themeVariants } from '../img/theme.mjs';
 import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
@@ -22,6 +23,8 @@ const OUTPUT = fileURLToPath(new URL('./', import.meta.url));
 const THEMES = ['light', 'dark'];
 const DEMO_OUTPUT = join(ROOT, 'docs', 'demo');
 const DEMO_BOARD_ID = 'demo-board';
+/** Extra open items placed in the demo release, so the capture can be proved against a board the size of a real roadmap. */
+const FILLER_ITEMS = Number(process.env.PULLBOARD_DEMO_FILLER_ITEMS || 0);
 const CHROME = [process.env.PULLBOARD_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].filter(Boolean);
 
 /** Set the deterministic lifecycle clock used by the next isolated board command. */
@@ -34,6 +37,42 @@ function command(file, args, cwd, env) {
   const result = spawnSync(file, args, { cwd, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`${file} ${args.join(' ')} failed: ${(result.stderr || result.stdout).trim()}`);
   return result.stdout.trim();
+}
+
+/**
+ * Wait until a submitted demo item has passed its gate and waits for review.
+ * Why: the gate is a job the loopback local runner pulls, so submit returns at once and the item reads "submitted" only when that runner posts its receipt.
+ *
+ * @param {(cwd: string, ...args: string[]) => string} pb runs a pullboard command in the demo environment
+ * @param {string} cwd the seat folder to read from
+ * @param {string} id the item id
+ */
+async function settleSubmitted(pb, cwd, id) {
+  const deadline = Date.now() + 180_000;
+  // Back off from 0.5 s to 3 s: each poll launches the CLI, and on a loaded runner those launches are most of the wait.
+  let pause = 500;
+  while (!/^#\d+ +submitted\b/u.test(pb(cwd, 'show', id))) {
+    if (Date.now() > deadline) throw new Error(`#${id} did not settle its gate within 180 s`);
+    await new Promise((resolveWait) => setTimeout(resolveWait, pause));
+    pause = Math.min(pause * 2, 3000);
+  }
+}
+
+/**
+ * Stop the loopback local runner a submit started in the demo's machine home, so the folder can be removed.
+ *
+ * @param {string} home the demo's private machine home
+ */
+async function stopLocalRunner(home) {
+  let pid = 0;
+  try { pid = Number(JSON.parse(await readFile(join(home, 'local-runner', 'state.json'), 'utf8')).pid); } catch { return; }
+  if (!pid) return;
+  try { process.kill(pid, 'SIGTERM'); } catch { return; }
+  for (let waited = 0; waited < 5000; waited += 50) {
+    try { process.kill(pid, 0); } catch { return; }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+  }
+  try { process.kill(pid, 'SIGKILL'); } catch { /* it has exited */ }
 }
 
 /** Stop a child and wait until it has released its temporary files and sockets. */
@@ -148,7 +187,10 @@ async function exportBoard(repo, env) {
   await writeFile(statePath, JSON.stringify(state) + '\n');
 }
 
-/** Build the demo board by issuing real commands in a temporary git repo. */
+/**
+ * Build the demo board by issuing real commands in a temporary git repo.
+ * Why: the fixture's own commits skip the installed hooks (core.hooksPath), which would only launch two node processes each; the demo shows board moves, not hook refusals.
+ */
 async function buildBoard(base, env) {
   const repo = join(base, 'demo-board');
   await mkdir(repo, { recursive: true });
@@ -157,7 +199,7 @@ async function buildBoard(base, env) {
   await writeFile(join(repo, 'pullboard.json'), JSON.stringify({ name: 'Demo board', project: 'Demo project', gate: 'node --check src/demo.js', spec: 'SPEC.md', verify: { policy: 'any', family: 'require' }, lease: '2h', lanes: { app: { owns: ['src/'], specs: ['G'] }, review: { owns: [], specs: [] } }, shared: [] }, null, 2) + '\n');
   await writeFile(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] A demo item exists to show the board. | gate: none\n- G2 [approved, must] The verified item shows its review history. | gate: none\n');
   command('git', ['add', '-A'], repo, env);
-  command('git', ['commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: initialize demo board'], repo, env);
   const pb = (cwd, ...args) => command(process.execPath, [BIN, ...args], cwd, env);
   pb(repo, 'add', 'app', 'Reviewed and accepted', '--specs', 'G1', '--criterion', 'The demo item is accepted after review.');
   pb(repo, 'add', 'app', 'Future work', '--specs', 'G1', '--criterion', 'The board keeps another item open for later work.');
@@ -174,13 +216,14 @@ async function buildBoard(base, env) {
   if (!review) throw new Error('Could not create the demo reviewer worktree');
   pb(review, 'join', 'review', '--family', 'claude', '--model', 'Demo reviewer');
   setDemoMinutes(env, 1);
-  pb(app, 'next');
+  pb(app, 'next', '--take');
   await mkdir(join(app, 'src'), { recursive: true });
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = false;\n');
   command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): draft the demo change [G1]'], app, env);
   setDemoMinutes(env, 2);
   pb(app, 'submit', '1', '--no-next');
+  await settleSubmitted(pb, app, '1');
   const first = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', first], review, env);
   setDemoMinutes(env, 3);
@@ -191,9 +234,10 @@ async function buildBoard(base, env) {
   pb(app, 'claim', '1');
   await writeFile(join(app, 'src', 'demo.js'), 'export const reviewed = true;\n');
   command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): revise the reviewed demo [G1]'], app, env);
   setDemoMinutes(env, 6);
   pb(app, 'submit', '1', '--no-next');
+  await settleSubmitted(pb, app, '1');
   const second = command('git', ['rev-parse', 'HEAD'], app, env);
   command('git', ['switch', '-q', '--detach', second], review, env);
   setDemoMinutes(env, 12);
@@ -203,12 +247,13 @@ async function buildBoard(base, env) {
   setDemoMinutes(env, 14);
   command('git', ['merge', '-q', '--ff-only', 'app/1'], repo, env);
   pb(repo, 'merged', '1', second);
-  command('git', ['switch', '-q', '-c', 'app/next-review', 'main'], app, env);
-  pb(app, 'claim', '3');
-  await writeFile(join(app, 'src', 'review.js'), 'export const ready = true;\n');
-  command('git', ['add', '-A'], app, env);
-  command('git', ['commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], app, env);
-  pb(app, 'submit', '3', '--no-next');
+  // A claim by id may open the item's own folder, which is where its commit and submit belong.
+  const folder = pb(app, 'claim', '3').match(/^item folder: (.+)$/mu)?.[1] ?? app;
+  await mkdir(join(folder, 'src'), { recursive: true });
+  await writeFile(join(folder, 'src', 'review.js'), 'export const ready = true;\n');
+  command('git', ['add', '-A'], folder, env);
+  command('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'feat(app): prepare the next review [G1]'], folder, env);
+  pb(folder, 'submit', '3', '--no-next');
   pb(app, 'claim', '4');
   setDemoMinutes(env, 75);
   pb(repo, 'lanes', 'lead', 'app', 'app-1');
@@ -221,7 +266,8 @@ async function buildBoard(base, env) {
   pb(app, 'inbox');
   pb(repo, 'shout', 'app-1', '#4 can continue while #3 waits for review.');
   pb(repo, 'hold', 'review', '--reason', 'Waiting for the next demo item.');
-  pb(repo, 'milestone', 'add', 'Demo release', '--items', '1,2,3,4,5', '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
+  const fillerIds = await addFillerItems(repo, env);
+  pb(repo, 'milestone', 'add', 'Demo release', '--items', ['1', '2', '3', '4', '5', ...fillerIds].join(','), '--note', 'A demo release with reviewed, active and future work.', '--reason', 'The demo release groups the demo items.');
   if (!/1 withdrawn/.test(pb(repo, 'status'))) throw new Error('The demo board must include a withdrawn item.');
   const item = JSON.parse(pb(repo, 'show', '1', '--json'));
   if (item.item_builder_family !== 'codex' || item.verdicts.at(-1)?.verdict_verifier_family !== 'claude') {
@@ -229,7 +275,36 @@ async function buildBoard(base, env) {
   }
   const doctrine = JSON.parse(pb(repo, 'spec', '--json'));
   if (!doctrine.rows.some((row) => row.origin === 'standard')) throw new Error('The demo board must include standard doctrine.');
+  // Item 3's gate has run beside the commands above; the board is final once it reads submitted.
+  await settleSubmitted(pb, folder, '3');
   return repo;
+}
+
+/**
+ * File the open filler items of a large demo release, twenty at a time.
+ * Why: one add costs about a second, so 350 in a row outlast the test's budget; the adds only append rows, so parallel batches are safe.
+ * The withdrawn item is #6, so the filler ids run on from #7 in the order filed.
+ *
+ * @param {string} repo the demo board's repo
+ * @param {NodeJS.ProcessEnv} env the demo environment
+ * @returns {Promise<string[]>} the filler item ids
+ */
+async function addFillerItems(repo, env) {
+  const ids = [];
+  for (let first = 1; first <= FILLER_ITEMS; first += 20) {
+    const batch = [];
+    for (let n = first; n < Math.min(first + 20, FILLER_ITEMS + 1); n += 1) {
+      batch.push(new Promise((resolveAdd, reject) => {
+        const child = spawn(process.execPath, [BIN, 'add', 'app', `Filler item ${n}`, '--specs', 'G2', '--criterion', `Filler criterion ${n} stays open [test].`], { cwd: repo, env, stdio: ['ignore', 'ignore', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk; });
+        child.once('close', (status) => status === 0 ? resolveAdd() : reject(new Error(`filler item ${n} failed: ${stderr.trim()}`)));
+      }));
+      ids.push(String(6 + n));
+    }
+    await Promise.all(batch);
+  }
+  return ids;
 }
 
 /** Capture the tour's own terminal-paced output and encode each line with its observed delay. */
@@ -279,7 +354,15 @@ async function captureRoadmap(view, repo, observation) {
     if (head.getAttribute('aria-expanded') !== 'true') head.click();
     return true;
   })()`);
-  await view.waitFor("document.querySelector('[data-key=\"m:Demo release\"] .milestone-item[data-roadmap-key=\"i:#1\"]')", 'the demo release items');
+  // The release lists landed items one page at a time, so on a long release the accepted item may sit on a later page: step to it.
+  await view.waitFor(`(() => {
+    const ${pagerAction.name} = ${pagerAction};
+    const release = document.querySelector('[data-key="m:Demo release"]');
+    const next = release.querySelector('.roadmap-page-step:not([disabled])[data-page]:last-of-type');
+    const action = ${pagerAction.name}({ keys: [...release.querySelectorAll('.milestone-item')].map(node => node.dataset.roadmapKey), target: 'i:#1', nextEnabled: !!next });
+    if (action === 'step') next.click();
+    return action === 'found';
+  })()`, 'the demo release items');
   await view.evaluate(`(() => {
     const release = document.querySelector('[data-key="m:Demo release"]');
     for (const row of release.querySelectorAll('.milestone-item[aria-expanded="true"]')) row.click();
@@ -291,8 +374,8 @@ async function captureRoadmap(view, repo, observation) {
     const row = release?.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
     const fields = [...(row?.parentElement.querySelectorAll('.roadmap-detail dt') || [])].map(node => node.textContent.trim());
     return row?.getAttribute('aria-expanded') === 'true' && ['Criterion', 'Agents', 'History', 'Release'].every(name => fields.includes(name))
-      && !!release.querySelector('.roadmap-estimate')?.textContent;
-  })()`, 'the expanded item fields and current time feedback');
+      && !!release.querySelector('.roadmap-left')?.textContent;
+  })()`, 'the expanded item fields and the release count');
   const readings = [];
   for (const theme of ['light', 'dark']) {
     await view.evaluate(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}; localStorage.setItem('pb.theme', ${JSON.stringify(theme)})`);
@@ -300,15 +383,19 @@ async function captureRoadmap(view, repo, observation) {
     const reading = JSON.parse(await view.evaluate(`JSON.stringify((() => {
       const release = document.querySelector('[data-key="m:Demo release"]');
       const row = release.querySelector('.milestone-item[data-roadmap-key="i:#1"]');
+      // On a long release the item sits far down the page; bring it into the picture before measuring and shooting.
+      const ${centerScroll.name} = ${centerScroll};
+      const before = row.parentElement.getBoundingClientRect();
+      scrollTo(0, ${centerScroll.name}({ top: before.top, height: before.height, viewport: innerHeight, scrollY }));
       const rect = row.parentElement.getBoundingClientRect();
       return { theme: document.documentElement.dataset.theme, width: innerWidth, height: innerHeight,
         count: release.querySelector('.roadmap-left')?.textContent, legend: release.querySelectorAll('[data-summary-state]').length,
         rows: release.querySelectorAll('.milestone-item').length, expanded: release.querySelectorAll('.milestone-item[aria-expanded="true"]').length,
         fields: [...row.parentElement.querySelectorAll('.roadmap-detail dt')].map(node => node.textContent.trim()),
-        history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-estimate')?.textContent,
+        history: row.parentElement.querySelector('.roadmap-history')?.textContent, time: release.querySelector('.roadmap-left')?.textContent,
         itemTop: rect.top, itemBottom: rect.bottom, pageWidth: document.documentElement.scrollWidth };
     })())`));
-    if (reading.theme !== theme || !/4 to go.*1 of 5 landed/u.test(reading.count) || reading.legend !== 6 || reading.rows !== 5 || reading.expanded !== 1
+    if (reading.theme !== theme || !new RegExp(`${4 + FILLER_ITEMS} to go.*1 of ${5 + FILLER_ITEMS} landed`, 'u').test(reading.count) || ![6, 7].includes(reading.legend) || reading.rows !== 5 + FILLER_ITEMS || reading.expanded !== 1
       || !reading.history?.includes('sent back') || !reading.history?.includes('accepted') || !reading.time
       || reading.itemTop < 0 || reading.itemBottom > reading.height || reading.pageWidth > reading.width) {
       throw new Error('The demo Roadmap capture is incomplete: ' + JSON.stringify(reading));
@@ -345,7 +432,7 @@ else {
   try {
     const clockShim = join(base, 'fixed-clock.mjs');
     await writeFile(clockShim, `const NativeDate = Date;\nconst fixed = NativeDate.parse(process.env.PULLBOARD_DEMO_NOW || ${JSON.stringify(FIXED_TIME)});\nclass FixedDate extends NativeDate { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } }\nglobalThis.Date = FixedDate;\n`);
-    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, TMPDIR: base, TMP: base, TEMP: base };
+    const env = { ...isolatedEnv(join(base, '.pullboard-home'), clockShim), PULLBOARD_DEMO_NOW: FIXED_TIME, PULLBOARD_FIXTURE_ADD_DISTINCT: '1', PULLBOARD_CLAIM_BEATER: '0', TMPDIR: base, TMP: base, TEMP: base };
     if (tourOnly) {
       await recordTour(env);
     } else {
@@ -400,15 +487,13 @@ else {
         await waitForDemoBoard(view, repo);
         if (!roadmapOnly) {
           await view.viewport(1440, 900);
-          await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:all\"]').click()");
-          await view.waitFor("!!document.querySelector('#chain .row[data-item=\"1\"]')", 'accepted item in All');
+          await view.waitFor("(() => { if (view.state !== 'all') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"all\"]')?.click(); return !!document.querySelector('#chain .row[data-item=\"1\"]'); })()", 'accepted item in All');
           await view.evaluate("(()=>{document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('#chain .row[data-item=\"1\"]').click()})()");
           await view.waitFor("view.item === 1 && !!document.querySelector('#chain .row.on[data-item=\"1\"]') && document.querySelector('#detail').textContent.includes('Reviewed and accepted')", 'selected accepted item');
-          await view.waitFor("!!document.querySelector('#item-panel-tab-verdicts')", 'verdicts tab');
-          await view.evaluate("document.querySelector('#item-panel-tab-verdicts').click()");
+          await view.waitFor("!!document.querySelector('#detail [data-item-panel-history]')", 'history control');
+          await view.evaluate("document.querySelector('#detail [data-item-panel-history]').click()");
           await view.waitFor("document.querySelector('#detail').textContent.includes('The example skipped an edge') && document.querySelector('#detail').textContent.includes('edge passes')", 'both verdicts');
-          await view.evaluate("document.querySelector('#filter-toggle').click(); document.querySelector('#filter-menu [data-filter-choice=\"state:active\"]').click()");
-          await view.waitFor("!document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes')", 'Active items, Questions and sentinels and the selected review history');
+          await view.waitFor("(() => { if (view.state !== 'active') document.querySelector('#page-controls [data-page-ctl=\"state\"][data-value=\"active\"]')?.click(); return !document.querySelector('#needs').hidden && document.querySelector('#needs').textContent.includes('Questions and sentinels') && document.querySelector('#detail').textContent.includes('edge passes'); })()", 'Active items, Questions and sentinels and the selected review history');
           await view.evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
@@ -422,7 +507,7 @@ else {
           }
           await view.viewport(1440, 900);
           await view.evaluate("document.documentElement.dataset.theme='light'; localStorage.setItem('pb.theme','light'); document.querySelector('[data-tab=\"shouts\"]').click()");
-          await view.waitFor("!document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .conversation-row').length >= 3", 'the answered conversation list');
+          await view.waitFor("(() => { const fold = document.querySelector('#feed [data-fold=\"earlier\"][aria-expanded=\"false\"]'); if (fold) fold.click(); return !document.querySelector('#shouts-pane').hidden && document.querySelectorAll('#feed .sx-th').length >= 1 && document.querySelector('#feed').textContent.includes('can continue while #3 waits'); })()", 'the demo shout threads, with the Earlier fold open');
           for (const theme of THEMES) {
             await paintTheme(view, theme);
             await view.screenshot(join(OUTPUT, `shouts-${theme}.png`));
@@ -456,6 +541,7 @@ else {
       catch (error) { teardownErrors.push(`${error.name}: observation receipt write failed`); }
     }
     if (teardownErrors.length) process.exitCode = 1;
-    await rm(base, { recursive: true, force: true });
+    await stopLocalRunner(join(base, '.pullboard-home'));
+    await rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }

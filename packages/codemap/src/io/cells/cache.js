@@ -15,6 +15,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { gitSpawnSync } from '../../../../git/index.js';
+import { storeName } from '../store-names.js';
 
 const KEEP = 60;
 
@@ -100,7 +101,7 @@ export function cachedCellsRun(root, label, fn, options = {}) {
   if (enabled && options.code?.length && !key) return fn();
   const state = enabled ? cellsStateKey(root) : null, dir = state ? cacheDir(root) : null;
   if (!state || !dir) return fn();
-  const file = join(dir, `${createHash('sha256').update(JSON.stringify([state, label, key?.checkDigest, key?.configDigest])).digest('hex')}.json`);
+  const file = join(dir, `${storeName(createHash('sha256').update(JSON.stringify([state, label, key?.checkDigest, key?.configDigest])).digest('hex'))}`);
   try {
     const saved = JSON.parse(readFileSync(file, 'utf8'));
     if (Number.isInteger(saved.code) && Array.isArray(saved.lines)) {

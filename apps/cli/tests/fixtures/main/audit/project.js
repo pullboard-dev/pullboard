@@ -13,6 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { setTimeout as pause } from 'node:timers/promises';
 import {
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -24,6 +25,7 @@ import {
   packageFiles,
 } from '../../../../../../packages/runners/index.js';
 import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import {
   fileURLToPath,
@@ -47,24 +49,27 @@ const SOURCE=new URL('../../../../../../',import.meta.url);
 /** Run actual Git in the private fixture and retain failures. */
 function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 /** Wait for an observed native ownership boundary. */
-async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
-/** Copy actual installed source with spaces and a separate real tracked main project. */
-export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false } = {}) {
+export async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
+/** Copy actual installed source with spaces and a separate real tracked main project. landingShards 1 runs the audit gate in one process; each extra shard starts and installs its own runner, which is most of an audit's time [C7]. */
+export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false, landingShards = 2 } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
-  for(const folder of [installed,repo])copyPackageFiles(source,folder,{files});
+  // The audited repo has no cell plan: with one, the audit worker also builds the accepted inventory of the whole source tree (about 2 minutes), work these cases do not exercise [C7].
+  const copied=copyPackageFiles(source,installed,{files});
+  // The audited repo shares the installed copy's bytes by hard link: nothing writes to those files, and a second full copy cost seconds of the case's budget [C7].
+  for(const file of copied)if(file!=='packages/codemap/data/plan/cells.json'){mkdirSync(dirname(join(repo,file)),{recursive:true});linkSync(join(installed,file),join(repo,file));}
   assert.equal(existsSync(join(installed,'.git')),false);
-  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
-    GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
+  const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
+    GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_COUNT:'2',GIT_CONFIG_KEY_0:'core.fsync',GIT_CONFIG_VALUE_0:'none',GIT_CONFIG_KEY_1:'gc.auto',GIT_CONFIG_VALUE_1:'0',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
   // The runner's launch guard names this checkout's copy; the installed worker knows only its own copy, so point the guard there.
   const outerGuard=new URL('../../../../../../packages/gate/src/io/browser/guard.js',import.meta.url).href,installedGuard=pathToFileURL(join(installed,'packages/gate/src/io/browser/guard.js')).href;
   if(env.NODE_OPTIONS)env.NODE_OPTIONS=env.NODE_OPTIONS.replaceAll(`--import=${outerGuard}`,`--import=${installedGuard}`);
   for(const name of Object.keys(env))if(name.startsWith('GIT_')&&!/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(name))delete env[name];
   for(const name of ['PULLBOARD_GATE_SLOT_HELD','PULLBOARD_GATE_SLOT_POOL','PULLBOARD_GATE_SLOT_TOKEN','PULLBOARD_BROWSER_SLOT_HELD','PULLBOARD_CHECKOUT_SESSION_TOKEN'])delete env[name];
-  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true,runnerDispatch:'controller'}}));
-  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node apps/cli/src/io/run/tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
+  writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true}}));
+  writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node apps/cli/src/io/run/tests.js',landingShards,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(repoPath(repo, `test/${name}.test.js`),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
   const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));

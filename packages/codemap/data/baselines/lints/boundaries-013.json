@@ -13,6 +13,8 @@
     "apps/cli/journeys/doctor/main.test.js->src/hooks.js": 1,
     "apps/cli/journeys/doctor/main.test.js->src/package-files.js": 1,
     "apps/cli/journeys/doctrine/checks.test.js->apps/cli/tests/fixtures/e2e.js": 1,
+    "apps/cli/journeys/doctrine/pulled-counts.test.js->apps/cli/tests/fixtures/e2e.js": 1,
+    "apps/cli/journeys/doctrine/pulled-ratchets.test.js->apps/cli/tests/fixtures/e2e.js": 1,
     "apps/cli/journeys/doctrine/name.test.js->apps/cli/tests/fixtures/child.js": 1,
     "apps/cli/journeys/doctrine/name.test.js->src/runner-private-check.js": 1,
     "apps/cli/journeys/doctrine/name.test.js->src/serve.js": 1,

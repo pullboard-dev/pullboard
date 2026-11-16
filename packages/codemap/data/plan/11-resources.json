@@ -7,9 +7,7 @@
  "lightFrontDoor": "packages/resources/light.js",
  "paths": [
   ["src/resources.js","packages/resources/src/io/main.js","seed"],
-  ["test/resource-inheritance.test.js","packages/resources/tests/io/main/inheritance.test.js","seed"],
-  ["test/runner-wait-deadline.test.js","packages/resources/tests/runner-wait-deadline.test.js","seed"],
-  ["test/submit-lease.test.js","packages/resources/tests/submit-lease.test.js","seed"]
+  ["test/resource-inheritance.test.js","packages/resources/tests/io/main/inheritance.test.js","seed"]
  ],
  "reexports": [],
  "imports": [

@@ -9,8 +9,8 @@ import { quarantineRecords } from '../../logic/judge.js';
  * once, and a file green the second time is quarantined with a repair item. Returns `{ gate, red }`: `gate` is a
  * known-main proof when nothing is left red, else null, and `red` the cases that failed twice, which their item carries
  * back. Null when the gate cannot be judged (green, incomplete, or a failure without a file).
- * The caller passes every landing step it uses (parallel.js's JUDGE_PORTS: splitBaseRed, diagnose, fileRepairItems,
- * save, testHash and completeGate), so this file reaches no CLI code through the landing steps.
+ * The caller passes every landing step it uses (splitBaseRed, diagnose, fileRepairItems, save, testHash and
+ * completeGate), so this file reaches no CLI code through the landing steps.
  * Why: LAND_TEST_DEFECT and LAND_FLAKE held the whole trunk for reds no item caused (11 Nov 8:19 pm CT batch) [C7,#5862].
  */
 export async function judgeRed(state, gate, { split, rerun, repair, save, testHash, completeGate, batches = () => store.landingBatches(state.board) }) {

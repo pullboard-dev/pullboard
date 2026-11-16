@@ -17,6 +17,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tryGit } from '../main.js';
 import { repoInfo } from '../main.js';
+import { storeName } from '../store-names.js';
 
 /** Stable JSON: object keys sorted at every depth, so equal values always hash the same. */
 function stable(value) {
@@ -83,7 +84,7 @@ export function checkReceiptKey(root, { kind, definition, config, code = [], com
 export function readCheckReceipt(root, key) {
   if (!key) return null;
   try {
-    const receipt = JSON.parse(readFileSync(join(receiptDir(root), `${key.key}.json`), 'utf8'));
+    const receipt = JSON.parse(readFileSync(join(receiptDir(root), `${storeName(key.key)}`), 'utf8'));
     const same = receipt.version === 1 && receipt.green === true && ['kind', 'tree', 'checkDigest', 'configDigest'].every(field => receipt[field] === key[field]);
     return same ? receipt : null;
   } catch {
@@ -108,7 +109,7 @@ export function writeCheckReceipt(root, key, { by = '', result = null } = {}) {
     mkdirSync(dir, { recursive: true });
     const temporary = join(dir, `.${receipt.id}.tmp`);
     writeFileSync(temporary, `${JSON.stringify(receipt)}\n`);
-    renameSync(temporary, join(dir, `${key.key}.json`));
+    renameSync(temporary, join(dir, `${storeName(key.key)}`));
     writeFileSync(temporary, `${JSON.stringify(receipt)}\n`);
     renameSync(temporary, join(dir, `${receiptDigest(key.kind)}-latest.json`));
   } catch (error) { process.stderr.write(`check receipt not recorded for ${key.kind} at tree ${key.tree.slice(0, 12)}: ${error.message}\n`); }

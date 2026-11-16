@@ -10,8 +10,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
+  isAbsolute,
   join,
-  resolve,
 } from 'node:path';
 import * as store from '../../../../../store/index.js';
 import { runnerBaseline } from '../baseline.js';
@@ -35,8 +35,7 @@ import {
 } from '../../../../../store/index.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { mainPolicy } from '../../../../../sandbox/index.js';
-
-const WORKER = resolve(import.meta.dirname, '../../../../../../apps/lib/src/io/check/baseline.js');
+import { storeName } from '../../store-names.js';
 
 /** Resolve private completion storage beside this repository's shared board. */
 function locations(root) {
@@ -69,7 +68,7 @@ async function complete(root, receipt, io, services) {
 function saveReceipt(root, receipt) {
   const directory = locations(root).receipts;
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const file = join(directory, `${receipt.expected.request}.json`);
+  const file = join(directory, storeName(receipt.expected.request));
   const temporary = `${file}.${process.pid}.tmp`;
   writeFileSync(temporary, JSON.stringify(receipt), { mode: 0o600 });
   renameSync(temporary, file);
@@ -111,10 +110,12 @@ export function recordPulledBaseline(board, { item, expected, run, seconds }) {
  * Start a detached child with independent streams so the caller exits while its check is running.
  * With `wait`, the child stays attached and the result is a promise that settles once the worker has
  * exited, so none of its writes (the result commit, the relay flush) can race the caller's next command.
+ * Why `worker`: the executable composes app services, so the app passes its path in and no package names an app.
  */
-export async function startCheckBaseline(root, id, baseline, { wait = false } = {}) {
+export async function startCheckBaseline(root, id, baseline, { wait = false, worker } = {}) {
   if (baseline?.result !== 'pending') return;
-  const child = spawn(process.execPath, [WORKER, root, String(id), baseline.request], {
+  if (typeof worker !== 'string' || !isAbsolute(worker)) throw new TypeError('the baseline worker is an app executable; the caller passes its absolute path');
+  const child = spawn(process.execPath, [worker, root, String(id), baseline.request], {
     cwd: root, env: gitChildEnv(root), detached: true, stdio: 'ignore',
   });
   const exited = new Promise(resolve => { child.once('exit', code => resolve({ exited: true, code })); child.once('error', () => resolve({ exited: true, code: null })); });

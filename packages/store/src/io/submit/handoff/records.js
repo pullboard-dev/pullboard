@@ -54,15 +54,20 @@ export function handoffRecord(db, item) {
  * Why one read: list, status and the sweeps look at every item, and a read per item scanned the job tables once each.
  * Only each job's last step is read, since every step the hand-off writes carries the whole record.
  *
+ * With `live`, only items not yet verified or withdrawn: itemStage reads a closed item's stage from its status and merge
+ * alone, so a lister never needs their records, and a board of thousands of closed items skips thousands of job reads [I6].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ live?: boolean }} [options]
  * @returns {Map<number, Record<string, any>>}
  */
-export function handoffRecords(db) {
+export function handoffRecords(db, { live = false } = {}) {
   const records = new Map();
   if (!hasJobTables(db)) return records;
   const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
-    JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id)
-    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL ORDER BY s.job_step_id DESC`).iterate();
+    JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
+    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
+    ORDER BY s.job_step_id DESC`).iterate();
   for (const row of rows) {
     if (records.has(row.item)) continue;
     const record = recordOf(row.payload);
@@ -118,11 +123,13 @@ export function pendingSubmitHandoff(board, item) {
 }
 
 /**
- * A claimed item whose own gate is queued, running or green at its frozen bar is waiting on its gate or reviewer,
+ * A claimed item whose own gate is queued, running (hand-off or pulled) or green at its frozen bar is waiting on its gate or reviewer,
  * not buildable: next skips it and offers new work [C7,#3532].
  */
 export function awaitingGateOrReview(board, item) {
   if (pendingSubmitHandoff(board, item)) return true;
+  // A pulled gate job still offered or held by a runner is the same wait, with no hand-off record [P7].
+  if (item.item_status === 'claimed' && pulledGateRecords(board.db, item.item_id).has(item.item_id)) return true;
   const job = item.item_status === 'claimed' ? submitHandoff(board, item.item_id) : null;
   return Boolean(job) && job.agentId === item.item_owner && job.digest === item.item_frozen_digest && job.state === 'green';
 }

@@ -83,3 +83,74 @@ test('Dashboard counts matching merged records regardless of status [N26]', () =
   assert.equal(model.totals.recent, 3);
   assert.equal(model.bins.reduce((sum, bin) => sum + bin.count, 0), 3);
 });
+
+test('Dashboard after a run of live updates matches a full recompute over the same events [N26]', () => {
+  const input = dashboardData();
+  const events = input.events.filter(event => Date.parse(event.event_at) <= input.now).sort((a, b) => a.event_id - b.event_id);
+  assert.ok(events.length > 80, 'the run folds many events');
+  const shown = model => ({ ...model, last: undefined });
+  const fold = {};
+  let held = 0;
+  // Each update adds a few events and moves the clock on; the totals kept from the last update must give what a fresh read of every event gives.
+  for (let step = 1, now = input.now; held < events.length; step++, now += 90_000) {
+    held = Math.min(events.length, held + 1 + (step * 7) % 23);
+    const history = events.slice(0, held);
+    const project = { ...input.project, sequence: history.at(-1).event_id };
+    const live = dashboardModel(project, history, { now, complete: true, fold });
+    assert.deepEqual(shown(live), shown(dashboardModel(project, history, { now, complete: true })), 'update ' + step + ' at ' + held + ' events matches a full recompute');
+    assert.equal(fold.state.upto, history.at(-1).event_id, 'only the events up to the prefix were folded');
+  }
+  // A later clock with the same events, a board that is rewound, and an event dated after the clock all still match a full recompute.
+  const project = { ...input.project, sequence: events.at(-1).event_id };
+  const later = dashboardModel(project, events, { now: input.now + 600_000, complete: true, fold });
+  assert.deepEqual(shown(later), shown(dashboardModel(project, events, { now: input.now + 600_000, complete: true })));
+  const rewound = dashboardModel(project, events, { now: input.now, complete: true, fold });
+  assert.deepEqual(shown(rewound), shown(dashboardModel(project, events, { now: input.now, complete: true })), 'a clock that moves back refolds from the start');
+  const future = [...events, { ...events.at(-1), event_id: events.at(-1).event_id + 1, event_at: new Date(input.now + 3_600_000).toISOString() }];
+  const ahead = { ...project, sequence: future.at(-1).event_id };
+  assert.deepEqual(shown(dashboardModel(ahead, future, { now: input.now, complete: true, fold })), shown(dashboardModel(ahead, future, { now: input.now, complete: true })), 'an event dated after the clock is left out, as a full recompute leaves it out');
+  assert.equal(fold.state, null, 'nothing is kept past an event the clock has not reached');
+});
+
+test('Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
+  const input = dashboardData();
+  const { now } = input;
+  const items = input.project.items.map(item => item.id === 2 ? { ...item, stage: 'merged' } : item);
+  const old = { id: 99, title: 'Landed long ago', status: 'verified', stage: 'merged', lane: 'web', specs: [], blockedBy: [] };
+  const project = { ...input.project, items: [...items, old], dashboardLanded: input.project.dashboardLanded.filter(entry => entry.id === 2) };
+  const model = dashboardModel(project, input.events, { now, complete: true });
+  assert.equal(model.totals.allTime, 2, 'the landed count includes the old landing that dashboardLanded no longer lists');
+  assert.ok(!model.landing.some(item => item.id === 99), 'the old landing is not waiting to land');
+  assert.equal(model.landed.filter(entry => entry.item.id === 2).length, 1, 'the recent landing still matches its merge event');
+});
+
+test('Dashboard counts passed review and reviewing time from the review events the board records, beside hand landings [N26]', () => {
+  const now = Date.parse('2026-11-13T16:00:00Z'), minute = 60_000;
+  let id = 0;
+  const event = (ago, by, kind, item, detail = {}) => ({ event_id: ++id, event_at: new Date(now - ago * minute).toISOString(), event_by: by, event_kind: kind, item_id: item, event_detail: JSON.stringify(detail) });
+  const commit = item => String(item).repeat(40).slice(0, 40);
+  const landed = [11, 12, 13];
+  const history = [
+    event(200, 'rev-1', 'join', null, { lane: 'review' }),
+    // Three hand landings: forced merges with no accept on the board, and one of them also has a reviewer's accept.
+    ...landed.map(item => event(100 - item, 'coordinator', 'merged', item, { commit: commit(item), forced: true })),
+    event(110, 'rev-1', 'accept', 11, { commit: commit(11) }),
+    // A review that ends without a verdict still took the reviewer's time: 30 minutes.
+    event(150, 'rev-1', 'reserve', 14, { until: new Date(now - 100 * minute).toISOString() }),
+    event(120, 'rev-1', 'release', 14, { review: true }),
+    // Both submitted items passed the gate and no reviewer holds either.
+    ...[14, 15].flatMap(item => [event(170, 'view-1', 'submit', item, { commit: commit(item) }), event(165, 'board', 'gate-run', item, { run: { green: true } })]),
+  ];
+  const items = [...landed.map(item => ({ id: item, lane: 'view', status: 'verified', merged: true })),
+    { id: 14, lane: 'view', status: 'submitted' }, { id: 15, lane: 'view', status: 'submitted' }];
+  const project = { items, agents: [{ agent_id: 'rev-1' }], dashboardLanded: landed.map(item => ({ id: item, commit: commit(item) })) };
+  const model = dashboardModel(project, history, { now, complete: true });
+  assert.equal(model.totals.recent, 3, 'the three hand landings are counted');
+  assert.equal(model.totals.passed, 3, 'an accepted-and-landed item counts once and the unreviewed landings count as passed, never 0 beside 3 landed');
+  assert.equal(model.flow.accepted, 3, 'the flow strip reads the same passed count');
+  const reviewer = model.agents.find(agent => agent.id === 'rev-1');
+  assert.equal(reviewer.review, 30 * minute, 'the recorded reserve and its release count as reviewing time');
+  assert.equal(model.flow.waitingReview, 2, 'submitted items nobody reserved wait for a reviewer');
+  const partial = dashboardModel({ ...project, dashboardRecent: { landed: 3, passed: 3, sentBack: 0, shouts: 0 } }, [], { now, complete: false });
+  assert.equal(partial.totals.passed, 3, 'the server-read count is passed through unchanged');
+});

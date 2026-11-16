@@ -101,7 +101,10 @@ import {
 } from '../../../../../packages/person/index.js';
 import {
   createE2eHelpers,
+  JOURNEY_MODE,
+  parityRecord,
 } from '../e2e.js';
+import { appendFileSync } from 'node:fs';
 import {
   executeMove,
   serveApi,
@@ -140,6 +143,7 @@ import {
 import {
   assertMatchingLandingHost,
   assertNoCulpritTrunkHold,
+  assertTrunkHoldCorrection,
 } from '../landing/environment.js';
 import {
   landingQueueCase,
@@ -187,9 +191,23 @@ function withBoard(root, action) {
   finally { store.closeBoard(board); }
 }
 
-/** Run a real fixture CLI command, retaining the refusal or successful document verbatim. */
+/** Commands that stay a real process: they settle pulled jobs or can outlast the worker thread's 45 s wait, or the call is about argv and start-up. */
+const REAL_PROCESS = new Set(['submit', 'verify', 'land', 'test', 'resume', 'tour', 'version']);
+
+/**
+ * One sync fixture call: answered by the box's warm worker thread, or a real process when the command is in REAL_PROCESS, the call
+ * asks for --help, or PULLBOARD_JOURNEY_MODE=process. Appends a parity record for the call when PULLBOARD_PARITY_RECORD is set [C7,U149].
+ */
+function quick(box, root, ...args) {
+  const real = JOURNEY_MODE === 'process' || typeof box.runSync !== 'function' || REAL_PROCESS.has(args[0]) || args.includes('--help');
+  const result = real ? box.run(root, ...args) : box.runSync(root, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir: box.dir, env: box.env, cwd: root, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
+/** Run a fixture CLI command, retaining the refusal or successful document verbatim. */
 function run(box, root, ...args) {
-  const result = box.run(root, ...args);
+  const result = quick(box, root, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
   return result.out;
 }
@@ -406,7 +424,7 @@ function siblingRepo(box, name, project) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal(quick(box, repo, 'init').code, 0);
   return { repo, project };
 }
 
@@ -435,6 +453,7 @@ export {
   assert,
   assertMatchingLandingHost,
   assertNoCulpritTrunkHold,
+  assertTrunkHoldCorrection,
   childProcess,
   consent,
   existsSync,

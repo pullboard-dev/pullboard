@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { assertClarificationQuietPeriod } from './fixtures/stale.js';
 
 const staleWorkflow = readFileSync(new URL('../../../.github/workflows/stale.yml', import.meta.url), 'utf8');
 const reopenWorkflow = readFileSync(new URL('../../../.github/workflows/reopen-clarify.yml', import.meta.url), 'utf8');
@@ -19,14 +18,12 @@ const runReopenScript = new AsyncFunction('github', 'context', reopenScript);
 
 test('the stale workflow closes only inactive clarify issues and never modifies PRs [I1]', () => {
   assert.match(staleWorkflow, /schedule:\n\s+- cron: '[0-9* ,/-]+'/u);
-  assert.match(staleWorkflow, /uses: actions\/stale@v11\.0\.0\n/u, 'the stale action is version-pinned');
-  assert.match(staleWorkflow, /only-issue-labels: clarify\n/u);
-  assert.match(staleWorkflow, /stale-issue-label: clarify-inactive\n/u);
-  assert.match(staleWorkflow, /days-before-issue-stale: 14\n\s+days-before-issue-close: 0\n/u);
-  assert.match(staleWorkflow, /remove-issue-stale-when-updated: true\n/u, 'activity clears only the separate inactivity marker; clarify remains eligible');
-  assert.match(staleWorkflow, /close-issue-message: "Closed\. No response\. Reply to reopen\."\n/u);
-  assert.match(staleWorkflow, /close-issue-reason: completed\n/u, 'a quiet issue closes as completed, never not planned');
-  assert.match(staleWorkflow, /days-before-pr-stale: -1\n\s+days-before-pr-close: -1\n\s+remove-pr-stale-when-updated: false\n/u);
+  assert.match(staleWorkflow, /uses: actions\/github-script@v7\.0\.1\n/u, 'the script action is version-pinned');
+  assert.match(staleWorkflow, /labels: 'clarify'/u);
+  assert.match(staleWorkflow, /14 \* 24 \* 60 \* 60 \* 1000/u);
+  assert.match(staleWorkflow, /body: 'Closed\. No response\. Reply to reopen\.'/u);
+  assert.match(staleWorkflow, /state_reason: 'completed'/u, 'a quiet issue closes as completed, never not planned');
+  assert.match(staleWorkflow, /issue\.pull_request/u, 'pull requests are skipped');
   assert.match(staleWorkflow, /pull-requests: read\n/u);
   assert.doesNotMatch(staleWorkflow, /pull-requests: write\n/u);
 });
@@ -39,7 +36,7 @@ function reopenFixture({ payloadIssue = {}, commentId = 7, currentIssue = {} } =
     payload: { issue: { number: 12, state: 'closed', user: { id: 7 }, labels: [{ name: 'clarify' }], ...payloadIssue }, comment: { user: { id: commentId } } },
   };
   const github = { rest: { issues: {
-    async get(input) { calls.push(['get', input]); return { data: { number: 12, state: 'closed', user: { id: 7 }, labels: [{ name: 'clarify' }, { name: 'clarify-inactive' }, { name: 'bug' }], ...currentIssue } }; },
+    async get(input) { calls.push(['get', input]); return { data: { number: 12, state: 'closed', user: { id: 7 }, labels: [{ name: 'clarify' }, { name: 'bug' }], ...currentIssue } }; },
     async update(input) { calls.push(['update', input]); },
   } } };
   return { context, github, calls };
@@ -95,11 +92,22 @@ test('non-authors, pull requests, reopened issues, and missing clarify labels do
   assert.deepEqual(changedAuthor.calls, [['get', { owner: 'pullboard-dev', repo: 'pullboard', issue_number: 12 }]]);
 });
 
-test('the pinned stale processor closes after fourteen quiet days since a day-ten comment [I1]', async t => {
-  const result = await assertClarificationQuietPeriod(staleWorkflow);
-  assert.equal(result.before.observations.at(-1).state, 'open', 'the former config reproduces the permanent-comment bug');
-  assert.deepEqual(result.after.observations.map(({ day, state }) => ({ day, state })), [
-    { day: 20, state: 'open' }, { day: 24, state: 'closed' },
-  ]);
-  t.diagnostic(result.scope);
+test('the stale script closes an issue quiet for fourteen days and leaves active issues and PRs alone [I1]', async () => {
+  const lines = staleWorkflow.slice(staleWorkflow.indexOf('          script: |\n') + '          script: |\n'.length).split('\n');
+  const end = lines.findIndex(line => line.trim() && !line.startsWith('            '));
+  const script = lines.slice(0, end < 0 ? lines.length : end).map(line => line.replace(/^            /u, '')).join('\n');
+  const day = 86400000, now = Date.now();
+  const issues = [
+    { number: 1, updated_at: new Date(now - 15 * day).toISOString() },
+    { number: 2, updated_at: new Date(now - 13 * day).toISOString() },
+    { number: 3, updated_at: new Date(now - 30 * day).toISOString(), pull_request: {} },
+  ];
+  const calls = [];
+  const github = { paginate: async () => issues, rest: { issues: {
+    listForRepo: 'list',
+    createComment: async arg => { calls.push(['comment', arg.issue_number, arg.body]); },
+    update: async arg => { calls.push(['update', arg.issue_number, arg.state, arg.state_reason]); },
+  } } };
+  await new AsyncFunction('github', 'context', script)(github, { repo: { owner: 'o', repo: 'r' } });
+  assert.deepEqual(calls, [['comment', 1, 'Closed. No response. Reply to reopen.'], ['update', 1, 'closed', 'completed']]);
 });

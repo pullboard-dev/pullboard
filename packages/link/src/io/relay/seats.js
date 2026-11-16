@@ -67,6 +67,9 @@ function renewalDue(cached) {
     ? cached.expires - (cached.expires - cached.created) / 2 : cached.expires - 60_000;
 }
 
+/** The step for a token that belongs to another agent: drop it, and the seat's own saved token serves the move. */
+const RELAY_ACTOR_TOKEN_NEXT = 'run unset PULLBOARD_RELAY_TOKEN in this shell, then run the command again';
+
 /** Refuse a seat whose locally recorded revocation also forbids provisional offline moves [H2,H9,H21]. */
 export function refuseRevokedSeat(state, actor) {
   if (state.agentTokens?.[actor]?.revoked) throw new Refused('TOKEN_REVOKED', `the relay token of ${actor} was revoked on this board; work from a seat with its own token, or ask the coordinator for a fresh worktree`);
@@ -91,7 +94,7 @@ async function seatToken(root, file, state, actor, io, depth = 0) {
     const agent = store.listAgents(board).find((row) => row.agent_id === actor);
     return agent ? { creator: store.agentCreator(board, actor), enrolled: store.seatEnrolled(board, actor) } : null;
   });
-  if (!seat) throw new Refused('RELAY_ACTOR', 'register this agent in the ordered board before obtaining its scoped token');
+  if (!seat) throw new Refused('RELAY_ACTOR', 'register this agent in the ordered board before obtaining its scoped token', 'run pullboard join <lane> --model "<model name>" in the checkout this agent works from; its waiting moves then send');
   if (seat.enrolled && actor !== 'coordinator') {
     const creatorToken = await seatToken(root, file, state, seat.creator, io, depth + 1);
     const reissued = await request({ ...state, token: creatorToken, agent: seat.creator }, '/auth/tokens',
@@ -126,7 +129,7 @@ export async function actorTransport(root, file, state, actor, io) {
     if (!/^pa_[A-Za-z0-9_-]{43}$/.test(supplied)) throw new Refused('AUTH_REQUIRED', 'supply a current scoped board token, without including it in command arguments');
     const transport = { ...state, token: supplied, agent: actor };
     const identity = await request(transport, '/auth/session?board=' + state.board, {}, io);
-    if (identity.session?.kind !== 'board' || identity.session.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent');
+    if (identity.session?.kind !== 'board' || identity.session.agent !== actor) throw new Refused('RELAY_ACTOR', 'use the scoped token belonging to this move’s registered agent', RELAY_ACTOR_TOKEN_NEXT);
     return transport;
   }
   if (state.token?.startsWith('pa_')) {

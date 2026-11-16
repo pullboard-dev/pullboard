@@ -46,7 +46,7 @@ export function fitCapacity(samples, { from, to }) {
         && Number.isSafeInteger(sample.acceptEvent) && sample.acceptEvent > 0;
       if (!provenance) missing += 1;
       const known = provenance && (sample.failed === false && sample.cause === 'merged'
-        || sample.failed === true && ['conflict', 'landing-test'].includes(sample.cause));
+        || sample.failed === true && ['conflict', 'landing-test', 'stale'].includes(sample.cause));
       routes.get(sample.route).landingOutcomes.push({ failed: known ? sample.failed : null, cause: sample.cause });
       count += 1;
       continue;
@@ -64,8 +64,8 @@ export function fitCapacity(samples, { from, to }) {
       durations: Object.fromEntries(KINDS.map(kind => [kind, distribution(route.observations.filter(row => row.kind === kind).map(row => row.hours))])),
       landingRisk: { n: route.landingOutcomes.length,
         unknown: route.landingOutcomes.filter(row => row.failed === null).length,
-        probability: route.landingOutcomes.length && route.landingOutcomes.every(row => typeof row.failed === 'boolean')
-          ? route.landingOutcomes.filter(row => row.failed).length / route.landingOutcomes.length : null },
+        probability: route.landingOutcomes.some(row => typeof row.failed === 'boolean')
+          ? route.landingOutcomes.filter(row => row.failed === true).length / route.landingOutcomes.filter(row => typeof row.failed === 'boolean').length : null },
       rejection: { n: route.decisions.length, probability: route.decisions.length ? route.decisions.filter(row => !row.accepted).length / route.decisions.length : null } })),
     landing, unknown: missing ? [`${missing} observations have missing or invalid measurements`] : [] };
 }
@@ -78,7 +78,7 @@ function randomFor(seed) {
 }
 /** Bootstrap the observed empirical distribution without adding invented pseudo-observations. */
 function resample(values, random) { return Array.from({ length: values.length }, () => values[Math.floor(random() * values.length)]); }
-/** Keep absent external dependencies, holds and cycles visible rather than manufacturing readiness. */
+/** Keep absent external dependencies and cycles visible; holds and person waits only lower supply. */
 function graphFor(items) {
   const all = new Map(items.map(item => [item.id, item]));
   const pending = items.filter(item => !['merged', 'withdrawn'].includes(item.state));
@@ -87,8 +87,6 @@ function graphFor(items) {
   const successors = new Map(pending.map(item => [item.id, []]));
   const unknown = [];
   for (const item of pending) {
-    if (item.held) unknown.push(`item #${item.id} is held`);
-    if (item.needsYou) unknown.push(`item #${item.id} needs a person`);
     const deps = [...new Set(item.after ?? [])].filter(id => !['accepted', 'merged'].includes(all.get(id)?.state));
     for (const id of deps) if (!nodes.has(id)) unknown.push(`item #${item.id} has unsatisfied dependency #${id}`);
     predecessors.set(item.id, deps);
@@ -114,7 +112,9 @@ function graphFor(items) {
 function waveWidth(items) {
   const waves = [];
   for (const item of [...items].sort((a, b) => a.id - b.id)) {
-    if (!Array.isArray(item.files) || !item.files.length || item.files.some(file => typeof file !== 'string' || !file)) return null;
+    // An item with no recorded files joins no collision; the width stays a lower bound.
+    if (!Array.isArray(item.files) || !item.files.length) { waves.push({ files: new Set(), count: 1 }); continue; }
+    if (item.files.some(file => typeof file !== 'string' || !file)) return null;
     let wave = waves.find(row => item.files.every(file => !row.files.has(file)));
     if (!wave) { wave = { files: new Set(), count: 0 }; waves.push(wave); }
     for (const file of item.files) wave.files.add(file);
@@ -151,7 +151,9 @@ function parameters(fit, random) {
 }
 /** Compute knowable post-accept repair labor without inventing any failed gate duration. */
 function landingRepair(route) {
-  if (!route || !route.outcomes.length || route.outcomes.some(row => typeof row.failed !== 'boolean')) {
+  // An unclassified outcome is right-censored: dropped from the rate, never voiding the route.
+  route = route && { ...route, outcomes: route.outcomes.filter(row => typeof row.failed === 'boolean') };
+  if (!route || !route.outcomes.length) {
     return { work: null, unknown: ['landing outcome coverage is missing or unclassified'] };
   }
   const failed = route.outcomes.filter(row => row.failed);
@@ -160,7 +162,8 @@ function landingRepair(route) {
   if (probability >= 1 || route.q === null || route.q >= 1 || route.review === null) {
     return { work: null, unknown: ['landing repair labor has insufficient completed service or successful outcomes'] };
   }
-  const unknown = ['failed landing-cycle service is unmeasured; full finish and staffing advice are unavailable'];
+  // Failed cycles use the observed lander-cycle distribution, which already includes bisection and retries.
+  const unknown = [];
   const rejectBuild = route.repair.reject.build ?? route.build;
   if (route.q > 0 && rejectBuild === null) return { work: null, unknown: [...unknown, 'review-reject repair build service is missing'] };
   let weighted = 0;
@@ -168,10 +171,12 @@ function landingRepair(route) {
     const count = failed.filter(row => row.cause === cause).length;
     if (!count) continue;
     const service = route.repair[cause];
-    if (service.build === null) return { work: null, unknown: [...unknown, `${cause} repair build service is missing`] };
-    if (service.reworkGap === null) unknown.push(`${cause} repair gap is missing`);
+    // A cause with failures but no cause-specific build sample (a rare mid-route landing-test) repairs at the route's ordinary build service, as review rejects do.
+    const repairBuild = service.build ?? route.build;
+    if (repairBuild === null) return { work: null, unknown: [...unknown, `${cause} repair build service is missing`] };
+    // A missing repair gap is latency, never labor: it adds no work, so it cannot void the estimate.
     // The cause-specific build happens once; later review rejects use their own observed build service.
-    const labor = service.build + (route.review + route.q * (rejectBuild ?? 0)) / (1 - route.q);
+    const labor = repairBuild + (route.review + route.q * (rejectBuild ?? 0)) / (1 - route.q);
     weighted += count / route.outcomes.length * labor;
   }
   return { work: weighted / (1 - probability), unknown };
@@ -217,13 +222,17 @@ function itemCost(item, parameters) {
 /** Evaluate the closed form once; graph and collision structure are reused by all replicates. */
 function evaluate(graph, width, parameters) {
   const finish = new Map();
+  const repairs = new Map();
   let work = 0;
   let tail = 0;
   for (const id of graph.order) {
     const item = graph.nodes.get(id);
     const cost = itemCost(item, parameters);
     if (!cost) return null;
-    work += cost.work; tail = Math.max(tail, cost.tail);
+    // Post-accept landing-repair labor is work too, now that a failed landing no longer voids the estimate.
+    if (!repairs.has(item.route)) repairs.set(item.route, landingRepair(parameters.routes.get(item.route)).work);
+    if (repairs.get(item.route) === null) return null;
+    work += cost.work + repairs.get(item.route); tail = Math.max(tail, cost.tail);
     finish.set(id, Math.max(0, ...graph.predecessors.get(id).map(dep => finish.get(dep) ?? 0)) + cost.path);
   }
   if (parameters.service === null) return null;
@@ -387,9 +396,8 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
     for (const reason of landingRepair(baseline.routes.get(route)).unknown) unknown.push(`${route}: ${reason}`);
   }
   const active = graph.pending.filter(item => item.state !== 'accepted');
-  const hasFiles = active.every(item => Array.isArray(item.files) && item.files.length && item.files.every(file => typeof file === 'string' && file));
-  const width = hasFiles && !graph.unknown.length && fit?.available ? waveWidth(active) : null;
-  if (!hasFiles) unknown.push('unfinished work has unknown file collision inputs');
+  const width = !graph.unknown.length && fit?.available ? waveWidth(active) : null;
+  if (fit?.available && !graph.unknown.length && width === null) unknown.push('unfinished work has invalid file collision inputs');
   if (!fit?.available) unknown.push('empirical fit is unavailable');
   const empty = graph.pending.length === 0;
   let estimate = null;
@@ -442,7 +450,8 @@ export function planCapacity({ items = [], fit, liveSeats, now, sequence, seed =
       'Outcome rates condition on completed accepted episodes; still-open accepted episodes are right-censored and never asserted to be zero-risk outcomes.',
       'Landing-return risk comes from matching accepted source-head episodes ending in merged or typed conflict/landing-test returns, independently of batch cycle timing.',
       'Positive landing-return risk includes cause-specific first repair builds and review/reject repair labor; missing repair labor remains unknown.',
-      'Failed landing-cycle duration is not inferred from successful batches: positive risk leaves full finish and staffing advice unavailable while retaining independently knowable work.',
+      'Failed landing cycles use the observed lander-cycle distribution; unclassified landing outcomes are right-censored.',
+      'Items with no recorded files join no collision wave.',
       'Review-reject repair builds use their cause-specific observations when present, otherwise the existing pooled non-landing build convention; queue/rework gaps are latency, not labor.',
       'The straggler bound is the observed route whole-item cycle p90 (first claim through matching acceptance, including rework), never a sum of unrelated component quantiles or multiplied again by repeat attempts.',
       'Collision width is a deterministic greedy disjoint-file wave, not measured function independence.',
@@ -477,6 +486,8 @@ export function capacityLines(planner) {
     `Binding: ${planner.binding.kind}. ${planner.binding.text}`, `Lever: ${planner.lever.text}`,
     needs ? `${needs.length} items lack recorded approval evidence${needs.length ? `: ${needs.slice(0, 5).map(id => `#${id}`).join(', ')}${needs.length > 5 ? ` +${needs.length - 5} more` : ''}` : ''}.` : 'Approval evidence count: unknown.',
     ...(planner.staffing?.measuredLive === false ? [`Forecast assumes ${planner.staffing.seats} available seats from recent activity; live presence is unknown.`] : []),
+    ...(planner.staffing?.measuredLive === true ? [`Live seats: ${planner.staffing.seats} from presence heartbeats.`] : []),
+    ...(Number.isSafeInteger(planner.waiting) && planner.waiting > 0 ? [`${planner.waiting} items wait on a hold, a person or a dependency.`] : []),
     ...(planner.stale ? ['Estimates are stale; waiting for a board update.'] : []),
     ...budgetLines(planner.budget),
     ...(planner.monteCarlo.asOf && planner.monteCarlo.asOf !== planner.asOf ? [`Finish range last refreshed at ${planner.monteCarlo.asOf}.`] : []),

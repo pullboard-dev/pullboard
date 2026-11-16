@@ -76,7 +76,7 @@ export function loadPercents(load) {
 }
 
 /**
- * A pull runner's lease owner without its per-session suffix: `auxiliary-51-mill-2cbb55` and `auxiliary-51-mill-2d74dc` are one runner
+ * A pull runner's lease owner without its per-session suffix: `pool-51-mill-2cbb55` and `pool-51-mill-2d74dc` are one runner
  * that restarted, so the card numbers it once.
  */
 const runnerBase = name => typeof name === 'string' ? name.replace(/-[0-9a-f]{6}$/u, '') : name;
@@ -120,21 +120,29 @@ function fileProgress(files, progress) {
  *   jobs?: { id: string, kind: string, item: number | null, items?: number[], runner: string, claimedAt: number, files?: string[] | null, progress?: object | null }[],
  *   landings?: { batch: string, items: number[], startedAt: number, files?: string[] | null, selected?: number | null, progress?: object | null }[],
  *   fileTimes?: Record<string, number>,
- * }} sources
+ *   registeredOnly?: boolean,
+ * }} sources - registeredOnly: with configured runners, number only those, so the count is the registered runners (#8060);
+ *   a pull runner named `...-<n>-...` counts toward the registered host whose address ends in `.<n>`.
  * @returns {{ runners: { runner: number, state: 'busy' | 'idle', busy: boolean, cpu: number | null, ram: number | null, jobs: object[] }[], runs: object[] }}
  */
-export function publicRunners({ now, runners = [], configured = [], jobs = [], landings = [], fileTimes = {} }) {
+export function publicRunners({ now, runners = [], configured = [], jobs = [], landings = [], fileTimes = {}, registeredOnly = false }) {
   if (!Number.isFinite(now)) throw new TypeError('the live runner snapshot needs an explicit clock reading');
   const order = [...new Set((Array.isArray(configured) ? configured : []).map(runner => runner?.host).filter(name => typeof name === 'string'))];
-  const others = [...new Set([...runners.map(runner => runner.host), ...jobs.map(job => runnerBase(job.runner))])].filter(name => typeof name === 'string' && !order.includes(name))
+  const only = registeredOnly && order.length > 0;
+  const others = only ? [] : [...new Set([...runners.map(runner => runner.host), ...jobs.map(job => runnerBase(job.runner))])].filter(name => typeof name === 'string' && !order.includes(name))
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const numbers = new Map([...order, ...others].map((name, index) => [name, index + 1]));
-  const numberOf = name => numbers.get(name) ?? numbers.get(runnerBase(name));
+  const numberOf = name => numbers.get(name) ?? numbers.get(runnerBase(name)) ?? (only ? registeredNumber(name) : undefined);
+  /** The registered runner a pull runner's name points at: its `-<n>-` is the last number of the host's address. */
+  const registeredNumber = name => {
+    const tail = /-(\d{1,3})-/u.exec(String(name))?.[1];
+    return tail === undefined ? undefined : numbers.get(order.find(host => host.endsWith('.' + Number(tail))));
+  };
   const work = new Map([...numbers.values()].map(number => [number, []]));
   const loads = new Map();
   // Jobs come oldest first, so a later job's sample replaces an earlier one; the runner's own record wins over both.
-  for (const job of jobs) if (job.progress?.load && typeof job.progress.load === 'object') loads.set(numberOf(job.runner), job.progress.load);
-  for (const runner of runners) if (runner?.load && typeof runner.load === 'object') loads.set(numbers.get(runner.host), runner.load);
+  for (const job of jobs) if (job.progress?.load && typeof job.progress.load === 'object' && numberOf(job.runner)) loads.set(numberOf(job.runner), job.progress.load);
+  for (const runner of runners) if (runner?.load && typeof runner.load === 'object' && numbers.has(runner.host)) loads.set(numbers.get(runner.host), runner.load);
   const runs = new Map();
   /** The run one lease or job belongs to, made once per key. */
   const runOf = (key, fields) => {
@@ -154,14 +162,14 @@ export function publicRunners({ now, runners = [], configured = [], jobs = [], l
         run.runners.add(numbers.get(runner.host));
         if (Number.isFinite(since)) run.since = Math.min(run.since, since);
       }
-      work.get(numbers.get(runner.host)).push({ key, kind, item, since });
+      work.get(numbers.get(runner.host))?.push({ key, kind, item, since });
     }
   }
   for (const job of jobs) {
     const kind = KIND_WORDS[job.kind] ?? null, items = job.items?.length ? job.items : job.item ? [job.item] : [];
     const run = runOf(`job:${job.id}`, { kind, items, since: job.claimedAt, files: job.files ?? null, progress: job.progress ?? null });
     run.runners.add(numberOf(job.runner));
-    work.get(numberOf(job.runner)).push({ key: `job:${job.id}`, kind, item: items[0] ?? null, since: job.claimedAt });
+    work.get(numberOf(job.runner))?.push({ key: `job:${job.id}`, kind, item: items[0] ?? null, since: job.claimedAt });
   }
   /** One run's public counts and estimate; a count the records do not hold is null. */
   const project = run => {

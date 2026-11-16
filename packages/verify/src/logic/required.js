@@ -5,17 +5,14 @@ import { familyName } from './review/policy.js';
 import { familyAliasesOf } from './review/policy.js';
 import { aliasEngineOn } from './review/policy.js';
 import { Refused } from '../../../kernel/light.js';
+import { requiredReviewFamily } from './required/engine.js';
+export { requiredReviewFamily, requiredReviewFamilyEngine, anyRequiredReviewFamilyEngine } from './required/engine.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
 export function validateReviewFamily(value) {
   if (value !== undefined && (typeof value !== 'string' || !value.trim() || value.trim().length > 100 || /[\u0000-\u001f\u007f]/u.test(value))) {
     throw new Refused('BAD_REVIEW_FAMILY', 'name a nonempty reviewer family of at most 100 characters with --review-family <family>');
   }
-}
-
-/** Read the canonical optional metadata without changing the board. */
-export function requiredReviewFamily(board, id) {
-  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`item_review_family:${id}`)?.meta_value;
 }
 
 /** Persist inside the caller's item transaction, never inventing a family from a model. */
@@ -43,15 +40,4 @@ export function requiredReviewFamilyProblem(board, item, agentId) {
     : typeof declared === 'string' && declared.trim().toLowerCase() === required.toLowerCase();
   return same ? null
     : new Refused('REQUIRED_REVIEW_FAMILY', `#${item.item_id} requires reviewer family ${required}; join a reviewer with that declared family; model names do not declare a family`);
-}
-
-/** New moves touching a constrained item need the engine that preserves that constraint. */
-export function requiredReviewFamilyEngine(board, id) {
-  return board && requiredReviewFamily(board, id) ? AUTOMATIC_DISPATCH_ENGINE : 1;
-}
-
-/** Any queued selection must understand item requirements before choosing among boards' items. */
-export function anyRequiredReviewFamilyEngine(board) {
-  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'item_review_family:%' LIMIT 1").get()
-    ? AUTOMATIC_DISPATCH_ENGINE : 1;
 }

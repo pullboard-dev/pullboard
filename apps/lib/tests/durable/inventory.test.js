@@ -152,7 +152,7 @@ test('clause 1: a queued gate whose cells inventory is cold gets it through the 
     assert.equal(rebuilt.available, true, 'a stored result whose artifact is missing here is rebuilt, never a stall');
     assert.equal(rebuilt.state, 'rebuilt');
 
-    for (const source of ['../../../cli/src/io/submit/handoff/worker.js', '../../../cli/src/io/submit/remote.js', '../../../../packages/gate/src/io/main/audit/nudge.js']) {
+    for (const source of ['../../../cli/src/io/submit/remote.js', '../../../../packages/gate/src/io/main/audit/nudge.js']) {
       const code = readFileSync(new URL(source, import.meta.url), 'utf8');
       assert.doesNotMatch(code, /\b(?:nudgeAcceptedCells|waitForAcceptedCells)\b/u, `${source} no longer starts or waits on a background producer`);
     }

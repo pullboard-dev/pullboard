@@ -1,5 +1,6 @@
 /** Keep fixture creation behind one live-rule-aware testkit helper [C7]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -34,8 +35,8 @@ async function fixtureAdmissionProof(t) {
     { name: '../../tests/fixtures/e2e.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/land/project.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/board/submit.js', helpers: [] },
-    { name: '../land/landing/per.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
-    { name: '../land/landing/excluded.test.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/land/per.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
+    { name: '../../tests/fixtures/worktree/maintenance.js', helpers: ['fileFixtureItem', 'joinFixtureSeat'] },
     { name: '../../tests/fixtures/submit/outcome.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
     { name: '../../tests/fixtures/submit/red.js', helpers: ['fileFixtureItem', 'createFixtureWorktree'] },
   ];
@@ -49,8 +50,31 @@ async function fixtureAdmissionProof(t) {
       assert.doesNotMatch(`prefix${helperName}Suffix`, usage, 'helper names require real word boundaries');
     }
   }
-  const helper = readFileSync(join(import.meta.dirname, '../../tests/fixtures/testkit.js'), 'utf8');
+  const helper = readFileSync(join(import.meta.dirname, '../../../../packages/gate/tests/fixtures/testkit.js'), 'utf8');
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
 }
 
 test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
+
+test('project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const counted = box => {
+    const launched = [];
+    const run = box.run;
+    box.run = (cwd, ...args) => { launched.push(args[0]); return run(cwd, ...args); };
+    return launched;
+  };
+  const warm = helpers.sandbox();
+  const warmLaunches = counted(warm);
+  warm.runSync.of = warm.run;
+  const project = helpers.project('true', warm);
+  assert.deepEqual(warmLaunches, [], 'init and join start no Node process');
+  assert.ok(existsSync(join(project.repo, '.git/pullboard')), 'the in-process init created the board');
+  const seat = JSON.parse((project.run(project.web, 'whoami', '--json')).out);
+  assert.equal(seat.lane, 'web', 'the in-process join registered the worktree seat');
+  const replaced = helpers.sandbox();
+  const replacedLaunches = counted(replaced);
+  helpers.project('true', replaced);
+  assert.deepEqual(replacedLaunches, ['init', 'join'], 'a replaced run still answers the setup calls');
+});

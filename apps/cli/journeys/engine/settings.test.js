@@ -101,7 +101,7 @@ test('[Q4] the machine pool ignores board and HOME overrides unless explicitly s
 });
 
 test('the settings API reports every setting with its scope, value, default and source and never a secret [O5,O6]', async () => {
-  const { proveSettingsApi } = await import('../../../../packages/state/tests/fixtures/api.js');
+  const { proveSettingsApi } = await import('../../tests/fixtures/api/settings.js');
   await proveSettingsApi();
 });
 
@@ -123,7 +123,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
   assert.equal(changed.code, 0, `a board setting change succeeds: ${changed.err}${changed.out}`);
   assert.equal(initial.code, 0, initial.err);
   const defaults = { 'route.liveOnly': false, order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, reworkSameFamily: false, returnRejectedWork: false, wipPerReviewer: false, barReady: false,
-    'bar.check': false, 'bar.sharpenToPerson': false, takeoverMinutes: false,
+    'bar.check': false, 'bar.dryRunReview': false, 'bar.sharpenToPerson': false, takeoverMinutes: false,
     landingBatchSize: false, landingCadenceMinutes: false, agingMinutes: false };
   assert.deepEqual(JSON.parse(initial.out).lineSettings, defaults, 'all line controls start off, not silently enabled by a machine file');
   assert.equal(JSON.parse(changed.out).lineSettings.reviewsFirst, true);

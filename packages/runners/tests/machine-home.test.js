@@ -59,7 +59,7 @@ function refused(work, directory) {
 
 test('an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
   await t.test('a registry refresh names a blocked project registry', async () => {
-    const p = cellProject(t, { gate: 'true' });
+    const p = cellProject(t, { real: true, gate: 'true' });
     const home = join(p.dir, 'machine-home');
     mkdirSync(home, { recursive: true });
     process.env.PULLBOARD_HOME = home;
@@ -75,7 +75,7 @@ test('an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
     });
   });
   await t.test('the pool override is independent of the writable project registry', async () => {
-    const p = cellProject(t, { gate: 'true' });
+    const p = cellProject(t, { real: true, gate: 'true' });
     const home = join(p.dir, 'pool-home');
     mkdirSync(home, { recursive: true });
     process.env.PULLBOARD_HOME = join(p.dir, 'board-home');
@@ -91,7 +91,7 @@ test('an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
     });
   });
   await t.test('a blocked parent names the requested missing machine home', async () => {
-    const p = cellProject(t, { gate: 'true' });
+    const p = cellProject(t, { real: true, gate: 'true' });
     const parent = join(p.dir, 'blocked-parent');
     mkdirSync(parent);
     const home = join(parent, 'new-machine-home');
@@ -120,8 +120,8 @@ function unlockBoard(folder) {
 
 /** A project whose real board has been created and closed, so its folder holds a board file to lock. */
 function boardProject(t) {
-  const p = cellProject(t, { gate: 'true' });
-  cellBoard(t, p.boardFile, undefined, { gitRoot: p.repo }).db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  const p = cellProject(t, { real: true, gate: 'true' });
+  cellBoard(t, p.boardFile, undefined, { real: true, gitRoot: p.repo }).db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   return { ...p, folder: join(p.repo, '.git', 'pullboard') };
 }
 
@@ -185,7 +185,7 @@ test('the write check covers both board-file and journal-folder capability witho
 const OPEN_CONTEXTS = [['installed pullboard', undefined], ['main checkout', true], ['lane worktree', false]];
 
 test('a read-only board is refused by name in the installed, main-checkout and lane-worktree contexts [I1,L3,P4]', (t) => {
-  const p = cellProject(t, { gate: 'true' });
+  const p = cellProject(t, { real: true, gate: 'true' });
   // A board folder that is not a repository's own, so the context hint alone decides how the board is opened.
   const folder = join(p.dir, 'pullboard');
   const file = join(folder, 'board.sqlite');

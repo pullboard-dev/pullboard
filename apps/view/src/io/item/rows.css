@@ -1,7 +1,7 @@
 .row.item-row > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; }
 /* Approved Items rows keep two copy lines beside a whole seat address [N26]. */
 .row.item-row { grid-template-areas: none; gap: var(--space-3); padding: var(--space-3); }
-.row.item-row > .dot { grid-area: auto; background: var(--surface-2); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--line); }
+.row.item-row > .dot { grid-area: auto; background: var(--surface-2); color: var(--ink-faint); box-shadow: var(--inset-line); }
 .row.item-row > .row-copy { display: block; min-width: 0; }
 .row.item-row .t { line-height: 1.4; }
 .row.item-row > .row-side { display: grid; justify-items: end; gap: var(--space-1); min-width: 0; }
@@ -9,21 +9,22 @@
 .row.item-row .meta { line-height: 1.4; gap: var(--space-2); }
 .row.item-row .meta > .specs { font-family: var(--mono); color: var(--ink-faint); }
 .row.item-row .item-reason { color: var(--reject); font-weight: 600; }
+/* The reason may shrink, so a narrow row ends it in an ellipsis instead of cutting it mid-word. */
+.row.item-row .meta > .item-reason { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row.item-row .dot svg, .row.item-row .item-seat svg { width: 13px; height: 13px; }
 .row.item-row .dot.building { background: color-mix(in oklab, var(--stage-building) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-building) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.verify { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); box-shadow: none; }
 .row.item-row .dot.verified { background: var(--stage-merged); color: var(--surface); box-shadow: none; }
-/* Ready work is a purple dot; open work that waits is the same dot in Gated grey. */
+/* Ready work is a purple dot; open work that waits is the same dot in Blocked grey. */
 .row.item-row .dot.open { --stage: var(--stage-ready); background: radial-gradient(circle, var(--stage) 0 3.5px, color-mix(in oklab, var(--stage) 16%, var(--surface)) 4px); box-shadow: none; }
 .row.item-row.gated .dot.open { --stage: var(--stage-gated); }
 .row.item-row.on { background: var(--surface-2); }
-.row.item-row .row-side .chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: none; padding: var(--space-0) var(--space-3); border-radius: var(--radius-pill); font-size: var(--text-xs); line-height: 1.3; letter-spacing: normal; }
+.row.item-row .row-side .chip { display: inline-flex; align-items: center; gap: var(--space-1); max-width: none; padding: 0 var(--space-2); border-radius: var(--radius-chip); font: 500 var(--text-2xs)/18px var(--sans); letter-spacing: normal; }
 .row.item-row .item-seat.building { background: color-mix(in oklab, var(--stage-building) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-building) 60%, var(--ink)); }
 .row.item-row .item-seat.back { background: color-mix(in oklab, var(--mark-back) 16%, var(--surface)); color: color-mix(in oklab, var(--mark-back) 60%, var(--ink)); }
 .row.item-row .item-seat.verify { background: color-mix(in oklab, var(--stage-review) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-review) 60%, var(--ink)); }
 .row.item-row .item-status { font-family: var(--sans); }
-.row.item-row .item-status.verified { background: color-mix(in oklab, var(--stage-merged) 16%, var(--surface)); color: color-mix(in oklab, var(--stage-merged) 60%, var(--ink)); }
 .row.item-row.gated:has(> .row-side > .chip.gate), .row.item-row.gated:has(.meta .gate) { border-color: color-mix(in oklab, var(--stage-gated) 45%, var(--line)); }
 
 /* Items opens on its items: questions and sentinels wait in one collapsed group above them, ids whole [N26]. */
@@ -40,3 +41,10 @@
 .needs-fold-questions { list-style: none; min-width: 0; }
 .needs-fold-questions .needs-group-head { display: none; }
 .needs-fold .needs-id { max-width: none; overflow: visible; }
+/* The Dashboard's Rulings show each reference whole and cut a title only where the row ends; on a phone the reference takes its own line. */
+.needs-card .needs-id { max-width: none; overflow: visible; }
+@media (max-width: 640px) { .needs-card .needs-id { display: block; margin: 0; white-space: normal; overflow-wrap: anywhere; } }
+
+/* Rows stay on one line [N26]: a title ends in an ellipsis at the row's width, inline code in it is plain monospace with no box. */
+.row .t, .milestone-item .t, .milestone-item.blocked .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .t code, .row .t code.inline, .milestone-item .t code, .milestone-item .t code.inline { display: inline; padding: 0; border-radius: 0; background: none; font: 500 .92em var(--mono); white-space: nowrap; overflow-wrap: normal; }

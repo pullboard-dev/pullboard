@@ -9,6 +9,7 @@ import { cursorSnapshot } from './cursor.js';
 import { SPLIT_COUNTS } from './usage.js';
 import { unknownInputSplit } from './usage.js';
 import { allowanceFromRows } from './usage.js';
+import { storeName } from '../store-names.js';
 
 /** The variables a seat wrapper exports to name the transcript its tokens land in: one file, or a folder whose newest transcript is meant. */
 export const AGENT_TRANSCRIPT_ENV = Object.freeze(['PULLBOARD_SESSION_LOG', 'PULLBOARD_SESSION_DIR']);
@@ -22,7 +23,7 @@ function findSession(directory, identity, provider) {
     if (entry.isDirectory()) {
       const found = findSession(file, identity, provider);
       if (found) return found;
-    } else if (entry.isFile() && (provider === 'claude' ? entry.name === `${identity}.jsonl` : entry.name.endsWith(`-${identity}.jsonl`))) return file;
+    } else if (entry.isFile() && (provider === 'claude' ? entry.name === storeName(identity, '.jsonl') : entry.name.endsWith(`-${storeName(identity, '.jsonl')}`))) return file;
   }
   return null;
 }

@@ -7,7 +7,7 @@ import { queuedReds } from '../../../../index.js';
 import { queuedRedLines } from '../../../../index.js';
 import { register } from '../../../../index.js';
 import { recordSubmitHandoff } from '../../../../../jobs/index.js';
-import { fixtureBoard } from '../../../../../../apps/cli/tests/fixtures/board.js';
+import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 
 const MINUTE = 60_000;
 

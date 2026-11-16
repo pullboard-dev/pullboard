@@ -1,0 +1,29 @@
+#!/bin/sh
+# Installed by pullboard: runs the pullboard commit-msg checks. Edit pullboard.json, not this file.
+# Run tests with pullboard test <test files>: the runner pool first, the per-file timeout, and known main failures named.
+# The frozen check, the gate and the verifier's verdict are the proof. Do not keep private evidence folders, packets, manifests or custody rules. Cite the board's receipts. If those runs cannot decide the item, ask the coordinator to sharpen its bar.
+want='0.9.3'
+message="$1"
+root=$(git rev-parse --show-toplevel)
+main=$(git rev-parse --path-format=absolute --git-common-dir)/..
+run() {
+  bin="$1"; scope="$2"
+  have=$("$bin" --version </dev/null) || {
+    [ -z "$have" ] || printf '%s\n' "$have" >&2
+    exit 1
+  }
+  nl=$(printf '\n_'); nl=${nl%_}; have=${have##*"$nl"}
+  if [ "$have" != "$want" ]; then
+    newer=$(node -e 'const [a,b]=process.argv.slice(1).map(v=>String(v).split(".").map(n=>parseInt(n,10)||0));for(let i=0;i<3;i++)if(a[i]!==b[i]){process.stdout.write(a[i]>b[i]?"yes":"no");process.exit(0)}process.stdout.write("no")' "$have" "$want" 2>/dev/null)
+    if [ "$newer" = yes ]; then fix="pullboard init"; else fix="npm i $scope pullboard@$want"; fi
+    echo "pullboard commit-msg: stopped before running any rule; these hooks were installed by Pullboard $want, but $bin is Pullboard ${have:-unknown}. Run: $fix" >&2
+    exit 1
+  fi
+  exec "$bin" hook commit-msg "$message"
+}
+for bin in "$root/node_modules/.bin/pullboard" "$main/node_modules/.bin/pullboard"; do
+  if [ -x "$bin" ]; then run "$bin" -D; fi
+done
+if command -v pullboard >/dev/null 2>&1; then run pullboard -g; fi
+echo "pullboard is not installed; npm i -D pullboard, or npm i -g pullboard" >&2
+exit 1

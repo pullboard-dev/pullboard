@@ -51,6 +51,20 @@ function executors(value) {
     && value.every(id => typeof id === 'string' && LABEL.test(id)) && new Set(value).size === value.length;
 }
 
+export const RELEASE_BUDGET_SECONDS = 900;
+
+/**
+ * The release's wall time from its observed participation interval, with its 15-minute budget verdict.
+ * Why: the receipt carries the measurement so a slow release is visible on the record, not only in a log.
+ */
+export function releaseTiming(participation, budgetSeconds = RELEASE_BUDGET_SECONDS) {
+  const start = instant(participation?.startedAt), finish = instant(participation?.finishedAt);
+  if (start === null || finish === null || start > finish) return null;
+  const seconds = Math.ceil((finish - start) / 1000);
+  return { startedAt: participation.startedAt, finishedAt: participation.finishedAt, seconds, budgetSeconds,
+    status: seconds > budgetSeconds ? 'OVER_BUDGET' : 'WITHIN_BUDGET' };
+}
+
 /** Normalize observed participation once so its private native digest binds every recorded field. */
 export function releaseParticipationFields(p) {
   try {
@@ -100,7 +114,9 @@ function checked(envelope, expected) {
   if (encoded === undefined || Buffer.byteLength(encoded) > RELEASE_RECEIPT_MAX_BYTES) return 'release receipt exceeds size bound';
   if (!keys(expected, ['head', 'tree', 'command', 'required']) || !HASH.test(expected.head ?? '')
     || !HASH.test(expected.tree ?? '') || !DIGEST.test(expected.command ?? '') || !executors(expected.required)) return 'invalid expected release binding';
-  if (!keys(envelope, ['version', 'gateReceipt', 'participation']) || envelope.version !== 1) return 'invalid release envelope';
+  const timed = record(envelope) && Object.hasOwn(envelope, 'timing');
+  if (!keys(envelope, timed ? ['version', 'gateReceipt', 'participation', 'timing'] : ['version', 'gateReceipt', 'participation'])
+    || envelope.version !== 1) return 'invalid release envelope';
   const gate = receiptFields(envelope.gateReceipt);
   if (!gate || receiptBody(gate) === null || !equal(envelope.gateReceipt, gate) || gate.version !== 1 || gate.kind !== 'release'
     || gate.green !== true || gate.head !== expected.head || gate.main !== expected.head || gate.tree !== expected.tree || gate.command !== expected.command) return 'gate receipt does not match release binding';
@@ -115,6 +131,7 @@ function checked(envelope, expected) {
   const start = instant(p.startedAt), finish = instant(p.finishedAt), at = instant(gate.at);
   if (start === null || finish === null || at === null || start > finish || at < start || at > finish) return 'invalid release receipt dates';
   if (gate.participationDigest !== releaseParticipationDigest(p)) return 'participation differs from native gate binding';
+  if (timed && !equal(envelope.timing, releaseTiming(p))) return 'release timing differs from the participation interval';
   return shardProblem(p, gate, expected);
 }
 
@@ -127,8 +144,10 @@ export function releaseReceiptProblem(envelope, expected) {
 /** Return deterministic structural fields only after every source, coverage and participation binding passes. */
 export function releaseReceiptFields(envelope, expected) {
   if (releaseReceiptProblem(envelope, expected)) return null;
-  return { version: 1, gateReceipt: receiptFields(envelope.gateReceipt),
+  const fields = { version: 1, gateReceipt: receiptFields(envelope.gateReceipt),
     participation: releaseParticipationFields(envelope.participation) };
+  if (Object.hasOwn(envelope, 'timing')) fields.timing = releaseTiming(envelope.participation);
+  return fields;
 }
 
 /** Canonical JSON bytes do not authenticate the envelope; hosted readers must verify their transport separately. */

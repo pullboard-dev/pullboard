@@ -10,8 +10,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../index.js';
 import { firstRedLanding } from '../../../../index.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 
 const RUN_TESTS = join(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 const PASS = "import { test } from 'node:test';\ntest('main passes [C7]', () => {});\n";

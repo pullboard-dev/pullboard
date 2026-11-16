@@ -47,9 +47,9 @@ test('clause 2: a lapsed lease returns the job and the next claim takes it, with
   assert.throws(() => withFresh(db => renewJob(db, { job: 'shard:9', runner: 'r-a', token: first.token, now: lapsed })), error => error.code === 'JOB_LEASE_MOVED', 'a lapsed lease another runner claimed is not renewed');
   assert.throws(() => withFresh(db => postReceipt(db, { job: 'shard:9', runner: 'r-a', token: first.token, receipt: { status: 0 }, now: lapsed + 1 })),
     error => error.code === 'JOB_LEASE_MOVED', 'the first runner lost the job with its lease');
-  assert.deepEqual(withFresh(db => releaseJob(db, { job: 'shard:9', runner: 'r-b', token: second.token, backoff: false, now: lapsed + 2 })), { released: true });
+  assert.deepEqual(withFresh(db => releaseJob(db, { job: 'shard:9', runner: 'r-b', token: second.token, backoff: false, draining: true, now: lapsed + 2 })), { released: true });
   const third = withFresh(db => claimJob(db, { runner: 'r-a', capabilities: ['node22'], now: lapsed + 3 }));
-  assert.deepEqual([third.job, third.attempt], ['shard:9', 3], 'a job a stopping runner released is open again at once');
+  assert.deepEqual([third.job, third.attempt], ['shard:9', 3], 'a job a draining runner released is open again at once');
   assert.equal(withFresh(db => offerJob(db, { id: 'shard:9', kind: 'shard', needs: ['node22'], now: lapsed + 4 })).attempt, 3, 'a repeated offer leaves a held job as it is');
 });
 

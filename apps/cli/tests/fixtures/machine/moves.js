@@ -1,16 +1,16 @@
 /** Setup refusals the lifecycle audit reaches since the cells moves, each checked before any item move [M1,#2886]. */
 export const SETUP_REFUSALS = {
+  BAD_READINESS: 'a readiness command is validated as text when an item is added or edited, before any lifecycle move',
   BAD_BUILD_ESTIMATE: 'command input parses positive expected minutes before any lifecycle move',
-  BOARD_SCHEMA_BEHIND: 'a physical read refuses an older schema before starting an item move',
   BOARD_UNAVAILABLE: 'registered repository storage is unavailable before an item move can begin',
   GIT_SYNC_FOLDER: 'board transport storage must be a directory before synchronization',
   MILESTONES_CORRUPT: 'shared roadmap metadata is read before queue selection or health reporting',
-  SHIM_IMPORT_PARSER: 'compile-only parser composition is a tooling setup contract, not an item transition',
   BAR_NOT_READY: 'bar readiness is checked by the review packet before a verdict move runs',
   LAND_ENVIRONMENT: 'the landing host and candidate check executor are validated before landing, not by an item move',
   LAND_GATE_OUTPUT: 'a timed gate whose output failed is a machine gate failure, not an item move',
   LAND_TIMEOUT_CUSTODY: 'a timed gate worker must prove cleanup; this is machine gate custody, not an item move',
   NO_SHOUT: 'looking up a shout that does not exist is a read, not an item move',
+  TIMED_SHELL_MISSING: 'a timed gate shell needs its entry from the caller before the gate runs, a machine setup check',
   PIPEFAIL_UNAVAILABLE: 'the gate shell must support pipefail before the gate runs, a machine setup check',
   // SEAL_REVISION and SEAL_STALE stay declared on submit, accept and reject; only the seal store lookup is pre-empted.
   SEAL_STORE: 'selectTestTiers runs snapshotAt first, whose identical common-directory lookup refuses TEST_SELECTION_SOURCE before sealStoreFile',
@@ -27,6 +27,36 @@ export const SETUP_REFUSALS = {
   BRIEF_TOO_LONG: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   NO_BRIEF: 'only a diagnosis fact routes the item and checks its brief; a release appends a note',
   CHECK_MASKS_EXIT: 'only a diagnosis fact routes the item and checks its check; a release appends a note',
+  // The move tables (packages/moves) check their own definition and input shape before a rule reads any item state.
+  CLAIM_TABLE_INPUTS: 'the claim table\'s input shape is checked by the table engine before any rule reads item state',
+  RELEASE_TABLE_INPUTS: 'the release table\'s input shape is checked by the table engine before any rule reads item state',
+  SUBMIT_TABLE_INPUTS: 'the submit table\'s input shape is checked by the table engine before any rule reads item state',
+  WITHDRAW_TABLE_INPUTS: 'the withdraw table\'s input shape is checked by the table engine before any rule reads item state',
+  VERIFY_TABLE_INPUTS: 'the verify table\'s input shape is checked by the table engine before any rule reads item state',
+  RULE_SHAPE: 'a table rule with a malformed definition is a table defect found when the table is defined, not an item refusal',
+  RULE_UNDEFINED: 'a table rule that names an undefined fact is a table defect, not an item refusal',
+  RULE_CYCLE: 'a table whose rules depend on each other in a cycle is a table defect, not an item refusal',
+  RULE_UNDECLARED_READ: 'a table rule reading a fact it did not declare is a table defect, not an item refusal',
+  RULE_NOT_BOOLEAN: 'a table rule that returns a non-boolean is a table defect, not an item refusal',
+  // A reject on a landed item opens a follow-up item the move composes itself: lane, title, criterion and brief come from the
+  // rejected item, with no check, parent, spec row, dependency or reference, so none of the add validations can refuse it.
+  NO_TITLE: 'the landed-reject follow-up item is composed by the move with a title, so the add validation cannot refuse it',
+  PARENT_LANE: 'the landed-reject follow-up item has no parent',
+  PARENT_CLOSED: 'the landed-reject follow-up item has no parent',
+  BAD_CHECK: 'the landed-reject follow-up item is composed with no check',
+  BAD_CHECK_BASELINE: 'the landed-reject follow-up item is composed with no check',
+  COORDINATOR_CHECK: 'the landed-reject follow-up item is composed with no check',
+  LANE_CHECK_FOREIGN: 'the landed-reject follow-up item is composed with no check',
+  BAD_REVIEW_FAMILY: 'the landed-reject follow-up item declares no reviewer family',
+  BAR_PARENT_UNKNOWN: 'the landed-reject follow-up item records its bar under the verifying seat\'s own identity',
+  CLAUSE_EVIDENCE_REQUIRED: 'the landed-reject follow-up item is composed with one clause that declares its evidence kind',
+  REFERENCE_IS_BOARD: 'the landed-reject follow-up item is composed with no reference lines',
+  REFERENCE_AUTHOR: 'the landed-reject follow-up item is composed with no reference lines',
+  B26_PERSON_CHANNEL: 'the landed-reject follow-up item is composed with no person-only reference',
+  S10: 'the landed-reject follow-up item is composed with a per-item criterion',
+  WITHDRAWN: 'the landed-reject follow-up item waits on no other item',
+  DEPENDENCY_CYCLE: 'the landed-reject follow-up item waits on no other item',
+  RUNNER_UNATTRIBUTED: 'machine-wide setting gate.requireRunnerAttribution is checked when a runner accepts a request, before any item move',
 };
 
 
@@ -36,6 +66,7 @@ export const SETUP_REFUSALS = {
  */
 export const NOT_MOVES = {
   ...SETUP_REFUSALS,
+  MOVE_TABLES_MISSING: 'the store runs its move tables through the board composition root; opening the board without it is a wiring fault, not an item move',
   USAGE: 'how a command was typed',
   NO_FILE: 'how a command was typed: a --note-file that does not exist',
   ALREADY_JOINED: 'registering who is asking, before any move',
@@ -49,6 +80,7 @@ export const NOT_MOVES = {
   SANDBOX_BLOCKED: 'the command environment must allow the gate or check operation',
   BAD_MACHINE_SETTINGS: 'machine-wide settings checked before a command runs',
   BAD_RUNNER_RATES: 'machine-wide runner rate cards checked before a command runs',
+  BAD_SCRATCH_ROOT: 'the machine-wide scratch folder setting is checked before the folder is used, not an item move',
   BAD_GATE_SLOTS: 'machine-wide gate capacity checked before a command runs',
   BAD_BROWSER_SLOTS: 'machine-wide browser capacity checked before a command runs',
   BAD_SHORT_SLOTS: 'machine-wide short gate slot count checked before a command runs',
