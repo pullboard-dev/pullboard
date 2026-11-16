@@ -26,6 +26,8 @@ export const BOARD_HOST = 'board-host';
 // Budget: the local runner rewrites its state every 5 s; a state 30 s old belongs to a process that is gone or stuck.
 const HEARTBEAT_MS = 5_000;
 const STALE_MS = 30_000;
+// Budget: the local runner asks its own loopback board for a job every 250 ms when idle, not the 2 s a remote runner waits, so a submit's gate starts at once (N10).
+const LOCAL_IDLE_MS = 250;
 // Budget: a board the runner cannot serve yet (no board file, a refusal) is tried again after 1 s, doubling to a minute.
 const RETRY = { firstMs: 1_000, maxMs: 60_000 };
 
@@ -119,7 +121,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
     try {
       say(`serving ${root} as board ${id}`);
       // One job at a time on the board host: concurrent jobs belong on runners, never on the coordinator Mac (#5805).
-      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, git, jobs: 1, signal, say: line => say(`${basename(root)}: ${line}`) });
+      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, git, jobs: 1, signal, timing: { idleMs: LOCAL_IDLE_MS }, say: line => say(`${basename(root)}: ${line}`) });
       wait = RETRY.firstMs;
     } catch (error) {
       if (signal.aborted) break;
