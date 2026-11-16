@@ -116,6 +116,7 @@ const ROWS = [
   ['relay.owner.account', 'Sharing account', 'The account that owns this computer\'s device sharing.', 'Relay', 'text'],
   ['relay.owner.url', 'Sharing service', 'The address of the sharing service this computer signs in to.', 'Relay', 'text'],
   ['relay.personReauth', 'Needs the person to sign in again', 'This board\'s sharing sign-in was cleared, so the person must sign in again before sharing resumes.', 'Relay', 'on/off'],
+  ['relay.pruneReceipts', 'Drop old relay request receipts', 'When enabled, a phone request receipt recorded more than 7 days ago is dropped when the next one is saved, and a receipt with no recorded time stays; off (default), every receipt is kept as before.', 'Relay', 'on/off'],
   ['relay.session.token', 'Device sign-in', 'Whether this computer holds a sharing sign-in; the value is never shown.', 'Relay', 'set/not set'],
   ['relay.token', 'Board sign-in', 'Whether this board holds a sharing sign-in; the value is never shown.', 'Relay', 'set/not set'],
   ['relay.url', 'Board sharing service', 'The address of the sharing service this board is linked to.', 'Relay', 'text'],
