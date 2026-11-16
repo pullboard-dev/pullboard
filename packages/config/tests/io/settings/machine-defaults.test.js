@@ -64,6 +64,7 @@ const BEFORE = {
   'inspection.clauses': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
+  'landing.squash': false,
   'list.thinRead': false,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
