@@ -102,6 +102,7 @@ export {
   renderAgentsBlock,
   SEAT_LOOP,
   SEAT_LOOP_WORD_BUDGET,
+  renderWorkerSkill,
   renderCoordinatorGuide,
   COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,

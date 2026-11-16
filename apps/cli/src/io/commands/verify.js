@@ -5,6 +5,8 @@ import { comparisonRestartPlan } from '../../../../../packages/verify/index.js';
 import { sharedToolsTarget } from '../toolsnapshot.js';
 import { toolsSnapshot } from '../toolsnapshot.js';
 import { runPulledComparison } from '../test/pull.js';
+import { queueAccept } from '../test/accept.js';
+import { queuesAccept } from '../test/accept.js';
 import { generateTestTiersAt } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
@@ -349,6 +351,10 @@ export async function verifyHere(ctx, id, { second, values }) {
       ctx.io.say(fromPacket);
     } else if (decision === 'ACCEPT') {
       if (digest !== item.item_frozen_digest) throw new Refused('CRITERIA_CHANGED', VERIFY_WORDS.criteriaMoved);
+      // verify.queueAccept (off by default): the frozen check becomes a runner job and the accept returns; its receipt settles the verdict [C7,V4,#3161].
+      if (!reReview && !companionDigest && !item.item_effective_head && queuesAccept(mainPolicy(root).config, frozenCheck(item))) {
+        return await queueAccept(ctx, board, { item: id, me, commit, main: mainPolicy(root).commit, check: frozenCheck(item), digest });
+      }
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
@@ -539,6 +545,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     return verdict;
   });
+  if (result.decision === 'QUEUED') {
+    ctx.io.result?.({ id, ...result });
+    ctx.io.say(`#${id} accept queued: the frozen check is runner job ${result.checkJob}; the review is reserved to ${result.reservedTo}, and the verdict records when the check finishes.`);
+    return 0;
+  }
   const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
   if (result.decision === 'SELECTOR_GAP') {
