@@ -252,16 +252,59 @@ export function events(board, { itemId } = {}) {
   return board.db.prepare('SELECT * FROM event WHERE item_id = ? ORDER BY event_id').all(itemId);
 }
 
+/** One event of an item's thread, as itemThread lists it; `withdrawals` maps an accept event to the withdrawal that undid it. */
+function threadEntry(event, withdrawals) {
+  if (event.event_kind === 'fact') return { type: 'fact', ...factFromEvent(event) };
+  const correction = reopenCauseCorrection(event);
+  return { type: 'move', eventId: event.event_id, kind: event.event_kind, by: event.event_by,
+    ...(correction ? { causeCorrection: correction } : {}),
+    ...(withdrawals.has(event.event_id) ? { withdrawn: true, withdrawal: withdrawals.get(event.event_id) } : {}),
+    at: event.event_at, detail: JSON.parse(event.event_detail) };
+}
+
 /** Read every move and fact in append order, including superseded facts and full original text [B31,B32]. */
 export function itemThread(board, id) {
   itemById(board, id);
   const withdrawals = new Map([...verdictWithdrawals(board, id).values()].map(row => [row.acceptEventId, row]));
-  return itemActivity(board, id).map((event) => event.event_kind === 'fact'
-    ? { type: 'fact', ...factFromEvent(event) }
-    : { type: 'move', eventId: event.event_id, kind: event.event_kind, by: event.event_by,
-      ...(reopenCauseCorrection(event) ? { causeCorrection: reopenCauseCorrection(event) } : {}),
-      ...(withdrawals.has(event.event_id) ? { withdrawn: true, withdrawal: withdrawals.get(event.event_id) } : {}),
-      at: event.event_at, detail: JSON.parse(event.event_detail) });
+  return itemActivity(board, id).map((event) => threadEntry(event, withdrawals));
+}
+
+/** The items a board-wide `main-moved` event names, as the item's own activity read matches them: integers of its `items`. */
+function movedItems(event) {
+  let detail;
+  try { detail = JSON.parse(event.event_detail); } catch { return []; }
+  const named = detail?.items;
+  const values = Array.isArray(named) ? named : named !== null && typeof named === 'object' ? Object.values(named) : [named];
+  return values.filter(Number.isInteger);
+}
+
+/**
+ * The threads of many items at once, from the board's whole event list in order (the history a state build already
+ * holds): the same entries itemThread gives each, from one pass over the events where itemThread reads the log once
+ * per item and scans every board-wide main move again for each, quadratic on a board of thousands of items [C7,#8480].
+ * Each id must be an item of the board. A withdrawal is looked up only for an item with a reopen that names one.
+ *
+ * @param {any} board
+ * @param {Iterable<number>} ids
+ * @param {any[]} history Every event of the board, oldest first.
+ * @returns {Map<number, any[]>}
+ */
+export function itemThreads(board, ids, history) {
+  const events = new Map([...ids].map(id => [id, []]));
+  for (const event of history) {
+    if (event.item_id !== null) {
+      if (event.event_kind !== 'usage' && event.event_kind !== 'shared-usage') events.get(event.item_id)?.push(event);
+    } else if (event.event_kind === 'main-moved') {
+      for (const id of new Set(movedItems(event))) events.get(id)?.push(event);
+    }
+  }
+  const threads = new Map();
+  for (const [id, own] of events) {
+    const withdrawals = own.some(event => event.event_kind === 'reopen' && String(event.event_detail).includes('withdrawnVerdict'))
+      ? new Map([...verdictWithdrawals(board, id).values()].map(row => [row.acceptEventId, row])) : new Map();
+    threads.set(id, own.map(event => threadEntry(event, withdrawals)));
+  }
+  return threads;
 }
 
 /**

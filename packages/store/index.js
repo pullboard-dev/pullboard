@@ -47,7 +47,7 @@ export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainRed
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
-export { buildLocalBoardState, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
+export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
 export { nativeStateClockWindow, nativeStateClockMatches } from './src/logic/clock.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/io/outside.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
@@ -62,7 +62,8 @@ export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
-export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts } from './src/io/board/run.js';
+export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt } from './src/io/board/run.js';
+export { RECONCILE_EVERY_MS, LOST_GRACE_MS, RUNAWAY_ATTEMPTS, RUN_LOST, RUN_RUNAWAY, disagreementAction, reconcileTick, pacedReconciler } from './src/io/board/reconcile.js';
 export { RUN_QUEUED_EVENT, RUN_APPLIED_EVENT, runSummary, runRowsFromEvents } from './src/logic/board/runs.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';
 export { activityDeliveryState as board_activity_delivery_store_activityDeliveryState, activityInterruptWasDelivered as board_activity_delivery_store_activityInterruptWasDelivered, rejectionRecipient, recordActivityDelivery as board_activity_delivery_store_recordActivityDelivery, actOnActivity as board_activity_delivery_store_actOnActivity } from './src/logic/board/activity/delivery.js';

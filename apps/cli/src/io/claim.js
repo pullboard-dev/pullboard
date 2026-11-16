@@ -254,6 +254,12 @@ export async function claimOrdered(ctx, board, args) {
     const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
+  // A budget at its stop line refuses a new claim only; a claim the seat already holds renews, so nothing stops mid-item [N2].
+  if (!(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const { budgetClaimRefusal, machineBudgetState } = await import('../../../../packages/stats/light.js');
+    const refusal = budgetClaimRefusal(machineBudgetState(board, Date.now()));
+    if (refusal) throw refusal;
+  }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
