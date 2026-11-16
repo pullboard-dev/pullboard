@@ -237,6 +237,11 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
+export function lapsedSweepEnabled() {
+  return loadMachineSettings().health?.lapsedSweep === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
