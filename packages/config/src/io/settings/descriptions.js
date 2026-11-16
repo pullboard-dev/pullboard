@@ -199,6 +199,7 @@ const ROWS = [
   ['resume.adoptOrphans', 'Adopt orphaned claims', 'On, pullboard resume in a fresh worktree adopts the claim an orphaned seat left, restoring its pinned head and crediting it; off, resume only reports.', 'Agents', 'on/off'],
   ['review.excludeEarlierHolders', 'Exclude earlier holders from review', 'On refuses a review reservation by any seat that ever claimed, built, submitted or released the item; off excludes only its current builder and submitters.', 'Review', 'on/off'],
   ['review.independence', 'Reviewer independence', 'Off lets any seat but the builder verify, even a subagent of the builder\'s session, while session lets only a different agent session verify.', 'Review', 'choice'],
+  ['review.relaxRequiredFamily', 'Review family can widen', 'When enabled, an item filed with --review-family may widen its required reviewer family when no reviewer of it is available; off (default), a --review-family item never widens.', 'Review', 'on/off'],
   ['review.starveMinutes', 'Review waiting alarm', 'A submission that has waited this long without a reviewer is marked urgent.', 'Review', 'minutes'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
   ['verify.failBefore', 'Require a fail-before receipt', 'Submit refuses a [test] clause unless a recorded run at the item base failed on an assertion.', 'Review', 'on/off'],
