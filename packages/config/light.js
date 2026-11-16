@@ -6,5 +6,5 @@ export { maintenanceDurations } from './src/logic/maintenance.js';
 export { boardRemote } from './src/logic/settings.js';
 export { loadMachineSettings, validateRunner } from './src/logic/settings.js';
 export { submitProofOnly } from './src/logic/settings.js';
-export { listThinRead } from './src/logic/settings.js';
+export { listThinRead, namedImportSelectionOn } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
