@@ -1,8 +1,8 @@
 /** Current capacity descriptors for completed-receipt utilization, without admission writes [C7,O5]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { machineHome } from '../../../resources/index.js';
-import { openPoolReadOnly } from '../../../resources/index.js';
+import { machineHome } from '../../../resources/light.js';
+import { openPoolReadOnly } from '../../../resources/light.js';
 import { loadMachineSettings } from '../../../config/light.js';
 import { validateRunner } from '../../../config/light.js';
 import { localRunnerDescriptor } from './load.js';
