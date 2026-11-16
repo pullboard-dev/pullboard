@@ -61,7 +61,6 @@
   ["test/item-notes.test.js","packages/store/tests/item-notes.test.js","seed"],
   ["test/landing-noop.test.js","packages/store/tests/landing-noop.test.js","seed"],
   ["test/shout-item.test.js","packages/store/tests/logic/board/item/baseline/shout.test.js","seed"],
-  ["test/stacked-submit.test.js","packages/store/tests/stacked-submit.test.js","seed"],
   ["test/verdict-check.test.js","packages/store/tests/verdict-check.test.js","seed"],
   ["test/verify.test.js","packages/store/tests/verify.test.js","seed"],
   ["src/board-engine-ports.js","packages/store/src/io/board/ports.js","rule"],

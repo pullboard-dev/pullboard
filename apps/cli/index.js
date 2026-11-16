@@ -23,7 +23,7 @@ export { BLOCK_AUDIENCE, COORDINATOR_PERSON_REQUEST as nextSteps$COORDINATOR_PER
 export { assertPublicExportSupported } from "./src/logic/exports.js";
 export { ROLES, SHIPPED_SKILL_DIGESTS, installSkills, promptFor, skillProblems, updateSkills, withoutFrontMatter } from "./src/io/skills.js";
 export { declaredProseCommands } from "./src/logic/prose.js";
-export { parseProblems, sweepItems } from "./src/logic/sweep.js";
+export { parseProblems, sweepItems } from "./src/io/sweep/problems.js";
 export { MainSpecMerged as cliClaim$MainSpecMerged, claimFreezer as cliClaim$claimFreezer, claimOrdered as cliClaim$claimOrdered, currentReworkRoutingPolicy as cliClaim$currentReworkRoutingPolicy, freezer as cliClaim$freezer, ordered as cliClaim$ordered, relayOutboxSetting as cliClaim$relayOutboxSetting, wrongLaneGuidance as cliClaim$wrongLaneGuidance } from "./src/io/claim.js";
 export { PULLBOARD_COMMANDS, cockpitPage as cliCockpitRenderer$cockpitPage } from "./src/io/cockpit/renderer.js";
 export { landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";

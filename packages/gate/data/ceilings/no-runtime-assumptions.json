@@ -87,6 +87,9 @@
     "packages/gate/src/io/main/audit/economics.js": {
       "testFile": 1
     },
+    "packages/gate/src/io/preload.js": {
+      "nodeTest": 3
+    },
     "packages/gate/src/io/red.js": {
       "testFile": 1
     },
@@ -127,9 +130,6 @@
     },
     "packages/gate/src/io/watchdog.js": {
       "nodeTest": 1
-    },
-    "packages/gate/src/logic/preload.js": {
-      "nodeTest": 3
     },
     "packages/git/src/io/check/definition.js": {
       "binSh": 1

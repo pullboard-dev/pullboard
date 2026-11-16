@@ -9,6 +9,7 @@ import { rejectionClauseDetail } from "../../../../verify/index.js";
 import { rejectionClauseProblem } from "../../../../verify/index.js";
 import { requireSourceAdvanceReview } from "../../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../state/light.js";
+import { checkRouted } from "../../../../items/index.js";
 import { itemPatchReviewProblem } from "../../../../items/index.js";
 import { vendorOfModel } from "../../../../items/index.js";
 import { familyName } from "../../../../verify/index.js";
@@ -231,6 +232,32 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
 }
 
 /**
+ * The route, criterion, brief and check of the follow-up a landed reject files.
+ * A mid or light parent passes its Files:, Test: and check on, so the follow-up is buildable cold; when the parent lacks any of them
+ * the follow-up is routed strong, which needs no brief, so the verdict always records.
+ * Why: a mid follow-up with only the review note as its brief refused NO_BRIEF and rolled back the whole verdict [#8835].
+ *
+ * @param {any} found - The landed item row.
+ * @returns {{ route: string, criterion: string, brief: string, check?: string }}
+ */
+function landedFollowUpBar(found, id, reason, note, engine) {
+  const criterion = `1. The ${reason} that review found in landed #${id} is fixed on main: ${note} [reasoning]`;
+  const review = `Landed #${id} at ${found.item_merged_commit} was rejected after landing (${reason}). Builder: ${found.item_built_by ?? 'unknown'}. Review note: ${note}`;
+  const route = found.item_route ?? 'strong';
+  const check = found.item_check ?? '';
+  if (route !== 'strong' && check.trim() && String(found.item_brief ?? '').trim()) {
+    const brief = `${review}\n\n${String(found.item_brief).trim()}`;
+    try {
+      checkRouted({ brief, route, criterion, check }, engine);
+      return { route, criterion, brief, check };
+    } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+    }
+  }
+  return { route: 'strong', criterion, brief: review };
+}
+
+/**
  * Record a verdict on an item a forced merge landed around the gate with no review (V1).
  * An accept is recorded as a verdict and the landing stays: the item keeps its status and merged commit.
  * Why: hand landings had no second look, and verify refused them as not submitted [V1,H16].
@@ -264,9 +291,8 @@ function landedVerdict(board, id, { agentId, isAccept, decision, code, reason, n
     recordVerdict(board, { ...found, item_commit: found.item_commit ?? found.item_merged_commit }, { agentId, decision, reason: code, note, digest: found.item_frozen_digest ?? '', head: found.item_merged_commit });
     setItem(board, id, { item_verdict: decision, item_verified_by: agentId });
     // A landed item cannot move back, so a reject opens a follow-up item in its lane for the builder to fix.
-    const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120), route: found.item_route ?? 'strong',
-      specIds: [], parentId: null, after: [], criterion: `1. The ${reason} that review found in landed #${id} is fixed on main: ${suppliedNote} [reasoning]`,
-      brief: `Landed #${id} at ${found.item_merged_commit} was rejected after landing (${reason}). Builder: ${found.item_built_by ?? 'unknown'}. Review note: ${suppliedNote}` });
+    const followUp = isAccept ? null : addItem(board, { by: agentId, lane: found.item_lane, title: `Fix after review of #${id}: ${found.item_title}`.slice(0, 120),
+      specIds: [], parentId: null, after: [], ...landedFollowUpBar(found, id, reason, suppliedNote, engine) });
     logEvent(board, agentId, 'verify', id, { reason: code, commit: found.item_merged_commit, landed: true, note: suppliedNote, ...(followUp ? { followUp } : {}) });
     return { decision, reason: code, ...(followUp ? { followUp } : {}) };
   });

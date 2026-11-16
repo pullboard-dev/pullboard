@@ -51,7 +51,7 @@ function cpuLoadShell(e2e, commonjs, stage) {
   const standIn = { bin, worker: join(box.dir, 'worker'), home: remoteHome, machineHome: remoteMachineHome, nodeCommand: process.execPath };
   installSshStandIn({ ...standIn, requests });
   // The ordinary CLI registers its runner through this stand-in ssh, so it leads the box's own PATH; it starts with env node,
-  // which a vanilla runner's PATH lacks, so the current node's folder follows it.
+  // which a bare runner's PATH lacks, so the current node's folder follows it.
   box.env.PATH = `${bin}:${dirname(process.execPath)}:${box.env.PATH}`;
   const env = { ...box.env };
   for (const key of Object.keys(env)) if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_TEST_CONTEXT') delete env[key];

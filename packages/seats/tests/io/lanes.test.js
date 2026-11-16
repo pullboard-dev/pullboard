@@ -68,11 +68,11 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.equal(config.commits.maxHeader, 60);
     assert.deepEqual(config.commits.requireIds, ['feat', 'fix']);
     assert.equal(config.leaseMs, 90 * 60_000);
-    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false });
+    assert.deepEqual(config.verify, { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false, titleTicks: false });
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: 'coordinator' }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false }, 'legacy verify strings remain valid');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'coordinator', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false, titleTicks: false }, 'legacy verify strings remain valid');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'require' } }));
-    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false }, 'nested verify options merge over defaults');
+    assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false, titleTicks: false }, 'nested verify options merge over defaults');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
     assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
     for (const familyRelaxAt of [null, 'off', 2]) {

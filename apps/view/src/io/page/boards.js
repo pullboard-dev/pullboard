@@ -391,10 +391,12 @@ async function boardRead(board, seen) {
   if (held && Number.isSafeInteger(held.sequence)) {
     const reply = await api(path + '?since=' + held.sequence + (mark && '&' + mark) + (held.version === undefined ? '' : '&eventLogVersion=' + encodeURIComponent(held.version)));
     if (reply.delta) {
-      const state = applyStateDelta(held.state, reply.delta);
+      // The finished items may have joined the kept state while this read was on its way: build on that state, at the same sequence, so the reply never puts the open-only one back (#8904).
+      const now = sentStates.get(board.id), base = now && now.sequence === held.sequence ? now : held;
+      const state = applyStateDelta(base.state, reply.delta);
       // A state that already holds the finished items stays whole: the delta's counts never mark them omitted again (#6697).
-      if (held.whole) { delete state.itemsOmitted; delete state.finished; }
-      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: held.whole });
+      if (base.whole) { delete state.itemsOmitted; delete state.finished; }
+      sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: base.whole });
       return withReadySplit(state);
     }
   }

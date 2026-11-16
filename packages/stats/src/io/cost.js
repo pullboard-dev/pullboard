@@ -147,7 +147,7 @@ const BUDGET_WARN_AT = 0.8;
 export function budgetState(board, prices, budget, now) {
   const rows = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key LIKE 'cost:%'").all().map(row => JSON.parse(row.meta_value));
   const day = new Date(now).toISOString().slice(0, 10);
-  const dollars = values => usageDollars(values.flatMap(value => value.records.map(record => ({ ...record, shared: Boolean(value.shared) }))), prices).knownCostUSD;
+  const dollars = values => usageDollars(values.flatMap(value => value.records.map(record => ({ ...record, shared: Boolean(value.shared) }))), prices).knownCostUSD ?? 0;
   const spend = { dailyUsd: dollars(rows.filter(value => new Date(value.observedAt).toISOString().slice(0, 10) === day)), totalUsd: dollars(rows) };
   const limits = ['dailyUsd', 'totalUsd'].filter(name => budget?.[name] !== undefined);
   if (!limits.length) return { state: 'ok', spend: spend.totalUsd, limit: null, which: null };
@@ -155,4 +155,23 @@ export function budgetState(board, prices, budget, now) {
   const which = limits.reduce((worst, name) => spend[name] / budget[name] > spend[worst] / budget[worst] ? name : worst);
   const ratio = spend[which] / budget[which];
   return { state: ratio >= 1 ? 'stop' : ratio >= BUDGET_WARN_AT ? 'warn' : 'ok', spend: spend[which], limit: budget[which], which };
+}
+
+/**
+ * The refusal a new claim meets when the budget is at its stop line, or null when the claim may go ahead [N2].
+ * Only new claims are asked: an item already claimed keeps submitting and releasing, so nothing stops mid-item.
+ *
+ * @param {{state: string, spend: number, limit: number|null, which: string|null}|null} state the result of budgetState, or null with no budget
+ * @returns {Refused|null} BUDGET_STOP naming the spend, the limit and the next step, or null
+ */
+export function budgetClaimRefusal(state) {
+  if (state?.state !== 'stop') return null;
+  const step = state.which === 'dailyUsd' ? 'raise budget.dailyUsd in the machine settings file, or resume after the next UTC day begins'
+    : 'raise budget.totalUsd in the machine settings file';
+  return new Refused('BUDGET_STOP', `the board has spent ${dollarText(state.spend)} against its ${state.which} limit of ${dollarText(state.limit)}; ${step}`);
+}
+
+/** Dollars as the refusal prints them, two decimals. */
+function dollarText(value) {
+  return '$' + value.toFixed(2);
 }

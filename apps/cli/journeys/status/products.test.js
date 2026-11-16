@@ -5,10 +5,9 @@
  */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
-import {
-  runFixtureChild,
-  runFixtureGit,
-} from '../../tests/fixtures/child.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { journeyCall } from '../../tests/fixtures/e2e.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -116,7 +115,7 @@ test('config refuses products that are not named lists of spec ids or section le
   assert.deepEqual(productProblems({ products: { Core: ['B', 'Q9'] } }, parseSpec(SPEC)), ['product "Core": "Q9" names no row in the spec']);
 });
 
-test('in a real repo, status prints each product, and spec check fails on an entry that names no row [S11, S12]', () => {
+test('in a real repo, status prints each product, and spec check fails on an entry that names no row [S11, S12]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-products-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -132,7 +131,8 @@ test('in a real repo, status prints each product, and spec check fails on an ent
     PULLBOARD_HOME: join(dir, 'home'),
   };
   const git = (...args) => runFixtureGit(args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' });
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
+  // In this process by default, or the real CLI under PULLBOARD_JOURNEY_MODE=process so the gate's parity check can compare the two [C7].
+  const run = (...args) => journeyCall({ dir, env, cwd: repo, args, bin: BIN, inProcess: () => runCliInProcess(args, { cwd: repo, env }) });
   const writeConfig = (products) => writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: CONFIG.lanes, products }, null, 2));
   git('init', '-q', '-b', 'main');
   writeConfig(PRODUCTS);
@@ -161,24 +161,24 @@ test('in a real repo, status prints each product, and spec check fails on an ent
     store.closeBoard(board);
   }
 
-  const status = run('status');
+  const status = await run('status');
   assert.equal(status.status, 0, status.stderr);
   assert.match(status.stdout, /^product Core: 3 rows, 2 approved, 1 cited by accepted items; items 1 open, 1 building, 0 awaiting verification, 1 verified$/m);
   assert.match(status.stdout, /^product View: 2 rows, 0 approved, 0 cited by accepted items; items 1 open, 0 building, 1 awaiting verification, 0 verified$/m);
 
-  assert.equal(run('spec', 'check').status, 0);
+  assert.equal((await run('spec', 'check')).status, 0);
   writeConfig({ ...PRODUCTS, View: ['N26', 'Q9'] });
-  const typo = run('spec', 'check');
+  const typo = await run('spec', 'check');
   assert.equal(typo.status, 1);
   assert.match(typo.stdout, /error: product "View": "Q9" names no row in the spec/);
 
   writeConfig(PRODUCTS);
   writeFileSync(join(repo, 'SPEC.md'), SPEC.replace('- B1 [approved, must] Claims are leases. | gate: test', '- B1 [retired] Claims are leases.'));
-  const retired = run('status');
+  const retired = await run('status');
   assert.match(retired.stdout, /^product Core: 2 rows, 1 approved, 0 cited by accepted items; items 1 open, 1 building, 0 awaiting verification, 1 verified$/m, 'a retired row leaves the row counts, but its accepted item stays Core\'s');
 
   writeConfig({});
-  assert.doesNotMatch(run('status').stdout, /^product /m, 'no products, no product lines');
+  assert.doesNotMatch((await run('status')).stdout, /^product /m, 'no products, no product lines');
 });
 
 test('a product counts only rows in force, but its items by the one membership rule [S12]', () => {

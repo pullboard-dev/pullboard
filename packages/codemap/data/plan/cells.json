@@ -2043,6 +2043,14 @@
         "packages/gate/tests/land-affected.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/stacked-submit.test.js",
+        "packages/store/tests/stacked-submit.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [
@@ -2467,6 +2475,7 @@
     "keys->store",
     "landing->gate",
     "landing->git",
+    "landing->jobs",
     "landing->kernel",
     "landing->pin",
     "landing->store",

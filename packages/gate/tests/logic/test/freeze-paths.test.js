@@ -1,8 +1,8 @@
-/** @pullboard-test-input packages/gate/src/logic/test/freeze-paths.js */
+/** @pullboard-test-input packages/gate/src/io/test/freeze/paths.js */
 /** A moved test's path math is rewritten when its target still resolves, and named by file and line when it cannot be [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { rebasePathMath } from '../../../src/logic/test/freeze-paths.js';
+import { rebasePathMath } from '../../../src/io/test/freeze/paths.js';
 
 const FROM = 'apps/cli/journeys/add/main.test.js';
 const TO = 'packages/math/tests/journeys/add/main.test.js';

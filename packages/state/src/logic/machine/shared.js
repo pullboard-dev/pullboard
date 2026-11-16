@@ -144,6 +144,11 @@ export const SUBMIT_REACHED_REFUSALS = [
   { code: 'SPEC_ANSWER_CHOICES', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'STALE_VERDICT', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'merge current main into the submitted commit, commit a clean composition, then ask another agent to re-review it before landing' },
   { code: 'TIMING_RUNNER_RESTRICTION', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'adjust the runner restriction or gate.timingRunner setting named in the refusal, then retry submit' },
+  { code: 'CHECK_FILE_MISSING', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'FILE_LEASED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'TABLE_REPLAY', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'HOP_ITEM', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'HOP_FENCED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
 ];
 
 /** Refusals the verdict moves reach through the timing reservation and main-red classification [M1,C7]. */
@@ -152,4 +157,13 @@ export const VERDICT_REACHED_REFUSALS = [
   { code: 'RUNNER_RUN_TIMEOUT', rule: 'the runner completes the test within its existing deadline', next: 'find the test that hangs from the output the refusal shows, make it finish, commit, and submit again' },
   { code: 'MAIN_RED_REDS', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
   { code: 'TIMING_RUNNER_RESTRICTION', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'adjust the runner restriction or gate.timingRunner setting named in the refusal, then retry submit' },
+  { code: 'FILE_LEASED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'REVIEW_RESERVED', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'REVIEW_RESERVER', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'REVIEW_ITEM', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'JOB_FIELDS', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'JOB_OWNER', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'JOB_MISSING', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'JOB_STEP_NAME', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
+  { code: 'RUNNER_BRIDGE_DEADLINE', rule: 'the code path this move reaches raises it only when its own precondition fails', next: 'read the message, repair the cause it names, then run the command again' },
 ];

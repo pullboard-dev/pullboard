@@ -6,9 +6,17 @@ import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { evidenceLine } from '../shout.js';
+import { startMarksWorker } from '../../../../../packages/jobs/index.js';
+import { MARKS_WORKER } from '../inbox-marks-worker.js';
 import { whoAmI } from '../join.js';
+import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { entryLines } from '../../../../../packages/store/index.js';
+import { openEntries } from '../../../../../packages/store/index.js';
+import { recordEntryAction } from '../../../../../packages/store/index.js';
+import { escalateEntries } from '../../../../../packages/store/index.js';
 import { sayQueuedReds } from '../../../../../packages/store/index.js';
+import { spoolInboxMarks } from '../../../../../packages/store/index.js';
 
 /**
  * Load the ordered writer only when a read must record something.
@@ -22,13 +30,35 @@ async function ordered(...args) {
 export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
   if (values.history) return history(io, ctx, values);
+  if (values.archive !== undefined) return archive(io, ctx, values);
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
-  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead };
+  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead,
+    // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
+    handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); } };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
   io.result?.(document);
   for (const line of activityDeliveryLines(result, ctx.config, ports)) io.say(line);
+  // inbox.keepUntilActed: an entry is listed on every read until an action its kind allows is recorded [C7,#8519].
+  if (ctx.config.inbox.keepUntilActed === true) {
+    const after = ctx.config.inbox.escalateAfterMinutes;
+    if (after) await withBoard(ctx, board => escalateEntries(board, { minutes: after, nowMs: ctx.clock.now().getTime(), coordinator: COORDINATOR }));
+    const open = withBoardRead(ctx, board => openEntries(board, whoAmI(ctx, board).id));
+    for (const line of entryLines(open)) io.say(line);
+  }
+  return 0;
+}
+
+/** Settle inbox entries by archiving them; a kind that does not allow it refuses and records nothing. */
+async function archive(io, ctx, values) {
+  if (ctx.config.inbox.keepUntilActed !== true) throw new Refused('INBOX_KEEP_OFF', 'inbox entries are not kept until acted on in this project', 'set inbox.keepUntilActed to true to keep and archive them');
+  if (values['acted-on'] || values.history) throw new Refused('USAGE', 'pullboard inbox --archive <shout-ids> stands alone');
+  const ids = values.archive.split(',').filter(Boolean).map(Number);
+  if (!ids.length || !ids.every(Number.isSafeInteger)) throw new Refused('USAGE', 'pullboard inbox --archive takes comma-separated shout ids', 'copy the ids from the entry lines of pullboard inbox');
+  await withBoard(ctx, board => { const me = whoAmI(ctx, board); for (const id of ids) recordEntryAction(board, me.id, id, 'archive'); });
+  io.result?.({ archived: ids });
+  io.say(`archived ${ids.map(id => `#${id}`).join(', ')}`);
   return 0;
 }
 

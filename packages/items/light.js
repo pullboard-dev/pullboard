@@ -1,5 +1,5 @@
 export { familyIndex, aliasEngineOn, familyAliasesOf, familiesDiffer, familyName } from './src/logic/family/aliases.js';
-export { criterionSize } from './src/logic/size.js';
+export { criterionSize, shapeRoute } from './src/logic/size.js';
 export { blocksMayClear, clearCompletedBlocks } from './src/io/blocks.js';
 export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/logic/check/timing.js';
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/logic/decision/origin.js';
@@ -9,9 +9,11 @@ export { dependencyValues, dependencyLabel, dependencyReferences, hasForeignDepe
 export { itemPatchDigest, itemPatchRecords, itemPatches } from './src/io/patch/state.js';
 export { outsideSource } from './src/logic/outside/source.js';
 export { itemPatchPaths } from './src/logic/paths.js';
-export { itemFiles } from './src/logic/files.js';
+export { itemFiles, itemFileCollisions } from './src/logic/files.js';
 export { itemSummary, withListFields } from './src/logic/list.js';
 export { conflictCause, reopenCauseCorrection, reopenConflictEvidence } from './src/logic/reopen/cause.js';
 export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
 export { projectItemDecisions } from './src/logic/decision/queue.js';
 export { caughtFrom } from './src/logic/caught.js';
+/** The file collisions and foreign blockers a status read prints, without the rest of the items cell [C7,#8646]. */
+export { foreignBlockers } from './src/logic/cross/repo.js';

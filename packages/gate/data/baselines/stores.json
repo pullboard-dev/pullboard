@@ -359,6 +359,10 @@
         "packages/store/src/io/presence.js": 1
       }
     },
+    "*.proof-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/verify/src/io/proof/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -474,10 +478,10 @@
     },
     "auth.sqlite": {
       "kind": "sqlite",
-      "owner": "apps/relay/src/io/deploy/server.mjs"
+      "owner": "apps/relay/src/io/auth.js"
     },
     "baseline.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/store/src/io/board/hold/ratchet.js"
     },
     "blocks.jsonl": {
@@ -509,7 +513,7 @@
       "owner": "apps/cli/src/io/worktree/maintenance/compaction.js"
     },
     "board-hold-baseline.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/store/src/io/board/hold/ratchet.js"
     },
     "board-holds.jsonl": {
@@ -525,7 +529,7 @@
       "owner": "packages/store/src/io/board/hold/log.js"
     },
     "board.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "apps/cli/src/logic/help.js"
     },
     "board.runs.sqlite": {
@@ -618,7 +622,7 @@
     },
     "code-map.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/commands/map.js"
+      "owner": "packages/codemap/src/io/map.js"
     },
     "compiler.json": {
       "kind": "json",
@@ -755,7 +759,7 @@
     },
     "last-green.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/main/audit/commits.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "last-run.json": {
       "kind": "json",
@@ -785,6 +789,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/worktree/maintenance/archive.js"
     },
+    "markdown-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/logic/markdown/allowlist.js"
+    },
     "missing-paths.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/paths/lint.js"
@@ -793,12 +801,16 @@
       "kind": "repo-data",
       "owner": "apps/view/src/io/cost/tab.js"
     },
+    "runtime-profiles.json": {
+      "kind": "repo-data",
+      "owner": "packages/seats/src/io/runtime-profile.js"
+    },
     "model-tiers.json": {
       "kind": "repo-data",
       "owner": "packages/config/src/io/main.js"
     },
     "models.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/stats/src/logic/pipeline.js"
     },
     "no-runtime-assumptions.json": {
@@ -838,7 +850,7 @@
       "owner": "packages/codemap/src/io/parsed.js"
     },
     "path-map.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/codemap/src/logic/path/map.js"
     },
     "pending.json": {
@@ -851,7 +863,7 @@
     },
     "post-land-suite.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/ports/suite.js"
+      "owner": "packages/landing/src/io/post/land.js"
     },
     "profile.json": {
       "kind": "json",
@@ -888,6 +900,10 @@
     "pullboard-gate-runs.jsonl": {
       "kind": "jsonl",
       "owner": "packages/gate/src/io/control.js"
+    },
+    "pullboard-inbox-marks.jsonl": {
+      "kind": "jsonl",
+      "owner": "packages/store/src/io/inbox-marks.js"
     },
     "pullboard-item.json": {
       "kind": "json",
@@ -1051,7 +1067,7 @@
     },
     "settled.json": {
       "kind": "json",
-      "owner": "packages/sandbox/src/io/source/advance/worker.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "setup-complete.json": {
       "kind": "json",
@@ -1548,23 +1564,10 @@
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "auth.sqlite",
-    "baseline.json",
-    "board-hold-baseline.json",
-    "board-links.sqlite",
-    "board.json",
-    "code-map.json",
-    "last-green.json",
-    "models.json",
-    "path-map.json",
-    "post-land-suite.json",
-    "publish.json",
     "pullboard-item.json",
     "pullboard-runner-policy.json",
     "recovery.json",
     "relay-health.sqlite",
-    "row.json",
-    "settled.json",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",

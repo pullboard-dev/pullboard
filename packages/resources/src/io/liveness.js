@@ -71,19 +71,31 @@ function freeHolder(db, row, relaunches, why = 'process gone, or its PID now nam
 export function reclaimHolders(db, now, probes) {
   sweepStaleTests(db);
   const relaunches = [];
-  for (const row of db.prepare('SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder').all()) {
+  // Rows are read whole only when one could be freed: every row once any process looks gone, else just the source-cache
+  // pins. Why: each write turn read all 1,000 seat rows whole, most of a slot take's own time at 1,000 seats (#8699).
+  const suspect = db.prepare('SELECT DISTINCT pid, started FROM holder').all()
+    .some(({ pid, started }) => pid !== process.pid && !probes.alive(pid) || identityGone({ pid, started }, probes.processIdentity(pid)));
+  const columns = 'SELECT token, name, pid, started, item, request, relaunched, agent, repo, kind FROM holder';
+  for (const row of db.prepare(suspect ? columns : `${columns} WHERE kind = 'source-cache'`).all()) {
     if (row.pid !== process.pid && !probes.alive(row.pid)) { freeHolder(db, row, relaunches); continue; }
     // A source-cache pin never expires, so a live orphan whose job directory is gone is freed here (#5593).
     if (sourceCacheJobGone(row)) { freeHolder(db, row, relaunches, 'source-cache pin whose owning job directory is gone'); continue; }
-    // An unreadable identity, or one read from a different source than the recorded start, is unknown, not proof of
-    // death: the live PID keeps the slot. Our own PID is checked too, since it may reuse a dead holder's PID.
-    const gone = identity => identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started));
     // A cached identity may predate the PID's reuse, so a mismatch is read again uncached before any row is freed.
-    if (gone(probes.processIdentity(row.pid)) && gone(probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
+    if (identityGone(row, probes.processIdentity(row.pid))
+      && identityGone(row, probes.freshIdentity ? probes.freshIdentity(row.pid) : probes.processIdentity(row.pid))) {
       freeHolder(db, row, relaunches);
     }
   }
   return relaunches;
+}
+
+/**
+ * Whether an identity proves a holder's process gone. An unreadable identity, or one read from a different source than
+ * the recorded start, is unknown, not proof of death: the live PID keeps the slot. Our own PID is checked too, since it
+ * may reuse a dead holder's PID.
+ */
+function identityGone(row, identity) {
+  return Boolean(identity && (row.pid !== process.pid && identity.zombie || differentStart(identity, row.started)));
 }
 
 /**

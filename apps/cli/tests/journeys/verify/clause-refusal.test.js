@@ -6,7 +6,7 @@ import * as store from '../../../../../packages/store/index.js';
 import { submitFixture } from '../../fixtures/board/submit.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
-import { openKitBoard } from '../../fixtures/testkit.js';
+import { openKitBoard } from '../../fixtures/board.js';
 import { fixtureJoin } from '../../fixtures/testkit.js';
 
 const CRITERION = 'The page renders its title. The page renders its footer.';

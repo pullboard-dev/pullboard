@@ -15,6 +15,9 @@ import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
+import { proofOnlyTicked } from '../empty.js';
+import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
 import { staleHeadLines } from '../../../../../packages/state/index.js';
@@ -23,6 +26,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -52,6 +56,9 @@ import {
   barReadyProblem,
 } from '../../../../../packages/verify/index.js';
 import { barCheckWarning } from '../../../../../packages/verify/index.js';
+import { barCheckState } from '../../../../../packages/verify/index.js';
+import { dryRunReviewChecklist } from '../../../../../packages/verify/index.js';
+import { dryRunReviewEnabled } from '../../../../../packages/verify/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -110,6 +117,7 @@ import { withBoardRead } from '../entry.js';
 import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
+import { titleCases } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -134,6 +142,7 @@ import { waitForSubmitGate } from '../submit/wait.js';
 import { runStaticPreflight } from '../submit/preflight.js';
 import { requireStaticPreflight } from '../submit/preflight.js';
 import { changedSince } from '../submit/preflight.js';
+import { requireSlicePaths } from '../submit/slice-paths.js';
 import { recordGateSpan } from '../../../../../packages/resources/index.js';
 import { reportPreflight } from '../submit/preflight.js';
 
@@ -283,6 +292,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const submitVerify = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify;
   const inspectClauses = submitVerify.inspectClauses === true;
   const failBefore = submitVerify.failBefore === true;
+  const folderTicks = submitVerify.folderTicks === true, titleTicks = submitVerify.titleTicks === true, gateFilesOf = item => gateTestFiles(root, item, { folderTicks, titleTicks }); // verify.folderTicks (#8847), verify.titleTicks (#8880) [C7]
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
@@ -311,7 +321,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
-  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles, recordMainComparison }));
+  if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles: (_root, item) => gateFilesOf(item), recordMainComparison }));
   const held = await authorizationStep('claim-check', () => withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -320,12 +330,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
+    if (ctx.dryRunReview && dryRunReviewEnabled(board)) {
+      // Advisory only: print the verifier checklist before any clause refusal and record that it ran; off prints and records nothing [C7].
+      for (const line of dryRunReviewChecklist({ id, clauses: criterionClauses(item.item_criterion), criterion: item.item_criterion, barNote: barCheckState(board, item).note })) ctx.io.say(line);
+      await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
+    }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
-    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateTestFiles(root, item), head: headCommit(root) })) : null;
+    const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(item)) : [] })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
-    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateTestFiles(root, item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
+    const receiptProblem = inspectClauses && failBefore ? clauseReceiptProblem(item, { gateFiles: gateFilesOf(item), baseRows: store.recordedBaseRows(board, item.item_claim_head), baseCommit: item.item_claim_head }) : null;
     if (receiptProblem) throw new Refused('CLAUSE_UNTICKED', receiptProblem.message, receiptProblem.next);
     // A clause whose only evidence cites an earlier head is named before the gate queues, so the builder refreshes it (#3752).
     if (inspectClauses) for (const line of staleHeadLines(item, store.itemThread(board, id), headCommit(root))) ctx.io.say(line);
@@ -370,7 +385,9 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
-  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
+  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
+    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -394,6 +411,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     commit = regenerated.commit;
     trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
+  }
+  // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
+  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+    let declared;
+    try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
+    catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
+    if (declared) {
+      commit = declared.commit;
+      trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+      ctx.io.say(`Regenerated ${declared.files.join(', ')} from its declared generator; new head ${commit.slice(0, 12)}.`);
+    }
   }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
@@ -450,7 +478,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
-    ...(inspectClauses ? { gateFiles: gateTestFiles(root, store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
+    ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
     withBoard(ctx, board => refuseUnsubmittableStack(root, board, held, commit, trunk));
@@ -501,6 +529,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
+  withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
@@ -609,7 +638,7 @@ async function handOffHostedSubmit(ctx, id, runner) {
 
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, json: values.json === true };
+  let ctx = { ...context(io), submissionResult, precheck: values.precheck === true, dryRunReview: values['dry-run-review'] === true, json: values.json === true };
   const id = idArg(first);
   if (values.preflight) return preflightHere(ctx);
   const companionInput = values.companion === undefined ? null : { file: values.companion, key: values.key, author: values.author };
@@ -619,7 +648,7 @@ export async function run(io, { first, values }) {
   const hostRunner = hostedSubmitRunner();
   if (hostRunner) {
     io.cwd = await handOffHostedSubmit(ctx, id, hostRunner);
-    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, json: ctx.json };
+    ctx = { ...context(io), submissionResult, precheck: ctx.precheck, dryRunReview: ctx.dryRunReview, json: ctx.json };
   }
   /** Dispatch before optional verdict waiting, retaining this exact submission document; a pulled one marks the submit queued for --wait [P7]. */
   ctx.afterSubmission = submission => { if (submission?.queued) Object.assign(submissionResult, { queued: true, value: submission }); return completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, topUp: target => topUpClaims(target, {}, { most: 1 }) }); };
