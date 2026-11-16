@@ -41,13 +41,23 @@ function outsideParent(board, author, verifier) {
   if (authorParent === verifierParent) throw new Refused('ROW_VERIFY_SELF', 'the row verifier shares its author parent session; ask an outside-parent verifier to run pullboard spec verify');
 }
 
+/**
+ * Tell the author of a row marked needs-review which row was rejected, or the coordinator when no author is recorded [C7,#9342].
+ * Why the coordinator: a row nobody drafted still needs someone to re-accept or correct it.
+ */
+function sendBack(board, { served, rejected, from }, { rowDrafts, shout }) {
+  const authors = new Set(rowDrafts(board).filter(draft => draft.id === served && (draft.target ?? 'spec') === 'spec' && !draft.revises).map(draft => draft.by));
+  const to = authors.size === 1 ? [...authors][0] : 'coordinator';
+  shout(board, { from, to, lanes: [], kind: 'status', text: `${rejected} was rejected; ${served} serves it and needs review: pullboard spec show ${served}` });
+}
+
 /** Record an exact-row receipt under the authenticated operation actor, without writing a file. */
 /**
  * Record a verifier's verdict on one spec row. With `cascade` (the spec's rows with their serves) given, which the caller passes only while spec.cascadeReject is on,
  * a rejection also writes one row_needs_review event for each row that serves the rejected one, naming it [C7,#9341].
  * Why events: needs-review is board data, never a SPEC.md status, so the approved status list stays as it is.
  */
-export function recordRowVerification(board, { agentId, source, decision, reason, cascade }, { atomic, logEvent, rowDrafts, rowDecisions }) {
+export function recordRowVerification(board, { agentId, source, decision, reason, cascade }, { atomic, logEvent, rowDrafts, rowDecisions, shout }) {
   if (typeof source !== 'string' || /[\r\n]/u.test(source) || !['accepted', 'rejected'].includes(decision)
     || typeof reason !== 'string' || !reason.trim() || /[\r\n|]/u.test(reason)) {
     throw new Refused('ROW_VERIFY', 'name one row, accepted or rejected and a one-line reason: pullboard spec verify <id> accepted --reason "why"');
@@ -71,7 +81,10 @@ export function recordRowVerification(board, { agentId, source, decision, reason
     board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES ('row_verifications',?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value")
       .run(JSON.stringify(records));
     if (decision === 'rejected' && Array.isArray(cascade)) {
-      for (const served of servesClosure({ rows: cascade }, row.id)) logEvent(board, agentId, 'row_needs_review', null, { id: served, because: row.id, verification: entry.event });
+      for (const served of servesClosure({ rows: cascade }, row.id)) {
+        logEvent(board, agentId, 'row_needs_review', null, { id: served, because: row.id, verification: entry.event });
+        if (typeof shout === 'function') sendBack(board, { served, rejected: row.id, from: agentId }, { rowDrafts, shout });
+      }
     }
     return entry;
   });
