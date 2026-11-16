@@ -251,6 +251,7 @@ const ROWS = [
   ['landing.first', 'Land these first', 'Item ids the lander takes ahead of the accept order, in the order listed; a listed item that is not verified is skipped.', 'Landing', 'list'],
   ['landing.landedFromMain', 'Landed means on main', 'On, roadmap, show, the view and withdraw count an item landed when its commit is on main, whether or not a merge was recorded; off, they read the recorded merge.', 'Landing', 'on/off'],
   ['landing.ledgerMainReds', 'Main reds from the ledger', 'On, a land job counts a red in a file the test ledger records red on main at its base as main\'s own and lands; a red in any other file still holds it. Off, every red is rerun on the base and matched case for case.', 'Landing', 'on/off'],
+  ['landing.byHand', 'Coordinator lands one accepted item by hand', 'When enabled, the coordinator may name one accepted item to pullboard land --item; off (default), land --item is refused and the board lands accepted items by itself.', 'Landing', 'on/off'],
   ['landing.manualOverride', 'Manual landing override', 'A person can permit coordinator landing commands instead of automatic landing after acceptance.', 'Landing', 'on/off'],
   ['landing.pauseOnRed', 'Pause landing on red', 'Landing pauses after a publish full suite fails without proof it is unrelated.', 'Landing', 'on/off'],
   ['landing.perItem', 'Per-item landing', 'A landing takes every verified item that merges cleanly; a red batch bisects to its culprit and lands the rest, and a red batch of one goes back to open alone.', 'Landing', 'on/off'],
