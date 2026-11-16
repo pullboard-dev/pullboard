@@ -64,14 +64,15 @@ test('clause 1: after runnersOnly turns off, the submit --wait gate job settles,
   assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   const committed = helpers.commitFile(box, box.web, 'web/runner-only.js', 'export const ready = true;\n', 'feat(web): private runner-only control [G1]');
   assert.equal(committed.status, 0, committed.failure ?? committed.stderr);
+  // Real processes for both submits: an in-process call would keep the machine settings it read first, and the policy change would never reach it.
   policy(box, true);
-  const refused = await box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
+  const refused = await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.notEqual(refused.code, 0, refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
   policy(box, false);
   // The fixture's own settle wait is off for this one call, so the case reads the job itself and a hang shows its state at 30 s instead of at 180 s.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
-  const submitting = box.runLocal(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
+  const submitting = box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   const job = await gateJobWithin(box, id);
   const evidence = `job_step=${job?.job_step ?? 'none'} job_lease_owner=${job?.job_lease_owner ?? 'none'} jobs=${JSON.stringify(jobRows(box))}\nlocal runner log (last 40 lines):\n${runnerTail(box)}`;
   console.log(`# opt-out gate job at the check: ${evidence}`);
