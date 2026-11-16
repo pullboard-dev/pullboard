@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSON_SHAPES } from '../../../../../packages/config/index.js';
+import { resultCommands } from '../../../index.js';
 import { catalogCases } from '../../../tests/fixtures/catalog/cases.js';
 
 test('clause 1: every catalog case names the JSON_SHAPES.commands keys it covers [A1,C7]', () => {
@@ -12,11 +13,18 @@ test('clause 1: every catalog case names the JSON_SHAPES.commands keys it covers
   }
 });
 
-/** Commands with no case on main (the root-command check in catalog.test.js reports them); the follow-up item adds them and removes this list [#8843]. */
+/** Root/factory commands (not JSON_SHAPES keys) with no case on main; the follow-up item adds them and removes this list [#8843]. */
 const PENDING = ['coordinate', 'moves', 'split'];
 
 test('clause 2: every JSON_SHAPES.commands key has a catalog case [A1,C7]', () => {
   const named = new Set(catalogCases.flatMap(({ covers }) => covers));
   const missing = Object.keys(JSON_SHAPES.commands).filter((key) => !named.has(key) && !PENDING.includes(key));
   assert.deepEqual(missing, [], `add or extend a case in cases.js for: ${missing.join(', ')}`);
+});
+
+test('clause 3: the pending list names real root commands that still have no case [A1,C7]', () => {
+  const roots = new Set(resultCommands());
+  const named = new Set(catalogCases.flatMap(({ covers }) => covers.map((key) => key.split(' ')[0])));
+  assert.deepEqual(PENDING.filter((command) => !roots.has(command)), [], 'PENDING names only commands the CLI really has');
+  assert.deepEqual(PENDING.filter((command) => named.has(command)), [], 'a case now covers these commands: drop them from PENDING');
 });
