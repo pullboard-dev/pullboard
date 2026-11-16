@@ -371,6 +371,11 @@ export function rejectKeepsCheck() {
   return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
+/** Whether a joining seat's family label is canonicalised (#9681): off by default; only an exact `true` turns it on. */
+export function reviewCanonicalFamilies() {
+  return loadMachineSettings().review?.canonicalFamilies === true;
+}
+
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;

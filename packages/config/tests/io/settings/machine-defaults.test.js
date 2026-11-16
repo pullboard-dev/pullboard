@@ -114,6 +114,7 @@ const BEFORE = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
