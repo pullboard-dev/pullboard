@@ -2,6 +2,7 @@
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
+import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -77,6 +78,7 @@ const requireModule = createRequire(import.meta.url);
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
+const shoutStarvedReviews = (...args) => requireModule('../../../../../packages/health/index.js').shoutStarvedReviews(...args);
 
 /** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
 function nextChangeInputs(ctx) {
@@ -182,6 +184,8 @@ async function nextWithProgress(io, values, progress) {
     }
   });
   sayLag(io, ctx);
+  // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
+  if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
   const testRuns = deliverOwnTestRuns(io, ctx, { withBoard, withBoardRead, whoAmI });
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), { spare: !values.verify }));
