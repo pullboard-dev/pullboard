@@ -66,8 +66,8 @@ function buildTemplate() {
   writeFileSync(join(executables, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "$(git rev-parse --show-toplevel)/apps/cli/pullboard.js" "$@"\n`);
   chmodSync(join(executables, 'pullboard'), 0o755);
   mkdirSync(root);
-  const source = resolve(import.meta.dirname, '../../..'); // The docs and archived board history are never read here; init reads the view app and skills.
-  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  const source = resolve(import.meta.dirname, '../../..'); // The docs, archived board history and the project's own tests (over 40% of its files) are never read here; init reads the view app and skills.
+  copyPackageFiles(source, root, { files: packageFiles(source).filter(file => !/^(?:docs|packages\/state\/data|test|packages\/[^/]+\/tests|apps\/[^/]+\/(?:tests|journeys))\//u.test(file)) });
   const env = environment(dir);
   const run = (cwd, program, args) => spawnSync(program, args, { cwd, env, encoding: 'utf8' });
   const git = (cwd, ...args) => { const r = run(cwd, 'git', args); assert.equal(r.status, 0, r.stderr + r.stdout); return r.stdout.trim(); };
