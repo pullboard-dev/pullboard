@@ -81,6 +81,7 @@ export {
   holdsRequireOwner,
   nextItemNotices,
   refuseTempWorktree,
+  refuseOffMainHead,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
