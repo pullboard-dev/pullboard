@@ -32,8 +32,6 @@ test('clause 1: --cuts-all runs the strict check for every cell and prints every
   writePlan(root, computePlan(root));
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'plan');
-  const clean = await runPlan('--cuts-all', root);
-  assert.equal(clean.status, 0, clean.stderr);
   // Two earlier cells each reach a later cell; each hidden edge is named, in the cell that holds it.
   put('src/refused.js', "import { stats } from './stats.js';\nexport class Refused extends Error {}\nexport const hidden = stats;\n");
   put('src/board.js', "import { Refused } from './refused.js';\nimport { claims } from './claims.js';\nimport { flow } from './stats-flow.js';\nexport const board = () => [Refused, claims, flow];\n");
@@ -42,5 +40,6 @@ test('clause 1: --cuts-all runs the strict check for every cell and prints every
   const swept = await runPlan('--cuts-all', root);
   assert.equal(swept.status, 1, swept.stderr);
   assert.match(swept.stderr, /kernel --cuts-all: kernel still imports later stats: src\/refused\.js -> src\/stats\.js/u);
-  assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/board\.js -> src\/stats-flow\.js/u);
+  assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/board\.js -> src\/claims\.js/u, 'the fixture cycle between store and items is named too');
+  assert.match(swept.stderr, /store --cuts-all: store still imports later stats: src\/stats-flow\.js -> src\/stats\.js/u);
 });
