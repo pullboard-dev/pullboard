@@ -21,7 +21,7 @@ function bigBoard(t) {
       INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail)
       SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 1800000000 + i, 'unixepoch'), 'coordinator', CASE WHEN i % ${MERGED_EVERY} = 0 THEN 'merged' ELSE 'shout' END, NULL, '{}' FROM n`);
   } finally { closeBoard(board); }
-  return { box, run: (...args) => e2e.runIn(box.repo, ...args) };
+  return { box, run: (...args) => box.runIn(box.repo, ...args) };
 }
 
 test('clause 1: pullboard log --json --since --kind streams NDJSON on a board with 200,000 events without error [C7]', async (t) => {
