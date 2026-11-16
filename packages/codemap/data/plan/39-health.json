@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/health",
  "frontDoor": "packages/health/index.js",
+ "lightFrontDoor": "packages/health/light.js",
  "paths": [
   ["src/rank-inversion-history.js","packages/health/src/io/inversion.js","rule"],
   ["src/doctor.js","packages/health/src/io/doctor.js","seed"],

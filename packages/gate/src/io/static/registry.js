@@ -24,6 +24,8 @@ import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
 import { cliChildImportProblems } from '../test/child-fixture.js';
 import { operationEntryProblems } from './operations.js';
+import { workerImportProblems } from './worker-imports.js';
+import { WORKER_IMPORTS_FILE } from './worker-imports.js';
 import { layoutProblems } from './layout.js';
 import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
@@ -209,6 +211,11 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const { rows, line } = context.cache('worker-bundle', 2).get('worker-bundle', scope, () => workerBundleReport(root));
     if (line) (context.report ?? MEMORY.report)(line);
     return rows;
+  } },
+  // The worker may import only from a reviewed list of units; cell-scoped like the bundle, since the closure is the runners cell's [#8461].
+  { name: 'worker-imports', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
+    return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
   { name: 'prose-commands', reads: (path, apps) => Boolean(apps?.cliCell) && path.startsWith(`${apps.cliCell}/`), run: (root, sources, context = MEMORY) => {
     if (!context.apps?.cliHelp) return noApps('prose-commands');

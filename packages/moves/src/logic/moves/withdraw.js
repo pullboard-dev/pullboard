@@ -3,7 +3,7 @@ import { RIGOR_AUTO_ENGINE } from "../../../../state/light.js";
 import { LANDING_LEASE_ENGINE } from "../../../../state/light.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { MAIN_RED_WITHDRAW_ENGINE } from "../../../../state/light.js";
-import { WITHDRAW_NEXT } from "../table/withdraw.table.js";
+import { WITHDRAW_NEXT } from "../table/next.js";
 
 /** Preserve historical floors while versioning the conditional expected-item write [H16]. */
 function minimumEngine(args, board, at) {

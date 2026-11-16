@@ -1,8 +1,10 @@
+/** @pullboard-module-loads packages/health/index.js */
 /**
  * The selection half of `pullboard next`: one pick-and-claim loop over a read snapshot, then only the chosen item's
  * claim guards under the write [N2,V15,C7]. The command line app passes its board access, seat lookup and claim helpers
  * in as one ports object, so this cell never loads it.
  */
+import { createRequire } from 'node:module';
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
 import { UNBUILDABLE } from '../../../sandbox/index.js';
@@ -15,7 +17,6 @@ import { rejectionReturnEnabled } from '../../../store/index.js';
 import { awaitingGateOrReview } from '../../../store/index.js';
 import * as store from '../../../store/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
-import { shoutReviewCoverStuck } from '../../../health/index.js';
 import { mainRedReviewItems } from '../../../landing/index.js';
 import { computedReturnArgs } from '../../../landing/index.js';
 import { mainRedReworkItems } from '../../../landing/index.js';
@@ -33,6 +34,9 @@ import { nextReview } from '../../../verify/index.js';
 import { ownSessionReviews } from '../../../verify/index.js';
 import { relayLinked } from '../../../link/index.js';
 import { criterionFreezer } from './freezer.js';
+
+/** The health cell loads only when a fresh claim shouts a stuck review cover [C7,#7081]. */
+const requireModule = createRequire(import.meta.url);
 
 /**
  * The command line functions one next loop calls: board access, the seat lookup, the claim and item-folder helpers.
@@ -162,7 +166,7 @@ export async function nextOnce(ctx, values, ports) {
     try {
       const claim = await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
       item = { ...item, renewed: claim.renewed };
-      if (!claim.renewed) await shoutReviewCoverStuck(target, board, ordered, holder);
+      if (!claim.renewed) await requireModule('../../../health/index.js').shoutReviewCoverStuck(target, board, ordered, holder);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
