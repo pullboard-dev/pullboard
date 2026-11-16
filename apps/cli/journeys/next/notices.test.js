@@ -16,14 +16,14 @@ function itemNotices(on) {
   writeFileSync(file, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false }, gate: { localRunner: false }, next: { itemNotices: on } }));
 }
 
-/** An item with one shout and one ruling that name it, handed to the actor by next --take. */
+/** An item with one shout and one ruling that name it, handed to the actor by next. */
 async function handed(t, on) {
   const box = await fixture(t);
   const id = box.add('Item with notices');
   store.shout(box.board, { from: 'coordinator', to: 'all', item: id, text: 'Mind the web folder boundary', lanes: ['web'] });
   store.appendFact(box.board, id, { agentId: 'coordinator', kind: 'decision', text: 'Ruling: keep the old name' });
   itemNotices(on);
-  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+  const taken = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(taken.code, 0, taken.out + taken.err);
   return { box, id, document: taken.document };
 }
