@@ -118,6 +118,7 @@ const BEFORE = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
