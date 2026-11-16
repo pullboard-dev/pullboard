@@ -20,6 +20,8 @@ import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
+import { adapterLintEnvEnabled } from '../../../../config/index.js';
+import { envLintRows } from '../adapter-lints/env.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -226,6 +228,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
     return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
+  // Direct process.env and config-file reads outside the kernel; each file's count may only fall, and off (gate.adapterLintEnv) it reports nothing (#9448).
+  { name: 'adapter-lint-env', reads: SOURCE, run: (root, sources, context = MEMORY) => envLintRows(root, { enabled: context.adapterLintEnv ?? adapterLintEnvEnabled() }) },
   { name: 'prose-commands', reads: (path, apps) => Boolean(apps?.cliCell) && path.startsWith(`${apps.cliCell}/`), run: (root, sources, context = MEMORY) => {
     if (!context.apps?.cliHelp) return noApps('prose-commands');
     const { declared, actual } = proseCommandSets(root, context.apps.cliIndex);
