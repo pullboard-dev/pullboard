@@ -857,7 +857,7 @@ function remoteJoin(root, body, isMain, boardOpeners) {
 
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
 export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
-  if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
+  if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent', 'commits'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args, agent and commits; remove the unknown fields');
   if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
   if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners) };
   const argv = boardOpeners.moveArgs(body);
@@ -867,6 +867,9 @@ export async function executeMove(root, body, runCommand, isMain, personChannel 
     if (typeof refusalDocument !== 'function') throw new TypeError(`executeMove needs the caller's refusalDocument renderer to answer ${error.code}`);
     return { status: error.code === 'WRONG_BOARD' ? 403 : 409, body: refusalDocument(error) };
   }
+  // A URL-joined seat's submit may carry its clone's commits; the submit then runs where the host checked them out [P7,C7].
+  if (body.commits !== undefined && typeof boardOpeners.receiveCommits !== 'function') throw new Refused('COMMITS_NOT_SERVED', 'this board service takes no commit bundles; run pullboard settings board.commits off in the clone, or serve the board with pullboard serve');
+  if (body.commits !== undefined) seat = { ...seat, cwd: boardOpeners.receiveCommits(root, body, seat, (read) => withBoard(root, read, isMain, boardOpeners), store.getItem) };
   let output = '';
   let diagnostics = '';
   const events = [];

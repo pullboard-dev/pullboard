@@ -111,6 +111,7 @@ const ROWS = [
   ['checks.provesNothing', 'Checks that already pass', 'What happens when an item\'s check already passes on main: hold refuses the claim and submit, warn only says so.', 'Checks', 'choice'],
   ['positiveControl', 'Known-good test', 'A test that must pass, so a gate that can no longer pass anything raises an alarm.', 'Checks', 'command'],
   ['affectedTests', 'Selected-test command', 'The command prefix that runs only the test files a change affects.', 'Checks', 'command'],
+  ['affectedSuites', 'Suites by folder', 'Which test suite covers each folder, so a landing runs only the suites its changes touch.', 'Checks', 'list'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['registryGuards', 'Registry guards', 'Source guards the selected-test runner adds when a change touches a registry.', 'Checks', 'list'],
   ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
