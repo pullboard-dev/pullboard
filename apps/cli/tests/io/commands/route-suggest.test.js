@@ -22,8 +22,8 @@ test('clause 1: route --suggest lists the open strong items whose shape meets th
   const box = helpers.project('true', isolated);
   const fits = await addItem(box, 'Small strong item', ...SMALL, '--route', 'strong');
   const noBrief = await addItem(box, 'Strong without a brief', '--criterion', 'the handler returns the canonical result [test]', '--check', 'npm test', '--route', 'strong');
-  const wide = await addItem(box, 'Strong with four clauses', '--route', 'strong', '--check', 'node --test web/handler.test.js', '--brief', 'Files: web/handler.js',
-    '--criterion', '1. a [test]. 2. b [test]. 3. c [test]. 4. d [test].');
+  const wide = await addItem(box, 'Strong with four files', '--route', 'strong', '--check', 'node --test web/handler.test.js', '--brief', 'Files: web/handler.js',
+    '--criterion', 'web/a.js, web/b.js, web/c.js and web/d.js behave the same [test]');
   const mid = await addItem(box, 'Small mid item', ...SMALL, '--route', 'mid');
   const before = await box.inProcess(box.repo, 'list', '--all', '--json');
 
