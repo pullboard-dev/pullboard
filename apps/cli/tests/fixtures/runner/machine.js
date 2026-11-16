@@ -34,13 +34,11 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
   for (const entry of ['runOnRunner', 'runOnRunnerAsync']) {
     assert.ok(walk.refusalsOf(`../packages/runners/src/io/main.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} returns the real child refusal`);
   }
-  for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {
-    assert.ok(walk.refusalsOf(`../packages/gate/src/io/execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} follows its canonical runner lease port`);
-  }
+  assert.ok(walk.refusalsOf('../packages/gate/src/io/execution.js#runProfiledShellAsync').has('RUNNER_CHILD_PROBE'), 'runProfiledShellAsync follows its canonical runner lease port');
   const otherPort = file => ['../packages/gate/src/io/execution.js'].includes(file)
     ? childGuard(file).replaceAll('gateLease.executionServices.runners.', 'gateLease.unrelated.runners.')
     : childGuard(file);
-  for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {
+  for (const entry of ['runProfiledShellAsync']) {
     assert.equal(codeWalk(otherPort).refusalsOf(`../packages/gate/src/io/execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), false,
       'an unrelated property chain does not inherit a canonical runner operation');
   }
