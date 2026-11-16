@@ -123,6 +123,28 @@ test('clause 1: a gate waiter queued behind busy runners is a queue wait, not a 
   assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a gate waiter behind busy runners files nothing');
 });
 
+test('clause 1: the cause is fixed: a gate wait behind runners that each name a cause (busy, quarantined, kept, overloaded) is a queue wait, within budget [C7,#8023]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const named = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'unavailable (cleanup or draining); idle proof: waiting' },
+    { host: 'c', reason: 'kept for timed checks (lent only when every other runner is full)' }, { host: 'd', reason: 'overloaded (load 9.0 on 4 cores, above 1.5x)' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'coordinator', since: ago(5), reasons: named }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
+});
+
+test('clause 2: the hold reproduced from the evidence (static waiter, no holder, one runner quarantined) ends within budget [C7,#8023]', async t => {
+  const m = machine(t);
+  const waiter = m.sleeper();
+  const ago = minutes => new Date(Date.now() - minutes * MINUTE).toISOString();
+  const named = JSON.stringify([{ host: 'a', reason: 'busy' }, { host: 'b', reason: 'unavailable (cleanup or draining); idle proof: waiting' },
+    { host: 'c', reason: 'kept for timed checks (lent only when every other runner is full)' }, { host: 'd', reason: 'overloaded (load 9.0 on 4 cores, above 1.5x)' }]);
+  resourceDatabase(join(m.paths.commonDir, 'pullboard', 'resources.sqlite'), [],
+    [{ name: 'gate', pid: waiter.pid, agent: 'coordinator', since: ago(5), reasons: named }]);
+  assert.equal((await m.snapshot()).rows.some(entry => entry.surface === 'pool'), false, 'a waiter whose every runner names its cause files no pool hold');
+});
+
 test('clause 2: the hold reproduced from the evidence: a gate waiter with a free runner and no holder is still over budget [C7,#6857]', async t => {
   const m = machine(t);
   const stuck = m.sleeper();
