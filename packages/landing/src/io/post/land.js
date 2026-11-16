@@ -71,6 +71,9 @@ export async function withdrawSuperseded(state) {
   return withdrawn;
 }
 
+/** The post-land suite record's file name under the board's private folder; this module writes it, so it owns the store. */
+export const POST_LAND_SUITE_FILE = 'post-land-suite.json';
+
 /**
  * Compare this landed batch's full-suite result with the previous batch's and file one Main red per file that newly
  * fails, through the coordinator's ordinary addItem move. Every outside capability arrives as a port; off unless

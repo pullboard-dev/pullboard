@@ -576,10 +576,13 @@ export function writeCodeMap(root, cacheFile, mainCommit) {
   return map;
 }
 
+/** The code map cache's file name under the board's private folder; this module writes it, so it owns the store. */
+export const CODE_MAP_FILE = 'code-map.json';
+
 /** Rebuild the common derived cache for an exact main source commit. */
 export function refreshCodeMap(root, mainCommit) {
   const commonDir = gitText(resolve(root), ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-  return writeCodeMap(root, join(commonDir, 'pullboard', 'code-map.json'), mainCommit);
+  return writeCodeMap(root, join(commonDir, 'pullboard', CODE_MAP_FILE), mainCommit);
 }
 
 /** Refresh after a completed landing only when the primary checkout is already on main. */
