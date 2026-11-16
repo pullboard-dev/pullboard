@@ -28,7 +28,7 @@ export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, ite
 export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem, startItemPatchObjectionWindow, companionWindowProblem, applyItemPatchObjection } from './src/io/patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/io/receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/io/rehome.js';
-export { checkRouted, checkRoute, checkTestFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/logic/routing.js';
+export { checkRouted, checkRoute, checkTestFiles, missingCheckFiles, checkPerItemCriterion, stripPerItemFullSuiteCriterion } from './src/logic/routing.js';
 export { requireLedger, recordItemSession, refuseSelfSession } from './src/io/sessions.js';
 export { requireOutsideReceipt } from './src/io/outside/proof.js';
 export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, planSensitivePaths, outsideSensitivePaths, outsideSensitivity } from './src/logic/outside/sensitive.js';
