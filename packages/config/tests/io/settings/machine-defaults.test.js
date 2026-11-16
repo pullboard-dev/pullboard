@@ -9,6 +9,7 @@ const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.u
 
 /** The key/default list as it stood before the move [O5,O6]. */
 const BEFORE = {
+  'add.warnUnnamedTest': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
@@ -69,8 +70,10 @@ const BEFORE = {
   'jobs.handBackUnrunnable': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
+  'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
+  'landing.strictFullSuite': false,
   'list.thinRead': false,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
@@ -83,6 +86,7 @@ const BEFORE = {
   'moves.live.submit': false,
   'moves.shadow': false,
   'next.itemNotices': false,
+  'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
   'review.releaseReasons': false,
@@ -96,6 +100,7 @@ const BEFORE = {
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
+  'spec.commitOnApply': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
