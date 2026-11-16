@@ -50,7 +50,7 @@ register('data:text/javascript,${encodeURIComponent(HOOKS_OF_LOADER)}', { data: 
 process.on('exit', () => writeFileSync(${JSON.stringify(out)}, String(Atomics.load(counts, 0))));
 `);
   const ran = spawnSync(process.execPath, ['--import', counter, BIN, 'hook', hook, ...extra], { cwd, env: { ...box.env, PULLBOARD_HOOK_STATIC: '' }, encoding: 'utf8' });
-  assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${ran.stderr}`);
+  assert.ok(existsSync(out), `the ${hook} process wrote no count: status ${ran.status}, signal ${ran.signal}, error ${ran.error}, stderr ${String(ran.stderr).slice(-500)}`);
   return Number(readFileSync(out, 'utf8'));
 }
 
