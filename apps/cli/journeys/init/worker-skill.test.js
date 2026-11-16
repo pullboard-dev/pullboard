@@ -1,6 +1,5 @@
 /** Init writes a Claude worker-loop skill generated from the one shared seat-loop source [C7,#8550]. */
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
@@ -23,6 +22,5 @@ test('clause 1: init writes a Claude worker-loop skill that matches the shared s
   assert.equal(written, renderWorkerSkill(), `init wrote the generated skill (init exit ${result.status})`);
   const loopBody = SEAT_LOOP.slice(SEAT_LOOP.indexOf('\n') + 1);
   assert.ok(written.includes(loopBody), 'the skill carries the shared seat loop word for word');
-  const digest = createHash('sha256').update(written).digest('hex');
-  assert.ok(SHIPPED_SKILL_DIGESTS.worker[digest], 'the digest table lists the shipped worker skill');
+  assert.equal(SHIPPED_SKILL_DIGESTS.worker, undefined, 'a skill no release has shipped has no catalog digests yet');
 });
