@@ -44,9 +44,9 @@ let tick = 0;
 function posted(board, queue, home, { id, kind, item = null, receipt, keyed = null }) {
   const base = (tick += 10), runner = `r${base}`;
   offerJob(board.db, { id, kind, item, candidate: MAIN, base: MAIN, needs: [], now: base + 1 }, queue);
-  if (keyed) writeStep(home, id, 'receipt', keyed, { seq: 0, now: base + 2 });
   const held = claimJob(home, { runner, capabilities: [], now: base + 3 });
   assert.equal(held.job, id);
+  if (keyed) writeStep(home, id, 'receipt', keyed, { seq: 0, now: base + 2 });
   return postReceipt(home, { job: id, runner, token: held.token, receipt, now: base + 4 });
 }
 
