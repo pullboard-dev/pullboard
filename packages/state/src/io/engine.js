@@ -1,4 +1,4 @@
-import { engineNumber } from './engine/numbers.js';
+import { engineNumber } from '../logic/engine/number.js';
 import { registrationProblem } from '../logic/engine/move/register.js';
 import { recordReviewPolicyActivation } from '../../index.js';
 import { agentGrantMinimum } from '../logic/grant.js';

@@ -1,5 +1,5 @@
 /** Derive authority from existing seats and claims; no mutable saved grant supplies permission [E21]. */
-import { engineNumber } from '../io/engine/numbers.js';
+import { engineNumber } from './engine/number.js';
 import { Refused } from '../../../kernel/light.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';

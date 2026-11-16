@@ -1,5 +1,5 @@
 import * as self from './light.js';
-import { engineNumber } from './src/io/engine/numbers.js';
+import { engineNumber } from './src/logic/engine/number.js';
 /** Pure state source classification, without loading the native board [C7]. */
 export const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 export { correctedBar } from "./src/logic/bar.js";

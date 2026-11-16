@@ -1,4 +1,4 @@
-import { engineNumber } from '../numbers.js';
+import { engineNumber } from '../../../logic/engine/number.js';
 import { submissionSize } from '../../../../index.js';
 import { Refused } from '../../../../../kernel/light.js';
 import { ENGINE_VERSION } from '../../machine.js';

@@ -1,5 +1,5 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
-import { engineNumber } from '../../io/engine/numbers.js';
+import { engineNumber } from '../engine/number.js';
 import { Refused } from '../../../../kernel/browser.js';
 const MAIN_RED_FAILURE_LINES_ENGINE = engineNumber('MAIN_RED_FAILURE_LINES_ENGINE');
 const KNOWN_MAIN_FAILURES_ENGINE = engineNumber('KNOWN_MAIN_FAILURES_ENGINE');

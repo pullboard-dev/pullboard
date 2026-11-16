@@ -1,5 +1,5 @@
 /** A native proof can finish its admitted claim; it never grants new work after expiry [V4,H16]. */
-import { engineNumber } from '../io/engine/numbers.js';
+import { engineNumber } from './engine/number.js';
 import { Refused } from '../../../kernel/browser.js';
 const ITEM_PATCH_SUBMIT_ENGINE = engineNumber('ITEM_PATCH_SUBMIT_ENGINE');
 const SUBMIT_ADMISSION_ENGINE = engineNumber('SUBMIT_ADMISSION_ENGINE');

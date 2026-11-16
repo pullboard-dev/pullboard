@@ -1,5 +1,5 @@
 /** Shared state definitions without later-cell runtime imports [C7,H16]. */
-import { engineNumber } from './src/io/engine/numbers.js';
+import { engineNumber } from './src/logic/engine/number.js';
 export const OWNERSHIP_WAIT_ENGINE = engineNumber('OWNERSHIP_WAIT_ENGINE');
 export const REVIEW_GRANT_ENGINE = engineNumber('REVIEW_GRANT_ENGINE');
 export const RIGOR_INSTRUCTIONS_ENGINE = engineNumber('RIGOR_INSTRUCTIONS_ENGINE');

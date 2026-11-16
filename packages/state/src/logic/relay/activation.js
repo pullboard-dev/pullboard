@@ -1,4 +1,4 @@
-import { engineNumber } from '../../io/engine/numbers.js';
+import { engineNumber } from '../engine/number.js';
 const AGENT_GRANT_ENGINE = engineNumber('AGENT_GRANT_ENGINE');
 /** Additive activation-witness index; native receipts and their engine meaning stay unchanged [E21,H16,C7]. */
 

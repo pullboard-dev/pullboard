@@ -1,4 +1,4 @@
-import { engineNumber } from '../io/engine/numbers.js';
+import { engineNumber } from './engine/number.js';
 const STRICT_COMPOSITION_ENGINE = engineNumber('STRICT_COMPOSITION_ENGINE');
 const REVIEW_TIER_ENGINE = engineNumber('REVIEW_TIER_ENGINE');
 const REVIEW_ROUTING_ENGINE = engineNumber('REVIEW_ROUTING_ENGINE');
