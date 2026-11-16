@@ -95,7 +95,7 @@ export function reviewReleasesSinceSubmit(board, itemId, agentId = null) {
     try {
       const detail = JSON.parse(event.event_detail);
       if (detail.review === true || detail.review === undefined) releases.push({ ...event, legacy: detail.review === undefined,
-        reason: detail.reason ?? 'reason not recorded' });
+        reason: detail.reason ?? 'reason not recorded', code: detail.reasonCode ?? null });
     } catch { /* Ignore malformed legacy details rather than treating them as review releases. */ }
   }
   return releases;
