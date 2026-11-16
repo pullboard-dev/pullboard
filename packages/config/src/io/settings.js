@@ -220,6 +220,14 @@ export function refuseMissingCheckFile() {
 }
 
 /**
+ * Whether `pullboard worktree` refuses a seat folder under the OS temporary directory (#8513): off by default, so
+ * worktrees are made where they always were; only an exact `true` turns the refusal on.
+ */
+export function refuseTempWorktree() {
+  return loadMachineSettings().gate?.refuseTempWorktree === true;
+}
+
+/**
  * Where a queued submit's authorization source checks run when a runner is registered: `runner` (default) puts them in
  * the gate's one runner analysis job beside doctrine, cells, static and selection; `local` keeps them on this machine as
  * before #5674. Anything but an exact `local` is the default, so a damaged value never moves work back here [C7].

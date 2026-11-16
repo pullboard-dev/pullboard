@@ -70,6 +70,7 @@ export {
   mainComparisonMode,
   submitAuthorizationMode,
   refuseMissingCheckFile,
+  refuseTempWorktree,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   memoryFloorMB,
