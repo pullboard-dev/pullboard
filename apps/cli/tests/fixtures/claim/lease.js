@@ -19,5 +19,8 @@ export function leaseBoard(t, lease) {
     brief: `Files: ${files.join(', ')}`, ...(criterion ? { criterion } : {}) });
   /** Claim through writeBoardCommand, the path every CLI claim takes. */
   const claim = (id, agentId) => store.writeBoardCommand(board, 'claim', [id, { agentId, lane: 'core', leaseMs: HOUR, freeze: FREEZE }], agentId);
-  return { board, first, second, add, claim };
+  /** Submit a claimed item whose commit changed these files, straight through the board's submit path [#8522]. */
+  const submit = (id, agentId, files) => store.submit(board, id, { agentId, commit: 'a'.repeat(40), tree: 'b'.repeat(40), files,
+    submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'fixture setup, not an execution claim' } });
+  return { board, first, second, add, claim, submit };
 }
