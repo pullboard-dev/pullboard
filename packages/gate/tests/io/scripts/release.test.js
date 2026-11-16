@@ -29,17 +29,28 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async () => {
+test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async (t) => {
+  // Each step's milliseconds are printed as a diagnostic so a slow run names its slow step (#9540).
+  const sums = { pack: 0, install: 0, launch: 0 };
+  /** Time one step of the release run, print it, and add it to its kind's sum. */
+  const timed = (kind, name, run) => {
+    const start = performance.now();
+    try { return run(); } finally {
+      const ms = Math.round(performance.now() - start);
+      sums[kind] += ms;
+      t.diagnostic(`step ${name} ${ms} ms`);
+    }
+  };
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-release-')));
   dirs.push(dir);
   const npmEnv = { ...process.env, npm_config_cache: join(dir, 'npm-cache'), npm_config_update_notifier: 'false', npm_config_loglevel: 'error' };
 
-  const [packed] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', dir], { cwd: ROOT, env: npmEnv, encoding: 'utf8' }));
+  const [packed] = JSON.parse(timed('pack', 'pack', () => execFileSync('npm', ['pack', '--json', '--pack-destination', dir], { cwd: ROOT, env: npmEnv, encoding: 'utf8' })));
   const tops = [...new Set(packed.files.map((file) => file.path.split('/')[0]))].sort();
   assert.deepEqual(tops, PUBLISHED, 'the tarball holds the package and nothing else: no tests, no board');
 
   const prefix = join(dir, 'prefix');
-  const install = runFixtureChild('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' });
+  const install = timed('install', 'install', () => runFixtureChild('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' }));
   assert.equal(install.status, 0, `installs with no network: ${install.stderr}`);
   const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
@@ -62,7 +73,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */
   const pullboard = (cwd, ...args) => {
-    const result = runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' });
+    const result = timed('launch', `launch ${args.join(' ')}`, () => runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' }));
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
@@ -117,4 +128,5 @@ test('a packed release installs with no network and runs the whole loop from a f
   const shown = pullboard(repo, 'show', '1');
   assert.match(shown, /#1 {2}verified/);
   assert.match(shown, /merged as [0-9a-f]{12}/);
+  t.diagnostic(`step sums pack ${sums.pack} ms, install ${sums.install} ms, launch ${sums.launch} ms`);
 });
