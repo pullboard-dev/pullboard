@@ -32,6 +32,7 @@ const ROWS = [
   // This machine: Order
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
   ['holds.requireOwner', 'Holds need an owner', 'When enabled, an item hold names an owner (a seat, lane or person) and records a deadline one day out unless one is given; off (default), holds are exactly as before.', 'Order', 'on/off'],
+  ['review.releaseReasons', 'A dropped review names why', 'When enabled, releasing a review needs --reason BAR, FAMILY, INFRA or TOO_LARGE, recorded on the release; off (default), a review release is exactly as before.', 'Order', 'on/off'],
   ['next.itemNotices', 'Next lists the item\'s shouts', 'When enabled, the instruction next returns also lists the shouts and rulings that name the item it hands out; off (default), next prints what it did before.', 'Order', 'on/off'],
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],

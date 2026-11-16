@@ -237,6 +237,11 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
+/** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
+export function reviewReleaseReasonsRequired() {
+  return loadMachineSettings().review?.releaseReasons === true;
+}
+
 /**
  * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
  * exact `true` turns it on.
