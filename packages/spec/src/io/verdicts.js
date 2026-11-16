@@ -90,6 +90,30 @@ export function recordRowVerification(board, { agentId, source, decision, reason
   });
 }
 
+/**
+ * One warning per spec row that still carries a needs-review mark from a rejected row it serves [C7,#9343].
+ * A mark clears once the row has a later accepted verification, or a later applied person decision on its text; with `enabled` false (spec.cascadeReject off) there is none.
+ * Why derived: needs-review is board data read from events, never a SPEC.md status, so the approved status list stays as it is.
+ */
+export function needsReviewFindings(board, parsed, { enabled = false } = {}) {
+  if (!enabled || !board) return [];
+  const marks = board.db.prepare("SELECT event_id, event_detail FROM event WHERE event_kind='row_needs_review' ORDER BY event_id").all()
+    .map(event => ({ event: event.event_id, ...JSON.parse(event.event_detail) }));
+  const verifications = rowVerifications(board);
+  let decisions = [];
+  const stored = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='row_decisions'").get();
+  if (stored) decisions = JSON.parse(stored.meta_value);
+  const outstanding = new Map();
+  for (const mark of marks) {
+    const cleared = verifications.some(record => record.id === mark.id && record.decision === 'accepted' && record.event > mark.event)
+      || decisions.some(record => record.id === mark.id && record.applied && record.decision !== 'decline' && record.event > mark.event);
+    if (cleared) outstanding.delete(mark.id);
+    else outstanding.set(mark.id, [...new Set([...(outstanding.get(mark.id) ?? []), mark.because])]);
+  }
+  return parsed.rows.filter(row => outstanding.has(row.id)).map(row => ({ level: 'warning', line: row.line, id: row.id,
+    message: `NEEDS_REVIEW: serves rejected ${outstanding.get(row.id).join(', ')}; re-verify it (pullboard spec verify ${row.id} accepted) or correct its text` }));
+}
+
 /** Reject fabricated, stale or same-parent file annotations against the current exact receipt. */
 export function rowVerificationFindings(board, parsed, source, { rowDrafts }) {
   const lines = source.split(/\r?\n/u);
