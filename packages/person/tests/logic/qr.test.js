@@ -63,7 +63,7 @@ function finderAt(modules, row, column) {
   return true;
 }
 
-test('a pairing QR matches the independent complete symbol and prints its quiet zone [H1,H17]', () => {
+test('person.qr.matches-reference-symbol: a pairing QR matches the independent complete symbol and prints its quiet zone [H1,H17]', () => {
   const link = 'https://app.pullboard.dev/#board=' + 'a'.repeat(32) + '&key=' + 'b'.repeat(43);
   const modules = qrModules(link);
   assert.equal(modules.length, SIZE);
