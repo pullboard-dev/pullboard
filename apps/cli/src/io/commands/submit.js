@@ -17,6 +17,7 @@ import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
@@ -118,6 +119,7 @@ import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
 import { titleCases } from '../submit.js';
+import { clauseMarksNote } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -526,6 +528,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   await withBoard(ctx, async board => {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
     for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+  });
+  // submit.clauseMarks (#9440): the submit records each bar clause with whether a tick covers it, for the reviewer.
+  if (submitClauseMarks()) await withBoard(ctx, async board => {
+    const text = clauseMarksNote(held, store.itemThread(board, id), commit);
+    if (text) { await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]); ctx.io.say(text); }
   });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));

@@ -106,6 +106,7 @@ export const MACHINE_DEFAULTS = {
   'serve.port': 0,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'submit.clauseMarks': false,
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
