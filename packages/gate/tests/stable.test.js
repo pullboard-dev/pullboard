@@ -19,6 +19,7 @@ import {
   findChromeExecutable,
   findRunnerAncestor,
 } from '../../../apps/cli/tests/fixtures/chrome.js';
+import { awaitNestedPhase } from '../index.js';
 import { runFixtureChildAsync } from './fixtures/child.js';
 import { runUnderStandIn } from './fixtures/runner-standin.js';
 
@@ -114,12 +115,23 @@ describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, (
         const victim = run.child;
         run.catch(() => {}); // a SIGKILLed victim settles with an error the test reads from the exit signal instead.
         recorded.push(victim.pid);
-        recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
-        const before = chromeProcesses(profile);
-        assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
-        const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
-        process.kill(victim.pid, 'SIGKILL');
-        assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        let before;
+        /** Wait for Chrome, then kill exactly this victim; a runner victim does both while lending its gate token (#1152). */
+        const killVictim = async () => {
+          recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
+          before = chromeProcesses(profile);
+          assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
+          const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
+          process.kill(victim.pid, 'SIGKILL');
+          assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        };
+        if (killed === 'owner') await killVictim();
+        else {
+          let failure = null;
+          // The marker phase lends the token only while the exact spawned victim is coordinated; the SIGKILLed victim's own error is expected.
+          await awaitNestedPhase(run, async () => { try { await killVictim(); } catch (error) { failure = error; throw error; } }).catch(() => {});
+          if (failure) throw failure;
+        }
         const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
         assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
       });
