@@ -66,7 +66,7 @@
   "apps/cli/journeys/shout/shouts.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
+  "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "sleep": 1
   },
   "apps/cli/tests/fixtures/cockpit/stable.js": {

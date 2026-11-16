@@ -29,3 +29,8 @@ export const PULLED_TABLE = Object.freeze({
     { id: 'pulled', patch: () => ({}), events: (s, m) => [{ kind: 'pulled', by: m.actor, detail: { commit: m.revert, ...(s.item.mergedCommit ? { reverted: s.item.mergedCommit } : {}) } }] },
   ]),
 });
+
+/** The table and its rules, as the engine the board root hands the store's pulled writer [M2,R3,#9098]. */
+export function pulledEngine() {
+  return { table: PULLED_TABLE, rules: PULLED_RULES };
+}

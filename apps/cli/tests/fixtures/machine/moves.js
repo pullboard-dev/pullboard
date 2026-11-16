@@ -1,5 +1,6 @@
 /** Setup refusals the lifecycle audit reaches since the cells moves, each checked before any item move [M1,#2886]. */
 export const SETUP_REFUSALS = {
+  BAD_READINESS: 'a readiness command is validated as text when an item is added or edited, before any lifecycle move',
   BAD_BUILD_ESTIMATE: 'command input parses positive expected minutes before any lifecycle move',
   BOARD_UNAVAILABLE: 'registered repository storage is unavailable before an item move can begin',
   GIT_SYNC_FOLDER: 'board transport storage must be a directory before synchronization',

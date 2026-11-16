@@ -13,7 +13,7 @@ import { readVerifyRecords } from '../../../index.js';
 
 const files = privateFixtureFiles('pullboard-history-export-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
-const HOME = '/Users/somebody';
+const HOME = '/Users/person';
 const SINCE = '2026-11-05T00:00:00.000Z';
 const BATCH = (state, merge) => ({ id: 'b1', startedAt: '2026-11-10T03:00:00.000Z', base: 'a'.repeat(40), state,
   candidates: [{ id: 1, commit: 'c'.repeat(40) }], items: [{ id: 1, commit: 'c'.repeat(40), ...(merge ? { merge } : {}) }],
@@ -43,7 +43,7 @@ function board() {
   add.run(at(5), 'coordinator', 'main-moved', null, JSON.stringify({ sha: 'd'.repeat(40), batch: 'b1', items: [1] }));
   add.run(at(6), 'core-1', 'claim', 2, '{}');
   add.run(at(7), 'core-1', 'submit', 2, JSON.stringify({ commit: 'e'.repeat(40) }));
-  add.run(at(8), 'core-2', 'reject', 2, JSON.stringify({ commit: 'e'.repeat(40), note: `see /home/other/log.txt and ${HOME}/x` }));
+  add.run(at(8), 'core-2', 'reject', 2, JSON.stringify({ commit: 'e'.repeat(40), note: `see /home/person/log.txt and ${HOME}/x` }));
   add.run(at(9), 'coordinator', 'landing_batch', null, JSON.stringify({ batch: BATCH('pushed', 'd'.repeat(40)) }));
   db.prepare('INSERT INTO agent VALUES (?, ?)').run('core-2', 'mid');
   db.prepare('INSERT INTO item VALUES (?, ?, ?, ?)').run(1, JSON.stringify({ title: 'one', criterion: '1. lands [test]' }), null, 'core');
