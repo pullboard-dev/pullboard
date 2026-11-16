@@ -61,7 +61,7 @@ export { machineVerification, validateMachineVerification, saveMachineVerificati
 export { submitReusePlanDigest } from './src/logic/plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/io/kernel.js';
-export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
+export { buildReviewPacket, recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
 
 export { reusableSubmitProof, submittedPolicyCommit } from './src/io/reuse.js';
 export { sealedMoveOverlap } from './src/io/verdict/trunk.js';

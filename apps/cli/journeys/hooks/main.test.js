@@ -50,6 +50,7 @@ import { Refused } from '../../../../packages/kernel/light.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -647,4 +648,47 @@ test('#4005: a repository without the test-cell listing keeps adding root tests 
   writeFileSync(join(box.root, 'test/first.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '-A');
   assert.deepEqual(stagedProblems(box.root), []);
+});
+
+/** A freshly initialised repository with its real git hooks installed and test.inProcessHooks set on the machine as asked. */
+async function hookedRepo(inProcessHooks) {
+  const box = e2e.sandbox();
+  if (inProcessHooks) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const root = join(box.dir, 'hooked');
+  mkdirSync(root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  const initialized = await box.runLocal(root, 'init');
+  assert.equal(initialized.code, 0, initialized.err || initialized.out);
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'chore: set up the private board');
+  return { box, root };
+}
+
+for (const inProcessHooks of [false, true]) {
+  const setting = inProcessHooks ? 'on' : 'off';
+  test(`clause 1: git runs the real pre-commit hook and refuses a staged env file, with test.inProcessHooks ${setting} [C5,C7]`, async () => {
+    const { box, root } = await hookedRepo(inProcessHooks);
+    writeFileSync(join(root, '.env'), 'TOKEN=not-a-real-token\n');
+    box.git(root, 'add', '-f', '--', '.env');
+    const refused = box.tryGit(root, 'commit', '-q', '-m', 'chore: add the env file');
+    assert.notEqual(refused.status, 0, 'the real pre-commit hook blocks the commit');
+    assert.match(refused.stderr, /\.env is a blocked file/u, 'the refusal is the hook process own output');
+  });
+
+  test(`clause 1: git runs the real commit-msg hook and refuses a malformed header, with test.inProcessHooks ${setting} [C1,C7]`, async () => {
+    const { box, root } = await hookedRepo(inProcessHooks);
+    writeFileSync(join(root, 'notes.txt'), 'notes\n');
+    box.git(root, 'add', '--', 'notes.txt');
+    const refused = box.tryGit(root, 'commit', '-q', '-m', 'Added some notes');
+    assert.notEqual(refused.status, 0, 'the real commit-msg hook blocks the commit');
+    const allowed = box.tryGit(root, 'commit', '-q', '-m', 'chore: add some notes');
+    assert.equal(allowed.status, 0, allowed.failure || allowed.stderr || allowed.stdout);
+  });
+}
+
+test('clause 2: with test.inProcessHooks on, the installed pre-commit and commit-msg hooks are still the real scripts that start pullboard hook [C7]', async () => {
+  const { root } = await hookedRepo(true);
+  for (const name of ['pre-commit', 'commit-msg']) {
+    assert.match(readFileSync(join(root, '.githooks', name), 'utf8'), new RegExp(`hook ${name}`, 'u'), `${name} runs pullboard hook ${name}`);
+  }
 });
