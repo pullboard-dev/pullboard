@@ -67,7 +67,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true, failBefore: false, frozenTests: false, testAuthorSplit: false, folderTicks: false, titleTicks: false },
     // Off by default: toolingPin refuses an unsigned or edited pin file only when pin.signed is true [#8038].
     pin: { signed: false },
     review: { starveMinutes: 5, independence: 'off', excludeEarlierHolders: false },
@@ -88,6 +88,8 @@ export function defaults() {
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
     claim: { reopenFirstRefusalMinutes: 0, returnToBoard: false, barTestFiles: ['**/*.test.js', '**/*.test.mjs', '**/*.test.cjs', '**/*.spec.js', '**/*.spec.mjs', '**/*.spec.cjs'] },
+    // On by default: laneMode off is the switch slices 2 and 3 of #2830 read; the "lanes" key stays the lane map [C7].
+    laneMode: 'on',
     lanes: {},
     trunk: { remote: '' },
     products: {},
@@ -369,7 +371,7 @@ export function configProblems(config) {
     && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
     problems.push('"verify.familyRelaxAt" is off or a positive integer');
   }
-  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit', 'folderTicks'];
+  const flags = ['inspectClauses', 'failBefore', 'frozenTests', 'testAuthorSplit', 'folderTicks', 'titleTicks'];
   if (!flags.every(key => typeof config.verify?.[key] === 'boolean')) problems.push(`"verify.${flags.join('", "')}" are true or false`);
   if (notPlain(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
@@ -453,6 +455,9 @@ export function configProblems(config) {
   }
   if (config.resume?.adoptOrphans !== undefined && typeof config.resume.adoptOrphans !== 'boolean') {
     problems.push('"resume.adoptOrphans" is true or false; true makes pullboard resume in a fresh worktree adopt an orphaned seat claim from its pinned ref');
+  }
+  if (!['on', 'off'].includes(config.laneMode)) {
+    problems.push('"laneMode" is "on" or "off"; "lanes" stays the lane map');
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
