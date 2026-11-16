@@ -48,14 +48,29 @@ const QUOTED_TEST = /[\w./-]+\.(?:test|spec)\.[cm]?js\b/u;
 
 /**
  * The gate-run test files that tick a [test] clause: the file it names, or, when its text names no test file, the item
- * check's own files, which every gate runs. [] when neither applies. Why: most bars say "X passes on a runner [test]" and
+ * check's own files, which every gate runs; with `folderTicks` on, a folder the clause quotes covers the gate-run tests under it
+ * first. [] when none applies. Why: most bars say "X passes on a runner [test]" and
  * keep the file in the check line, so submit refused CLAUSE_UNTICKED and builders ran the check before the gate ran it
  * again (#6675) [C7].
  */
-export function gateCoveredFiles(clause, gateFiles, item = null) {
+export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks = false } = {}) {
   const named = gateNamedFile(clause, gateFiles, item);
   if (named) return [named];
-  return clause.kind === 'test' && !QUOTED_TEST.test(clause.text) ? checkTestFiles(item?.item_check) : [];
+  if (clause.kind !== 'test' || QUOTED_TEST.test(clause.text)) return [];
+  const inFolder = folderTicks ? folderFiles(clause.text, gateFiles) : [];
+  return inFolder.length ? inFolder : checkTestFiles(item?.item_check);
+}
+
+/** A path with at least two segments whose last segment has no file extension, such as `apps/cli/journeys/bar`. */
+const QUOTED_FOLDER = /(?:^|[\s(`'"])((?:[\w-][\w.-]*\/)+[\w-]+)\/?(?=[\s,;:)`'"]|\.(?!\w)|$)/gu;
+
+/**
+ * The gate-run test files under a folder a clause quotes, sorted. Why: bars say "a new test in <folder> proves ..." because
+ * a bar may only name paths on main, so the gate ticked none of them and every builder hand-ticked after its own run (#8846) [C7].
+ */
+function folderFiles(text, gateFiles) {
+  const folders = [...String(text).matchAll(QUOTED_FOLDER)].map(match => `${match[1]}/`);
+  return [...gateFiles].filter(file => file && TEST_FILE.test(file) && folders.some(folder => file.startsWith(folder))).sort();
 }
 
 /**
@@ -128,7 +143,7 @@ function citesHead(evidence, heads) {
  * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
  * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
  */
-export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null } = {}) {
+export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null, folderTicks = false } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
@@ -138,7 +153,7 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
-    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item).length) continue;
+    if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks }).length) continue;
     if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -221,12 +236,12 @@ const NAMED_CASES = 5;
  * @param {{ gateFiles: Set<string>, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the gate ran, the receipts' per-test outcomes and the head proved.
  * @returns {string[]} Note texts for the item's thread.
  */
-export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head }) {
+export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head, folderTicks = false }) {
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   const notes = [];
   for (const clause of criterionClauses(item.item_criterion)) {
     if (ticks.has(clause.number)) continue;
-    const files = gateCoveredFiles(clause, gateFiles, item);
+    const files = gateCoveredFiles(clause, gateFiles, item, { folderTicks });
     if (!files.length) continue;
     const ran = row => files.includes(row.file) && !row.skipped;
     const passed = outcomes.filter(row => ran(row) && row.passed).map(row => row.name);
@@ -239,12 +254,12 @@ export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head })
 }
 
 /** One reviewer-facing line per clause with its evidence; reasoning is flagged as the weakest kind. */
-export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), head = null } = {}) {
+export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), head = null, folderTicks = false } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   return `inspection, clause by clause: ${clauses.map(clause => {
-    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item);
+    const named = ticks.has(clause.number) ? [] : gateCoveredFiles(clause, gateFiles, item, { folderTicks });
     const tick = named.length ? { kind: 'test', evidence: `ticked by the gate run of ${named.join(' ')}` } : ticks.get(clause.number);
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
