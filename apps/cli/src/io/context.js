@@ -5,7 +5,7 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { holdsLiftSettled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
-import { receiveCommits } from '../../../../packages/pin/index.js';
+import { receiveMoveCommits as receiveCommits } from './submit/pushed.js';
 import {
   agentDisplayName,
   context,
