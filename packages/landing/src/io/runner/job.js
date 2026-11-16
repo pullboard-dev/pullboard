@@ -249,7 +249,7 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
     const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
     const proveFiles = own => {
-      const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline });
+      const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline, reuseGate: payload.reuseGateReceipts === true });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline }, here) : here;
     };
     // The proof and the contracts each record the milliseconds they spent, red or not, so a slow land reads its own split [C7,#9245].
