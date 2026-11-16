@@ -844,10 +844,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "packages/codemap/src/io/cells/backlog.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "packages/codemap/src/io/cells/git.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
