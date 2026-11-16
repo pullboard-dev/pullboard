@@ -21,6 +21,8 @@ import { BROWSER_MARKER } from '../../../../../packages/gate/index.js';
 import { missingGate } from '../../../../../packages/gate/index.js';
 import { git } from '../../../../../packages/git/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
+// A URL-joined seat's submit bundles its clone's commits; moves.js loads it from here only when board.commits is on [P7,C7].
+export { bundleCommits } from '../../../../../packages/pin/index.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
 import { frozenCheckTiming } from '../../../../../packages/items/index.js';

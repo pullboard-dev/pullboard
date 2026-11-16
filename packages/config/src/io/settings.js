@@ -155,16 +155,16 @@ export function setWorkerBudget(budget) {
 /**
  * The board this machine's seats read over HTTP, or null for the local board: board.url and board.token [P7].
  * Why: a seat on another host has no board.sqlite; it reaches the board host's pullboard serve instead.
- * @returns {{ url: string, token: string } | null}
+ * @returns {{ url: string, token: string, commits?: 'bundle' } | null}
  */
 export function boardRemote() {
   const board = loadMachineSettings().board;
-  return board?.url ? { url: board.url, token: board.token ?? '' } : null;
+  return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
 }
 
 /**
- * Set board.url or board.token; the value off removes it, so seats use the local board again [P7].
- * @param {'url' | 'token'} key
+ * Set board.url, board.token or board.commits; the value off removes it, so seats use the local board again [P7].
+ * @param {'url' | 'token' | 'commits'} key
  * @param {string} value
  */
 export function setBoardRemote(key, value) {
