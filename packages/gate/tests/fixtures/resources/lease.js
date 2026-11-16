@@ -34,9 +34,10 @@ export async function openPrivateScopedView(box, { serveView, runCommand }) {
   } catch (error) { restore(); throw error; }
 }
 
-const CLOCKED_CLI = `
+/** The clocked CLI program; nativeUrl is the file URL of the CLI native test fixture, which the caller supplies. */
+const clockedProgram = (nativeUrl) => `
 import { readFileSync } from 'node:fs';
-import { main } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../../apps/cli/tests/fixtures/native.js')).href)};
+import { main } from ${JSON.stringify(nativeUrl)};
 /** The private test alone controls the board clock; resource liveness still uses real OS time. */
 const clock = { now: () => new Date(Number(readFileSync(process.env.PULLBOARD_FIXTURE_CLOCK, 'utf8'))) };
 process.exitCode = await main(process.argv.slice(1), {
@@ -47,7 +48,7 @@ process.exitCode = await main(process.argv.slice(1), {
 /** Run the real CLI with a private file-backed board clock and the fixture's ordinary identity. */
 function clockedCli(box, cwd, ...args) {
   fixtureJoinRoute(args, box.env.PULLBOARD_MODEL); // fixture items default strong, so a bare join must take the strong route [C7]
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args],
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', box.program, ...args],
     { cwd, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, `${result.stdout}\n${result.failure ?? result.stderr}`);
   return args.includes('--json') ? JSON.parse(result.stdout) : result.stdout;
@@ -56,14 +57,14 @@ function clockedCli(box, cwd, ...args) {
 /** The fixture as settledGateJob reads it: show runs through the clocked CLI and returns { code, out, err }. */
 function runBox(box) {
   return { repo: box.repo, env: box.env, run: (cwd, ...args) => {
-    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args], { cwd, env: box.env, encoding: 'utf8' });
+    const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', box.program, ...args], { cwd, env: box.env, encoding: 'utf8' });
     return { code: result.status, out: result.stdout, err: result.stderr };
   } };
 }
 
 /** Track a waiting real CLI process in the same cleanup registry as the resource workers. */
 function leaseCommand({ helpers, children }, box, cwd, ...args) {
-  const child = helpers.launch(box, cwd, process.execPath, ['--input-type=module', '-e', CLOCKED_CLI, ...args]);
+  const child = helpers.launch(box, cwd, process.execPath, ['--input-type=module', '-e', box.program, ...args]);
   child.lines = createInterface({ input: child.stdout });
   child.exitResult = null;
   child.finished = child.closed.then((result) => {
@@ -76,8 +77,9 @@ function leaseCommand({ helpers, children }, box, cwd, ...args) {
 }
 
 /** Create genuine submitted/claimed items and independent reviewers before advancing any clock. */
-function itemLeaseFixture(t, helpers, openBoard) {
+function itemLeaseFixture(t, helpers, openBoard, nativeUrl) {
   const box = helpers.project('true');
+  box.program = clockedProgram(nativeUrl);
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m' }));
@@ -177,11 +179,11 @@ try {
  * live beside it, as the release-first proof does, while the named test stays in that file.
  *
  * @param {import('node:test').TestContext} t
- * @param {{ helpers: any, children: Set<any>, openBoard: Function, settledGateJob: Function, executionServicesSource: Function, fixture: Function, poolWorker: Function, privateList: Function, privateTake: Function, acquired: Function, release: Function, waitUntil: Function }} deps
+ * @param {{ helpers: any, children: Set<any>, nativeUrl: string, openBoard: Function, settledGateJob: Function, executionServicesSource: Function, fixture: Function, poolWorker: Function, privateList: Function, privateTake: Function, acquired: Function, release: Function, waitUntil: Function }} deps
  */
 export async function queuedLeaseProof(t, deps) {
-  const { fixture, poolWorker, privateList, privateTake, acquired, release, waitUntil, openBoard, settledGateJob, executionServicesSource } = deps;
-  const box = itemLeaseFixture(t, deps.helpers, openBoard);
+  const { fixture, poolWorker, privateList, privateTake, acquired, release, waitUntil, openBoard, settledGateJob, executionServicesSource, nativeUrl } = deps;
+  const box = itemLeaseFixture(t, deps.helpers, openBoard, nativeUrl);
   const [reviewId, deadId, buildId, checkId] = box.ids;
   const [reviewGate, deadGate, buildGate, checkGate] = box.gates;
   const [reviewer, deadReviewer] = box.reviewers;
