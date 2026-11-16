@@ -118,6 +118,7 @@ import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
+import { RELAY_HEALTH_FILE } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 import { startStateMaterializer } from './state/materializer.js';
@@ -210,7 +211,7 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
 /** Invalidate only this local API state when its private canary record or queued link changes. */
 function localRelayMarker(info) {
   const files = relayFiles(info.commonDir);
-  return [fileMarkerForPath(join(info.commonDir, 'pullboard', 'relay-health.sqlite')), fileMarkerForPath(files.link)];
+  return [fileMarkerForPath(join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE)), fileMarkerForPath(files.link)];
 }
 
 /** Read HEAD and its selected ref without spawning Git on every 200 ms poll. */
@@ -354,7 +355,7 @@ function watchLocalStateRevision(board, { scopeCommonDir = null } = {}) {
       catch (error) { if (error.code === 'ENOENT') return []; throw error; }
     });
     const paths = [dbPath, dbPath + '-wal', ...files.map(file => file.path), registryFile(), ...heads, ...refs, join(info.commonDir, 'packed-refs'),
-      join(info.commonDir, 'pullboard/relay-health.sqlite'), join(info.commonDir, 'pullboard/relay-health.sqlite-wal'), relay.link,
+      join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE), join(info.commonDir, 'pullboard', RELAY_HEALTH_FILE + '-wal'), relay.link,
       ...(external?.paths() ?? []), ...(external?.inputs ?? []).flatMap(input => input.path ? [input.path, input.path + '-wal'] : [])];
     notifications.update(paths);
     clearTimeout(expiryTimer);
