@@ -53,8 +53,9 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
+    // regenerateDeclared is off by default: on, submit regenerates a stale declared generated file in the composed tree [C7].
     // edgeFollowUps is off by default: on, a submit whose diff adds import edges files one follow-up listing them [C7].
-    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false },
+    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false, regenerateDeclared: false },
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
@@ -397,12 +398,15 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (notPlain(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps', 'regenerateDeclared'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
   }
   if (typeof config.submit?.edgeFollowUps !== 'boolean') {
     problems.push('"submit.edgeFollowUps" is true or false: on, a submit whose diff adds import edges files one follow-up listing them');
+  }
+  if (typeof config.submit?.regenerateDeclared !== 'boolean') {
+    problems.push('"submit.regenerateDeclared" is true or false: on, submit runs the generator of a declared generated file whose input the diff changed');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
     problems.push('"submit.handoff" is a boolean; deprecated, no effect');

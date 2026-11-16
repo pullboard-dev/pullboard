@@ -148,6 +148,7 @@ const ROWS = [
   ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
   ['submit.edgeFollowUps', 'List new import edges', 'On, a submit whose diff adds import edges files one follow-up item listing them; off, it does not look.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
+  ['submit.regenerateDeclared', 'Regenerate declared files', 'On, submit runs the generator of a declared generated file whose input the diff changed and commits the result; off, the composed tree is left as committed.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemBuildBudgetMinutes', 'Item build budget', 'Expected build minutes allowed before an item must be cut into children.', 'Work', 'minutes'],
   ['itemSizeBudget', 'Item size budget', 'Changed lines an item may carry before submit notes it as oversize.', 'Checks', 'lines'],
