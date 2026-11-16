@@ -1,15 +1,16 @@
 /** Feature discovery and historical constants, without lifecycle declarations [C7,V4]. */
 import { fileURLToPath } from 'node:url';
 import {
+  engineNumber,
   nextEngineNumber,
   readEngineLeaves,
 } from './numbers.js';
 
-export { AUTO_ESCALATE_ENGINE } from '../../logic/engines/auto-escalate-engine.js';
-export { ROW_DRAFT_ENGINE } from '../../logic/engines/row-draft-engine.js';
-export { STRONG_REJECTION_NOTICE_ENGINE } from '../../logic/engines/strong-rejection-notice-engine.js';
-export { SUBMITTED_CONFLICT_ENGINE } from '../../logic/engines/submitted-conflict-engine.js';
-export { WITHDRAW_MILESTONE_ENGINE } from '../../logic/engines/withdraw-milestone-engine.js';
+export const AUTO_ESCALATE_ENGINE = engineNumber('AUTO_ESCALATE_ENGINE');
+export const ROW_DRAFT_ENGINE = engineNumber('ROW_DRAFT_ENGINE');
+export const STRONG_REJECTION_NOTICE_ENGINE = engineNumber('STRONG_REJECTION_NOTICE_ENGINE');
+export const SUBMITTED_CONFLICT_ENGINE = engineNumber('SUBMITTED_CONFLICT_ENGINE');
+export const WITHDRAW_MILESTONE_ENGINE = engineNumber('WITHDRAW_MILESTONE_ENGINE');
 
 /**
  * Find every feature engine: each packages/state/src/logic/engines/*-engine.js leaf declares exactly one `export const NAME_ENGINE = n;` line.
@@ -28,8 +29,8 @@ export function discoverEngines(directory = new URL('../../logic/engines/', impo
   return Object.fromEntries(entries.sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 }
 
-export { REOPEN_FIRST_REFUSAL_ENGINE } from '../../logic/engines/reopen-first-refusal-engine.js';
-export { QUOTED_LANDING_FAILURE_ENGINE } from '../../logic/engines/quoted-landing-failure-engine.js';
+export const REOPEN_FIRST_REFUSAL_ENGINE = engineNumber('REOPEN_FIRST_REFUSAL_ENGINE');
+export const QUOTED_LANDING_FAILURE_ENGINE = engineNumber('QUOTED_LANDING_FAILURE_ENGINE');
 
 /** Every feature engine by name, discovered from the *-engine.js files in the state cell's engines folder. */
 export const ENGINE_REGISTRY = discoverEngines();
@@ -49,5 +50,5 @@ export { CAUSE_ENGINE } from '../../logic/move/constants.js';
 /** First released engine binding the checked composition, review trunk and paths [E8,H16]. */
 export { VERDICT_REVIEW_ENGINE } from '../../logic/move/constants.js';
 
-export { MILESTONE_RANK_ENGINE } from '../../logic/engines/milestone-rank-engine.js';
+export const MILESTONE_RANK_ENGINE = engineNumber('MILESTONE_RANK_ENGINE');
 

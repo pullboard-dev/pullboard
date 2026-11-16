@@ -4,7 +4,6 @@ import * as store from '../../../../packages/store/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createRequire } from 'node:module';
 import { moveArgs } from '../../../../packages/person/index.js';
-import { refusalDocument } from '../logic/step/words.js';
 import {
   agentDisplayName,
   context,
@@ -36,6 +35,8 @@ export {
 };
 
 const requireModule = createRequire(import.meta.url);
+/** The refusal formatter, loaded at the first refusal it renders: a command that never refuses never pays for the move registry its next steps read [C7,#8195]. */
+const refusalDocument = (...args) => requireModule('../logic/step/words.js').refusalDocument(...args);
 /** The relay package, loaded at the first person-signing call that reaches it: a claim, test or next never pays for its ~80 modules [C7,#7081]. */
 const link = () => requireModule('../../../../packages/link/index.js');
 
