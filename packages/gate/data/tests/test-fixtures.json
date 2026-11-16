@@ -884,7 +884,7 @@
     "tempdir": 2,
     "raw-board": 5
   },
-  "apps/cli/journeys/merged/ratchet.test.js": {
+  "apps/cli/journeys/merged/ratchet-landing.test.js": {
     "raw-board": 5
   },
   "apps/cli/journeys/flow/replay.test.js": {
