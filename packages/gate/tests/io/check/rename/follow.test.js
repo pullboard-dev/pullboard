@@ -27,6 +27,7 @@ function repository(t) {
   put('test/steady.test.js', `${BODY}// steady\n`);
   run('add', '-A'); run('commit', '-qm', 'chore: fixture');
   const base = run('rev-parse', 'HEAD').trim();
+  mkdirSync(join(root, 'packages/x/tests'), { recursive: true });
   run('mv', 'test/old-name.test.js', 'packages/x/tests/new-name.test.js');
   run('rm', '-q', 'test/doomed.test.js');
   run('commit', '-qm', 'refactor: move and delete');
