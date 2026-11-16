@@ -1642,14 +1642,13 @@
   },
   "apps/cli/journeys/verify/checks.test.js": {
     "raw-board": 1,
-    "hand-policy": 1
+    "hand-policy": 2
   },
   "apps/cli/journeys/verify/checks-output.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
-    "raw-board": 1,
-    "hand-policy": 1
+    "raw-board": 1
   },
   "apps/cli/journeys/runner/e2e.test.js": {
     "hand-policy": 2
