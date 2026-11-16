@@ -11,6 +11,7 @@ import { ledgerHits } from '../../../store/index.js';
 import { ledgerMainReds } from '../../../store/index.js';
 import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
+import { runsStoreOn } from '../../../store/index.js';
 import { offerJob } from './jobs.js';
 import { offeredRequest } from './jobs.js';
 import { holdJob } from '../../../jobs/index.js';
@@ -93,11 +94,13 @@ function landingItems(items) {
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file [B2,P7]; null writes the board's job rows as before.
+ *   reuseGateReceipts: landing.reuseGateReceipts (default off), the items' own green gate rows head the proof's hit list and ride the job as a flag (#9243).
+ *   squash: landing.squash, on the job so its runner lands each item as one single-parent commit (#9219).
  *   reofferTrunkBusy: landing.reofferTrunkBusy, on the job so its runner carries a green static check to a tip whose new commits miss the batch's files (#9103).
  *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, squash = false, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, reuseGateReceipts = false, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -114,7 +117,7 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const fenced = landingHops(hops, landed);
   const defer = deferredPayload(deferred, config?.affectedTests, landed);
   const ids = landed.map(entry => entry.id).join('+').slice(0, 120);
-  const proof = landingProof(db, landed, config?.affectedTests, expect);
+  const proof = landingProof(db, landed, config?.affectedTests, expect, { reuseGate: reuseGateReceipts === true && !forced });
   const own = forced || check || proof ? null : ownChecks(db, landed, config);
   // A deferred selection replaces only the affected tests; the project's own gate still judges the merged tree [C7].
   const deferGate = defer && !forced && typeof config?.gate === 'string' && config.gate.trim() ? ['sh', '-c', config.gate.trim()] : null;
@@ -138,7 +141,10 @@ export function offerLandingJob(db, { items, expect, config, trunk = 'refs/heads
   const payload = { shape: fenced.length ? LAND_HOPS_SHAPE : LAND_PAYLOAD_SHAPE, remote, trunk, expect, items: landed, ...(fenced.length ? { hops: fenced } : {}), ...(check ?? own?.gate ?? deferGate ? { check: check ?? own?.gate ?? deferGate } : {}), ...(own?.checks ? { checks: own.checks } : {}), ...(proof ? { proof } : {}), ...(shardProof ? { shardProof } : {}), ...(defer ? { deferred: defer } : {}), ...(contracts ? { contracts } : {}), ...(contracts && Array.isArray(mainReds) && mainReds.length ? { mainReds } : {}), ...(staticChecks ? { staticChecks } : {}), ...(waivers.length ? { waivers } : {}),
     ...(separate ? { publish: 'separate' } : {}), ...(batchOnly ? { perItem: false } : {}), ...(proofMinutes ? { proofMinutes } : {}), ...(badges.length ? { badges } : {}), ...(checkout ? { checkout: true } : {}), ...(upstream ? { upstream } : {}), ...(flakes ? { flakes: { rerun: flakes.rerun, prefixes: { check: flakes.prefixes?.check ?? null, proof: flakes.prefixes?.proof ?? null } } } : {}), ...(forced ? { forced: forced.trim() } : {}),
     // landing.reofferTrunkBusy rides on the job only when on, so its runner may carry a green static check to a new tip [C7,#9103].
-    ...(reofferTrunkBusy === true && !forced ? { reofferTrunkBusy: true } : {}) };
+    ...(squash === true && !forced ? { squash: true } : {}),
+    ...(reofferTrunkBusy === true && !forced ? { reofferTrunkBusy: true } : {}),
+    // landing.reuseGateReceipts rides on the job only when on, so its runner may count the hit list's files as reused [C7,#9243].
+    ...(reuseGateReceipts === true && !forced && proof ? { reuseGateReceipts: true } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }
@@ -216,13 +222,14 @@ function ownChecks(db, items, config) {
  * @param {{ commit: string }[]} items
  * @param {unknown} runner the project's affectedTests command
  * @param {string} [main] the trunk sha the items were accepted against
+ * @param {{ reuseGate?: boolean }} [options] reuseGate (landing.reuseGateReceipts): the items' own green gate rows head the hit list, so the budget never drops them [C7,#9243]
  * @returns {{ runner: string, files: string[], ledger: ReturnType<typeof ledgerHits> } | null}
  */
-export function landingProof(db, items, runner, main) {
+export function landingProof(db, items, runner, main, { reuseGate = false } = {}) {
   if (typeof runner !== 'string' || !runner.trim() || /[\0\n\r]/u.test(runner)) return null;
   const files = ledgerFiles(db, items.map(entry => entry.commit));
   if (!files.length) return null;
-  const ledger = ledgerHits(db, files, { budget: 16_000 }) ?? { contexts: [], files: [] };
+  const ledger = ledgerHits(db, files, { budget: 16_000, ...(reuseGate ? { commits: items.map(entry => entry.commit) } : {}) }) ?? { contexts: [], files: [] };
   const mainRed = main ? ledgerMainReds(db, files, main, ledger.contexts) : [];
   return { runner: runner.trim(), files, ledger: mainRed.length ? { ...ledger, mainRed } : ledger.files.length ? ledger : null };
 }
@@ -235,6 +242,8 @@ export function landingProof(db, items, runner, main) {
  * @returns {string | null} The open job's id.
  */
 export function openLandingJob(db) {
+  // With runs_store on the job lives in the runs file, and the board holds one queued run row until its receipt applies [B2,P7,#9114].
+  if (runsStoreOn(db)) return db.prepare("SELECT run_job FROM run WHERE run_kind = ? AND run_state IN ('queued', 'awaiting') ORDER BY run_created, rowid LIMIT 1").get(LANDING_JOB_KIND)?.run_job ?? null;
   return db.prepare("SELECT job_id FROM job WHERE job_kind = ? AND job_step <> 'done' ORDER BY job_created LIMIT 1").get(LANDING_JOB_KIND)?.job_id ?? null;
 }
 
