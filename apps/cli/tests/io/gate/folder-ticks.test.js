@@ -35,7 +35,7 @@ function boardItem(t) {
   const board = cellBoard(t, ':memory:');
   cellSeat(board, { lane: 'coordinator', path: '/fixture/main' });
   cellSeat(board, { lane: 'core', path: '/fixture/builder' });
-  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Folder tick fixture', criterion: CRITERION, route: 'mid', brief: 'Files: src/a.js', check: 'true' });
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Folder tick fixture', criterion: CRITERION, route: 'mid', brief: 'Files: src/a.js\nTest: the dry run prints its checklist', check: 'true' });
   store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 2 * HOUR, freeze: item => ({ text: item.item_criterion, digest: 'folder' }) });
   return { board, id };
 }
