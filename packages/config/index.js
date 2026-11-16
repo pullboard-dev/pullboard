@@ -70,6 +70,7 @@ export {
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   viewTimerLayoutEnabled,
+  adapterLintFsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
