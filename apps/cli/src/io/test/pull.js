@@ -10,6 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { FILE_TIME_LINE } from '../../../../../packages/gate/index.js';
+import { allTestOutcomes } from '../../../../../packages/gate/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { git } from '../../../../../packages/git/index.js';
@@ -422,6 +423,43 @@ async function compareWithMain(ctx, run, { main, runner, paths, agent, say }) {
 }
 
 /**
+ * The summary's failures plus every failing case the run's outcome rows name that the output's tail did not show.
+ * Why: the runner keeps only the end of a long output, so a 25-file chunk with 10 failures listed one; the outcome
+ * rows cover every case, and `--json` failures[] must list every failing file [C7,#8949].
+ *
+ * @param {{ file: string | null, name: string, error: string }[]} failures - The failures the output's TAP shows.
+ * @param {{ output?: string, outcomes?: object[] | null, failures?: object[] | null }} ran
+ * @returns {{ file: string | null, name: string, error: string }[]}
+ */
+export function withOutcomeFailures(failures, ran) {
+  const seen = new Set(failures.map(row => `${row.file}\0${row.name}`));
+  const extra = [];
+  for (const row of [...failingOutcomes(ran).filter(one => !one.passed && !one.skipped), ...(ran.failures ?? [])]) {
+    const name = String(row.name ?? '').slice(0, 300), key = `${row.file}\0${name}`;
+    if (!row.file || !name || seen.has(key)) continue;
+    // A failure the TAP showed without its file is the same case once its outcome row names the file.
+    const unplaced = failures.find(one => !one.file && one.name === name);
+    if (unplaced) { unplaced.file = row.file; seen.add(key); continue; }
+    seen.add(key);
+    extra.push({ file: row.file, name, error: String(row.error ?? row.failure ?? 'no error line recorded') });
+  }
+  return [...failures, ...extra];
+}
+
+/**
+ * The case outcomes a pulled run's output names, so a failing case whose TAP carries no file still gets the file its
+ * outcome line names: the receipt's own outcomes when it has them, else every frame in the output [C7,#8852].
+ *
+ * @param {{ output?: string, outcomes?: object[] | null }} ran
+ * @returns {object[]}
+ */
+export function failingOutcomes(ran) {
+  const rows = (ran.outcomes ?? []).filter(row => row?.file && row.name);
+  if (rows.length) return rows;
+  try { return allTestOutcomes(ran.output); } catch { return []; }
+}
+
+/**
  * Run named test files as a pulled test job and return the result in the shape runTestFiles returns, so `pullboard
  * test` prints, records and exits as it does today. A red run is compared with main as today's run is: not for one
  * file unless --compare-main, and not when every red file is a known red.
@@ -446,7 +484,10 @@ export async function runPulledTests(ctx, { agent, item, files, values, knownRed
   const started = Date.now();
   const command = `${config.affectedTests.trimEnd()} ${paths.map(path => shellWord('./' + path)).join(' ')}`;
   const ran = await runJobFor(ctx, { item, commit, main, command, files: paths, ...(fileBudgetField(values).fileBudgetMs ? { fileBudgetMs: fileBudgetField(values).fileBudgetMs } : {}) }, { agent, say, testRun: values['test-run'] });
-  const summary = retainTestOutput(root, ran.output);
+  const summary = retainTestOutput(root, ran.output, { profile: { testOutcomes: failingOutcomes(ran) } });
+  const shown = summary.failures.length;
+  summary.failures = withOutcomeFailures(summary.failures, ran);
+  summary.omittedFailures = Math.max(0, summary.omittedFailures - (summary.failures.length - shown));
   // A runner's TAP names a case's file by the runner's own work folder; a failure is shown by the repo path the seat named [C7].
   for (const row of summary.failures) {
     const seen = String(row.file ?? ran.failures?.find(found => found.name === row.name)?.file ?? '').replace(/^\.\//u, '');

@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell apps/cli packages/gate packages/runners packages/jobs packages/resources */
 /**
  * pullboard status reaches the gate, runners, jobs and resources cells only through their light doors, so no heavy barrel loads for the few names it prints [C7,#8647].
+ * The gate receipt reader is the exception: gate/light.js is the runner worker's door, so status loads that one name lazily rather than widen the worker bundle.
  * Why static: the modules a command loads are the ones its import statements name, so no process is launched.
  */
 import assert from 'node:assert/strict';
@@ -11,7 +12,6 @@ import { test } from 'node:test';
 const REPO = resolve(import.meta.dirname, '../../../../../..');
 const STATUS = readFileSync(resolve(REPO, 'apps/cli/src/io/commands/status.js'), 'utf8');
 const NAMES = {
-  gate: ['retainedReceipts'],
   runners: ['readRunnerUtilization', 'runnerDeadlineRuns'],
   jobs: ['stalledGates'],
   resources: ['runnerDeadlineLine'],
@@ -26,7 +26,7 @@ function importedFrom() {
   return found;
 }
 
-test('clause 1: status imports every gate, runners, jobs and resources name through that package light door [C7]', () => {
+test('clause 1: status imports every runners, jobs and resources name through that package light door [C7]', () => {
   const from = importedFrom();
   for (const [pkg, names] of Object.entries(NAMES)) {
     for (const name of names) assert.ok(from.get(name)?.endsWith(`/packages/${pkg}/light.js`), `${name} comes from ${from.get(name)}, not packages/${pkg}/light.js`);
@@ -40,6 +40,6 @@ test('clause 1: each light door exports the names status takes from it [C7]', ()
   }
 });
 
-test('clause 1: status keeps no static barrel import from the gate, runners, jobs or resources cells [C7]', () => {
-  assert.doesNotMatch(STATUS, /packages\/(?:gate|runners|jobs|resources)\/index\.js/u);
+test('clause 1: status keeps no static barrel import from the runners, jobs or resources cells; the gate receipt reader loads lazily [C7]', () => {
+  assert.doesNotMatch(STATUS, /packages\/(?:runners|jobs|resources)\/index\.js/u);
 });

@@ -146,9 +146,13 @@ async function queueCall(endpoint, body, fetchImpl, timeoutMs = 15_000) {
 async function objectStore(git, cache) {
   const store = join(cache, 'git');
   if (!existsSync(join(store, 'HEAD'))) {
-    mkdirSync(store, { recursive: true });
-    const init = await git.run(store, ['init', '-q', '--bare']);
-    if (init.status !== 0) return { store: null, reason: init.stderr };
+    // Built beside the store and renamed in whole: two serves on one cache starting together both init, and one died on git's template copy (#8836).
+    const building = join(cache, `.git-init-${randomBytes(4).toString('hex')}`);
+    mkdirSync(building, { recursive: true });
+    const init = await git.run(building, ['init', '-q', '--bare']);
+    if (init.status === 0) { try { renameSync(building, store); } catch { /* another serve's store is already in place */ } }
+    rmSync(building, { recursive: true, force: true });
+    if (init.status !== 0 && !existsSync(join(store, 'HEAD'))) return { store: null, reason: init.stderr };
   }
   return { store, reason: null };
 }
@@ -183,7 +187,8 @@ async function fetchCommit(git, store, trunk, commit, pack = null, ref = null) {
   const byId = await git.fetchTrunk(store, trunk, [`+${commit}:refs/pullboard/fetched/${commit}`, RELEASE_TAGS]);
   if (byId.status !== 0) {
     const heads = await git.fetchTrunk(store, trunk, ['+refs/heads/*:refs/remotes/trunk/*', RELEASE_TAGS]);
-    if (heads.status !== 0) return heads.stderr || byId.stderr;
+    // A serve beside this one on the cache may have fetched the commit while this fetch collided with its ref lock (#8836).
+    if (heads.status !== 0 && (await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status !== 0) return heads.stderr || byId.stderr;
   }
   await pruneFetched(git, store);
   return (await git.run(store, ['cat-file', '-e', `${commit}^{commit}`])).status === 0 ? null : `trunk remote has no commit ${commit}`;

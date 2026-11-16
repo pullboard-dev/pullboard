@@ -15,6 +15,7 @@ import { itemListFields } from "../../logic/pipeline/model.js";
 import { itemStagePresentation } from "../../logic/pipeline/model.js";
 import { withdrawnFromStatus } from "../../logic/pipeline/model.js";
 import { itemStageKey } from "../../logic/pipeline/model.js";
+import { itemLanded } from "../../logic/counts.js";
 import { stageSentence } from "../../logic/pipeline/model.js";
 import { pipelineHtml } from "../../logic/pipeline/render.js";
 import { pipelineWatchModel } from "../../logic/pipeline/watch.js";
@@ -66,6 +67,7 @@ const activityTipHtml = (${activityTipHtml.toString()});
 const activityStep = (${activityStep.toString()});
 const activityStart = (${activityStart.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
+const itemLanded = (${itemLanded.toString()});
 const dashboardModel = (${dashboardModel.toString()});
 const comparisonHtml = (${comparisonHtml.toString()});
 /** Defer the shared clock lookup until the page has initialized its formatter. */
