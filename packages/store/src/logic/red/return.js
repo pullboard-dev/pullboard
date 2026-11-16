@@ -49,7 +49,20 @@ export function submitGateInFlight(board, item) {
   if (item?.item_status !== 'claimed' || !item.item_owner) return false;
   // The record lives on the item's gate job, the one place hand-off state is kept [C7].
   const job = handoffRecord(board.db, item.item_id);
-  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item);
+  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item) || gateShardsInFlight(board, item);
+}
+
+/**
+ * Whether the item's newest gate job passed its checks and left its proof to shard jobs that are still offered or held
+ * by a runner. Why: the gate job itself is done once it offers them, so only the shards show the gate still running,
+ * and #8249's claim was released for no heartbeat while its 10 shards ran [C7,#8342].
+ */
+function gateShardsInFlight(board, item) {
+  try {
+    return board.db.prepare(`SELECT 1 FROM job shard WHERE shard.job_kind = 'gate-shard' AND shard.job_item = ? AND shard.job_step IN ('offered', 'claimed')
+      AND shard.job_id LIKE (SELECT gate.job_id FROM job gate WHERE gate.job_kind = 'gate' AND gate.job_item = ? ORDER BY gate.job_created DESC, gate.rowid DESC LIMIT 1) || ':shard:%' LIMIT 1`)
+      .get(item.item_id, item.item_id) !== undefined;
+  } catch { return false; } // an older board has no job tables, so it holds no shards
 }
 
 /** Whether the claim's pulled gate job is still offered or held by a runner, as the queued hand-off record was [P7,#2561]. */

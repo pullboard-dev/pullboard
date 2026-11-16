@@ -14,8 +14,8 @@ import { eligibilityProblem } from '../../../verify/index.js';
 
 export const REVIEW_COVER_WAIT_MS = 5 * 60_000;
 export const REVIEW_COVER_BACKLOG = 3;
-/** The pause reason ends with this text; the idle answer lists it before every other reason [#3741]. */
-export const REVIEW_COVER_PAUSE_TAIL = 'new builds wait for independent review cover';
+import { REVIEW_COVER_PAUSE_TAIL } from '../../light.js';
+export { REVIEW_COVER_PAUSE_TAIL };
 
 /** Read source-bound green submissions once, including younger work in the family's backlog count. */
 function greenReviews(board, items, at) {

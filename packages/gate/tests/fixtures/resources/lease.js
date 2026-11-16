@@ -17,7 +17,7 @@ import { openBoard } from '../../../../../apps/lib/index.js';
 import { registerProject } from '../../../../seats/index.js';
 import { serveView } from '../../../../../apps/cli/src/io/commands/view.js';
 import { runFixtureChild } from '../child.js';
-import { fixtureJoinRoute } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureJoinRoute } from '../testkit.js';
 import { settledGateJob } from '../../../../../apps/cli/tests/fixtures/submit/settle.js';
 
 export { resourceWorkerSources, resourceNames, oldSchema, staleIdentity, expireHeartbeat } from '../../../../../apps/cli/tests/fixtures/resources/lease.js';

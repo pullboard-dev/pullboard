@@ -22,9 +22,9 @@ export const LANDING_JOB_KIND = 'land';
 const PUSH_ATTEMPTS = 5;
 /**
  * The newest land payload shape this runner's code understands (packages/api's LAND_PAYLOAD_SHAPE is what the board writes).
- * A job of a newer shape is refused, never pushed without the options this code never learned (#7791).
+ * A job of a newer shape is refused, never pushed without the options this code never learned (#7791). Shape 3: `hops`, each item's gate hop epoch, pushed through its fence ref [C7,#8437].
  */
-export const LANDING_PAYLOAD_SHAPE = 2;
+export const LANDING_PAYLOAD_SHAPE = 3;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 /** The release tags a trunk fetch also takes, as a runner's gate checkout does: a proof that archives an old release (git archive v0.8.6) needs them (#7816). */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
@@ -45,8 +45,10 @@ const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could 
  * limited to plain git commands) gets one plain push instead, which lands when the trunk repo sets
  * receive.denyCurrentBranch=updateInstead itself (#7952).
  */
-export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [] }) {
-  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(into ? [INTO_CHECKOUT] : []), ...extra, `--force-with-lease=${trunk}:${base}`, remote, `${source}:${trunk}`]);
+export function pushTrunk(root, { payload, trunk, base, remote, source = 'HEAD', options = [], fence = null }) {
+  // fence: the hop fence leases and refspecs (publish.js hopFencePush), so trunk and each item's fence ref move in one atomic push [C7,#8437].
+  const send = (into, extra) => tryGit(root, ['push', '--porcelain', '--quiet', ...(fence ? ['--atomic'] : []), ...(into ? [INTO_CHECKOUT] : []), ...extra,
+    ...(fence?.leases ?? []), `--force-with-lease=${trunk}:${base}`, remote, ...(fence?.refspecs ?? []), `${source}:${trunk}`]);
   const push = into => {
     const pushed = send(into, options.flatMap(option => ['-o', option]));
     return options.length && pushed.status !== 0 && NO_PUSH_OPTIONS.test(pushed.stderr) ? send(into, []) : pushed;
@@ -414,7 +416,10 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before the push' });
     const tip = must(root, ['rev-parse', 'HEAD']);
     const pushStart = Date.now();
-    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions() });
+    // With hops on the job (gate.fencedHop), a fence at a later epoch refuses HOP_FENCED here, before trunk is pushed [C7,#8437].
+    const fence = Array.isArray(payload.hops) && payload.hops.length ? (await import('../step/publish.js')).hopFencePush(root, remote, payload.hops) : null;
+    const pushed = pushTrunk(root, { payload, trunk, base, remote, options: pushOptions(), fence });
+    fence?.requireHeld(pushed);
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.

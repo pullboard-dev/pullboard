@@ -10,7 +10,7 @@ import { testConcurrency } from '../../../src/io/test/concurrency.js';
 import { isolateTestMachine } from '../../../src/io/test/isolation.js';
 import { JOB_WORKERS_ENV } from '../../../../drive/light.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { fixtureProjectPolicy } from '../../../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 
 /** A project folder with an optional pullboard.json, removed after the test. */
 function project(t, config) {

@@ -35,6 +35,7 @@ export * from "./src/io/main/red/receipt.js";
 export * from "./src/io/main/red/passing.js";
 export * from "./src/io/queue.js";
 export * from "./src/io/land/envelope.js";
+export { carryLandingHops } from "./src/io/land/fence.js";
 export * from "./src/io/completion.js";
 export * from "./src/io/docs.js";
 export * from "./src/logic/envelope.js";
@@ -67,3 +68,4 @@ export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
+export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";

@@ -87,7 +87,7 @@ test('a dead holder whose controller still runs keeps the runner out until its c
 
 test('clause 2: the 13 Nov hold ends at once: a killed seat on a runner that other jobs keep busy leaves it in service, so no wait outlasts its budget [C7]', t => {
   const db = pool(t);
-  // As on 13 Nov 09:10 for coreyolson@192.168.1.52: item 7003's process (holder and controller in one) died while other seats' jobs held the host.
+  // As on 13 Nov 09:10 for a runner: item 7003's process (holder and controller in one) died while other seats' jobs held the host.
   const identity = { version: 1, holderStarted: 'other-start', controllerPid: 4202, started: 'other-controller',
     recovery: { version: 1, request: 'job-two', nonce: randomUUID(), tooling: 'c'.repeat(64), launchFence: 1 } };
   db.prepare('INSERT INTO holder VALUES(?,?,?,?,?,?,?,?,?)').run('lease-two', 4201, 'other-start', 'agent', '/nowhere', '7004', 'gate', HOST, JSON.stringify(identity));

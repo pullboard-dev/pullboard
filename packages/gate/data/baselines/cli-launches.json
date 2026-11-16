@@ -530,9 +530,6 @@
   "apps/cli/journeys/fact/verdict/quarantine.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/resume/tour-slow.test.js": {
-    "launch": 1
-  },
   "packages/link/tests/logic/relay/poll.test.js": {
     "launch": 1
   },
@@ -857,7 +854,7 @@
   "apps/cli/journeys/gate/main-red-lock.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/board/schema.test.js": {
+  "apps/cli/journeys/fact/board/schema-carry.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/milestone/text.test.js": {
@@ -1400,7 +1397,10 @@
   "apps/cli/journeys/relay/person/requests.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/release/model.test.js": {
+  "apps/cli/journeys/release/model-idle.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/release/model-tour.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/export/shouts.test.js": {

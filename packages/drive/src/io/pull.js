@@ -370,8 +370,9 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
 
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
- * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder. Why: a job that inherited the runner service's environment ran
- * with the host's real HOME, ~/.pullboard and shared temp folder, and its proof failed where the controller's passed.
+ * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder and a machine home inside the job's HOME.
+ * Why: a job that inherited the runner service's environment ran with the host's real HOME, ~/.pullboard and shared temp
+ * folder, and its proof failed where the controller's passed; one with no machine home read the account's real runner pools.
  *
  * @param {string} cache
  * @param {string} name - The job's checkout name.
@@ -387,7 +388,10 @@ export function jobEnvironment(cache, name, job, host = process.env) {
   for (const path of [home, temporary, shared]) mkdirSync(path, { recursive: true, mode: 0o700 });
   const safePath = [dirname(process.execPath), host.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
   const passed = Object.fromEntries(Object.entries(host).filter(([key, value]) => PASSED_ENV.test(key) && typeof value === 'string'));
-  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
+  // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
+  // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
+  const machine = join(home, '.pullboard');
+  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
 }
 
 /**

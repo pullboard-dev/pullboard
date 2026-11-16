@@ -1,4 +1,4 @@
-import { VERIFY_NEXT } from "../table/verify.table.js";
+import { VERIFY_NEXT } from "../table/next.js";
 import { REVIEW_REQUEST_ENGINE } from '../../../../state/light.js';
 import { frozenBar } from '../../../../verify/browser.js';
 import { namedClause } from '../../../../verify/browser.js';
