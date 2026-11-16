@@ -890,9 +890,6 @@
   "apps/cli/journeys/land/waiverlegacy.test.js": {
     "launch": 25
   },
-  "apps/cli/journeys/submit/gate/unchecked.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
   },
