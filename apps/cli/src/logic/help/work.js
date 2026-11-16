@@ -136,6 +136,7 @@ export const workHelp = `Work
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
                                         --precheck: run cheap submit checks only, without cells or gate
+                                        --dry-run-review: with line setting bar.dryRunReview on, print the verifier checklist first (advisory, no verdict)
     submit.handoff: true in pullboard.json is a deprecated no-op; submit always settles through the pull gate.
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
