@@ -1,15 +1,11 @@
 /** With gate.redFactLocation on, a pulled gate red from a static check names the file:line places it reported; off, the fact is unchanged [C7,#9083]. */
 import assert from 'node:assert/strict';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
 import { settingsInventory } from '../../../../config/index.js';
@@ -51,17 +47,14 @@ test('clause 2: with gate.redFactLocation off or unset, the red fact carries no 
   assert.doesNotMatch(redFact(t, false), /red at:/u);
 });
 
-test('clause 3: gate.redFactLocation is a described setting, off by default [C7,#9083]', () => {
-  const { root: dir } = privateFixtureFiles('pullboard-red-location-');
+test('clause 3: gate.redFactLocation is a described setting, off by default [C7,#9083]', t => {
+  const repo = cellRepo(t, { real: true });
   const saved = process.env.PULLBOARD_MACHINE_HOME;
-  process.env.PULLBOARD_MACHINE_HOME = join(dir, 'machine-home');
-  try {
-    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
-    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, {});
-    const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(one => one.key === 'gate.redFactLocation');
-    assert.ok(row, 'the setting is listed');
-    assert.equal(row.default, false);
-    assert.equal(row.value, false);
-    assert.ok(row.label && row.description, 'it carries a label and a description');
-  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+  process.env.PULLBOARD_MACHINE_HOME = `${repo.root}/no-machine-home`;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(one => one.key === 'gate.redFactLocation');
+  assert.ok(row, 'the setting is listed');
+  assert.equal(row.default, false);
+  assert.equal(row.value, false);
+  assert.ok(row.label && row.description, 'it carries a label and a description');
 });
