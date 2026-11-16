@@ -72,6 +72,7 @@ export { activityNewsFlag } from './src/logic/board/activity/news.js';
 export { LANDING_FAULT_CODES, LANDING_RED_LIMIT, REPEATED_LANDING_HOLD, RUNNER_SOURCE_RETRIES } from './src/logic/board/landing/limits.js';
 export { provideMoveTables, LANDING_LEASE_MS, renewLocalLanding, assertLandingLease, requireConfirmedLanding, guardLandingWrite } from './src/logic/board/landing/lease.js';
 export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLocalLanding } from './src/logic/board/landing/local.js';
+export { stepAsideKey, stepAsideCount, countLeaseLapse, clearStepAside } from './src/logic/board/landing/local.js';
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/logic/board/audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/logic/board/worker.js';
 export { holdUntilKind, rememberHoldCondition, rememberHoldOwner, itemHoldOwner, forgetHoldMaintenance, liftConditionalHold } from './src/logic/board/holds.js';
