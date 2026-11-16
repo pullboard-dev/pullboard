@@ -59,7 +59,7 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
   const waiting = { status: 'claimed', commit: candidate, digest: candidate };
   const write = (name, at = epoch) => gateHopMove(db, { item, actor: runner, enabled: true, decide: row => {
     // A hop that is over at another candidate is the resubmitted item's old hop: the new candidate's create replaces it, keeping its epoch so no old claim's epoch comes back [C7,#8353].
-    const replaced = name === 'create' && row && overAt(row, candidate);
+    const replaced = name === 'create' && row && reopens(row, candidate);
     const answer = decide({ item: waiting, hop: replaced ? null : row, now }, { name, actor: runner, epoch: at });
     if (answer.refused) return { refused: answer.refused };
     return { hop: replaced ? { ...answer.patch.hop, epoch: Math.max(answer.patch.hop.epoch, row.epoch) } : answer.patch.hop };
@@ -75,7 +75,7 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
     // A first claim finds no row: the table creates the queued hop, then the same claim acquires it.
     ensureGateHopTable(db);
     const row = readGateHop(db, item);
-    if (!row || overAt(row, candidate)) write('create');
+    if (!row || reopens(row, candidate)) write('create');
     // A runner that released this gate job still owns its live hop: its re-claim steps the hop at its own epoch instead of waiting out its own lease [C7,#8439].
     else if (ownLiveHop(db, row, { item, candidate, runner, job, now })) return write('step', row.epoch);
     return write('acquire');
@@ -97,6 +97,15 @@ const STALE_STEP = new Set(['HOP_OVER', 'HOP_ITEM_MOVED', 'HOP_MISSING']);
 function ownLiveHop(db, row, { item, candidate, runner, job, now }) {
   if (row.state !== 'driven' || row.owner !== runner || row.commit !== candidate || leaseLapsed(row.leaseUntil, now)) return false;
   return !db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_id <> ?").get(item, runner, now, job ?? '');
+}
+
+/**
+ * Whether a claim at this candidate starts a fresh hop over the row: one over at another candidate (a resubmit's old hop), or one done at
+ * this candidate (its earlier gate finished, and the gate was offered again). Why done reopens: a finished gate marks its hop done [#8464],
+ * so without this a retried gate at the same candidate was refused HOP_OVER and never ran. A hop ended at this candidate stays over: a resubmit ended it.
+ */
+function reopens(row, candidate) {
+  return overAt(row, candidate) || (row.state === 'done' && row.commit === candidate);
 }
 
 /** Whether the hop row is over (done or ended) and was for another candidate than this one. */
