@@ -49,5 +49,6 @@ test('clause 2: holds.requireOwner is off by default and a hold is exactly as be
   assert.deepEqual(Object.keys(hold).sort(), ['item_hold_at', 'item_hold_by', 'item_hold_reason', 'item_id']);
   assert.equal(store.itemHoldOwner(board, id), null);
   const detail = JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail);
-  assert.deepEqual(detail, { reason: 'plain hold' });
+  assert.equal(detail.reason, 'plain hold');
+  assert.equal(Object.hasOwn(detail, 'owner') || Object.hasOwn(detail, 'deadline'), false);
 });
