@@ -52,7 +52,8 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
-    submit: { requireInfraNote: false, autoFileMainReds: false },
+    // edgeFollowUps is off by default: on, submit lists the import edges the diff adds (files nothing yet) [C7].
+    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false },
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
@@ -389,9 +390,12 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (notPlain(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
+  }
+  if (typeof config.submit?.edgeFollowUps !== 'boolean') {
+    problems.push('"submit.edgeFollowUps" is true or false: on, submit lists the import edges the diff adds');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
     problems.push('"submit.handoff" is a boolean; deprecated, no effect');
