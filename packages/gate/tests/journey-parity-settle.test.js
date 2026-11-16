@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/journeys/spec/e2e/next.test.js apps/cli/tests/fixtures/submit/settle.js */
+/** @pullboard-test-input apps/cli/journeys/spec/e2e/next.test.js apps/cli/tests/fixtures/submit/settle.js apps/cli/tests/fixtures/e2e.js */
 /** @pullboard-world-pin: clause 2 reads the committed settle fixture source to prove its gate wait reads show in this process. */
 /**
  * The parity check for the settle fixture (U149): its gate wait now reads `show` in this process, so a journey that settles a pulled
