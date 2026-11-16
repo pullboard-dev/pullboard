@@ -19,6 +19,9 @@ async function coordinator(box, ...args) {
   return { code: result.status, out: result.stdout ?? '', err: result.stderr ?? '' };
 }
 
+/** The JSON the command printed, which may span lines. */
+function answer(run) { return JSON.parse(run.out.slice(run.out.indexOf('{'))); }
+
 /** A project with one open item, on a machine whose holds.requireOwner is as given. */
 async function project(t, requireOwner) {
   let box = privateRepo(t);
@@ -37,13 +40,13 @@ test('clause 1: pullboard hold --owner and --deadline record both on the hold, a
   assert.match(refused.err + refused.out, /HOLD_OWNER_REQUIRED/u);
   const held = await coordinator(box, 'hold', '1', 'waiting on the design', '--owner', 'lane:build', '--deadline', '2031-05-06T07:08:09Z', '--json');
   assert.equal(held.code, 0, held.err + held.out);
-  const result = JSON.parse(held.out.trim().split('\n').at(-1));
+  const result = answer(held);
   assert.equal(result.owner, 'lane:build');
   assert.equal(result.deadline, '2031-05-06T07:08:09.000Z');
   assert.equal((await coordinator(box, 'hold', '1', '--off')).code, 0);
   const defaulted = await coordinator(box, 'hold', '1', 'a default deadline', '--owner', 'a person', '--json');
   assert.equal(defaulted.code, 0, defaulted.err + defaulted.out);
-  const record = JSON.parse(defaulted.out.trim().split('\n').at(-1));
+  const record = answer(defaulted);
   assert.equal(Date.parse(record.deadline) - Date.parse(record.heldAt), DAY, 'the default deadline is one day after the hold');
 });
 
@@ -51,7 +54,7 @@ test('clause 1: with holds.requireOwner off a hold needs no owner and records no
   const box = await project(t, false);
   const held = await coordinator(box, 'hold', '1', 'plain hold', '--json');
   assert.equal(held.code, 0, held.err + held.out);
-  const result = JSON.parse(held.out.trim().split('\n').at(-1));
+  const result = answer(held);
   assert.equal(result.held, true);
   assert.equal(Object.hasOwn(result, 'owner'), false);
 });
