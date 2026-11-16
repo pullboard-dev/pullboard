@@ -65,6 +65,7 @@ export {
   jobReserve,
   localRunnerEnabled,
   localLoadShare,
+  staticCheckSlots,
   serveListen,
   mainComparisonMode,
   submitAuthorizationMode,

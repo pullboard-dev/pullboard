@@ -255,6 +255,15 @@ export function localLoadShare() {
 }
 
 /**
+ * How many local `pullboard gate --static` runs this machine admits at once: gate.staticSlots, default 2. Why: each run
+ * is about a minute of full-CPU tree work, and 14 at once drove a Mac to load 104; a waiting run queues instead [C7,#8501].
+ */
+export function staticCheckSlots() {
+  const slots = loadMachineSettings().gate?.staticSlots;
+  return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+}
+
+/**
  * Where `pullboard serve` listens, from the machine's `serve` setting: loopback and a free port unless set; a flag
  * given for either overrides the setting and is checked by the same rule [P7,O5,O6].
  * @param {{ address?: string, port?: number }} [flags]
