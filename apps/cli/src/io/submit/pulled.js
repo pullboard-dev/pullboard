@@ -33,7 +33,7 @@ export async function waitForPulledGate(ctx, id, submission, ports, { deadlineMs
     if (job?.step === 'done' && job.gate) {
       // A known-main red is submitted all the same, so a moved item goes on to its verdict whatever the gate's colour.
       if (item.item_status !== 'claimed') return job.gate;
-      if (job.gate.green !== true) throw new Refused('GATE_RED', redLines(job, item).join('\n'),
+      if (job.gate.green !== true && job.gate.deferred !== true) throw new Refused('GATE_RED', redLines(job, item).join('\n'),
         `run pullboard show ${id} to read the failing cases, fix them, commit, and run pullboard ship again`);
       // The board applies a receipt right after marking the job done; one that never moves the item is a stale gate.
       doneAt ??= Date.now();

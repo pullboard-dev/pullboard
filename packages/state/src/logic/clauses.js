@@ -51,14 +51,31 @@ const QUOTED_TEST = /[\w./-]+\.(?:test|spec)\.[cm]?js\b/u;
  * check's own files, which every gate runs; with `folderTicks` on, a folder the clause quotes covers the gate-run tests under it
  * first. [] when none applies. Why: most bars say "X passes on a runner [test]" and
  * keep the file in the check line, so submit refused CLAUSE_UNTICKED and builders ran the check before the gate ran it
- * again (#6675) [C7].
+ * again (#6675) [C7]. With `titleTicks` on, a clause nothing else covers is covered by the gate-run test files among
+ * `cases` (rows with `file` and `name`, such as gate outcomes) holding a case titled "clause N:" for its number (#8879).
  */
-export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks = false } = {}) {
+export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks = false, titleTicks = false, cases = [] } = {}) {
   const named = gateNamedFile(clause, gateFiles, item);
   if (named) return [named];
   if (clause.kind !== 'test' || QUOTED_TEST.test(clause.text)) return [];
   const inFolder = folderTicks ? folderFiles(clause.text, gateFiles) : [];
-  return inFolder.length ? inFolder : checkTestFiles(item?.item_check);
+  if (inFolder.length) return inFolder;
+  const checked = checkTestFiles(item?.item_check);
+  return checked.length || !titleTicks ? checked : titledFiles(clause.number, gateFiles, cases);
+}
+
+/** True when a test case's title cites a clause as "clause N:", the fleet's naming rule for clause cases. */
+function titledFor(number, name) {
+  return new RegExp(`(?:^|[\\s>:(])clause\\s+${number}\\s*:`, 'iu').test(String(name ?? ''));
+}
+
+/**
+ * The gate-run test files holding a case titled "clause N:" for a clause number, sorted. Why: most unticked clauses say
+ * "A test shows ..." or "The same test proves ..." and name no file, while builders already title each case for its clause (#8879) [C7].
+ */
+function titledFiles(number, gateFiles, cases) {
+  const files = new Set(gateFiles);
+  return [...new Set((cases ?? []).filter(row => row && files.has(row.file) && titledFor(number, row.name)).map(row => row.file))].sort();
 }
 
 /** A path with at least two segments whose last segment has no file extension, such as `apps/cli/journeys/bar`. */
@@ -233,19 +250,21 @@ const NAMED_CASES = 5;
  *
  * @param {object} item - The submitted item.
  * @param {object[]} thread - The item's thread, to leave builder ticks alone.
- * @param {{ gateFiles: Set<string>, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string }} run - Files the gate ran, the receipts' per-test outcomes and the head proved.
+ * @param {{ gateFiles: Set<string>, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[], head: string, folderTicks?: boolean, titleTicks?: boolean }} run - Files the gate ran, the receipts' per-test outcomes, the head proved and the tick options.
  * @returns {string[]} Note texts for the item's thread.
  */
-export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head, folderTicks = false }) {
+export function gateClauseTickNotes(item, thread, { gateFiles, outcomes, head, folderTicks = false, titleTicks = false }) {
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   const notes = [];
   for (const clause of criterionClauses(item.item_criterion)) {
     if (ticks.has(clause.number)) continue;
-    const files = gateCoveredFiles(clause, gateFiles, item, { folderTicks });
+    const files = gateCoveredFiles(clause, gateFiles, item, { folderTicks, titleTicks, cases: outcomes });
     if (!files.length) continue;
     const ran = row => files.includes(row.file) && !row.skipped;
     const passed = outcomes.filter(row => ran(row) && row.passed).map(row => row.name);
     if (files.some(file => !outcomes.some(row => ran(row) && row.file === file && row.passed)) || outcomes.some(row => ran(row) && !row.passed)) continue;
+    // A clause case the gate skipped proved nothing, so a title-covered clause waits for every "clause N:" case to pass (#8879) [C7].
+    if (titleTicks && outcomes.some(row => files.includes(row.file) && titledFor(clause.number, row.name) && (row.skipped || !row.passed))) continue;
     const file = files.join(' ');
     const listed = passed.slice(0, NAMED_CASES).join('; ');
     notes.push(`clause ${clause.number} [test]: gate run of ${file} green at ${head.slice(0, 12)}: ${passed.length} case${passed.length === 1 ? '' : 's'} passed (${listed}${passed.length > NAMED_CASES ? '; ...' : ''})`);
