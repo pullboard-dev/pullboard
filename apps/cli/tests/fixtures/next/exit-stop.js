@@ -9,7 +9,7 @@ import { itemThread } from '../../../../../packages/store/index.js';
 import { recordExitProgress } from '../../../../../packages/store/index.js';
 import { register } from '../../../../../packages/store/index.js';
 import { release } from '../../../../../packages/store/index.js';
-import { sealExitCheckpoints } from '../../src/io/exit/checkpoint.js';
+import { sealExitCheckpoints } from '../../../src/io/exit/checkpoint.js';
 import { fixtureBoard } from '../board.js';
 import { FIXTURE_MODEL } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
