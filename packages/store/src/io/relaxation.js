@@ -1,5 +1,6 @@
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { REVIEW_FAMILY_SEAT_ENGINE } from '../../../state/light.js';
+import { REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS } from './board/query.js';
 /** Retain an item's frozen family authority when selecting and reserving its reviewer [V1,H16]. */
 export function frozenFamilyPolicy(item, fallback) {
   try {
@@ -16,14 +17,17 @@ export function frozenRelaxAt(item) {
   } catch { return undefined; }
 }
 
-/** The active seats with no live review of their own: the reviewers a witness says could not take the queue [V1,H16]. */
-function freeActiveSeats(board, now) {
+/** The active seats with no live review of their own: the reviewers a witness says could not take the queue; a fresh review heartbeat counts as live even with no recent event [V1,H16]. */
+function freeActiveSeats(board, now, reviewHeartbeats = null) {
   const cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
   const active = board.db.prepare('SELECT DISTINCT event.event_by AS id, agent.agent_lane AS lane FROM event JOIN agent ON agent.agent_id=event.event_by WHERE event.event_at>=? AND event.event_at<=? ORDER BY event.event_by')
     .all(cutoff, now.toISOString()).filter(row => (board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_SEAT_ENGINE || !['coordinator', 'person'].includes(row.lane)).map(row => row.id);
+  const beating = reviewHeartbeats ? board.db.prepare('SELECT agent_id AS id, agent_lane AS lane FROM agent ORDER BY agent_id').all()
+    .filter(row => Date.parse(reviewHeartbeats.get(row.id) ?? '') > now.getTime() - REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS
+      && ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_SEAT_ENGINE || !['coordinator', 'person'].includes(row.lane))).map(row => row.id) : [];
   const busy = new Set(board.db.prepare("SELECT item_review_by AS id FROM item WHERE item_status='submitted' AND item_review_by IS NOT NULL AND item_review_until>?")
     .all(now.toISOString()).map(row => row.id));
-  return active.filter(id => !busy.has(id));
+  return [...new Set([...active, ...beating])].sort().filter(id => !busy.has(id));
 }
 
 /** Whether no free seat may review the item: each is cooling down on it or refused by a reviewer check [V1,H16]. */
@@ -51,7 +55,7 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, po
   let state = cache?.get(cacheKey);
   if (!state) {
     const now = board.clock.now();
-    const seats = freeActiveSeats(board, now);
+    const seats = freeActiveSeats(board, now, reviewHeartbeats);
     const waiting = listItems(board).filter(item => item.item_status === 'submitted' && !reviewHolder(board, item, reviewHeartbeats));
     const blocked = waiting.filter(item => blockedFor(board, item, seats, policy, ports));
     const ids = blocked.map(item => item.item_id).sort((a, b) => a - b);
@@ -71,13 +75,13 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, po
  * whole queue (#3156).
  */
 export function confirmRelaxation(board, subject, witness, agentId, threshold, policy, ports) {
-  const { reviewHolder, getItem } = ports;
+  const { reviewHolder, getItem, reviewHeartbeats = null } = ports;
   if (!witness || witness.version !== 1 || witness.threshold !== threshold || !Array.isArray(witness.waiting)
     || !Array.isArray(witness.activeSeats) || !witness.waiting.includes(subject.item_id)) return null;
   const held = reservedRelaxation(board, subject, agentId);
   if (held) return JSON.stringify(held) === JSON.stringify(witness) ? witness : null;
   if (!relaxable(board, subject, agentId, threshold, ports) || reviewHolder(board, subject)) return null;
-  const seats = freeActiveSeats(board, board.clock.now());
+  const seats = freeActiveSeats(board, board.clock.now(), reviewHeartbeats);
   if (JSON.stringify(seats) !== JSON.stringify(witness.activeSeats)) return null;
   if (!blockedFor(board, subject, seats, policy, ports)) return null;
   // At most threshold entries in all: the subject and the first threshold - 1 others. The first stale one gives up

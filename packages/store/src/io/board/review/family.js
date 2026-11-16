@@ -4,6 +4,7 @@ import { familiesDiffer } from '../../../../../verify/index.js';
 import { listItems } from '../query.js';
 import { getItem } from '../query.js';
 import { reviewHolder } from '../query.js';
+import { heartbeatSnapshot } from '../query.js';
 import { reviewerChecks } from '../../board.js';
 import { reviewReleaseCooldown } from '../../board.js';
 import { frozenFamilyPolicy } from '../../relaxation.js';
@@ -30,7 +31,7 @@ export function confirmFamilyRelaxation(board, item, witness, agentId, threshold
   const frozen = frozenRelaxAt(item);
   if (!frozen || threshold !== undefined && threshold !== frozen) return null;
   return confirmRelaxation(board, item, witness, agentId, frozen, policy,
-    { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy });
+    { reviewerChecks, reviewHolder, reviewReleaseCooldown, listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats: heartbeatSnapshot(board) });
 }
 
 export { frozenRelaxAt, reservedRelaxation } from '../../relaxation.js';
