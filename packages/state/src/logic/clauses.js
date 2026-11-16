@@ -178,11 +178,13 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
   const problems = [];
   const testClauses = [];
+  const needed = [];
   for (const clause of clauses) {
     const tick = ticks.get(clause.number);
     const label = `clause ${clause.number} (${clause.text.slice(0, 80)})`;
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks, titleTicks, cases }).length) continue;
+    const before = problems.length;
     if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
@@ -190,11 +192,29 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
       problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
       testClauses.push(clause);
     }
+    if (problems.length > before) needed.push(clause);
   }
   if (!problems.length) return null;
-  const tickWith = `tick each with: pullboard fact ${item.item_id} note "clause <n> [${EVIDENCE_KINDS.join('|')}]: <the evidence>", then submit again`;
+  const tickWith = `tick each with: ${needed.map(clause => tickCommand(item.item_id, clause)).join('; ')}; then submit again`;
   if (!testClauses.length) return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${tickWith}`);
   return new Refused('CLAUSE_UNTICKED', `${problems.join('; ')}; ${testStep(item, testClauses).message} or ${tickWith}`, testStep(item, testClauses).next);
+}
+
+/**
+ * The filled-in command that ticks one clause: its number, its declared kind (test when undeclared) and a line of evidence
+ * of that kind to replace. Why: builders found the "clause N:" rule by trial and error, five retries in an hour on 5 Nov;
+ * recording exactly these notes meets every clause they name [C7].
+ */
+function tickCommand(id, clause) {
+  const kind = clause.kind ?? 'test';
+  const evidence = {
+    test: `the case titled 'clause ${clause.number}: <what it proves>', green in run <run id>`,
+    measurement: '<the measured value and unit> from run <run id>',
+    command: '<the command and its output> run on <commit>',
+    screenshot: '<the screenshot path and what it shows>',
+    reasoning: '<why the clause holds, citing the code>',
+  }[kind];
+  return `pullboard fact ${id} note "clause ${clause.number} [${kind}]: ${evidence}"`;
 }
 
 /**

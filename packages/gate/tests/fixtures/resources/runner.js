@@ -26,7 +26,7 @@ import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js'
 import {
   HOST,
   installSshStandIn,
-} from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+} from '../runner/ssh.js';
 import { fixtureAdd } from '../testkit.js';
 import { fixturePolicy } from '../testkit.js';
 
