@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { keptReceipts } from '../../../src/io/relay/requests.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 
 const NOW = Date.parse('2026-11-16T12:00:00.000Z');
