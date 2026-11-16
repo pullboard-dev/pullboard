@@ -1189,6 +1189,10 @@
       "kind": "table",
       "owner": "packages/codemap/src/io/main-facts-cache.js"
     },
+    "table:field_decl": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
+    },
     "table:file_call": {
       "kind": "table",
       "owner": "packages/gate/src/io/test/file/pool.js"
@@ -1228,6 +1232,13 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
+    },    "table:item_field": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
+    },
+    "table:item_related": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/related.js"
     },
     "table:job": {
       "kind": "table",

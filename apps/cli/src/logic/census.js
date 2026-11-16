@@ -227,6 +227,23 @@ export function rerunRow(first, again) {
 /** True for a census row worth one rerun alone: anything but green or skipped [C7,#9138]. */
 export const rerunnable = row => row.status !== 'green' && row.status !== 'skipped';
 
+/**
+ * Wall time of each shard of one census, from its rows: a shard's rows share a label and the job's start and end instants,
+ * so the shard's time is the widest end minus start among them. Rows with no usable instants are skipped, so a census
+ * written before the instants were recorded gives an empty list [C7,U151].
+ *
+ * @param {Array<{ shard?: string, startedAt?: string, endedAt?: string }>} rows
+ * @returns {number[]} Milliseconds, one per shard that has a time.
+ */
+export function previousShardMs(rows) {
+  const byShard = new Map();
+  for (const { shard, startedAt, endedAt } of rows) {
+    const ms = Date.parse(endedAt) - Date.parse(startedAt);
+    if (typeof shard === 'string' && Number.isFinite(ms) && ms > 0) byShard.set(shard, Math.max(byShard.get(shard) ?? 0, ms));
+  }
+  return [...byShard.values()];
+}
+
 export function rowFileTimes(rows) {
   const measured = {};
   for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);

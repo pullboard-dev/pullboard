@@ -185,12 +185,21 @@ export function loadMachineSettings() {
   if (value.gate?.redFactLocation !== undefined && typeof value.gate.redFactLocation !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.redFactLocation in ${file} must be true or false`);
   }
+  if (value.spec?.cascadeReject !== undefined && typeof value.spec.cascadeReject !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.cascadeReject in ${file} must be true or false`);
+  }
+  if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
+  }
   const testGroup = value.test;
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.statusOutcomes in ${file} must be true or false`);
   }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
+  }
+  if (value.tests?.requireRegistered !== undefined && typeof value.tests.requireRegistered !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireRegistered in ${file} must be true or false`);
   }
   if (value.census?.recordFileTimes !== undefined && typeof value.census.recordFileTimes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.recordFileTimes in ${file} must be true or false`);
@@ -207,11 +216,17 @@ export function loadMachineSettings() {
   if (value.census?.balanceByTime !== undefined && typeof value.census.balanceByTime !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.balanceByTime in ${file} must be true or false`);
   }
+  if (value.census?.selfTune !== undefined && typeof value.census.selfTune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.selfTune in ${file} must be true or false`);
+  }
   if (value.census?.jobMinutes !== undefined && value.census.jobMinutes !== null && !(typeof value.census.jobMinutes === 'number' && Number.isFinite(value.census.jobMinutes) && value.census.jobMinutes > 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobMinutes in ${file} must be a number of minutes above 0, or null`);
   }
   if (value.jobs?.avoidRunners !== undefined && typeof value.jobs.avoidRunners !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `jobs.avoidRunners in ${file} must be true or false`);
+  }
+  if (value.push?.recordTiming !== undefined && typeof value.push.recordTiming !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `push.recordTiming in ${file} must be true or false`);
   }
   if (value.push?.rerunFailedShardOnce !== undefined && typeof value.push.rerunFailedShardOnce !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `push.rerunFailedShardOnce in ${file} must be true or false`);
@@ -266,6 +281,9 @@ export function loadMachineSettings() {
   }
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
+  }
+  if (value.freeze?.refuseEmptyBar !== undefined && typeof value.freeze.refuseEmptyBar !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `freeze.refuseEmptyBar in ${file} must be true or false`);
   }
   if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
@@ -360,6 +378,12 @@ export function loadMachineSettings() {
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
   }
+  if (value.relay?.excludeByBoard !== undefined && typeof value.relay.excludeByBoard !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.excludeByBoard in ${file} must be true or false`);
+  }
+  if (value.relay?.pruneReceipts !== undefined && typeof value.relay.pruneReceipts !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.pruneReceipts in ${file} must be true or false`);
+  }
   const canaryProblem = relayCanaryProblem(value.relay?.canary);
   if (canaryProblem) throw new Refused('BAD_MACHINE_SETTINGS', `relay.canary in ${file} is invalid: ${canaryProblem}`);
   const workerBudget = value.workers?.budget;
@@ -406,6 +430,11 @@ export function retireIdleSeatHours() {
 /** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
 export function healthDiskFloorGb() {
   return loadMachineSettings().health?.diskFloorGb ?? 0;
+}
+
+/** Whether old relay request receipts are dropped (#9337): off by default; only an exact `true` turns it on. */
+export function relayPruneReceipts() {
+  return loadMachineSettings().relay?.pruneReceipts === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
