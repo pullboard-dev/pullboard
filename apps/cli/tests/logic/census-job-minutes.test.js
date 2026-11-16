@@ -17,7 +17,9 @@ const total = list => list.reduce((sum, ms) => sum + ms, 0);
 test('clause 1: with census.jobMinutes set to 3 and known file times, no planned job weighs over the larger of 3 min and its slowest file, and the job count is at least ceil(total / 3 min) [C7]', () => {
   const jobs = censusPlan(ALL, 4, WITH_SLOW, false, () => assert.fail('the landing planner is not used'), 3);
   for (const job of jobs) assert.ok(job.weight <= Math.max(3 * MIN, ...job.files.map(file => WITH_SLOW[file])), `job of ${job.files.length} files weighs ${job.weight}`);
-  assert.ok(jobs.length >= Math.ceil(total(Object.values(WITH_SLOW)) / (3 * MIN)), `${jobs.length} jobs`);
+  const timed = timeBoundJobs(FILES, TIMES, 3 * MIN);
+  assert.ok(timed.length >= Math.ceil(total(Object.values(TIMES)) / (3 * MIN)), `${timed.length} jobs for files none over 3 min`);
+  assert.ok(jobs.length >= timed.length + 1, 'the slow file adds its own job');
   assert.deepEqual([...jobs.flatMap(job => job.files)].sort(), [...ALL].sort(), 'every file runs once');
   assert.deepEqual(jobs[0].files, [SLOW], 'the slow file holds a job alone, offered first');
   assert.deepEqual(jobs.map(job => job.weight), jobs.map(job => job.weight).sort((a, b) => b - a), 'heaviest first');
