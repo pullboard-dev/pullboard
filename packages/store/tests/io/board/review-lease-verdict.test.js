@@ -26,7 +26,7 @@ function fixture(t, runsStore) {
     submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'synthetic native board-state fixture; no execution proof' } });
   store.reserveReview(board, id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
   return { board, id, run: () => board.db.prepare('SELECT * FROM run WHERE run_job = ?').get(`review:${id}`),
-    job: () => board.db.prepare('SELECT job_lease_owner AS owner, job_state AS state FROM job WHERE job_id = ?').get(`review:${id}`),
+    job: () => board.db.prepare('SELECT job_lease_owner AS owner FROM job WHERE job_id = ?').get(`review:${id}`),
     jobRows: () => board.db.prepare('SELECT (SELECT COUNT(*) FROM job) AS jobs, (SELECT COUNT(*) FROM job_step) AS steps').get() };
 }
 
