@@ -18,11 +18,9 @@ import {
 } from '../../../../packages/outbox/index.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
-import { relayFixtureChild } from '../../tests/fixtures/relay/client.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { outboxQueueable } from '../../../../packages/outbox/index.js';
 
-const CLI = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
 
 /** Turn the board's committed relay.outbox setting on, as its coordinator would. */
 function enableOutbox(box) {
@@ -48,7 +46,7 @@ function shoutTexts(exported) {
 async function otherAgent(box, other) {
   const path = join(dirname(other.root), 'other-agent');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'agent/other', path], { cwd: other.root, env: other.env });
-  /** Run the real CLI in the other machine's agent worktree. */
+  /** Run the CLI in-process in the other machine's agent worktree. */
   const run = (...args) => other.cliAtLocal(path, ...args);
   const joined = await run('join', box.lane, '--model', 'fixture-model');
   assert.equal(joined.code, 0, joined.failure);
