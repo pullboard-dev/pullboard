@@ -49,6 +49,7 @@ export {
   censusRecordFileTimesEnabled,
   censusBalanceByTimeEnabled,
   censusJobMinutes,
+  censusJobsPerRunner,
   tableReplayEnabled,
   testNiceEnabled,
   fencedHopEnabled,
