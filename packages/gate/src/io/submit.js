@@ -73,6 +73,7 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './execution.js';
+import { overlapStaticProofEnabled } from '../../../config/index.js';
 import { tableReplayEnabled } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
@@ -313,7 +314,16 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
-  if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // gate.overlapStaticProof: the cells step runs beside the proof; its red result stops the proof and fails the gate [C7,#9576].
+  const overlap = !staticChecked && overlapStaticProofEnabled();
+  let staticRun = null;
+  let stopProof = null;
+  if (overlap) {
+    stopProof = new AbortController();
+    signal = signal ? AbortSignal.any([signal, stopProof.signal]) : stopProof.signal;
+    staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal });
+    staticRun.catch(() => stopProof.abort());
+  } else if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
   // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
   if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
@@ -343,7 +353,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const slotOptions = { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait: progressingWait(onWait), signal, ...runnerAdmission };
   /** Red phases whose flake diagnostics wait until the gate's result is made and its slot is free. */
   const diagnostics = [];
-  const gateResult = await withGateSlot(root, async (lease) => {
+  const gateRun = withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
     await onStart?.();
@@ -502,6 +512,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
         executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, slotOptions);
+  // The cells step is awaited after the proof's slot is free, so a one-slot gate cannot wait on itself; its red result refuses before any verdict returns [C7,#9576].
+  let gateResult;
+  try { gateResult = await gateRun; } catch (error) { stopProof?.abort(); throw error; }
+  if (staticRun) await staticRun;
   // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
   if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;
