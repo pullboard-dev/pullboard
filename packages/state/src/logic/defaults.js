@@ -615,6 +615,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   COMMITS_NOT_SERVED: 'run pullboard settings board.commits off in the clone, or serve the board with pullboard serve',
   INBOX_KEEP_OFF: 'set inbox.keepUntilActed to true to keep and archive inbox entries',
   BAD_REVIEW_LIMIT: 'pullboard join <lane> --review-limit not-same-family',
+  RANGE_UNREADABLE: 'pass commits this checkout holds, or fetch the missing ones first',
   RUNNER_RUN_SYNC: 'await a run on a runner: call runProfiledShellAsync instead of the synchronous runner',
   RUNNER_BRIDGE_DEADLINE: 'rerun the verdict; if it repeats, shout the coordinator with this line',
   BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or wait for the next UTC day',
