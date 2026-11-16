@@ -73,6 +73,7 @@ import {
   runProfiledShellAsync,
   safeLog,
 } from './execution.js';
+import { overlapStaticProofEnabled } from '../../../config/index.js';
 import { tableReplayEnabled } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
@@ -313,7 +314,15 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
-  if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  // gate.overlapStaticProof: the cells step runs beside the proof; its red result stops the proof and fails the gate [C7,#9576].
+  const overlap = !staticChecked && overlapStaticProofEnabled();
+  let staticRun = null;
+  if (overlap) {
+    const stopProof = new AbortController();
+    signal = signal ? AbortSignal.any([signal, stopProof.signal]) : stopProof.signal;
+    staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal });
+    staticRun.catch(() => stopProof.abort());
+  } else if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
   // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
   if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
@@ -439,6 +448,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     // on rejection so their receipts and the admission lease stay accurate.
     const outcomes = await whileGateRuns(async () => Promise.allSettled([
       criterionRun().finally(() => releaseGateLane()), prove()]));
+    // A red cells step refuses before any proof result is read, whatever the stopped proof reported [C7,#9576].
+    if (staticRun) await staticRun;
     lease.tracker?.mark('ranAt');
     const ranAt = Date.now();
     lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
