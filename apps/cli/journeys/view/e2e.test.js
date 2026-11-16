@@ -266,13 +266,17 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(shouted.status, 200);
     assert.equal(shouted.document.event.event_kind, 'shout');
     assert.equal(shouted.document.event.event_by, 'person');
-    assert.match((await box.runLocal(box.web, 'inbox')).out, / person -> web: from the person/);
+    const inbox = JSON.parse((await box.runLocal(box.web, 'inbox', '--json')).out);
+    assert.ok(inbox.shouts.some((row) => row.shout_from === 'person' && row.shout_to === 'web' && row.shout_text === 'from the person'),
+      'the web seat receives the person\'s shout, read from inbox --json');
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
     assert.equal(held.document.event.event_by, 'person');
     assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
-    assert.match((await box.runLocal(box.web, 'next', '--take')).err, /person holds the web lane: G1 is changing/);
+    const takeHeld = await box.runLocal(box.web, 'next', '--take', '--json');
+    assert.notEqual(takeHeld.code, 0, 'next --take is refused while the lane is held');
+    assert.equal(JSON.parse(takeHeld.out).error.code, 'LANE_HELD');
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
