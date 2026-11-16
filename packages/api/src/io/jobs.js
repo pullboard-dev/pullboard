@@ -504,6 +504,12 @@ function stepClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
   moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'step', epoch, now, leaseMs });
 }
 
+/** Finish the item's hop as a gate job's claim at the epoch it took: the receipt is the gate's end, so its hop row reads done, not driven [C7,#8464]. */
+function finishClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
+  const row = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
+  moveGateClaimHop(db, hop, { item: row.job_item, candidate: row.job_candidate, runner, move: 'finish', epoch, now, leaseMs });
+}
+
 /** The writer's renew: the claim's runner extends its lease, and with gate.fencedHop on steps its gate hop at the claim's epoch, so a replaced owner is refused HOP_FENCED [C7,#8352]. */
 function renewHeld(db, { job, runner, token, now, leaseMs, hop }) {
   const held = heldBy(db, job, runner, token);
@@ -649,7 +655,7 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
     const held = heldBy(db, job, runner, token);
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
-    if (hop && held.hopEpoch !== undefined) stepClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
+    if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
     const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };
