@@ -1,8 +1,9 @@
 /** The thin list door returns the full path's rows and loads none of the board barrel [C7,#9091]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
+import { Worker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
@@ -36,12 +37,21 @@ test('clause 1: the thin door returns the same rows as the full list path for 20
   }
 });
 
-test('clause 2: loading the thin door pulls in none of the board barrel modules [C7]', () => {
+/** Load the door in a fresh worker thread with count.js recording every file the thread loads: a thread, not a process, so no launch is paid. */
+function loadedByDoor(countFile) {
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    import(workerData.preload).then(() => import(workerData.door)).then(() => parentPort.postMessage('loaded'), (error) => parentPort.postMessage(String(error?.stack ?? error)));`;
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(code, { eval: true, env: { ...process.env, PULLBOARD_COUNT_FILE: countFile }, workerData: { preload: pathToFileURL(PRELOAD).href, door: pathToFileURL(DOOR).href } });
+    worker.once('message', (message) => { void worker.terminate(); resolve(message); });
+    worker.once('error', reject);
+  });
+}
+
+test('clause 2: loading the thin door pulls in none of the board barrel modules [C7]', async () => {
   const files = privateFixtureFiles('thin-list-');
   files.write('seen.txt', '');
-  const run = spawnSync(process.execPath, ['--import', PRELOAD, '--input-type=module', '-e', `await import(${JSON.stringify(DOOR)});`],
-    { cwd: ROOT, encoding: 'utf8', env: { ...process.env, PULLBOARD_COUNT_FILE: `${files.root}/seen.txt` } });
-  assert.equal(run.status, 0, run.stderr);
+  assert.equal(await loadedByDoor(`${files.root}/seen.txt`), 'loaded');
   const seen = files.read('seen.txt').toString('utf8').split('\n').filter(Boolean).map(url => fileURLToPath(url).slice(ROOT.length));
   assert.ok(seen.some(path => path.endsWith('apps/cli/src/io/list/thin.js')), 'the door itself loaded');
   assert.deepEqual(seen.filter(path => BARREL.includes(path) || path.startsWith('packages/board/')), []);
