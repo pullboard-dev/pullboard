@@ -98,6 +98,7 @@ export {
   nextItemNotices,
   nextCapBuilders,
   nextReadinessCheck,
+  nextReadinessCache,
   refuseTempWorktree,
   claimKeepWhileRunning,
   refuseOffMainHead,
