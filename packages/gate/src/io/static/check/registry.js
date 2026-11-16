@@ -21,6 +21,8 @@ import { exportOnlyProblems } from '../../../logic/export/only.js';
 import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
+import { MARKDOWN_ALLOWLIST } from '../../../logic/markdown/allowlist.js';
+import { markdownProblems } from '../../../logic/markdown/allowlist.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
@@ -112,6 +114,15 @@ export const STATIC_CHECKS = Object.freeze([
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
     return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
+  // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
+  { name: 'markdown-allowlist', run: ({ root, text }) => {
+    let source;
+    try { source = text(MARKDOWN_ALLOWLIST); } catch { return []; } // a project without the allowlist file has nothing to judge
+    try { if (JSON.parse(source)?.enforce !== true) return []; } catch { /* unreadable JSON is reported by markdownProblems */ } // the refusal is opt-in: the allowlist's "enforce" switch defaults off, and an empty stand-in never has it
+    const listed = gitSpawnSync(['ls-files', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (listed.status !== 0) throw new Error('cannot list tracked markdown files');
+    return markdownProblems(source, listed.stdout.split('\0').filter(Boolean)).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // A default export joins only as a declared reporter or a move module (packages/gate/src/logic/export/only.js) [CD22].
   { name: 'default-export', run: ({ sources }) => defaultExportProblems(sources).map(row => `${row.path}:${row.line}: ${row.text}`) },

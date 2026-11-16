@@ -81,8 +81,8 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
     return write('acquire');
   } catch (error) {
     if (error.code === 'HOP_HELD') throw new Refused('HOP_FENCED', error.message, 'leave the gate job to the runner that owns its hop; claim again once its lease lapses');
-    // A step from a claim whose hop was ended or moved to a resubmitted candidate is a stale owner, fenced like a replaced epoch [C7,#8353].
-    if (move === 'step' && STALE_STEP.has(error.code)) throw new Refused('HOP_FENCED', `${runner} at epoch ${epoch} no longer owns the hop on #${item}: ${error.message}`, 'stop work on this gate job: the item was resubmitted');
+    // A step or finish from a claim whose hop was ended or moved to a resubmitted candidate is a stale owner, fenced like a replaced epoch [C7,#8353].
+    if ((move === 'step' || move === 'finish') && STALE_STEP.has(error.code)) throw new Refused('HOP_FENCED', `${runner} at epoch ${epoch} no longer owns the hop on #${item}: ${error.message}`, 'stop work on this gate job: the item was resubmitted');
     throw error;
   }
 }
