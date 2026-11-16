@@ -160,3 +160,71 @@ export function settleRunWithoutReceipt(board, { by, job, state, outcome }) {
     return { applied: true };
   });
 }
+
+/**
+ * Hold an item's review on its run row's lease columns: the row `review:<item>` is created queued on first sight and
+ * taken for the reviewer unless another reviewer's lease is still live. Written in the caller's move, never as a job row.
+ * Why: with runs_store on a review lease is board data a move decides on, so it lives on the board's run row [B2].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} item
+ * @param {string} reviewer
+ * @param {{ now?: number, leaseMs?: number }} [options]
+ * @returns {{ reserved: boolean, holder: string | null }}
+ */
+export function reserveReviewRun(db, item, reviewer, { now = Date.now(), leaseMs = LEASE_MS } = {}) {
+  if (!reviewer) throw new Refused('REVIEW_RESERVER', 'A review reservation needs a reviewer: pass the agent id.');
+  const job = reviewJobId(item);
+  const taken = db.prepare(`INSERT INTO run (run_job, run_kind, run_item, run_state, run_lease_owner, run_lease_until, run_created, run_updated)
+    VALUES (?, 'review', ?, 'queued', ?, ?, ?, ?)
+    ON CONFLICT (run_job) DO UPDATE SET run_state = 'queued', run_lease_owner = excluded.run_lease_owner, run_lease_until = excluded.run_lease_until, run_updated = excluded.run_updated
+    WHERE run.run_lease_until < ?`).run(job, item, reviewer, now + leaseMs, now, now, now).changes === 1;
+  return { reserved: taken, holder: taken ? reviewer : boardRun(db, job)?.run_lease_owner ?? null };
+}
+
+/** Renew a reviewer's reservation on the run row; false when the lease lapsed or moved to another reviewer. */
+export function renewReviewRun(db, item, reviewer, { now = Date.now(), leaseMs = LEASE_MS } = {}) {
+  return db.prepare('UPDATE run SET run_lease_until = ?, run_updated = ? WHERE run_job = ? AND run_kind = ? AND run_lease_owner = ? AND run_lease_until >= ?')
+    .run(now + leaseMs, now, reviewJobId(item), 'review', reviewer, now).changes === 1;
+}
+
+/**
+ * Clear every review lease on a run row that lapsed, as the jobs cell does for job leases: a reviewer seen within the
+ * lease window while its item is still submitted has its lease extended to that sighting instead.
+ *
+ * @returns {{ item: number, reviewer: string, lapsedMs: number }[]} The reservations reclaimed by this pass.
+ */
+export function reclaimLapsedReviewRuns(db, { now = Date.now(), leaseMs = LEASE_MS, seen = () => null, submitted = () => true } = {}) {
+  const rows = db.prepare("SELECT run_job, run_item, run_lease_owner, run_lease_until FROM run WHERE run_kind = 'review' AND run_lease_owner IS NOT NULL AND run_lease_until < ? ORDER BY run_lease_until").all(now);
+  const reclaimed = [];
+  for (const row of rows) {
+    const sighting = seen(row.run_lease_owner);
+    if (Number.isFinite(sighting) && sighting <= now && sighting + leaseMs >= now && submitted(row.run_item) === true) {
+      db.prepare('UPDATE run SET run_lease_until = ? WHERE run_job = ? AND run_lease_owner = ?').run(sighting + leaseMs, row.run_job, row.run_lease_owner);
+      continue;
+    }
+    const cleared = db.prepare('UPDATE run SET run_lease_owner = NULL, run_updated = ? WHERE run_job = ? AND run_lease_owner = ? AND run_lease_until < ?')
+      .run(now, row.run_job, row.run_lease_owner, now);
+    if (cleared.changes === 1) reclaimed.push({ item: row.run_item, reviewer: row.run_lease_owner, lapsedMs: now - row.run_lease_until });
+  }
+  return reclaimed;
+}
+
+/** End an item's review on its run row whoever holds it; returns the reviewer whose lease ended, or null. */
+export function releaseReviewRun(db, item, { now = Date.now() } = {}) {
+  const run = boardRun(db, reviewJobId(item));
+  if (!run || run.run_state === 'done') return null;
+  db.prepare("UPDATE run SET run_lease_owner = NULL, run_lease_until = 0, run_state = 'done', run_updated = ? WHERE run_job = ?").run(now, run.run_job);
+  return run.run_lease_owner;
+}
+
+/**
+ * The board's review-lease engine port: each call goes to the run row while runs_store is on and to the jobs cell's
+ * job lease while it is off, so a move holds one kind of lease and writes no job row with the flag on [B2].
+ */
+export const reviewLeases = Object.freeze({
+  reserveReview: (db, ...args) => (runsStoreOn(db) ? reserveReviewRun : reserveReviewJob)(db, ...args),
+  renewReview: (db, ...args) => (runsStoreOn(db) ? renewReviewRun : renewReviewJob)(db, ...args),
+  reclaimLapsedReviews: (db, ...args) => (runsStoreOn(db) ? reclaimLapsedReviewRuns : reclaimLapsedReviewJobs)(db, ...args),
+  releaseReview: (db, ...args) => (runsStoreOn(db) ? releaseReviewRun : releaseReviewJob)(db, ...args),
+});

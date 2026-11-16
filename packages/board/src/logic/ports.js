@@ -29,10 +29,6 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
 import { shadowSubmitHandoff } from '../../../jobs/index.js';
-import { reserveReview as reserveReviewLease } from '../../../jobs/index.js';
-import { renewReview } from '../../../jobs/index.js';
-import { reclaimLapsedReviews } from '../../../jobs/index.js';
-import { releaseReview } from '../../../jobs/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,
@@ -230,7 +226,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
   });
   const enginePorts = boardEnginePorts({
     shadowJob: shadowSubmitHandoff,
-    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
+    reviewLease: store.reviewLeases,
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge, submitImportEdges }),
