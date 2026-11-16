@@ -5116,14 +5116,6 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/gate/tests/fixtures/pipeline/spec.js": {
-      "cells": 2,
-      "deep": 1
-    },
-    "packages/gate/tests/fixtures/pipeline/worker.js": {
-      "cells": 1,
-      "deep": 1
-    },
     "apps/lib/index.js": {
       "cells": 6,
       "deep": 0
@@ -5991,26 +5983,11 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/pipeline/spec.js": [
-      "apps/runner"
-    ],
-    "packages/gate/tests/fixtures/pipeline/worker.js": [
-      "apps/runner"
-    ],
-    "packages/gate/tests/fixtures/resources/capacity.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/resources/lease.js": [
       "apps/cli",
       "apps/lib"
     ],
-    "packages/gate/tests/fixtures/resources/release.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
-      "apps/cli"
-    ],
-    "packages/gate/tests/fixtures/resources/verify.js": [
       "apps/cli"
     ],
     "packages/git/tests/fixtures/flakes.js": [

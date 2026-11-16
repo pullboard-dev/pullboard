@@ -25,6 +25,7 @@ export const workHelp = `Work
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family

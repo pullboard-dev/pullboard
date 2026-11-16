@@ -61,6 +61,15 @@ function heldCensus(db, runner, now) {
     WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NOT NULL`).get(runner, now).held;
 }
 
+/**
+ * How many jobs this runner holds a live lease on now that are not census jobs (no censusPerRunner on the offer).
+ * Why: a runner holding only census jobs is quiet by its own doing, so census.jobsPerRunnerQuiet may offer it more of them [C7,#9500].
+ */
+function heldOther(db, runner, now) {
+  return db.prepare(`SELECT COUNT(*) AS held FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`).get(runner, now).held;
+}
+
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/u;
 // Budget: a receipt is a small record (status, digests, receipt ids); output belongs in a report file, not the row.
@@ -141,11 +150,12 @@ function runnerId(runner) {
  * run and the data it reads on stdin [P7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, avoid?: string[], now?: number }} fields
+ * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, censusPerRunner?: number | null, censusPerRunnerQuiet?: number | null, avoid?: string[], now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, avoid = [], now = Date.now() }, queue = null) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, censusPerRunnerQuiet = null, avoid = [], now = Date.now() }, queue = null) {
   if (censusPerRunner !== null && !(Number.isSafeInteger(censusPerRunner) && censusPerRunner >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunner is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunner as set, or none');
+  if (censusPerRunnerQuiet !== null && !(Number.isSafeInteger(censusPerRunnerQuiet) && censusPerRunnerQuiet >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunnerQuiet is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunnerQuiet as set, or none');
   const wanted = names(needs, 'needs');
   const avoided = names(avoid, 'avoid');
   const rank = jobClass(priority);
@@ -159,7 +169,7 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
     throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
-  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}), ...(avoided.length ? { avoid: avoided } : {}) };
+  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}), ...(avoided.length ? { avoid: avoided } : {}) };
   // With runs_store on the offer goes through queueRun: the runs file holds the job, the board one queued run row [B2,P7].
   if (queue) return queueOffer(queue, { id, kind, item, candidate, base, request, offered: row });
   return atomically(db, () => {
@@ -311,7 +321,10 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores);
     // A census job offered with census.jobsPerRunner set waits while this runner holds that many census jobs; other jobs are offered as before [C7,#9136].
     let census = null;
-    const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= offer.censusPerRunner;
+    // With census.jobsPerRunnerQuiet also set, a runner holding no job but census ones is offered up to that many instead [C7,#9500].
+    let other = null;
+    const censusCap = offer => (offer.censusPerRunnerQuiet && (other ??= heldOther(db, runner, now)) === 0 ? Math.max(offer.censusPerRunnerQuiet, offer.censusPerRunner) : offer.censusPerRunner);
+    const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= censusCap(offer);
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
@@ -824,8 +837,10 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
-    const posted = postReceipt(db, { job, runner, token, receipt, now, hop });
-    if (posted.recorded) withdrawLandShards(db, job, { now });
+    // With runs_store on (queue set) the job lives in the runs file, so the receipt posts there [B2,P7].
+    const home = queue ? queue.runs.db : db;
+    const posted = postReceipt(home, { job, runner, token, receipt, now, hop });
+    if (posted.recorded) withdrawLandShards(home, job, { now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }

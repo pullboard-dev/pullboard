@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 import { fixtureAdd } from '../testkit.js';
 import { settledGateJob } from './settle.js';
 
@@ -38,7 +39,7 @@ process.exit(fs.existsSync('web/big.txt') ? 0 : 1);
   const output = submitted.out + submitted.err;
   assert.equal(submitted.code, 0, output);
   // The pulled gate settles on the machine's loopback runner; the item moves to submitted once its receipt applies.
-  reviveFixtureLocalRunner(box.repo, box.env);
+  reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
   await settledGateJob(box, 1);
   const shown = await box.runLocal(box.repo, 'show', '1', '--json');
   assert.equal(shown.code, 0, shown.out + shown.err);
