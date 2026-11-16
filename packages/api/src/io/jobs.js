@@ -27,6 +27,7 @@ import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
+import { queueOffer } from './queue.js';
 import { freeGateHop } from './hop.js';
 
 /** The job kind of one part of a pulled gate's proof, which the board offers from the gate's plan and any runner pulls [P7]. */
@@ -133,7 +134,7 @@ function runnerId(runner) {
  * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, now = Date.now() }) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, now = Date.now() }, queue = null) {
   const wanted = names(needs, 'needs');
   const rank = jobClass(priority);
   const argv = runArgv(run);
@@ -146,12 +147,15 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
     throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
+  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) };
+  // With runs_store on the offer goes through queueRun: the runs file holds the job, the board one queued run row [B2,P7].
+  if (queue) return queueOffer(queue, { id, kind, item, candidate, base, request, offered: row });
   return atomically(db, () => {
     const job = createJob(db, { id, kind, item, candidate, base, now });
     if (job.step === 'queued' && job.steps.length === 0) {
       // The whole request goes in first, so the job's step ends on offered and the claim scan finds it.
       if (offered !== request) writeStep(db, id, REQUEST_STEP, { request }, { now });
-      writeStep(db, id, 'offered', { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}) }, { now });
+      writeStep(db, id, 'offered', row, { now });
     }
     return jobView(db, id);
   });
@@ -207,7 +211,8 @@ export function offeredRequest(db, job) {
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   const request = row ? JSON.parse(row.job_step_payload).request ?? null : null;
   if (!namesParts(request)) return request;
-  const kept = db.prepare('SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = ? AND job_step_seq = 0').get(job, REQUEST_STEP);
+  // A queued job (runs_store on) keeps its whole request in the pending step intend wrote, not in a request step.
+  const kept = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, 'pending') AND job_step_seq = 0 ORDER BY job_step_name = 'pending'").get(job, REQUEST_STEP);
   const whole = kept ? readPayload(db, kept.job_step_payload) : null;
   if (!whole?.request) throw new Refused('JOB_REQUEST', `job ${job}'s offer names its request step, but the board no longer holds it; resubmit the item for a new gate job`);
   return whole.request;
