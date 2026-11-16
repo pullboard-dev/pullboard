@@ -21,7 +21,13 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { syntheticFlakeObservation } from '../../tests/fixtures/observation.js';
 
-test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
+/** How many linked boards share the operations: each runs its own relay and child process, so their moves overlap. */
+const BOARDS = 3;
+/** Operations bound to the claimed row; they keep one board and their order so the earlier claim still owns it. */
+const ITEM_BOUND = ['claim', 'refreeze', 'attachItemPatch', 'removeItemPatch', 'followItemPatches'];
+
+/** A linked board whose CLI is on PATH and whose relay policy fixture is committed. */
+async function linkedBox(t) {
   const box = await relayClientFixture(t);
   await box.link();
   symlinkSync(new URL('../../pullboard.js', import.meta.url), join(box.env.PATH.split(delimiter)[0], 'pullboard'));
@@ -29,6 +35,11 @@ test('every current operation selects its native actor credential without a seco
   runFixtureGit(['commit', '-q', '-m', 'chore(test): commit relay policy fixture', '--', 'pullboard.json'], {
     cwd: box.root, env: box.env, stdio: 'pipe',
   });
+  return box;
+}
+
+/** Every public operation's case against one board, in engine order: the arguments, the credential kind and the expected refusal if any. */
+function credentialCases(box) {
   const actor = 'coordinator';
   assert.equal(box.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
   assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
@@ -165,70 +176,92 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'shout', args: [{ from: actor, to: 'all', text: 'person request fixture', lanes: [box.lane], request: true }], kind: 'person', sent: false },
     { operation: 'applyRowDecisions', args: [{ agentId: actor, events: [] }], kind: 'machine', sent: false, expected: 'PERSON_REQUEST_CLOSED', personRequest: { id: 'credential-request', executor: actor, phase: 'execute', digest: '0'.repeat(64) } },
   );
-  const start = box.moveAcks.length;
-  const results = [];
-  // Each child keeps the fixture's existing deadline while all moves share one durable board.
-  for (let offset = 0; offset < cases.length; offset += 8) {
-    const batch = cases.slice(offset, offset + 8);
-    const result = await box.scriptLocal(`
+  return cases;
+}
+
+
+test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
+  const actor = 'coordinator';
+  const boxes = await Promise.all(Array.from({ length: BOARDS }, () => linkedBox(t)));
+  const [first] = boxes;
+  assert.equal(first.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
+  assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
+  // Every board builds the same list; each case runs on exactly one board, so all moves still go through the real transport.
+  const cases = credentialCases(first);
+  const owner = cases.map(entry => ITEM_BOUND.includes(entry.operation) ? 0 : null);
+  // The claimed-row board takes fewer of the rest, so every board holds about the same number of moves.
+  const share = Math.ceil(cases.length / BOARDS);
+  let board = 0, filled = owner.filter(value => value === 0).length;
+  for (const [index, value] of owner.entries()) {
+    if (value !== null) continue;
+    if (filled >= share && board < BOARDS - 1) { board += 1; filled = 0; }
+    owner[index] = board;
+    filled += 1;
+  }
+  const results = new Array(cases.length);
+  const acknowledgedBy = boxes.map(() => []);
+  await Promise.all(boxes.map(async (box, boxIndex) => {
+    const mine = credentialCases(box).map((entry, index) => ({ entry, index })).filter(({ index }) => owner[index] === boxIndex);
+    const start = box.moveAcks.length;
+    // Each child keeps the fixture's existing deadline while all of a board's moves share one durable board.
+    for (let offset = 0; offset < mine.length; offset += 8) {
+      const batch = mine.slice(offset, offset + 8);
+      const result = await box.script(`
     import { relayOperation } from ${JSON.stringify(new URL('../../../../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('../../tests/fixtures/board.js', import.meta.url).href)};
     import { Refused } from ${JSON.stringify(new URL('../../../../packages/kernel/src/logic/refused.js', import.meta.url).href)};
-    const cases = ${JSON.stringify(batch)};
+    const cases = ${JSON.stringify(batch.map(({ entry }) => entry))};
     const results = [];
     for (const entry of cases) {
-      const io = { ...apiBoardOpeners, err() {}, onEvent() {}, ...(entry.personRequest ? { personRequest: entry.personRequest } : {}) };
+      // The checkpoint upload is not an operation class under test; the run-tests setting would publish it inside every move.
+      const io = { ...apiBoardOpeners, checkpointInBackground: () => true, scheduleCheckpoint() {}, err() {}, onEvent() {}, ...(entry.personRequest ? { personRequest: entry.personRequest } : {}) };
       try { await relayOperation(process.cwd(), entry.operation, entry.args, io); results.push(null); }
       catch (error) { if (!(error instanceof Refused)) { results.push({ fatal: error.name, operation: entry.operation, stack: error.stack?.split('\\n').slice(1, 3).join('\\n') }); break; } results.push(error.code); }
     }
     console.log(JSON.stringify({ results }));
   `);
-    assert.equal(result.code, 0, 'every operation reaches the real transport and deterministic replay');
-    assert.equal(result.document.results.some(value => value?.fatal), false, JSON.stringify(result.document.results.filter(value => value?.fatal)));
-    assert.equal(result.document.results.length, batch.length);
-    results.push(...batch.map((entry, index) => ({
-      operation: entry.operation,
-      label: entry.label ?? entry.operation,
-      expectedSent: entry.sent !== false,
-      result: result.document.results[index],
-    })));
+      assert.equal(result.code, 0, 'every operation reaches the real transport and deterministic replay');
+      assert.equal(result.document.results.some(value => value?.fatal), false, JSON.stringify(result.document.results.filter(value => value?.fatal)));
+      assert.equal(result.document.results.length, batch.length);
+      batch.forEach(({ entry, index }, position) => {
+        results[index] = { operation: entry.operation, label: entry.label ?? entry.operation, expectedSent: entry.sent !== false, result: result.document.results[position] };
+      });
+    }
+    const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
+    const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
+    for (const record of box.moveAcks.slice(start)) {
+      const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
+      acknowledgedBy[boxIndex].push({ record, move, machine: state.machine });
+    }
+  }));
+  for (const [boxIndex, box] of boxes.entries()) {
+    const sentCases = credentialCases(box).filter((entry, index) => owner[index] === boxIndex && entry.sent !== false);
+    const acknowledged = acknowledgedBy[boxIndex];
+    const expectedOperations = sentCases.map(entry => entry.operation);
+    const actualOperations = acknowledged.map(({ move }) => move.operation);
+    const mismatch = expectedOperations.findIndex((operation, index) => actualOperations[index] !== operation);
+    if (mismatch !== -1 || actualOperations.length !== expectedOperations.length) {
+      const start = Math.max(0, (mismatch === -1 ? Math.min(actualOperations.length, expectedOperations.length) : mismatch) - 2);
+      assert.fail(`transport acknowledgement sequence differs near ${JSON.stringify({
+        board: boxIndex, expected: expectedOperations.slice(start, start + 5), actual: actualOperations.slice(start, start + 5),
+        results: results.filter((entry, index) => owner[index] === boxIndex).map(entry => [entry.operation, entry.result]),
+      })}`);
+    }
+    assert.equal(acknowledged.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   }
-  const records = box.moveAcks.slice(start);
-  const sentCases = cases.filter(entry => entry.sent !== false);
-  const key = decodeBoardKey(readFileSync(box.keyFile, 'utf8').trim());
-  const state = JSON.parse(readFileSync(box.linkFile, 'utf8'));
-  const acknowledged = [];
-  for (const record of records) {
-    const move = JSON.parse(new TextDecoder().decode(await unseal(key, Buffer.from(record.sealed, 'base64url'), { boardId: state.board, kind: record.kind, sequence: record.event_id })));
-    acknowledged.push({ record, move });
-  }
-  const expectedOperations = sentCases.map(entry => entry.operation);
-  const actualOperations = acknowledged.map(({ move }) => move.operation);
-  const mismatch = expectedOperations.findIndex((operation, index) => actualOperations[index] !== operation);
-  if (mismatch !== -1 || actualOperations.length !== expectedOperations.length) {
-    const start = Math.max(0, (mismatch === -1 ? Math.min(actualOperations.length, expectedOperations.length) : mismatch) - 2);
-    const caseStart = Math.max(0, start - 2);
-    const diagnostics = cases.slice(caseStart, start + 7).map((entry, offset) => ({
-      operation: entry.operation, label: entry.label ?? entry.operation, expectedSent: entry.sent !== false, result: results[caseStart + offset].result,
-    }));
-    assert.fail(`transport acknowledgement sequence differs near ${JSON.stringify({
-      expected: expectedOperations.slice(start, start + 5), actual: actualOperations.slice(start, start + 5), cases: diagnostics,
-    })}`);
-  }
-  assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
-  let recordIndex = 0;
+  const next = boxes.map(() => 0);
   for (const [index, entry] of cases.entries()) {
     if (entry.expectedResult) assert.equal(results[index].result, entry.expectedResult, `${entry.label ?? entry.operation} retains its native outcome after authenticated transport`);
     if (entry.sent === false) {
       assert.equal(results[index].result, entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
       continue;
     }
-    const { record, move } = acknowledged[recordIndex++];
+    const { record, move, machine } = acknowledgedBy[owner[index]][next[owner[index]]++];
     assert.equal(move.operation, entry.operation);
     assert.equal(move.engine, ENGINE_VERSION, 'the current engine version is recorded on every sealed operation');
     assert.equal(record.sender.kind, entry.kind, `${entry.operation} selects the correct authenticated credential`);
     if (entry.kind === 'agent') assert.equal(record.sender.agent, actor, 'the scoped credential belongs to the native actor');
-    if (entry.kind === 'machine') assert.equal(record.sender.machine, state.machine, 'the machine credential is attributed to this native machine');
+    if (entry.kind === 'machine') assert.equal(record.sender.machine, machine, 'the machine credential is attributed to this native machine');
     if (entry.personRequest) {
       assert.equal(results[index].result, 'RELAY_PERSON_ONLY', 'a machine cannot execute an unauthenticated synthetic person request');
     } else {
@@ -237,6 +270,7 @@ test('every current operation selects its native actor credential without a seco
     }
   }
 });
+
 
 test('a person-only move is refused before the relay is asked [H2,H9,H16]', async (t) => {
   const box = await relayClientFixture(t);

@@ -4,9 +4,11 @@ import { resolve } from 'node:path';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  mkdirSync,
   mkdtempSync,
   realpathSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import {
@@ -96,21 +98,26 @@ export async function assertStartupBudgets(t) {
         rule:'[SELF_VERIFY] the builder never verifies its own work; another agent must'}))};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
-    const samples={version:[],show:[],status:[],list:[]};
+    const samples={version:[],show:[],status:[],list:[],'list thin':[]};
+    // 'list thin' is list with list.thinRead on in the child's machine settings; the file exists only while that child runs [C7,#9090].
+    const settingsFile=join(root,'private-machine','settings.json');
     const childEnvironment={...process.env,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
     for(let round=0;round<5;round++) for(const name of Object.keys(samples)) {
-      const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[name,'--json'];
+      const thin=name==='list thin';
+      const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[thin?'list':name,'--json'];
+      if(thin){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:true}})); }
       const started=performance.now();
       const result=spawnSync(process.execPath,[code,...args],{cwd:root,encoding:'utf8',env:childEnvironment,maxBuffer:16*1024*1024});
       const milliseconds=performance.now()-started;
+      if(thin) unlinkSync(settingsFile);
       assert.equal(result.status,0,`${name} round ${round}: ${result.error?.message ?? result.stderr ?? result.stdout}`);
       const data=JSON.parse(result.stdout);
       assert.equal(data.version,1);
       // Idle minutes are read from the clock, so only that one field follows the wall time; every other progress field is exact.
       if(name==='show') assert.deepEqual({...data,progress:{...data.progress,idleMinutes:expectedShow.progress.idleMinutes}},expectedShow,'the complete item, verdicts and thread survive the startup optimization');
       if(name==='status') assert.equal(data.stats.items.submitted,10);
-      if(name==='list') {
+      if(name==='list'||thin) {
         assert.equal(data.items.length,1000);
         assert.deepEqual(data.items,expectedItems,'the complete list rows survive the startup optimization');
       }

@@ -59,3 +59,23 @@ test('a move no outcome matches is a TABLE_GAP refusal naming the table and move
   assert.match(gap.refused.message, /move release/);
   assert.equal(gap.refused.row, null);
 });
+
+const SPRINT_ONLY = { id: 'sprint-note', requires: 'noted', code: 'NOTE_NEEDED', message: 'a sprint release needs a note', next: 'add --note', paces: ['sprint'], always: 'A8' };
+const PACED = { ...TABLE, guards: [...TABLE.guards, SPRINT_ONLY] };
+
+test('clause 1: a guard marked for sprint only is skipped for a steady snapshot, and a snapshot with no pace runs as steady [M1]', () => {
+  const steady = runTable(PACED, RULES, { ...snap(), pace: 'steady' }, { name: 'release', actor: 'a' });
+  assert.deepEqual(steady.via, ['plain', 'tally']);
+  const unpaced = runTable(PACED, RULES, snap(), { name: 'release', actor: 'a' });
+  assert.deepEqual(unpaced, runTable(TABLE, RULES, snap(), { name: 'release', actor: 'a' }));
+  const offStrict = runTable({ ...TABLE, outcomes: [{ ...TABLE.outcomes[1], id: 'sprint-plain', paces: ['sprint'] }, TABLE.outcomes[1]] }, RULES, snap(), { name: 'release', actor: 'a' });
+  assert.deepEqual(offStrict.via, ['plain', 'tally'], 'an outcome outside the pace is skipped too');
+});
+
+test('clause 2: that sprint-only guard refuses for a sprint snapshot [M1]', () => {
+  const sprint = runTable(PACED, RULES, { ...snap(), pace: 'sprint' }, { name: 'release', actor: 'a' });
+  assert.equal(sprint.refused.code, 'NOTE_NEEDED');
+  assert.equal(sprint.refused.row, 'sprint-note');
+  const noted = runTable(PACED, RULES, { ...snap(), pace: 'sprint' }, { name: 'release', actor: 'a', note: 'done' });
+  assert.deepEqual(noted.via, ['noted', 'tally']);
+});

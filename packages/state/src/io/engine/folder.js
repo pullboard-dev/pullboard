@@ -51,10 +51,41 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
 /** The state cell's two front doors, either of which may forward an engine leaf. */
 const STATE_DOORS = new Set(['packages/state/index.js', 'packages/state/light.js']);
 
+/** Every name a leaf in the engines folder declares with `export const`, the only source of an engine's identity. */
+function leafEngineNames(sources) {
+  const names = new Set();
+  for (const row of sources) {
+    if (!row.file.startsWith(`${ENGINE_FOLDER}/`)) continue;
+    for (const match of lex(row.source).code.matchAll(/\bexport\s+const\s+([A-Z][A-Z0-9_]*_ENGINE)\b/gu)) names.add(match[1]);
+  }
+  return names;
+}
+
+/**
+ * The names a state cell file reads by number from their own leaf, as `const NAME = engineNumber('NAME')`, each with
+ * where its name stands [C7]. Why: the doors read leaf numbers as text so no leaf module loads; the name still has to be a
+ * leaf's own declaration, so this is a forwarding like a named re-export, never a second declaration.
+ */
+function forwardedEngineNumbers(file, code, literals, leaves) {
+  if (!file.startsWith('packages/state/')) return [];
+  const found = [];
+  for (const match of code.matchAll(/\b(?:export\s+)?const\s+([A-Z][A-Z0-9_]*_ENGINE)\s*=\s*engineNumber\(\s*/gu)) {
+    const at = match.index + match[0].length;
+    const literal = literals.get(at);
+    if (literal === match[1] && /^.{2}\s*\)/su.test(code.slice(at + literal.length)) && leaves.has(match[1])) found.push({ name: match[1], index: match.index + match[0].indexOf(match[1]) });
+  }
+  return found;
+}
+
 /** Trust only the state front doors' exact named forwarding of an existing canonical leaf declaration. */
 function stateEngineExports(sources) {
   const names = new Set();
-  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) for (const name of doorEngineExports(sources, entry.source)) names.add(name);
+  const leaves = leafEngineNames(sources);
+  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) {
+    for (const name of doorEngineExports(sources, entry.source)) names.add(name);
+    const { code, strings } = lex(entry.source);
+    for (const { name } of forwardedEngineNumbers(entry.file, code, new Map(strings.map(literal => [literal.start, literal.text])), leaves)) names.add(name);
+  }
   return names;
 }
 
@@ -81,7 +112,7 @@ function doorEngineExports(sources, source) {
 
 /** Find declarations that would split the existing engine folder during a package move. */
 export function engineFolderViolations(sources) {
-  const problems = [], stateExports = stateEngineExports(sources);
+  const problems = [], stateExports = stateEngineExports(sources), leaves = leafEngineNames(sources);
   for (const { file, source } of sources) {
     if (!/^(?:src|packages|apps)\//u.test(file)) continue;
     // App journeys are the old root test/ folder, which this check never read: they import engine constants, never declare them [V32].
@@ -89,7 +120,8 @@ export function engineFolderViolations(sources) {
     if (HOME.test(file)) continue;
     const { code, strings } = lex(source);
     const literals = new Map(strings.map(literal => [literal.start, literal.text]));
-    const declarations = engineBindings(code);
+    const forwarded = new Set(forwardedEngineNumbers(file, code, literals, leaves).map(({ index }) => index));
+    const declarations = engineBindings(code).filter(match => !forwarded.has(match.index));
     const declared = new Set(declarations.map(match => match[0]));
     for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
       const end = list.index + list[0].length;

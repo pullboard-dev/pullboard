@@ -37,6 +37,8 @@ import { reviewHolder } from "./query.js";
 import { laneHold } from "./query.js";
 import { itemFiles } from "../../../../items/index.js";
 import { itemFileCollisions } from "../../../../items/index.js";
+import { contentionScores } from "../../../../items/index.js";
+import { orderByContention } from "../../../../items/index.js";
 import { itemCollisionPlan } from "../../../../items/index.js";
 import { firstRefusalReason } from "../../../../items/index.js";
 import { seatGone } from "../presence.js";
@@ -53,6 +55,7 @@ import { reviewReleaseCooldown } from "../board.js";
 import { parkedClaims } from "../cooldown.js";
 import { reviewerChecks } from "../board.js";
 import { reviewFamilyRelaxation } from './review/family.js';
+import { refusesFamilyRelaxation } from './next-refused-pairings.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { buildOrder } from "./order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
@@ -118,25 +121,39 @@ export function diagnoseWanted(board, item, seatRoute) {
  *
  * @param {any} board
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
- * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
+ * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
   const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
+  /** With `idleBlockers`, up to three open items skipped as DEPENDENCY and the unverified item each waits on (#9619). */
+  const blockers = [];
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
+  const empty = (reason, result) => {
+    const base = observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
+    return idleBlockers ? { ...base, blockers: [...blockers] } : base;
+  };
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
-  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
+  /**
+   * The idle answer under a focus with overflow off. A seat whose route sits below some submitted focus items names them and says
+   * a stronger seat reviews them, instead of "nothing is free" (#3102); it never reserves them, since `items` already leaves them out.
+   */
+  const focusIdle = () => {
+    const above = !verify ? [] : listItems(board).filter(entry => entry.item_status === 'submitted' && focus.ids.has(entry.item_id)
+      && entry.item_built_by !== agentId && !omitIds.includes(entry.item_id) && !canTake(route, entry.item_route));
+    const waiting = above.length ? `${above.map(entry => `#${entry.item_id}`).join(', ')} wait${above.length === 1 ? 's' : ''} for a ${[...new Set(above.map(entry => entry.item_route))].join(' or ')} seat to review; ` : '';
+    return empty('focus', { item: null, reasons: [`${focus.name} is in focus; ${waiting}nothing is free for you; overflow is off.`] });
+  };
   const restrictFocus = focus && (!overflow || focusOnly);
   const otherFocusedWork = () => {
     if (!focus || !overflow || focusOnly) return false;
@@ -180,7 +197,7 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -313,6 +330,12 @@ export function nextFor(board, options) {
     mine.sort((a, b) => back.get(b.entry.item_id) - back.get(a.entry.item_id));
   }
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  // next.wholeItemsFirst (off unless a project turns it on): a whole item of the focused release leads every open slice [C7,#8811].
+  if (focus && wholeItemsFirst) {
+    const slice = ({ entry }) => board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item-slice:${entry.item_id}`) ? 1 : 0;
+    const wholeFocused = ({ entry }) => focus.ids.has(entry.item_id) && !slice({ entry });
+    mine.sort((a, b) => Number(wholeFocused(b)) - Number(wholeFocused(a)));
+  }
   // Work this seat parked while it waited comes back to it before other open items once the wait ends (#3723).
   const parked = parkedClaims(board, agentId);
   if (parked.size) mine.sort((a, b) => Number(parked.has(b.entry.item_id)) - Number(parked.has(a.entry.item_id)));
@@ -324,6 +347,14 @@ export function nextFor(board, options) {
     const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
       .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
     mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
+  }
+  // queue.contention: among equal-priority work the least contended item leads, and a hot one waits [C7,#8527].
+  const hot = contention ? contentionScores(mine.map(({ entry }) => entry), inFlight, contention.rates) : null;
+  if (hot) {
+    const position = milestonePriorities(board);
+    const urgent = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
+    const alone = ({ entry, reworkRouting }) => urgent.has(entry.item_id) || redUnowned.has(entry.item_id) || parked.has(entry.item_id) || Boolean(reworkRouting?.rejection) || rejectedFirstEnabled(board) && isReturned(board, entry);
+    orderByContention(mine, candidate => alone(candidate) ? `#${candidate.entry.item_id}` : `${tier(candidate.entry)}|${position(candidate.entry)}|${focus?.ids.has(candidate.entry.item_id)}`, hot);
   }
   const overlapping = [];
   for (const { entry, shared, reworkRouting: rework } of mine) {
@@ -346,6 +377,10 @@ export function nextFor(board, options) {
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true, seatGone });
     if (reserved) { skip(entry, 'FIRST_REFUSAL'); reasons.push(reserved); continue; }
+    if (hot && hot.get(entry.item_id).score >= contention.threshold) {
+      const { file, score } = hot.get(entry.item_id);
+      skip(entry, 'CONTENTION'); reasons.push(`#${entry.item_id} waits on ${file}: contention ${score} reaches ${contention.threshold}; changes in flight on it land first`); continue;
+    }
     const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { skip(entry, 'COLLISION'); reasons.push(...collisions); overlapping.push({ entry, shared, collisions, functionPlan, rework, waiting }); continue; }
@@ -361,7 +396,9 @@ export function nextFor(board, options) {
     if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
-    skip(entry, 'DEPENDENCY'); reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
+    skip(entry, 'DEPENDENCY');
+    if (idleBlockers && blockers.length < 3) blockers.push({ item: entry.item_id, waitsOn: waiting[0].item_id });
+    reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
   for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {

@@ -16,6 +16,7 @@ import { clauseInspectionProblem } from '../../../../state/index.js';
 import { clauseInspectionSummary } from '../../../../state/index.js';
 import { clauseReceiptNotes } from '../../../../state/index.js';
 import { gateClauseTickNotes } from '../../../../state/index.js';
+import { testCaseTitles } from '../../../../state/index.js';
 import { itemThread } from './query.js';
 import { proofReceipts } from './query.js';
 import { reviewPatchAuthors } from "../../../../verify/index.js";
@@ -25,6 +26,7 @@ import { KNOWN_MAIN_RUNNING_FILE_ENGINE } from "../../../../state/light.js";
 
 import { committedItemAuthors } from "../../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../items/index.js";
+import { fileMiss } from "../../../../items/index.js";
 import { checkItemPatchSubmit } from "../../../../items/index.js";
 import { startItemPatchObjectionWindow } from "../../../../items/index.js";
 import { requireStrictBuilderFamily } from "../../../../verify/index.js";
@@ -43,6 +45,9 @@ import { mergeOnlyProblem } from "../../../../merge/index.js";
 import { prepareMergeOnlySubmit } from "../../../../merge/index.js";
 import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../state/light.js";
 import { atomic } from "./event/log.js";
+import { insertItem } from "./add.js";
+import { validateItemAddition } from "./add.js";
+import { appendFact } from "./fact.js";
 import { movesLiveEnabled } from "../../../../config/index.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
 
@@ -84,13 +89,15 @@ export function sealStrictRenames(board, id, options) {
   const configured = policy.config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path))
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths must name relative sensitive files or directory prefixes');
+  // Once review defaults are active an edit in place to a gate path is standard, so only a configured sensitive path's rename stays strict [C7,#8575].
+  const defaults = Boolean(board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get());
   const strictRenames = [];
   for (let i = 0; i < fields.length && fields[i];) {
     const status = fields[i++], oldPath = fields[i++];
     if (status.startsWith('R') || status.startsWith('C')) {
       const newPath = fields[i++];
       const sensitive = configured.some(path => oldPath === path || path.endsWith('/') && oldPath.startsWith(path));
-      if (status.startsWith('R') && (gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
+      if (status.startsWith('R') && (!defaults && gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
     }
   }
   return { ...options, strictRenames };
@@ -132,15 +139,15 @@ export function prepareSubmit(board, id, options) {
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
   requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
-  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
+  const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, folderTicks: sealedFolderTicks, titleTicks: sealedTitleTicks, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
   const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
   const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
     ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
-  let inspect = inspectClauses === true;
+  let inspect = inspectClauses === true, folderTicks = sealedFolderTicks === true, titleTicks = sealedTitleTicks === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
     const policy = board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, clausePolicyCommit);
-    inspect = policy.config.verify.inspectClauses === true;
+    inspect = policy.config.verify.inspectClauses === true; folderTicks = policy.config.verify.folderTicks === true; titleTicks = policy.config.verify.titleTicks === true;
     if (inspect !== (inspectClauses === true)) throw new Refused('NO_POLICY', 'the sealed inspection setting does not match its accepted policy');
   }
 
@@ -193,7 +200,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))) }) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -245,6 +252,9 @@ export function submit(board, id, options) {
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra, tooling,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION, shadow, live });
+    // claims.fileLease on: a submission whose changed files part from the predicted ones leaves a miss on the item [C7,#8522].
+    const miss = board.fileLease && !carry ? fileMiss(getItem(board, id), files, board.fileLease.hubs) : null;
+    if (miss) logEvent(board, agentId, 'file_miss', id, miss);
     startItemPatchObjectionWindow(board, id, { agentId, commit }, { logEvent });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= MACHINE_VERDICT_ENGINE
       && options.machineReceipts !== undefined && machineVerificationEligible(board, getItem(board, id), files)) {
@@ -262,6 +272,38 @@ function greenProofFiles(board, id, commit) {
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
 }
 
+const EDGE_FILED = /^Edge follow-up filed as #\d+/u;
+
+/**
+ * File the one follow-up item for the import edges a settled submission adds, under the submitted item, and note it there.
+ * Nothing is filed for no edge or when an earlier settle already filed one. Why here: the submitter holds a claim and may change
+ * only that item, so the board host files it at settle, as it files main-red repairs; one per item, not one per resubmit (#8874) [C7].
+ *
+ * @param {any} board
+ * @param {number} id - The submitted item.
+ * @param {{ agentId: string, edges: { from: string, to: string }[] }} filing
+ * @returns {number | null} The follow-up's id, or null when none was filed.
+ */
+export function fileEdgeFollowUp(board, id, { agentId, edges }) {
+  if (!edges.length || itemThread(board, id).some(entry => entry.type === 'fact' && EDGE_FILED.test(String(entry.text)))) return null;
+  const listed = edges.slice(0, 12).map(edge => `${edge.from} -> ${edge.to}`).join('\n');
+  const plural = edges.length === 1 ? '' : 's';
+  const item = { by: agentId, lane: getItem(board, id).item_lane, title: `Review the ${edges.length} import edge${plural} added by #${id}`, route: 'strong', specIds: [], parentId: id, after: [],
+    criterion: '1. Each import edge listed in the brief is kept or removed, with the reason given [reasoning].',
+    brief: `Filed when the gate settled #${id}, whose diff adds ${edges.length} import edge${plural}:\n${listed}${edges.length > 12 ? `\n... and ${edges.length - 12} more` : ''}` };
+  return atomic(board, () => {
+    const filed = insertItem(board, item, validateItemAddition(board, item));
+    appendFact(board, id, { agentId, kind: 'note', text: `Edge follow-up filed as #${filed}: ${edges.length} new import edge${plural} (submit.edgeFollowUps).` });
+    return filed;
+  });
+}
+
+/** The case titles the proof's test files declare at the submitted commit, for verify.titleTicks (#8880) [C7]. */
+function committedTitleCases(board, commit, files) {
+  return (Array.isArray(files) ? files : [])
+    .flatMap(file => { const shown = tryGit(board.gitRoot, ['show', `${commit}:${file}`]); return shown.status === 0 ? testCaseTitles(file, shown.stdout) : []; });
+}
+
 /**
  * The clause checklist notes a settled submission earns, as the inline submit appended them: a green gate's tick note
  * for each [test] clause naming a file it ran green, then the "inspection, clause by clause:" summary. Why here: the
@@ -269,15 +311,15 @@ function greenProofFiles(board, id, commit) {
  *
  * @param {object} board - The open board.
  * @param {number} id - The submitted item.
- * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean }} run - Files the gate ran, their per-case outcomes, the head proved and whether the gate was green.
+ * @param {{ gateFiles: Set<string>, outcomes: object[], head: string, green: boolean, folderTicks?: boolean, titleTicks?: boolean }} run - Files the gate ran, their per-case outcomes, the head proved, whether the gate was green, and main's verify.folderTicks (#8847).
  * @param {(text: string) => void} append - Appends one note, so each tick is on the thread before the summary reads it.
  */
-export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green }, append) {
-  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head })) append(text);
+export function clauseInspectionNotes(board, id, { gateFiles, outcomes, head, green, folderTicks = false, titleTicks = false }, append) {
+  if (green) for (const text of gateClauseTickNotes(getItem(board, id), itemThread(board, id), { gateFiles, outcomes, head, folderTicks, titleTicks })) append(text);
   // The fail-before, pass-after receipt, stored once: the gate's green head rows against the recorded runs of the base commit [C7].
   const base = getItem(board, id).item_claim_head;
   if (green) for (const text of clauseReceiptNotes(getItem(board, id), itemThread(board, id), { gateFiles, baseRows: recordedBaseRows(board, base), outcomes, head, baseCommit: base })) append(text);
-  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head });
+  const summary = clauseInspectionSummary(getItem(board, id), itemThread(board, id), { gateFiles, head, folderTicks, titleTicks, cases: outcomes });
   if (summary) append(summary);
 }
 

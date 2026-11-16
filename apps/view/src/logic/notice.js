@@ -1,3 +1,5 @@
+import { relayNoticeView } from './relay-cause.js';
+
 /** Render the existing per-board upgrade notice without changing its retained version or dismiss behavior. */
 export function releaseNotice(project, { $, snapshot, releaseNotices, keep, newerRelease, esc }) {
   const region = $('upgrade-note');
@@ -19,4 +21,15 @@ export function releaseNotice(project, { $, snapshot, releaseNotices, keep, newe
     + '<footer>' + (notice.releases.length > 3 ? '<span>+' + (notice.releases.length - 3) + ' more</span> · ' : '')
     + '<a href="' + esc(notice.notes) + '" target="_blank" rel="noopener noreferrer">Full release notes</a></footer>';
   region.hidden = false;
+}
+
+/**
+ * The phone's relay note as markup: a calm "asleep" line with the machine's name, or the trouble line, or nothing once the machine is back.
+ * The asleep tone carries no error role, so a sleeping computer does not look like a failure.
+ */
+export function relayNoticeMarkup(status, esc) {
+  const view = relayNoticeView(status);
+  if (!view) return '';
+  const role = view.tone === 'trouble' ? ' role="alert"' : '';
+  return '<p class="relay-note" data-tone="' + view.tone + '"' + role + '>' + esc(view.message) + (view.command ? ' Run <code>' + esc(view.command) + '</code>.' : '') + '</p>';
 }

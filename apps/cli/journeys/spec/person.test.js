@@ -1,14 +1,11 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
 import {
-  startFixtureChild as spawn,
   fixtureChildMessage,
-  reportFixtureChildFailure,
   runFixtureChild,
   runFixtureGit,
 } from "../../tests/fixtures/child.js";
 import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { performance } from 'node:perf_hooks';
 import {
   chmodSync,
   existsSync,
@@ -25,10 +22,10 @@ import {
   resolve,
 } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { once } from 'node:events';
 import { test } from 'node:test';
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
 import { fetchFresh } from "../../tests/fixtures/http.js";
+import { main as viewMain } from "../../tests/fixtures/native.js";
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const MARKERS = {
@@ -104,8 +101,10 @@ async function project() {
     shared: [],
   }, null, 2)}\n`);
   writeFileSync(join(repo, 'SPEC.md'), SPEC);
+  // Git plumbing, which runs no hook: this commit is setup, and the pre-commit and commit-msg hooks each launched a Node child (#8362).
   box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: set up person channel fixture');
+  const seed = box.git(repo, 'commit-tree', box.git(repo, 'write-tree').trim(), '-m', 'chore: set up person channel fixture').trim();
+  box.git(repo, 'update-ref', 'HEAD', seed);
   const web = join(box.dir, 'web-1');
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const joined = await box.go(web, ['join', 'web']);
@@ -179,57 +178,66 @@ test('[B26] person answers refuse agent environments without writes and record t
 });
 
 
-/** Start the actual view in an agent environment and retain only its private request credentials. */
+/** Give this process exactly the given environment and return the function that puts the previous one back. */
+function applyEnvironment(env) {
+  const saved = { ...process.env };
+  for (const key of Object.keys(process.env)) delete process.env[key];
+  Object.assign(process.env, env);
+  return () => {
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, saved);
+  };
+}
+
+/**
+ * Start the production view in this process in an agent environment and retain only its private request credentials.
+ * Why in-process: a view server child cost seconds to start and was the slowest part of every view case [C7].
+ */
 async function startView(t, box, extraEnv = {}) {
-  const args = [BIN, 'view', '--no-open', '--port', '0', '--json'];
-  const startedAt = performance.now();
-  const child = spawn(process.execPath, args, {
-    cwd: box.repo, env: { ...box.env, ...MARKERS, ...extraEnv, PULLBOARD_VIEW_FOREGROUND: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let output = '';
-  let diagnostics = '';
-  child.stdout.setEncoding('utf8');
-  child.stderr.setEncoding('utf8').on('data', (part) => { diagnostics += part; });
-  const closed = once(child, 'close');
-  t.after(async () => {
-    if (child.exitCode !== null) return;
-    child.kill('SIGTERM');
-    let timer;
-    await Promise.race([closed, new Promise((done) => {
-      timer = setTimeout(() => { child.kill('SIGKILL'); done(); }, 5000);
-    })]);
-    clearTimeout(timer);
-  });
-  const document = await new Promise((ready, fail) => {
-    let settled = false;
-    const failStartup = (detail, status = child.exitCode, signal = child.signalCode) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      fail(new Error(reportFixtureChildFailure({ command: process.execPath, args, status, signal,
-        elapsedMs: performance.now() - startedAt, stderr: diagnostics, env: box.env, detail })));
-    };
-    const timer = setTimeout(() => failStartup('private view readiness deadline (10000ms) expired'), 10_000); // budget: hang ceiling for private view readiness; no throughput claim.
-    child.stdout.on('data', (part) => {
-      output += part;
-      try {
-        const value = JSON.parse(output);
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        ready(value);
-      } catch { /* The JSON envelope may arrive in several chunks. */ }
+  const env = { ...box.env, ...MARKERS, ...extraEnv, PULLBOARD_VIEW_FOREGROUND: '1' };
+  let stdout = '';
+  let stderr = '';
+  let timer;
+  const restore = applyEnvironment(env);
+  let pending;
+  let address;
+  try {
+    const ready = new Promise((resolveReady, rejectReady) => {
+      const fail = (detail) => rejectReady(new Error(`${detail}; stderr:\n${stderr}`));
+      timer = setTimeout(() => fail('private view readiness deadline (10000ms) expired'), 10_000); // budget: hang ceiling for private view readiness; no throughput claim.
+      pending = viewMain(['view', '--no-open', '--port', '0', '--json'], {
+        cwd: box.repo,
+        stdin: process.stdin,
+        stdout: { isTTY: false, write(text) {
+          stdout += String(text);
+          try { resolveReady(JSON.parse(stdout)); } catch { /* Wait until the one JSON document is complete. */ }
+          return true;
+        } },
+        stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
+      }).then((code) => { fail(`private view exited before readiness with code ${code}`); return code; }, (error) => { fail(`private view failed before readiness: ${error.message}`); });
     });
-    child.once('error', (error) => failStartup(error.message, null, null));
-    child.once('close', (code, signal) => failStartup('private view exited before readiness', code, signal));
-  });
-  const address = new URL(document.url);
+    address = new URL((await ready).url);
+  } finally {
+    clearTimeout(timer);
+    restore();
+  }
   const secret = address.searchParams.get('k');
   assert.ok(secret, 'the actual view starts with its private session credentials');
-  /** Send bounded authenticated requests through the same adapter the view uses. */
-  const request = (path, options = {}) => fetchFresh(new URL(path, address.origin), {
-    ...options, headers: { 'x-pullboard-key': secret, ...options.headers }, signal: AbortSignal.timeout(10_000),
+  t.after(async () => {
+    process.emit('SIGTERM');
+    await pending;
   });
+  /** Send bounded authenticated requests through the same adapter the view uses, which runs its commands in this process. */
+  const request = async (path, options = {}) => {
+    const back = applyEnvironment(env);
+    try {
+      return await fetchFresh(new URL(path, address.origin), {
+        ...options, headers: { 'x-pullboard-key': secret, ...options.headers }, signal: AbortSignal.timeout(10_000),
+      });
+    } finally {
+      back();
+    }
+  };
   return request;
 }
 

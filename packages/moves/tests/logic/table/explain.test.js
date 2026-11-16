@@ -43,3 +43,13 @@ test('tableCoverage names every stored state that is neither a legal start nor a
 test('a table whose every state is covered reports no gap [C7,#8065]', () => {
   assert.deepEqual(tableCoverage(TABLE, ['open', 'claimed', 'submitted']).gaps, []);
 });
+
+test('clause 3: explaining a table for pace steady leaves out a sprint-only row, and with no pace lists it with its paces [M1]', () => {
+  const paced = { ...TABLE, guards: [...TABLE.guards, { id: 'sprint-note', requires: 'noted', code: 'NOTE_NEEDED', message: 'm', next: 'add a note', paces: ['sprint'], always: 'A8' }] };
+  const steady = explainTable(paced, RULES, { pace: 'steady' });
+  assert.deepEqual(steady.guards.map(guard => guard.id), ['claimed', 'mine']);
+  assert.deepEqual(steady, explainTable(TABLE, RULES));
+  const sprint = explainTable(paced, RULES, { pace: 'sprint' });
+  assert.deepEqual(sprint.guards.at(-1), { order: 3, id: 'sprint-note', code: 'NOTE_NEEDED', fact: 'noted', says: 'the move carries a note', next: 'add a note', paces: ['sprint'], always: 'A8' });
+  assert.equal(explainTable(paced, RULES).guards.length, 3);
+});

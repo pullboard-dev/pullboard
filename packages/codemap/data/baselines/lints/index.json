@@ -2,7 +2,7 @@
   "version": 2,
   "metrics": {
     "boundaries": {
-      "count": 7269,
+      "count": 7268,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-001.json",
@@ -74,7 +74,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-018.json",
-          "sha256": "cbc3e189b34e235f74aa0e90bbf1e3f84198521b66e419691f66cf653fe367b8"
+          "sha256": "faa7fd3dc12275becd60428fe7cfabe57148c805a0a0ba5d824dcaeee830a024"
         },
         {
           "file": "packages/codemap/data/baselines/lints/boundaries-019.json",
@@ -122,7 +122,7 @@
       ]
     },
     "strays": {
-      "count": 906,
+      "count": 905,
       "shards": [
         {
           "file": "packages/codemap/data/baselines/lints/strays-001.json",
@@ -134,7 +134,7 @@
         },
         {
           "file": "packages/codemap/data/baselines/lints/strays-003.json",
-          "sha256": "97f0e59a7222fbfcfe68f60d1c212613e17c2fd087ec66edb0208d165e3bb225"
+          "sha256": "2fce70953cce35d0b6956954c0a1c7725da5ce5edae5442a18cdc9ae5b9cbcb4"
         }
       ]
     },

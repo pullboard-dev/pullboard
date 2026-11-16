@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
+import { runShell } from '../../../index.js';
 import { STATIC_TREE_CHECKS } from '../../../src/io/static/registry.js';
 import {
   privateFixtureFiles,
@@ -92,4 +93,12 @@ test('5642 clause 1: a worker-bundle measurement that fails names the step it re
   tree.write('package.json', '{}\n');
   tree.write('packages/gate/data/ceilings/worker-bundle.json', JSON.stringify({ bytes: 1001 }) + '\n');
   assert.match(bundleCheck.run(tree.root)[0] ?? '', /could not be measured at the step: list the package files: Error: walk failed$/u);
+});
+
+test('#8469 clause 1: a static run whose only output is the worker size report line is green [C7]', t => {
+  const tree = privateFixtureFiles('pb-static-report-');
+  t.after(() => rmSync(tree.root, { recursive: true, force: true }));
+  const run = runShell(tree.root, "echo 'runner worker bundle: 840493 raw bytes, -73 against the recorded 840566 (reported, not enforced)' >&2");
+  assert.equal(run.isGreen, true, 'a report line is not a finding');
+  assert.match(run.output, /reported, not enforced/u, 'the line is still printed');
 });

@@ -130,3 +130,26 @@ export function builderFamilyOf(board, item) {
   if ((board.executionEngineVersion ?? Infinity) < FAMILY_DECLARE_ENGINE || !item.item_built_by) return recorded ?? null;
   return seatFamily(board, item.item_built_by) ?? recorded ?? null;
 }
+
+/**
+ * The review limits a seat declared on joining (`--review-limit not-same-family`), read from its join events.
+ * Why: a seat under standing instructions that forbid reviewing its own vendor's work must never be offered such a review (#2039).
+ */
+function declaredReviewLimits(board, id) {
+  const limits = new Set();
+  for (const row of board.db.prepare("SELECT event_detail FROM event WHERE event_by = ? AND event_kind = 'join' AND event_detail LIKE '%\"reviewLimits\"%' ORDER BY event_id").all(id)) {
+    for (const limit of JSON.parse(row.event_detail).reviewLimits ?? []) limits.add(limit);
+  }
+  return limits;
+}
+
+/**
+ * A seat that declared not-same-family is refused a review built by its own declared family, so next --verify never offers it.
+ * Why: such seats decline these reviews themselves, so offering them stalls the queue (#2039).
+ */
+export function declaredLimitProblem(board, found, agentId) {
+  if (!declaredReviewLimits(board, agentId).has('not-same-family')) return null;
+  const family = canonicalFamily(board, seatFamily(board, agentId)), builder = canonicalFamily(board, builderFamilyOf(board, found));
+  return family && builder && family === builder
+    ? sameFamilyProblem(board, `#${found.item_id} was built by your declared family ${family}, and this seat declared --review-limit not-same-family; ask a verifier from another family`) : null;
+}

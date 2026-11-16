@@ -2,7 +2,7 @@
 /** @pullboard-world-pin reads the shipped skills and the refusal source to check they name pullboard view. */
 /** Both spec skills and the person-channel refusal send approval to pullboard view [I1]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
@@ -20,4 +20,30 @@ test('decompose and plan skills tell the person to approve in pullboard view [I1
 test('the B26_PERSON_CHANNEL refusal next step names pullboard view [I1]', () => {
   const text = readFileSync(resolve(ROOT, 'packages/moves/src/logic/moves/approveOutside.js'), 'utf8');
   assert.match(text, /"B26_PERSON_CHANNEL": "[^"]*pullboard view/);
+});
+
+/** The numbered step 7 block of the decompose skill, up to the next heading. */
+function stepSeven() {
+  const text = readFileSync(resolve(ROOT, 'skills', 'pullboard-decompose', 'SKILL.md'), 'utf8');
+  const start = text.indexOf('\n7. **');
+  assert.ok(start >= 0, 'step 7 exists');
+  return text.slice(start, text.indexOf('\n## ', start));
+}
+
+test('clause 1: decompose step 7 shows the answer in pullboard view and never edits SPEC.md or runs spec answer [I1]', () => {
+  const step = stepSeven();
+  assert.match(step, /show the person the answer in `pullboard view`/);
+  assert.match(step, /never edit SPEC\.md/);
+  assert.match(step, /never run `pullboard spec answer`/);
+});
+
+test('clause 2: no other skill tells an agent to answer a spec question by editing SPEC.md [I1]', () => {
+  const dirs = readdirSync(resolve(ROOT, 'skills'), { withFileTypes: true }).filter((d) => d.isDirectory());
+  for (const dir of dirs) {
+    const text = readFileSync(resolve(ROOT, 'skills', dir.name, 'SKILL.md'), 'utf8');
+    for (const line of text.split('\n')) {
+      if (/never|proposal|refused/i.test(line)) continue;
+      assert.doesNotMatch(line, /(edit|update|change|write)[^.]{0,40}(SPEC\.md|spec row)|pullboard spec answer/i, `${dir.name}: ${line}`);
+    }
+  }
 });

@@ -28,6 +28,12 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { pinRunMain } from '../../../../gate/index.js';
+import { withLandingGateSlot } from '../../../../gate/index.js';
+import { landingControllerPlacement } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/index.js';
+import { testsNeedGui } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
@@ -53,8 +59,12 @@ import { knownMainLine } from '../known/main.js';
 import { fileKnownMainReds } from '../known/main.js';
 import { liveWaiverProjection } from './failures.js';
 import { mergeGroup } from './merge.js';
+import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
+
+/** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui });
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
@@ -83,7 +93,7 @@ function batchAffectedTests(state, readEvents, readItem) {
     // the full gate, which runs every unit the submits already proved [C7].
     const badges = new Set((state.landingWrites ?? []).filter(file => /^docs\/badges\/[^/]+\.json$/u.test(file)));
     const changed = badges.size ? git(root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, commit]).split('\0').filter(file => file && !badges.has(file)) : undefined;
-    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, ...(changed ? { changed } : {}) }) : { files: submitted };
+    const affected = submitted === null ? selectAffectedTests(root, { base: state.batch.base, commit, suites: state.config.affectedSuites, ...(changed ? { changed } : {}) }) : { files: submitted };
     if (affected.full && affected.reason !== 'the change reaches every test file') {
       // One item's own submit proof is its floor: a landing never falls to the full plan for it, which on a runners-only
       // machine runs every test on one runner and cannot finish [C7].
@@ -104,7 +114,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   let selection;
   if (!state.config.affectedTests) selection = submitted !== null ? { full: false, files: submitted } : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
   else {
-    const merged = selectAffectedTests(root, { base: state.batch.base, commit });
+    const merged = selectAffectedTests(root, { base: state.batch.base, commit, suites: state.config.affectedSuites });
     selection = submitted === null ? merged : { ...merged, files: [...new Set([...submitted, ...merged.files])].sort() };
   }
   return { ...selection, mandatory, sourceProof: submitted !== null, files: [...new Set([...mandatory, ...selection.files])].sort() };
@@ -353,11 +363,13 @@ async function runGateGroup(state, label, options) {
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = await (subset
     ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
-      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
+      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext }, GUARD_PORTS)
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
+  // The gate job's marks split the gate phase: submitted is queued, need or ready is the runner's claim, done is the result [C7,B3].
+  sayGateSplit(state.say, { queuedAt: gate.phases?.submitted, claimedAt: gate.phases?.need ?? gate.phases?.ready, resultAt: gate.phases?.done });
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);

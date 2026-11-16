@@ -51,7 +51,8 @@ import {prepareItemPatchSubmit,withItemPatchSubmit} from './tooling/packages/ite
 import {submitGateConfig} from './tooling/packages/gate/index.js';
 import {policyAt} from './tooling/packages/sandbox/index.js';
 import {git} from './tooling/packages/git/index.js';
-import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
+import {runGate,runProfiledShellAsync,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
+import {pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui} from './tooling/packages/gate/index.js';
 import {receiptRecorder} from './tooling/packages/flakes/index.js';
 import {context,cli$ordered as ordered,withBoard,resourceAgent,cli$freezer as freezer,queuedItemLease} from './tooling/apps/cli/index.js';
 import {runnerExecutionServices} from './tooling/packages/runners/index.js';
@@ -133,7 +134,7 @@ if(P('native')){ran.push('native');
 native=await withGateSlot(root,lease=>{
  lease.quarantines=quarantines;lease.proof=proofContext;
  lease.signatureCapture={version:MAIN_FAILURE_SIGNATURE_VERSION,derive:(run,root)=>failureSignatures(run,root,{raw:true})};
- return runProfiledShell(root,config.gate,{gateLease:lease,stages:true});
+ return runProfiledShellAsync(root,config.gate,{gateLease:lease,stages:true});
 },{executionServices,agent:agentId,kind:'check'});
 assert.equal(native.isGreen,true);assert.equal(native.exitCode,1);
 nativeReceipt=readGateReceipt(receiptStore(root),native.proofReceiptId);
@@ -218,7 +219,7 @@ await withBoard(ctx,async board=>{
 }
 if(P('guard')){ran.push('guard');
 const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.js'],directory:root+'/../logs',label:'guard',onFailure:observer,
- quarantines,proofContext:{...proofContext,kind:'land'}});
+ quarantines,proofContext:{...proofContext,kind:'land'}},{runProfiledShellAsync,pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
 assert.ok(guards.proofReceiptId,'a selective landing exception keeps its own actual native receipt');
 const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node tooling/apps/cli/src/io/run/tests.js'},['test/control.test.js'],

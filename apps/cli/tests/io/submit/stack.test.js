@@ -64,3 +64,8 @@ test('stack refusal: the base item itself is never refused for its own commit, a
   assert.doesNotThrow(() => refuseUnsubmittableStack(root, board, { item_id: 1 }, head, trunk));
   assert.throws(() => refuseUnsubmittableStack(root, board, { item_id: 2 }, head, { ref: 'main', commit: 'e'.repeat(40) }), error => error.code === 'NO_POLICY');
 });
+
+test('stack refusal: an unverified commit already merged into trunk is outside the candidate range, so a head above it is not stacked [V17,V1]', t => {
+  const { root, board, base, head, candidate } = stacked(t, 'submitted');
+  assert.doesNotThrow(() => refuseUnsubmittableStack(root, board, candidate, head, { ref: 'main', commit: base }));
+});

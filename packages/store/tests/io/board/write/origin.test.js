@@ -4,7 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { appendFact } from '../../../../index.js';
+import { writeOrigin } from '../../../../index.js';
 import { cellBoard } from '../../../fixtures/cell.js';
 import { cellItem } from '../../../fixtures/cell.js';
 import { cellProject } from '../../../fixtures/cell.js';
@@ -28,4 +30,13 @@ test('clause 1 and clause 2: a hold row names the calling file and line, not the
   const phases = rows.map(row => row.phase).filter(phase => phase.startsWith('work'));
   assert.ok(phases.length > 0, 'a work phase was recorded');
   for (const phase of phases) assert.doesNotMatch(phase, /^work:log\.js:/u, `${phase} names the event log itself`);
+});
+
+test('clause 1 and clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
+  const own = '/srv/dev/Open Source/pullboard/packages/store/src/io/board/event/log.js';
+  const caller = '/srv/dev/Open Source/pullboard/apps/cli/src/io/move.js';
+  const stack = `Error\n    at transaction (${pathToFileURL(own).href}:115:3)\n    at move (${pathToFileURL(caller).href}:9:1)`;
+  const origin = writeOrigin(stack, own);
+  assert.equal(origin[1], caller, 'the caller, not the event log, holds the write');
+  assert.equal(origin[2], '9');
 });

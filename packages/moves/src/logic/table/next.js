@@ -157,4 +157,8 @@ export const LANDING_NEXT = Object.freeze({
   STACKED_UNVERIFIED: 'verify the carried submission first',
   PUBLISH_RED_FILE: 'fix the red publish; the item waits until it is green',
   LAND_FILE_OVERLAP: 'it leads the next batch; nothing to do',
+  CRITERIA_CHANGED: 'ask the coordinator to refreeze it: pullboard shout coordinator --kind question "please refreeze #<id>"',
+  SCREEN_PENDING: 'nothing to do: the screen runs on the current base, and the item lands once it is green',
+  LAND_SUITE_PENDING: "run the full suite for the item's group on the current base, then the item lands once it is green",
+  LAND_UNCHECKED: 'nothing to do: the item lands once the screen records its trusted secrets and hook re-check',
 });

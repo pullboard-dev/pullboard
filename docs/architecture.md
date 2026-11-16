@@ -189,7 +189,7 @@ Harness results below are from 8 November 2026. Live receipts are this board's `
 | <a id="hop-orphan-worker"></a>orphaned runner worker is reclaimed | The idle probe stops a runner worker its controller no longer names and proves the runner idle again. | `packages/gate/tests/fixtures/pipeline/worker.js` (8 Nov), repro, fails on `6166bf85ca^`: real worker processes on a local runner root, the orphan gone in 0.3-2 s | none | PASS |
 | <a id="hop-ready-budget"></a>dispatch → READY | A dispatch reaches READY on its first attempt with a full startup budget, even after a long analysis. | `packages/gate/tests/fixtures/pipeline/budget.js` (8 Nov), repro, refused RUNNER_WAIT_DEADLINE on `8f7c4c7024^`: one dispatch, green, no runner held | 17 admission-deadline readiness misses | PASS, live disagrees |
 | <a id="hop-proof-lanes"></a>proof shards: at most 3 lanes | One gate runs at most 3 runner-controllers at once, however many slots are free. | `packages/gate/tests/fixtures/pipeline/lanes.js` (8 Nov), repro, 13 at once on `cc0a573570^`: 3 with 13 free slots | none | PASS |
-| <a id="hop-runner-spec"></a>proof shards: spec under 1 MiB | A runner request naming every test file of this repository builds a spec under 1 MiB. | `packages/gate/tests/fixtures/pipeline/spec.js` (8 Nov), repro, refused RUNNER_REQUEST_LIMIT on `2640738102^`: 58 KiB for 1,445 files | none | PASS |
+| <a id="hop-runner-spec"></a>proof shards: spec under 1 MiB | A runner request naming every test file of this repository builds a spec under 1 MiB. | `apps/runner/tests/io/pipeline/spec.test.js` (8 Nov), repro, refused RUNNER_REQUEST_LIMIT on `2640738102^`: 58 KiB for 1,445 files | none | PASS |
 | <a id="hop-test-receipt"></a>test run → receipt | A green gate leaves a proof receipt naming the submitted commit. | `packages/gate/tests/fixtures/pipeline/e2e.js` (8 Nov): release to green with its receipts in 6-16 s | result p50 737 ms over 29 gates | PASS |
 | <a id="hop-dead-requeue"></a>dead worker → requeue | A gate whose driver is killed is requeued on the same candidate within 20 s, with no builder red. | `packages/gate/tests/fixtures/pipeline/requeue.js` (8 Nov), repro, fails on `3a89d81fc5^`: requeued 0.7-1.6 s after the kill | requeue p50 1m41s over 22 gates | PASS, live disagrees |
 | <a id="hop-green-review"></a>green → review | A green gate puts the item in review, waiting on an independent reviewer. | `packages/gate/tests/fixtures/pipeline/e2e.js` (8 Nov): submitted (in review) | none | PASS |
@@ -354,7 +354,7 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 
 - **Id:** `review:<item>`. Created by `reserveReview` in `packages/jobs/src/io/review.js`.
 - **Serves:** item submitted at the reserved commit and digest, reserved by this reviewer.
-- **States:** `reserved`, `lapsed`, `released`. Terminal: none (released, never done).
+- **States:** `reserved`, `lapsed`, `released`, `accept-queued`, `accept-settled`. Terminal: none (released, never done).
 - **Lease:** LEASE_MS 120 s on the job; item_review_until follows the reviewLease setting (30 m); renewed only when the same reviewer reserves again; extended by a sweep while the reviewer heartbeats.
 - **Ends when its item moves on:** violated (gap SM5), at `sweepLapsedReviews` in `packages/store/src/io/board/review/lease.js`: no verdict, withdraw or reopen releases the job; reclaimLapsedReviews extends the lease while the reviewer heartbeats whatever the item's state
 - **Harness:** `packages/moves/tests/logic/moves/reserveNextReview/durable.test.js`.
@@ -365,6 +365,8 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `reserved` | `reserved` | the same reviewer reserves again | `renewReview` in `packages/jobs/src/io/review.js` |
 | `reserved` | `lapsed` | a sweep finds the lease lapsed and the reviewer silent | `reclaimLapsedReviews` in `packages/jobs/src/io/review.js` |
 | `reserved` | `released` | another reviewer takes it over | `releaseReview` in `packages/jobs/src/io/review.js` |
+| `reserved` | `accept-queued` | verify accept queues the frozen check as a runner job and names it on the review job (ae1fb799be, #8636) | `ACCEPT_QUEUED` in `apps/cli/src/io/test/accept.js` |
+| `accept-queued` | `accept-settled` | the check job's receipt records the reviewer's accept or reject once (ae1fb799be, #8636) | `settleQueuedAccept` in `packages/api/src/io/test/accept.js` |
 
 #### `landing-run`: landing run
 
@@ -560,6 +562,37 @@ A job is a row with append-only steps and a lease (RFC 0008). Its current step i
 | `receipt` | `done` | the receipt is recorded, applied to the item's baseline by applyCheckBaselineReceipt, and the lease released | `applyCheckBaselineReceipt` in `packages/api/src/io/baseline.js` |
 | `claimed` | `runaway` | the job has been claimed gate.jobMaxAttempts times without a receipt, so it ends and the coordinator hears once | `endRunaway` in `packages/api/src/io/jobs.js` |
 | `runaway` | `done` | the ended job is finished so no runner takes it again | `endRunaway` in `packages/api/src/io/jobs.js` |
+
+#### `screen`: keyed sprint screen
+
+- **Id:** `screen:<commit>:<digest>@<base>`. Created by `runScreenJob` in `packages/drive/src/io/screen.js`.
+- **Serves:** a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code.
+- **States:** `produce.started`, `part.<name>`, `result`. Terminal: `result`.
+- **Lease:** LEASE_MS 120 s renewed every 5 s until the screen settles, with no stall bound.
+- **Ends when its item moves on:** n/a, at `runScreenJob` in `packages/drive/src/io/screen.js`: keyed by commit, digest and base, so a moved item or base names a new screen; items not frozen at sprint are never screened
+- **Harness:** `packages/drive/tests/io/screen.test.js`.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `produce.started` | the first driver to screen a sprint item at this commit, digest and base takes the lease | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
+| `produce.started` | `result` | the scratch-tree merge, static checks and trusted re-check returned one green or red receipt | `produceUnderLease` in `packages/drive/src/io/keyed.js` |
+
+#### `pull-out`: sprint pull-out
+
+- **Id:** `pull-out:<item>:<landed commit, 12 hex>`. Created by `runPullOutJob` in `packages/landing/src/io/step/pull.js`.
+- **Serves:** an item whose landing is pulling: the lander reverts its landed commit on main and records pulled.
+- **States:** `queued`, `reverted`, `pushed`, `blocked`, `done`. Terminal: `blocked`, `done`.
+- **Lease:** none: one runPullOutJob call reverts, pushes and records in turn; a rerun finds the item no longer pulling.
+- **Ends when its item moves on:** held, at `runPullOutJob` in `packages/landing/src/io/step/pull.js`: created only while the item's landing is pulling, and recordPulled refuses NOT_PULLING, so a moved item is never pulled twice; only a sprint item reaches pulling
+- **Harness:** `packages/landing/tests/io/step/pull.test.js`.
+
+| From | To | Trigger | Where |
+|---|---|---|---|
+| (none) | `queued` | the item's landing is pulling, so the lander creates its pull-out job at the landed commit and the fetched trunk | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `queued` | `blocked` | the revert of the landed commit conflicts on the trunk tip; the step names the conflicted paths and the landing stays pulling | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `queued` | `reverted` | revertLanded wrote the revert commit on the trunk tip | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `reverted` | `pushed` | pushTrunkThroughFence pushed the revert to trunk under the item's hop epoch | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
+| `pushed` | `done` | recordPulled wrote the pulled event at the pushed revert, and the job finished | `runPullOutJob` in `packages/landing/src/io/step/pull.js` |
 
 #### Processes that are not job rows
 

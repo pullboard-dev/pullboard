@@ -51,13 +51,13 @@ import {
 import { actOn } from '../board/access.js';
 import { dropHandoffTicket } from '../../../../../packages/resources/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
-import { runStaticStage } from '../static/stage.js';
+import { runStaticStageAdmitted } from '../static/stage.js';
 
 /** Run `pullboard gate` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   if (first === 'set') return setHere(io, second, rest, values);
   if (values.withdraw !== undefined) return withdrawGate(io, values.withdraw);
-  if (values.static) return runStaticStage(io, context(io).info.root);
+  if (values.static) return runStaticStageAdmitted(io, context(io).info.root);
   if (values.receipt && !values.landing) throw new Refused('USAGE', 'use gate --landing --receipt to produce an exact native landing receipt');
   if (values['runner-only'] && !(values.landing && values.receipt)) throw new Refused('USAGE', 'use gate --landing --receipt --runner-only for a full runner gate');
   if (first !== undefined || second !== undefined || rest.length > 0) {

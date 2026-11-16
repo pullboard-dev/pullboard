@@ -48,14 +48,15 @@ export function declaredBoardSchema(initialize) {
   finally { db.close(); }
 }
 
-/** List exact missing, extra, and changed declarations in one actionable compatibility notice. */
+/** List exact missing, extra, and changed declarations (the opt-in gate hop table may be absent) in one actionable compatibility notice. */
 export function sharedSchemaDiagnostic(db, expected) {
   const actual = boardSchema(db);
   const differences = [];
   for (const kind of ['columns', 'triggers']) {
     const label = kind === 'columns' ? 'column' : 'trigger';
     for (const [name, value] of expected[kind]) {
-      if (!actual[kind].has(name)) differences.push(`${label} only in this worktree: ${name}`);
+      // The gate hop table is opt-in: a board gains it on its first fenced hop, so its absence is no drift [C7,#8327].
+      if (!actual[kind].has(name)) { if (!name.startsWith('gate_hop.')) differences.push(`${label} only in this worktree: ${name}`); }
       else if (actual[kind].get(name) !== value) differences.push(`different ${label}: ${name}`);
     }
     for (const name of actual[kind].keys()) {

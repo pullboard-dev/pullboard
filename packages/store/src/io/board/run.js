@@ -141,3 +141,22 @@ export function applyReceipts(board, runs, port, { by, limit = 100 }) {
     return { job, attempt, applied };
   });
 }
+
+/**
+ * Move a run to a settled state the board decides alone (`lost`, `runaway`): one board write, logged like a receipt so
+ * a replay of the events rebuilds the row. A run that is no longer queued changes nothing.
+ *
+ * @param {any} board
+ * @param {{ by: string, job: string, state: 'lost'|'runaway', outcome: string }} move
+ * @returns {{ applied: boolean }}
+ */
+export function settleRunWithoutReceipt(board, { by, job, state, outcome }) {
+  return atomic(board, () => {
+    const run = boardRun(board.db, job);
+    if (!run || run.run_state !== 'queued') return { applied: false };
+    const now = board.clock.now().getTime();
+    board.db.prepare("UPDATE run SET run_state = ?, run_outcome = ?, run_summary = '{}', run_updated = ? WHERE run_job = ? AND run_state = 'queued'").run(state, outcome, now, job);
+    logEvent(board, by, RUN_APPLIED_EVENT, run.run_item, { job, attempt: run.run_attempt, outcome, summary: {}, state }, new Date(now));
+    return { applied: true };
+  });
+}

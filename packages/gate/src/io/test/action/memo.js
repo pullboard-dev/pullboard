@@ -19,7 +19,7 @@ import {
 import { setTimeout as delay } from 'node:timers/promises';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
-import { gateMachineHome } from '../../../logic/preload.js';
+import { gateMachineHome } from '../../preload.js';
 import { storeName } from '../../store-names.js';
 
 /** Name a selector without making its path part of a cache filesystem path. */

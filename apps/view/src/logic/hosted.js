@@ -47,3 +47,26 @@ export function drawHosted(doc, model, place) {
   if (banner && full && ['signed-out', 'no-linked', 'unpaired'].includes(model.state)) { banner.hidden = true; banner.dataset.hostedHid = '1'; }
   else if (banner && banner.dataset.hostedHid && !full) { banner.hidden = false; delete banner.dataset.hostedHid; }
 }
+
+/**
+ * List the boards the page can reach in one grouped list: the local view's, then every relay machine's. Groups are keyed by
+ * machine name, and a board reachable both ways (same machine, same id) is listed once, in the group first seen. Only the
+ * local view's own group, when it says it is on this computer, is labeled "this computer"; a board served from another
+ * machine carries that machine's name, so a forwarded port never claims another machine's boards as this one's [N26,H5].
+ *
+ * @param {{machine: string, here?: boolean, boards: {id: string, name?: string}[]}} local - What the local view answers with.
+ * @param {{machine: string, boards: {id: string, name?: string}[]}[]} relay - The boards reached through the relay, per machine.
+ * @returns {{machine: string, label: string, boards: {id: string, name?: string}[]}[]} The groups, local first.
+ */
+export function mergeBoards(local, relay) {
+  const groups = new Map();
+  const add = (machine, boards, label) => {
+    if (!groups.has(machine)) groups.set(machine, { machine, label: label || machine, boards: [] });
+    const group = groups.get(machine);
+    if (label) group.label = label;
+    for (const board of boards || []) if (!group.boards.some((have) => have.id === board.id)) group.boards.push({ ...board });
+  };
+  if (local && local.machine) add(local.machine, local.boards, local.here === true ? 'this computer' : null);
+  for (const entry of relay || []) if (entry && entry.machine) add(entry.machine, entry.boards, null);
+  return [...groups.values()];
+}

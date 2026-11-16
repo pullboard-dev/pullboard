@@ -21,3 +21,8 @@ export function manualLandingFailureQuoted(note) {
   return false;
 }
 
+/** Recognize new landing receipt relationships without interpreting malformed batch input. */
+export function carriesFlakeDiagnostics(batch) {
+  return Boolean(batch && (Object.hasOwn(batch, 'flakeDiagnostics')
+    || Array.isArray(batch.gateResults) && batch.gateResults.some(result => result && Object.hasOwn(result, 'flakeDiagnostics'))));
+}

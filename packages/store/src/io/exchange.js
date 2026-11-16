@@ -1,4 +1,5 @@
 import { beginImmediateQueued } from './board/busy.js';
+import { ensureGateHopTable } from "./board/hop.js";
 import { blobDirOf } from "../../../jobs/index.js";
 import { parseStub } from "../../../jobs/index.js";
 import { readBlob } from "../../../jobs/index.js";
@@ -90,10 +91,10 @@ function nativeRows(db, table) {
 /**
  * Board tables an export may leave out; a missing one imports as empty [C7].
  *
- * Why: job, job_step and test_result are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
+ * Why: job, job_step, test_result, gate_hop and event_archive are an additive upgrade (board-jobs-schema.js), so a board gains them on open while
  * exports made before or without them never list them. Every other table still has to match exactly.
  */
-const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result', 'run']);
+const ADDITIVE_TABLES = new Set(['job', 'job_step', 'test_result', 'run', 'gate_hop', 'event_archive']);
 
 /**
  * Read every exported table's rows, leaving out an additive table that holds no rows, and its counter [C7].
@@ -323,6 +324,8 @@ export function restoreRelaySnapshot(board, document, sequence, expectedNativeDi
 /** Restore validated native rows with lifecycle guards suspended only inside the transaction. */
 function restoreDocument(board, document, replace = false, expectedNativeDigest = null) {
   const db = board.db;
+  // The hop table is opt-in: a document that carries its rows gives this board the table first, so the two table sets agree [C7].
+  if (document?.tables && typeof document.tables === 'object' && Object.hasOwn(document.tables, 'gate_hop')) ensureGateHopTable(db);
   const names = tableNames(db);
   validateDocument(db, document, names);
   prepareBoardWriteIdentity();
