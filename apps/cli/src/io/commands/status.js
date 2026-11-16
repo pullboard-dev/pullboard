@@ -1,6 +1,4 @@
 import { claimHealthProjection } from '../../../../../packages/health/light.js';
-import { currentProofCounters } from '../../../../../packages/verify/light.js';
-import { proofCounter } from '../../../../../packages/verify/light.js';
 import { localDependencyIds } from '../../../../../packages/items/index.js';
 import { dependencyLabel } from '../../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
@@ -35,8 +33,6 @@ import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
-import { ruleProofCounts } from '../../../../../packages/verify/light.js';
-import { bindProofRunner } from '../../../../../packages/verify/light.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
 import { retainedReceipts } from '../../../../../packages/gate/index.js';
@@ -44,7 +40,6 @@ import { readRunnerUtilization } from '../../../../../packages/runners/index.js'
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
-import { reviewQueueLine } from '../../../../../packages/verify/light.js';
 import {
   productLine,
   productSummaries,
@@ -65,9 +60,6 @@ import {
   span,
 } from '../read.js';
 
-// Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
-bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
-
 /** Bind authenticated foreign state to the status reader's existing read-only board. */
 function statusForeignBlockers(board, item) {
   return foreignBlockers(board, item, { readReceivedBoardState });
@@ -79,6 +71,9 @@ export const nativeBoardRequired = false;
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
+  const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
+  // Status does not load the library root that binds the runner; unbound, its coverage fingerprint never matches the writer's.
+  bindProofRunner(fileURLToPath(new URL('../run/tests.js', import.meta.url)));
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
