@@ -698,8 +698,11 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 9,
+    "tempdir": 7,
     "raw-cli": 1
+  },
+  "apps/cli/journeys/spec/cockpit/rows.test.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "tempdir": 3
