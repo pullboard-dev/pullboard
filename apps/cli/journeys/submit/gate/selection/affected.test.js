@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /**
  * A red gate shows what it said, and submit runs the frozen item check and affected test only [C7,V4,V10,V16].
  */
