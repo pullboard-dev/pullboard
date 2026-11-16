@@ -31,6 +31,7 @@ test('clause 1: next --verify offers the forced-landed items with no verdict new
   fixtureProjectPolicy(box.repo, { config: { ...config, verify: { ...config.verify, landedReviews: true } } });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: offer landed reviews');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const first = await box.runLocal(box.web, 'next', '--verify', '--json');
   assert.equal(first.code, 0, first.out + first.err);
   assert.equal(JSON.parse(first.out).item.item_id, newer, 'the newest landing is offered first');
