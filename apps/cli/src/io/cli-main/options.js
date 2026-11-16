@@ -147,6 +147,7 @@ const OPTIONS = {
   remove: { type: 'string' },
   swap: { type: 'string' },
   limit: { type: 'string' },
+  mode: { type: 'string' },
   demand: { type: 'boolean' },
   transcripts: { type: 'string' },
   checkpoint: { type: 'string' },

@@ -81,11 +81,11 @@ export function withBrief(...args) {
 }
 
 /** Create a real joined builder with its accepted fixture ownership before any claim. */
-export function builderRepo(box, additionalOwned = []) {
+export function builderRepo(box, additionalOwned = [], { plumbing = false } = {}) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
-  commitAll(box);
+  commitAll(box, 'chore: fixture state', plumbing);
   // Joining declares a model (MODEL_REQUIRED); a fixture builder names its own rather than inheriting the host's.
   box.env.PULLBOARD_MODEL ??= 'fixture-model';
   const made = box.run('worktree', 'build', '--json');
@@ -110,15 +110,31 @@ export function put(root, path, text) {
   writeFileSync(file, text);
 }
 
-/** Commit the fixture state using a valid Pullboard message. */
-export function commitAll(box, message = 'chore: fixture state') {
+/**
+ * Commit the fixture state using a valid Pullboard message.
+ * Why plumbing: a hooked commit launches node hooks (about 5 s loaded); a journey that does not prove hook behaviour writes setup commits without them [C7].
+ *
+ * @param {{ git: Function }} box - A fixture box.
+ * @param {string} [message] - The commit message.
+ * @param {boolean} [plumbing] - Write the commit with Git plumbing, so no hook runs.
+ * @returns {string} The new HEAD.
+ */
+export function commitAll(box, message = 'chore: fixture state', plumbing = false) {
   box.git('add', '-A');
-  box.git('commit', '-q', '-m', message);
-  return box.git('rev-parse', 'HEAD');
+  if (!plumbing) {
+    box.git('commit', '-q', '-m', message);
+    return box.git('rev-parse', 'HEAD');
+  }
+  const tree = box.git('write-tree');
+  let parent = [];
+  try { parent = ['-p', box.git('rev-parse', '--verify', '-q', 'HEAD')]; } catch { /* the first commit has no parent */ }
+  const commit = box.git('commit-tree', tree, ...parent, '-m', message);
+  box.git('update-ref', 'HEAD', commit);
+  return commit;
 }
 
 /** Seed a small import graph with three independently discoverable test files. */
-export function seedGraph(box) {
+export function seedGraph(box, plumbing = false) {
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'src/middle.js', "export { value } from './a.js';\n");
   put(box.root, 'src/entry.js', "export const load = () => import('./middle.js');\n");
@@ -126,5 +142,5 @@ export function seedGraph(box) {
   put(box.root, 'test/a.test.js', "import '../src/entry.js';\n");
   put(box.root, 'test/b.test.js', "import '../src/other.js';\n");
   put(box.root, 'test/c.test.js', "import assert from 'node:assert/strict';\nassert.ok(true);\n");
-  return commitAll(box);
+  return commitAll(box, 'chore: fixture state', plumbing);
 }

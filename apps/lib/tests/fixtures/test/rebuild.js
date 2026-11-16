@@ -54,6 +54,8 @@ export function copyFiles(root, files) {
 
 /** The relative code files a source names: import and export specifiers, dynamic imports, loaded modules and `new URL('./x', import.meta.url)`; any quoted relative path to code counts, so a lazy load is never missed. */
 const REFERENCE = /['"](\.{1,2}\/[^'"\s]+\.(?:m?js|cjs))['"]|new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url/gu;
+/** A repository folder a source names in quotes, with no extension: `'packages/state/src/logic/engines'`. */
+const NAMED_FOLDER = /['"`]((?:packages|apps)\/[\w.-]+(?:\/[\w.-]+)+)['"`]/gu;
 /** The producer's process entry: the files it starts from. */
 const PRODUCER_ENTRY = 'apps/cli/src/io/landing/audit.js';
 let runnableCache = null;
@@ -73,7 +75,15 @@ export function runnableFiles() {
     if (!/\.(?:js|mjs|cjs)$/u.test(file) || !existsSync(join(REPO, file))) continue;
     const source = readFileSync(join(REPO, file), 'utf8');
     // A source that lists folders may load whatever it finds there, so its whole folder comes along.
-    if (source.includes('readdirSync')) for (const sibling of tracked) if (sibling.startsWith(`${dirname(file)}/`) && !keep.has(sibling)) { keep.add(sibling); queue.push(sibling); }
+    if (source.includes('readdirSync')) {
+      // A folder named by a quoted path (`join(root, 'packages/state/src/logic/engines')`) is read the same way, though the closure never sees a reference to it.
+      const named = [...source.matchAll(NAMED_FOLDER)].map(match => `${match[1]}/`);
+      for (const sibling of tracked) {
+        if (keep.has(sibling) || !(sibling.startsWith(`${dirname(file)}/`) || named.some(folder => sibling.startsWith(folder)))) continue;
+        keep.add(sibling);
+        queue.push(sibling);
+      }
+    }
     for (const match of source.matchAll(REFERENCE)) {
       const target = relative(REPO, resolve(REPO, dirname(file), match[1] ?? match[2]));
       if (tracked.has(target) && !keep.has(target)) { keep.add(target); queue.push(target); }
