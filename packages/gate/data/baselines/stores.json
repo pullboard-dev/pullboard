@@ -1564,7 +1564,6 @@
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "publish.json",
     "pullboard-item.json",
     "pullboard-runner-policy.json",
     "recovery.json",
