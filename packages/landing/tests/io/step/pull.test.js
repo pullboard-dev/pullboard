@@ -76,7 +76,7 @@ function eventsOf(board, id, kind) {
   return board.db.prepare('SELECT event_by by, event_detail d FROM event WHERE item_id=? AND event_kind=? ORDER BY event_id').all(id, kind).map(row => ({ by: row.by, detail: JSON.parse(row.d) }));
 }
 
-test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, pushes the revert through the fence at its hop epoch, then records pulled at the pushed revert [M2,R3,#9099]', t => {
+test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, pushes the revert through the fence at its hop epoch, then records pulled at the pushed revert [M2,R3,#9099]', async t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\ntwo\nthree\nfour\n' });
   repo.put('api/y.js', 'later work\n');
@@ -85,12 +85,12 @@ test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, 
   const board = boardWith(t, [{ id: 7, merged, pulling: true, epoch: 2 }, { id: 8, merged, pulling: false, epoch: 1 }]);
 
   // A landed item that is not pulling (every Steady item) creates no job and moves nothing.
-  assert.deepEqual(runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 8, now: () => AT }), { state: 'skipped' });
-  assert.deepEqual(runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 99, now: () => AT }), { state: 'skipped' }, 'no item, no job');
+  assert.deepEqual(await runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 8, now: () => AT }), { state: 'skipped' });
+  assert.deepEqual(await runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 99, now: () => AT }), { state: 'skipped' }, 'no item, no job');
   assert.deepEqual(pullOutJobs(board), [], 'no pull-out job for an item whose landing is not pulling');
   assert.equal(repo.atRemote('rev-parse', TRUNK), trunk);
 
-  const ran = runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT });
+  const ran = await runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT });
   assert.equal(ran.state, 'pulled');
   assert.equal(ran.trunk, trunk);
   assert.match(ran.revert, /^[a-f0-9]{40}$/u);
@@ -117,11 +117,11 @@ test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, 
   assert.equal(store.pullingLanding(board, 7), null);
 
   // A second run finds nothing pulling and creates nothing more.
-  assert.deepEqual(runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT }), { state: 'skipped' });
+  assert.deepEqual(await runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT }), { state: 'skipped' });
   assert.equal(pullOutJobs(board).length, 1);
 });
 
-test('clause 2: a conflicting revert records the pull-out job blocked naming the conflict, pushes nothing, and leaves the landing pulling [M2,R3,#9099]', t => {
+test('clause 2: a conflicting revert records the pull-out job blocked naming the conflict, pushes nothing, and leaves the landing pulling [M2,R3,#9099]', async t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\ntwo\nthree\nfour\n' });
   // Later trunk work rewrites the same lines the landing added, so its revert cannot apply.
@@ -130,7 +130,7 @@ test('clause 2: a conflicting revert records the pull-out job blocked naming the
   repo.push();
   const board = boardWith(t, [{ id: 7, merged, pulling: true, epoch: 1 }]);
 
-  const ran = runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT });
+  const ran = await runPullOutJob(board, { root: repo.root, remote: repo.remote, branch: TRUNK, item: 7, now: () => AT });
   assert.deepEqual(ran, { state: 'blocked', job: ran.job, conflicts: ['shared.txt'], trunk });
 
   const [job] = pullOutJobs(board);

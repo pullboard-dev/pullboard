@@ -8,8 +8,6 @@ import { pullingLanding } from '../../../../store/index.js';
 import { recordPulled } from '../../../../store/index.js';
 import { carryLandingHops } from '../land/fence.js';
 import { requireCarriedHops } from '../land/fence.js';
-import { fenceHop } from './publish.js';
-import { pushTrunkThroughFence } from './publish.js';
 import { revertLanded } from './revert.js';
 
 /** The job kind, as JOB_KINDS in the moves backbone table names it. */
@@ -38,13 +36,14 @@ function remoteTrunk(root, remote, branch) {
  * A revert that conflicts records the job blocked, naming the conflicted paths, and records nothing on the item, so its landing stays pulling.
  * Why only pulling: only a Sprint item ever reaches pulling, so a Steady board never creates this job and its replay is unchanged.
  * Why the hop epoch: the same fence every landing push carries keeps a stale owner from moving trunk under a newer one [C7,#8275].
+ * Why publish.js is loaded lazily: it is the one move-trunk entry point, and loading it eagerly would pull the gate and CLI into this cell's reach.
  *
  * @param {any} board - The open board; its db holds the job rows unless `jobs` names the runs file.
  * @param {{ root: string, remote: string, branch: string, item: number, agentId?: string, fenced?: boolean,
  *   jobs?: import('node:sqlite').DatabaseSync, now?: () => number }} options - root: a checkout of the repository; fenced: gate.fencedHop.
- * @returns {{ state: 'skipped' } | { state: 'blocked', job: string, conflicts: string[], trunk: string } | { state: 'pulled', job: string, revert: string, trunk: string }}
+ * @returns {Promise<{ state: 'skipped' } | { state: 'blocked', job: string, conflicts: string[], trunk: string } | { state: 'pulled', job: string, revert: string, trunk: string }>}
  */
-export function runPullOutJob(board, { root, remote, branch, item, agentId = 'coordinator', fenced = true, jobs = board.db, now = Date.now }) {
+export async function runPullOutJob(board, { root, remote, branch, item, agentId = 'coordinator', fenced = true, jobs = board.db, now = Date.now }) {
   const pulling = pullingLanding(board, item);
   if (!pulling) return { state: 'skipped' };
   const id = pullOutJobId(item, pulling.mergedCommit);
@@ -58,6 +57,7 @@ export function runPullOutJob(board, { root, remote, branch, item, agentId = 'co
   writeStep(jobs, id, 'reverted', { revert: reverted.commit, trunk }, { now: now() });
   const hops = carryLandingHops(board.db, [{ id: item }], { enabled: fenced });
   requireCarriedHops(board.db, hops);
+  const { fenceHop, pushTrunkThroughFence } = await import('./publish.js');
   for (const hop of hops) fenceHop(root, { remote, ...hop });
   const pushed = pushTrunkThroughFence(root, { remote, branch, base: trunk, tip: reverted.commit, hops });
   if (pushed.status !== 0) {
