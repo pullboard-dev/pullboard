@@ -30,7 +30,6 @@ import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
-import { retainedReceipts } from '../../../../../packages/gate/light.js';
 import { readRunnerUtilization } from '../../../../../packages/runners/light.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
 import { runnerDeadlineLine } from '../../../../../packages/resources/light.js';
@@ -111,6 +110,8 @@ export async function run(io, { values }) {
   summary.reclaim = reclaim;
   summary.memoryHeld = memoryHeldRuns();
   summary.runnerDeadlines = runnerDeadlineRuns();
+  // The receipt reader is loaded here, not through gate/light.js: that door is the runner worker's, and a receipt reader in it widens the worker bundle [C7].
+  const { retainedReceipts } = await import('../../../../../packages/gate/index.js');
   summary.runnerUtilization = readRunnerUtilization(ctx.info.root, retainedReceipts);
   summary.longestHolds = longestRecentHolds();
   summary.disk = refusingBadPolicy(() => cachedDiskUse(join(ctx.info.commonDir, 'pullboard'), { now: ctx.clock.now().getTime(), maxAgeMs: 10 * 60_000 }), Refused);
