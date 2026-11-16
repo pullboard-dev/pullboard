@@ -18,8 +18,10 @@ export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queu
 export * from './light.js';
 export { localLoadAdmits, boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
 export { pruneRunnerStores } from "./src/io/prune.js";
+export { pruneRunnerStoresYielding } from "./src/io/prune.js";
 export { pruneStaleSlots } from "./src/io/prune.js";
 export { pruneChromeTemp } from "./src/io/prune.js";
+export { runnerSettingOn } from "./src/io/runner-settings.js";
 export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
 export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
 export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';

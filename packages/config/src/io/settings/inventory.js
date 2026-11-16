@@ -33,6 +33,7 @@ const MACHINE_DEFAULTS = {
   'gate.memoryFloorMB': null, 'gate.diskFloorMB': 10_240, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.refuseMissingCheckFile': false, 'gate.refuseTempWorktree': false, 'gate.runnerDispatch': 'pull', 'gate.requireRunnerAttribution': false, 'gate.jobReserve': null, 'gate.localRunner': true, 'gate.localLoadShare': 1, 'gate.staticSlots': 2, 'gate.staticMemo': false, 'gate.mainComparison': 'on-red', 'gate.submitAuthorization': 'runner', 'gate.handoffWorkers': null, 'budget.dailyUsd': null, 'budget.totalUsd': null, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': true, 'gate.runnerBusyCeiling': 90, 'gate.timingRunner': 'auto', 'gate.postLandSuite': false, 'gate.tableReplay': false, 'gate.fencedHop': true, 'gate.testNice': false, 'gate.sampleDiskIo': false, 'gate.endStaleJobs': false, 'gate.settleOnMainReceipt': false, 'inspection.clauses': false, 'holds.requireOwner': false, 'review.releaseReasons': false, 'health.lapsedSweep': false, 'health.derivedState': false, 'next.itemNotices': false,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], runnerRates: {}, 'landing.pools': [],
   'serve.address': '127.0.0.1', 'serve.port': 0, scratch: null, 'moves.shadow': false, 'tests.registryStrict': false, 'census.balanceByTime': false, 'moves.live.claim': false, 'moves.live.outbox': false, 'moves.live.handoff': false, 'moves.live.submit': false, 'moves.live.outcome': false, 'moves.live.job': false, 'moves.live.reopen': false,
+  'runners.yieldWhilePruning': false,
 };
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false,
@@ -55,6 +56,8 @@ function readObject(file) {
 
 /** Resolve a supported dotted key without inheriting unrelated object members. */
 function at(value, key) {
+  // A key under `runners` is stored flat, since `runners` is the list of registered runners and cannot hold fields [C7,#9025].
+  if (value && typeof value === 'object' && Object.hasOwn(value, key)) return value[key];
   return key.split('.').reduce((part, name) => part && Object.hasOwn(part, name) ? part[name] : undefined, value);
 }
 
