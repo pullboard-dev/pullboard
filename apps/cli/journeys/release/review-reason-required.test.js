@@ -37,9 +37,9 @@ test('clause 1: with review.releaseReasons on, a review release with no reason o
   assert.equal(store.getItem(box.board, id).item_review_by, null);
 });
 
-test('clause 2: review.releaseReasons is off by default and, off, a review release with no reason works as today [C7,#8921]', async t => {
+test('clause 2: review.releaseReasons is off by default and, off, a review release with a reason outside the four works as today [C7,#8921]', async t => {
   const { box, id } = await held(t, false);
-  const released = await cli(box, box.seats.actor.path, ['release', String(id), '--note', NOTE]);
+  const released = await cli(box, box.seats.actor.path, ['release', String(id), '--note', NOTE, '--reason', 'OTHER']);
   assert.equal(released.code, 0, released.out + released.err);
   assert.equal(store.getItem(box.board, id).item_review_by, null);
 });
