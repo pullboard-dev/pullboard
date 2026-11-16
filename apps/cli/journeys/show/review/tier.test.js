@@ -28,8 +28,9 @@ test('clause 1: with verify.family require and no live eligible seat for 20 minu
   const reviewer = box.seats.sameFamily;
 
   const early = await cli(box, reviewer.path, ['next', '--verify']);
-  assert.equal(early.code, 0, early.out + early.err);
-  assert.equal(early.document.item, null, 'an other-family reviewer is still live, so the rule holds');
+  assert.equal(early.code, 1, early.out + early.err);
+  assert.equal(early.document.error.code, 'NOTHING_FREE', 'an other-family reviewer is still live, so the rule holds');
+  assert.match(early.document.error.message, /SAME_FAMILY/u);
 
   box.advance(20 * 60_000);
   const late = await cli(box, reviewer.path, ['next', '--verify']);
