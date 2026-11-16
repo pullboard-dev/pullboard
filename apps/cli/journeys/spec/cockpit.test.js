@@ -42,7 +42,6 @@ import {
   watchSpecFilter,
 } from '../../tests/fixtures/cockpit/spec-watch.js';
 
-
 test('clause 1: spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });
