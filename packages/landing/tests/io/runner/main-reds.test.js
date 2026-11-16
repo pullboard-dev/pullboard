@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { fixture } from '../../fixtures/plan.js';
 import { git } from '../../fixtures/plan.js';
 import { landingMainReds } from '../../../index.js';
-import { mainOwnedReds } from '../../../index.js';
+import { mainOwnedReds } from '../../../src/io/runner/contracts.js';
 
 const ON = { landing: { ledgerMainReds: true } };
 // redNow's answer over the ledger rows: one red per file and context class, with the commit its newest red row ran at.

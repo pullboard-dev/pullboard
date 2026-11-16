@@ -66,7 +66,6 @@ export { recordLandingAudit, runMergedFollowup, mergedChecksLog } from './src/io
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
 export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
 export { landingMainReds } from "./src/logic/main/ledger.js";
-export { mainOwnedReds } from "./src/io/runner/contracts.js";
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
