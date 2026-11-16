@@ -28,6 +28,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
+import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusShardCount } from '../../logic/census.js';
 import { pulledShardCount } from '../../logic/census.js';
 import { finalStatus } from '../../logic/census.js';
@@ -56,7 +57,7 @@ function cleanHead(root) {
 }
 
 /** The census plan, cut by measured time behind census.balanceByTime and by the landing planner otherwise; the dispatcher and the row writer both cut it here so a label names the same files [C7]. */
-const cutPlan = (root, files, count) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root)); };
+const cutPlan = (root, files, count, timed = true) => { const times = readFileTimes(root); return censusPlan(files, count, times, censusBalanceByTimeEnabled(), () => planLandingShards(files, count, times, root), timed ? censusJobMinutes() : null); };
 
 /** Quote one shell word for a pulled job's command. */
 const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
@@ -120,9 +121,11 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const dispatch = run ?? (pulled ? pulledCensus(ctx, io, values) : runLandingShards);
   run = (...args) => withFileLimit(values, () => dispatch(...args));
   const runners = censusShardCount(loadMachineSettings().runners);
-  const count = Math.min(shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
+  // census.jobMinutes, when set, sizes a pulled census by measured time: the job count is whatever the plan needs (cutPlan ignores `count`).
+  const timed = pulled && censusJobMinutes() ? cutPlan(root, files, 1).length : null;
+  const count = Math.min(timed ?? shards ?? (pulled ? pulledShardCount(files.length, runners) : runners), files.length);
   // The same plan runLandingShards cuts, so a shard's label names the files it held.
-  const plan = cutPlan(root, files, count);
+  const plan = cutPlan(root, files, count, pulled);
   const rows = new Map();
   const last = new Map();
   const emit = (shard, record) => {

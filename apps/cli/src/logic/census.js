@@ -229,6 +229,31 @@ export function balancedJobs(files, count, times = {}) {
 }
 
 /**
+ * Cut a census into jobs of at most `limitMs` measured time each (and PULLED_FILES_PER_JOB files), heaviest first. Files,
+ * heaviest first, go into the first job they fit, so no job weighs over the larger of the limit and its slowest file, and
+ * there are at least ceil(total / limit) jobs. A file with no time weighs the known average, and with no times at all one ms [C7].
+ *
+ * @param {string[]} files - Distinct repository-relative test files.
+ * @param {Record<string, number>} times - Last measured wall ms by file.
+ * @param {number} limitMs - Most measured ms one job holds.
+ * @returns {{ files: string[], weight: number }[]}
+ */
+export function timeBoundJobs(files, times, limitMs) {
+  const known = files.map(file => times[file]).filter(ms => Number.isFinite(ms) && ms >= 0);
+  const average = known.length ? known.reduce((sum, ms) => sum + ms, 0) / known.length : 1;
+  const weight = file => (Number.isFinite(times[file]) && times[file] >= 0 ? times[file] : average);
+  const jobs = [];
+  for (const file of [...files].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b))) {
+    const fits = jobs.find(job => job.files.length < PULLED_FILES_PER_JOB && job.weight + weight(file) <= limitMs);
+    const job = fits ?? jobs[jobs.push({ files: [], weight: 0 }) - 1];
+    job.files.push(file);
+    job.weight += weight(file);
+  }
+  for (const job of jobs) job.files.sort((a, b) => a.localeCompare(b));
+  return jobs.sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
  * The census plan: by measured time, heaviest job first, when `balanceByTime` is on; otherwise exactly what `base` (the
  * landing planner) cuts, so a machine that has not opted in plans as it always did [C7].
  *
@@ -237,8 +262,10 @@ export function balancedJobs(files, count, times = {}) {
  * @param {Record<string, number>} times
  * @param {boolean} balanceByTime - The census.balanceByTime setting.
  * @param {() => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times.
+ * @param {number|null} [jobMinutes] - The census.jobMinutes setting; when set it decides the plan, and `count` is ignored.
  * @returns {{ files: string[], weight: number }[]}
  */
-export function censusPlan(files, count, times, balanceByTime, base) {
+export function censusPlan(files, count, times, balanceByTime, base, jobMinutes = null) {
+  if (jobMinutes) return timeBoundJobs(files, times, jobMinutes * 60_000);
   return balanceByTime ? balancedJobs(files, count, times) : base();
 }
