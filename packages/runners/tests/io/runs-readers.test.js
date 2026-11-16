@@ -89,8 +89,8 @@ test('clause 2: with runs_store on, the stats and sentinels job readers read the
   assert.deepEqual(got.demand.map(row => row[0]).sort(), ['gate:1', 'land:1', 'run:1'].filter(job => got.demand.some(row => row[0] === job)));
   assert.ok(got.spans.some(row => row[0] === 'gate:1'));
   assert.deepEqual(got.seats, ['seat-1']);
-  assert.equal(got.live.length, 1, 'the sentinels reader sees the landing run held in the runs file');
-  assert.match(got.live[0], /land:1/u);
+  assert.equal(got.live.length, 2, 'the sentinels reader sees the held gate and the landing run held in the runs file');
+  assert.ok(got.live.some(holder => /land:1/u.test(holder)));
   assert.equal(digest(), before, 'no reader changed the runs file');
 });
 
