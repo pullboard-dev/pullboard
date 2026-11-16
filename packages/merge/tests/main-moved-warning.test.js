@@ -6,8 +6,8 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { warnMainMoved } from '../index.js';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 
 /**
  * A repository whose main moves, a submitted item head that conflicts with every move, and a shout table.
