@@ -49,6 +49,7 @@ function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,enco
 /** Wait for an observed native ownership boundary. */
 export async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
 /** Copy actual installed source with spaces and a separate real tracked main project. landingShards 1 runs the audit gate in one process; each extra shard starts and installs its own runner, which is most of an audit's time [C7]. */
+const T0=Date.now();export const lap=l=>process.stderr.write(`LAP ${l} ${Date.now()-T0}\n`);
 export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false, landingShards = 2 } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
@@ -56,7 +57,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   const source=fileURLToPath(SOURCE),files=packageFiles(source).filter(file=>file==='package.json'||file==='packages/gate/tests/fixtures/budgets.js'||/^(?:src|bin|packages|apps)\//u.test(file)&&!/^(?:test\/|packages\/[^/]+\/tests\/|apps\/[^/]+\/(?:tests|journeys)\/)/u.test(file));
   // The audited repo has no cell plan: with one, the audit worker also builds the accepted inventory of the whole source tree (about 2 minutes), work these cases do not exercise [C7].
   copyPackageFiles(source,installed,{files});copyPackageFiles(source,repo,{files:files.filter(file=>file!=='packages/codemap/data/plan/cells.json')});
-  assert.equal(existsSync(join(installed,'.git')),false);
+  lap('copied');assert.equal(existsSync(join(installed,'.git')),false);
   const env={...process.env,HOME:join(scratch,'home'),PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(scratch,'pullboard'),PULLBOARD_MACHINE_HOME:machine,
     GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1',GIT_AUTHOR_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
   // The runner's launch guard names this checkout's copy; the installed worker knows only its own copy, so point the guard there.
@@ -67,17 +68,17 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
   writeFileSync(join(machine,'settings.json'),JSON.stringify({gateSlots:2,browserSlots:2,gate:{browserFreeChecks:true}}));
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node apps/cli/src/io/run/tests.js',landingShards,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(repoPath(repo, `test/${name}.test.js`),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
-  git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
+  git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');lap('committed');
   const { board: store }=await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const native = await import(pathToFileURL(join(installed,'apps/lib/index.js')));
   const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'packages/gate/index.js')));
-  const boardFile=join(repo,'.git/pullboard/board.sqlite');
+  lap('imported');const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
   function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);}}
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
-  const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
+  lap('activated');const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
   const marker=join(scratch,'green-body-ran');
   const unitMarker=join(scratch,'unchanged-unit-ran');
   /** Preserve the actual unchanged-unit marker bytes without exposing its path as an inferred object capability. */
@@ -95,7 +96,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
     writeFileSync(join(candidate,'test/b.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('unchanged paid unit',()=>appendFileSync(${JSON.stringify(unitMarker)},'ran'));\n`);
   }
   git(candidate,env,'add','test');git(candidate,env,'commit','-q','-m','test: actual combined failing tree');const tip=git(candidate,env,'rev-parse','HEAD'),tree=git(candidate,env,'rev-parse','HEAD^{tree}');git(repo,env,'worktree','remove',candidate);
-  const batchId=randomUUID();
+  lap('tip');const batchId=randomUUID();
   // Synthetic PRE-AUDIT acceptance models existing native landing protocol only. It is not a gate proof.
   const item=board(db=>{
     const id=store.addItem(db,{by:'coordinator',lane:'alpha',title:'Accepted batch fixture',criterion:'Pre-audit protocol input'});
@@ -107,7 +108,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
     store.finishLandingBatch(db,{agentId:'coordinator',id:batchId,tip});return id;
   });
   const directory=join(repo,'.git/pullboard/main-audits'),key=mainAuditKey({board:identity.id,batchId,tip,tree});
-  const children=[];
+  lap('fixture ready');const children=[];
   /** Invoke the real copied worker; no fake gate, mocked transport, or injected receipt is used. */
   function startWorker({ scheduled = false } = {}) {
     const token=randomUUID();
@@ -116,7 +117,7 @@ export async function mainAuditFixture(t, { initialGreen = false, requireRealGit
     return {child,token,closed,async finish(){const[code,signal]=await closed;assert.equal(signal,null,err);assert.equal(code,0,err);}};
   }
   /** Existing tests retain a successful terminal worker helper. */
-  async function runWorker(){await startWorker().finish();}
+  async function runWorker(){lap('worker start');await startWorker().finish();lap('worker end');}
   /** Observe actual queue rows while its workers initialize or commit, without retrying an assertion or changing leases. */
   function queue(){
     const db=new DatabaseSync(join(machine,'resources.sqlite'),{readOnly:true});

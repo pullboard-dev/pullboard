@@ -27,6 +27,7 @@ const SOURCE=new URL('../../../../../../',import.meta.url);
 /** Genuine Git operations retain exact commit identities; no board history is edited directly. */
 function git(root,env,...args) {const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 import { mainAuditFixture } from './project.js';
+import { lap } from './project.js';
 
 test('production main audit waits for real FF, collects both failures, routes both, and never repeats completion [C7,V4,H16]',{timeout:120_000},async t=>{
   const box=await mainAuditFixture(t,{landingShards:1});
@@ -68,7 +69,7 @@ test('production main audit waits for real FF, collects both failures, routes bo
     for(const defect of defects)box.store.withdraw(db,defect.item,{agentId:'coordinator',reason:'private recurrence control: original repair withdrawn'});
     return defects.map(defect=>box.store.getItem(db,defect.item));
   });
-  const secondBatch=box.appendBatch();
+  lap('before B');const secondBatch=box.appendBatch();lap('after B');
   for(const defect of defects)assert.equal(git(box.repo,box.env,'rev-parse',`${secondBatch.tip}:${defect.test}`),defect.blob,'recurrence uses exact same failing blob');
   box.board(origin=>{
     const replica=box.store.openBoard(':memory:');
