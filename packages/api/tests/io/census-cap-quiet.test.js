@@ -27,7 +27,7 @@ test('clause 2: a runner that holds a non-census job stops at 5 census jobs [C7,
   const db = boardWith(t);
   offerJob(db, { id: 'gate:item-1', kind: 'gate', now: 0 });
   assert.equal(take(db, 'kiln', 99)?.job, 'gate:item-1');
-  offerCensus(db, 12, 5, 8);
+  offerCensus(db, 14, 5, 8);
   assert.equal(takeAll(db, 'kiln', 100).length, 5, 'one other job holds the runner to the plain cap');
   assert.equal(takeAll(db, 'mill', 200).length, 8, 'another runner holding only census jobs still gets the quiet cap');
 });
