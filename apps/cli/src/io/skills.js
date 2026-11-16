@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderWorkerSkill } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 const SKILL_VERSIONS = [
@@ -44,6 +45,9 @@ export const SHIPPED_SKILL_DIGESTS = Object.freeze({
   run: Object.freeze({
     '5ba87afa7e77fb09e69aa0e27838c933b51557f0c5241a7ca7e5bf2cd6faa5c1': Object.freeze(SKILL_VERSIONS),
   }),
+  worker: Object.freeze({
+    'e8ff1b0d8e79869d0fcbf3b537d5f1ab650a946e717f682804ef5e34f8f3fe1f': Object.freeze(['0.9.5']),
+  }),
 });
 
 const LEGACY_SKILL_TEXT = Object.freeze({
@@ -73,6 +77,7 @@ export const ROLES = {
   verify: 'pullboard-verify',
   run: 'pullboard-run',
   triage: 'pullboard-triage',
+  worker: 'pullboard-worker',
 };
 
 /**
@@ -86,6 +91,8 @@ function shippedSkill(role) {
   if (!name) {
     throw new Refused('NO_ROLE', `no role "${role}"; roles: ${Object.keys(ROLES).join(', ')}`);
   }
+  // The worker loop has no file to drift: it is generated from the one shared seat-loop source (#8550).
+  if (role === 'worker') return renderWorkerSkill();
   return readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 }
 
