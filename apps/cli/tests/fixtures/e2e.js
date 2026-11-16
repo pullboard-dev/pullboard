@@ -55,6 +55,8 @@ export const JOURNEY_MODE = process.env.PULLBOARD_JOURNEY_MODE === 'process' ? '
 /** Machine-dependent text in a CLI answer: the private sandbox folder, times, ids, hashes and durations. */
 export function parityText(text, dir) {
   return String(text ?? '').split(dir).join('<dir>')
+    // A real script process prints node's experimental-feature warning; the same code run in this process does not (the warning already fired once).
+    .replace(/\(node:\d+\) ExperimentalWarning: [^\n]*\n\(Use `node --trace-warnings[^\n]*\n/gu, '')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z/gu, '<time>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d(?=  )/gu, '<time>')
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gu, '<uuid>')

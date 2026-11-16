@@ -16,6 +16,8 @@ import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 import { verifyRunnerReceipt } from '../logic/signature.js';
 
+export { RunnerDropped };
+
 /** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
 export function transportText(value) {
   const text = String(value ?? '').split(/\r?\n/u).filter(line => !line.startsWith('PULLBOARD_RUNNER_')).join('\n').slice(-8192);
