@@ -41,6 +41,7 @@ import {
   configFromSource,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
+  loadConfig,
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
@@ -117,6 +118,18 @@ function headerProblems(header, rules) {
   }
   if (subject.endsWith('.')) problems.push('remove the period at the end of the subject');
   return { problems, type: match[1] };
+}
+
+/**
+ * Header problems alone (format, length, case, period) for one commit header; git-written merges, reverts and fixups are exempt.
+ * Why: trusted re-checks need the header rule without a spec or a claim (A8).
+ *
+ * @param {string} header
+ * @param {any} rules - The `commits` settings.
+ * @returns {string[]}
+ */
+export function commitHeaderProblems(header, rules) {
+  return EXEMPT_RE.test(header) ? [] : headerProblems(header, rules).problems;
 }
 
 /** Name usable approved citations, or the real draft-and-approval path when none are available. */
@@ -489,6 +502,30 @@ export function secretsIn(added) {
       : pattern.test(entry.text));
     return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
   });
+}
+
+/**
+ * Re-check every commit in base..head for committed secrets and header-rule breaks, reading git directly so a
+ * skipped hook (`--no-verify`) hides nothing. Reuses the SECRETS table and the header rule above (A8).
+ *
+ * @param {string} repo - A checkout root the trusted caller owns.
+ * @param {string} base - Exclusive start of the range.
+ * @param {string} head - Inclusive end of the range.
+ * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings, or the built-in ones when it has none.
+ * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
+ */
+export function recheckRange(repo, base, head, { rules } = {}) {
+  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
+  if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
+  const findings = [];
+  for (const commit of listed.stdout.split('\n').filter(Boolean)) {
+    const header = git(repo, ['log', '-1', '--format=%s', commit]);
+    for (const problem of commitHeaderProblems(header, commitRules)) findings.push({ commit, kind: 'header', problem });
+    const diff = git(repo, ['diff-tree', '--root', '-p', '-m', '--first-parent', '-U0', '--no-commit-id', '--no-ext-diff', '--no-textconv', '--no-color', commit], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    for (const problem of secretsIn(addedLines(diff))) findings.push({ commit, kind: 'secret', problem });
+  }
+  return findings;
 }
 
 /**
