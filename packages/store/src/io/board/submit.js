@@ -85,13 +85,15 @@ export function sealStrictRenames(board, id, options) {
   const configured = policy.config.intake?.sensitivePaths ?? [];
   if (!Array.isArray(configured) || configured.some(path => typeof path !== 'string' || !path))
     throw new Refused('BAD_CONFIG', 'intake.sensitivePaths must name relative sensitive files or directory prefixes');
+  // Once review defaults are active an edit in place to a gate path is standard, so only a configured sensitive path's rename stays strict [C7,#8575].
+  const defaults = Boolean(board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get());
   const strictRenames = [];
   for (let i = 0; i < fields.length && fields[i];) {
     const status = fields[i++], oldPath = fields[i++];
     if (status.startsWith('R') || status.startsWith('C')) {
       const newPath = fields[i++];
       const sensitive = configured.some(path => oldPath === path || path.endsWith('/') && oldPath.startsWith(path));
-      if (status.startsWith('R') && (gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
+      if (status.startsWith('R') && (!defaults && gateJudgmentPath(oldPath) || sensitive)) strictRenames.push([oldPath, newPath]);
     }
   }
   return { ...options, strictRenames };
