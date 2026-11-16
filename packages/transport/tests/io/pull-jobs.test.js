@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { createJob } from '../../../jobs/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { jobsPullPorts } from '../../../jobs/index.js';
