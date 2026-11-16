@@ -12,6 +12,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { after } from 'node:test';
+import { before } from 'node:test';
 import { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -19,6 +21,7 @@ import {
   findChromeExecutable,
   findRunnerAncestor,
 } from '../../../apps/cli/tests/fixtures/chrome.js';
+import { withNestedGroup } from '../index.js';
 import { runFixtureChildAsync } from './fixtures/child.js';
 import { runUnderStandIn } from './fixtures/runner-standin.js';
 
@@ -98,6 +101,10 @@ const VICTIMS = {
 
 // The twelve cases share nothing (each owns its profile, owner and Chrome), so they run together: 93 s serial becomes the slowest one [C7].
 describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, () => {
+  let addVictim, endGroup, group;
+  // One nested group lends this file's place for the whole marker phase of every runner victim, and drains all of them before it returns (#1152).
+  before(() => { group = withNestedGroup(async (add) => { addVictim = add; await new Promise((resolve) => { endGroup = resolve; }); }); });
+  after(async () => { endGroup(); await group; });
   for (const [launcher, name] of Object.entries(LAUNCHERS)) {
     for (const killed of Object.keys(VICTIMS)) {
       test(`Chrome from ${name} exits within 10 s of its ${killed} dying by SIGKILL [C7]`, {
@@ -114,14 +121,21 @@ describe('a test Chrome never outlives its owner [C7]', { concurrency: true }, (
         const victim = run.child;
         run.catch(() => {}); // a SIGKILLed victim settles with an error the test reads from the exit signal instead.
         recorded.push(victim.pid);
-        recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
-        const before = chromeProcesses(profile);
-        assert.ok(before.length > 0, 'the owner holds a live Chrome before it is killed');
-        const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
-        process.kill(victim.pid, 'SIGKILL');
-        assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        let alive;
+        /** Wait for Chrome to be ready, then kill exactly this victim. */
+        const killVictim = async () => {
+          recorded.push(await waitForReady(readyFile, victim, READY_BUDGET_MS)); // budget: hang ceiling for Chrome to start, including a gate browser-slot wait; no speed claim.
+          alive = chromeProcesses(profile);
+          assert.ok(alive.length > 0, 'the owner holds a live Chrome before it is killed');
+          const ended = new Promise((resolve) => victim.once('exit', (code, signal) => resolve(signal)));
+          process.kill(victim.pid, 'SIGKILL');
+          assert.equal(await ended, 'SIGKILL', `the ${killed} died by SIGKILL`);
+        };
+        // A runner victim joins the file's one nested group, so every case lends the same shared place while it waits; the owner case keeps its own semantics.
+        if (killed !== 'owner') addVictim(run);
+        await killVictim();
         const gone = await waitForChromeGone(profile, DEATH_BUDGET_MS); // budget: the item's declared bound on Chrome outliving its dead owner.
-        assert.notEqual(gone, null, `Chrome (${before.length} processes, pids ${before.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
+        assert.notEqual(gone, null, `Chrome (${alive.length} processes, pids ${alive.map(row => row.pid).join(',')}) survived its ${killed} for ${DEATH_BUDGET_MS}ms`); // budget: the item's declared 10 s bound.
       });
     }
   }
