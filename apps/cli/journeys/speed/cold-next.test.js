@@ -18,6 +18,7 @@ after(helpers.cleanup);
 async function heldCold() {
   const box = helpers.project('true');
   const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cold next build', args: ['--specs', 'G1'], run: box.runLocal })).item_id;
+  box.git(box.repo, 'config', 'pullboard.trunk', 'main'); // A real board records its trunk, so reading it starts no git.
   const claimed = await box.runIn(box.web, 'claim', String(id));
   assert.equal(claimed.code, 0, claimed.err + claimed.out);
   const cold = await coldNext(box.web, box.env);
