@@ -16,6 +16,7 @@ export const MACHINE_DEFAULTS = {
   'gate.adapterLintClock': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.contractWeakening': false,
   'gate.diskFloorMB': 10_240,
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
@@ -105,6 +106,7 @@ export const MACHINE_DEFAULTS = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'view.background': true,
 };

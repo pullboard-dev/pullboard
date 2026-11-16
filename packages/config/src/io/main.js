@@ -418,6 +418,9 @@ export function configProblems(config) {
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
   }
+  if (config.release !== undefined && (notPlain(config.release) || Object.keys(config.release).some(key => key !== 'liftTwiceHold') || typeof config.release.liftTwiceHold !== 'boolean')) {
+    problems.push('"release" is { "liftTwiceHold": true or false }, false by default: true lifts an automatic released-twice hold when main moves or its named blocker lands');
+  }
   if (config.withdraw !== undefined && (notPlain(config.withdraw)
     || Object.keys(config.withdraw).some(key => !['review', 'refuseLanded'].includes(key))
     || Object.values(config.withdraw).some(value => typeof value !== 'boolean'))) {

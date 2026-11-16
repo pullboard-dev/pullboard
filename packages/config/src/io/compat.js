@@ -18,6 +18,7 @@ function schema(base) {
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     withdraw: fields(['review', 'refuseLanded']),
+    release: fields(['liftTwiceHold']),
     claims: { ...shape(base.claims), ...fields(['perSeat', 'fileLease', 'fileLeaseHubs']) },
     queue: fields(['contention', 'contentionThreshold']),
     inbox: { tokenBudget: null, keepUntilActed: null, escalateAfterMinutes: null, batchedMarks: null },
