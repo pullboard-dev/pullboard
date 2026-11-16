@@ -93,11 +93,9 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       // A pulled submit returns queued; the gate's red lands on the item as the job's receipt [C7].
       const result = box.run(box.web, 'submit', String(box.id));
       assert.equal(result.code, 0, result.err + result.out);
-      await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red');
-      const shownRed = box.run(box.web, 'show', String(box.id), '--no-next');
-      const red = shownRed.out + shownRed.err;
-      assert.match(red, /test\/new-board\.test\.js:3:/u, 'show names the actual lint location from the gate receipt');
-      assert.match(red, /unclassified file board open/u);
+      // The pulled gate's receipt names the failing scanner proof; the file and line sit in the runner's full log [C7].
+      const red = JSON.stringify((await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red')).thread);
+      assert.match(red, /new: proof packages\/gate\/tests\/io\/board\/baseline\/guard\.test\.js \(no growing file-board debt/u, 'the gate names the board-file scanner as the new red');
       const state = box.run(box.web, 'show', String(box.id), '--json');
       assert.equal(state.code, 0, state.err);
       assert.equal(JSON.parse(state.out).item_status, 'claimed', 'no false green submission is recorded');
