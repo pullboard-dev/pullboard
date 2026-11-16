@@ -46,7 +46,8 @@ test('clause 1: with a needs-review mark on I1, the spec findings include a find
 test('clause 2: a later accepted verification of I1 clears its finding [C7,#9343]', (t) => {
   const { board, verify } = fixture(t);
   verify(F2, 'rejected', CASCADE);
-  verify(I1, 'accepted');
+  // The verdict parses its row alone, so the serves link (to a row outside that one line) is left off the verified line.
+  verify('- I1 [approved, must] Implication one follows. | gate: review', 'accepted');
   assert.deepEqual(needsReviewFindings(board, SPEC, { enabled: true }), []);
 });
 
