@@ -90,6 +90,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;

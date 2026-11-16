@@ -76,6 +76,7 @@ const ROWS = [
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.recaptureHandoff', 'Hand queued gate recapture to a worker', 'When enabled, a queued gate recapture is handed off to a worker instead of running in the submitting command; off (default), submit recaptures as before, and nothing reads this setting yet.', 'Runners', 'on/off'],
   ['gate.redFactLocation', 'Name the line in a gate red', 'When enabled, a pulled gate red from a static lint or guard check also lists the first file:line places the check reported, then a count; off (default), the red fact is unchanged.', 'Runners', 'on/off'],
+  ['gate.reofferInfraEnd', 'Offer a gate job again after an infrastructure end', 'When enabled, a gate job that ends with no progress (GATE_JOB_NO_PROGRESS, an infrastructure end and never a red) is offered once more for the same commit, so the item is not left for its claim to be released. At most one re-offer per commit.', 'Runners', 'on/off'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
