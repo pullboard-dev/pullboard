@@ -1,5 +1,5 @@
 /** Start the background worker that writes spooled inbox delivery marks, behind inbox.batchedMarks [C7,#8942]. */
-import { spawn } from 'node:child_process';
+import { spawnDetachedChild } from './launch.js';
 
 /**
  * Start `node <worker> <boardFile>` detached and let the command exit at once.
@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
  * @param {string} boardFile
  */
 export function startMarksWorker(worker, boardFile) {
-  const child = spawn(process.execPath, [worker, boardFile], { detached: true, stdio: 'ignore' });
+  const child = spawnDetachedChild(process.execPath, [worker, boardFile], { cwd: process.cwd(), env: process.env, stdio: 'ignore' });
   child.on('error', () => {});
   child.unref();
 }
