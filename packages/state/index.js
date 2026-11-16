@@ -205,6 +205,10 @@ export { requireCriterionEvidence, clauseEvidenceWarnings, guardBar } from './sr
 export const FORCED_MERGE_ENGINE = engineNumber('FORCED_MERGE_ENGINE');
 export const LANDED_VERDICT_ENGINE = engineNumber('LANDED_VERDICT_ENGINE');
 export const LANDED_REJECT_ENGINE = engineNumber('LANDED_REJECT_ENGINE');
+export const LANDING_DIMENSION_ENGINE = engineNumber('LANDING_DIMENSION_ENGINE');
+export { EVENT_KIND_ENGINES } from './src/logic/engine/event-kinds.js';
+export { eventKindEngine } from './src/logic/engine/event-kinds.js';
+export { eventKindRefusal } from './src/logic/engine/event-kinds.js';
 export const ASK_CLOSE_ENGINE = engineNumber('ASK_CLOSE_ENGINE');
 export const PULLED_RED_COUNT_ENGINE = engineNumber('PULLED_RED_COUNT_ENGINE');
 export const COORDINATOR_USAGE_ENGINE = engineNumber('COORDINATOR_USAGE_ENGINE');

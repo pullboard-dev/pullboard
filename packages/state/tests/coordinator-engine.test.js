@@ -7,6 +7,7 @@ import { COORDINATOR_USAGE_ENGINE } from '../light.js';
 import { ENGINE_VERSION } from '../light.js';
 import { ENGINE_FOLDER } from '../src/io/engine/numbers.js';
 import { readEngineLeaves } from '../src/io/engine/numbers.js';
+import { nextEngineNumber } from '../src/io/engine/numbers.js';
 
 const leaves = () => readEngineLeaves(resolve(import.meta.dirname, '../../..', ENGINE_FOLDER));
 
@@ -22,7 +23,8 @@ test('every landed engine number above the legacy shared 145 is unique [C7]', ()
 });
 
 test('the current engine is the registry maximum, so a later landing (LANDED_REJECT_ENGINE 258, 274a628a97) raises it on purpose [C7]', () => {
-  const numbers = leaves().map(leaf => leaf.number ?? 0);
+  // An unlanded leaf on a branch reads as one above the highest landed engine, as unassignedEngine() gives it.
+  const numbers = leaves().map(leaf => leaf.number ?? nextEngineNumber(leaves()));
   assert.equal(ENGINE_VERSION, Math.max(...numbers));
   assert.ok(ENGINE_VERSION >= COORDINATOR_USAGE_ENGINE);
 });
