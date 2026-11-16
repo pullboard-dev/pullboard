@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { describeSetting } from '../../../config/index.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { temporaryDirectory } from '../../../board/tests/fixtures/board.js';
 import { recordWaits } from '../../index.js';
 import { waitBudgets } from '../../index.js';
 import { waitsSnapshot } from '../../index.js';
@@ -19,14 +18,12 @@ import { localCensus } from '../../src/io/surfaces.js';
 
 /** A real board file, repo folder and machine home, with a live holder and a live waiter marker 5 s and 3 s old. */
 function slowWrite(t, settings) {
-  const { root } = privateFixtureFiles('pullboard-write-holder-');
+  const root = temporaryDirectory('pullboard-write-holder-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
   mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
-  const children = [];
   t.after(() => {
-    for (const pid of children) try { process.kill(pid, 'SIGKILL'); } catch { /* Gone already. */ }
     if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved;
     rmSync(root, { recursive: true, force: true });
   });
@@ -36,15 +33,14 @@ function slowWrite(t, settings) {
   mkdirSync(join(commonDir, 'pullboard'), { recursive: true });
   const markers = `${boardFile}.write-holders`;
   mkdirSync(markers, { recursive: true });
-  const live = [5_000, 3_000].map((age, index) => {
-    const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' });
-    children.push(child.pid);
-    writeFileSync(join(markers, `${child.pid}-00000000-0000-0000-0000-00000000000${index + 1}.json`), JSON.stringify({ version: 1, pid: child.pid,
+  // This process holds the write and its parent waits: both are live, so no child process is needed.
+  const live = [process.pid, process.ppid];
+  [5_000, 3_000].forEach((age, index) => {
+    writeFileSync(join(markers, `${live[index]}-00000000-0000-0000-0000-00000000000${index + 1}.json`), JSON.stringify({ version: 1, pid: live[index],
       started: '', processSha256: 'a'.repeat(64), command: index ? 'add' : 'merged', seat: index ? 'core-2' : 'coordinator', acquiredAt: Date.now() - age }));
-    return child.pid;
   });
   const paths = { commonDir, boardFile, machineHome: join(root, 'home'), handoffQueue: join(root, 'home', 'handoff-queue') };
-  const census = new Map([...localCensus()].filter(([pid]) => children.includes(pid)));
+  const census = new Map([...localCensus()].filter(([pid]) => live.includes(pid)));
   const record = async () => {
     const snapshot = await waitsSnapshot({ paths, budgets: waitBudgets(), hosts: [], census });
     return recordWaits({ ...snapshot, budgets: { ...snapshot.budgets, file: false } }, { observeHolder: writeHolderRecorder(board.db) });
