@@ -29,7 +29,7 @@ async function waitForReviewComparison(box) {
     { signal: AbortSignal.timeout(60_000), state: () => existsSync(jobs) ? readdirSync(jobs) : 'no comparison jobs' });
 }
 
-test('review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async t => {
+test('clause 1: review.independence session: a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async t => {
   const box = await project();
   const builder = 'codex-thread-secret-builder-921';
   const build = (args) => box.inProcess(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
@@ -63,7 +63,7 @@ test('review.independence session: a verdict from the agent session that built t
   assert.equal(accepted.status, 0, `${accepted.stdout}${accepted.stderr}`);
 });
 
-test('a session whose claims cannot be recorded is refused before it moves, never let through [V1,B3]', async () => {
+test('clause 1: a session whose claims cannot be recorded is refused before it moves, never let through [V1,B3]', async () => {
   const box = await project();
   const ledger = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'item-sessions.jsonl');
   writeFileSync(ledger, '', { mode: 0o400 });
@@ -89,7 +89,7 @@ async function openHelper(box, session, { agent = true, from = box.web } = {}) {
   return { result, gitDir, file: join(gitDir, 'pullboard-parent-session.json') };
 }
 
-test('a helper seat records the agent that opened it [N2,B13]', async () => {
+test('clause 1: a helper seat records the agent that opened it [N2,B13]', async () => {
   const box = await project();
   const parent = JSON.parse((await box.inProcess(box.web, ['whoami', '--json'], { agent: false })).stdout).id;
   const session = 'codex-thread-secret-parent-800';
@@ -107,7 +107,7 @@ test('a helper seat records the agent that opened it [N2,B13]', async () => {
   assert.equal(JSON.parse((await box.inProcess(box.web, ['show', '1', '--json'], { agent: false })).stdout).item_owner, helper.result.agent);
 });
 
-test('agents lists each agent with its helpers [N2,B13]', async () => {
+test('clause 1: agents lists each agent with its helpers [N2,B13]', async () => {
   const box = await project();
   const parent = JSON.parse((await box.inProcess(box.web, ['whoami', '--json'], { agent: false })).stdout).id;
   const helper = await openHelper(box, 'codex-thread-secret-parent-800');
@@ -126,7 +126,7 @@ test('agents lists each agent with its helpers [N2,B13]', async () => {
   assert.match(text.stdout, new RegExp(`${helper.result.agent}[^\\n]*#1`, 'u'), 'the text view shows the helper and its item');
 });
 
-test('agents gives the coordinator a row with the helpers it opened [N2,B13]', async () => {
+test('clause 1: agents gives the coordinator a row with the helpers it opened [N2,B13]', async () => {
   const box = await project();
   const helper = await openHelper(box, 'codex-thread-coordinator-800', { from: box.repo });
   assert.equal(JSON.parse(readFileSync(helper.file, 'utf8')).parent, 'coordinator', 'the main checkout is recorded as the parent');
