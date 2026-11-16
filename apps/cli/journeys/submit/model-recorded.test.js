@@ -37,8 +37,6 @@ async function seatsFor(t) {
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'main-red-refresh.started'), String(Date.now()));
   Object.assign(box.env, { PULLBOARD_CLAIM_BEATER: '0', PULLBOARD_USAGE_CHECKPOINT: 'inline' });
-  const builder = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
-  const verifier = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude');
   const clone = join(box.dir, 'studio');
   runFixtureGit(['clone', '-q', box.root, clone], { cwd: box.dir, env: box.env, stdio: 'pipe' });
   const machine = join(box.dir, 'studio-home');
@@ -47,11 +45,17 @@ async function seatsFor(t) {
   startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
   const remote = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
-  assert.equal((await remote(builder, 'settings', 'board.url', box.origin)).status, 0);
-  assert.equal((await remote(builder, 'settings', 'board.token', '--', box.key)).status, 0);
+  const first = await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
+  assert.equal((await remote(first, 'settings', 'board.url', box.origin)).status, 0);
+  assert.equal((await remote(first, 'settings', 'board.token', '--', box.key)).status, 0);
   const local = (seat, ...args) => runCliInProcess(args, { cwd: seat.path, env: { ...box.env, PULLBOARD_AGENT: seat.agent } });
   const add = async title => (await served(box, box.root, 'add', 'app', title, '--specs', 'G1', '--criterion', CLAUSE, '--brief', FIXTURE_BRIEF)).item.item_id;
-  return { box, builder, verifier, remote, local, add };
+  /** A fresh builder and verifier, each declaring its own model: a builder holding an earlier accepted item may not commit another. */
+  const pair = async () => ({
+    builder: await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex'),
+    verifier: await served(box, box.root, 'worktree', 'app', '--model', FIXTURE_MODEL_EARLIER, '--family', 'claude'),
+  });
+  return { box, pair, remote, local, add };
 }
 
 /** Run a body on the fixture, then stop the served board and its runner before the tree is removed. */
@@ -84,24 +88,25 @@ function recordedModels(seats, id) {
 }
 
 /** Check the submit and the verdict events name the builder's and the verifier's declared models. */
-function assertModels(seats, id, verdict) {
+function assertModels(seats, id, verdict, { builder, verifier }) {
   const found = recordedModels(seats, id);
-  assert.equal(found.submit?.by, seats.builder.agent, 'the builder submitted');
+  assert.equal(found.submit?.by, builder.agent, 'the builder submitted');
   assert.equal(found.submit?.model, FIXTURE_MODEL, 'the submit event records the builder seat model');
-  assert.equal(found[verdict]?.by, seats.verifier.agent, `the verifier gave the ${verdict}`);
+  assert.equal(found[verdict]?.by, verifier.agent, `the verifier gave the ${verdict}`);
   assert.equal(found[verdict]?.model, FIXTURE_MODEL_EARLIER, `the ${verdict} event records the verifier seat model`);
 }
 
 /** Drive one item from claim to a verdict with `run(seat, ...args)`, which returns a parsed result and fails on a nonzero exit. */
 async function drive(seats, run, id, verdict) {
-  await run(seats.builder, 'claim', String(id));
-  commitWork(seats.box, seats.builder, id);
-  await run(seats.builder, 'submit', String(id));
+  const { builder, verifier } = seats.current = await seats.pair();
+  await run(builder, 'claim', String(id));
+  commitWork(seats.box, builder, id);
+  await run(builder, 'submit', String(id));
   assert.equal((await settled(seats, id)).status, 'submitted', 'the host runner posted the pulled gate receipt');
-  checkOutSubmitted(seats.box, seats.builder, seats.verifier);
-  await run(seats.verifier, 'next', '--verify');
-  if (verdict === 'accept') await run(seats.verifier, 'verify', String(id), 'accept', '--reason', 'CRITERION_MET', '--note', 'read the diff');
-  else await run(seats.verifier, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', CLAUSE, '--note', 'the clause is not met');
+  checkOutSubmitted(seats.box, builder, verifier);
+  await run(verifier, 'next', '--verify');
+  if (verdict === 'accept') await run(verifier, 'verify', String(id), 'accept', '--reason', 'CRITERION_MET', '--note', 'read the diff');
+  else await run(verifier, 'verify', String(id), 'reject', '--reason', 'TEST_FAILURE', '--clause', CLAUSE, '--note', 'the clause is not met');
 }
 
 /** A CLI runner that asserts a zero exit and returns the parsed document. */
@@ -175,31 +180,31 @@ onSeats(async (seats, t) => {
     const id = await seats.add('Local submit model');
     await drive(seats, ok(seats, 'local'), id, 'accept');
     const found = recordedModels(seats, id);
-    assert.equal(found.submit?.by, seats.builder.agent);
+    assert.equal(found.submit?.by, seats.current.builder.agent);
     assert.equal(found.submit?.model, FIXTURE_MODEL);
   });
 
   await t.test('clause 2: pullboard verify accept and verify reject from a seat joined with a model each record that model on the verdict event', async () => {
     const accepted = await seats.add('Local accept model');
     await drive(seats, ok(seats, 'local'), accepted, 'accept');
-    assertModels(seats, accepted, 'accept');
+    assertModels(seats, accepted, 'accept', seats.current);
     const rejected = await seats.add('Local reject model');
     await drive(seats, ok(seats, 'local'), rejected, 'reject');
-    assertModels(seats, rejected, 'reject');
+    assertModels(seats, rejected, 'reject', seats.current);
   });
 
   await t.test('clause 3: the same submit and verdicts sent over the API (board.url set) and the MCP tool record the seat model too', async () => {
     for (const verdict of ['accept', 'reject']) {
       const id = await seats.add(`Remote ${verdict} model`);
       await drive(seats, ok(seats, 'remote'), id, verdict);
-      assertModels(seats, id, verdict);
+      assertModels(seats, id, verdict, seats.current);
     }
     const run = mcpRunner(seats);
     try {
       for (const verdict of ['accept', 'reject']) {
         const id = await seats.add(`MCP ${verdict} model`);
         await drive(seats, run, id, verdict);
-        assertModels(seats, id, verdict);
+        assertModels(seats, id, verdict, seats.current);
       }
     } finally { await run.close(); }
   });
