@@ -7,6 +7,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { loadavg } from 'node:os';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { parseProcessCensus } from '../../../../../packages/kernel/index.js';
 import { COLLECTION_ID_ENV } from '../../../../../packages/gate/index.js';
@@ -80,17 +81,39 @@ async function rerunNonGreen({ rows, out, sha, run, base, pulled }) {
 }
 
 /**
+ * The job times a shard's log carries (a pulled job writes them as a `# census-times` line), else the local ones: the
+ * census start for claim and start, now for the end, and the load when the census began. Why: the rows could not place
+ * the gap between 14 busy slots and 36 allowed, because they held no times (census 6) [C7,#9284].
+ *
+ * @param {string} output - The shard's log text.
+ * @param {Date} fallbackStart - When this census began.
+ * @param {number} fallbackLoad - The 1-minute load when it began.
+ * @returns {{ claimedAt: string, startedAt: string, endedAt: string, load1: number }}
+ */
+function jobTimes(output, fallbackStart, fallbackLoad) {
+  let told = {};
+  const line = /^# census-times (\{.*\})$/mu.exec(String(output));
+  if (line) { try { told = JSON.parse(line[1]); } catch { /* a garbled line falls back to the local times */ } }
+  const iso = value => (typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null);
+  const now = new Date().toISOString(), began = fallbackStart.toISOString();
+  const startedAt = iso(told.startedAt) ?? iso(told.claimedAt) ?? began;
+  return { claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
+}
+
+/**
  * Rerun one non-green file alone and put rerunRow's answer in `rows`. `fileLimit: false` asks the dispatcher for the
  * usual per-file kill instead of the census's no-file-limit hard stop, so a file that hung once cannot hold the census
  * for ten minutes again [C7,#9283].
  */
 async function rerunOne({ rows, sha, run, base, first, fileLimit }) {
   let pending = null, again = null;
+  const began = new Date(), beganLoad = loadavg()[0];
   const write = (text) => {
     const header = parseShardHeader(text);
     if (header) { pending = header; return; }
     if (!pending || /^# landing (?:shards?|timing|floor|file|result)\b/u.test(text) || !finalStatus(pending.status)) return;
     [again] = shardRows({ ...pending, output: text, files: [first.file], outcomes: allTestOutcomes(text), times: shardFileTimes(text) }, sha);
+    if (again) again = { ...again, ...jobTimes(text, began, beganLoad) };
     pending = null;
   };
   try { await run({ ...base, files: [first.file], count: 1, write, ...(fileLimit === false ? { fileLimit } : {}) }); } catch { /* a rerun with no answer leaves the file unrun */ }
@@ -123,6 +146,7 @@ function pulledCensus(ctx, io, values = {}) {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : fileBudgetField(values)), ...(perRunner ? { censusPerRunner: perRunner } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
+        write(`# census-times ${JSON.stringify({ claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
         const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
         write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
@@ -170,9 +194,12 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const rows = new Map();
   const last = new Map();
   const settled = [];
+  const censusStart = new Date(), startLoad = loadavg()[0];
   const emit = (shard, record) => {
     const text = shardRows({ ...record, files: shard.files.map(file => fileKey(file)), outcomes: allTestOutcomes(record.output), times: shardFileTimes(record.output) }, sha);
-    for (const row of text) {
+    const told = jobTimes(record.output, censusStart, startLoad);
+    for (const row0 of text) {
+      const row = { ...row0, ...told };
       rows.set(row.file, row); appendFileSync(out, `${JSON.stringify(row)}\n`);
       // census.rerunOnSettle: this file's job has settled, so its rerun starts now, alongside the jobs still running; a hung file is not rerun [C7,#9283].
       if (settleReruns && rerunnable(row) && row.status !== 'hung') settled.push(rerunOne({ rows, sha, run, base, first: row, fileLimit: false }));
