@@ -1790,11 +1790,6 @@
   "packages/runners/tests/fixtures/landing-run.js": {
     "tempdir": 2
   },
-  "packages/gate/tests/io/test/cleanup/background.test.js": {
-    "tempdir": 1,
-    "env-spread": 1,
-    "hand-policy": 1
-  },
   "apps/cli/tests/fixtures/runner/browser/free.js": {
     "tempdir": 1,
     "hand-policy": 2,
