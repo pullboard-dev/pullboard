@@ -168,7 +168,7 @@ export function fixtureGrowth(problems, ceilings) {
 
 /**
  * The trunk commit this tree was composed on: the second parent of a merge HEAD (the gate merges main into the builder's
- * source), else the point where this tree last met main (a branch that merged main and then committed has no merge HEAD),
+ * source), or the first parent of a land merge (subject `Merge #N onto main`: HEAD^1 is the trunk, HEAD^2 the item tip), else the point where this tree last met main (a branch that merged main and then committed has no merge HEAD),
  * else null. Why: a ratchet written at one trunk must not blame an item for rows its trunk already carries [C7,#8368].
  */
 export function compositionBase(root) {
@@ -177,7 +177,11 @@ export function compositionBase(root) {
     return result.status === 0 && /^[0-9a-f]{40,64}$/u.test(result.stdout.trim()) ? result.stdout.trim() : null;
   };
   const second = commit(['rev-parse', '--verify', '--quiet', 'HEAD^2^{commit}']);
-  if (second) return second;
+  if (second) {
+    const subject = spawnSync('git', ['log', '-1', '--format=%s', 'HEAD'], { cwd: root, encoding: 'utf8' });
+    const landMerge = subject.status === 0 && /^Merge #\d+ onto main\b/u.test(subject.stdout.trim());
+    return landMerge ? commit(['rev-parse', '--verify', '--quiet', 'HEAD^1^{commit}']) : second;
+  }
   const met = commit(['merge-base', 'HEAD', 'refs/heads/main']);
   return met && met !== commit(['rev-parse', 'HEAD']) ? met : null;
 }
