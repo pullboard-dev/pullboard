@@ -29,6 +29,7 @@ async function gitSyncOn(ctx, board) {
   return false;
 }
 import { randomUUID } from 'node:crypto';
+import { recordCheckpoint } from './seat-checkpoint.js';
 import * as itemSessions from '../../../../packages/items/index.js';
 import * as store from '../../../../packages/store/index.js';
 import { cdTo } from './context.js';
@@ -253,6 +254,12 @@ export async function claimOrdered(ctx, board, args) {
     const refusal = (await (await import('./exit/rules.js')).loadExitRules()).contextCeilingRefusal(exitRules);
     if (refusal) throw refusal;
   }
+  // A budget at its stop line refuses a new claim only; a claim the seat already holds renews, so nothing stops mid-item [N2].
+  if (!(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
+    const { budgetClaimRefusal, machineBudgetState } = await import('../../../../packages/stats/light.js');
+    const refusal = budgetClaimRefusal(machineBudgetState(board, Date.now()));
+    if (refusal) throw refusal;
+  }
   const estimate = held.item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
   // The claiming session's declared model caps its seat's route, so a light-route session in a strong seat cannot claim strong work (#3678).
@@ -268,6 +275,8 @@ export async function claimOrdered(ctx, board, args) {
     ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].
+  if (!result.renewed && !adoptCorrection && !refreshPolicy) await recordCheckpoint(ctx, board, { item: args[0], agent: args[1].agentId, moment: 'claim', parts: { left: [`build #${args[0]}: ${held.item_title}`], evidence: args[1].head ? [`claim head ${args[1].head}`] : [] } }, ordered);
   return result;
 }
 

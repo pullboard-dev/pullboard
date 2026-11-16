@@ -104,7 +104,7 @@ export function verify(ctx, item, command, options, services) {
     pinRunMain(lease, observe);
     lease.quarantines = options.board ? quarantineVerdictSnapshot(options.board) : await services.withBoard(ctx, quarantineVerdictSnapshot);
     lease.proof = { seat: services.resourceAgent(ctx) };
-    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, services);
+    const result = await runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, services);
     await recordNativeProof(ctx, item, result, { ...services, proofRunReceipt }, options.board);
     await recordRun(observe, result);
     if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,

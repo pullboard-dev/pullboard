@@ -19,6 +19,7 @@ import { reviewReleaseCooldown as routingReviewReleaseCooldown } from "../../../
 import { seatFamily } from "../../../verify/index.js";
 import { routingStrictReviewProblem } from "../../../verify/index.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
+import { declaredLimitProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../items/index.js";
 import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
@@ -355,7 +356,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', r
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => declaredLimitProblem(board, found, agentId) ?? routingStrictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
@@ -399,6 +400,8 @@ export { FACT_KINDS } from "../../../items/index.js";
 export { factReference };
 
 export { itemThread } from "./board/query.js";
+
+export { itemThreads } from "./board/query.js";
 
 /** The enclosing move's transaction owns these implicit notices; older replay emits none. */
 export function postRigorNotices(board, trigger) {

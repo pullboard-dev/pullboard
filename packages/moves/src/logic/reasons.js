@@ -30,6 +30,26 @@ export function ownWaitingLines(board, me) {
 }
 
 /**
+ * One line for each hold whose owner is this seat (by id, or by its lane) and whose deadline has passed, only while
+ * holds.requireOwner is on; off (default) it names nothing, so `next` is unchanged [C7,#8541].
+ *
+ * @param {any} board
+ * @param {{ id: string, lane?: string }} me the seat running next
+ * @param {boolean} requireOwner the holds.requireOwner setting as the caller read it
+ * @returns {string[]}
+ */
+export function lapsedHoldLines(board, me, requireOwner) {
+  if (requireOwner !== true) return [];
+  const at = Date.parse(store.now(board));
+  return store.listItems(board).filter(entry => entry.item_hold_reason).flatMap(entry => {
+    const record = store.itemHoldOwner(board, entry.item_id);
+    const mine = record && (record.owner === me.id || (me.lane && (record.owner === me.lane || record.owner === `lane:${me.lane}`)));
+    return mine && Date.parse(record.deadline) <= at
+      ? [`#${entry.item_id} hold lapsed ${record.deadline}: it is yours to lift or renew (${entry.item_hold_reason.split('\n')[0]}); pullboard hold ${entry.item_id} --off`] : [];
+  });
+}
+
+/**
  * Put the no-item answer first and compress a large held queue without hiding other wait reasons.
  *
  * @param {string[]} reasons

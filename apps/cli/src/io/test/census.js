@@ -21,6 +21,7 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { fileKey } from '../../../../../packages/landing/index.js';
 import { planLandingShards } from '../../../../../packages/landing/index.js';
 import { runLandingShards } from '../../../../../packages/landing/index.js';
+import { FILE_TIME_LINE } from '../../../../../packages/landing/index.js';
 import { shardFileTimes } from '../../../../../packages/landing/index.js';
 import { readFileTimes } from '../../../../../packages/gate/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
@@ -32,6 +33,7 @@ import { finalStatus } from '../../logic/census.js';
 import { parseShardHeader } from '../../logic/census.js';
 import { shardRows } from '../../logic/census.js';
 import { verdictOutcomes } from '../../logic/census.js';
+import { pulledTimeLines } from '../../logic/census.js';
 import { storeName } from '../store-names.js';
 import { runPulledComparison } from './pull.js';
 import { fileBudgetField } from './file-limit.js';
@@ -75,7 +77,9 @@ function pulledCensus(ctx, io, values = {}) {
       try {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...fileBudgetField(values) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
-        write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${ran.output}\n`);
+        // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
+        const timed = pulledTimeLines(ran.times, FILE_TIME_LINE);
+        write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
         io.err(`pullboard test --census: shard ${label} got no answer: ${error?.message ?? error}`);
         write(`# landing shard ${label} attempt 1 on none: infrastructure (${error?.code ?? 'error'}) in ${Date.now() - started} ms\n`);
