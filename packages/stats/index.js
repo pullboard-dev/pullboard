@@ -74,6 +74,7 @@ export {
   eventCounts,
   proofStats,
 } from './src/io/main.js';
+export { capacityWeekRow, isoWeek } from './src/logic/capacity/week.js';
 export {
   CAPACITY_VERSION,
   emptyCapacityCounter,
