@@ -354,6 +354,9 @@ export function loadMachineSettings() {
     || (value.view.background !== undefined && typeof value.view.background !== 'boolean'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `view in ${file} must be an object whose background is true or false; fix it before running Pullboard`);
   }
+  if (value.relay?.renewAfterSync !== undefined && typeof value.relay.renewAfterSync !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `relay.renewAfterSync in ${file} must be true or false`);
+  }
   if (value.relay?.offerAtInit !== undefined && typeof value.relay.offerAtInit !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `relay.offerAtInit in ${file} must be true or false`);
   }

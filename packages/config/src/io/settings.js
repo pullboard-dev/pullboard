@@ -335,6 +335,11 @@ export function landingSquashEnabled() {
   return loadMachineSettings().landing?.squash === true;
 }
 
+/** Whether relay.renewAfterSync is on (#9330): off by default; only an exact `true` turns it on. */
+export function renewAfterSyncEnabled() {
+  return loadMachineSettings().relay?.renewAfterSync === true;
+}
+
 /** Whether landing.strictFullSuite is on (#9323): off by default; only an exact `true` turns it on. */
 export function strictFullSuiteEnabled() {
   return loadMachineSettings().landing?.strictFullSuite === true;

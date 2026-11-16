@@ -9,6 +9,10 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CONFIG_FILE } from '../../../../config/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { renewAfterSyncEnabled } from '../../../../config/index.js';
+
+/** Whether relay.renewAfterSync is on, read here so the renewal module imports no config of its own [#9330]. */
+export const renewOn = () => renewAfterSyncEnabled();
 
 /** The board id this checkout's pullboard.json names, or null. */
 export function namedBoard(root) {

@@ -33,4 +33,5 @@ export { RECOVER_COMMAND, parkedHealth, parkedMoves, recoveryRefusalMatches, rec
 export { relayStorage, relayStorageLine } from './src/logic/relay/storage.js';
 export { clearUploadPauseNotices, firstUploadPauseNotice, permanentUploadRefusal, safePauseMessage, uploadPauseType, uploadRetryReady } from './src/io/relay/pause.js';
 export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecoverParked, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/io/relay.js';
+export { renewAfterSync, rememberMachine } from './src/io/relay/credentials.js';
 export { landingRelayCallbacks } from './src/logic/landing.js';

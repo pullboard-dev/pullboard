@@ -80,6 +80,7 @@ export const MACHINE_DEFAULTS = {
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.offerAtInit': true,
+  'relay.renewAfterSync': false,
   'review.releaseReasons': false,
   runnerRates: {},
   runners: [],
