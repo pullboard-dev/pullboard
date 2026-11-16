@@ -82,5 +82,5 @@ test('clause 2: with the setting off, ROUTED_ELSEWHERE never counts, touched or 
   const blockedTwice = run(snapshot({ first: 'BLOCKED', firstUntouched: false, reroute: false }), release('BLOCKED', false));
   assert.ok(blockedTwice.via.includes('released-twice'), 'two touched BLOCKED releases still count');
   const ineligibleTwice = run(snapshot({ first: 'INELIGIBLE', firstUntouched: false, reroute: false }), release('INELIGIBLE', false));
-  assert.ok(ineligibleTwice.via.includes('released-twice'), 'two touched INELIGIBLE releases still count');
+  assert.ok(ineligibleTwice.via.includes('route-calibration'), 'a touched INELIGIBLE release still calibrates the route as before');
 });
