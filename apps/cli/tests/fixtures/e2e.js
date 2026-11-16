@@ -66,6 +66,7 @@ export function parityText(text, dir) {
     .replace(/(gate:\d+:<hex>):[0-9a-z]+/gu, '$1:<job>')
     .replace(/(gate-\d+-<hex>)-[0-9a-z]+-\d+/gu, '$1-<job>')
     .replace(/\b(local-[a-z]+-\d+-[a-z]+)-\d{3,}\b/gu, '$1-<pid>')
+    .replace(/\b(local-[a-z]+\.local)-\d{3,}\b/gu, '$1-<pid>') // a local runner named for its host and process id
     // The detached comparison worker records its result at no fixed moment, so a call sees it pending, complete or unavailable: a background-measured value.
     .replace(/^comparison (?:pending for #\d+|unavailable: .*|#\d+.*(?:\n(?:head |base |new red:|fixed:|No new red).*)*)$/gmu, '<comparison>')
     .replace(/"steps":\{[^}]*\}/gu, '"steps":"<steps>"')
