@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../index.js';
-import { landingOf } from '../../../../moves/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 
 const AT = Date.parse('2026-11-16T12:00:00.000Z');
@@ -23,12 +22,16 @@ function landedItem(t, { pulling }) {
   return board;
 }
 
-/** The item's landing events, oldest first, and its landing as the moves cell derives it. */
+/** landingOf's reading, from moves rules.js: the newest pull_out, pulled or published event sets the landing; else the merged commit does. */
+const LANDING_EVENTS = { pull_out: 'pulling', pulled: 'none', published: 'published' };
+
+/** The item's landing events, oldest first, and its landing as landingOf derives it. */
 function landing(board) {
   const row = board.db.prepare('SELECT item_merged_commit FROM item WHERE item_id=7').get();
   const history = board.db.prepare("SELECT event_kind kind, event_by by, event_detail d FROM event WHERE item_id=7 AND event_kind IN ('merged','pull_out','pulled','published') ORDER BY event_id").all()
     .map(event => ({ kind: event.kind, by: event.by, detail: JSON.parse(event.d) }));
-  return { history, value: landingOf({ mergedCommit: row.item_merged_commit }, history) };
+  const last = history.findLast(event => Object.hasOwn(LANDING_EVENTS, event.kind));
+  return { history, value: last ? LANDING_EVENTS[last.kind] : row.item_merged_commit ? 'landed' : 'none' };
 }
 
 test('clause 1: a coordinator move with a full revert sha on a pulling item runs PULLED_TABLE and writes one pulled event, leaving landingOf none [M2,R3,#9098]', t => {
