@@ -1,6 +1,7 @@
 /** Machine-wide setting defaults, one key per line in sorted order so parallel items adding settings do not conflict [O5,O6]. */
 export const MACHINE_DEFAULTS = {
   'add.warnUnnamedTest': false,
+  'board.archiveEvents': false,
   browserSlots: 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
@@ -68,6 +69,7 @@ export const MACHINE_DEFAULTS = {
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
   'landing.asyncFetch': false,
+  'landing.byHand': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
@@ -95,6 +97,7 @@ export const MACHINE_DEFAULTS = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'runner.packCache': false,
   runnerRates: {},
