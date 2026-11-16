@@ -951,10 +951,12 @@
     "repo-read": 3
   },
   "apps/cli/journeys/init/calls.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/init/calls.js": {
     "tempdir": 2,
     "env-spread": 1,
-    "hand-policy": 4,
-    "raw-board": 1
+    "hand-policy": 4
   },
   "packages/sync/tests/io/git/lock.test.js": {
     "tempdir": 1
