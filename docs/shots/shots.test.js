@@ -83,8 +83,8 @@ test('the demo board stages a Shouts conversation [I11,I13]', () => {
 });
 
 /**
- * Run a command to completion without blocking the event loop, so the two slow demo rebuilds below overlap.
- * Why: each rebuild is a long chain of real pullboard commands that mostly waits on child processes, so running them side by side cuts the file's wall time to the longer one.
+ * Run a command to completion without blocking the event loop, so the capture's demo rebuild runs while the file's other cases run.
+ * Why: the rebuild is a long chain of real pullboard commands that mostly waits on child processes.
  *
  * @param {string} file the program to run
  * @param {string[]} args its arguments
@@ -105,35 +105,9 @@ function runAsync(file, args, options) {
   });
 }
 
-/** Rebuild the demo board in an isolated copy of the repo, in the background, and keep what the model test reads. */
-async function rebuildModelBoard() {
-  const fixture = mkdtempSync(join(tmpdir(), 'pullboard-demo-model-'));
-  try {
-    const source = fileURLToPath(ROOT);
-    const root = join(fixture, 'repo');
-    mkdirSync(root);
-    for (const directory of ['apps', 'packages', 'docs/shots', 'docs/img', 'skills']) cpSync(join(source, directory), join(root, directory), { recursive: true });
-    for (const file of ['apps/cli/tests/fixtures/chrome.js', 'apps/cli/tests/fixtures/chrome/shutdown.js', 'apps/cli/tests/fixtures/chrome/args.js', 'apps/cli/tests/fixtures/child.js', 'package.json', 'CHANGELOG.md']) cpSync(join(source, file), join(root, file));
-    const shims = join(fixture, 'bin');
-    mkdirSync(shims);
-    const pullboard = join(shims, 'pullboard');
-    writeFileSync(pullboard, `#!/bin/sh\nexec "${process.execPath}" "${join(root, 'apps/cli/pullboard.js')}" "$@"\n`);
-    chmodSync(pullboard, 0o755);
-    const env = { ...process.env, PATH: [shims, process.env.PATH].filter(Boolean).join(delimiter) };
-    delete env.PULLBOARD_MODEL;
-    const result = await runAsync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--board-only'], { cwd: root, env });
-    const read = (name) => (result.status === 0 ? JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board', name), 'utf8')) : null);
-    return { result, state: read('state.json')?.state, events: read('events.json')?.events };
-  } finally {
-    rmSync(fixture, { recursive: true, force: true });
-  }
-}
-
-const modelBoard = rebuildModelBoard();
-
+/** The model case reads the board the README capture's own isolated rebuild exported, so the demo is built once. */
 test('the demo board declares every agent\'s model [I11,I13]', { timeout: 240_000 }, async () => {
-  const { result, state, events } = await modelBoard;
-  assert.equal(result.status, 0, `the isolated real demo board rebuild succeeds: ${result.stderr}\n${result.stdout}`);
+  const { state, events } = await readmeCapture;
   const models = new Map(state.agents.map((agent) => [agent.agent_id, agent.agent_model]));
   assert.ok(events.some((event) => event.event_kind === 'join' && event.event_by === 'coordinator'), 'the first coordinator registration is in the full event log');
   for (const event of events.filter((move) => move.event_by !== 'person')) {
@@ -168,7 +142,12 @@ test("the README capture's Chrome socket path fits the Linux limit [I11,C7]", ()
   }
 });
 
-/** Capture the README screenshots in an isolated copy and check what the capture leaves behind. Why: it runs beside the model rebuild, so the test below only awaits it. */
+/**
+ * Capture the README screenshots in an isolated copy, check what the capture leaves behind, and return the board it exported.
+ * Why: it starts at load and the tests below await it, so the one real demo rebuild serves both the capture and the model case; PULLBOARD_MODEL is unset so the rebuilt board must declare its own models.
+ *
+ * @returns {Promise<{state: any, events: any[]}>} the exported demo board's state and full event log
+ */
 async function captureReadme() {
   const source = fileURLToPath(ROOT);
   const images = ['desktop-light.png', 'desktop-dark.png', 'phone-light.png', 'phone-dark.png', 'shouts-light.png', 'shouts-dark.png'];
@@ -212,6 +191,7 @@ async function captureReadme() {
       PULLBOARD_MACHINE_HOME: join(fixture, 'home'),
     };
     delete env.PULLBOARD_VIEW_FOREGROUND;
+    delete env.PULLBOARD_MODEL;
     if (!foregroundControl) delete env.PULLBOARD_README_CAPTURE_FOREGROUND;
     const result = await runAsync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--screenshots-only'], { cwd: root, env, timeout: 210_000 });
     const observation = existsSync(observationPath) ? JSON.parse(readFileSync(observationPath, 'utf8')) : null;
@@ -245,13 +225,14 @@ async function captureReadme() {
     assert.equal(observation.testCleanup.exited, true, `${arm}: the test-only exact-PID cleanup completed`);
     assert.deepEqual(observation.fixtureProcessesAfterTestCleanup, [], `${arm}: test cleanup leaves no fixture process behind`);
     assert.deepEqual(observation.teardownErrors, [], `${arm}: capture teardown completed without errors`);
+    const exported = (name) => JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board', name), 'utf8'));
+    return { state: exported('state.json').state, events: exported('events.json').events };
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }
 }
 
 const readmeCapture = captureReadme();
-modelBoard.catch(() => {});
 readmeCapture.catch(() => {});
 
 test('the README capture leaves no view running [I11,I13]', { timeout: 240_000 }, async () => {
