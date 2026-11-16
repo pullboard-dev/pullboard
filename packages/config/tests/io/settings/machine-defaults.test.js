@@ -114,6 +114,7 @@ const BEFORE = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'view.background': true,
 };
