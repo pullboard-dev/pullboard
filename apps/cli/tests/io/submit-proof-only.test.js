@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { settingsInventory } from '../../../../packages/config/index.js';
-import { runLocal } from '../journeys/submit/gate/local.js';
-import { coordinatorLocal } from '../journeys/submit/gate/local.js';
+import { runLocal } from '../../journeys/submit/gate/local.js';
+import { coordinatorLocal } from '../../journeys/submit/gate/local.js';
 import { fixtureSettledMachine } from '../fixtures/testkit.js';
 import { builderRepo } from '../fixtures/submit/gate.js';
 import { privateRepo } from '../fixtures/submit/gate.js';
