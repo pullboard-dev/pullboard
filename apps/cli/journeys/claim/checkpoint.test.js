@@ -30,7 +30,7 @@ function switchOff(seat) {
 }
 
 test('clause 1: a claim records one checkpoint fact with the five parts when seat.checkpoints is on [C7,#8549]', async t => {
-  const box = await fixture(t, { settings: { seat: { checkpoints: true } } });
+  const box = await fixture(t, { projectConfig: { seat: { checkpoints: true } } });
   const { id, facts, err } = await claimed(box, box.seats.builder, 'Checkpointed claim');
   const found = facts.map(readCheckpoint).filter(Boolean);
   assert.equal(found.length, 1, `exactly one checkpoint fact: ${err}`);
@@ -40,7 +40,7 @@ test('clause 1: a claim records one checkpoint fact with the five parts when sea
 });
 
 test('clause 1: a claim adds no checkpoint fact and no other fact when seat.checkpoints is off or never set [C7,#8549]', async t => {
-  const box = await fixture(t, { settings: { seat: { checkpoints: true } } });
+  const box = await fixture(t, { projectConfig: { seat: { checkpoints: true } } });
   const on = await claimed(box, box.seats.builder, 'Claimed with the setting on');
   switchOff(box.seats.actor);
   const off = await claimed(box, box.seats.actor, 'Claimed with the setting never set');
