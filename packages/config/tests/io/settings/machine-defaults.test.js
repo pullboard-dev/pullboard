@@ -23,6 +23,7 @@ const BEFORE = {
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintTimers': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.contractWeakening': false,
@@ -175,4 +176,9 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: gate.adapterLintTimers is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.adapterLintTimers'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintTimers'], false);
 });
