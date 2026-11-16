@@ -1,5 +1,5 @@
 /**
- * End to end on real repos: runner tiers, dependency conflicts and hold (N16, B8, V1, R1, N22).
+ * End to end on real repos: runner tiers and dependency conflicts (N16, B8, V1, R1). Hold lives in e2e-runner-hold.
  */
 /** @pullboard-test-input source-cell apps/cli apps/lib store */
 
@@ -98,19 +98,4 @@ test('the runner returns a claimed dependent item when its verified dependency c
   assert.notEqual(blocked.code, 0, blocked.out);
   assert.match(blocked.err, /MERGE_CONFLICT/);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_status, 'open', 'the automatic claimed-item release remains unchanged');
-});
-
-test('hold pauses a lane: next names who held it and why; --off lets it go [N22]', async () => {
-  const box = project();
-  await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
-  assert.match((await box.runLocal(box.web, 'hold', 'web', '--reason', 'mine')).err, /COORDINATOR_ONLY/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'nowhere', '--reason', 'x')).err, /NO_LANE/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--reason', 'G1 is being rewritten')).out, /holding the web lane: G1 is being rewritten/);
-  const held = (await box.runLocal(box.web, 'next', '--take'));
-  assert.equal(held.code, 1);
-  assert.match(held.err, /coordinator \(unknown\) holds the web lane: G1 is being rewritten/);
-  assert.match((await box.runLocal(box.web, 'claim', '1')).err, /LANE_HELD/);
-  assert.match((await box.runLocal(box.web, 'resume')).out, /the web lane is held by coordinator \(unknown\): G1 is being rewritten/);
-  assert.match((await box.runLocal(box.repo, 'hold', 'web', '--off')).out, /released the web lane/);
-  assert.match((await box.runLocal(box.web, 'next')).out, /claimed #1: Page/);
 });
