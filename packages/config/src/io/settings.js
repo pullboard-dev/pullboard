@@ -65,6 +65,11 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Run test processes at a lower scheduling priority than board writers only when this machine opted in [C7,#8509]. */
+export function testNiceEnabled() {
+  return loadMachineSettings().gate?.testNice === true;
+}
+
 /** Replay a changed move table in the submit gate only when this machine opted in [C7,#8073]. */
 export function tableReplayEnabled() {
   return loadMachineSettings().gate?.tableReplay === true;
@@ -217,6 +222,22 @@ export function mainComparisonMode() {
  */
 export function refuseMissingCheckFile() {
   return loadMachineSettings().gate?.refuseMissingCheckFile === true;
+}
+
+/**
+ * Whether `pullboard worktree` refuses a seat folder under the OS temporary directory (#8513): off by default, so
+ * worktrees are made where they always were; only an exact `true` turns the refusal on.
+ */
+export function refuseTempWorktree() {
+  return loadMachineSettings().gate?.refuseTempWorktree === true;
+}
+
+/**
+ * Whether an item hold must name an owner and records a deadline (#8539): off by default, so holds are unchanged; only an
+ * exact `true` turns it on.
+ */
+export function holdsRequireOwner() {
+  return loadMachineSettings().holds?.requireOwner === true;
 }
 
 /**

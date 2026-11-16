@@ -93,7 +93,7 @@ export { testTimeBudget, testTimeBudgetLines } from './src/logic/test/budget/tim
 
 export { runGateStages } from "./src/logic/stages.js";
 export { GATE_PROGRESS_MS, withGateProgress, reportGateProgress, progressingWait, whileGateRuns } from "./src/io/progress.js";
-export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/io/seals.js';
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, sealedCells, checkSkippedSeals } from './src/io/seals.js';
 
 export { privateCheckAdmission } from './src/io/admission/private/check.js';
 export {
@@ -103,7 +103,7 @@ export {
   activeHandleSummary,
   installTestChildDrain,
 } from './src/io/test/drain.js';
-export { gateMachineHome, gateRuntimeCaptureSource } from './src/logic/preload.js';
+export { gateMachineHome, gateRuntimeCaptureSource } from './src/io/preload.js';
 export { STATIC_SCOPE_ENV, analysisChange, analysisKey, analysisScope, readAnalysisMemo, staticScopeFromEnv, writeAnalysisMemo } from './src/io/static/scope.js';
 export { fixedWallMargins, wallClockViolations } from './src/io/budgets.js';
 export { LOAD_BEARING_CEILINGS, LOAD_BEARING_CELLS, loadBearingJudged, loadBearingSites, loadBearingCounts, loadBearingGrowth, loadBearingRaised, loadBearingFailures } from "./src/logic/load/bearing.js";

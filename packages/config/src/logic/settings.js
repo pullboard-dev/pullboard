@@ -178,6 +178,9 @@ export function loadMachineSettings() {
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }
+  if (value.gate?.testNice !== undefined && typeof value.gate.testNice !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.testNice in ${file} must be true or false`);
+  }
   if (value.gate?.runnersFirst !== undefined && typeof value.gate.runnersFirst !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnersFirst in ${file} must be true or false`);
   }
@@ -198,6 +201,12 @@ export function loadMachineSettings() {
   }
   if (value.gate?.refuseMissingCheckFile !== undefined && typeof value.gate.refuseMissingCheckFile !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseMissingCheckFile in ${file} must be true or false`);
+  }
+  if (value.gate?.refuseTempWorktree !== undefined && typeof value.gate.refuseTempWorktree !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseTempWorktree in ${file} must be true or false`);
+  }
+  if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)

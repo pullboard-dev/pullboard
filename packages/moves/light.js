@@ -40,6 +40,8 @@ export const withdrawEngine = tableOnDemand('./src/logic/table/withdraw.table.js
 export const claimEngine = tableOnDemand('./src/logic/table/claim.table.js', 'claimEngine');
 /** The verify move table's engine, for the store's verify writer to run [C7,#8272]. */
 export const verifyEngine = tableOnDemand('./src/logic/table/verify.table.js', 'verifyEngine');
+/** The landing tables' engine, for the store's merged writer to run [C7,#8268]. */
+export const landingEngine = tableOnDemand('./src/logic/table/landing.table.js', 'landingEngine');
 /** The release move table's engine, for the store's release writer to run [C7,#8246]. */
 export const releaseEngine = tableOnDemand('./src/logic/table/release.table.js', 'releaseEngine');
 /** The gate-job queue table's engine, for the api job writer's shadow compare [C7,#8310]. */
