@@ -15,6 +15,16 @@ const LANDING_TABLES = Object.freeze(['select', 'selection', 'record', 'merged',
 const FOLLOW = 8;
 /** Itemless events the verify fold reads: an agent's route change and its flake observations. */
 const AGENT_KINDS = Object.freeze(['join', 'flake-observation']);
+/** The item event kinds the verify fold applies; any other item row before a verdict cannot change it. */
+const VERIFY_KINDS = Object.freeze(['add', 'edit', 'claim', 'renew', 'release', 'submit', 'accept', 'reject', 'reopen', 'withdraw', 'merged', 'escalate', 'hold_item', 'unhold_item',
+  'refreeze', 'reserve', 'bar-sharpen', 'strong-rejection-notice', 'fact', 'submit_handoff_returned']);
+/** The detail fields the verify fold and table read from an item's earlier rows, by kind; a fixture keeps only these. Kinds not named here are kept whole. */
+const VERIFY_FIELDS = Object.freeze({
+  add: ['route', 'lane'], edit: ['route', 'correctedFrozen', 'unfrozen', 'machineVerification', 'expiredHolder'], claim: ['digest'], renew: ['digest'], release: ['review', 'reasonCode'],
+  submit: ['commit'], reserve: ['until'], fact: ['kind'], refreeze: ['after', 'retainedClaim', 'unchanged'], reopen: [], withdraw: [], merged: [], unhold_item: [], submit_handoff_returned: [],
+});
+/** The follow-up kinds a verdict's recorded writes copy whole. */
+const FOLLOW_KINDS = Object.freeze(['shout', 'fact', 'hold_item', 'bar-sharpen', 'escalate', 'strong-rejection-notice']);
 /** The detail fields the landing fold reads, by event kind; a fixture keeps only these. */
 const LANDING_FIELDS = Object.freeze({
   add: ['after'], edit: ['after', 'expiredHolder'], claim: [], release: ['review', 'blockedOn'], refreeze: ['retainedClaim', 'unchanged'], submit: ['commit'],
@@ -70,7 +80,8 @@ export function recordLanding(record) {
  * Why: the replay fixtures are refreshed from real history, and the landing dimension must be shown on every decision before Steady is trusted unchanged.
  *
  * @param {string | { db: object }} board - A board file path, or an open board (only SELECTed).
- * @param {{ since: string, merged?: number[], verdicts?: number[], home?: string }} options - ISO cut; `merged` and `verdicts` sample event ids as the readers' `only` does.
+ * @param {{ since: string, merged?: number[], verdicts?: number[], fixture?: boolean, home?: string }} options - ISO cut; `merged` and `verdicts` sample event ids as the readers' `only` does;
+ *   `fixture` keeps only the rows and fields a decision reads, and renames landing lease tokens.
  * @returns {{ landing: object, verify: object }}
  */
 export function exportTableHistory(board, { since, merged, verdicts, fixture = false, home = homedir() }) {
@@ -78,7 +89,7 @@ export function exportTableHistory(board, { since, merged, verdicts, fixture = f
   const opened = typeof board === 'string' ? openBoardReadOnly(board) : null;
   try {
     const source = opened ? { db: opened } : board;
-    return scrubHome({ landing: landingDocument(source, since, merged, fixture), verify: verifyDocument(source, since, verdicts) }, home);
+    return scrubHome({ landing: landingDocument(source, since, merged, fixture), verify: verifyDocument(source, since, verdicts, fixture) }, home);
   } finally {
     if (opened) opened.close();
   }
@@ -163,8 +174,44 @@ function fixtureRows(rows, records, since) {
   return rows.filter(row => (row.item_id == null ? row.event_at >= from : items.has(row.item_id)));
 }
 
+/**
+ * Cut the verify rows to what a rebuilt verdict reads: each item's fold rows up to its last verdict in the window, the follow-up rows after each verdict whole,
+ * and only the verdict actors' agent rows, route changes and verify-kind flake observations. `ids` and `agents` are cut in place; the follow-up row ids are returned.
+ * Why: the items' whole later lives, every toucher's flake log and gate output are most of a board's verify export, and no verdict reads them.
+ */
+function cutVerifyRows(all, ids, verdictEvents, agents) {
+  const verdicts = new Set(verdictEvents.map(row => row.event_id));
+  const last = new Map(verdictEvents.map(row => [row.item_id, row.event_id]));
+  const actors = new Set(all.filter(row => verdicts.has(row.event_id)).map(row => row.event_by));
+  const positions = new Map(all.map((row, index) => [row.event_id, index]));
+  const follow = new Set(verdictEvents.flatMap(({ event_id: id }) => all.slice(positions.get(id) + 1, positions.get(id) + 1 + FOLLOW).map(row => row.event_id)));
+  const read = (row) => follow.has(row.event_id)
+    || (last.has(row.item_id) && row.event_id <= last.get(row.item_id) && VERIFY_KINDS.includes(row.event_kind))
+    || (row.event_kind === 'join' && actors.has(row.event_by))
+    // The verify table reads an actor's flake observations only for a recorded verify failure, so no other kind can derive a cause.
+    || (row.event_kind === 'flake-observation' && actors.has(row.event_by) && detailOf(row.event_detail).observation?.kind === 'verify');
+  for (const row of all) if (ids.has(row.event_id) && !read(row)) ids.delete(row.event_id);
+  for (const agent of [...agents]) if (!actors.has(agent)) agents.delete(agent);
+  return follow;
+}
+
+/**
+ * A verify row with its detail cut to what a rebuilt verdict reads: a follow-up the verdict's writes copy stays whole, any other follow-up keeps no detail,
+ * and an item's earlier row keeps the fields its kind names in VERIFY_FIELDS.
+ * Why: a follow-up only holds its place in the eight rows after a verdict unless the verdict wrote it, and an earlier row's notes and leases decide nothing;
+ * a landing lease row is only ever a follow-up here, so its token is cut with the rest of its detail.
+ */
+function projectVerify(row, follow) {
+  if (follow.has(row.event_id) && (FOLLOW_KINDS.includes(row.event_kind) || AGENT_KINDS.includes(row.event_kind))) return row;
+  if (follow.has(row.event_id) && !(row.item_id != null && VERIFY_KINDS.includes(row.event_kind))) return { ...row, event_detail: '{}' };
+  const fields = VERIFY_FIELDS[row.event_kind];
+  if (!fields) return row;
+  const detail = detailOf(row.event_detail);
+  return { ...row, event_detail: JSON.stringify(Object.fromEntries(fields.filter(field => detail[field] !== undefined).map(field => [field, detail[field]]))) };
+}
+
 /** The verify document: the items with a verdict in the window, their rows and follow-ups, and one decision per rebuilt verdict. */
-function verifyDocument(board, since, only) {
+function verifyDocument(board, since, only, fixture) {
   const { db } = board;
   const wanted = only ? new Set(only) : null;
   const verdictEvents = db.prepare("SELECT event_id, item_id FROM event WHERE event_kind IN ('accept', 'reject') AND event_at >= ? ORDER BY event_id").all(since)
@@ -178,7 +225,9 @@ function verifyDocument(board, since, only) {
   const verdictRows = db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all().filter(row => items.has(row.item_id));
   for (const row of verdictRows) agents.add(row.verdict_by);
   for (const row of all) if (AGENT_KINDS.includes(row.event_kind) && agents.has(row.event_by)) ids.add(row.event_id);
-  const events = all.filter(row => ids.has(row.event_id));
+  const follow = fixture ? cutVerifyRows(all, ids, verdictEvents, agents) : null;
+  const kept = all.filter(row => ids.has(row.event_id));
+  const events = fixture ? kept.map(row => projectVerify(row, follow)) : kept;
   const shoutIds = new Set(events.filter(row => row.event_kind === 'shout').map(row => detailOf(row.event_detail).shout).filter(id => id != null));
   const shout = db.prepare('SELECT shout_id, shout_to, shout_text, shout_decision FROM shout WHERE shout_id=?');
   const records = readVerifyRecords(board, { since, only });
