@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { CONFIG_FILE } from "../../../../config/index.js";
 import { BLOCKS_FILE } from "../../../../items/index.js";
 import * as store from "../board.js";
+import { itemCheckBaseline } from "../../logic/board/item/baseline.js";
 import { roadmap } from "./milestones.js";
 import { displayAgentName } from "../../../../seats/index.js";
 import { COORDINATOR } from "../../../../config/index.js";
@@ -40,6 +41,9 @@ import {
   dependencyValues,
   hasForeignDependencies,
 } from "../../../../items/index.js";
+
+/** How many dirty items make a build wide enough to read the event list once rather than once per item. */
+const WIDE_BUILD_ITEMS = 64;
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
 export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
@@ -133,15 +137,23 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     decorated.ruleCounts = ruleProofCounts(root, board, decorated.spec);
     const bases = new Map(decorated.items.map((item) => [item.id, item]));
+    // The whole event list is read here, once, and the dirty items' threads cut from it: a state build kept one query per item, and
+    // every item's build re-read the log and every board-wide main move (#8480). A few dirty items still read their own.
+    const history = recordedHistory(board, previousHistory);
+    const wide = dirtyIds.size > WIDE_BUILD_ITEMS;
+    const threads = wide ? store.itemThreads(board, [...dirtyIds].filter(id => currentById.has(id)), history) : null;
+    const moved = wide ? new Set(board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key LIKE 'item_redirect:%'").all().map(row => row.meta_key)) : null;
     for (const id of dirtyIds) {
       if (!currentById.has(id)) continue;
-      const item = store.getItem(board, id);
+      // A wide build takes the check and its baseline from the listed row: the rest of what getItem reads (stage, head, source) is not state.
+      const item = wide && !moved.has(`item_redirect:${id}`) ? currentById.get(id) : store.getItem(board, id);
+      const baseline = wide && item === currentById.get(id) ? itemCheckBaseline(board, item) : item.item_check_baseline;
       const base = bases.get(id);
       const full = {
         ...base,
         check: item.item_check,
-        ...(item.item_check_baseline ? { checkBaseline: item.item_check_baseline } : {}),
-        thread: store.itemThread(board, id),
+        ...(baseline ? { checkBaseline: baseline } : {}),
+        thread: threads?.get(id) ?? store.itemThread(board, id),
       };
       bases.set(id, full);
       onItemBuild?.({ board: boardId, itemId: id });
@@ -155,7 +167,6 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       dependencies: currentDependencies.get(item.item_id) ?? [],
       milestone: milestoneNames.get(item.item_id) ?? null,
     }]));
-    const history = recordedHistory(board, previousHistory);
     // Both native and sealed relay readers use this exact recorded-history projection.
     listFields.state.statsPipeline = pipelineStats(history);
     const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
