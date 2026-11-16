@@ -1,6 +1,8 @@
-/** @pullboard-test-input apps/cli/src/io/static/checks.js packages/gate/tests/fixtures/budgets.js packages/codemap/src/io/source/inventory.js packages/gate/src/io/static/style.js */
+/** @pullboard-test-input apps/cli/src/io/static/checks.js packages/gate/tests/fixtures/budgets.js */
 /** The actual repository preflight keeps source oracles separate from browser behavior [C7]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { cpSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -8,40 +10,52 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { performance } from 'node:perf_hooks';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
+import { copyPackageFiles } from '../index.js';
 
 const repository = resolve(import.meta.dirname, '../../..');
-const vmArgs = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning'];
+const staticArgs = ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', 'apps/cli/src/io/static/checks.js'];
+const nested = 'apps/cli/src/io/nested/import-style-fixture.js';
+const finding = `${nested}:1: one import binding per line (2 bindings)`;
+let fullRun;
 
-test('clause 1: the repository static style command enforces its source rules [C7]', () => {
-  const before = performance.now();
-  const child = runFixtureChild(process.execPath,
-    [...vmArgs, 'apps/cli/src/io/static/checks.js'], { cwd: repository, encoding: 'utf8' });
-  console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: child.status }));
-  assert.equal(child.status, 0, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
-});
-
-test('clause 1: the import-style check finds violations in nested sources [C7]', t => {
+/** Run the full preflight once on a repository copy with one planted violation. */
+function fullPreflightWithViolation() {
+  if (fullRun) return fullRun;
   const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const nested = 'apps/cli/src/io/nested/import-style-fixture.js';
+  after(() => rmSync(root, { recursive: true, force: true }));
+  copyPackageFiles(repository, root);
+  cpSync(join(repository, 'packages/gate/tests/fixtures/budgets.js'), join(root, 'packages/gate/tests/fixtures/budgets.js'));
+  cpSync(join(repository, 'pullboard.json'), join(root, 'pullboard.json'));
   mkdirSync(join(root, 'apps/cli/src/io/nested'), { recursive: true });
   writeFileSync(join(root, nested), "import { strict as assert, equal } from 'node:assert';\nvoid assert; void equal;\n");
+  for (const args of [
+    ['init', '-q', '-b', 'main'],
+    ['add', '-A'],
+    ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-q', '-m', 'fixture'],
+  ]) {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  }
 
-  // Use the preflight's source inventory and parser on the small fixture. The clean case runs the full preflight.
-  const program = `
-    import { styleSources } from './packages/codemap/index.js';
-    import { importStyleViolations } from './packages/gate/index.js';
-    const rows = importStyleViolations(styleSources(process.argv[1]));
-    for (const row of rows) {
-      console.error(row.file + ':' + row.line + ': one import binding per line (' + row.count + ' bindings)');
-    }
-    process.exitCode = rows.length > 0 ? 1 : 0;
-  `;
-  const child = runFixtureChild(process.execPath,
-    [...vmArgs, '--input-type=module', '-e', program, root], { cwd: repository, encoding: 'utf8' });
+  const before = performance.now();
+  fullRun = runFixtureChild(process.execPath, staticArgs, { cwd: root, encoding: 'utf8' });
+  console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: fullRun.status }));
+  return fullRun;
+}
+
+test('clause 1: the repository static style command enforces its source rules [C7]', () => {
+  const clean = runFixtureChild(process.execPath,
+    [...staticArgs, '--changed-files', 'apps/cli/src/io/static/checks.js'], { cwd: repository, encoding: 'utf8' });
+  assert.equal(clean.status, 0, clean.failure ?? ((clean.stdout ?? '') + (clean.stderr ?? '')));
+  const full = fullPreflightWithViolation();
+  assert.deepEqual(full.stderr.trim().split('\n'), [finding], full.failure ?? full.stderr);
+});
+
+test('clause 1: the full static command reports a nested multi-binding import [C7]', () => {
+  const child = fullPreflightWithViolation();
   assert.equal(child.status, 1, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
-  assert.ok(child.stderr.includes(`${nested}:1: one import binding per line`), child.stderr);
+  assert.ok(child.stderr.includes(finding), child.stderr);
 });
