@@ -32,6 +32,7 @@ const ROWS = [
   ['gateSlots', 'Checks at once', 'How many test runs this computer does at the same time.', 'Capacity', 'count'],
   // This machine: Order
   ['add.warnUnnamedTest', 'Add warns on an unnamed test', 'When enabled, pullboard add warns (never refuses) about a [test] clause that names no test file when the brief has no Test: line, because no gate run can tick it; off (default), add stays silent.', 'Order', 'on/off'],
+  ['board.compactShouts', 'Shout events carry the id only', 'When enabled, a new shout event records the shout id and no text, and the thread reads the text from the shouts table; off (default), the event keeps the text inline as before. Older events with the text inline read the same either way.', 'Order', 'on/off'],
   ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
