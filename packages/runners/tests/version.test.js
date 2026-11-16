@@ -10,6 +10,7 @@ import { lstatSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { rmdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -28,6 +29,16 @@ let template = null;
 
 /** A private empty directory; every one has the same path length, which the retargeting relies on. */
 function sandbox() { return realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-shared-version-'))); }
+
+/** Copy the built project to a new path: one copy-on-write clone where the volume has them, whose cost does not grow with the file count; a plain recursive copy otherwise. */
+function cloneTree(from, to) {
+  rmdirSync(to); // The sandbox's empty directory: cp creates the destination itself.
+  for (const flags of process.platform === 'darwin' ? [['-cRp'], ['-Rp']] : [['-Rp']]) {
+    if (spawnSync('cp', [...flags, from, to], { stdio: 'ignore' }).status === 0) return;
+    rmSync(to, { recursive: true, force: true });
+  }
+  cpSync(from, to, { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+}
 
 /** Where a sandbox's own path is stored: Git metadata, editor settings and the private homes; source files and Git objects never hold it. */
 const STATE = ['repo/.git', 'lane/.git', 'repo/.claude', 'lane/.claude', 'board-home', 'machine-home', 'home', 'executables'];
@@ -86,7 +97,7 @@ function fixture(t) {
   template ??= buildTemplate();
   const dir = sandbox();
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  cpSync(template, dir, { recursive: true, force: true, preserveTimestamps: true, verbatimSymlinks: true });
+  cloneTree(template, dir);
   for (const state of STATE) retarget(join(dir, state), template, dir);
   const root = join(dir, 'repo'); const lane = join(dir, 'lane');
   const env = environment(dir);
@@ -124,7 +135,7 @@ test('an event-log-only worktree refuses upgrades and primary source still opens
 test('a broken Git link cannot impersonate an installed release and upgrade a board [A5,A6]', t => {
   const box = fixture(t); const before = box.versions(); box.bump('SCHEMA_VERSION', 3, 4);
   const broken = join(box.dir, 'broken'); mkdirSync(broken);
-  cpSync(box.lane, broken, { recursive: true, preserveTimestamps: true }); // The newer source with its Git link replaced below.
+  cloneTree(box.lane, broken); // The newer source with its Git link replaced below.
   writeFileSync(join(broken, '.git'), 'gitdir: /nonexistent/pullboard-pruned-link\n');
   const r = box.cli(broken, box.root, 'status', '--json'); assert.equal(r.status, 1, r.stderr + r.stdout);
   assert.equal(JSON.parse(r.stdout).error.code, 'UNMERGED_SCHEMA'); assert.match(JSON.parse(r.stdout).error.next, /restore its Git link/);

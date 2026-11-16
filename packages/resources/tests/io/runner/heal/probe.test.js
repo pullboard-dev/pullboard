@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
 import { initializeRunnerRecovery } from '../../../../index.js';
 import { probeQuarantined } from '../../../../index.js';
 import { recordRunnerFailure } from '../../../../index.js';

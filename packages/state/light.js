@@ -36,6 +36,7 @@ export { CONVEYOR_RETURN_ENGINE } from './src/logic/engines/conveyor-return-engi
 export { COORDINATOR_ACTIONS_ENGINE } from './src/logic/engines/coordinator-actions-engine.js';
 export { COORDINATOR_HOLD_ENGINE } from './src/logic/engines/coordinator-hold-engine.js';
 export { COORDINATOR_SHOUT_KINDS_ENGINE } from './src/logic/engines/coordinator-shout-kinds-engine.js';
+export { COORDINATOR_USAGE_ENGINE } from './src/logic/engines/coordinator-usage-engine.js';
 export { COST_ENGINE } from './src/logic/engines/cost-engine.js';
 export { COST_INPUT_SPLIT_ENGINE } from './src/logic/engines/cost-input-split-engine.js';
 export { CPU_SENTINEL_ENGINE } from './src/logic/engines/cpu-sentinel-engine.js';
@@ -82,6 +83,7 @@ export { LANDING_LOCAL_LEASE_ENGINE } from './src/logic/engines/landing-local-le
 export { LAND_COLLISION_ENGINE } from './src/logic/engines/landing-collision-engine.js';
 export { LANE_LEAD_ENGINE } from './src/logic/engines/lane-lead-engine.js';
 export { LANDED_VERDICT_ENGINE } from './src/logic/engines/landed-verdict-engine.js';
+export { LANDED_REJECT_ENGINE } from './src/logic/engines/landed-reject-engine.js';
 export { LEASE_LAPSE_ENGINE } from './src/logic/engines/lease-lapse-engine.js';
 export { LEDGER_QUARANTINE_ENGINE } from './src/logic/engines/ledger-quarantine-engine.js';
 export { LINE_CAPACITY_ENGINE } from './src/logic/engines/line-capacity-engine.js';

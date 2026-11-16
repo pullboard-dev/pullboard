@@ -125,6 +125,9 @@ export function loadMachineSettings() {
   const value = readMachineSettingsFile(file);
   if (!value) return { gateSlots: DEFAULT_GATE_SLOTS, browserSlots: DEFAULT_BROWSER_SLOTS };
   if (value.gate?.runnerWaitMs !== undefined) validateRunnerWaitMs(value.gate.runnerWaitMs);
+  if (value.gate?.tripOverheadBudgetMs !== undefined && (!Number.isSafeInteger(value.gate.tripOverheadBudgetMs) || value.gate.tripOverheadBudgetMs < 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.tripOverheadBudgetMs in ${file} must be a positive whole number of milliseconds; remove it for the 10000 ms default`);
+  }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     || Object.keys(value.landing).some(key => key !== 'pools') || !Array.isArray(value.landing.pools)
     || value.landing.pools.some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
@@ -145,6 +148,18 @@ export function loadMachineSettings() {
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
+  if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
+  }
+  if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
+  }
+  if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
+  }
+  for (const [table, live] of Object.entries(value.moves?.live ?? {})) {
+    if (typeof live !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `moves.live.${table} in ${file} must be true or false`);
+  }
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
   }
@@ -161,6 +176,16 @@ export function loadMachineSettings() {
   if (value.gate?.runnerBusyCeiling !== undefined && (!Number.isFinite(value.gate.runnerBusyCeiling) || value.gate.runnerBusyCeiling < 1 || value.gate.runnerBusyCeiling > 100)) throw new Refused('BAD_MACHINE_SETTINGS', 'gate.runnerBusyCeiling must be a percentage from 1 through 100');
   if (value.gate?.runnerDispatch !== undefined && !['controller', 'pull'].includes(value.gate.runnerDispatch)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch in ${file} must be "controller" or "pull"`);
+  }
+  if (value.gate?.refuseController !== undefined && typeof value.gate.refuseController !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.refuseController in ${file} must be true or false`);
+  }
+  if (value.gate?.requireRunnerAttribution !== undefined && typeof value.gate.requireRunnerAttribution !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.requireRunnerAttribution in ${file} must be true or false`);
+  }
+  // Off by default until every fixture and machine has left controller: only then does the old value become a refusal [P7].
+  if (value.gate?.refuseController === true && value.gate.runnerDispatch === 'controller') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.runnerDispatch "controller" in ${file} is removed: every runner job is a row a runner pulls; next: run pullboard settings gate.runnerDispatch pull`);
   }
   const reserve = value.gate?.jobReserve;
   if (reserve != null && (typeof reserve !== 'object' || Array.isArray(reserve) || Object.values(reserve).some(share => !Number.isFinite(share) || share < 0 || share > 1)

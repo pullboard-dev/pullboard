@@ -18,7 +18,8 @@
     "apps/cli/journeys/land/landing/noop.test.js": "drives the real CLI in a project checkout and checks its land output, leases and board events end to end",
     "apps/cli/journeys/submit/stacked.test.js": "drives the real CLI in a project checkout and checks its submit output, stacking refusals and board rows end to end",
     "apps/cli/journeys/verify/check.test.js": "drives the real CLI in a project checkout and checks its verdict check output, exit codes and board rows end to end",
-    "apps/cli/journeys/verify/main.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end"
+    "apps/cli/journeys/verify/main.test.js": "drives the real CLI in a project checkout and checks its verify output, refusals and board rows end to end",
+    "apps/cli/journeys/imports/cross-lane-edits.test.js": "drives the real CLI to submit cross-lane edits whose only changed tokens are imports and checks the verdicts end to end"
   },
   "pureHelpers": {
     "apps/cli/src/io/runner/git.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -32,6 +33,7 @@
     "packages/store/tests/fixtures/cell.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/store/tests/fixtures/submit.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/store/tests/fixtures/tmp.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/board/tests/fixtures/board.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/landing/tests/fixtures/plan.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/cells/shims.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/tests/fixtures/clone.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
@@ -140,6 +142,7 @@
     "packages/store/tests/fixtures/stats/compare.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/runners/tests/fixtures/fleet.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/testkit.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/gate/tests/fixtures/testkit.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/reporter.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/view/link.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "apps/cli/tests/fixtures/view/port.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",

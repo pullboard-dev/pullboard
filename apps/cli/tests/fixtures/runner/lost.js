@@ -25,6 +25,8 @@ import { createE2eHelpers } from '../e2e.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureChildAsync } from '../child.js';
 import { installSshStandIn } from './ssh.js';
+import { privateFixtureFiles } from '../child.js';
+import { preparedRunner } from '../../../../../packages/runners/tests/fixtures/prepared.js';
 import { HOST } from './ssh.js';
 import { executionServicesSource } from '../gate/execution.js';
 import { waitForCondition } from './holders.js';
@@ -59,9 +61,9 @@ function project(t) {
 
 /** A controlled transport with a real native startup owner; health requests still execute the pinned worker. */
 function transport(t, mode) {
-  const box = project(t), bin = join(box.dir, 'ssh-bin'), worker = join(box.dir, 'worker');
-  const home = join(box.dir, 'remote-home'), machineHome = join(home, '.pullboard'), root = join(box.dir, 'remote-root');
-  for (const path of [bin, worker, home, machineHome, root]) mkdirSync(path, { recursive: true });
+  const box = project(t), bin = join(box.dir, 'ssh-bin'), root = join(box.dir, 'remote-root');
+  const { worker, home, machineHome } = preparedRunner(() => privateFixtureFiles('pullboard-prepared-runner-').root);
+  for (const path of [bin, root]) mkdirSync(path, { recursive: true });
   const requests = join(box.dir, 'requests.jsonl');
   const probeReplies = join(box.dir, 'job-probe-replies.jsonl');
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
@@ -123,7 +125,7 @@ import {existsSync} from 'node:fs';
 const cancellation=new AbortController();let readyAt=null;
 const watch=${abortAfterReady} ? setInterval(()=>{if(readyAt===null&&existsSync(${JSON.stringify(box.record)}))readyAt=Date.now();
 if(readyAt!==null&&Date.now()-readyAt>=28000)cancellation.abort();},100):null;
-try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
+try{await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify(box.runner)},metadata:{item:'fixture',kind:'remote-command'},signal:cancellation.signal});console.log(JSON.stringify({unexpectedSuccess:true}));}
 catch(error){console.log(JSON.stringify({name:error.name,code:error.code,message:error.message,diagnostic:error.diagnostic}));}
 finally{clearInterval(watch);}`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], {

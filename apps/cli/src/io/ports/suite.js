@@ -30,3 +30,8 @@ export function postLandSuitePorts() {
   return Object.freeze({ enabled: postLandSuiteEnabled, runSuite, storePath, laneOf, unownedMainReds,
     readItems: board => listItems(board, { all: true }) });
 }
+
+/** The runner services the board resident's idle-runner probe runs through [C7,#8325]. */
+export function idleRunnerServices() {
+  return { runners: runnerExecutionServices() };
+}

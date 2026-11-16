@@ -11,7 +11,7 @@ import { cellSandbox } from '../../store/tests/fixtures/cell.js';
 import { copyPackageFiles } from '../index.js';
 import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { runFixtureChildAsync } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../gate/tests/fixtures/child.js';
 
 /** Simulate an older worker's pre-execution reply, then let the real pinned capsule execute after refresh. */
 function mismatchTransport(box, paths, mode) {
@@ -62,7 +62,7 @@ test('a mismatched runner refreshes once, a second mismatch names both versions,
     const calls = mismatchTransport(box, paths, mode);
     const script = `import assert from 'node:assert/strict';
 import {runOnRunnerAsync} from ${JSON.stringify(pathToFileURL(join(tooling, 'packages/runners/index.js')).href)};
-const run = () => runOnRunnerAsync(process.cwd(), 'node -e "console.log(45678)"', {runner:{host:${JSON.stringify(HOST)},slots:1,browser:0}});
+const run = () => runOnRunnerAsync(process.cwd(), 'node -e "console.log(45678)"', {runner:{host:${JSON.stringify(HOST)},slots:1,browser:0},metadata:{item:'fixture',kind:'remote-command'}});
 ${mode === 'once' ? `const result = await run(); assert.equal(result.isGreen, true, JSON.stringify(result)); assert.match(result.output, /45678/u);`
     : `await assert.rejects(run(), error => error.code === 'RUNNER_WORK_SPEC' ${mode === 'twice' ? "&& /controller version 1, runner version 2/u.test(error.message)" : ''});`}
 `;

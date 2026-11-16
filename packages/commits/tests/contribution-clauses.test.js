@@ -5,7 +5,7 @@ import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
-import { fixtureCommittedGraph } from '../../../apps/cli/tests/fixtures/testkit.js';
+import { fixtureCommittedGraph } from '../../gate/tests/fixtures/testkit.js';
 import { runContributionClauses } from '../index.js';
 
 const ALLOWLIST = ['node scripts/check.js', 'node scripts/size.js'];

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
-import { runFixtureChildAsync } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChildAsync } from '../../../../../gate/tests/fixtures/child.js';
 
 const HOLDERS = 40;
 const REQUESTS = 20;

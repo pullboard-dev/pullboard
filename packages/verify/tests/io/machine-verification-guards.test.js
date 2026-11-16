@@ -31,7 +31,7 @@ function fixture({ status = 'submitted', builtBy = 'seat-1' } = {}) {
   return { db: { db }, item, options, deps, calls };
 }
 
-test('clause 1: machine acceptance gives the accept move a real notBuilder check and passes it for a seat-built item [V1]', () => {
+test('verify.machine.not-builder: clause 1: machine acceptance gives the accept move a real notBuilder check and passes it for a seat-built item [V1]', () => {
   const box = fixture();
   acceptMachineSubmission(box.db, box.item, box.options, box.deps);
   const how = box.calls.find(call => call[0] === 'move')[2];
@@ -40,7 +40,7 @@ test('clause 1: machine acceptance gives the accept move a real notBuilder check
   assert.equal(how.checks.notBuilder({ item_id: 7, item_built_by: 'coordinator' }).code, 'SELF_VERIFY');
 });
 
-test('clause 1: machine acceptance refuses NOT_SUBMITTED for an item that left submitted [V1]', () => {
+test('verify.machine.not-submitted: clause 1: machine acceptance refuses NOT_SUBMITTED for an item that left submitted [V1]', () => {
   for (const status of ['verified', 'open', 'claimed']) {
     const box = fixture({ status });
     assert.throws(() => acceptMachineSubmission(box.db, box.item, box.options, box.deps), (error) => error.code === 'NOT_SUBMITTED', status);
@@ -48,7 +48,7 @@ test('clause 1: machine acceptance refuses NOT_SUBMITTED for an item that left s
   }
 });
 
-test('clause 1: machine acceptance refuses NOT_SUBMITTED on the live row when the item leaves submitted after the precheck [V1]', () => {
+test('verify.machine.not-submitted-live: clause 1: machine acceptance refuses NOT_SUBMITTED on the live row when the item leaves submitted after the precheck [V1]', () => {
   const box = fixture();
   const live = { ...box.item, item_status: 'verified' };
   const deps = { ...box.deps, moveItem: (board, id, verb, how) => { box.calls.push(['move', verb]); how.before(live); return live; } };

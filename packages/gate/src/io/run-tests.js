@@ -1431,9 +1431,9 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   if (fileTimes && process.env.NODE_TEST_CONTEXT === 'child-v8') {
     // One line per test file process: its wall time from start to exit, for the next shard plan.
     const timedFile = relative(process.cwd(), resolve(process.argv[1]));
-    process.once('exit', () => {
-      // The file's own time, not its wait for a token: the next shard plan weighs work, not this run's queue (#1046).
-      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs) })}\n`); }
+    process.once('exit', (code) => {
+      // The file's own time, not its wait for a token (#1046), and its exit code, the file's own verdict (#8303).
+      try { appendFileSync(fileTimes, `${JSON.stringify({ file: timedFile, ms: Math.round(process.uptime() * 1000 - tokenWaitMs), code })}\n`); }
       catch { /* A missing time only weakens the next shard plan. */ }
     });
   }

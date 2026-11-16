@@ -15,13 +15,10 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { copyRunnerPackage } from './package.js';
-import { selectedTestResults } from '../../../gate/index.js';
-import { testActionKeys } from '../../../gate/index.js';
 import { testResultStore } from '../../../gate/index.js';
 import { runOnRunnerAsync } from '../../index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import {
   HOST,
   installSshStandIn,
@@ -30,18 +27,20 @@ import {
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
 
-/** Prove the production request/worker/result path, without contacting a host or changing real runner settings. */
+/**
+ * Prove the production request/worker/result path, without contacting a host or changing real runner settings.
+ * Why: a cold first round trip takes about 110 s on a loaded runner, so only the cross-machine reuse runs here, in two trips; closure, harness, red and environment keys are cell tests in packages/gate/tests/io/test/action/reuse-parts.test.js.
+ */
 export async function fleetTestResultReuse(t, { composition = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-result-fleet-')));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  t.after(() => rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const repo = join(directory, 'repo');
   const bin = join(directory, 'bin');
   const worker = join(directory, 'worker');
   const controller = join(directory, 'controller');
   const homeA = join(directory, 'machine-a');
   const homeB = join(directory, 'machine-b');
-  const homeC = join(directory, 'machine-c');
-  for (const folder of [repo, bin, worker, controller, homeA, homeB, homeC, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
+  for (const folder of [repo, bin, worker, controller, homeA, homeB, join(repo, 'test'), join(repo, 'lib')]) mkdirSync(folder, { recursive: true });
   copyRunnerPackage(SOURCE, repo);
   const shippedManifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ ...shippedManifest, name: 'fleet-cache-fixture', private: true, type: 'module' }) + '\n');
@@ -82,24 +81,24 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     else process.env[key] = env[key];
   }
   /** Use a fresh worker HOME and persistent namespace, through the unchanged authenticated SSH transport. */
-  const languagePreload = join(homeC, 'language.mjs');
-  writeFileSync(languagePreload, "process.env.LANG = 'cache-material-language';\n");
   let invocation = 0;
-  const run = async (home, host, stage, differentLanguage = false, customReporter = false) => {
+  const run = async (home, host, stage) => {
     invocation++;
     installSshStandIn({ bin, worker, home, machineHome: join(home, '.pullboard'),
       requests: join(home, 'requests.jsonl'), nodeCommand: process.execPath,
-      nodeOptions: differentLanguage ? `--import=${pathToFileURL(languagePreload).href}` : '' });
-    const command = `node apps/cli/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}${customReporter ? ' --test-reporter=./reporter.mjs' : ''}`;
+      nodeOptions: '' });
+    const command = `node apps/cli/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
+    const began = Date.now();
     const result = await runOnRunnerAsync(repo, command, {
       runner: { host, slots: 1, browser: 0, node: process.execPath, root: join(home, 'runner') },
-      metadata: { testStage: stage, trunk: { ref: 'refs/heads/main', commit: policyCommit } },
+      metadata: { item: 'fixture', kind: 'remote-command', testStage: stage, trunk: { ref: 'refs/heads/main', commit: policyCommit } },
       ...(composition && stage === 'verify' ? { checkedSource,
         privateCheck: { kind: 'private-check', version: 1, install: '', check: command, timeoutMs: 120000,
           policyCommit, trunk: { ref: 'refs/heads/main', commit: policyCommit }, guard: null },
         rawOutputPath: join(directory, `private-${invocation}.raw.log`) } : {}),
     });
+    console.log(`# trip ${invocation} ${stage} ${((Date.now() - began) / 1000).toFixed(1)} s, worker ${((result.remoteWallMs ?? 0) / 1000).toFixed(1)} s`);
     if (composition && stage === 'verify') assert.equal(result.privateCheck.state, 'pass', result.output);
     return result;
   };
@@ -125,62 +124,6 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     assert.equal(retained.id, first.executionReceipt.id);
     assert.equal(retained.outputSha256, origin.completion.outputSha256);
     assert.equal(retained.code, 0);
-    if (composition) {
-      const reporter = await run(homeB, `${HOST}-setup`, 'verify', false, true);
-      assert.equal(reporter.isGreen, true, reporter.output);
-      assert.match(reporter.output, new RegExp(EXECUTED));
-      assert.match(reporter.output, /EXECUTED-STABLE/u);
-      assert.doesNotMatch(reporter.output, /^# reused /mu, 'caller-selected reporters cannot use the reporter-free harness shortcut');
-    }
-    // A third machine under a host name the controller holds no runtime for (the stand-in accepts three; it drops nothing unless asked): a worker agent still alive on machine B would keep its own LANG, ignoring this run's preload,
-    // and a host the controller already sent the runtime to is sent none again, which a new machine does not hold (5c6da27234; 4de3a661db reverted it).
-    const differentEnvironment = await run(homeC, `${HOST}-drop`, 'verify', true);
-    assert.equal(differentEnvironment.isGreen, true, differentEnvironment.output);
-    assert.match(differentEnvironment.output, new RegExp(EXECUTED), 'a material execution environment change requires a fresh body');
-    assert.doesNotMatch(differentEnvironment.output, /^# reused /mu);
-    if (composition) assert.match(differentEnvironment.output, /EXECUTED-STABLE/u);
-    const beforeComposition = composition ? await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] }) : null;
-    writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = 2;\n');
-    git('add', 'lib/value.js');
-    git('commit', '-q', '-m', 'test: edit reached value');
-    if (composition) {
-      const afterComposition = await testActionKeys(repo, { files: ['test/probe.test.js', 'test/stable.test.js'] });
-      assert.equal(afterComposition.get('test/stable.test.js').inputKey, beforeComposition.get('test/stable.test.js').inputKey, 'the unchanged file retains its input identity');
-      const rows = selectedTestResults(testResultStore(repo), [afterComposition.get('test/stable.test.js').inputKey]);
-      assert.ok(rows.some(row => row.origin.completion?.id === first.executionReceipt.id), JSON.stringify(rows));
-    }
-    const changed = await run(homeB, `${HOST}-setup`, 'land');
-    assert.equal(changed.isGreen, true, changed.output);
-    assert.match(changed.output, new RegExp(EXECUTED), 'editing a reached module executes its file again');
-    if (composition) {
-      assert.doesNotMatch(changed.output, /EXECUTED-STABLE/u, 'a companion changes only the reached probe closure');
-      assert.match(changed.output, /^# reused .*\(test\/stable\.test\.js\)$/mu);
-      assert.notEqual(changed.executionSource.tree, first.executionSource.tree);
-    } else assert.doesNotMatch(changed.output, /^# reused /mu);
-    const pushed = await run(homeA, HOST, 'push');
-    assert.equal(pushed.isGreen, true, pushed.output);
-    assert.doesNotMatch(pushed.output, new RegExp(EXECUTED));
-    assert.match(pushed.output, /^# reused [0-9a-f]{64} from land /mu, 'the result crosses back to the first machine and another stage');
-    if (composition) {
-      const harnessPath = join(repo, 'packages/gate/src/io/test/action/reporter.js');
-      writeFileSync(harnessPath, readFileSync(harnessPath, 'utf8') + '\n// fixture: changed actual harness input\n');
-      git('add', 'packages/gate/src/io/test/action/reporter.js');
-      git('commit', '-q', '-m', 'test: change actual harness bytes');
-      const harnessChanged = await run(homeA, HOST, 'land');
-      assert.equal(harnessChanged.isGreen, true, harnessChanged.output);
-      assert.match(harnessChanged.output, new RegExp(EXECUTED));
-      assert.match(harnessChanged.output, /EXECUTED-STABLE/u);
-      assert.doesNotMatch(harnessChanged.output, /^# reused /mu, 'changed real harness invalidates both file receipts');
-    }
-    writeFileSync(join(repo, 'lib', 'value.js'), 'export const value = -1;\n');
-    git('add', 'lib/value.js');
-    git('commit', '-q', '-m', 'test: make reached value fail');
-    for (const [home, host] of [[homeA, HOST], [homeB, `${HOST}-setup`]]) {
-      const red = await run(home, host, 'audit');
-      assert.equal(red.isGreen, false, red.output);
-      assert.match(red.output, new RegExp(EXECUTED), 'a red receipt never supplies a cached passing execution');
-      assert.doesNotMatch(red.output, /^# reused .*\(test\/probe\.test\.js\)$/mu);
-    }
   } finally {
     for (const key of changedEnv) {
       if (previous[key] === undefined) delete process.env[key];
