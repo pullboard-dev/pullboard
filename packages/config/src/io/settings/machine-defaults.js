@@ -108,6 +108,7 @@ export const MACHINE_DEFAULTS = {
   'relay.push': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
+  'review.starveShout': false,
   'runner.packCache': false,
   runnerRates: {},
   runners: [],
