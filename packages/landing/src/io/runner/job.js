@@ -35,6 +35,8 @@ const NO_PUSH_OPTIONS = /does not support push options/u;
 // An ssh trunk remote whose login accepts only plain git commands rejects the custom --receive-pack (#7952).
 const CUSTOM_REFUSED = /unrecognized command|command not allowed|not allowed to run|restricted shell/iu;
 const CHECKED_OUT = /refusing to update checked out branch|branch is currently checked out/u;
+// A trunk hook (the remote's pre-receive or update, or a local pre-push) that refused the push: git names it in its refusal line.
+const HOOK_REFUSED = /hook declined|pre-push hook|hook (?:exited|failed)/iu;
 const DIRTY_CHECKOUT = /Working directory has (?:unstaged|staged) changes|Could not update working tree/u;
 
 /**
@@ -68,6 +70,17 @@ export function pushFailedDetail(pushed, remote, trunk) {
   const words = (pushed.stderr || pushed.stdout).slice(0, 300);
   if (!DIRTY_CHECKOUT.test(`${pushed.stderr}\n${pushed.stdout}`)) return words;
   return `LAND_HOST_CHECKOUT_DIRTY: the board host checkout at ${remote} has uncommitted changes, so it cannot take ${trunk}; next: commit or stash them in that checkout, then run pullboard land to offer the landing again. git: ${words}`;
+}
+
+/**
+ * Whether a refused push was refused by a trunk hook, and the hook's own words when it was, else null.
+ * Why: a hook's refusal is about the landing, not the host, so the items go back to their builders with the hook's reason instead of a retry loop [C7,P7].
+ */
+export function hookRefusal(pushed) {
+  const said = `${pushed.stderr}\n${pushed.stdout}`;
+  if (!HOOK_REFUSED.test(said)) return null;
+  const lines = said.split('\n').map(line => line.replace(/^remote:\s?/u, '').trim()).filter(Boolean);
+  return lines.join('\n').slice(0, 800);
 }
 
 /**
@@ -338,7 +351,7 @@ function firstMerges(root, base, tip, pending) {
  * `diagnose` (from the runner's handler setup, since packages never import apps) reads a red's failing cases and pairs them: ({ root, base, output, role, flakes, head, tree }) => the receipt's `red` record, or null.
  * @returns {Promise<{ kind: string, outcome: 'landed' | 'conflict' | 'red' | 'item-moved' | 'trunk-busy' | 'lease-lost' | 'push-failed' | 'proof-timeout',
  *   expect: string, base: string | null, trunk: string | null, landed: number[], already: number[], attempts: number, moved: string[], detail: string | null,
- *   returned: { id: number, reason: 'red' | 'conflict', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
+ *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
 export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null }) {
@@ -423,7 +436,15 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
-    if (fetchTrunk(root, remote, trunk) === base) return done('push-failed', { detail: pushFailedDetail(pushed, remote, trunk) });
+    if (fetchTrunk(root, remote, trunk) === base) {
+      // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].
+      const hook = hookRefusal(pushed);
+      if (hook) {
+        for (const entry of pending) giveBack(entry.id, 'hook', `the trunk hook refused the push: ${hook}`);
+        return done('red');
+      }
+      return done('push-failed', { detail: pushFailedDetail(pushed, remote, trunk) });
+    }
   }
   return done('trunk-busy', { detail: `trunk moved under each of ${attempts} attempts; offer the landing again` });
 }
