@@ -209,6 +209,8 @@ const tableDataCodes = (file, source) => /\/packages\/moves\/src\/logic\/table\/
   ? [...source.matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)].map(([, code]) => code) : [];
 
 const FACTS_BY_SOURCE = new Map();
+/** Local facts (raised codes and callees) of each parsed source, kept apart for caught and uncaught walks so each mode scans its own bodies first. */
+const LOCAL_FACTS = { true: new WeakMap(), false: new WeakMap() };
 /**
  * The parsed facts of one file's source, shared by every walk in this file. Why: the broken-copy
  * cases each start a fresh walk over nearly the same tree, and parsing every file again for each
@@ -248,7 +250,8 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || [...skip].some(entry => entry === key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces, source, stars } = load(file);
+    const parsed = load(file);
+    const { bodies, named, spaces, source, stars } = parsed;
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     // An export bound to an on-demand loader is the function it loads.
@@ -261,7 +264,10 @@ function codeWalk(read, { caught = false } = {}) {
       return codes;
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
-    let facts = localFacts.get(key);
+    // The same source parsed once yields the same local facts in any walk of the same mode, except for the one file that reads another file's injection.
+    const shared = file !== INJECTED_TABLES.file;
+    const kept = shared ? LOCAL_FACTS[caught].get(parsed) : undefined;
+    let facts = localFacts.get(key) ?? kept?.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
@@ -273,6 +279,10 @@ function codeWalk(read, { caught = false } = {}) {
       callees.push(...runnerControllerCallees(file, body, source), ...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
       facts = { codes, callees };
       localFacts.set(key, facts);
+      if (shared) {
+        if (!LOCAL_FACTS[caught].has(parsed)) LOCAL_FACTS[caught].set(parsed, new Map());
+        LOCAL_FACTS[caught].get(parsed).set(key, facts);
+      }
     }
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
