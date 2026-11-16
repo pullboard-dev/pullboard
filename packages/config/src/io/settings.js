@@ -85,6 +85,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
+export function settleOnMainReceiptEnabled() {
+  return loadMachineSettings().gate?.settleOnMainReceipt === true;
+}
+
 /** Fail the registry check on an unregistered test only when this machine opted in; off, it reports [C7,#8374]. */
 export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
