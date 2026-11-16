@@ -94,6 +94,8 @@ import {
   refuseUnreviewable,
 } from '../../../../../packages/verify/index.js';
 import { changedLines } from '../../../../../packages/items/index.js';
+import { missingCheckFiles } from '../../../../../packages/items/index.js';
+import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -352,6 +354,12 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  // A check naming a test file the commit lacks can only fail after a queued gate; with gate.refuseMissingCheckFile on, refuse now and say what the commit added (#3095).
+  const absent = refuseMissingCheckFile() ? missingCheckFiles(frozenCheck(held), file => tryGit(root, ['cat-file', '-e', `${commit}:${file}`]).status === 0) : [];
+  if (absent.length) {
+    const added = (held.item_claim_head ? tryGit(root, ['diff', '--name-only', '--diff-filter=A', held.item_claim_head, commit]).stdout : '').split('\n').filter(Boolean);
+    throw new Refused('CHECK_FILE_MISSING', `the frozen check names ${absent.join(', ')}, which commit ${commit.slice(0, 12)} does not contain; this commit added ${added.length ? added.join(', ') : 'no files'}; name the test as the check does, or ask the coordinator to correct the check`);
+  }
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx)) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
