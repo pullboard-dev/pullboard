@@ -12,8 +12,8 @@ import { awaitNestedRun } from '../../../index.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
 /** Keep the real resource database, settings, Git source and SSH stand-in private to each case. */
 function fixture(t) {

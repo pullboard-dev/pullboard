@@ -18,6 +18,7 @@ import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { startFixtureLocalRunner } from '../../fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../fixtures/runner/local-start.js';
+import { CLI_ENTRY } from '../../fixtures/runner/entry.js';
 import { stopFixtureLocalRunner } from '../../fixtures/runner/local-stop.js';
 
 /** One successful versioned CLI call on the served board's own checkouts, run in this process. */
@@ -59,7 +60,7 @@ async function remoteSeats(t) {
   mkdirSync(machine);
   // The served board's host runs its pulled gate jobs on its own loopback local runner; the boardless clone starts none [P7].
   fixtureMachineSettings(machine, { gate: { localRunner: false } });
-  startFixtureLocalRunner(box.env, box.root);
+  startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
   /** Run the real CLI dispatch in the clone as one seat, awaited, so the in-process server keeps answering. */
   const run = (seat, ...args) => runCliInProcess(args,
     { cwd: clone, env: { ...box.env, PULLBOARD_MACHINE_HOME: machine, PULLBOARD_AGENT: seat.agent } });
