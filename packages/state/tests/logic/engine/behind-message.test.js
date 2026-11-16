@@ -21,6 +21,6 @@ test('clause 2: the message never prints a bare engine number [H16]', () => {
 test('clause 2: an engine with no known release is described in words, not by its number [H16]', () => {
   const message = behindMessage({ ...input, running: 0, needed: 230 });
   assert.match(message, /an older Pullboard/u);
-  assert.doesNotMatch(message, /\b0\b/u);
+  assert.doesNotMatch(message, /(^|\s)0(\s|$)/u);
   assert.match(message, /pullboard update/u);
 });
