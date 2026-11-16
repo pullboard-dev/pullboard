@@ -73,7 +73,7 @@ export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNoti
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
 export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure, testFileLoadScale } from "./src/logic/test/budget/file.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
-export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
+export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes, readFileSamples } from "./src/io/test/value/timing.js";
 export { testValueReport } from "./src/io/test/value.js";
 export { runTimedShell } from "./src/io/timed.js";
 export { timingRunner, timingFromOutput, logLines, timingFromLog, runnerPhaseFields, runnerPhaseLine, startRunnerPhases } from "./src/io/timing.js";
@@ -118,7 +118,7 @@ export { gateHealthReport, runnerTimeReport } from "./src/io/health.js";
 export { runnerTimeLines, runnerTimeSummary } from "./src/logic/runner-time.js";
 export { enforcePartsCap, maintainPartsStore, prunePartsStore } from './src/io/test/action/prune.js';
 export { firstChangedInput, recordInputParts, ledgerFromOutput, phaseLedger } from './src/io/test/account.js';
-export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly } from "./src/io/test/shards.js";
+export { FILE_TIME_LINE, LANDING_COLLECT_ALL_ENV, LANDING_FILE_TIMES_ENV, LANDING_SHARD_ENV, fileKey, landingBalance, landingFloor, planFreeSlotShards, planLandingShards, planReleaseShards, printShardFileTimes, releasePlacement, runTestShards, runnerFailureClass, shardFileTimes, watchdogStoppedOnly, writeFileTimes } from "./src/io/test/shards.js";
 export { lex } from './src/io/scan.js';
 export { report } from './src/io/scan.js';
 export { walk } from './src/io/scan.js';

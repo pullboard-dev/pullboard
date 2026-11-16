@@ -7,11 +7,13 @@ import { readPayload } from '../../../jobs/index.js';
  * Why: one reader serves every runner view; each asks for the step names it times, and for the payloads of only those
  * steps it needs to read, so nothing else is loaded.
  *
- * @param {import('node:sqlite').DatabaseSync} db
- * @param {{from: number, until: number, steps: string[], payloads?: string[], kinds?: string[]}} window - epoch ms; `payloads` names the steps whose payload is parsed (null when it is pruned or unreadable)
+ * @param {import('node:sqlite').DatabaseSync} board
+ * @param {{from: number, until: number, steps: string[], payloads?: string[], kinds?: string[], runs?: {db: import('node:sqlite').DatabaseSync | null} | null}} window - `runs`: with runs_store on, the read-only runs holder the job rows come from instead of the board [B2,#9014];  - epoch ms; `payloads` names the steps whose payload is parsed (null when it is pruned or unreadable)
  * @returns {{id: string, kind: string, item: number|null, base: string|null, step: string, attempt: number, created: number, updated: number, steps: {name: string, seq: number, at: number, payload?: any}[]}[]}
  */
-export function readRunnerJobs(db, { from, until, steps, payloads = [], kinds }) {
+export function readRunnerJobs(board, { from, until, steps, payloads = [], kinds, runs = null }) {
+  const db = runs ? runs.db : board;
+  if (!db) return [];
   if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) return [];
   const kindMarks = kinds?.length ? ` AND j.job_kind IN (${kinds.map(() => '?').join(',')})` : '';
   const jobs = new Map(db.prepare(`SELECT j.job_id, j.job_kind, j.job_item, j.job_base, j.job_step, j.job_attempt, j.job_created, j.job_updated FROM job j

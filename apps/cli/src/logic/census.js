@@ -204,6 +204,36 @@ export function verdictOutcomes(verdicts) {
 }
 
 /**
+ * The per-file times a census measured, in the milliseconds the plan reads: one entry for every green or red row that
+ * has secs. Why those rows only: an unrun, hung or no-result file has no time worth planning by [C7].
+ *
+ * @param {Iterable<{ file: string, status: string, secs: number|null }>} rows
+ * @returns {Record<string, number>}
+ */
+/**
+ * The row a census reports for a non-green file after its one rerun alone: the rerun's row, marked flaky when it was
+ * green, with both outcomes kept. Why: 66 of 94 non-green files in census 4 were green on rerun (runner load), and the
+ * separate pass 2 that found them took 26 minutes [C7,#9138].
+ *
+ * @param {{ status: string, cases: string[], shard: string, host: string }} first - The file's row from its job.
+ * @param {{ status: string, cases: string[], shard: string, host: string }} again - The file's row from its rerun alone.
+ * @returns {object}
+ */
+export function rerunRow(first, again) {
+  const outcomes = [first, again].map(({ status, cases, shard, host }) => ({ status, cases, shard, host }));
+  return { ...again, ...(again.status === 'green' ? { flaky: true } : {}), outcomes };
+}
+
+/** True for a census row worth one rerun alone: anything but green or skipped [C7,#9138]. */
+export const rerunnable = row => row.status !== 'green' && row.status !== 'skipped';
+
+export function rowFileTimes(rows) {
+  const measured = {};
+  for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);
+  return measured;
+}
+
+/**
  * Cut a census into `count` jobs of near-equal measured time, heaviest first. Each file, heaviest first, goes to the
  * lightest job so far, so the heaviest and lightest job differ by at most one file's time; a file with no time weighs the
  * known average, and with no times at all every file weighs one. The jobs come back heaviest first, so a runner that pulls

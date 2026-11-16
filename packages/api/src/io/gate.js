@@ -11,14 +11,17 @@ import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
+import { releaseBackoffMs } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
+import { boardRun } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
 import { keepLandingLog } from './landing.js';
 import { livePersonWaivers } from './landing.js';
 import { reofferLandingJob } from './landing.js';
+import { queueFor } from './queue.js';
 import { landingRetries } from './landing.js';
 import { LAND_PUSH_RETRIES } from './landing.js';
 import { withLandingPermit } from './permit.js';
@@ -59,9 +62,12 @@ const LEDGER_REQUEST_BYTES = 56 * 1024;
 // Budget: one gate's proof splits into at most 32 shard jobs, so one receipt never floods the queue.
 const MAX_SHARDS = 32;
 
-/** The newest gate job offered for an item, so an older candidate's receipt reads as stale. */
-function latestGateJob(db, item) {
-  return db.prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
+/**
+ * The newest gate job offered for an item, so an older candidate's receipt reads as stale.
+ * runs: the board's runs holder (boardRunsHolder) while runs_store is on, so the job rows are read from the runs file; null reads the board's [B2,P7,#9149].
+ */
+export function latestGateJob(db, item, { runs = null } = {}) {
+  return (runs ? runs.db : db).prepare("SELECT job_id FROM job WHERE job_kind = 'gate' AND job_item = ? ORDER BY job_created DESC, rowid DESC LIMIT 1").get(item)?.job_id ?? null;
 }
 
 /**
@@ -90,8 +96,9 @@ export function pulledGateReds(board, item) {
   return reds;
 }
 
-/** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. */
-function offeredGate(db, job) {
+/** The job's kind, item, candidate, base, frozen check and the submit fields its offer recorded; null when the job is gone. runs: as latestGateJob [#9149]. */
+function offeredGate(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare(`SELECT job.job_kind, job.job_item, job.job_candidate, job.job_base, step.job_step_payload FROM job JOIN job_step AS step
     ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0 WHERE job.job_id = ?`).get(job);
   if (!row) return null;
@@ -99,6 +106,9 @@ function offeredGate(db, job) {
   return { kind: row.job_kind, item: row.job_item, candidate: row.job_candidate, main: row.job_base, submit: request?.submit ?? null,
     check: typeof request?.input?.data?.check === 'string' ? request.input.data.check : null };
 }
+
+// Exported by name, not inline: the dispatch-gates operation check reads an `export function offer...Gate` as a second dispatch entry [C7,#9149].
+export { offeredGate };
 
 /** The submit phase each gate-job phase proves, as today's submit names its native receipts. */
 const SUBMIT_PHASES = { check: 'criterion', proof: 'proof' };
@@ -214,14 +224,16 @@ function recordSubmitAdmission(board, { id, item, candidate, submit }) {
   }
 }
 
-/** The offer a job was made with, its request read back whole, or null. */
-function offeredStep(db, job) {
+/** The offer a job was made with, its request read back whole, or null. runs: as latestGateJob [#9149]. */
+export function offeredStep(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
   return row ? { ...JSON.parse(row.job_step_payload), request: offeredRequest(db, job) } : null;
 }
 
-/** The newest receipt posted for a job, or null. */
-function postedReceipt(db, job) {
+/** The newest receipt posted for a job, or null. runs: as latestGateJob [#9149]. */
+export function postedReceipt(db, job, { runs = null } = {}) {
+  db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
   return row ? JSON.parse(row.job_step_payload) : null;
 }
@@ -892,17 +904,18 @@ export function provideMainComparison(lookup) {
  *
  * @param {any} board - The open board, gitRoot set to the board host's repository.
  * @param {Record<string, any>} body
- * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, redLocation?: boolean, settleOnMainReceipt?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
+ * @param {Parameters<typeof jobQueueCall>[2] & { compareWithMain?: Parameters<typeof compareGateWithMain>[3], landingKey?: () => string | null, ordered?: { operation: string, args: any[] }[] | null, endStale?: boolean, redLocation?: boolean, settleOnMainReceipt?: boolean, reofferTrunkBusy?: boolean }} options - endStale: gate.endStaleJobs, ends a landed item's open gate jobs (#8816);
+ *   reofferTrunkBusy: landing.reofferTrunkBusy, offers a trunk-busy land job again after a backoff (#9102);
  *   settleOnMainReceipt: gate.settleOnMainReceipt, settles sharded gates left unknown when main's receipt records (#9057); compareWithMain:
  *   main's receipt lookup for a red gate's cases; the one provided to this process by default. landingKey: the board's
  *   landing key, which signs a land job's permit for the trunk guard (#5848); the board host's key file by default.
  *   ordered: on a relay-linked board, the list a receipt's engine moves go onto instead of this replica's store, for
  *   the caller to order through the relay (#7562); null applies them here, as on a local board.
  */
-export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, ...options }) {
+export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt }) });
+  const answer = jobQueueCall(board.db, body, { onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -956,7 +969,8 @@ export function applyJobReceipt(board, posted, ports = {}) {
     ports.ordered.push(...moves);
     return result;
   }
-  const kind = board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
+  // With runs_store on the job lives in the runs file, so its kind is the board run row's [B2,P7].
+  const kind = ports.queue ? boardRun(board.db, posted.job)?.run_kind : board.db.prepare('SELECT job_kind FROM job WHERE job_id = ?').get(posted.job)?.job_kind;
   if (kind === 'gate' || kind === SHARD_JOB_KIND) recordReceiptLedger(board, posted, kind === 'gate' ? 'pulled' : 'shard');
   if (kind === 'gate') return applyGateReceipt(board, posted, ports);
   if (kind === SHARD_JOB_KIND) return applyShardReceipt(board, posted, ports);
@@ -1026,20 +1040,25 @@ function returnLandedReds(board, job, named, receipt, separate) {
  * @param {{ compareWithMain?: Parameters<typeof compareGateWithMain>[3], settleOnMainReceipt?: boolean }} ports
  * @returns {string[]} the gate jobs re-applied
  */
-export function settleWaitingGates(board, mainTest, { compareWithMain = null, settleOnMainReceipt = false } = {}) {
+export function settleWaitingGates(board, mainTest, { compareWithMain = null, settleOnMainReceipt = false, queue = null } = {}) {
   const { db } = board;
-  const main = db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
+  // runs_store on: the job rows live in the runs file, so main's base and file and the earlier gates read from the board's run rows and their receipt summaries [B2,P7].
+  const summary = job => JSON.parse(boardRun(db, job)?.run_summary ?? 'null');
+  const main = queue ? boardRun(db, mainTest)?.run_base : db.prepare('SELECT job_base FROM job WHERE job_id = ?').get(mainTest)?.job_base;
   // The keyed main receipt is step 0; a runner's own posts sit above it.
-  const keyed = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
-  const file = keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
+  const keyed = queue ? null : db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' AND job_step_seq = 0").get(mainTest);
+  const file = queue ? summary(mainTest)?.file : keyed ? JSON.parse(keyed.job_step_payload)?.file : null;
   if (typeof compareWithMain !== 'function' || !SHA.test(String(main ?? '')) || typeof file !== 'string') return [];
   const settled = [];
+  const earlier = queue ? db.prepare("SELECT run_job AS job_id, run_item AS job_item, run_base AS job_base FROM run WHERE run_kind = 'gate' AND run_item IS NOT NULL ORDER BY run_created DESC, rowid DESC LIMIT 300")
+    : db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300");
+  const newest = item => queue ? db.prepare("SELECT run_job FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created DESC, rowid DESC LIMIT 1").get(item)?.run_job ?? null : latestGateJob(db, item);
   // Any base: the lookup finds this receipt for a gate on an earlier main where the file is unchanged, and skips the rest (#6333).
-  for (const { job_id: job, job_item: item, job_base } of db.prepare("SELECT job_id, job_item, job_base FROM job WHERE job_kind = 'gate' AND job_item IS NOT NULL ORDER BY job_created DESC, rowid DESC LIMIT 300").all()) {
-    const posted = postedReceipt(db, job)?.receipt;
-    const receipt = settleOnMainReceipt && posted?.gate?.proofPlan ? shardedResult(db, job, posted) : posted;
+  for (const { job_id: job, job_item: item, job_base } of earlier.all()) {
+    const posted = queue ? summary(job) : postedReceipt(db, job)?.receipt;
+    const receipt = settleOnMainReceipt && !queue && posted?.gate?.proofPlan ? shardedResult(db, job, posted) : posted;
     const gate = receipt?.gate;
-    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || latestGateJob(db, item) !== job) continue;
+    if (!gate || gate.proofPlan || (receipt.status === 0 && gate.green === true) || newest(item) !== job) continue;
     if (!(gate.phases ?? []).some(phase => phase.status !== 0 && ((phase.failures ?? []).some(row => row?.file === file) || (phase.failedFiles ?? []).includes(file)))) continue;
     if (store.getItem(board, item)?.item_status !== 'claimed') continue;
     const compared = compareGateWithMain(board, receipt, job_base, compareWithMain);
@@ -1095,14 +1114,15 @@ export function reportRunaway(board, { job, kind, attempts, detail }) {
  * (LAND_PUSH_FAILED, or LAND_PROOF_TIMEOUT). Why: the job was marked done and nothing offered the items again, so an
  * accepted item waited landing for good (#7791); a proof that never ended did the same with its lease renewed forever (#7820).
  */
-function retryFailedLanding(board, job, named, receipt, { code, what, next }) {
+function retryFailedLanding(board, job, named, receipt, { code, what, next, backoff = false, now = Date.now() }) {
   const waiting = [...named].filter(id => { const item = store.getItem(board, id); return item?.item_status === 'verified' && !item.item_merged_commit; });
   if (!waiting.length) return;
   const detail = String(receipt.detail ?? 'no detail recorded').trim();
   const tries = landingRetries(job);
   let again = null;
   if (tries < LAND_PUSH_RETRIES) {
-    try { again = reofferLandingJob(board.db, job); } catch { again = null; }
+    // A trunk-busy retry waits a backoff that grows per retry, so trunk can settle before the landing tries again [C7,#9102].
+    try { again = reofferLandingJob(board.db, job, { now, queue: queueFor(board, 'coordinator'), holdMs: backoff ? releaseBackoffMs(tries + 1) : 0 }); } catch { again = null; }
   }
   const tail = again ? `offered land job ${again.id} (retry ${again.retry} of ${LAND_PUSH_RETRIES})`
     : `${code} after ${tries + 1} tries; next: ${next}`;
@@ -1127,6 +1147,8 @@ export function applyLandingReceipt(board, { job, receipt }, ports = {}) {
   // A red's failing cases become observations after the items go back, once per receipt (the job's receipt applies once) [C7,H16].
   if (receipt?.red) { try { recordLandedRed(board, { job, receipt, item: returned[0] ?? null }); } catch { /* a diagnostic that cannot record leaves the red as it was */ } }
   if (receipt?.outcome === 'push-failed') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PUSH_FAILED', what: 'push-failed', next: 'fix the trunk push, then pullboard land' });
+  // With landing.reofferTrunkBusy on, a land job that lost the trunk race every attempt is offered again after a backoff [C7,#9102].
+  if (receipt?.outcome === 'trunk-busy' && ports.reofferTrunkBusy === true) retryFailedLanding(board, job, named, receipt, { code: 'LAND_TRUNK_BUSY', what: 'found trunk moved', next: 'wait for trunk to settle, then pullboard land', backoff: true, now: ports.receiptNow ?? Date.now() });
   if (receipt?.outcome === 'proof-timeout') retryFailedLanding(board, job, named, receipt, { code: 'LAND_PROOF_TIMEOUT', what: 'proof ran past its deadline', next: 'find the slow or stuck test file on the runner, then pullboard land' });
   if (receipt?.outcome !== 'landed' || !SHA.test(receipt.trunk ?? '')) return { applied: returned.length > 0, outcome: String(receipt?.outcome ?? 'unknown'), returned };
   const waivers = new Map((offered.payload?.waivers ?? []).map(waiver => [waiver.id, waiver]));

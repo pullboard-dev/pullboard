@@ -13,10 +13,11 @@ import { readVerifyRecords } from '../../../index.js';
 
 const files = privateFixtureFiles('pullboard-history-export-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
-const HOME = '/Users/somebody';
+const HOME = '/Users/person';
 const SINCE = '2026-11-05T00:00:00.000Z';
 const BATCH = (state, merge) => ({ id: 'b1', startedAt: '2026-11-10T03:00:00.000Z', base: 'a'.repeat(40), state,
-  candidates: [{ id: 1, commit: 'c'.repeat(40) }], items: [{ id: 1, commit: 'c'.repeat(40), ...(merge ? { merge } : {}) }] });
+  candidates: [{ id: 1, commit: 'c'.repeat(40) }], items: [{ id: 1, commit: 'c'.repeat(40), ...(merge ? { merge } : {}) }],
+  parallelCandidates: [{ id: 1, log: 'gate output no decision reads' }], failures: [{ file: 'a.test.js', output: 'long log' }] });
 
 /** A fixture board on real SQLite with the tables both readers SELECT from, one item landed through a batch and one rejected; removed after the test. */
 function board() {
@@ -42,7 +43,8 @@ function board() {
   add.run(at(5), 'coordinator', 'main-moved', null, JSON.stringify({ sha: 'd'.repeat(40), batch: 'b1', items: [1] }));
   add.run(at(6), 'core-1', 'claim', 2, '{}');
   add.run(at(7), 'core-1', 'submit', 2, JSON.stringify({ commit: 'e'.repeat(40) }));
-  add.run(at(8), 'core-2', 'reject', 2, JSON.stringify({ commit: 'e'.repeat(40), note: `see /home/other/log.txt and ${HOME}/x` }));
+  add.run(at(8), 'core-2', 'reject', 2, JSON.stringify({ commit: 'e'.repeat(40), note: `see /home/person/log.txt and ${HOME}/x` }));
+  add.run(at(9), 'coordinator', 'landing_batch', null, JSON.stringify({ batch: BATCH('pushed', 'd'.repeat(40)) }));
   db.prepare('INSERT INTO agent VALUES (?, ?)').run('core-2', 'mid');
   db.prepare('INSERT INTO item VALUES (?, ?, ?, ?)').run(1, JSON.stringify({ title: 'one', criterion: '1. lands [test]' }), null, 'core');
   db.prepare('INSERT INTO item VALUES (?, ?, ?, ?)').run(2, JSON.stringify({ title: 'two', criterion: `1. reads ${HOME}/notes [test]` }), null, 'core');
@@ -110,4 +112,29 @@ test('clause 3: neither exported document holds a home-directory path [M1]', () 
   }
   assert.match(JSON.stringify(exported.landing), /~\/seat\/item-1/u, 'the scrub keeps the path below home');
   assert.match(JSON.stringify(exported.verify), /see ~\/log\.txt and ~\/x/u);
+});
+
+test('#9000: fixture mode keeps only the batch fields a decision reads, drops a repeated batch revision, and rebuilds the same decisions [M1]', () => {
+  const trimmed = exportTableHistory(file, { since: SINCE, home: HOME, fixture: true });
+  const batches = trimmed.landing.events.filter(row => row[3] === 'landing_batch').map(row => row[5].batch);
+  assert.deepEqual(batches.map(batch => batch.state), ['selected', 'pushed'], 'the repeated pushed revision is dropped');
+  assert.ok(batches.every(batch => batch.parallelCandidates === undefined), 'gate output no decision reads is cut');
+  assert.deepEqual(batches[0].failures, [{ file: 'a.test.js' }], 'a failure keeps only its file');
+  assert.deepEqual(trimmed.landing.decisions, exported.landing.decisions, 'the same decisions with the same landing values');
+  const tables = ['select', 'selection', 'record', 'merged', 'outcome'];
+  const full = readLandingMoveRecords(file, { since: SINCE });
+  const again = readLandingMoveRecords(reloaded(trimmed.landing, [['event', 'events']]), { since: SINCE });
+  assert.deepEqual(tables.map(table => again[table].map(record => [record.event.id, record.recorded])), tables.map(table => full[table].map(record => [record.event.id, record.recorded])));
+});
+
+test('#9001: fixture mode cuts verify rows to what a verdict reads and rebuilds the same verdicts [M1]', () => {
+  const trimmed = exportTableHistory(file, { since: SINCE, home: HOME, fixture: true }).verify;
+  const detail = (id) => trimmed.events.find(row => row[0] === id)?.[5];
+  assert.equal(detail(3), '{}', 'an earlier claim keeps only the fields the fold reads');
+  assert.equal(detail(6), '{}', 'a follow-up the verdict did not write keeps only its place');
+  assert.deepEqual(trimmed.agents, [['core-2', 'mid']], 'only the verdict actors');
+  assert.deepEqual(trimmed.decisions, exported.verify.decisions, 'the same decisions with the same landing values');
+  const tables = [['event', 'events'], ['agent', 'agents'], ['item', 'items'], ['verdict', 'verdictRows'], ['shout', 'shouts'], ['board_meta', 'meta']];
+  const shape = (records) => records.verify.map(record => [record.event.id, record.move, record.recorded]);
+  assert.deepEqual(shape(readVerifyRecords(reloaded(trimmed, tables), { since: SINCE })), shape(readVerifyRecords(reloaded(exported.verify, tables), { since: SINCE })));
 });

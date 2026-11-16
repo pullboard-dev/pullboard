@@ -23,18 +23,19 @@ export function runnerControllerCallees(file, body, source) {
   return [];
 }
 
-/** Prove child-only refusals remain audited for both wrappers and item moves, without mapping other executables. */
+/**
+ * Prove the retired SSH controller's child-only refusals are no longer part of any item move [C7].
+ * Why: the controller entry now serves only pull modes (a2dd827545), so dispatch.js's runInController is unreachable from the shipped entry and a refusal planted there must stay out of the audit.
+ */
 export function assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine }) {
   const childGuard = editedSource('../packages/runners/src/io/dispatch.js', /^async function runInController\(root, command, options, ports\) \{$/m,
     "$&\n  if (command === 'probe') throw new Refused('RUNNER_CHILD_PROBE', 'new child-only item refusal');");
-  assert.deepEqual(codeProblems(machine, childGuard).sort(), [
-    'RUNNER_CHILD_PROBE is raised by accept and reject but not declared there',
-  ]);
+  assert.deepEqual(codeProblems(machine, childGuard).sort(), [], 'the retired controller child is not an item move');
   const walk = codeWalk(childGuard);
   for (const entry of ['runOnRunner', 'runOnRunnerAsync']) {
-    assert.ok(walk.refusalsOf(`../packages/runners/src/io/main.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} returns the real child refusal`);
+    assert.equal(walk.refusalsOf(`../packages/runners/src/io/main.js#${entry}`).has('RUNNER_CHILD_PROBE'), false, `${entry} no longer reaches the retired controller child`);
   }
-  assert.ok(walk.refusalsOf('../packages/gate/src/io/execution.js#runProfiledShellAsync').has('RUNNER_CHILD_PROBE'), 'runProfiledShellAsync follows its canonical runner lease port');
+  assert.equal(walk.refusalsOf('../packages/gate/src/io/execution.js#runProfiledShellAsync').has('RUNNER_CHILD_PROBE'), false, 'runProfiledShellAsync does not reach the retired controller child');
   const otherPort = file => ['../packages/gate/src/io/execution.js'].includes(file)
     ? childGuard(file).replaceAll('gateLease.executionServices.runners.', 'gateLease.unrelated.runners.')
     : childGuard(file);

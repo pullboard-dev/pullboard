@@ -41,16 +41,19 @@ function payloads(job) {
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ repo: string, ids: number[], commit: string, base?: string, owner: string, now?: () => number,
- *   check?: (context: object) => any, record: (context: object) => any, publish?: (context: object) => any }} options
+ *   check?: (context: object) => any, record: (context: object) => any, publish?: (context: object) => any,
+ *   runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
+ *   runs: the board's runs holder while runs_store is on; the landing's job and finish-step rows go to its handle and not to `db` [P7,#9012].
  *   check runs before anything is written and may refuse; record writes the board; publish runs after the record.
  * @returns {Promise<{ commit: string, ids: number[], ran: string[], resumed: boolean, written: Record<string, any> }>}
  */
-export async function landMerged(db, { repo, ids, commit, base, owner, now = Date.now, check = () => ({}), record, publish = () => ({}) }) {
+export async function landMerged(db, { repo, ids, commit, base, owner, now = Date.now, check = () => ({}), record, publish = () => ({}), runs = null }) {
+  const jobs = runs?.db ?? db;
   if (!Array.isArray(ids) || !ids.length) throw new Refused('LAND_ITEMS', 'a hand landing names at least one item: pass { ids }.');
   if (!isObjectId(commit)) throw new Refused('LAND_MERGE', 'a hand landing names the full landed commit id: pass { commit }.');
   if (typeof record !== 'function') throw new Refused('LAND_STEP_HANDLER', 'finishSequence needs a record step: pass { record(context) }.');
   const id = mergedLandingJobId(ids, commit);
-  createJob(db, { id, kind: LANDING_JOB_KIND, item: ids[0], candidate: commit, base: isObjectId(base) ? base : commit, now: now() });
+  createJob(jobs, { id, kind: LANDING_JOB_KIND, item: ids[0], candidate: commit, base: isObjectId(base) ? base : commit, now: now() });
   const steps = {
     /** The caller's checks, then the items; a refusal here writes nothing. */
     async select(context) { return { items: ids, ...((await check(context)) ?? {}) }; },
@@ -63,7 +66,7 @@ export async function landMerged(db, { repo, ids, commit, base, owner, now = Dat
     record,
     publish,
   };
-  const result = await finishSequence(db, id, { owner, repo, steps, now });
+  const result = await finishSequence(jobs, id, { owner, repo, steps, now });
   requireDone(result);
   const written = payloads(result.job);
   return { commit: written.merge.commit, ids, ran: result.ran, resumed: result.ran.length < result.job.steps.length, written };
@@ -78,15 +81,17 @@ export async function landMerged(db, { repo, ids, commit, base, owner, now = Dat
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ repo: string, batch: { id: string, tip: string, base?: string, state: string, items?: { id: number }[] },
- *   owner: string, now?: () => number }} options
+ *   owner: string, now?: () => number, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
+ *   runs: the board's runs holder while runs_store is on; the landing's job rows go to its handle and not to `db` [P7,#9012].
  * @returns {Promise<{ commit: string, ran: string[] } | null>} Null when the batch did not land.
  */
-export async function landBatch(db, { repo, batch, owner, now = Date.now }) {
+export async function landBatch(db, { repo, batch, owner, now = Date.now, runs = null }) {
+  const jobs = runs?.db ?? db;
   if (!batch || batch.state !== 'landed' || !isObjectId(batch.tip)) return null;
   const base = isObjectId(batch.base) ? batch.base : batch.tip;
   const items = (batch.items ?? []).map(entry => entry.id);
   const id = batchLandingJobId(batch.id);
-  createJob(db, { id, kind: LANDING_JOB_KIND, item: items[0] ?? null, candidate: batch.tip, base, now: now() });
+  createJob(jobs, { id, kind: LANDING_JOB_KIND, item: items[0] ?? null, candidate: batch.tip, base, now: now() });
   const steps = {
     select: () => ({ items, batch: batch.id }),
     compose: () => ({ candidate: batch.tip, base }),
@@ -95,7 +100,7 @@ export async function landBatch(db, { repo, batch, owner, now = Date.now }) {
     record: () => ({ batch: batch.id, items }),
     publish: () => ({}),
   };
-  const result = await finishSequence(db, id, { owner, repo, steps, now });
+  const result = await finishSequence(jobs, id, { owner, repo, steps, now });
   requireDone(result);
   return { commit: payloads(result.job).merge.commit, ran: result.ran };
 }
