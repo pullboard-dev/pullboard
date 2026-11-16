@@ -19,7 +19,7 @@ test('third case', () => {});
 function fixtureRepo() {
   const files = privateFixtureFiles('pullboard-main-cases-');
   const root = files.root;
-  fixtureProjectPolicy(root, { config: { affectedTests: 'node --test --test-reporter=tap' } });
+  fixtureProjectPolicy(root, { config: { affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' } });
   files.write('three.test.js', CASES);
   fixtureCommitAll(root);
   return root;
