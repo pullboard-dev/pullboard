@@ -36,6 +36,8 @@ export const setupHelp = `Set up
                                         register SSH test capacity; no runner sign-in; root defaults to ~/.pullboard-runner
                                         measures the runner's cores and memory; --slots declares a fixed count that always wins
   pullboard runner measure [<ssh-host>]  re-measure cores and memory on the runner itself (run it again after a hardware change)
+  pullboard runner key issue <runner>   issue a pull runner its own key; the private half is shown once
+  pullboard runner key revoke <runner>  revoke a runner's key; it stays refused after a board restart
   pullboard runner drain <ssh-host>     take a runner out of rotation: no new job, running jobs finish; undrain returns it
   pullboard runner list                 each runner's slots and browsers, measured cores and memory, and the slots the formula gives
   pullboard runner serve <board-url>    pull jobs from a board over HTTPS and fetch code from its trunk remote; no ssh in
