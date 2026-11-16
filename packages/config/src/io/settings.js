@@ -90,6 +90,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
@@ -108,6 +113,26 @@ export function registryStrictEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
+export function requireRegisteredEnabled() {
+  return loadMachineSettings().tests?.requireRegistered === true;
+}
+
+/** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
+export function requireJourneyPathEnabled() {
+  return loadMachineSettings().tests?.requireJourneyPath === true;
+}
+
+/** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
+export function adapterLintClockEnabled() {
+  return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
+/** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
+export function adapterLintFsEnabled() {
+  return loadMachineSettings().gate?.adapterLintFs === true;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
@@ -309,7 +334,12 @@ export function refuseTempWorktree() {
   return loadMachineSettings().gate?.refuseTempWorktree === true;
 }
 
-/** Whether claim refuses a folder whose HEAD is not on main (#9104): off by default; only an exact `true` turns it on. */
+/** Whether claim.keepWhileRunning is on: off by default; only an exact `true` keeps a claim whose holder has a test run, test or gate job in flight from being released as idle or stalled [C7,#9498]. */
+export function claimKeepWhileRunning() {
+  return loadMachineSettings().claim?.keepWhileRunning === true;
+}
+
+/** Whether claim.refuseOffMainHead is on: off by default; only an exact `true` makes claim refuse a folder whose HEAD is not on main [C7,#9104]. */
 export function refuseOffMainHead() {
   return loadMachineSettings().claim?.refuseOffMainHead === true;
 }
@@ -317,6 +347,11 @@ export function refuseOffMainHead() {
 /** Whether freezing a bar refuses an empty criterion (#9443): off by default; only an exact `true` turns it on. */
 export function refuseEmptyBar() {
   return loadMachineSettings().freeze?.refuseEmptyBar === true;
+}
+
+/** Whether a landed reject's follow-up keeps its parent's check (#9637): off by default; only an exact `true` turns it on. */
+export function rejectKeepsCheck() {
+  return loadMachineSettings().verify?.rejectKeepsCheck === true;
 }
 
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
@@ -365,6 +400,11 @@ export function landingSquashEnabled() {
   return loadMachineSettings().landing?.squash === true;
 }
 
+/** Whether status.showUsefulBuilders is on: off by default; only an exact `true` makes status print the max useful builders line [C7,#8544]. */
+export function statusShowUsefulBuilders() {
+  return loadMachineSettings().status?.showUsefulBuilders === true;
+}
+
 /** Whether spec.commitOnApply is on (#9346): off by default; only an exact `true` turns it on. */
 export function commitOnApplyEnabled() {
   return loadMachineSettings().spec?.commitOnApply === true;
@@ -399,6 +439,15 @@ export function holdsRequireOwner() {
  */
 export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
+}
+
+/**
+ * The builder cap behind next.capBuilders (#8545): the most seats that may hold a claim at once before next offers a review
+ * instead of a build; 0 (default) is off, and anything but a positive whole number is off, so a damaged value never starves builds.
+ */
+export function nextCapBuilders() {
+  const cap = loadMachineSettings().next?.capBuilders;
+  return Number.isInteger(cap) && cap > 0 ? cap : 0;
 }
 
 /**
@@ -459,6 +508,11 @@ export function staticCheckSlots() {
  */
 export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
+export function servePullRoute() {
+  return loadMachineSettings().serve?.pullRoute === true;
 }
 
 /**
@@ -782,6 +836,11 @@ export function boardKey() {
   chmodSync(file, 0o600);
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
+}
+
+/** Whether board.archiveEvents is on (#9334): off by default; only an exact `true` turns it on. */
+export function archiveEventsEnabled() {
+  return loadMachineSettings().board?.archiveEvents === true;
 }
 
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */

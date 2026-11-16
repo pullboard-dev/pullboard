@@ -380,6 +380,9 @@
   "apps/cli/journeys/stats/cost.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "launch": 1
+  },
   "packages/gate/tests/parser.test.js": {
     "launch": 4
   },
@@ -543,7 +546,10 @@
     "launch": 1
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "launch": 1
@@ -564,7 +570,10 @@
     "launch": 1
   },
   "packages/runners/tests/io/package/files.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "packages/runners/tests/io/package/files-closure.test.js": {
+    "launch": 1
   },
   "packages/runners/tests/io/package/compiler.test.js": {
     "launch": 5

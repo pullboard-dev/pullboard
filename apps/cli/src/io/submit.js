@@ -13,6 +13,8 @@ import { selectTestTiers } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
 import { barTestFiles } from '../../../../packages/verify/index.js';
 import { criterionClauses } from '../../../../packages/state/index.js';
+import { clauseTicks } from '../../../../packages/state/index.js';
+import { clauseMarks } from '../../../../packages/commits/index.js';
 import { gateCoveredFiles } from '../../../../packages/state/index.js';
 import { testCaseTitles } from '../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
@@ -22,6 +24,24 @@ import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';
 import { primaryCheckoutRoot } from './worktree.js';
+
+/**
+ * The note a submit records with its clause marks under submit.clauseMarks: each numbered clause of the frozen bar, met with the evidence its tick cites or not marked.
+ * Why a note: the reviewer reads the item's thread, so the marks sit beside the diff without a new record kind [C7,#9440].
+ * The text never begins "clause N [kind]:", so no reader takes it for a tick.
+ *
+ * @param {object} item - The held item, with its frozen bar.
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {string} commit - The head being submitted.
+ * @returns {string | null} The note text, or null when the bar has no clauses.
+ */
+export function clauseMarksNote(item, thread, commit) {
+  const ticks = [...clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head: commit })].map(([clause, tick]) => ({ clause, evidence: tick.evidence }));
+  const marks = clauseMarks(item.item_criterion, ticks);
+  if (!marks.length) return null;
+  const met = marks.filter(mark => mark.ticked).length;
+  return `Submit clause marks at ${commit.slice(0, 12)}: ${met} of ${marks.length} met. ${marks.map(mark => `${mark.number} ${mark.ticked ? `met${mark.evidence ? ` (${mark.evidence})` : ''}` : 'not marked'}`).join('; ')}.`;
+}
 
 /**
  * The paths with uncommitted changes in a worktree, untracked files included.

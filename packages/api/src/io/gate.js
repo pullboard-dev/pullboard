@@ -15,6 +15,7 @@ import { releaseBackoffMs } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
+import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
@@ -366,7 +367,9 @@ export function failingParts(receipt) {
   const gate = receipt?.gate ?? {};
   const clip = text => String(text ?? '').replace(/\s+/gu, ' ').trim().slice(-PART_TEXT);
   const parts = [];
-  if (gate.error) parts.push(`gate: ${clip(gate.error)}`);
+  // The job's own error leads with its reason and first failing cases, so a long file list loses its tail, never its head (#9429).
+  const flat = text => String(text ?? '').replace(/\s+/gu, ' ').trim();
+  if (gate.error) parts.push(`gate: ${flat(gate.error).length > PART_TEXT ? `${flat(gate.error).slice(0, PART_TEXT)} ...` : flat(gate.error)}`);
   if (gate.analysis?.infra) parts.push(`infrastructure: ${clip(typeof gate.analysis.infra === 'string' ? gate.analysis.infra : JSON.stringify(gate.analysis.infra))}`);
   for (const refusal of gate.analysis?.refusals ?? []) parts.push(`${refusal.part} ${refusal.code ?? 'REFUSED'}: ${clip(refusal.message)}`);
   if (gate.analysis?.ownership) parts.push(`authorization OUTSIDE_LANE: ${clip(gate.analysis.ownership.message)}`);
@@ -921,7 +924,10 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { queue: body?.action === 'shards' ? queueFor(board, 'coordinator') : null, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
+  // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
+  const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
+  const ports = { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
+  const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -963,6 +969,27 @@ export function gateLedgerHits(db, request, files) {
   const hits = budget > 0 ? store.ledgerHits(db, files, { budget }) : null;
   if (hits) request.input.data.ledger = hits;
   return request;
+}
+
+/**
+ * Apply one receipt from the runs inbox while runs_store is on: when the board's run row is still queued for an older
+ * attempt, run the receipt applier and settle the row (outcome, summary, event); then ack the receipt in the runs file.
+ * A receipt already applied, or for an older attempt, changes nothing but its ack, so a crash between the move and the
+ * ack repeats as a no-op. The applier does file I/O, so it runs outside a board write [B2,P7].
+ *
+ * @param {any} board
+ * @param {NonNullable<ReturnType<typeof queueFor>>} queue
+ * @param {{ job: string, attempt: number, receipt: Record<string, any> }} posted
+ * @param {Parameters<typeof applyJobReceipt>[2]} [ports]
+ * @returns {{ applied: boolean, outcome?: string }}
+ */
+export function applyQueuedReceipt(board, queue, { job, attempt, receipt }, ports = {}) {
+  const run = boardRun(board.db, job);
+  const fresh = run?.run_state === 'queued' && attempt > run.run_attempt;
+  const answer = fresh ? applyJobReceipt(board, { job, attempt, receipt }, { ...ports, queue }) : { applied: false, outcome: 'already-applied' };
+  if (fresh) applyRunReceipt(board, { by: queue.by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
+  queue.port.ack(job, attempt);
+  return answer;
 }
 
 /**

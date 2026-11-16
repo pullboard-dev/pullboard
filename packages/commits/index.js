@@ -14,6 +14,7 @@ export * from "./src/logic/header.js";
 export * from "./src/io/import/fix.js";
 export * from "./src/logic/contribution.js";
 export * from "./src/logic/contribution-clauses.js";
+export * from "./src/logic/contribution-secrets.js";
 export * from "./src/io/contribution-clauses.js";
 export * from "./src/logic/landing.js";
 export * from "./src/logic/board.js";

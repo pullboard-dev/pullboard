@@ -1371,14 +1371,15 @@ export function poolHandlers({ boardOpeners }, { isMain, runCommand, refusalDocu
  * Serve the RFC 0002 API on loopback, or a chosen interface address, behind the session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord } = {}) {
+export function serveApi({ port = 0, address = ADDRESS, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, watchdog, onStallRecord, pullRoute } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
   const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts, statePorts, onStateRecord, handlerPorts, allowedHosts: address === ADDRESS ? [] : [address] });
   // A watchdog, when given, names the routes behind any request-thread stall and records it on the boards [A2,C7].
   const watched = watchdog?.({ onStall: (stall) => { process.stderr.write(`pullboard: the API request thread stalled ${Math.round(stall.lagMs)} ms during ${stall.routes.join(', ') || stall.route}\n`); void handler.recordStall({ route: stall.route, lagMs: stall.lagMs, board: /\/api\/v1\/boards\/([^/?]+)/u.exec(stall.route)?.[1] ?? null }).then(onStallRecord, () => {}); } });
-  const server = createServer((req, res) => { if (watched) res.once('close', watched.enter(`${req.method} ${String(req.url ?? '').split('?')[0]}`)); return handler(req, res); });
+  // serve.pullRoute: a handler given here answers /pull/ itself; without one the path falls to the API handler as before (#8765).
+  const server = createServer((req, res) => { if (pullRoute && String(req.url ?? '').startsWith('/pull/')) return pullRoute(req, res); if (watched) res.once('close', watched.enter(`${req.method} ${String(req.url ?? '').split('?')[0]}`)); return handler(req, res); });
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {
     server.once('error', (error) => fail(new Refused(error.code === 'EADDRINUSE' ? 'PORT_BUSY' : 'API_LISTEN', `cannot listen on ${address}:${port}: ${error.message}; run pullboard serve --port 0 to choose a free port, or fix serve.address`)));
