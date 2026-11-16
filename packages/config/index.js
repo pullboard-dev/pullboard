@@ -96,6 +96,7 @@ export {
   adaptiveBatchEnabled,
   landingSquashEnabled,
   reofferTrunkBusyEnabled,
+  reuseGateReceiptsEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   setRelayCanary,

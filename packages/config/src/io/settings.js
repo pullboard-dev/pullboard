@@ -715,3 +715,8 @@ export function boardKey() {
   if (!/^[A-Za-z0-9_-]{24,128}$/u.test(key)) throw new Refused('BAD_BOARD_KEY', `${file} does not hold a board key; delete it and run pullboard serve again to make a new one`);
   return key;
 }
+
+/** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
+export function reuseGateReceiptsEnabled() {
+  return loadMachineSettings().landing?.reuseGateReceipts === true;
+}
