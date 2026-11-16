@@ -19,10 +19,19 @@ import { testClosures } from '../../../../../packages/gate/index.js';
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
 import { createE2eHelpers } from '../e2e.js';
 import { fixtureAdd } from '../testkit.js';
-import { settledGateJob } from './settle.js';
+import { whenRunnerSettles } from '../runner/local-start.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+/** The item's shown document once `ready` accepts it, read again on each change to the fixture's local runner folder. */
+function whenShown(box, ready, what) {
+  return whenRunnerSettles(box.env, () => {
+    const shown = box.run(box.web, 'show', String(box.id), '--json', '--no-next');
+    const doc = shown.code === 0 ? JSON.parse(shown.out) : null;
+    return doc && ready(doc) ? doc : null;
+  }, { deadlineMs: 100_000, what }); // budget: hang ceiling for one pulled gate, never a speed assertion.
+}
 
 /** Write only inside this test's disposable repository. */
 function put(root, path, source) {
@@ -84,7 +93,7 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       // A pulled submit returns queued; the gate's red lands on the item as the job's receipt [C7].
       const result = box.run(box.web, 'submit', String(box.id));
       assert.equal(result.code, 0, result.err + result.out);
-      const red = JSON.stringify(await settledGateJob(box, box.id));
+      const red = JSON.stringify((await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red')).thread);
       assert.match(red, /test\/new-board\.test\.js:3:/u, 'the gate names the actual lint location');
       assert.match(red, /unclassified file board open/u);
       const state = box.run(box.web, 'show', String(box.id), '--json');
@@ -94,7 +103,7 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       commit(box, box.web, 'test: use a memory-only SQLite fixture');
       const repaired = box.run(box.web, 'submit', String(box.id));
       assert.equal(repaired.code, 0, repaired.err + repaired.out);
-      await settledGateJob(box, box.id);
+      await whenShown(box, doc => doc.item_status === 'submitted', 'the repaired submit');
       const exported = box.run(box.web, 'export', '--json');
       assert.equal(exported.code, 0, exported.err);
       const event = JSON.parse(exported.out).tables.event.findLast(row => row.event_kind === 'submit');
