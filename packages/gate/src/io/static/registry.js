@@ -23,6 +23,11 @@ import { requireJourneyPathEnabled } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { adapterLintClockEnabled } from '../../../../config/index.js';
 import { clockLintRows } from '../adapter-lints/clock.js';
+import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { fsLintRows } from '../adapter-lints/fs.js';
+import { idiomSpreadEnabled } from '../../../../config/index.js';
+import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
+import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -227,6 +232,16 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   // Reach from the API's request handlers; the known-violation set in request.js may only shrink [#6718].
   { name: 'api-request-io', reads: SOURCE, run: (root, sources) => apiRequestIoProblems(treeSources(root, sources), { known: candidateKnownBlockers(treeSources(root, sources)) })
     .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`) },
+  // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
+  { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
+  // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).
+  { name: 'idiom-spread', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const enabled = context.idiomSpread ?? idiomSpreadEnabled();
+    if (enabled !== true) return [];
+    let ceilings = '{}';
+    try { ceilings = readFileSync(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
+    return idiomSpreadRows(treeSources(root, sources), { enabled, ceilings });
+  } },
   { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });

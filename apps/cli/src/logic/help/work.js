@@ -25,6 +25,7 @@ export const workHelp = `Work
   pullboard edit <id> [--title "..."] [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
                      [--expected-minutes <minutes|unknown>] [--force-size "reason"] [--accept-green "reason"]
                 [--after <id>[,<id>...]|none]   replace what the item waits for; none clears it
+                [--readiness "<command>"]   the command that says the item is ready to start; "" clears it
                 [--sensitive]           select Strict review; edit can set it while open
                 [--machine-verified on|off] [--machine-commands-file <json>]   coordinator only: machine verification
                 [--review-family <family>]   require the declared reviewer family
@@ -41,7 +42,7 @@ export const workHelp = `Work
   pullboard run --scale --lane <lane> --agent "<command>" [--every 60] [--cycles N]
                                         from the main checkout: run as many worker seats as are worth running,
                                         within pullboard settings workers.budget spend per day; idle seats stop first
-  pullboard list [lane] [--all] [--route light|mid|strong]   open and active items; --all adds closed ones
+  pullboard list [lane] [--all] [--route light|mid|strong] [--field name=value]   open and active items; --all adds closed ones; --field keeps items whose typed field matches (needs items.typedFields)
   pullboard queue                       the work queue in pull order: releases, then route, lane, holder, waits,
                                         and each item's unblock count, effort and why it sits there
   pullboard moves [--json]              each move table's recorded shadow compares, disagreements and first compare,

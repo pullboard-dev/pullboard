@@ -10,6 +10,7 @@ import { closeBoard } from '../../../../../packages/store/index.js';
 import { submitFixture } from '../board/submit.js';
 import { installSshStandIn } from '../runner/ssh.js';
 import { startFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import { HOST } from '../runner/ssh.js';
 import { createE2eHelpers } from '../e2e.js';
@@ -62,7 +63,7 @@ export async function fixture(t, { missingRunner = false } = {}) {
   installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
   const registered = await box.runLocal(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
   assert.equal(registered.code, 0, registered.out + registered.err);
-  startFixtureLocalRunner(box.env, box.repo);
+  startFixtureLocalRunner(box.env, box.repo, { entry: CLI_ENTRY });
   t.after(() => stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
