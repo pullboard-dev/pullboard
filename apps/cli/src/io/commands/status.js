@@ -17,7 +17,7 @@ import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { submitHandoff } from '../../../../../packages/store/index.js';
 import { handoffWorkerAlive } from '../alive.js';
-import { stalledGates } from '../../../../../packages/jobs/index.js';
+import { stalledGates } from '../../../../../packages/jobs/light.js';
 import { withBoardRead } from '../board/read.js';
 import { fallbackReclaim } from '../reclaim.js';
 import { diskLines } from '../disk/use.js';
@@ -29,22 +29,20 @@ import { join } from 'node:path';
 import { landWhy } from '../../../../../packages/landing/light.js';
 import { landingLine } from '../../../../../packages/landing/light.js';
 import * as store from '../../../../../packages/store/index.js';
-import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../read.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
-import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
 import { fileURLToPath } from 'node:url';
 import { memoryHeldRuns } from '../../../../../packages/store/index.js';
-import { retainedReceipts } from '../../../../../packages/gate/index.js';
-import { readRunnerUtilization } from '../../../../../packages/runners/index.js';
+import { retainedReceipts } from '../../../../../packages/gate/light.js';
+import { readRunnerUtilization } from '../../../../../packages/runners/light.js';
 import { longestRecentHolds } from '../../../../../packages/store/index.js';
-import { runnerDeadlineLine } from '../../../../../packages/resources/index.js';
-import { runnerDeadlineRuns } from '../../../../../packages/runners/index.js';
+import { runnerDeadlineLine } from '../../../../../packages/resources/light.js';
+import { runnerDeadlineRuns } from '../../../../../packages/runners/light.js';
 import {
   productLine,
   productSummaries,
 } from '../../../../../packages/spec/index.js';
-import { originRepository } from '../../../../../packages/seats/index.js';
+import { originRepository } from '../../../../../packages/seats/light.js';
 import {
   loadSpec,
 } from '../../../../../packages/spec/index.js';
@@ -77,6 +75,7 @@ export async function run(io, { values }) {
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
   const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
+  const unlinkedRelayStatus = hasRelayState ? null : (await import('../../../../../packages/link/index.js')).unlinkedRelayStatus;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
     ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
@@ -99,6 +98,7 @@ export async function run(io, { values }) {
       claimHealth: observedStaleState.claims.filter(entry => entry.health && entry.health !== 'building')
         .map(({ id, actor, health, idleMs, waitingOn }) => ({ id, actor, health, idleMs, waitingOn })) };
     const needsRescope = allItemsNeedingRescope(board);
+    const { personNeedsSummary } = await import('../../../../view/index.js');
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
