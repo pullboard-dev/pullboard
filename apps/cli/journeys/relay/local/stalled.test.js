@@ -52,7 +52,9 @@ test('a seat registration waits for relay authority while ordinary moves and rea
     assert.equal(shoutTexts(exported.document).filter(row => row === text).length, 1, 'the ordinary move is present locally while registration is pending');
   } finally {
     releaseRegistration();
-    joinResult = await joining;
+    // Budget: far past a join on a loaded runner, so a hung join fails its assertion with its output instead of ending the file at the runner's kill.
+    const overdue = setTimeout(() => joining.child.kill('SIGKILL'), 90_000);
+    try { joinResult = await joining; } finally { clearTimeout(overdue); }
   }
   assert.equal(joinResult.status, 0, joinResult.context);
   assert.match(JSON.parse(joinResult.stdout).agent, new RegExp(`^${box.lane}-[1-9][0-9]*$`, 'u'), 'the real join completes in its configured lane after the authority response is released');
