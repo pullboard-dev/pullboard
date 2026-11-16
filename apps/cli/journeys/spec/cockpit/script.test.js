@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/view */
 /** Cockpit hosted page script checks, split from cockpit.test.js [N26,B26,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
