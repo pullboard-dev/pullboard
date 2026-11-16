@@ -5997,15 +5997,9 @@
     "packages/gate/tests/fixtures/pipeline/worker.js": [
       "apps/runner"
     ],
-    "packages/gate/tests/fixtures/resources/capacity.js": [
-      "apps/cli"
-    ],
     "packages/gate/tests/fixtures/resources/lease.js": [
       "apps/cli",
       "apps/lib"
-    ],
-    "packages/gate/tests/fixtures/resources/release.js": [
-      "apps/cli"
     ],
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
