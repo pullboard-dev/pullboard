@@ -93,8 +93,10 @@ export function installSubmitTestTreeCases(modes = ['large selection', 'full fal
       // A pulled submit returns queued; the gate's red lands on the item as the job's receipt [C7].
       const result = box.run(box.web, 'submit', String(box.id));
       assert.equal(result.code, 0, result.err + result.out);
-      const red = JSON.stringify((await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red')).thread);
-      assert.match(red, /test\/new-board\.test\.js:3:/u, 'the gate names the actual lint location');
+      await whenShown(box, doc => /Gate job \S+ red at/u.test(JSON.stringify(doc.thread)), 'the pulled gate red');
+      const shownRed = box.run(box.web, 'show', String(box.id), '--no-next');
+      const red = shownRed.out + shownRed.err;
+      assert.match(red, /test\/new-board\.test\.js:3:/u, 'show names the actual lint location from the gate receipt');
       assert.match(red, /unclassified file board open/u);
       const state = box.run(box.web, 'show', String(box.id), '--json');
       assert.equal(state.code, 0, state.err);
