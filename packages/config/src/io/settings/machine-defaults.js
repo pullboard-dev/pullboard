@@ -64,6 +64,7 @@ export const MACHINE_DEFAULTS = {
   'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
+  'landing.strictFullSuite': false,
   'list.thinRead': false,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
