@@ -11,6 +11,7 @@ const INVENTORY = new URL('../../../src/io/settings/inventory.js', import.meta.u
 /** The key/default list as it stood before the move [O5,O6]. */
 const BEFORE = {
   'add.warnUnnamedTest': false,
+  'api.codeStampCache': false,
   'board.archiveEvents': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
@@ -18,10 +19,12 @@ const BEFORE = {
   'census.balanceByTime': false,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,
+  'census.jobsPerRunnerQuiet': null,
   'census.recordFileTimes': false,
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'census.soloFileSeconds': null,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
   'freeze.refuseEmptyBar': false,
@@ -35,7 +38,9 @@ const BEFORE = {
   'gate.endStaleJobs': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
+  'gate.idiomSpread': false,
   'gate.jobReserve': null,
+  'gate.junitReport': null,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -46,6 +51,7 @@ const BEFORE = {
   'gate.namedImportSelection': false,
   'gate.overlapStaticProof': false,
   'gate.postLandSuite': false,
+  'gate.pulledProfilePaths': false,
   'gate.queue.agingMinutes': 30,
   'gate.queue.currentReleaseFirst': false,
   'gate.queue.reviewsFirst': false,
@@ -75,6 +81,7 @@ const BEFORE = {
   'health.diskFloorGb': 0,
   'health.lapsedSweep': false,
   'health.sentinel': true,
+  'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
   'items.typedFields': false,
@@ -89,6 +96,7 @@ const BEFORE = {
   'landing.squash': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
+  'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
   'moves.live.claim': false,
@@ -100,16 +108,21 @@ const BEFORE = {
   'moves.live.reopen': false,
   'moves.live.submit': false,
   'moves.shadow': false,
+  'next.adoptPreserved': false,
   'next.capBuilders': 0,
+  'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
+  'review.starveShout': false,
   'runner.packCache': false,
   'runnerRates': {},
   'runners': [],
@@ -124,6 +137,7 @@ const BEFORE = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
@@ -131,6 +145,7 @@ const BEFORE = {
   'tests.registryStrict': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
+  'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
 };
@@ -191,6 +206,11 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.idiomSpread'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.idiomSpread'], false);
 });
 
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {

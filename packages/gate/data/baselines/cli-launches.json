@@ -213,7 +213,10 @@
     "launch": 1
   },
   "apps/cli/journeys/hooks/main.test.js": {
-    "launch": 4
+    "launch": 1
+  },
+  "apps/cli/journeys/hooks/drafts.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/relay/canary/ack.test.js": {
     "launch": 1
@@ -1571,7 +1574,7 @@
   "packages/resources/tests/io/heartbeat/blocked.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/newcomer.test.js": {
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/journal/preload/refusal.test.js": {

@@ -171,6 +171,9 @@ export function loadMachineSettings() {
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
+  if (value.gate?.pulledProfilePaths !== undefined && typeof value.gate.pulledProfilePaths !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.pulledProfilePaths in ${file} must be true or false`);
+  }
   if (value.gate?.recaptureHandoff !== undefined && typeof value.gate.recaptureHandoff !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.recaptureHandoff in ${file} must be true or false`);
   }
@@ -244,11 +247,20 @@ export function loadMachineSettings() {
   if (value.census?.jobsPerRunner !== undefined && value.census.jobsPerRunner !== null && !(Number.isSafeInteger(value.census.jobsPerRunner) && value.census.jobsPerRunner >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunner in ${file} must be a whole number of jobs, 1 or more, or null`);
   }
+  if (value.census?.soloFileSeconds !== undefined && value.census.soloFileSeconds !== null && !(Number.isSafeInteger(value.census.soloFileSeconds) && value.census.soloFileSeconds >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.soloFileSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
+  }
+  if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
+  }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
   }
   for (const [table, live] of Object.entries(value.moves?.live ?? {})) {
     if (typeof live !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `moves.live.${table} in ${file} must be true or false`);
+  }
+  if (value.gate?.overlapStaticProof !== undefined && typeof value.gate.overlapStaticProof !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.overlapStaticProof in ${file} must be true or false`);
   }
   if (value.gate?.tableReplay !== undefined && typeof value.gate.tableReplay !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.tableReplay in ${file} must be true or false`);
@@ -289,6 +301,12 @@ export function loadMachineSettings() {
   if (value.claim?.refuseOffMainHead !== undefined && typeof value.claim.refuseOffMainHead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `claim.refuseOffMainHead in ${file} must be true or false`);
   }
+  if (value.api !== undefined && (!value.api || typeof value.api !== 'object' || Array.isArray(value.api) || Object.keys(value.api).some(key => key !== 'codeStampCache'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `api in ${file} holds only codeStampCache; remove other keys`);
+  }
+  if (value.api?.codeStampCache !== undefined && typeof value.api.codeStampCache !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `api.codeStampCache in ${file} must be true or false`);
+  }
   if (value.add !== undefined && (!value.add || typeof value.add !== 'object' || Array.isArray(value.add) || Object.keys(value.add).some(key => key !== 'warnUnnamedTest'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `add in ${file} holds only warnUnnamedTest; remove other keys`);
   }
@@ -303,6 +321,15 @@ export function loadMachineSettings() {
   }
   if (value.holds?.requireOwner !== undefined && typeof value.holds.requireOwner !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `holds.requireOwner in ${file} must be true or false`);
+  }
+  if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
+  }
+  if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
+  }
+  if (value.review?.starveShout !== undefined && typeof value.review.starveShout !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `review.starveShout in ${file} must be true or false`);
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
@@ -346,14 +373,26 @@ export function loadMachineSettings() {
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }
+  if (value.next?.adoptPreserved !== undefined && typeof value.next.adoptPreserved !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.adoptPreserved in ${file} must be true or false`);
+  }
   if (value.next?.capBuilders !== undefined && !(Number.isInteger(value.next.capBuilders) && value.next.capBuilders >= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.capBuilders in ${file} must be a whole number, 0 or more`);
+  }
+  if (value.next?.idleBlockers !== undefined && typeof value.next.idleBlockers !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.idleBlockers in ${file} must be true or false`);
   }
   if (value.next?.itemNotices !== undefined && typeof value.next.itemNotices !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.itemNotices in ${file} must be true or false`);
   }
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
+  }
+  if (value.next?.readinessCache !== undefined && typeof value.next.readinessCache !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCache in ${file} must be true or false`);
+  }
+  if (value.stats?.recordCoordinatorUsage !== undefined && typeof value.stats.recordCoordinatorUsage !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `stats.recordCoordinatorUsage in ${file} must be true or false`);
   }
   if (value.submit?.clauseMarks !== undefined && typeof value.submit.clauseMarks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.clauseMarks in ${file} must be true or false`);
@@ -423,6 +462,9 @@ export function loadMachineSettings() {
     || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['spend', 'seatHours', 'window'].includes(key))
     || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
+  }
+  if (value.machine?.loadCeiling !== undefined && value.machine.loadCeiling !== null && (!Number.isFinite(value.machine.loadCeiling) || value.machine.loadCeiling <= 0)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `machine.loadCeiling in ${file} must be a 1-minute load above 0; remove it for the default of 1.5 times the logical cores`);
   }
   if (value.gate?.memoryFloorMB !== undefined && (!Number.isSafeInteger(value.gate.memoryFloorMB) || value.gate.memoryFloorMB < 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.memoryFloorMB in ${file} must be a whole number of megabytes, 0 or more; fix it before running Pullboard`);

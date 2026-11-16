@@ -51,7 +51,7 @@ export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirecto
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
 export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
-export { nativeStateClockWindow, nativeStateClockMatches } from './src/logic/clock.js';
+export { nativeStateClockWindow, nativeStateClockMatches, idleEntry } from './src/logic/clock.js';
 export { applyOutsideIntake, approveOutside as outside_store_approveOutside } from './src/io/outside.js';
 export { boundProofReceipt, proofRunReceipt, refuseLongShout } from './src/io/receipts.js';
 export { SEAT_LIVE_WINDOW_MS, heartbeatSeat, importSeatObservations, withSeatPresence, withLocalSeatPresence, seatGone } from './src/io/presence.js';
@@ -65,7 +65,7 @@ export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap, provideCoordinatorMilestoneRelease } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort, boardRunsHolder, boardRunsReader } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
-export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt } from './src/io/board/run.js';
+export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt, saveSubmitHandoff, reserveReviewRun, renewReviewRun, reclaimLapsedReviewRuns, releaseReviewRun, reviewLeases } from './src/io/board/run.js';
 export { RECONCILE_EVERY_MS, LOST_GRACE_MS, RUNAWAY_ATTEMPTS, RUN_LOST, RUN_RUNAWAY, disagreementAction, reconcileTick, pacedReconciler } from './src/io/board/reconcile.js';
 export { RUN_QUEUED_EVENT, RUN_APPLIED_EVENT, runSummary, runRowsFromEvents } from './src/logic/board/runs.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';

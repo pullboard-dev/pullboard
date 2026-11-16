@@ -643,7 +643,30 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  const applied = withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
+  const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
+  return gate ? { ...applied, gate } : applied;
+}
+
+/**
+ * The kept timing profile files a pulled receipt names: its check and proof phase rows each carry `profileKept`, one plain
+ * file name in the job's kept `output.folder`. Anything else (no folder, a path, `.`, `..`) is ignored, so a receipt can never
+ * point the board outside the folder its runner kept.
+ * Why: only the inline submit's gate exposed check.profilePath and proofProfilePath before [C7,#9615].
+ *
+ * @param {Record<string, any> | undefined} receipt
+ * @returns {{ check?: { profilePath: string }, proofProfilePath?: string } | null} null when no phase names a kept profile.
+ */
+function pulledProfilePaths(receipt) {
+  const folder = typeof receipt?.output?.folder === 'string' && receipt.output.folder ? receipt.output.folder : null;
+  if (!folder) return null;
+  const pathOf = role => {
+    const name = (receipt.gate?.phases ?? []).find(row => row?.role === role)?.profileKept;
+    return typeof name === 'string' && /^[\w.-]+$/u.test(name) && name !== '.' && name !== '..' ? join(folder, name) : null;
+  };
+  const check = pathOf('check'), proof = pathOf('proof');
+  return check || proof ? { ...(check ? { check: { profilePath: check } } : {}), ...(proof ? { proofProfilePath: proof } : {}) } : null;
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */

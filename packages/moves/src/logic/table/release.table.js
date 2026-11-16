@@ -4,6 +4,8 @@ import { defineRules } from './rules.js';
 import { RELEASE_NEXT } from './next.js';
 export { RELEASE_NEXT } from './next.js';
 
+/** A release note naming a machine fault: such a release says nothing about the item's bar. */
+const INFRA_NOTE = /GATE_INFRA_EXHAUSTED|DATABASE_LOCKED|runner admission/u;
 /** Reasons a holder's release counts toward the release-twice rule. */
 const QUALITY = Object.freeze(['BLOCKED', 'BUDGET', 'INELIGIBLE']);
 const ROUTES = Object.freeze(['light', 'mid', 'strong']);
@@ -81,7 +83,7 @@ function infraCaused(history, release) {
 function chosenQuality(history, release) {
   const d = release.detail ?? {};
   if (!QUALITY.includes(d.reasonCode) || d.review || d.staleClaim || d.goneSeat || d.idleClaim || d.expiredClaim
-    || d.untouchedAutoClaim || d.exitHandoff || infraCaused(history, release)) return false;
+    || d.untouchedAutoClaim || d.exitHandoff || d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? '') || infraCaused(history, release)) return false;
   const before = history.filter(e => e.id < release.id && LIFECYCLE.includes(e.kind)).at(-1);
   return before?.kind === 'claim' && before.by === release.by;
 }
