@@ -156,5 +156,5 @@ test('landing names the failing Rust test when main moved past a green submit an
   const settled = await settleLand(box, JSON.parse(landing.out), { deadlineMs: 100_000 });
   assert.deepEqual(settled.landed, [], `${landing.out}${landing.err}`);
   const shown = await box.runLocal(repo, 'show', built.item);
-  assert.match(shown.out, /item::adds_small_numbers|adds_small_numbers/u);
+  assert.match(shown.out, /Land job \S+ red:[\s\S]*item::adds_small_numbers/u);
 });
