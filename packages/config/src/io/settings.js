@@ -519,6 +519,14 @@ export function nextCapBuilders() {
 }
 
 /**
+ * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
+ * claims as before; only an exact `true` turns it on.
+ */
+export function nextHoldAboveLoad() {
+  return loadMachineSettings().next?.holdAboveLoad === true;
+}
+
+/**
  * Whether next passes over an item whose readiness command exits non-zero (#8793): off by default, so next offers items as
  * before; only an exact `true` turns it on.
  */
@@ -584,6 +592,14 @@ export function staticCheckSlots() {
  */
 export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/**
+ * Whether the always-run static registry refuses a changed test that adds an unclassified file-board open: gate.boardOpensCheck, default off.
+ * Why: the open guard otherwise runs only when its own test is selected, so a new unannotated open could land unseen [C7].
+ */
+export function boardOpensCheckOn() {
+  return loadMachineSettings().gate?.boardOpensCheck === true;
 }
 
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
