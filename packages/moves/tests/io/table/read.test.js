@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** The read-only reader builds the snapshot each recorded move saw, and tables are found by discovery [C7,#8070]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

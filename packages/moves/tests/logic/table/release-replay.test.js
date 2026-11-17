@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded release history fixture to replay it through the tables. The release and reclaim tables replay releases recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8240]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
