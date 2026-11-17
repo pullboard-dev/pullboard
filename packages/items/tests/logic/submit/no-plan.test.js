@@ -13,12 +13,12 @@ const CALLERS = [
   { file: 'apps/cli/src/io/submit/gate.js', calls: 1, child: '#6368' },
 ];
 
-test('requirePlannedSource stays exported as a no-op that never refuses until #6370 deletes it [C7]', () => {
+test('items.no-plan.require-noop: requirePlannedSource stays exported as a no-op that never refuses until #6370 deletes it [C7]', () => {
   assert.equal(typeof items.requirePlannedSource, 'function', 'importers keep loading');
   assert.equal(items.requirePlannedSource('/nonexistent', 'main', 'c'.repeat(40), { deferUnplaced: false }), undefined);
 });
 
-test('submitPreflight on a fixture without the cells plan passes with no CELLS_PLAN_UNPLACED refusal [C7]', () => {
+test('items.no-plan.preflight-passes: submitPreflight on a fixture without the cells plan passes with no CELLS_PLAN_UNPLACED refusal [C7]', () => {
   const board = { db: { prepare: () => ({ get: () => ({}) }) } };
   const ran = [];
   assert.doesNotThrow(() => items.submitPreflight(board, 1, { agentId: 'a', commit: 'c'.repeat(40), tree: 't'.repeat(40) },
@@ -26,7 +26,7 @@ test('submitPreflight on a fixture without the cells plan passes with no CELLS_P
   assert.deepEqual(ran, ['submit']);
 });
 
-test('the callers the CLI children must change are named [C7]', () => {
+test('items.no-plan.callers-named: the callers the CLI children must change are named [C7]', () => {
   const root = new URL('../../../../../', import.meta.url);
   for (const caller of CALLERS) {
     assert.equal(existsSync(new URL(caller.file, root)), true, `${caller.file} (${caller.child}) must exist to be changed`);
