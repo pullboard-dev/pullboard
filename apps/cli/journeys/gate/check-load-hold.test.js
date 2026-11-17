@@ -1,17 +1,15 @@
 /** With machine.holdHeavyAboveLoad on, pullboard check waits in the local resource line above machine.loadCeiling and says so; off, it reports as before [C7,#10141]. @pullboard-test-input source-cell apps/cli packages/config packages/resources */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { setMachineLoadPort } from '../../../../packages/resources/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 
-const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const WAIT_LINE = 'pullboard check waits in the local resource line';
 
 const e2e = createE2eHelpers();
@@ -35,38 +33,45 @@ function holdSettings(box, machine) {
   writeFileSync(file, JSON.stringify({ ...settings, machine: { ...settings.machine, ...machine } }));
 }
 
-/** Run the real pullboard check 1 --yes in the seat as a child, outside any admitted gate run; resolves with what it printed when it exits or once `until` matches (then the child is killed). */
-function checkChild(t, box, until) {
-  const env = { ...box.env, PULLBOARD_OWN_CLI: '1', PULLBOARD_RESIDENT: '0' };
-  delete env.PULLBOARD_GATE_SLOT_HELD;
-  const child = spawn(process.execPath, [`${ROOT}apps/cli/pullboard.js`, 'check', '1', '--yes'], { cwd: box.web, env });
-  t.after(() => child.kill());
-  return new Promise(resolve => {
-    let out = '';
-    const read = chunk => {
-      out += chunk;
-      if (until && out.includes(until)) { child.kill(); resolve({ out, killed: true }); }
-    };
-    child.stdout.on('data', read);
-    child.stderr.on('data', read);
-    child.on('close', code => { resolve({ out, code, killed: false }); });
+/**
+ * Run the real pullboard check 1 --yes in this process with an injected 1-minute load of 30 on 4 cores, and collect what it writes to
+ * stderr. Once the wait line appears the injected load drops to 0, so the held check admits and reports; `waited` says whether the line came first.
+ */
+async function checkUnderLoad(t, box) {
+  let loadNow = 30;
+  const restore = setMachineLoadPort({ loadavg: () => [loadNow, loadNow, loadNow], cores: () => 4 });
+  const savedHeld = process.env.PULLBOARD_GATE_SLOT_HELD;
+  delete process.env.PULLBOARD_GATE_SLOT_HELD;
+  const write = process.stderr.write;
+  let seen = '';
+  process.stderr.write = function capture(chunk, ...rest) {
+    seen += String(chunk);
+    if (seen.includes(WAIT_LINE)) loadNow = 0;
+    return write.call(this, chunk, ...rest);
+  };
+  t.after(() => {
+    process.stderr.write = write;
+    restore();
+    if (savedHeld === undefined) delete process.env.PULLBOARD_GATE_SLOT_HELD; else process.env.PULLBOARD_GATE_SLOT_HELD = savedHeld;
   });
+  const result = await box.runLocal(box.web, 'check', '1', '--yes');
+  return { result, seen, waitedFirst: seen.includes(WAIT_LINE) && result.out.includes('check green in') };
 }
 
-test('clause 1: with the setting on and machine.loadCeiling 0.0001, pullboard check waits in the local resource line before it reports [C7,#10141]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real CLI child; not a speed target.
+test('clause 1: with the setting on and the load over machine.loadCeiling, pullboard check waits in the local resource line before it reports [C7,#10141]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real in-process check; not a speed target.
   const box = await seat();
-  holdSettings(box, { holdHeavyAboveLoad: true, loadCeiling: 0.0001 });
-  const answer = await checkChild(t, box, WAIT_LINE);
-  assert.equal(answer.killed, true, `the check waits instead of reporting: ${answer.out}`);
-  assert.match(answer.out, new RegExp(`${WAIT_LINE}: load: holding heavy local work`, 'u'));
-  assert.doesNotMatch(answer.out, /check (green|red) in/u, 'the check has not reported');
+  holdSettings(box, { holdHeavyAboveLoad: true });
+  const answer = await checkUnderLoad(t, box);
+  assert.match(answer.seen, new RegExp(`${WAIT_LINE}: load: holding heavy local work`, 'u'), answer.result.err);
+  assert.equal(answer.result.code, 0, answer.result.out + answer.result.err);
+  assert.match(answer.result.out, /check green in/u, 'once the load drops the held check runs and reports');
 });
 
-test('clause 2: with the setting off, the same check reports green and prints no wait line [C7,#10141]', { timeout: 180_000 }, async t => {
+test('clause 2: with the setting off, the same check under the same load reports green and prints no wait line [C7,#10141]', { timeout: 180_000 }, async t => {
   const box = await seat();
-  holdSettings(box, { holdHeavyAboveLoad: false, loadCeiling: 0.0001 });
-  const answer = await checkChild(t, box, null);
-  assert.equal(answer.code, 0, answer.out);
-  assert.match(answer.out, /check green in/u);
-  assert.doesNotMatch(answer.out, new RegExp(WAIT_LINE, 'u'));
+  holdSettings(box, { holdHeavyAboveLoad: false });
+  const answer = await checkUnderLoad(t, box);
+  assert.equal(answer.result.code, 0, answer.result.out + answer.result.err);
+  assert.match(answer.result.out, /check green in/u);
+  assert.doesNotMatch(answer.seen, new RegExp(WAIT_LINE, 'u'));
 });
