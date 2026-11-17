@@ -30,24 +30,24 @@ async function codeWith(t, settings, metadata) {
   catch (error) { return { code: error.code ?? error.name, message: error.message }; }
 }
 
-test('clause 1: with gate.requireRunnerAttribution on, a request without an item is refused naming metadata.item [C7]', async t => {
+test('runners.request-attribution.with-gate-requirerunnerattribution-on-a-request: clause 1: with gate.requireRunnerAttribution on, a request without an item is refused naming metadata.item [C7]', async t => {
   const refused = await codeWith(t, { gate: { requireRunnerAttribution: true } }, { kind: 'gate' });
   assert.equal(refused.code, 'RUNNER_UNATTRIBUTED');
   assert.match(refused.message, /metadata\.item/u);
 });
 
-test('clause 1: with gate.requireRunnerAttribution on, a request without a kind is refused naming metadata.kind [C7]', async t => {
+test('runners.request-attribution.with-gate-requirerunnerattribution-on-a-request-2: clause 1: with gate.requireRunnerAttribution on, a request without a kind is refused naming metadata.kind [C7]', async t => {
   const refused = await codeWith(t, { gate: { requireRunnerAttribution: true } }, { item: '4000', kind: '' });
   assert.equal(refused.code, 'RUNNER_UNATTRIBUTED');
   assert.match(refused.message, /metadata\.kind/u);
   assert.equal((await codeWith(t, { gate: { requireRunnerAttribution: true } }, undefined)).code, 'RUNNER_UNATTRIBUTED');
 });
 
-test('clause 1: a request naming both an item and a kind passes the attribution check [C7]', async t => {
+test('runners.request-attribution.a-request-naming-both-an-item: clause 1: a request naming both an item and a kind passes the attribution check [C7]', async t => {
   assert.notEqual((await codeWith(t, { gate: { requireRunnerAttribution: true } }, { item: 'fixture', kind: 'remote-command' })).code, 'RUNNER_UNATTRIBUTED');
 });
 
-test('clause 1: the refusal is off by default, so a request naming neither still builds as before [C7]', async t => {
+test('runners.request-attribution.the-refusal-is-off-by-default: clause 1: the refusal is off by default, so a request naming neither still builds as before [C7]', async t => {
   assert.notEqual((await codeWith(t, {}, {})).code, 'RUNNER_UNATTRIBUTED');
   assert.notEqual((await codeWith(t, { gate: { requireRunnerAttribution: false } }, {})).code, 'RUNNER_UNATTRIBUTED');
 });

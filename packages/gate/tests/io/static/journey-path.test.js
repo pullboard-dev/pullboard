@@ -46,7 +46,7 @@ function change(t, edit) {
   return tree.root;
 }
 
-test('clause 1: with tests.requireJourneyPath on, an added journey no golden path names fails with JOURNEY_NO_PATH naming the file, the golden list and one next step [C7,#9403]', t => {
+test('gate.io-static-journey-path.with-tests-requirejourneypath-on-an-added: clause 1: with tests.requireJourneyPath on, an added journey no golden path names fails with JOURNEY_NO_PATH naming the file, the golden list and one next step [C7,#9403]', t => {
   const root = change(t, write => write('apps/cli/journeys/fresh/walk.test.js', "test('fresh', () => {});\n"));
   const rows = check.run(root, [], { requireJourneyPath: true, report: () => {} });
   assert.equal(rows.length, 1);
@@ -55,7 +55,7 @@ test('clause 1: with tests.requireJourneyPath on, an added journey no golden pat
   assert.match(rows[0], /; next: use a cell test, or ask the coordinator to add a user path/u, 'one next step');
 });
 
-test('clause 2: an added cell test or an edited journey passes with the setting on, and with it off an added journey prints only a diagnostic line [C7,#9403]', t => {
+test('gate.io-static-journey-path.an-added-cell-test-or-an: clause 2: an added cell test or an edited journey passes with the setting on, and with it off an added journey prints only a diagnostic line [C7,#9403]', t => {
   const quiet = change(t, write => {
     write('packages/spec/tests/new.test.js', "test('spec.old.ok: fine', () => {});\n");
     write('apps/cli/journeys/old/walk.test.js', "test('old', () => {});\n// edited\n");

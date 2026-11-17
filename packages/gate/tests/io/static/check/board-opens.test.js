@@ -26,7 +26,7 @@ function machine(t, settings) {
 /** Run the class on one changed path whose source is `source`. */
 const run = (file, source) => check.run({ root: process.cwd(), files: [file], read: () => ({ file, source }) });
 
-test('clause 1: with the setting on, a new unannotated board open in a changed test is refused at the always-run static checks [C7]', t => {
+test('gate.io-static-check-board-opens.with-the-setting-on-a-new: clause 1: with the setting on, a new unannotated board open in a changed test is refused at the always-run static checks [C7]', t => {
   assert.ok(check, 'the always-run static registry lists board-file-opens');
   machine(t, { gate: { boardOpensCheck: true } });
   const found = run('packages/x/tests/new.test.js', OPEN);
@@ -35,14 +35,14 @@ test('clause 1: with the setting on, a new unannotated board open in a changed t
   assert.deepEqual(run('packages/x/tests/new.test.js', NAMED), [], 'a named boundary is not debt');
 });
 
-test('clause 2: with gate.boardOpensCheck off (the default), the same change is not refused [C7]', t => {
+test('gate.io-static-check-board-opens.with-gate-boardopenscheck-off-the-default: clause 2: with gate.boardOpensCheck off (the default), the same change is not refused [C7]', t => {
   machine(t, {});
   assert.deepEqual(run('packages/x/tests/new.test.js', OPEN), []);
   machine(t, { gate: { boardOpensCheck: false } });
   assert.deepEqual(run('packages/x/tests/new.test.js', OPEN), []);
 });
 
-test('clause 3: a change with no test file leaves the board-open check silent without reading anything [C7]', t => {
+test('gate.io-static-check-board-opens.a-change-with-no-test-file: clause 3: a change with no test file leaves the board-open check silent without reading anything [C7]', t => {
   machine(t, { gate: { boardOpensCheck: true } });
   const read = () => { throw new Error('no file may be read'); };
   assert.deepEqual(check.run({ root: process.cwd(), files: ['packages/x/src/io/main.js', 'README.md'], read }), []);

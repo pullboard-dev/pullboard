@@ -24,7 +24,7 @@ async function git(cwd, ...args) {
   return run.stdout.trim();
 }
 
-test('two concurrent fetches of the same trunk commit run pack-objects once [E28]', async t => {
+test('runners.trunk-pack.two-concurrent-fetches-of-the-same: two concurrent fetches of the same trunk commit run pack-objects once [E28]', async t => {
   const repo = temporaryRepository(t, 'trunk-pack-repo-'), dir = temporaryDirectory('trunk-pack-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const commit = await git(repo, 'rev-parse', 'HEAD');
@@ -34,7 +34,7 @@ test('two concurrent fetches of the same trunk commit run pack-objects once [E28
   assert.ok(existsSync(runs[0].file));
 });
 
-test('a new trunk commit builds a new pack and drops the old one [E28]', async t => {
+test('runners.trunk-pack.a-new-trunk-commit-builds-a: a new trunk commit builds a new pack and drops the old one [E28]', async t => {
   const repo = temporaryRepository(t, 'trunk-pack-repo-'), dir = temporaryDirectory('trunk-pack-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const first = await git(repo, 'rev-parse', 'HEAD');

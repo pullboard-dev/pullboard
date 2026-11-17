@@ -35,7 +35,15 @@ import {
 import {
   createStudyExercise,
   seedIdentity,
-  seedStudyState,
+  seedOrdinaryWork,
+  seedMilestones,
+  seedLifecycle,
+  seedWatchReceipts,
+  seedObservationReceipts,
+  seedPublishFinding,
+  seedBaselineReceipts,
+  seedActivityReceipts,
+  seedSpecAndHandoff,
   seedRehome,
   seedHandoff,
 } from '../../../../../packages/store/tests/fixtures/relay/parity/seeds.js';
@@ -111,10 +119,12 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
       context.claim = { agentId: context.agent, lane, leaseMs: 3600000,
         freeze: () => ({ text: '{"rows":[],"criterion":"A seeded lifecycle."}', digest: 'study-frozen' }) };
     }
-    /** The phases of each part: together they are the original single sequence, on separate boards. */
+    /** The phases of each part: together they are the original single sequence, on separate boards, so the four parts run at once. A part repeats only the setup it reads (seat and item, or the lifecycle a finding needs). */
     const phases = {
-      study: [() => seedStudyState(context)],
-      rest: [seedSeats,
+      studyA: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedMilestones(context), () => seedLifecycle(context), () => seedPublishFinding(context)],
+      studyB: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedWatchReceipts(context), () => seedObservationReceipts(context),
+        () => seedBaselineReceipts(context), () => seedActivityReceipts(context), () => seedSpecAndHandoff(context)],
+      restA: [seedSeats,
         () => seedItemPatches(context),
         async () => {
           process.stderr.write('parity phase seedSourceAdvance begin\n');
@@ -128,7 +138,8 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
         () => seedAdministrative(context),
         () => seedTypedRequests(context),
         () => seedStaleState(context),
-        () => seedBatch(context),
+        () => seedBatch(context)],
+      restB: [seedSeats,
         async () => {
           process.stderr.write('parity phase seedNativeTrain begin\n');
           await seedNativeTrain(context, { cli: CLI_ENTRY });

@@ -1,4 +1,5 @@
-/** Every moves-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10045]. @pullboard-test-input source-cell packages/moves */
+/** @pullboard-test-input source-cell packages/moves */
+/** Every moves-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10045]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -7,10 +8,11 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 
-const TITLE_ID = /^test\('([^':\s]+): /gmu;
-const TESTS = /^test\(/gmu;
+/** Indented test( calls count too: tests declared inside loops or blocks are still tests. */
+const TITLE_ID = /^[ \t]*test\('([^':\s]+): /gmu;
+const TESTS = /^[ \t]*test\(/gmu;
 /** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
-const TEMPLATES = /`[^`]*`/gu;
+const TEMPLATES = new RegExp('\\x60[^\\x60]*\\x60', 'gu');
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
 function registryFindings(files, records) {
@@ -76,4 +78,13 @@ test('moves.registry.complete: clause 1: [C7,U148] every registered test has a s
     assert.ok(KINDS.includes(record.kind), `${id}: kind is one of ${KINDS.join(', ')}`);
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
+});
+
+test('moves.registry.indented-tests: clause 1: [C7] a test( call indented inside a loop or block is found, and one with no ID or no record is reported', () => {
+  const source = ['for (const x of [1]) {', "  test('moves.fixture.known: clause 1: registered', () => {});", "  test('moves.fixture.unknown: clause 1: no record', () => {});", "  test('no id here', () => {});", '}'].join('\n');
+  const { ids, findings } = registryFindings([{ file: 'fixture.test.js', source }], { 'moves.fixture.known': {} });
+  assert.deepEqual(ids, ['moves.fixture.known', 'moves.fixture.unknown']);
+  assert.equal(findings.length, 2);
+  assert.ok(findings.some((finding) => /1 test title\(s\) start without an ID/u.test(finding)));
+  assert.ok(findings.some((finding) => /moves\.fixture\.unknown has no registry record/u.test(finding)));
 });
