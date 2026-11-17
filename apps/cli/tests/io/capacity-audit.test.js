@@ -22,7 +22,7 @@ function settingsFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => (entry.isDirectory() ? settingsFiles(join(dir, entry.name)) : /^settings.*\.json$/u.test(entry.name) ? [[join(dir, entry.name), readFileSync(join(dir, entry.name), 'utf8')]] : []));
 }
 
-test('clause 1: the audit counts agents, runners and jobs per runner from recorded claims, landings and gate receipts, and names the binding constraint [C7,U151]', () => {
+test('cli.io-capacity-audit.the-audit-counts-agents-runners-and-jobs: clause 1: the audit counts agents, runners and jobs per runner from recorded claims, landings and gate receipts, and names the binding constraint [C7,U151]', () => {
   const claims = [{ seat: 'core-1', at: fromMs }, { seat: 'core-2', at: fromMs + HOUR }, { seat: 'core-1', at: fromMs + 2 * HOUR }];
   const runs = [{ runner: 'r1', ms: 2 * HOUR, at: fromMs }, { runner: 'r1', ms: 2 * HOUR, at: fromMs }, { runner: 'r2', ms: HOUR, at: fromMs }];
   const audit = auditCapacity({ claims, landings: 4, runs, fromMs, toMs });
@@ -35,7 +35,7 @@ test('clause 1: the audit counts agents, runners and jobs per runner from record
   assert.ok(audit.binding.rule && !json.includes('NaN'));
 });
 
-test('clause 2: a board with too little data reports unknown with the missing input named, never a typed default [C7,U151]', async () => {
+test('cli.io-capacity-audit.a-board-with-too-little-data-reports: clause 2: a board with too little data reports unknown with the missing input named, never a typed default [C7,U151]', async () => {
   const none = auditCapacity({ claims: [], landings: 0, runs: [], fromMs, toMs });
   assert.deepEqual([none.agents.value, none.runners.value, none.jobsPerRunner.value], [null, null, null]);
   assert.deepEqual(none.agents.missing, ['claims']);
@@ -53,7 +53,7 @@ test('clause 2: a board with too little data reports unknown with the missing in
   assert.match(text.out, /^runners: unknown \(missing: gate receipts naming a runner\)$/mu);
 });
 
-test('clause 3: the audit only reads, so machine settings and the inputs are unchanged after it runs [C7,U151]', async () => {
+test('cli.io-capacity-audit.the-audit-only-reads-so-machine-settings: clause 3: the audit only reads, so machine settings and the inputs are unchanged after it runs [C7,U151]', async () => {
   const input = { claims: [{ seat: 'a', at: fromMs }], landings: 1, runs: [{ runner: 'r', ms: HOUR, at: fromMs }], fromMs, toMs };
   const before = JSON.stringify(input);
   const first = auditCapacity(input);

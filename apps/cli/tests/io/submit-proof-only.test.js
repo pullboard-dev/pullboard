@@ -29,7 +29,7 @@ async function tick(box, number, kind) {
   assert.equal(done.code, 0, done.err + done.out);
 }
 
-test('clause 1: with submit.proofOnly on, an item whose clauses are all command or reasoning and all ticked submits with no diff [C7,#9105]', async (t) => {
+test('cli.io-submit-proof-only.with-submit-proofonly-on-an-item-whose: clause 1: with submit.proofOnly on, an item whose clauses are all command or reasoning and all ticked submits with no diff [C7,#9105]', async (t) => {
   const box = await proofBox(t, { on: true });
   await tick(box, 1, 'command');
   await tick(box, 2, 'reasoning');
@@ -40,7 +40,7 @@ test('clause 1: with submit.proofOnly on, an item whose clauses are all command 
   assert.match(shown.out, /#1\s+\S+ .*\(in the gate\)|#1\s+(?:submitted|verified)/iu, 'the item went into the gate');
 });
 
-test('clause 1: with the setting on, a [test] clause or an unticked clause still needs a change [C7,#9105]', async (t) => {
+test('cli.io-submit-proof-only.with-the-setting-on-a-test-clause: clause 1: with the setting on, a [test] clause or an unticked clause still needs a change [C7,#9105]', async (t) => {
   const withTest = await proofBox(t, { on: true, kinds: ['command', 'test'] });
   await tick(withTest, 1, 'command');
   const refusedTest = await runLocal(withTest, 'submit', '1', '--json');
@@ -53,7 +53,7 @@ test('clause 1: with the setting on, a [test] clause or an unticked clause still
   assert.match(refused.err + refused.out, /EMPTY_SUBMIT|CLAUSE_UNTICKED/u);
 });
 
-test('clause 2: with submit.proofOnly off, the default, the same item is refused EMPTY_SUBMIT as on main [C7,#9105]', async (t) => {
+test('cli.io-submit-proof-only.with-submit-proofonly-off-the-default-the: clause 2: with submit.proofOnly off, the default, the same item is refused EMPTY_SUBMIT as on main [C7,#9105]', async (t) => {
   const box = await proofBox(t, { on: false });
   await tick(box, 1, 'command');
   await tick(box, 2, 'reasoning');
@@ -62,7 +62,7 @@ test('clause 2: with submit.proofOnly off, the default, the same item is refused
   assert.match(refused.err + refused.out, /EMPTY_SUBMIT/u);
 });
 
-test('clause 2: submit.proofOnly is a described setting, off by default [C7,#9105]', (t) => {
+test('cli.io-submit-proof-only.submit-proofonly-is-a-described-setting-off: clause 2: submit.proofOnly is a described setting, off by default [C7,#9105]', (t) => {
   const box = privateRepo(t);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
