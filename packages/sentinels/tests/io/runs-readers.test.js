@@ -70,7 +70,7 @@ function offFixture(t) {
   return { boardFile, db };
 }
 
-test('clause 2: with runs_store on, the sentinels job reader reads the runs file read-only and writes nothing to it [B2,#9014]', t => {
+test('sentinels.runs-readers.runs-store-on-reads-file-readonly: clause 2: with runs_store on, the sentinels job reader reads the runs file read-only and writes nothing to it [B2,#9014]', t => {
   const { dir, boardFile, runsFile } = fixture(t);
   const digest = () => createHash('sha256').update(readFileSync(runsFile)).digest('hex');
   const before = digest();
@@ -80,7 +80,7 @@ test('clause 2: with runs_store on, the sentinels job reader reads the runs file
   assert.equal(digest(), before, 'the reader changed nothing in the runs file');
 });
 
-test('clause 3: with runs_store off, the sentinels job reader reads the board job rows as on main [B2,#9014]', t => {
+test('sentinels.runs-readers.runs-store-off-reads-board-rows: clause 3: with runs_store off, the sentinels job reader reads the board job rows as on main [B2,#9014]', t => {
   const { boardFile } = offFixture(t);
   const live = readJobs(boardFile, join(dirname(boardFile), 'no-such-spans'), NOW, new Map()).map(row => row.holder);
   assert.equal(live.length, 2);
