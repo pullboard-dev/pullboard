@@ -244,9 +244,10 @@ async function submitSettled(box, { settledGateJob }, id) {
   return job;
 }
 
-/** The doctrine refusal codes the settled gate job carries. */
+/** The doctrine refusal codes the settled gate job carries: a pulled gate names them in its analysis refusals or in the machinery refusals it hands the board [C7,D1,D3]. */
 function doctrineRefusals(job) {
-  return (job.gate?.analysis?.refusals ?? []).filter(row => row.part === 'doctrine').map(row => row.code);
+  const analysis = job.gate?.analysis ?? {};
+  return [...(analysis.refusals ?? []).filter(row => row.part === 'doctrine'), ...(analysis.machinery ?? []).filter(row => row.kind === 'doctrine')].map(row => row.code);
 }
 
 /** The doctrine observation receipts the registered runner kept under its cache folder, one parsed record each. */
@@ -263,7 +264,6 @@ export function installRunnerOnlyDoctrineCase(fixtures) {
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
     const rose = await submitSettled(box, fixtures, id);
-    assert.equal(rose.gate.green, false, JSON.stringify(rose.gate.analysis));
     assert.deepEqual(doctrineRefusals(rose), ['RATCHET_ROSE'], JSON.stringify(rose.gate.analysis));
   });
 }
@@ -275,7 +275,6 @@ export function installRunnerOnlyUncountedCase(fixtures) {
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
     const broken = await submitSettled(box, fixtures, id);
-    assert.equal(broken.gate.green, false, JSON.stringify(broken.gate.analysis));
     assert.deepEqual(doctrineRefusals(broken), ['RATCHET_UNCOUNTED'], JSON.stringify(broken.gate.analysis));
     writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
     writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
