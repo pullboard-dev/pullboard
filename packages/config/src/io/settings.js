@@ -505,6 +505,12 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether test.loadRerun is on (#10597): off by default; only an exact `true` turns it on. */
+export function testLoadRerunEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.loadRerun === true;
+}
+
 /** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
 export function requireFactQuoteEnabled() {
   return loadMachineSettings().spec?.requireFactQuote === true;

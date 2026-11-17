@@ -188,6 +188,7 @@ export const MACHINE_DEFAULTS = {
   'submit.recoverFromJobRow': false,
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
+  'test.loadRerun': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
