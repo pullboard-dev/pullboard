@@ -26,6 +26,8 @@ export const JUNIT_FILE_ROWS = {
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
+  // dune test with an OCaml JUnit reporter (alcotest or ounit2 output) writes the suite name in classname (Calc) and no file attribute; dune keeps it in test/calc.ml.
+  ocaml: row => (row.classname ? `test/${row.classname.toLowerCase()}.ml` : null),
   // vitest --reporter=junit writes the test file path as classname and no file attribute (src/math.test.ts).
   typescript: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null),
   // node --test --test-reporter=junit writes file (absolute, inside the checkout) on every case, which junitFile already prefers; the row only answers a case the reporter left without one.
@@ -54,6 +56,8 @@ export const JUNIT_FILE_ROWS = {
     return name ? `tests/${name}.php` : null;
   },
   // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
+  clojure: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null),
   perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
