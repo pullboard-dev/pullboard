@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded release history fixture to prove each replay record carries the engine its release was written at. A release record hands the table the engine the board stamped on the release, and the replay verdicts do not change [C7,#9831]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

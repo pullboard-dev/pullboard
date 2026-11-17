@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded verdict history fixture to replay it through the verify table. The verify table replays accepts and rejects recorded on a real board with zero disagreements, and refuses what the board refuses [C7,#8248]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

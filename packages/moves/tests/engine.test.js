@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/io/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */

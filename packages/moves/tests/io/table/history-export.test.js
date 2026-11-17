@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** The read-only exporter writes scrubbed landing and verify history from a board, each decision with its derived landing value [M1]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
