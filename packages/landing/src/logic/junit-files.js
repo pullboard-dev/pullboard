@@ -27,6 +27,12 @@ export const JUNIT_FILE_ROWS = {
     const [module, cls] = (row.classname || '').split('.');
     return module && cls ? `Tests/${module}/${cls}.swift` : null;
   },
+  // gotestsum writes the import path (example.com/m/pkg) in classname and no file attribute; the first two segments are
+  // the module (host and name), the rest is the package directory.
+  go: row => {
+    const dir = (row.classname ?? '').split('/').slice(2).join('/');
+    return dir ? `${dir}/` : null;
+  },
 };
 
 /**

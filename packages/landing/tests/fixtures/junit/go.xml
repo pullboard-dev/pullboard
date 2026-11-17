@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: gotestsum --junitfile report.xml ./...
+     Go writes classname as the import path and no file attribute. Test names read "clause N: ..." as a TestMain hook
+     that keeps the spaces would write them. No tool is needed to read it. -->
+<testsuites tests="3" failures="1" errors="0" skipped="1" time="0.012">
+  <testsuite tests="3" failures="1" errors="0" id="0" name="example.com/m/pkg" timestamp="2026-11-17T12:00:00Z" time="0.012">
+    <testcase classname="example.com/m/pkg" name="clause 1: adds two numbers" time="0.001"></testcase>
+    <testcase classname="example.com/m/pkg" name="clause 2: halves a number" time="0.002">
+      <failure message="Failed" type="">    add_test.go:14: half(4) = 1, want 2</failure>
+    </testcase>
+    <testcase classname="example.com/m/pkg" name="clause 3: later" time="0.000">
+      <skipped message="    add_test.go:19: not yet"></skipped>
+    </testcase>
+  </testsuite>
+</testsuites>
