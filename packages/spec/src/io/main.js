@@ -138,8 +138,9 @@ function rowFindings(row, maxWords) {
   // are not counted: the limit keeps the requirement itself short (blueprint rows carry both).
   const words = row.text.split(/ (?:Why|Choices): /u)[0].split(/\s+/).filter(Boolean).length;
   if (words > maxWords) add('warning', `${words} words; rows stay under ${maxWords}, the why goes elsewhere`);
-  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves, signers, count, runs, mode, files, source and verify`);
+  for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves, signers, count, runs, mode, files, source, quote and verify`);
   if (row.source !== undefined && !row.source.trim()) add('error', 'source names where the row came from; leave it out when the row has none');
+  if (row.quote !== undefined && !row.quote.trim()) add('error', 'quote holds the words the fact rests on; leave it out when there is none');
   for (const message of rowVerificationFormatProblems(row.verify)) add('error', message);
   findings.push(...checkFieldFindings(row).map((message) => ({ level: 'error', line: row.line, id: row.id, message })));
   return findings;
