@@ -1,8 +1,10 @@
 // pullboard: browser
 /** @pullboard-test-gui */
 /** Cockpit real-Chrome row decision check, split from cockpit.test.js [B26,N26,C7]. */
+/** @pullboard-world-pin checks by path that the old cockpit.test.js is gone beside this file; no fixture can say that. */
 import assert from 'node:assert/strict';
 import {
+  existsSync,
   mkdtempSync,
   rmSync,
 } from 'node:fs';
@@ -193,4 +195,9 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 
   await runWidth(375);
   await runWidth(1280);
+});
+
+test('clause 2: cockpit.test.js no longer holds the Spec row decisions case, which lives only in this file [B26,N26,C7]', () => {
+  assert.equal(existsSync(new URL('../cockpit.test.js', import.meta.url)), false, 'the emptied cockpit.test.js is gone');
+  assert.equal(existsSync(new URL('./decisions.test.js', import.meta.url)), true, 'the case lives here');
 });
