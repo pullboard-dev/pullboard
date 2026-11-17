@@ -73,7 +73,7 @@ function seeded(t) {
   return { db, file, jobs };
 }
 
-test('clause 1: compaction moves old finished items\' job steps to a gzip beside the board, keeps each job\'s last step, and leaves item and event rows alone [C7]', (t) => {
+test('board.compact.compaction-moves-old-finished-items-job: clause 1: compaction moves old finished items\' job steps to a gzip beside the board, keeps each job\'s last step, and leaves item and event rows alone [C7]', (t) => {
   const { db, file, jobs } = seeded(t);
   const items = rowsOf(db, 'item'), events = rowsOf(db, 'event');
   const before = jobView(db, jobs[101]);
@@ -95,7 +95,7 @@ test('clause 1: compaction moves old finished items\' job steps to a gzip beside
   assert.ok(lines.every(line => JSON.parse(line).name === 'phase'));
 });
 
-test('clause 1: board.sqlite shrinks after VACUUM and the report says by how much [C7]', (t) => {
+test('board.compact.board-sqlite-shrinks-after-vacuum-and: clause 1: board.sqlite shrinks after VACUUM and the report says by how much [C7]', (t) => {
   const { db, file } = seeded(t);
   db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   const big = statSync(file).size;
@@ -106,7 +106,7 @@ test('clause 1: board.sqlite shrinks after VACUUM and the report says by how muc
   assert.ok(report.archiveBytes > 0 && report.archiveBytes < report.payloadBytes, 'the archive is gzipped');
 });
 
-test('clause 1: history reads return the archived steps in their places, and a second pass finds nothing more to move [C7]', (t) => {
+test('board.compact.history-reads-return-the-archived-steps: clause 1: history reads return the archived steps in their places, and a second pass finds nothing more to move [C7]', (t) => {
   const { db, jobs } = seeded(t);
   const before = jobView(db, jobs[102]);
   compactJobSteps(db, { now: NOW });
@@ -120,7 +120,7 @@ test('clause 1: history reads return the archived steps in their places, and a s
   assert.equal(jobHistory(db, jobs[101]).steps.length, 9);
 });
 
-test('clause 1: a dry run reports the rows it would move and changes nothing [C7]', (t) => {
+test('board.compact.dry-run-reports-the-rows-would: clause 1: a dry run reports the rows it would move and changes nothing [C7]', (t) => {
   const { db, file, jobs } = seeded(t);
   const before = rowsOf(db, 'job_step');
   const report = compactJobSteps(db, { now: NOW, dryRun: true });
@@ -131,7 +131,7 @@ test('clause 1: a dry run reports the rows it would move and changes nothing [C7
   assert.equal(jobView(db, jobs[101]).steps.length, 9);
 });
 
-test('clause 1: a job whose lease is live is never compacted [C7]', (t) => {
+test('board.compact.job-whose-lease-live-never-compacted: clause 1: a job whose lease is live is never compacted [C7]', (t) => {
   const { db, jobs } = seeded(t);
   db.prepare('UPDATE job SET job_lease_owner = ?, job_lease_until = ? WHERE job_id = ?').run('runner', NOW + DAY, jobs[101]);
   assert.equal(compactJobSteps(db, { now: NOW }).rows, 5);

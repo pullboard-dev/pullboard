@@ -79,7 +79,7 @@ function observe(t, busy, reason = 'worker-unresponsive') {
   return JSON.parse(result.stdout);
 }
 
-test('an idle unresponsive worker is restarted by the next recovery and the runner returns to service, recording the restart [C7]', t => {
+test('runner.restart.an-idle-unresponsive-worker-is-restarted-by: an idle unresponsive worker is restarted by the next recovery and the runner returns to service, recording the restart [C7]', t => {
   const actual = observe(t, false);
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
@@ -91,7 +91,7 @@ test('an idle unresponsive worker is restarted by the next recovery and the runn
   assert.deepEqual(actual.events[3].detail.probe.restarted, [actual.pid]);
 });
 
-test('a worker that owns a running job is never restarted and the hold names its pid [C7]', t => {
+test('runner.restart.a-worker-that-owns-a-running-job: a worker that owns a running job is never restarted and the hold names its pid [C7]', t => {
   const actual = observe(t, true);
   assert.deepEqual(actual.ownerWitness.recorded, actual.ownerWitness.observed);
   assert.equal(actual.ownerWitness.observed.pid, actual.pid);
@@ -103,7 +103,7 @@ test('a worker that owns a running job is never restarted and the hold names its
   assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed']);
 });
 
-test('a transport-lost runner whose pinned worker resets the probe restarts it when idle and returns to service [C7]', t => {
+test('runner.restart.a-transport-lost-runner-whose-pinned-worker: a transport-lost runner whose pinned worker resets the probe restarts it when idle and returns to service [C7]', t => {
   const actual = observe(t, false, 'transport-lost');
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
@@ -113,7 +113,7 @@ test('a transport-lost runner whose pinned worker resets the probe restarts it w
   assert.equal(actual.events[3].detail.priorReason, 'TRANSPORT_UNVERIFIED');
 });
 
-test('a transport-lost runner whose worker owns a running job is left unavailable and its worker is not signalled [C7]', t => {
+test('runner.restart.a-transport-lost-runner-whose-worker-owns: a transport-lost runner whose worker owns a running job is left unavailable and its worker is not signalled [C7]', t => {
   const actual = observe(t, true, 'transport-lost');
   assert.equal(actual.recovered, false, JSON.stringify(actual));
   assert.equal(actual.alive, true, 'the busy worker was left running');

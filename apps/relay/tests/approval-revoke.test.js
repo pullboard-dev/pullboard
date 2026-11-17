@@ -213,7 +213,7 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
   }
 }
 
-test('an approval delivered while the page is busy still becomes a card [H15,H12]', {
+test('relay.approval-revoke.an-approval-delivered-while-the-page: an approval delivered while the page is busy still becomes a card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -368,7 +368,7 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   }
 });
 
-test('a completed approval keeps its visible refusal in the retained card [H15,H12]', {
+test('relay.approval-revoke.a-completed-approval-keeps-its-visible: a completed approval keeps its visible refusal in the retained card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -428,7 +428,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
   }
 });
 
-test('an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
+test('relay.approval-revoke.an-approval-the-relay-refuses-fails: an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -457,7 +457,7 @@ test('an approval the relay refuses fails the Mac command with its request id [H
     'the native command reports the failed publish without entering a misleading poll loop');
 });
 
-test('expired and unreachable approvals fail with their exact request id [H15,H12]', {
+test('relay.approval-revoke.expired-and-unreachable-approvals-fail-with: expired and unreachable approvals fail with their exact request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -479,7 +479,7 @@ test('expired and unreachable approvals fail with their exact request id [H15,H1
   assert.ok(offline.error.message.includes(unreachable.context.id), 'unreachable polling retains the approval identity');
 });
 
-test('elapsed fixture wall time never manufactures an approval expiry refusal [H15,H12]', {
+test('relay.approval-revoke.elapsed-fixture-wall-time-never-manufactures: elapsed fixture wall time never manufactures an approval expiry refusal [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);

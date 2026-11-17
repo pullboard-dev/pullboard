@@ -24,13 +24,13 @@ async function handoff(extra) {
   return { result, calls };
 }
 
-test('clause 1: a head already in main history is accepted because the ticket base reaches requireSubmitComposition [C7,V4]', async () => {
+test('runner.handoff-parent-base.a-head-already-in-main-history-is: clause 1: a head already in main history is accepted because the ticket base reaches requireSubmitComposition [C7,V4]', async () => {
   const { result, calls } = await handoff({ base: 'parent1' });
   assert.equal(result.green, true);
   assert.deepEqual(calls, [{ candidate: 'head1', trunk: { commit: 'main1' }, expectedMain: 'main1', parentBase: 'parent1' }]);
 });
 
-test('clause 1: a ticket with no base still reaches the rule with no parent base, so the old refusal holds [C7,V4]', async () => {
+test('runner.handoff-parent-base.a-ticket-with-no-base-still-reaches: clause 1: a ticket with no base still reaches the rule with no parent base, so the old refusal holds [C7,V4]', async () => {
   const { result, calls } = await handoff({});
   assert.equal(result.green, false);
   assert.equal(calls[0].parentBase, null);

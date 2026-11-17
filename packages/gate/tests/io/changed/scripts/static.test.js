@@ -58,13 +58,13 @@ function stageSource(box, file, source) {
   return runChecker(box);
 }
 
-test('the shared changed-file list passes a clean file [C7]', () => {
+test('gate.io-changed-scripts-static.the-shared-changed-file-list-passes: the shared changed-file list passes a clean file [C7]', () => {
   const dir = join(import.meta.dirname, '../../../../../..');
   const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', CHECKER, 'packages/gate/src/io/changed/scripts/static.js'], { cwd: dir, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
 });
 
-test('the staged checker refuses a source with two import bindings on one line, using the gate message [C7]', () => {
+test('gate.io-changed-scripts-static.the-staged-checker-refuses-a-source: the staged checker refuses a source with two import bindings on one line, using the gate message [C7]', () => {
   const box = staticProject();
   const started = performance.now();
   const refused = stageSource(box, 'src/two.js', "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
@@ -73,7 +73,7 @@ test('the staged checker refuses a source with two import bindings on one line, 
   assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, /src\/two\.js:1: one import binding per line \(2 bindings\)/u);
 });
 
-test('clause 1, clause 2: the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
+test('gate.io-changed-scripts-static.clause-1-clause-2-the-repository: clause 1, clause 2: the repository pre-commit step splits a fixable binding line in place, says so, and passes on the first try [C7]', () => {
   const box = staticProject();
   mkdirSync(join(box.repo, 'packages/gate/src/io'), { recursive: true });
   writeFileSync(join(box.repo, 'packages/gate/src/io/two.js'), "import { readFileSync, existsSync } from 'node:fs';\nexport const a = [readFileSync, existsSync];\n");
@@ -88,13 +88,13 @@ test('clause 1, clause 2: the repository pre-commit step splits a fixable bindin
   assert.doesNotMatch(second.stderr, /fixed:/u, 'a fixed file is never fixed or refused again');
 });
 
-test('the staged checker accepts a clean staged file [C7]', () => {
+test('gate.io-changed-scripts-static.the-staged-checker-accepts-a-clean: the staged checker accepts a clean staged file [C7]', () => {
   const box = staticProject();
   const done = stageSource(box, 'src/one.js', "import { readFileSync } from 'node:fs';\nexport const a = readFileSync;\n");
   assert.equal(done.status ?? done.code, 0, `${done.stderr ?? done.err}`);
 });
 
-test('the staged checker judges the index when working files differ in either direction [C7]', () => {
+test('gate.io-changed-scripts-static.the-staged-checker-judges-the-index: the staged checker judges the index when working files differ in either direction [C7]', () => {
   const bad = "import { readFileSync, existsSync } from 'node:fs';\n";
   const good = "import { readFileSync } from 'node:fs';\n";
   for (const [staged, working, shouldPass] of [[bad, good, false], [good, bad, true]]) {
@@ -108,7 +108,7 @@ test('the staged checker judges the index when working files differ in either di
   }
 });
 
-test('the staged checker refuses the other named static checks [C7]', () => {
+test('gate.io-changed-scripts-static.the-staged-checker-refuses-the-other: the staged checker refuses the other named static checks [C7]', () => {
   const examples = [
     ['src/empty.js', 'try { work(); } catch {}\n', /empty catch names no reason/u],
     ['test/input.test.js', "readFileSync(new URL('../src/example.js', import.meta.url));\n", /reads source files without/u],
@@ -126,7 +126,7 @@ test('the staged checker refuses the other named static checks [C7]', () => {
 });
 
 
-test('the shared checker and gate ratchet accepted oversized files without accepting new or growing excess [C7]', () => {
+test('gate.io-changed-scripts-static.the-shared-checker-and-gate-ratchet: the shared checker and gate ratchet accepted oversized files without accepting new or growing excess [C7]', () => {
   const file = 'src/existing-large.js';
   const source = '// accepted line\n'.repeat(1501);
   for (const lines of [1501, 1500, 1601]) {
@@ -142,7 +142,7 @@ test('the shared checker and gate ratchet accepted oversized files without accep
   assert.match(refused.stderr + refused.stdout, /over the 1500-line cap/u);
 });
 
-test('same-count accepted empty catches and source-reader declarations retain gate parity [C7]', () => {
+test('gate.io-changed-scripts-static.same-count-accepted-empty-catches-and: same-count accepted empty catches and source-reader declarations retain gate parity [C7]', () => {
   const examples = [
     ['src/debt.js', 'try { first(); } catch {}\n', 'try { second(); } catch {}\n', 'try { first(); } catch {} try { second(); } catch {}\n'],
     ['test/debt.test.js', "readFileSync(new URL('../src/first.js', import.meta.url));\n", "readFileSync(new URL('../src/second.js', import.meta.url));\n", null],

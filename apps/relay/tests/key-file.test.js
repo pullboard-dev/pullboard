@@ -65,7 +65,7 @@ function securityStandIn(t) {
   return store;
 }
 
-test('owner-only key file links and reads with a locked keychain, migrates once, and supports the environment key [H15,H17]', async (t) => {
+test('relay.key-file.owner-only-key-file-links-and: owner-only key file links and reads with a locked keychain, migrates once, and supports the environment key [H15,H17]', async (t) => {
   const box = await relayDirectFixture(t);
   const home = process.env.PULLBOARD_HOME;
   const legacyStore = securityStandIn(t);

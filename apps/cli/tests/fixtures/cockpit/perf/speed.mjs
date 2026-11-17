@@ -32,6 +32,21 @@ const LOADED = "!!data?.project && !document.body.classList.contains('loading')"
 /** The strip menu each page lives in; Work's pages are plain tabs. */
 const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
 
+/**
+ * Time stages for diagnosis: with PULLBOARD_TAB_SPEED_TRACE set, each stage prints one line with its elapsed milliseconds;
+ * unset, a stage just runs. Off by default so a normal run prints nothing extra, and the line prints even when the stage throws,
+ * because a stage that hung then failed is the one worth naming [C7].
+ */
+export function tabSpeedTrace(env = process.env, write = line => process.stderr.write(`${line}\n`)) {
+  const on = Boolean(env.PULLBOARD_TAB_SPEED_TRACE) && env.PULLBOARD_TAB_SPEED_TRACE !== '0';
+  return async function stage(label, run) {
+    if (!on) return run();
+    const start = performance.now();
+    try { return await run(); }
+    finally { write(`tab-speed-trace: ${label} ${Math.round(performance.now() - start)} ms`); }
+  };
+}
+
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
 function observationScript() {
   return `(() => {
@@ -112,41 +127,47 @@ function inputScript() {
 }
 
 /** Measure first and repeated switches of `tabs` on one real generated board; always drain owned Chrome and server. */
-export async function measureTabSpeed(board, tabs = ALL_TABS) {
-  const executable = findChromeExecutable();
+export async function measureTabSpeed(board, tabs = ALL_TABS, deps = {}) {
+  const { findChromeExecutable: findChrome = findChromeExecutable, startChrome: launch = startChrome, stableChrome: stabilise = stableChrome,
+    press: pressTarget = press, startView: start = startView, stopView: stop = stopView, stage = tabSpeedTrace() } = deps;
+  const executable = findChrome();
   if (!executable) throw new Error('Chrome is required for the tab speed contract');
   const profile = join(board.workspace, 'tab-speed-chrome');
   mkdirSync(profile, { recursive: true, mode: 0o700 });
   let server, chrome;
   try {
-    server = await startView(board);
-    chrome = await stableChrome(await startChrome({ url: 'about:blank', executable, profileDirectory: profile,
-      env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } }));
+    server = await stage('server start', () => start(board));
+    chrome = await stage('chrome start', async () => stabilise(await launch({ url: 'about:blank', executable, profileDirectory: profile,
+      env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } })));
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
-    await chrome.navigate(server.link.href);
     // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
-    await chrome.waitFor(LOADED, firstLoadMs());
+    await stage('first load', async () => {
+      await chrome.navigate(server.link.href);
+      await chrome.waitFor(LOADED, firstLoadMs());
+    });
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
     for (const mode of [{ repeat: false }, { repeat: true }, { isolation: true }]) {
       for (const tab of tabs) {
         if (hung.has(tab)) continue; // a tab that hung once is not measured again; its hang is the record
         try {
-          // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
-          if (MENU_OF[tab]) await press(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
-          await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
-          await press(chrome, `document.querySelector('[data-tab="${tab}"]')`);
-          // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
-          await new Promise(resolve => setTimeout(resolve, 100));
-          await chrome.stable(`(async () => {
-            const deadline = performance.now() + 60000;
-            while (performance.now() < deadline) {
-              const sample = window.__tabSpeed.current;
-              if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
-              await new Promise(requestAnimationFrame);
-            }
-            throw new Error('the native tab measurement did not settle');
-          })()`, `document.querySelector('[data-tab="${tab}"]')`);
+          await stage(`${mode.repeat ? 'repeat' : mode.isolation ? 'isolation' : 'first'} click ${tab}`, async () => {
+            // Rules and Insights pages sit in a menu; open it first, outside the measured click [N26].
+            if (MENU_OF[tab]) await pressTarget(chrome, `document.querySelector('[data-nav-group="${MENU_OF[tab]}"]')`);
+            await chrome.stable(`window.__tabSpeed.next = ${JSON.stringify(mode)}`, `document.querySelector('[data-tab="${tab}"]')`);
+            await pressTarget(chrome, `document.querySelector('[data-tab="${tab}"]')`);
+            // Observe the unchanged 100 ms bar without any CDP/layout sampling inside that window.
+            await new Promise(resolve => setTimeout(resolve, 100));
+            await chrome.stable(`(async () => {
+              const deadline = performance.now() + 60000;
+              while (performance.now() < deadline) {
+                const sample = window.__tabSpeed.current;
+                if (sample?.tab === '${tab}' && typeof sample.ready === 'boolean') return;
+                await new Promise(requestAnimationFrame);
+              }
+              throw new Error('the native tab measurement did not settle');
+            })()`, `document.querySelector('[data-tab="${tab}"]')`);
+          });
         } catch (error) {
           // A page that never answers is recorded as a hang, not thrown, so the audit row can name it [N26].
           if (error?.code !== 'CDP_TIMEOUT') throw error;
@@ -161,17 +182,18 @@ export async function measureTabSpeed(board, tabs = ALL_TABS) {
     return { ...report, hangs };
   } finally {
     try { if (chrome) await chrome.close(); }
-    finally { if (server) await stopView(server); }
+    finally { if (server) await stop(server); }
   }
 }
 
 /** One split file's whole contract: generate the real large board, click each of `tabs` first, again and isolated, and hold the 100 ms bar [N26]. */
 export async function checkTabSpeed(t, tabs) {
-  const board = await awaitStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 });
+  const stage = tabSpeedTrace();
+  const board = await stage('board generation', () => awaitStressBoard({ seed: 'tab-speed-1600', size: 1600, agents: 1150, shouts: 40000 }));
   try {
     assert.equal(board.agentCount, 1150);
     assert.equal(board.shoutCount, 40000);
-    const report = await measureTabSpeed(board, tabs);
+    const report = await measureTabSpeed(board, tabs, { stage });
     t.diagnostic(JSON.stringify({ population: { items: board.size, agents: board.agentCount, shouts: board.shoutCount }, ...report }));
     // The first load is open-first since de3affd4f4 (#6697): withdrawn items arrive only when a screen that shows them asks.
     // The roadmap and dashboard also ask for finished work since 2da4b43e24, so a run that clicks either holds every item [C7].
