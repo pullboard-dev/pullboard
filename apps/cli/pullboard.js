@@ -34,6 +34,10 @@ if (versionJson) {
   process.exit(0);
 }
 
+// The installed post-commit hook has no rule to run, yet every commit starts it: answer before any module loads,
+// not after the dispatcher's ~400 modules decide it is not an agent nudge [C7].
+if (process.argv.length === 4 && process.argv[2] === 'hook' && process.argv[3] === 'post-commit') process.exit(0);
+
 // Compiled module code is kept per machine, so a short command re-reads it instead of compiling ~450 ms of small modules again [C7].
 // Only a directory this account owns and nobody else can write is used: cached code runs. Any failure leaves the command uncached.
 try {
