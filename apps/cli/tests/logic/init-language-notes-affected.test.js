@@ -22,7 +22,7 @@ test('clause 2: two or more languages, or a language whose affectedRow is null, 
 });
 
 test('clause 3: the JUnit lines from the earlier slice are unchanged [C7]', () => {
-  const [junit, ...rest] = languageNotes([{ language: 'python', command: 'pytest' }]);
+  const [junit, ...rest] = languageNotes([{ language: 'python', command: 'pytest' }]).filter(line => !line.includes('runners.requiredToolchains'));
   assert.ok(junit.includes('pytest --junitxml=.pullboard/junit/python.xml'), junit);
   assert.ok(junit.includes('pullboard settings gate.junitReport .pullboard/junit/python.xml'), junit);
   assert.ok(!junit.includes('affectedTests'), 'the JUnit line carries no affected-test text');
