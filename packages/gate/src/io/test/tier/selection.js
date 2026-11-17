@@ -128,12 +128,14 @@ function formerBin(root, commit) {
 }
 
 /** Recompute classifications and ownership from the exact source, including stale or edited manifest rows. */
-function snapshotAt(root, commit) {
+function snapshotAt(root, commit, componentTier = false) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
-  const key = `${common}:${commit}`;
+  const key = `${common}:${commit}${componentTier ? ':component' : ''}`;
   if (snapshots.has(key)) return snapshots.get(key);
   // Another process on this machine may have built this commit's tiers with the same code (#3927).
-  const cached = readTierSnapshot(commit, tierCodeDigest());
+  // A component-tier snapshot carries T2 rows, so it has its own cache entry beside the default one (#9788).
+  const code = tierCodeDigest() && componentTier ? createHash('sha256').update(`${tierCodeDigest()}:componentTier`).digest('hex') : tierCodeDigest();
+  const cached = readTierSnapshot(commit, code);
   if (cached) {
     const result = { ...cached, rows: new Map(cached.manifest.files.map(row => [row.file, row])) };
     snapshots.set(key, result);
@@ -147,6 +149,7 @@ function snapshotAt(root, commit) {
   const { scripts } = formerBin(root, commit);
   const tooling = new Set();
   const manifest = generateTestTiersAt(root, commit, {
+    componentTier,
     onInventory: inventory => {
       owners = inventory.owners;
       packageFiles = new Set([...inventory.files.keys()].filter(file => file === 'package.json' || file.endsWith('/package.json')));
@@ -163,7 +166,7 @@ function snapshotAt(root, commit) {
     },
   });
   const result = { manifest, owners, packageFiles, helpers, tooling, rows: new Map(manifest.files.map(row => [row.file, row])) };
-  writeTierSnapshot(commit, tierCodeDigest(), result);
+  writeTierSnapshot(commit, code, result);
   snapshots.set(key, result);
   if (snapshots.size > 8) snapshots.delete(snapshots.keys().next().value);
   return result;
@@ -183,8 +186,10 @@ function ownUnit(row, snapshot, unsealed) {
  * Select only units belonging to changed packages and defer every current journey to the batch.
  * `auditOnly` is landing.auditOnly, joined by the push-only listing (packages/gate/data/tests/push-only.json): a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
  * so a repo-wide inventory test never turns one item's gate red [C7].
+ * `componentTier` is gate.componentTier, read by the caller (default off): a T2 test, which reaches other cells only through
+ * their front doors, is then selected only when a changed file is one of its doors, never for a change inside a cell [C7,#9788].
  */
-export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [] } = {}) {
+export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, runner = 'node --test', auditOnly = [], componentTier = false } = {}) {
   commit = commitAt(root, commit);
   if (trunk) {
     const mergeBase = sourceGit(root, ['merge-base', trunk, commit]).trim();
@@ -205,7 +210,7 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
       throw new Refused('TEST_SELECTION_INCOMPLETE', `the supplied change list differs from Git${hidden.length ? `; hidden changes: ${hidden.join(', ')}` : ''}; derive selection from the committed diff`);
     }
   }
-  const after = snapshotAt(root, commit), before = base ? snapshotAt(root, base) : after;
+  const after = snapshotAt(root, commit, componentTier === true), before = base ? snapshotAt(root, base, componentTier === true) : after;
   const packages = new Set();
   // Cells the test-cell check records as sealed (packages/gate/data/tests/test-cells.json): their tests conform, so the plan names them [C7].
   const sealedCells = sealedTestCells(root, commit);
@@ -245,7 +250,9 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // cell change leaves them out, and a global change keeps every test [C7,#4015].
   const tooling = after.tooling ?? new Set(), former = formerBin(root, commit);
   const toolingRun = global || (actual ?? []).some(file => former.inputs.has(file));
-  const selects = row => (!tooling.has(row.file) || toolingRun) && (confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row));
+  const changedFiles = new Set(actual ?? []);
+  const doorChanged = row => global || row.doors?.some(door => changedFiles.has(door));
+  const selects = row => (!tooling.has(row.file) || toolingRun) && (row.tier === 'T2' ? doorChanged(row) : confined ? confinedUnit(row, confined.roots, doors) : (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row));
   const units = [...new Set([...after.manifest.files.filter(row => selects(row) || authored.has(row.file) || (toolingRun && tooling.has(row.file))).map(row => row.file), ...contracts])].sort();
   // A confined change runs no journey: nothing outside a sealed cell reaches past its front door (#4003). The one exception
   // is a test that reads a listing file the change carried: that file is its input, so it stays selected (#4633).

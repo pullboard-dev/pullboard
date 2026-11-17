@@ -27,6 +27,10 @@ import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { boardFileOpens } from '../../board/files.js';
+import { boardFileGrowth } from '../../board/files.js';
+import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
+import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
@@ -143,6 +147,12 @@ export const STATIC_CHECKS = Object.freeze([
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
+  // A changed test that adds an unclassified file-board open past its file's ceiling; silent unless the gate.boardOpensCheck machine setting is on, and it reads only changed test files.
+  { name: 'board-file-opens', run: ({ root, files, read }) => {
+    const tests = files.filter(isTestSource);
+    if (!tests.length || !boardOpensCheckOn()) return [];
+    return tests.flatMap(file => boardFileGrowth(boardFileOpens(read(file).source, file), BOARD_FILE_BASELINE).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;

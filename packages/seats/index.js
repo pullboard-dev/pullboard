@@ -50,6 +50,7 @@ export {
 } from './src/io/agent/session.js';
 export {
   agentTree,
+  idleSeats,
   agentTreeLines,
   agentsReport,
 } from './src/io/agent/tree.js';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rowWindow } from '../../../src/logic/page/window.js';
