@@ -168,6 +168,7 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   detail: { type: 'boolean' },
+  audit: { type: 'boolean' },
   fields: { type: 'string' },
   history: { type: 'boolean' },
   verbose: { type: 'boolean' },
