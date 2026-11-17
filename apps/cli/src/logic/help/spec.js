@@ -27,7 +27,8 @@ export const specHelp = `Spec
                                         approve <id> --text "new wording" approves an exact rewrite
   pullboard spec answer <id> "<choice or text>"  the person's answer to a pending question
                                         a listed choice, or their own words added as the last choice
-  pullboard spec apply [--row <id>]     coordinator applies recorded row decisions to the files (--row: one row only)
+  pullboard spec apply [--row <id> [--commit]]  coordinator applies recorded row decisions to the files (--row: one row only;
+                                        --commit: commits it when spec.commitOnApply is on)
   pullboard doctrine check              each doctrine rule's check: its count, its committed count, whether it holds
                                         a rule row adds | gate: check <command> | count: N, and | files: <paths> to narrow it
                                         the command prints one line per problem and exits 0 or 1; anything else cannot count
