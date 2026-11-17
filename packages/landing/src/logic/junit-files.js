@@ -6,6 +6,11 @@ export const JUNIT_FILE_ROWS = {
   ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
+  rust: row => {
+    const crate = (row.classname ?? '').split('::')[0];
+    return crate ? `${crate}/` : null;
+  },
 };
 
 /**
