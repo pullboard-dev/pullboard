@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../fixtures/cell-board.js';
 import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
-import { writeBoardMeta } from '../../../../../store/src/io/board/meta.js';
+import { writeBoardMeta } from '../../../../../store/index.js';
 import { RUNS_PORT_CALLS } from '../../../../../store/index.js';
 import { boardRunsPort } from '../../../../../store/index.js';
 import { openRunsStore } from '../../../../../store/index.js';
