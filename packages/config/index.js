@@ -104,6 +104,7 @@ export {
   addWarnUnnamedTest,
   docsRegenerateOnCommit,
   holdsLiftSettled,
+  releaseRerouteUntouched,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
