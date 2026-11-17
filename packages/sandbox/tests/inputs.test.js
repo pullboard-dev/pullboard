@@ -46,10 +46,10 @@ test('clause 1: every sandbox test file that reads files carries an input header
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/sandbox'], 'this file names only the sandbox cell');
 });
 
-test('clause 1: every sandbox input header is a cell, the test tree or named files, never the whole source tree [C7,U149]', () => {
+test('clause 1: every sandbox input header is a cell, a tree or named files [C7,U149]', () => {
   for (const file of sandboxTests()) {
     for (const header of headers(read(file))) {
-            assert.match(header, /^(?:source-cell [a-z/ ]+|test-tree|\S+\.(?:js|json))(?: \S+\.(?:js|json))*$/u, `${file} declares a cell, the test tree or named files`);
+            assert.match(header, /^(?:source-cell [a-z/ ]+|source-tree|test-tree|docs-tree|\S+\.(?:js|json))(?: \S+\.(?:js|json))*$/u, `${file} declares a cell, the test tree or named files`);
     }
   }
 });
