@@ -4,6 +4,8 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
 /**
