@@ -45,7 +45,7 @@ export function fileMarkerForPath(path) {
  * @returns {(board: { root: string, id: string }, id: number) => any} The item's detail, or null when the board has no such item.
  */
 export function itemDetailReader({ withReadBoard, projectItemState, isMain, boardOpeners, onItemBuild, cells }) {
-  const { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector } = cells;
+  const { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled } = cells;
   // Each board's item details by item id, and each board's spec-approval view (#1040).
   const detailCache = new Map();
   const approvalCache = new Map();
@@ -90,6 +90,9 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
     const { db } = currentBoard;
     const row = db.prepare('SELECT * FROM item WHERE item_id = ?').get(id);
     if (!row) return null;
+    // Typed fields and free links are written without an event, so the detail key carries them; with items.typedFields off both stay out and the key is what it was (#9835) [C7].
+    const typed = typedFieldsEnabled?.() === true, fields = typed ? store.itemFields(currentBoard, id, { enabled: true }) : [];
+    const links = typed ? store.relatedLinks(currentBoard, id, { enabled: true }).map(other => ({ id: other, title: db.prepare('SELECT item_title FROM item WHERE item_id=?').get(other)?.item_title ?? '' })) : [];
     const now = currentBoard.clock.now().toISOString();
     const status = new Map();
     for (const dependency of localDependencyIds(row)) {
@@ -104,7 +107,7 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
       row.item_status === 'submitted' && Boolean(row.item_review_by) && (row.item_review_until ?? '') > now,
       db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id = ?').get(id).id,
       db.prepare('SELECT MAX(verdict_id) AS id FROM verdict WHERE item_id = ?').get(id).id,
-      [...status], db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${id}`)?.meta_value ?? null, tip]);
+      [...status], db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`item_check_baseline_${id}`)?.meta_value ?? null, tip, typed ? [fields, links] : null]);
     const cacheId = JSON.stringify([info.commonDir, board.id]);
     let details = detailCache.get(cacheId);
     const cached = details?.get(id);
@@ -119,6 +122,7 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
       check: source.item_check,
       ...(source.item_check_baseline ? { checkBaseline: source.item_check_baseline } : {}),
       thread: store.itemThread(currentBoard, id),
+      ...(typed ? { fields, links } : {}),
     };
     onItemBuild?.({ board: board.id, itemId: id });
     const detail = itemDetail(projected, SUMMARY_KEYS);
