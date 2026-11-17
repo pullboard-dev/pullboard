@@ -1005,6 +1005,10 @@
       "kind": "sqlite",
       "owner": "packages/outbox/src/io/relay/guard.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-outbox.summary.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
