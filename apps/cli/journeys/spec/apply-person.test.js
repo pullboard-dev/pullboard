@@ -36,9 +36,9 @@ function row(box, id) {
 }
 
 /** A lane proposes a revision of an approved row; the person then approves it on the given channel (terminal when none). */
-async function proposed(box, channel, text = 'The page renders accessibly.') {
+async function proposed(box, channel, text = 'The page renders accessibly.', target = 'G1') {
   const draft = JSON.parse(succeeds(await box.runIn(box.web, 'spec', 'draft', text,
-    '--revises', 'G1', '--gate', 'true', '--reason', 'Reworded.', '--json')).out);
+    '--revises', target, '--gate', 'true', '--reason', 'Reworded.', '--json')).out);
   if (channel) succeeds(await onChannel(box, box.repo, channel, 'spec', 'approve', draft.id));
   else succeeds(await box.runIn(box.repo, 'spec', 'approve', draft.id));
 }
@@ -60,10 +60,9 @@ test('clause 2: on the view channel the same call refuses COORDINATOR_ONLY with 
   await proposed(box);
   assert.equal(refusedWith(await call('--row', 'G1', '--commit')), 'COORDINATOR_ONLY', 'decided on the terminal, not this channel');
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), before, 'the refusals so far left the row file as it was');
-  succeeds(await box.runIn(box.repo, 'spec', 'apply', '--row', 'G1'));
-  await proposed(box, 'view', 'The page renders well.');
+  await proposed(box, 'view', 'The API answers quickly.', 'G2');
   const mid = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
-  assert.equal(refusedWith(await call('--row', 'G1')), 'COORDINATOR_ONLY', 'no --commit');
+  assert.equal(refusedWith(await call('--row', 'G2')), 'COORDINATOR_ONLY', 'no --commit');
   assert.equal(refusedWith(await call('--commit')), 'COORDINATOR_ONLY', 'no --row');
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), mid, 'the later refusals left the row file as it was');
 });
