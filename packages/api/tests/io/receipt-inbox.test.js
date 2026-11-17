@@ -57,7 +57,7 @@ function settledCases(board, queue, main) {
   return seen;
 }
 
-test('clause 1: with runs_store on, applyInbox takes the receipt from the runs inbox and applies each attempt once [B2,P7]', t => {
+test('api.receipt-inbox.runs-store-applyinbox-takes-receipt: clause 1: with runs_store on, applyInbox takes the receipt from the runs inbox and applies each attempt once [B2,P7]', t => {
   const { board, queue, home } = boardWith(t, true);
   const post = posted(board, queue, home, { id: 'note:1', kind: 'noop', receipt: { version: 1, status: 0 } });
   assert.equal(post.recorded, true);
@@ -70,7 +70,7 @@ test('clause 1: with runs_store on, applyInbox takes the receipt from the runs i
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM event WHERE event_kind = ?').get(RUN_APPLIED_EVENT).n, 1, 'the attempt is applied once');
 });
 
-test('clause 2: with runs_store on, settleWaitingGates reads the earlier gates from board run summaries [B2,P7]', t => {
+test('api.receipt-inbox.runs-store-settlewaitinggates-reads-earlier: clause 2: with runs_store on, settleWaitingGates reads the earlier gates from board run summaries [B2,P7]', t => {
   const { board, queue, item } = boardWith(t, true);
   queueRun(board, queue.port, { by: 'coordinator', id: 'gate:G', kind: 'gate', item, candidate: MAIN, base: MAIN });
   queueRun(board, queue.port, { by: 'coordinator', id: 'main:M', kind: MAIN_TEST_JOB, base: MAIN });
@@ -80,7 +80,7 @@ test('clause 2: with runs_store on, settleWaitingGates reads the earlier gates f
   assert.deepEqual(settledCases(board, queue, 'main:M'), [[CASE]], 'the red gate\'s failing case came from its run summary');
 });
 
-test('clause 3: with runs_store off, both read the board\'s job rows as on main [B2,P7]', t => {
+test('api.receipt-inbox.runs-store-off-both-read: clause 3: with runs_store off, both read the board\'s job rows as on main [B2,P7]', t => {
   const { board, queue, item, home } = boardWith(t, false);
   assert.equal(queue, null);
   posted(board, null, home, { id: 'gate:G', kind: 'gate', item, receipt: RED });

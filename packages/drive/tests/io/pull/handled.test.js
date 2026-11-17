@@ -10,7 +10,7 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 // The land handler is stubbed, so the runner's git is never asked for anything.
 const pullGit = async () => ({ status: 0, stdout: '', stderr: '' });
 
-test('#7816: a land handler\'s environment names this runner\'s Pullboard install, as a gate job\'s does, so a trusted step can judge a non-Pullboard fixture [C7]', async t => {
+test('drive.handled.c-7816-a-land-handlers-environment: #7816: a land handler\'s environment names this runner\'s Pullboard install, as a gate job\'s does, so a trusted step can judge a non-Pullboard fixture [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-handled-env-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   let claimed = false;

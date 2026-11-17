@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/search/tests/fixtures/duplicates.json */
 /** The search index finds real reworded duplicates and near-verbatim refiles from the board, from a checked-in fixture [C7]. */
 /** @pullboard-world-pin: all clauses read the checked-in duplicates fixture, never the live board. */
 import assert from 'node:assert/strict';
