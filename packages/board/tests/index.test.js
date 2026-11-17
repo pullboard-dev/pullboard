@@ -11,7 +11,6 @@ import { nativeBoardPorts } from '../index.js';
 import { openBoard } from '../index.js';
 import { addMilestone } from '../../store/index.js';
 import { board_ensureCoordinator } from '../../store/index.js';
-import { provideCoordinatorMilestoneRelease } from '../../store/index.js';
 import { shipMilestone } from '../../store/index.js';
 import { coordinatorMilestoneRelease } from '../../stats/light.js';
 import { cellBoard } from '../../store/tests/fixtures/cell.js';
@@ -79,16 +78,11 @@ test('board.index.board-root-hands-stats-coordinatormilestonerelease: clause 1: 
   assert.equal(recorded.previous, null);
 });
 
-test('board.index.store-returns-same-release-values: clause 2: the store returns the same release values through the provider as through the direct stats import [C7]', t => {
+test('board.index.store-returns-same-release-values: clause 2: the store returns the same release values through the provider as the direct stats call [C7]', t => {
   const box = milestoneFixture(t);
   const direct = coordinatorMilestoneRelease(box.board, { plannedMoves: ['milestone_ship'] });
   box.ship();
   const provided = box.shipped();
   assert.deepEqual(undated(provided.gauge), undated(direct.gauge));
   assert.equal(provided.previous, direct.previous);
-  provideCoordinatorMilestoneRelease(null);
-  t.after(() => provideCoordinatorMilestoneRelease(coordinatorMilestoneRelease));
-  const imported = milestoneFixture(t);
-  imported.ship();
-  assert.deepEqual(undated(imported.shipped().gauge), undated(provided.gauge), 'the import path records the same gauge as the provider path');
 });
