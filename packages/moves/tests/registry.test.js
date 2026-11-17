@@ -63,7 +63,8 @@ test('moves.registry.complete: clause 1: [C7,U148] every registered test has a s
   const records = mergedRecords(join(DIR, 'fixtures'));
   const files = testFiles(DIR).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
-  assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
+  const registered = ids.filter((id) => id in records);
+  assert.deepEqual([...new Set(registered)].sort(), registered.slice().sort(), 'no registered ID is used by two tests (an unregistered duplicate is reported until its slice registers it)');
   const outcome = registryOutcome(findings, registryStrict());
   if (outcome.report) t.diagnostic(outcome.report);
   assert.equal(outcome.fails, false, outcome.report);
