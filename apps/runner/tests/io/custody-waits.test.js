@@ -17,7 +17,7 @@ function timerLines(path) {
     .filter(({ text }) => !/^\s*(?:\/\/|\*|\/\*)/u.test(text) && TIMEOUT_WAIT.test(text));
 }
 
-test('clause 1: the 6 custody sleeps and the process-group retry and signal waits each carry a // budget: line [C7,#9525]', () => {
+test('runner.custody-waits.the-6-custody-sleeps-and-the-process: clause 1: the 6 custody sleeps and the process-group retry and signal waits each carry a // budget: line [C7,#9525]', () => {
   const custody = timerLines(FILES[0]);
   const worker = timerLines(FILES[1]);
   assert.equal(custody.length, 6, 'custody.js holds six timer waits');
@@ -25,7 +25,7 @@ test('clause 1: the 6 custody sleeps and the process-group retry and signal wait
   for (const row of [...custody, ...worker]) assert.match(`${row.above}\n${row.text}`, BUDGET, `${row.path}:${row.number} carries a budget line`);
 });
 
-test('clause 2: neither file holds a poll the timer lint would count, only annotated sites [C7,#9525]', () => {
+test('runner.custody-waits.neither-file-holds-a-poll-the-timer: clause 2: neither file holds a poll the timer lint would count, only annotated sites [C7,#9525]', () => {
   const open = FILES.flatMap(timerLines).filter(({ text, above }) => !BUDGET.test(text) && !BUDGET.test(above)).map(({ path, number }) => `${path}:${number}`);
   assert.deepEqual(open, []);
 });
