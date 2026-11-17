@@ -43,7 +43,7 @@ function readsRepo(source, outside) {
   return [...source.replace(MODULE_URL, '').matchAll(CALL)].some(([, args]) => ANCHOR.test(args) && (SOURCE_PATH.test(args) || (outside && OUTSIDE_SRC_PATH.test(args))));
 }
 
-test('clause 1: every github test file that reads repo files carries an input header naming the cells it reads [C7,U149]', () => {
+test('github.inputs.every-github-test-file-reading-repo-files: clause 1: every github test file that reads repo files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = cellTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the github cell has test files to check');
   const undeclared = files.filter(file => readsRepo(read(file), false) && headers(read(file)).length === 0);
@@ -51,7 +51,7 @@ test('clause 1: every github test file that reads repo files carries an input he
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/github'], 'this file names only the github cell');
 });
 
-test('clause 2: with tests.requireDeclaredInputs on, no github test reads fixtures, data or docs without a header [C7,U149]', () => {
+test('github.inputs.with-the-declared-inputs-rule-on-no: clause 2: with tests.requireDeclaredInputs on, no github test reads fixtures, data or docs without a header [C7,U149]', () => {
   const undeclared = cellTests().filter(file => readsRepo(read(file), true) && headers(read(file)).length === 0);
   assert.deepEqual(undeclared, [], 'readers without a header with the outside-src rule on');
   for (const file of cellTests()) {
