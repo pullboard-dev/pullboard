@@ -8,6 +8,8 @@ export const JUNIT_FILE_ROWS = {
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
   // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
   bun: row => row.classname || null,
+  // Surefire writes a dotted class in classname (com.example.CalcTest), no file attribute; Maven's source layout holds the test.
+  java: row => (row.classname ? `src/test/java/${row.classname.split('$')[0].replace(/\./gu, '/')}.java` : null),
   // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
   rust: row => {
     const crate = (row.classname ?? '').split('::')[0];
