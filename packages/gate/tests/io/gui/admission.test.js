@@ -14,7 +14,7 @@ import { guiSession } from '../../../src/io/gui/session.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 
-test('GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {
+test('gate.io-gui-admission.gui-admission-reads-an-explicit-file: GUI admission reads an explicit file marker rather than Chrome headless arguments [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-marker-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'native.test.js'), '/** @pullboard-test-gui */\nconst flags = ["--headless=new"];');
@@ -24,7 +24,7 @@ test('GUI admission reads an explicit file marker rather than Chrome headless ar
   assert.equal(testsNeedGui(root, ['missing.test.js']), false);
 });
 
-test('GUI-domain observations distinguish confirmed presence, known absence, and unknown [C7,V4]', () => {
+test('gate.io-gui-admission.gui-domain-observations-distinguish-confirmed-presence: GUI-domain observations distinguish confirmed presence, known absence, and unknown [C7,V4]', () => {
   const calls = [];
   const present = guiSession({ platform: 'darwin', getuid: () => 501, run: (...args) => { calls.push(args); return { status: 0, signal: null }; } });
   assert.equal(present, true);
@@ -38,7 +38,7 @@ test('GUI-domain observations distinguish confirmed presence, known absence, and
   assert.equal(guiSession({ platform: 'linux', run: () => { throw new Error('must not run'); } }), null);
 });
 
-test('GUI marker text in code does not turn an ordinary file into desktop work [C7,V4]', t => {
+test('gate.io-gui-admission.gui-marker-text-in-code-does: GUI marker text in code does not turn an ordinary file into desktop work [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-literal-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'literal.test.js'), '/** Ordinary source test. */\nconst example = "/** @pullboard-test-gui */";');
@@ -72,7 +72,7 @@ function committedGuiFixture(t) {
   return { root, command, base, desktop };
 }
 
-test('GUI admission classifies the exact committed selection and opaque tree, never live markers [C7,V4]', async t => {
+test('gate.io-gui-admission.gui-admission-classifies-the-exact-committed: GUI admission classifies the exact committed selection and opaque tree, never live markers [C7,V4]', async t => {
   const box = committedGuiFixture(t);
   const check = 'node apps/cli/src/io/run/tests.js test/native.test.js';
   box.command('checkout', '-q', '--detach', box.base);
@@ -86,7 +86,7 @@ test('GUI admission classifies the exact committed selection and opaque tree, ne
   assert.equal(await checkNeedsGui(box.root, 'opaque-check', { commit: box.base }), false);
 });
 
-test('unreadable or nonregular committed GUI metadata retains desktop admission [C7,V4]', async t => {
+test('gate.io-gui-admission.unreadable-or-nonregular-committed-gui-metadata: unreadable or nonregular committed GUI metadata retains desktop admission [C7,V4]', async t => {
   const box = committedGuiFixture(t);
   const check = 'node apps/cli/src/io/run/tests.js test/native.test.js';
   assert.equal(await checkNeedsGui(box.root, check, { commit: '0'.repeat(40) }), true);

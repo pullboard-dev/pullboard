@@ -21,7 +21,7 @@ const TABLE = {
   followups: [{ id: 'tally', when: 'claimed', apply: () => ({ patch: {} }) }],
 };
 
-test('explainTable lists every guard in order with id, code, the fact words and next step, then the outcomes [C7,#8065]', () => {
+test('moves.explain.explain-table-lists-every-guard-in-order-with: explainTable lists every guard in order with id, code, the fact words and next step, then the outcomes [C7,#8065]', () => {
   const out = explainTable(TABLE, RULES);
   assert.deepEqual(out.guards, [
     { order: 1, id: 'claimed', code: 'NOT_CLAIMED', fact: 'claimed', says: 'the item is claimed', next: 'claim it first' },
@@ -31,20 +31,20 @@ test('explainTable lists every guard in order with id, code, the fact words and 
   assert.deepEqual(out.followups, [{ id: 'tally', fact: 'claimed', says: 'the item is claimed' }]);
 });
 
-test('explainTable refuses a table naming a fact no rule defines [C7,#8065]', () => {
+test('moves.explain.explain-table-refuses-a-table-naming-a-fact: explainTable refuses a table naming a fact no rule defines [C7,#8065]', () => {
   assert.throws(() => explainTable({ ...TABLE, guards: [{ id: 'x', requires: 'ghost', code: 'X', message: '', next: '' }] }, RULES), /ghost/);
 });
 
-test('tableCoverage names every stored state that is neither a legal start nor an explicit refusal [C7,#8065]', () => {
+test('moves.explain.table-coverage-names-every-stored-state-that-is: tableCoverage names every stored state that is neither a legal start nor an explicit refusal [C7,#8065]', () => {
   const report = tableCoverage(TABLE, ['open', 'claimed', 'submitted', 'verified', 'withdrawn']);
   assert.deepEqual(report.gaps, ['verified', 'withdrawn']);
 });
 
-test('a table whose every state is covered reports no gap [C7,#8065]', () => {
+test('moves.explain.a-table-whose-every-state-is-covered: a table whose every state is covered reports no gap [C7,#8065]', () => {
   assert.deepEqual(tableCoverage(TABLE, ['open', 'claimed', 'submitted']).gaps, []);
 });
 
-test('clause 3: explaining a table for pace steady leaves out a sprint-only row, and with no pace lists it with its paces [M1]', () => {
+test('moves.explain.explaining-a-table-for-pace-steady-leaves: clause 3: explaining a table for pace steady leaves out a sprint-only row, and with no pace lists it with its paces [M1]', () => {
   const paced = { ...TABLE, guards: [...TABLE.guards, { id: 'sprint-note', requires: 'noted', code: 'NOTE_NEEDED', message: 'm', next: 'add a note', paces: ['sprint'], always: 'A8' }] };
   const steady = explainTable(paced, RULES, { pace: 'steady' });
   assert.deepEqual(steady.guards.map(guard => guard.id), ['claimed', 'mine']);

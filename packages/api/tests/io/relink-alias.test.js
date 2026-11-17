@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
@@ -48,7 +48,7 @@ async function served(t, { relink }) {
   return { current, claim };
 }
 
-test('clause 1 [P7,H17]: a runner pointed at the id the relink names as previous claims a job from the board that carries the next id (#7772)', async (t) => {
+test('api.relink-alias.clause-h17-runner-pointed-relink: clause 1 [P7,H17]: a runner pointed at the id the relink names as previous claims a job from the board that carries the next id (#7772)', async (t) => {
   const { current, claim } = await served(t, { relink: true });
   const old = await claim(PREVIOUS);
   assert.equal(old.status, 200, JSON.stringify(old.body));
@@ -57,7 +57,7 @@ test('clause 1 [P7,H17]: a runner pointed at the id the relink names as previous
   assert.equal(again.status, 200, 'the current id still answers');
 });
 
-test('clause 1 [P7,H17]: with no relink naming it, an unknown id still answers NO_BOARD (#7772)', async (t) => {
+test('api.relink-alias.clause-h17-relink-naming-unknown: clause 1 [P7,H17]: with no relink naming it, an unknown id still answers NO_BOARD (#7772)', async (t) => {
   const { claim } = await served(t, { relink: false });
   const answer = await claim(PREVIOUS);
   assert.equal(answer.body.error?.code, 'NO_BOARD', JSON.stringify(answer.body));

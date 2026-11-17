@@ -11,7 +11,7 @@ import { releaseFixture } from './release.js';
 
 /**
  * The checked-in contract the relocation slices (#9124, #9121) rewrite from. Each entry is a path relative to the fixture
- * root, with the fixture root's own name standing for any root. If init writes the root path anywhere else, the test
+ * root, with the fixture root's own name standing for any root and `<day>` for the date the daily trace file is named by. If init writes the root path anywhere else, the test
  * below fails and names the file.
  */
 export const ROOT_PATH_FILES = Object.freeze([
@@ -20,7 +20,7 @@ export const ROOT_PATH_FILES = Object.freeze([
   'repo/.claude/settings.json',
   'repo/.git/pullboard/board.sqlite',
   'repo/.git/pullboard/setup-written-files.json',
-  'repo/.git/pullboard/trace/2026-11-16.jsonl',
+  'repo/.git/pullboard/trace/<day>.jsonl',
 ]);
 
 /**
@@ -48,6 +48,7 @@ function rootBearingFiles(root) {
   const spellings = [...new Set([root, realpathSync(root)])].map(spelling => Buffer.from(spelling));
   return filesUnder(root, root)
     .filter(file => spellings.some(spelling => readFileSync(join(root, file)).includes(spelling)))
+    .map(file => file.replace(/\/trace\/\d{4}-\d{2}-\d{2}\.jsonl$/u, '/trace/<day>.jsonl'))
     .sort();
 }
 

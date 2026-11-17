@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { addLocalBoard } from '../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../packages/drive/index.js';
+import { CLI_ENTRY } from './entry.js';
 
-const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 /** What a local runner keeps from its starting environment besides non-Pullboard variables (src/io/runner/local.js). */
 const KEPT = new Set(['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME', 'PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_FIXTURE_BOARD']);
 // Budget: how long a just-spawned local runner has to write its first heartbeat before a start counts as failed.
@@ -36,9 +36,11 @@ function reachesRunner(key) {
  *
  * @param {Record<string, string | undefined>} env - The fixture environment; PULLBOARD_MACHINE_HOME names the machine.
  * @param {string} root - The board host's checkout.
+ * @param {{ entry: string }} options - The CLI entry file the runner starts from; the caller names it, so no fixture learns where the CLI lives.
  * @returns {{ pid: number, started: boolean }}
  */
-export function startFixtureLocalRunner(env, root) {
+export function startFixtureLocalRunner(env, root, { entry } = {}) {
+  if (typeof entry !== 'string' || !entry) throw new Error('startFixtureLocalRunner needs { entry }: the path of the CLI entry file, from the caller');
   const folder = fixtureRunnerFolder(env);
   addLocalBoard(folder, root);
   const live = localRunnerState(folder);
@@ -49,7 +51,7 @@ export function startFixtureLocalRunner(env, root) {
   // A shell starts the runner in the background and exits at once, so the runner is never this process's child. Why: an
   // exited child stays a zombie until this event loop reaps it, and stopFixtureLocalRunner's synchronous wait then saw
   // it alive for its whole 10 s budget per box, holding the test file open past its exit timeout.
-  const started = spawnSync('/bin/sh', ['-c', 'log=$1; shift; "$@" </dev/null >>"$log" 2>&1 &', 'sh', join(folder, 'runner.log'), process.execPath, BIN, 'runner', 'local'],
+  const started = spawnSync('/bin/sh', ['-c', 'log=$1; shift; "$@" </dev/null >>"$log" 2>&1 &', 'sh', join(folder, 'runner.log'), process.execPath, resolve(entry), 'runner', 'local'],
     { cwd: resolve(root), env: kept, detached: true, stdio: 'ignore' });
   if (started.status !== 0) throw new Error(`could not start the fixture local runner for ${root}: ${started.error?.message ?? `exit ${started.status}`}`);
   for (const until = Date.now() + START_MS; Date.now() < until;) {
@@ -67,16 +69,17 @@ export function startFixtureLocalRunner(env, root) {
  *
  * @param {string} cwd - Where the fixture command ran.
  * @param {Record<string, string | undefined>} env - The fixture environment.
+ * @param {{ entry?: string }} options - The CLI entry file, from the caller; a caller owned by another lane that passes none (cockpit/machine.js) gets the app's own entry, until its owner passes one.
  * @returns {boolean} True when a runner was started.
  */
-export function reviveFixtureLocalRunner(cwd, env) {
+export function reviveFixtureLocalRunner(cwd, env, { entry = CLI_ENTRY } = {}) {
   if (!env.PULLBOARD_MACHINE_HOME || localRunnerState(fixtureRunnerFolder(env))) return false;
   let settings = {};
   try { settings = JSON.parse(readFileSync(join(env.PULLBOARD_MACHINE_HOME, 'settings.json'), 'utf8')); } catch { /* the defaults */ }
   if (settings.gate?.localRunner === false || (settings.runners ?? []).length) return false;
   const listed = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd, env, encoding: 'utf8' });
   const host = /^worktree (.+)$/mu.exec(listed.stdout ?? '')?.[1];
-  return host ? startFixtureLocalRunner(env, host).started : false;
+  return host ? startFixtureLocalRunner(env, host, { entry }).started : false;
 }
 
 /**

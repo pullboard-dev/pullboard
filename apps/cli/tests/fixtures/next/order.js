@@ -84,3 +84,11 @@ export function builderSeat(board, name) {
 export function takeItem(board, id, agentId) {
   store.claim(board, id, { agentId, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
 }
+
+/** File one strong core item per spec, in order, and return their ids; `after` lists earlier specs' ids by index. */
+export function coreItems(board, specs) {
+  const ids = [];
+  for (const spec of specs) ids.push(store.addItem(board, { by: 'coordinator', lane: 'core', route: 'strong', title: spec.title,
+    ...(spec.after === undefined ? {} : { after: spec.after.map(index => ids[index]) }) }));
+  return ids;
+}

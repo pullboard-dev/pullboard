@@ -152,7 +152,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
     throw new Refused('ENGINE_VERSION', `a lane policy refresh requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
   }
   const refreshes = refreshPolicy === true && !adopts;
-  const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+  const instant = board.clock.now();
+  const leaseUntil = new Date(instant.getTime() + leaseMs).toISOString();
   const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
   // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
   // builder fixing what a verifier found need not drop its other work to do it.
@@ -296,7 +297,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+  return { how, leaseUntil, instant, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
     policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting, seatN: () => seatN };
 }
 

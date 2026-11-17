@@ -20,6 +20,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { main as viewMain } from '../../tests/fixtures/native.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -131,7 +132,10 @@ test("init's spec has its sections and no rows, and the README's example fits un
   assert.match(check.out, new RegExp(`SPEC.md: ${rows.length} rows, 0 errors`));
 });
 
-test("the coordinator's resume names its next step from the spec and the board, stage by stage [N32, I9]", async () => {
+test("the coordinator's resume names its next step from the spec and the board, stage by stage [N32, I9]", async (t) => {
+  let stage = 0;
+  /** Print the stage number and what it checks before its assertion, so a failing run names its stage [N32,I9]. */
+  const at = (what) => t.diagnostic(`stage ${++stage}: ${what}`);
   const next = async (box, cwd) => /^next: (.*)$/m.exec((await box.runLocal(cwd, 'resume', '--diagnostics')).out)?.[1] ?? '';
   const fresh = sandbox();
   const repo = join(fresh.dir, 'fresh');
@@ -140,42 +144,65 @@ test("the coordinator's resume names its next step from the spec and the board, 
   fresh.git(repo, 'config', 'user.name', 'Test Agent');
   fresh.git(repo, 'config', 'user.email', 'agent@example.com');
   const initialized = await fresh.runLocal(repo, 'init', '--verbose', '--yes');
+  at('init installs the Claude Code skills');
   assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage, pullboard-worker$/m, 'init installs the Claude Code skills');
   const joined = await joinFixtureSeat(fresh, repo, 'coordinator', { run: fresh.runLocal });
+  at('the joined coordinator exists');
   assert.equal(joined.code, 0, joined.out);
   const firstSetup = JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup;
+  at('a new board starts at setup step 1');
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
+  at('resume next names the setup command');
   assert.equal((await next(fresh, repo)), firstSetup.command);
+  at('an item is filed');
   assert.equal((await fixtureAdd(fresh.runLocal, repo, 'coordinator', 'Tidy the readme')).code, 0);
+  at('the item is claimed');
   assert.equal((await fresh.runLocal(repo, 'claim', '1')).code, 0);
+  at('an item and no spec rows is step 2');
   assert.equal(JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup.step, 2, 'a working board with an item and no spec rows treats the spec as optional (#866)');
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [draft, must] It works. | gate: test\n');
+  at('a draft spec row keeps step 1');
   assert.equal(JSON.parse((await fresh.runLocal(repo, 'resume', '--diagnostics', '--json')).out).setup.step, 1, 'nor the approval');
   writeFileSync(join(repo, 'SPEC.md'), '# Fresh\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(CONFIG));
   fresh.env.PULLBOARD_VIEW_FOREGROUND = '1';
   await bindView(fresh, repo);
+  at('the applied row is committed first');
   assert.match((await next(fresh, repo)), /^commit the applied row file first: .*git add -- SPEC\.md && git commit .*; then build #1, commit, then pullboard submit 1/u, 'after setup the applied row is committed before the coordinator’s first build');
 
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   await bindView(box, box.repo);
   const firstItem = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).out).setup;
+  at('the first piece is setup step 4');
   assert.equal(firstItem?.step, 4, 'setup asks for the first small piece before planning the remaining rows');
+  at('resume next names the first-item command');
   assert.equal((await next(box, box.repo)), firstItem.command);
   (await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1'));
+  at('a lane with an open item gets a builder');
   assert.match((await next(box, box.repo)), /^start a builder for each lane with open items \(web\): pullboard worktree <lane>/);
+  at('the web seat claims the item');
   assert.equal((await box.runLocal(box.web, 'claim', '1')).code, 0);
+  at('the page commit lands on the seat');
   assert.equal(commitFile(box, box.web, 'web/index.html', '<h1>hi</h1>', 'feat(web): page [G1]').status, 0);
-  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  at('the item is submitted');
+  const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+  // A pulled submit returns queued and the board moves the item to submitted only when the gate receipt applies, so resume must be asked after that [N32,I9].
+  await settleSubmit(t, box, JSON.parse(submitted.out));
+  at('resume next asks for the verify');
   assert.match((await next(box, box.repo)), /^pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review/);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
+  at('the coordinator accepts the item');
   assert.equal((await box.runLocal(box.repo, 'verify', '1', 'accept', '--note', 'the page renders hi', '--as', 'coordinator')).code, 0);
   box.git(box.repo, 'switch', '-q', 'main');
+  at('resume next names the merge');
   assert.match((await next(box, box.repo)), new RegExp(`^merge #1: git merge --no-edit ${commit.slice(0, 12)}, run the gate, then pullboard merged 1 <merge commit>`));
   box.git(box.repo, 'merge', '-q', '--no-edit', commit);
+  at('the merge is recorded');
   assert.equal((await box.runLocal(box.repo, 'merged', '1', box.git(box.repo, 'rev-parse', 'HEAD'))).code, 0);
+  at('resume next plans the uncited rows');
   assert.match((await next(box, box.repo)), /^plan the approved rows no item cites \(G2\)/);
 });
 

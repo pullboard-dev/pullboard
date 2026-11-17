@@ -10,15 +10,15 @@
   "docs/api.test.js": {
     "repo-read": 3
   },
-  "docs/architecture.test.js": {
-    "repo-read": 4,
-    "tempdir": 1
-  },
   "docs/formats.test.js": {
     "repo-read": 1,
-    "tempdir": 6,
+    "tempdir": 5,
     "hand-policy": 3,
-    "raw-board": 8,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/formats/live.test.js": {
+    "tempdir": 1,
+    "raw-board": 5,
     "model": 4
   },
   "docs/readme-badges.test.js": {
@@ -144,7 +144,7 @@
     "repo-read": 1,
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/item/baseline/offer.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/offer.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -243,17 +243,17 @@
   "packages/sandbox/tests/io/trusted/policy/ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/corrections.test.js": {
+  "packages/board/tests/from-store/corrections.test.js": {
     "raw-board": 3
   },
-  "packages/store/tests/check-baseline-worker.test.js": {
+  "packages/board/tests/from-store/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/store/tests/io/board/decision/answer.test.js": {
+  "packages/board/tests/from-store/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
-  "packages/store/tests/engine-replay.test.js": {
+  "packages/board/tests/from-store/engine-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -264,13 +264,13 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/store/tests/io/queued/red/growth.test.js": {
+  "packages/board/tests/from-store/io/queued/red/growth.test.js": {
     "raw-board": 4
   },
   "packages/flakes/tests/io/main.test.js": {
     "raw-board": 5
   },
-  "packages/store/tests/implies.test.js": {
+  "packages/board/tests/from-store/implies.test.js": {
     "raw-board": 8
   },
   "packages/landing/tests/io/replay.test.js": {
@@ -282,7 +282,7 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/store/tests/relay-activation.test.js": {
+  "packages/board/tests/from-store/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
@@ -290,10 +290,10 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "packages/store/tests/review-grant-replay.test.js": {
+  "packages/board/tests/from-store/review-grant-replay.test.js": {
     "raw-board": 6
   },
-  "packages/store/tests/review-queue-replay.test.js": {
+  "packages/board/tests/from-store/review-queue-replay.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/engine/settings.test.js": {
@@ -306,7 +306,7 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "packages/store/tests/team-engine.test.js": {
+  "packages/board/tests/from-store/team-engine.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
@@ -333,11 +333,11 @@
   "packages/gate/tests/logic/test/budget/time.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/io/board.test.js": {
+  "packages/board/tests/from-store/io/board.test.js": {
     "tempdir": 1,
     "raw-board": 10
   },
-  "packages/store/tests/io/board/capture.test.js": {
+  "packages/board/tests/from-store/io/board/capture.test.js": {
     "tempdir": 3,
     "raw-board": 4
   },
@@ -345,7 +345,7 @@
     "tempdir": 1,
     "raw-board": 8
   },
-  "packages/store/tests/logic/board/release.test.js": {
+  "packages/board/tests/from-store/logic/board/release.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
@@ -365,15 +365,18 @@
   "packages/store/tests/io/relaxation.test.js": {
     "raw-board": 2
   },
-  "packages/store/tests/logic/board/item/baseline/shout.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/shout.test.js": {
     "raw-board": 3
   },
   "apps/cli/journeys/verify/check.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/verify/main.test.js": {
-    "raw-board": 3,
+    "raw-board": 2,
     "hand-policy": 1
+  },
+  "apps/cli/tests/fixtures/verify/unsealed.js": {
+    "raw-board": 1
   },
   "packages/sync/tests/io/local.test.js": {
     "tempdir": 1
@@ -399,25 +402,23 @@
     "tempdir": 1,
     "hand-policy": 1
   },
-  "apps/cli/journeys/fact/family.test.js": {
-    "raw-board": 5,
-    "model": 3
-  },
-  "apps/cli/journeys/publish/catalog.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 4,
-    "model": 1
-  },
   "apps/cli/tests/fixtures/api.js": {
     "env-spread": 1,
     "tempdir": 2,
     "hand-policy": 2
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "tempdir": 4,
-    "hand-policy": 3,
+    "tempdir": 1,
+    "hand-policy": 1,
     "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "tempdir": 2,
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/shout/http-repeated-read.test.js": {
+    "tempdir": 1,
+    "hand-policy": 1
   },
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
@@ -539,9 +540,6 @@
   },
   "apps/lib/tests/nothing.test.js": {
     "raw-board": 1
-  },
-  "apps/cli/journeys/lane/test.test.js": {
-    "tempdir": 1
   },
   "apps/runner/tests/io/chrome.test.js": {
     "tempdir": 1
@@ -689,10 +687,18 @@
   "apps/cli/journeys/spec/revision.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
-    "repo-read": 2,
-    "tempdir": 7,
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/spec/cockpit/boards.test.js": {
+    "tempdir": 2
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "tempdir": 1,
     "raw-cli": 1
+  },
+  "apps/cli/journeys/spec/cockpit/list.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
     "tempdir": 2
@@ -712,9 +718,6 @@
   "apps/view/tests/logic/main.test.js": {
     "model": 1
   },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "hand-policy": 2
-  },
   "packages/items/tests/way.test.js": {
     "tempdir": 8
   },
@@ -722,13 +725,12 @@
     "tempdir": 1
   },
   "apps/cli/journeys/stats/cost.test.js": {
-    "raw-board": 18,
-    "model": 16
+    "raw-board": 8,
+    "model": 9
   },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
-    "model": 1
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "raw-board": 10,
+    "model": 7
   },
   "apps/cli/tests/fixtures/regression.js": {
     "tempdir": 2,
@@ -751,12 +753,6 @@
   "apps/cli/tests/fixtures/doctrine-name.js": {
     "tempdir": 1,
     "hand-policy": 2
-  },
-  "apps/cli/journeys/doctrine/name.verify.test.js": {
-    "hand-policy": 1
-  },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "model": 1
   },
   "apps/view/tests/doctrine.test.js": {
     "tempdir": 1,
@@ -808,9 +804,6 @@
     "raw-board": 1,
     "model": 10
   },
-  "apps/cli/journeys/release/model.test.js": {
-    "raw-board": 2
-  },
   "apps/cli/journeys/show/policy/dependency.test.js": {
     "hand-policy": 1,
     "raw-board": 1
@@ -830,7 +823,7 @@
   "apps/cli/journeys/verify/checks-output.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/verify/checks-large-output.test.js": {
+  "apps/cli/journeys/verify/checks-output-digest.test.js": {
     "raw-board": 1
   },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
@@ -861,7 +854,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/store/tests/logic/rework/once.test.js": {
+  "packages/board/tests/from-store/logic/rework/once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -886,11 +879,6 @@
   },
   "apps/cli/journeys/merged/ratchet-landing.test.js": {
     "raw-board": 5
-  },
-  "apps/cli/journeys/flow/replay.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 7
   },
   "apps/lib/tests/flow/report/cache.test.js": {
     "tempdir": 2,
@@ -929,12 +917,24 @@
     "repo-read": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "tempdir": 11,
-    "env-spread": 6,
-    "repo-read": 2,
-    "hand-policy": 4,
-    "model": 1,
-    "raw-board": 6
+    "tempdir": 1,
+    "env-spread": 3,
+    "repo-read": 2
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "tempdir": 6,
+    "env-spread": 2,
+    "model": 1
+  },
+  "apps/cli/journeys/gate/main-flakes.test.js": {
+    "tempdir": 2,
+    "hand-policy": 1,
+    "raw-board": 5
+  },
+  "apps/cli/tests/fixtures/gate/repo.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "hand-policy": 2
   },
   "apps/lib/tests/fixtures/generated/doc/pipeline.js": {
     "raw-board": 1
@@ -951,10 +951,12 @@
     "repo-read": 3
   },
   "apps/cli/journeys/init/calls.test.js": {
+    "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/init/calls.js": {
     "tempdir": 2,
     "env-spread": 1,
-    "hand-policy": 4,
-    "raw-board": 1
+    "hand-policy": 4
   },
   "packages/sync/tests/io/git/lock.test.js": {
     "tempdir": 1
@@ -993,14 +995,17 @@
   "apps/cli/tests/fixtures/style.js": {
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/inbox.test.js": {
+  "packages/board/tests/from-store/logic/board/inbox.test.js": {
     "raw-board": 3
   },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/init/gate.test.js": {
-    "hand-policy": 4
+    "hand-policy": 2
+  },
+  "apps/cli/journeys/init/gate-makefile.test.js": {
+    "hand-policy": 2
   },
   "apps/cli/journeys/init/gate-set.test.js": {
     "hand-policy": 1
@@ -1176,10 +1181,6 @@
     "tempdir": 2,
     "hand-policy": 1
   },
-  "apps/cli/journeys/lane/add.test.js": {
-    "tempdir": 2,
-    "env-spread": 1
-  },
   "packages/gate/tests/fixtures/watchdog/legacy.js": {
     "tempdir": 1
   },
@@ -1292,6 +1293,10 @@
   },
   "apps/cli/journeys/gate/newcomer.test.js": {
     "tempdir": 2,
+    "env-spread": 1
+  },
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
+    "tempdir": 2,
     "env-spread": 1,
     "model": 1
   },
@@ -1342,9 +1347,6 @@
   "apps/cli/journeys/version/node.test.js": {
     "tempdir": 3,
     "env-spread": 1
-  },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "raw-board": 1
   },
   "apps/cli/tests/fixtures/budget-measure.js": {
     "raw-board": 2
@@ -1464,14 +1466,8 @@
     "tempdir": 1,
     "repo-read": 1
   },
-  "apps/cli/journeys/inbox/filters.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/journeys/doctrine/readme.test.js": {
     "repo-read": 17
-  },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "raw-board": 2
   },
   "apps/lib/tests/lapse/idle.test.js": {
     "tempdir": 2,
@@ -1480,7 +1476,7 @@
   "apps/cli/journeys/submit/steps.test.js": {
     "model": 5
   },
-  "packages/store/tests/any.test.js": {
+  "packages/board/tests/from-store/any.test.js": {
     "raw-board": 5
   },
   "apps/lib/tests/fixtures/rejected.js": {
@@ -1552,8 +1548,11 @@
     "model": 5,
     "tempdir": 2
   },
-  "apps/cli/journeys/relay/outbox.test.js": {
+  "apps/cli/journeys/relay/outbox-offline.test.js": {
     "model": 2
+  },
+  "apps/cli/journeys/relay/outbox.test.js": {
+    "model": 1
   },
   "apps/relay/tests/io/store/page.test.js": {
     "tempdir": 1
@@ -1659,6 +1658,12 @@
     "model": 1,
     "hand-policy": 2
   },
+  "packages/gate/tests/io/scripts/release-loop.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "model": 1,
+    "hand-policy": 2
+  },
   "apps/lib/tests/logic/native/releases.test.js": {
     "tempdir": 2,
     "raw-board": 1,
@@ -1746,10 +1751,6 @@
   "apps/cli/journeys/show/rules.test.js": {
     "raw-board": 3,
     "model": 4
-  },
-  "apps/cli/journeys/status/counts.test.js": {
-    "hand-policy": 4,
-    "raw-board": 1
   },
   "apps/cli/tests/fixtures/owner.js": {
     "hand-policy": 1
@@ -1933,9 +1934,6 @@
   "apps/cli/journeys/runner/lost.test.js": {
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/runner/redispatch.js": {
-    "model": 1
-  },
   "packages/runners/tests/io/checkouts.test.js": {
     "tempdir": 1
   },
@@ -2023,13 +2021,6 @@
     "env-spread": 1,
     "hand-policy": 5
   },
-  "apps/cli/journeys/skills/main.test.js": {
-    "tempdir": 2,
-    "env-spread": 1,
-    "hand-policy": 2,
-    "repo-read": 5,
-    "hex64": 4
-  },
   "apps/cli/journeys/spec/approval.test.js": {
     "hand-policy": 1,
     "raw-board": 4,
@@ -2076,24 +2067,9 @@
   "packages/runners/tests/style.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/stats/main.test.js": {
-    "tempdir": 1,
-    "hand-policy": 1,
-    "raw-board": 8
-  },
   "apps/lib/tests/stats/counts.test.js": {
     "raw-board": 4,
     "tempdir": 1
-  },
-  "apps/cli/journeys/stats/moves.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
-  },
-  "apps/cli/journeys/stats/pipeline.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
   },
   "apps/lib/tests/stats/ports.test.js": {
     "raw-board": 1
@@ -2123,7 +2099,7 @@
     "raw-board": 3
   },
   "apps/cli/journeys/submit/handoff.test.js": {
-    "raw-board": 3
+    "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {
     "repo-read": 1
@@ -2200,7 +2176,10 @@
     "env-spread": 1
   },
   "apps/cli/tests/io/commands/test.test.js": {
-    "tempdir": 8,
+    "tempdir": 5
+  },
+  "apps/cli/tests/io/commands/test-discovery.test.js": {
+    "tempdir": 3,
     "env-spread": 2,
     "hand-policy": 1
   },
@@ -2301,7 +2280,7 @@
     "hand-policy": 1,
     "raw-board": 4
   },
-  "packages/store/tests/fixtures/stats/compare.js": {
+  "packages/board/tests/fixtures/stats/compare.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 6

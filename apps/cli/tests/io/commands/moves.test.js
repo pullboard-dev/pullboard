@@ -80,7 +80,7 @@ test('clause 3: each row names the switch that puts its writer live, or none for
   const switches = Object.fromEntries(rows.map(entry => [entry.table, entry.liveSwitch]));
   assert.deepEqual(switches, {
     backbone: null, claim: 'moves.live.claim', commit: 'moves.live.submit', complete: 'moves.live.handoff', hop: 'gate.fencedHop', job: 'moves.live.job',
-    landing: null, lease: null, outbox: 'moves.live.outbox', outcome: 'moves.live.outcome', pulled: null, reclaim: null, release: null,
+    landing: null, lease: null, outbox: 'moves.live.outbox', outcome: 'moves.live.outcome', pulled: null, reclaim: 'moves.live.reclaim', release: null,
     reopen: 'moves.live.reopen', start: 'moves.live.handoff', submit: 'moves.live.submit', verify: null, withdraw: null,
   });
   const allOn = movesReport(SHADOWS, TABLES, { moves: { live: { claim: true, submit: true, handoff: true, outcome: true, job: true, reopen: true, outbox: true } } });

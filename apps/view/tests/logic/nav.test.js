@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The view's navigation matches the approved nav-switch prototype: one page list as top tabs, and an address per place [N26,N38]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

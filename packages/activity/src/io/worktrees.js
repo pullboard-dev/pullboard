@@ -26,12 +26,15 @@ export function claimWorktrees(items, agents) {
   }));
 }
 
-/** Name every live overlap and out-of-scope edit to the holder, without mutating board history. */
+/** The most overlap and scope notes `next` prints before it counts the rest (#3092). */
+const NOTE_LINES = 3;
+
+/** Name every live overlap and out-of-scope edit to the holder, without mutating board history; past three lines it counts the rest. */
 export function claimOverlapLines(items, agents, agentId, project, observations = null) {
   if (!items.some(item => item.item_status === 'claimed' && item.item_owner === agentId)) return [];
   observations ??= claimWorktrees(items, agents);
   const overlaps = project(items, observations);
-  return items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId).flatMap(item => {
+  const lines = items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId).flatMap(item => {
     const found = overlaps.get(item.item_id);
     return [
       ...found.overlaps.map(other => `#${item.item_id} overlaps #${other.item} (${other.builder}) on ${other.files.join(', ')}`),
@@ -40,4 +43,5 @@ export function claimOverlapLines(items, agents, agentId, project, observations 
       ...(found.unknown && !observations.get(item.item_id)?.unrecorded ? [`#${item.item_id} worktree changes are unavailable; overlap is unknown`] : []),
     ];
   });
+  return lines.length > NOTE_LINES ? [...lines.slice(0, NOTE_LINES), `and ${lines.length - NOTE_LINES} more overlap or scope notes`] : lines;
 }

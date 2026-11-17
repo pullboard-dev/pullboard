@@ -71,7 +71,7 @@ function change(box, file, text) {
   return { mainCommit: box.main, commit: box.git('rev-parse', 'HEAD'), fast: true };
 }
 
-test('a one-file change holds doctrine in under 2 s over the changed file only [C7]', async () => {
+test('doctrine.io-main-diff.a-one-file-change-holds-doctrine-in: a one-file change holds doctrine in under 2 s over the changed file only [C7]', async () => {
   const box = repo();
   assert.equal(submitRulesNarrowable(box.root, box.main, 'DOCTRINE.md'), true);
   const options = change(box, 'src/clean.js', 'export const clean = 2;\n');
@@ -81,14 +81,14 @@ test('a one-file change holds doctrine in under 2 s over the changed file only [
   assert.deepEqual(results.map(row => [row.id, row.state, row.count, row.problems.length]), [['Q1', 'holding', 2, 0]]);
 });
 
-test('a TODO added to a changed file is refused naming file:line [C7,D1,D3]', async () => {
+test('doctrine.io-main-diff.a-todo-added-to-a-changed-file-is: a TODO added to a changed file is refused naming file:line [C7,D1,D3]', async () => {
   const box = repo();
   const options = change(box, 'src/clean.js', 'export const clean = 1;\n// TODO new\n');
   await assert.rejects(holdDoctrineAsync(box.root, options), error => error.code === 'RATCHET_ROSE'
     && error.message.includes('Q1 No TODO markers') && error.message.includes('src/clean.js:2:'));
 });
 
-test('removing a problem lowers the count and an old problem in a changed file is not new [C7,D1]', async () => {
+test('doctrine.io-main-diff.removing-a-problem-lowers-the-count-and: removing a problem lowers the count and an old problem in a changed file is not new [C7,D1]', async () => {
   const box = repo();
   const lowered = change(box, 'src/old.js', '// TODO one\n');
   assert.equal((await holdDoctrineAsync(box.root, lowered))[0].count, 1);
@@ -96,7 +96,7 @@ test('removing a problem lowers the count and an old problem in a changed file i
   assert.equal((await holdDoctrineAsync(box.root, moved))[0].state, 'holding', 'a moved problem is not new');
 });
 
-test('a rule that is not file-local keeps the established full run [C7]', () => {
+test('doctrine.io-main-diff.a-rule-that-is-not-file-local-keeps-the: a rule that is not file-local keeps the established full run [C7]', () => {
   const box = repo();
   writeFileSync(join(box.root, 'DOCTRINE.md'), DOCTRINE.replace('node packages/gate/src/io/catch.js', 'grep -rn TODO src'));
   box.git('add', '-A');
@@ -104,7 +104,7 @@ test('a rule that is not file-local keeps the established full run [C7]', () => 
   assert.equal(submitRulesNarrowable(box.root, box.git('rev-parse', 'HEAD'), 'DOCTRINE.md'), false);
 });
 
-test('a lowered declared count cannot hide problems that remain [C7,D1,D3]', async () => {
+test('doctrine.io-main-diff.a-lowered-declared-count-cannot-hide: a lowered declared count cannot hide problems that remain [C7,D1,D3]', async () => {
   const box = repo();
   // Only the declaration changes: both TODOs remain, so the count is still 2.
   await assert.rejects(holdDoctrineAsync(box.root, declare(box, 0)), error => error.code === 'RATCHET_ROSE' && error.message.includes('rose to 2, was 0'));
@@ -112,13 +112,13 @@ test('a lowered declared count cannot hide problems that remain [C7,D1,D3]', asy
   await assert.rejects(holdDoctrineAsync(box.root, declare(box, 0, 'src/old.js', '// TODO one\n')), error => error.code === 'RATCHET_ROSE');
 });
 
-test('an honest lowering removes a problem and declares the new count [C7,D1,D3]', async () => {
+test('doctrine.io-main-diff.an-honest-lowering-removes-a-problem-and: an honest lowering removes a problem and declares the new count [C7,D1,D3]', async () => {
   const box = repo();
   const results = await holdDoctrineAsync(box.root, declare(box, 1, 'src/old.js', '// TODO one\n'));
   assert.deepEqual(results.map(row => [row.state, row.count, row.committed]), [['holding', 1, 1]]);
 });
 
-test('a moved main is measured over the changed files only, never its whole tree [C7]', async () => {
+test('doctrine.io-main-diff.a-moved-main-is-measured-over-the: a moved main is measured over the changed files only, never its whole tree [C7]', async () => {
   const box = repo();
   // Main gains a file the check cannot read; only a whole-tree run at main would open it.
   writeFileSync(join(box.root, 'src/poison.js'), '// POISON\n');

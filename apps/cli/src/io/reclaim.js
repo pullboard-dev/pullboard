@@ -6,6 +6,7 @@ import { gateDriveJobId } from '../../../../packages/drive/light.js';
 import { withBoardRead } from './board/read.js';
 import { writeFallback } from './board/read.js';
 import { submitHandoff } from '../../../../packages/store/light.js';
+import { reofferInfraEndEnabled } from '../../../../packages/config/light.js';
 
 /**
  * Look for lapsed gate jobs on a read handle and, only when one exists, open the board for writing and drive at
@@ -30,7 +31,7 @@ export async function fallbackReclaim(ctx, command) {
     // The list read above is handed on, so the whole fallback is one reclaimLapsed pass; driveOnce rechecks the lease.
     // A job whose item is no longer submitted at its commit is ended, never renewed (zombie gate jobs, 9 Nov).
     return await writeFallback(ctx, board => reclaimPass(board.db, { owner: `fallback:${command}:${process.pid}`, repo: ctx.info.root, now, lapsed, runs,
-      active: view => servingNow(board, view) }));
+      active: view => servingNow(board, view), reofferInfraEnd: reofferInfraEndEnabled() }));
   } catch {
     return null;
   }

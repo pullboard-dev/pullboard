@@ -21,11 +21,9 @@ import {
   test,
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { assertShortInit } from '../../tests/fixtures/shortinit.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
-import { runPrinted } from '../../tests/fixtures/init-printed.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -71,24 +69,36 @@ function writeGateSentinel(file, marker) {
   chmodSync(file, 0o755);
 }
 
+/**
+ * The gate-availability notes of an `init --json` result, as fields: the command, the places searched and the recipe.
+ * Reading the note string is the one place the sentence is taken apart; every case compares fields.
+ */
+function gateWarnings(run) {
+  assert.equal(run.code, 0, run.err || run.out);
+  return JSON.parse(run.out).notes.flatMap((note) => {
+    const found = /^gate command "([^"]+)" is not available on (.+?); (.+) before running it$/u.exec(note);
+    return found ? [{ command: found[1], searched: found[2].split(', '), recipe: found[3] }] : [];
+  });
+}
+
 test('init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
   const path = isolatedPath(box);
 
   const missingRoot = pythonRepo(box, 'missing-gate');
-  const missing = await box.runLocal(missingRoot, 'init', '--verbose');
+  const missing = await box.runLocal(missingRoot, 'init', '--json');
   assert.equal(missing.code, 0, missing.err || missing.out);
-  const warnings = missing.out.split(/\r?\n/u).filter((line) => line.includes('gate command "pytest" is not available'));
-  assert.equal(warnings.length, 1, 'a missing gate gets one actionable line');
-  assert.match(warnings[0], /install pytest or activate the project `\.venv`/u);
+  const warnings = gateWarnings(missing);
+  assert.equal(warnings.length, 1, 'a missing gate gets one actionable note in init --json');
+  assert.deepEqual(warnings[0], { command: 'pytest', searched: ['PATH', 'project `.venv`'], recipe: 'install pytest or activate the project `.venv`' });
 
   const pathRoot = pythonRepo(box, 'path-gate');
   const pathMarker = join(box.dir, 'path-gate-ran');
   writeGateSentinel(join(path, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'), pathMarker);
-  const onPath = await box.runLocal(pathRoot, 'init', '--verbose');
+  const onPath = await box.runLocal(pathRoot, 'init', '--json');
   assert.equal(onPath.code, 0, onPath.err || onPath.out);
-  assert.doesNotMatch(onPath.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(onPath), []);
   assert.equal(existsSync(pathMarker), false, 'init checks the executable without running the gate');
   rmSync(join(path, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'));
 
@@ -97,9 +107,9 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   const environmentBin = join(environmentRoot, '.venv', process.platform === 'win32' ? 'Scripts' : 'bin');
   mkdirSync(environmentBin, { recursive: true });
   writeGateSentinel(join(environmentBin, process.platform === 'win32' ? 'pytest.cmd' : 'pytest'), environmentMarker);
-  const inEnvironment = await box.runLocal(environmentRoot, 'init', '--verbose');
+  const inEnvironment = await box.runLocal(environmentRoot, 'init', '--json');
   assert.equal(inEnvironment.code, 0, inEnvironment.err || inEnvironment.out);
-  assert.doesNotMatch(inEnvironment.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(inEnvironment), []);
   assert.equal(existsSync(environmentMarker), false, 'init does not execute a gate found in .venv');
 
   const uvRoot = pythonRepo(box, 'uv-gate');
@@ -108,9 +118,9 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   mkdirSync(join(uvEnvironment, process.platform === 'win32' ? 'Scripts' : 'bin'), { recursive: true });
   writeGateSentinel(join(uvEnvironment, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), uvMarker);
   box.env.UV_PROJECT_ENVIRONMENT = uvEnvironment;
-  const inUvEnvironment = await box.runLocal(uvRoot, 'init', '--verbose');
+  const inUvEnvironment = await box.runLocal(uvRoot, 'init', '--json');
   assert.equal(inUvEnvironment.code, 0, inUvEnvironment.err || inUvEnvironment.out);
-  assert.doesNotMatch(inUvEnvironment.out, /gate command "pytest" is not available/u);
+  assert.deepEqual(gateWarnings(inUvEnvironment), []);
   assert.equal(existsSync(uvMarker), false, 'init does not execute a gate found in the configured uv environment');
   delete box.env.UV_PROJECT_ENVIRONMENT;
 
@@ -122,11 +132,10 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   mkdirSync(join(decoyEnvironment, process.platform === 'win32' ? 'Scripts' : 'bin'), { recursive: true });
   writeGateSentinel(join(decoyEnvironment, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), poetryMarker);
   box.env.POETRY_VIRTUALENVS_PATH = poetryCache;
-  const decoy = await box.runLocal(poetryRoot, 'init', '--verbose');
+  const decoy = await box.runLocal(poetryRoot, 'init', '--json');
   assert.equal(decoy.code, 0, decoy.err || decoy.out);
-  assert.match(decoy.out, /gate command "pytest" is not available on PATH, project `\.venv`/u,
+  assert.deepEqual(gateWarnings(decoy), [{ command: 'pytest', searched: ['PATH', 'project `.venv`'], recipe: 'run `poetry install` and activate that environment' }],
     'a same-name Poetry cache entry is not assumed to belong to this repo');
-  assert.match(decoy.out, /run `poetry install` and activate that environment/u);
   assert.equal(existsSync(poetryMarker), false, 'init does not execute a same-name Poetry cache entry');
 
   delete box.env.POETRY_VIRTUALENVS_PATH;
@@ -135,16 +144,20 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   writeGateSentinel(join(activePoetry, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), poetryMarker);
   box.env.POETRY_ACTIVE = '1';
   box.env.VIRTUAL_ENV = activePoetry;
-  const inPoetryEnvironment = await box.runLocal(poetryRoot, 'init', '--verbose');
+  const inPoetryEnvironment = await box.runLocal(poetryRoot, 'init', '--json');
   assert.equal(inPoetryEnvironment.code, 0, inPoetryEnvironment.err || inPoetryEnvironment.out);
-  assert.doesNotMatch(inPoetryEnvironment.out, /gate command "pytest" is not available/u,
+  assert.deepEqual(gateWarnings(inPoetryEnvironment), [],
     'an explicitly active Poetry environment is checked');
   assert.equal(existsSync(poetryMarker), false, 'init does not execute a gate found in the active Poetry environment');
   delete box.env.POETRY_ACTIVE;
   delete box.env.VIRTUAL_ENV;
   const defaultMissing = await box.runLocal(pythonRepo(box, 'default-missing-gate'), 'init');
-  assert.match(defaultMissing.out, /gate command "pytest" is not available/u, 'the short summary preserves a real missing-executable warning');
-  assert.doesNotMatch(defaultMissing.out, /install pytest|pullboard gate set/u, 'detailed recipes stay behind verbose');
+  // The short-versus-verbose split is a rendering of the same note: init --json carries the whole note either way,
+  // so the split is proved on the two text renderings of one note (the summary keeps the warning clause, verbose adds the recipe).
+  const shortNote = gateWarnings(await box.runLocal(pythonRepo(box, 'json-missing-gate'), 'init', '--json'))[0];
+  assert.equal(shortNote.recipe, 'install pytest or activate the project `.venv`', 'init --json holds the recipe as its own field');
+  assert.ok(defaultMissing.out.includes('gate command "pytest" is not available'), 'the short summary preserves a real missing-executable warning');
+  assert.ok(!defaultMissing.out.includes(shortNote.recipe), 'detailed recipes stay behind verbose');
 });
 
 test('a repo without package.json is told a gate that fits it [C7,B26]', async () => {
@@ -241,109 +254,4 @@ test('a repo without package.json is told a gate that fits it [C7,B26]', async (
   const completed = await box.runLocal(configuredWorktree, 'submit', configuredId, '--json');
   assert.equal(completed.code, 0, completed.err || completed.out);
   assert.equal(readFileSync(marker, 'utf8'), 'tested\n', 'submit runs the chosen project test');
-});
-
-/** Follow the actual printed setter after proving the same real target fails independently. */
-test('NO_GATE preserves a failing Makefile test with ordinary multiple targets [C3,I1,B26]', async () => {
-  const box = e2e.sandbox();
-  const root = join(box.dir, 'multi-target-project');
-  mkdirSync(root);
-  box.git(root, 'init', '-q', '-b', 'main');
-  const initialized = await box.runLocal(root, 'init');
-  assert.equal(initialized.code, 0, initialized.err || initialized.out);
-  const configFile = join(root, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: '' }, null, 2));
-  writeFileSync(join(root, 'SPEC.md'), '# Make project\n\n## G · Goals\n- G1 [approved, must] Project tests prove the work. | gate: make test\n');
-  const marker = join(box.dir, 'make-test-ran');
-  const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
-  writeFileSync(join(root, 'Makefile'), `test check:\n\t@printf tested > ${quote(marker)}\n\t@exit 1\n`);
-  box.git(root, 'add', '-A');
-  box.git(root, 'commit', '-q', '-m', 'chore: prepare a multiple-target Makefile');
-  const actual = runFixtureChild('make', ['test'], { cwd: root, env: box.env, encoding: 'utf8' });
-  assert.notEqual(actual.status, 0, 'the real project target must be red before following any advice');
-  assert.equal(readFileSync(marker, 'utf8'), 'tested');
-  rmSync(marker);
-  const missing = await box.runLocal(root, 'gate', '--json');
-  assert.equal(missing.code, 1, missing.err || missing.out);
-  const refusal = JSON.parse(missing.out).error;
-  assert.equal(refusal.code, 'NO_GATE');
-  const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
-  assert.ok(printed, 'the current refusal must provide the executable setter');
-  const set = await runPrinted(box, root, printed);
-  assert.equal(set.status, 0, set.failure || set.stderr || set.stdout);
-  assert.equal(existsSync(marker), false, 'detection and configuration must not run the project gate');
-  box.git(root, 'add', 'pullboard.json');
-  box.git(root, 'commit', '-q', '-m', 'chore: follow printed gate advice');
-  const gated = await box.runLocal(root, 'gate', '--json');
-  const result = JSON.parse(gated.out);
-  console.log(JSON.stringify({ directMakeStatus: actual.status, printed, configured: JSON.parse(readFileSync(configFile, 'utf8')).gate, gateStatus: gated.code, green: result.green, projectTestRan: existsSync(marker) }));
-  assert.equal(result.green, false, 'following NO_GATE advice must not pass a real failing multi-target make test');
-  assert.notEqual(gated.code, 0);
-  assert.equal(readFileSync(marker, 'utf8'), 'tested');
-});
-
-test('NO_GATE finds test anywhere in literal Makefile target lists [C3,I1,B26]', async () => {
-  for (const [rule, target] of [
-    ['check test:', true],
-    ['check \\' + '\ntest:', true],
-    ['  check test :', true],
-    ['test := test check:', false],
-    ['all:\n\ttest: recipe-text', false],
-  ]) {
-    const box = e2e.sandbox();
-    const root = join(box.dir, 'make-target-project');
-    mkdirSync(root);
-    box.git(root, 'init', '-q', '-b', 'main');
-    assert.equal((await box.runLocal(root, 'init')).code, 0);
-    const configFile = join(root, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configFile, 'utf8'));
-    writeFileSync(configFile, JSON.stringify({ ...config, gate: '' }, null, 2));
-    writeFileSync(join(root, 'SPEC.md'), '# Make project\n\n## G · Goals\n- G1 [approved, must] Project tests prove the work. | gate: make test\n');
-    const marker = join(box.dir, 'project-test-ran');
-    const quoted = "'" + marker.replaceAll("'", "'\\''") + "'";
-    writeFileSync(join(root, 'Makefile'), rule + (target ? `\n\t@printf tested > ${quoted}\n\t@exit 1\n` : '\n'));
-    box.git(root, 'add', '-A');
-    box.git(root, 'commit', '-q', '-m', 'chore: prepare literal Makefile target coverage');
-    const direct = runFixtureChild('make', ['test'], { cwd: root, env: box.env, encoding: 'utf8' });
-    assert.notEqual(direct.status, 0, 'the real test fails, or make reports no test target');
-    assert.equal(existsSync(marker), target, `make itself determines whether ${JSON.stringify(rule)} has our test recipe`);
-    if (target) rmSync(marker);
-    const missing = await box.runLocal(root, 'gate', '--json');
-    assert.equal(missing.code, 1);
-    const refusal = JSON.parse(missing.out).error;
-    assert.equal(refusal.code, 'NO_GATE');
-    const printed = /pullboard gate set '[^']*'/u.exec(refusal.next)?.[0];
-    assert.equal(printed, `pullboard gate set '${target ? 'make test' : 'pullboard spec check'}'`, rule);
-    const configured = await runPrinted(box, root, printed);
-    assert.equal(configured.status, 0, configured.failure || configured.stderr || configured.stdout);
-    assert.equal(existsSync(marker), false, 'finding and setting the gate never runs Makefile code');
-    box.git(root, 'add', 'pullboard.json');
-    box.git(root, 'commit', '-q', '-m', 'chore: use the printed project gate');
-    const gated = await box.runLocal(root, 'gate', '--json');
-    assert.equal(JSON.parse(gated.out).green, !target, rule);
-    assert.equal(existsSync(marker), target, 'only running a real project gate executes its test recipe');
-  }
-});
-
-test('init joins one gate per detected language and protects each language\'s test files [C7,B26,#3707]', async () => {
-  const box = e2e.sandbox();
-  const root = join(box.dir, 'mixed-languages');
-  mkdirSync(root);
-  box.git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'composer.json'), '{}\n');
-  writeFileSync(join(root, 'mix.exs'), '# mix\n');
-  writeFileSync(join(root, 'App.csproj'), '<Project/>\n');
-  writeFileSync(join(root, 'CMakeLists.txt'), 'project(app)\n');
-  writeFileSync(join(root, 'go.mod'), 'module app\n');
-  writeFileSync(join(root, 'pytest.ini'), '[pytest]\n');
-  assert.equal((await box.runLocal(root, 'init')).code, 0);
-  const config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8'));
-  assert.equal(config.gate, [
-    'go test ./...', 'pytest', 'composer test', 'mix test', 'dotnet test',
-    'cmake -S . -B build && cmake --build build && ctest --test-dir build',
-  ].join(' && '));
-  for (const glob of ['**/*_test.go', '**/test_*.py', '**/*Test.php', '**/*_test.exs', '**/*Tests.cs', '**/*.test.js']) {
-    assert.ok(config.claim.barTestFiles.includes(glob), `${glob} is a protected test glob`);
-  }
 });

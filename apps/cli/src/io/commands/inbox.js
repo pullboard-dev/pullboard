@@ -9,6 +9,7 @@ import { evidenceLine } from '../shout.js';
 import { startMarksWorker } from '../../../../../packages/jobs/index.js';
 import { MARKS_WORKER } from '../inbox-marks-worker.js';
 import { whoAmI } from '../join.js';
+import { sayLag } from '../lag.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { entryLines } from '../../../../../packages/store/index.js';
@@ -36,6 +37,7 @@ export async function run(io, { values = {} } = {}) {
     // inbox.batchedMarks: queued marks go to a background worker that writes them in one batch (#9117).
     handOffMarks: (c, entries) => { if (!entries.length) return; spoolInboxMarks(c.file, entries); startMarksWorker(MARKS_WORKER, c.file); } };
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
+  sayLag(io, ctx);
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
   io.result?.(document);

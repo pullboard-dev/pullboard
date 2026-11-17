@@ -13,6 +13,7 @@ import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
 import { Refused } from '../../../kernel/light.js';
 import { ENGINE_MOVE_STEPS } from './engine/move/steps.js';
+import { behindMessage } from '../logic/engine/behind-message.js';
 const EXIT_RULES_ENGINE = engineNumber('EXIT_RULES_ENGINE');
 const PEOPLE_ENGINE = engineNumber('PEOPLE_ENGINE');
 
@@ -85,8 +86,21 @@ export function restoreRelayEpoch(board, saved) {
   });
 }
 
+/**
+ * The device running the lowest engine below the one a move needs, or null when none is below it.
+ * Why a list from the caller: state cannot import link, so the relay roster is read by the caller (setting engine.nameBehindDevice) and passed in [C7,#9418].
+ *
+ * @param {{ device: string, seat: string, engine: number }[]} devices
+ * @param {number} needed
+ * @returns {{ device: string, seat: string, engine: number } | null}
+ */
+function lowestBehind(devices, needed) {
+  const behind = (Array.isArray(devices) ? devices : []).filter(entry => Number.isSafeInteger(entry?.engine) && entry.engine < needed && typeof entry.device === 'string' && typeof entry.seat === 'string');
+  return behind.reduce((lowest, entry) => (!lowest || entry.engine < lowest.engine ? entry : lowest), null);
+}
+
 /** Turn caller-only callbacks into deterministic values before sealing an executable operation. */
-export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor } = {}) {
+export function prepareEngineMove(board, operation, args, { id = randomUUID(), actor, nameBehindDevice = false, behindDevices = [], releases = [] } = {}) {
   const ports = enginePorts(board);
   const store = ports.store;
   if (!ports.operations.includes(operation) || !Array.isArray(args)) throw new Refused('RELAY_MOVE', 'use a supported board-engine operation with its argument array');
@@ -97,7 +111,11 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   steps.validate?.(values);
   steps.prepareBefore?.(board, values, { args, ports, store, id });
   const minimumEngine = Math.max(ports.minimumOperationEngine(operation, values, board), agentGrantMinimum(board, { operation, args: values }));
-  if (ENGINE_VERSION < minimumEngine) throw new Refused('ENGINE_VERSION', `${operation} requires engine version ${minimumEngine}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
+  if (ENGINE_VERSION < minimumEngine) {
+    const behind = nameBehindDevice === true ? lowestBehind(behindDevices, minimumEngine) : null;
+    if (behind) throw new Refused('ENGINE_VERSION', behindMessage({ device: behind.device, seat: behind.seat, running: behind.engine, needed: minimumEngine, releases }));
+    throw new Refused('ENGINE_VERSION', `${operation} requires engine version ${minimumEngine}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
+  }
   steps.prepareAfter?.(board, values, { args, ports, store, id });
   const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values, ...(actor === undefined ? {} : { actor }) };
   // JSON is the wire format: optional undefined fields become absent on every replica alike.

@@ -89,7 +89,7 @@ function answers(db, runs) {
   };
 }
 
-test('clause 2: with runs_store on, the stats job readers read the runs file read-only and write nothing to it [B2,#9014]', t => {
+test('stats.runs-readers.with-runs-store-on-the-stats: clause 2: with runs_store on, the stats job readers read the runs file read-only and write nothing to it [B2,#9014]', t => {
   const { db, runsFile } = fixture(t);
   const digest = () => createHash('sha256').update(readFileSync(runsFile)).digest('hex');
   const before = digest();
@@ -104,7 +104,7 @@ test('clause 2: with runs_store on, the stats job readers read the runs file rea
   assert.equal(digest(), before, 'no reader changed the runs file');
 });
 
-test('clause 3: with runs_store off, the stats job readers read the board job rows as on main [B2,#9014]', t => {
+test('stats.runs-readers.with-runs-store-off-the-stats: clause 3: with runs_store off, the stats job readers read the board job rows as on main [B2,#9014]', t => {
   const { db } = offFixture(t);
   const onMain = answers(db, null);
   assert.deepEqual(answers(db, undefined), onMain);

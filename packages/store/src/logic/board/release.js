@@ -49,3 +49,34 @@ export function liftInfraHold(board, event, logEvent, setItem) {
   setItem(board, event.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
   logEvent(board, 'coordinator', 'unhold_item', event.item_id, { reason: item.item_hold_reason, cause: 'infrastructure' });
 }
+
+/** Item ids a release names as its blocker; the event records one id, a list, or a "#id" string. */
+function namedBlockers(detail) {
+  const named = Array.isArray(detail.blockedOn) ? detail.blockedOn : detail.blockedOn === undefined ? [] : [detail.blockedOn];
+  return named.map(value => Number(String(value).replace(/^#/u, ''))).filter(Number.isSafeInteger);
+}
+
+/**
+ * With release.liftTwiceHold on, lift an automatic "Released twice" hold when main moves, or when an item one of its two releases
+ * named as a blocker lands. A person's or the coordinator's own hold is untouched: only the hold the release-twice rule placed lifts.
+ * Why: the hold waits for a change that may already have happened, and nobody was told to look again (#9002).
+ *
+ * @param {object} board the open board; `board.liftTwiceHold` is the setting, off unless it is true
+ * @param {object} event the event just written
+ * @param {Function} logEvent writes an event
+ * @param {Function} setItem patches an item
+ */
+export function liftTwiceHold(board, event, logEvent, setItem) {
+  if (board.liftTwiceHold !== true || !['main-moved', 'merged'].includes(event.event_kind)) return;
+  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_by='coordinator' AND item_hold_reason LIKE 'Released twice%'`).all();
+  for (const item of held) {
+    if (item.item_id === event.item_id) continue;
+    const hold = board.db.prepare(`SELECT event_id,event_detail FROM event WHERE item_id=? AND event_kind='hold_item' ORDER BY event_id DESC LIMIT 1`).get(item.item_id);
+    if (!hold || hold.event_id >= event.event_id || JSON.parse(hold.event_detail).automatic !== 'release-twice') continue;
+    const mainMoved = event.event_kind === 'main-moved';
+    const blocked = !mainMoved && lastChosenReleases(board, item.item_id, () => true).some(row => namedBlockers(JSON.parse(row.event_detail)).includes(event.item_id));
+    if (!mainMoved && !blocked) continue;
+    setItem(board, item.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
+    logEvent(board, 'coordinator', 'unhold_item', item.item_id, { reason: item.item_hold_reason, cause: mainMoved ? 'main-moved' : 'blocker-landed', triggerEventId: event.event_id });
+  }
+}

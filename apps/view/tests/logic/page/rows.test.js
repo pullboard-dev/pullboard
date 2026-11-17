@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** The Roadmap patches by row key: rows that did not change keep their DOM nodes, and changed rows show the new values [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

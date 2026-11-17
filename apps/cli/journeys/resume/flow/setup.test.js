@@ -8,7 +8,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import {
+  describe,
+  test,
+} from 'node:test';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import { spawn } from 'node:child_process';
@@ -19,6 +22,8 @@ import {
   releaseFixture,
 } from '../../../tests/fixtures/resume/release.js';
 
+/** Each case owns its sandbox, repo and machine home, so three run at once and overlap their waits instead of adding them [C7,I1,N32]. */
+describe('resume walks a new board through setup [I1,I2,N32,B26]', { concurrency: 3 }, () => {
 test('spec draft adds draft rows and resume names them [N32]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const initial = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout);
@@ -518,4 +523,5 @@ test('a board building without spec rows is not told to draft the spec first [I1
     assert.doesNotMatch(card.next, /spec draft|decompose|person.*approv/iu,
       'completed setup keeps directing the coordinator to the actual work');
   }
+});
 });

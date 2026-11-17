@@ -20,18 +20,18 @@ function lockedDb(message) {
   }) };
 }
 
-test('a locked slot database skips this recovery round and never throws [C7]', async () => {
+test('resources.recovery.a-locked-slot-database-skips-this: a locked slot database skips this recovery round and never throws [C7]', async () => {
   let probed = 0;
   const result = await recoverUnavailableRunners(lockedDb('database is locked'), [{ host: 'runner-1' }], { probe: async () => { probed += 1; return { healthy: true }; }, now: 10 });
   assert.equal(probed, 0, 'no probe runs for a runner the round could not claim');
   assert.notEqual(result, undefined);
 });
 
-test('any other database error still surfaces [C7]', async () => {
+test('resources.recovery.any-other-database-error-still-surfaces: any other database error still surfaces [C7]', async () => {
   await assert.rejects(recoverUnavailableRunners(lockedDb('no such table: runner_unavailable'), [{ host: 'runner-1' }], { probe: async () => ({ healthy: true }), now: 10 }), /no such table/u);
 });
 
-test('a studio-host runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 120 s waiterMs budget [C7]', async t => {
+test('resources.recovery.a-studio-host-runner-held-cleanup: a studio-host runner held CLEANUP_UNVERIFIED by an orphaned controller is back within the 120 s waiterMs budget [C7]', async t => {
   // The evidence of #7214: studio-host went unavailable on a dead controller's cleanup and was held past five minutes
   // (14:51:21 to 14:59:04 on 13 Nov, with no recovery event between). Here its transport answers 60 s in, and the
   // passes run as the row schedules them; the hold must end on the first pass after that answer.

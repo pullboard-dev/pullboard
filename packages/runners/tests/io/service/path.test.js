@@ -31,13 +31,13 @@ async function install(t) {
   return { plist, calls: readFileSync(log, 'utf8').trim().split('\n') };
 }
 
-test('6070 clause 1: the generated plist PATH holds /usr/bin, /bin, /usr/sbin and /sbin so ps and lsof resolve [P7]', async t => {
+test('runners.path.n6070-clause-1-the-generated-plist: 6070 clause 1: the generated plist PATH holds /usr/bin, /bin, /usr/sbin and /sbin so ps and lsof resolve [P7]', async t => {
   const { plist } = await install(t);
   const path = plist.match(/<key>PATH<\/key><string>([^<]*)<\/string>/u)?.[1].split(':');
   for (const directory of ['/usr/bin', '/bin', '/usr/sbin', '/sbin']) assert.ok(path.includes(directory), `${directory} in ${path}`);
 });
 
-test('6070 clause 3: the service is booted out, then bootstrapped, and kickstart is never issued [P7]', async t => {
+test('runners.path.n6070-clause-3-the-service-is: 6070 clause 3: the service is booted out, then bootstrapped, and kickstart is never issued [P7]', async t => {
   const { calls } = await install(t);
   const verbs = calls.map(call => call.split(' ')[0]);
   assert.ok(verbs.includes('bootout') && verbs.includes('bootstrap'));

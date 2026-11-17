@@ -17,6 +17,7 @@ export { createRelayPages } from './src/io/store/page.js';
 export { createRelayPagesHandler, snapshotPageRoot } from './src/io/pages.js';
 export { createPairingHandler } from './src/logic/pairing/http.js';
 export { createPairingStore } from './src/logic/pairing/store.js';
+export { WAKEUP_KINDS, buildWakeup, openWakeup } from './src/logic/push/wakeup.js';
 export { createRelayRetention } from './src/io/retention.js';
 export { createRelayHandler, serveRelay } from './src/io/service.js';
 export { ACCOUNT_STORAGE_BYTES, boardStorageBytes, createStorageQuota, storageLimitMessage } from './src/io/quota.js';

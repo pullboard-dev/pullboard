@@ -23,7 +23,7 @@ function receipt(item, digest, seat, { green, failures = [], shadow } = {}) {
       counts: { passed: 0, failed: green ? 0 : 1, skipped: 0 }, durationMs: 5, sourceClean: true } };
 }
 
-test('clause 2: tier 1 judges reachable failures, static or check failures and unreachable failures apart [V4]', () => {
+test('flakes.verdict.tier1-judges-apart: clause 2: tier 1 judges reachable failures, static or check failures and unreachable failures apart [V4]', () => {
   assert.deepEqual(tier1Shadow({ real: true }).verdict, 'green');
   assert.equal(tier1Shadow({ real: false, failures: [failure], reachable: ['test/near.test.js'] }).verdict, 'red');
   const far = tier1Shadow({ real: false, failures: [failure], reachable: ['test/other.test.js'] });
@@ -37,7 +37,7 @@ test('clause 2: tier 1 judges reachable failures, static or check failures and u
   assert.equal(tier1Shadow({ real: false, failures: [cell], reachable: [], cellStructure: true }).verdict, 'red');
 });
 
-test('a malformed or self-contradicting shadow is refused by the receipt check [V4]', () => {
+test('flakes.verdict.refuses-malformed-shadow: a malformed or self-contradicting shadow is refused by the receipt check [V4]', () => {
   const shadow = tier1Shadow({ real: false, failures: [failure], reachable: [] });
   assert.ok(tier1ShadowFields(shadow, false));
   assert.equal(tier1ShadowFields(shadow, true), null, 'it must name the receipt\'s own real verdict');
@@ -46,7 +46,7 @@ test('a malformed or self-contradicting shadow is refused by the receipt check [
   assert.equal(receiptFields(receipt(1, null, 'seat', { green: false, failures: [failure], shadow: { ...shadow, verdict: 'red' } })), null);
 });
 
-test('clause 1 and clause 2: a recorded proof keeps the real verdict unchanged when the shadow differs [V4,H16]', t => {
+test('flakes.verdict.shadow-keeps-real-verdict: clause 1 and clause 2: a recorded proof keeps the real verdict unchanged when the shadow differs [V4,H16]', t => {
   const board = fixtureBoard(t);
   board.executionEngineVersion = SHADOW_TIER1_ENGINE;
   store.register(board, { lane: 'coordinator', path: '/shadow/main' });

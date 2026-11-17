@@ -3,6 +3,8 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { context } from '../entry.js';
 import { idArg } from '../entry.js';
+import { ordered } from '../entry.js';
+import { actOn } from '../entry.js';
 import { withBoardRead } from '../board/read.js';
 import { run as add } from './add.js';
 
@@ -43,6 +45,12 @@ export async function run(io, args) {
       lines.push(`#${ids.at(-1)} clause ${at + 1}${ids.length > 1 ? `, after #${ids.at(-2)}` : ''}`);
     }
   } finally { io.say = say; io.result = result; }
+  // The parent keeps the split on its own thread, so a reader of the parent finds every child without searching [C7,#8917].
+  const noted = await actOn(io, async (ctx, board, me) => {
+    await ordered(ctx, board, 'appendFact', [parentId, { agentId: me.id, kind: 'note', text: `split into ${ids.map(id => `#${id}`).join(', ')}` }]);
+    return 0;
+  });
+  if (noted !== 0) return noted;
   io.result?.({ parent: parentId, children: ids });
   for (const line of lines) io.say(line);
   return 0;

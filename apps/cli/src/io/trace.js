@@ -144,6 +144,19 @@ function eventWhy(detail) {
 }
 
 /**
+ * The one line a `lapsed` job step prints: the runner that held the earlier claim, its attempt, when its lease ended and
+ * the last step it wrote. A payload this reader cannot parse prints as before. Why: a lapse left no readable reason, so six
+ * claims of one job looked like a runner that never started [C7,#9248].
+ */
+function lapseWhy(row) {
+  let lapse;
+  try { lapse = JSON.parse(row.payload); } catch { lapse = null; }
+  const at = value => Number.isFinite(value) ? new Date(value).toISOString() : 'unknown';
+  if (!lapse || typeof lapse !== 'object') return `job ${String(row.job).slice(0, 8)} attempt ${row.attempt}${row.payload ? ` ${row.payload}` : ''}`;
+  return `job ${String(row.job).slice(0, 8)} lapsed: runner ${lapse.runner ?? 'unknown'} attempt ${lapse.attempt ?? 'unknown'} lease ended ${at(lapse.leaseUntil)} last step ${lapse.lastStep ?? 'none'} at ${at(lapse.lastAt)}`;
+}
+
+/**
  * One timeline from trace lines and board event rows, in time order, one entry per call or event: time, source
  * (call or event), agent, command, item, outcome (ok, the refusal code, or error), duration in ms (null for an event)
  * and why (the refusal message, or the event's reason or note). A subject that is an item id keeps every agent's
@@ -175,7 +188,7 @@ export function traceTimeline({ lines, events, subject, since = null, jobs = [] 
       const gap = previous.has(row.job) ? row.at - previous.get(row.job) : null;
       previous.set(row.job, row.at);
       entries.push({ time: new Date(row.at).toISOString(), source: 'job', agent: row.owner ?? 'gate', command: `${row.kind}:${row.step}`, item: row.item,
-        outcome: 'ok', ms: gap, why: `job ${String(row.job).slice(0, 8)} attempt ${row.attempt}${row.payload ? ` ${row.payload}` : ''}` });
+        outcome: 'ok', ms: gap, why: row.step === 'lapsed' ? lapseWhy(row) : `job ${String(row.job).slice(0, 8)} attempt ${row.attempt}${row.payload ? ` ${row.payload}` : ''}` });
     }
   }
   const kept = since === null ? entries : entries.filter(entry => Date.parse(entry.time) >= since);
@@ -192,10 +205,23 @@ export function traceLine(entry) {
  * Every gate job step on the board with its job's item, attempt and lease owner, oldest first; empty on a board that
  * has no job tables yet. Why: the trace shows a gate's internals beside the item's calls and events [C7].
  *
+ * With `runs` (runs_store on) the steps come from the runs file, read only, and each finished run adds one outcome step
+ * from the board's run row [B2,#9013].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options]
  * @returns {{ id: number, job: string, step: string, at: number, payload: string, kind: string, item: number, attempt: number, owner: string|null }[]}
  */
-export function readJobSteps(db) {
+export function readJobSteps(db, { runs = null } = {}) {
+  if (runs) {
+    const live = runs.db ? readJobSteps(runs.db) : [];
+    let outcomes = [];
+    try {
+      outcomes = db.prepare("SELECT rowid AS n, * FROM run WHERE run_state != 'queued' AND run_item IS NOT NULL ORDER BY run_updated, rowid").all()
+        .map(row => ({ id: 1e9 + row.n, job: row.run_job, step: `outcome:${row.run_outcome ?? row.run_state}`, at: row.run_updated, payload: '', kind: row.run_kind, item: row.run_item, attempt: row.run_attempt, owner: null }));
+    } catch { outcomes = []; }
+    return [...live, ...outcomes].sort((left, right) => left.at - right.at || left.id - right.id);
+  }
   let rows;
   try {
     rows = db.prepare(`SELECT s.job_step_id AS id, s.job_step_job AS job, s.job_step_name AS step, s.job_step_at AS at, s.job_step_payload AS payload,

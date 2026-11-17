@@ -9,7 +9,7 @@ import { workerEntry } from '../src/io/package.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
-test('worker closure has no packages/*/index.js [C7]', () => {
+test('runners.runner-tooling-transfer.worker-closure-has-no-packages-index: worker closure has no packages/*/index.js [C7]', () => {
   const entry = workerEntry(root);
   const files = Object.keys(runnerPackage(root, entry).files);
   assert.deepEqual(files.filter(file => /^packages\/[^/]+\/index\.js$/u.test(file)), []);

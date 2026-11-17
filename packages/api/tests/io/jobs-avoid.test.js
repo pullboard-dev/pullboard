@@ -8,7 +8,7 @@ import { describeSetting } from '../../../config/index.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
-test('clause 1: with jobs.avoidRunners on, a job offered with avoid:[runner-a] is never returned by claimJob to runner-a and is returned to runner-b [C7,#9273]', t => {
+test('api.jobs-avoid.jobs-avoidrunners-job-offered-avoid: clause 1: with jobs.avoidRunners on, a job offered with avoid:[runner-a] is never returned by claimJob to runner-a and is returned to runner-b [C7,#9273]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:shard-1', kind: 'gate-shard', avoid: ['runner-a'], now: 1 });
   assert.equal(claimJob(db, { runner: 'runner-a', avoidRunners: true, now: 100 }), null, 'the avoided runner is offered nothing');
@@ -16,7 +16,7 @@ test('clause 1: with jobs.avoidRunners on, a job offered with avoid:[runner-a] i
   assert.equal(claimJob(db, { runner: 'runner-b', avoidRunners: true, now: 101 })?.job, 'gate:shard-1', 'another runner takes it');
 });
 
-test('clause 2: with jobs.avoidRunners off (the default) an avoid list on an offer is ignored and claimJob behaves as before, and the setting is described [C7,#9273]', t => {
+test('api.jobs-avoid.jobs-avoidrunners-off-default-avoid: clause 2: with jobs.avoidRunners off (the default) an avoid list on an offer is ignored and claimJob behaves as before, and the setting is described [C7,#9273]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:shard-2', kind: 'gate-shard', avoid: ['runner-a'], now: 1 });
   assert.equal(claimJob(db, { runner: 'runner-a', now: 100 })?.job, 'gate:shard-2', 'runner-a takes it with the setting off');

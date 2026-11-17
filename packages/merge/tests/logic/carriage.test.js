@@ -44,13 +44,13 @@ function movedMain(t) {
   return { seat, trunk, reads, unrelated: git(`${seat}-item-7`, 'rev-parse', 'HEAD'), conflicting: git(`${seat}-item-8`, 'rev-parse', 'HEAD') };
 }
 
-test('clause 1: an item whose own branch merges cleanly gets no conflict warning although its seat checkout branch conflicts [N2,B3,#3820]', t => {
+test('merge.carriage.clean-branch-no-warning: clause 1: an item whose own branch merges cleanly gets no conflict warning although its seat checkout branch conflicts [N2,B3,#3820]', t => {
   const { seat, trunk, reads } = movedMain(t);
   const warnings = mainMovedWarnings({ root: seat, board: {}, trunk }, reads);
   assert.deepEqual(warnings.filter(warning => warning.item === 7), []);
 });
 
-test('clause 2: an item whose own branch really conflicts with the new main gets one warning naming the conflicting file [N2,B3,#3820]', t => {
+test('merge.carriage.real-conflict-one-warning: clause 2: an item whose own branch really conflicts with the new main gets one warning naming the conflicting file [N2,B3,#3820]', t => {
   const { seat, trunk, reads, conflicting } = movedMain(t);
   const warnings = mainMovedWarnings({ root: seat, board: {}, trunk }, reads);
   assert.deepEqual(warnings, [{ item: 8, head: conflicting, trunk, files: ['shared.txt'] }]);

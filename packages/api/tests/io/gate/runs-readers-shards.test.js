@@ -22,7 +22,7 @@ function shardedGate(db) {
   }
 }
 
-test('clause 1: with runs_store on, shardJobs and shardedResult read one gate split into shard jobs from the runs file as from the job rows off [P7,#9151]', t => {
+test('api.gate-runs-readers-shards.runs-store-shardjobs-shardedresult-read: clause 1: with runs_store on, shardJobs and shardedResult read one gate split into shard jobs from the runs file as from the job rows off [P7,#9151]', t => {
   const off = cellBoard(t, ':memory:');
   shardedGate(off.db);
   const board = cellBoard(t, ':memory:');
@@ -39,7 +39,7 @@ test('clause 1: with runs_store on, shardJobs and shardedResult read one gate sp
   assert.equal(shardedResult(board.db, PARENT, gateReceipt), null);
 });
 
-test('clause 3: with runs_store off (the default) shardJobs and shardedResult read the board exactly as on main [P7,#9151]', t => {
+test('api.gate-runs-readers-shards.runs-store-off-default-shardjobs: clause 3: with runs_store off (the default) shardJobs and shardedResult read the board exactly as on main [P7,#9151]', t => {
   const board = cellBoard(t, ':memory:');
   shardedGate(board.db);
   const gateReceipt = { version: 1, status: 0, gate: { green: true, phases: [] } };

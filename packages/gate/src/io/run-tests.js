@@ -547,7 +547,7 @@ function watchLandingChildCustody(startsPath, attempt) {
         writeFileSync(temporary, JSON.stringify(record), { mode: 0o600, flag: 'wx' });
         renameSync(temporary, recordPath);
         pending.set(recordPath, Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS);
-        if (!poll) poll = setInterval(pollAcks, 25);
+        if (!poll) poll = setInterval(pollAcks, 25); // budget: the child writes ack files into a directory and no file event is reliable across the child exit, so a 25 ms poll stays
       } catch (error) {
         announcementFailureDeadline ??= Date.now() + LANDING_CHILD_CUSTODY_TIMEOUT_MS;
         const code = String(error?.code ?? 'announcement-error').replace(/[\u0000-\u001f\u007f]/gu, ' ').slice(0, 80);
@@ -567,7 +567,7 @@ function watchLandingChildCustody(startsPath, attempt) {
           failurePublished = true;
         } catch { /* Worker stderr is the last bounded diagnostic fallback. */ }
         announcementFailureReportedToParent ||= failurePublished;
-        if (!poll) poll = setInterval(pollAcks, 25);
+        if (!poll) poll = setInterval(pollAcks, 25); // budget: the child writes ack files into a directory and no file event is reliable across the child exit, so a 25 ms poll stays
       }
     });
   });

@@ -33,7 +33,7 @@ function fixture(t) {
   return { board, id, projection: () => reviewEligibility(board, store.getItem(board, id), REVIEW) };
 }
 
-test('clause 1: an item built across two families lists reviewers from every family except the head builder\'s [V1]', t => {
+test('store.io-board-review-family-head.an-item-built-across-two-families: clause 1: an item built across two families lists reviewers from every family except the head builder\'s [V1]', t => {
   const f = fixture(t);
   const result = f.projection();
   assert.equal(result.tier, 'strict');
@@ -44,7 +44,7 @@ test('clause 1: an item built across two families lists reviewers from every fam
   assert.equal(store.getItem(f.board, f.id).item_review_by, 'core-4');
 });
 
-test('clause 2: a reviewer from the head builder\'s family is still refused SAME_FAMILY [V1]', t => {
+test('store.io-board-review-family-head.a-reviewer-from-the-head-builder: clause 2: a reviewer from the head builder\'s family is still refused SAME_FAMILY [V1]', t => {
   const f = fixture(t);
   const result = f.projection();
   assert.ok(result.ineligible.some(row => row.agent === 'core-3' && row.code === 'SAME_FAMILY'), JSON.stringify(result));

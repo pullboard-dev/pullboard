@@ -2,6 +2,8 @@ import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */
+import { journeyCall } from '../../tests/fixtures/e2e.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { repositoryBoardFile } from '../../tests/fixtures/board/submit.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
@@ -12,7 +14,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { tmpdir } from 'node:os';
@@ -283,24 +284,26 @@ test('export and import CLI commands exchange a versioned document between real 
     GIT_COMMITTER_EMAIL: 'exchange@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'),
   };
-  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** One CLI call in this process (a real process under PULLBOARD_JOURNEY_MODE=process), recorded for the parity check [C7]. */
+  const cli = (cwd, ...args) => journeyCall({ dir: directory, env, cwd, args, bin: BIN, inProcess: () => runCliInProcess(args, { cwd, env }) });
   try {
     // An import recipient starts without its own declared coordinator metadata.
     const initEnv = { ...env };
     delete initEnv.PULLBOARD_MODEL;
-    const initialized = runFixtureChild(process.execPath, [BIN, 'init', '--verbose'], { cwd: targetRoot, env: initEnv, encoding: 'utf8' });
+    const initialized = await journeyCall({ dir: directory, env: initEnv, cwd: targetRoot, args: ['init', '--verbose'], bin: BIN,
+      inProcess: () => runCliInProcess(['init', '--verbose'], { cwd: targetRoot, env: initEnv }) });
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
     assert.match(initialized.stdout, /coordinator/i);
 
-    const exported = cli(sourceRoot, 'export', '--json');
+    const exported = await cli(sourceRoot, 'export', '--json');
     assert.equal(exported.status, 0, exported.stderr || exported.stdout);
     const document = JSON.parse(exported.stdout);
     writeFileSync(join(directory, 'board.json'), JSON.stringify(document));
-    const imported = cli(targetRoot, 'import', join(directory, 'board.json'));
+    const imported = await cli(targetRoot, 'import', join(directory, 'board.json'));
     assert.equal(imported.status, 0, imported.stderr || imported.stdout);
     assert.match(imported.stdout, /imported version 1 board tables/);
 
-    const reexported = cli(targetRoot, 'export', '--json');
+    const reexported = await cli(targetRoot, 'export', '--json');
     assert.equal(reexported.status, 0, reexported.stderr || reexported.stdout);
     assert.deepEqual(JSON.parse(reexported.stdout), document, 'a board initialized by pullboard can receive the full export');
 
@@ -310,9 +313,9 @@ test('export and import CLI commands exchange a versioned document between real 
     } finally {
       store.closeBoard(importedBoard);
     }
-    const status = cli(targetRoot, 'status');
+    const status = await cli(targetRoot, 'status');
     assert.equal(status.status, 0, status.stderr || status.stdout);
-    const listed = cli(targetRoot, 'list', '--all');
+    const listed = await cli(targetRoot, 'list', '--all');
     assert.equal(listed.status, 0, listed.stderr || listed.stdout);
   } finally {
     rmSync(directory, { recursive: true, force: true });

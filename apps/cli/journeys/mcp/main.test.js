@@ -43,6 +43,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
+import { CLI_ENTRY } from '../../tests/fixtures/runner/entry.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 
 /** Cases are collected, then run concurrently: each owns its tmp repo, machine home and runner, so they overlap their waits instead of adding them [C7]. */
@@ -202,7 +203,7 @@ async function project(t, { runner = false } = {}) {
   const agent = JSON.parse(joined.out).agent;
   const runLocalArgs = (cwd, ...args) => runLocal(cwd, args);
   // Pull dispatch is the default: the machine's local runner takes each submit's gate and posts its receipt.
-  if (runner) startFixtureLocalRunner(env, repo);
+  if (runner) startFixtureLocalRunner(env, repo, { entry: CLI_ENTRY });
   return { dir, env, runLocal, runLocalArgs, git, repo, web, agent, sessionA, guard, clients, database: join(repo, '.git', 'pullboard', 'board.sqlite') };
 }
 

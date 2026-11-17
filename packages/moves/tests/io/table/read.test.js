@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** The read-only reader builds the snapshot each recorded move saw, and tables are found by discovery [C7,#8070]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -8,7 +9,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { listMoveTables } from '../../../index.js';
 import { readMoveRecords } from '../../../index.js';
 
@@ -31,7 +32,7 @@ function board() {
   return file;
 }
 
-test('clause 1: readMoveRecords returns one frozen snapshot per item move since the cut, with the history it saw [C7]', () => {
+test('moves.read.readmoverecords-returns-one-frozen-snapshot-per-item: clause 1: readMoveRecords returns one frozen snapshot per item move since the cut, with the history it saw [C7]', () => {
   const records = readMoveRecords(board(), { since: '2026-11-05T00:00:00.000Z' });
   assert.deepEqual(records.map(record => [record.event.id, record.move.kind]), [[3, 'claim'], [4, 'submit']]);
   assert.deepEqual(records[0].snapshot.history.map(event => event.kind), ['add'], 'the claim saw only the add before it');
@@ -42,14 +43,14 @@ test('clause 1: readMoveRecords returns one frozen snapshot per item move since 
   assert.throws(() => readMoveRecords(board(), { since: 'never' }), error => error.code === 'READ_SINCE');
 });
 
-test('clause 2: the board file is byte-for-byte unchanged after a read [C7]', () => {
+test('moves.read.the-board-file-is-byte-for-byte: clause 2: the board file is byte-for-byte unchanged after a read [C7]', () => {
   const file = board();
   const before = readFileSync(file);
   readMoveRecords(file, { since: '2026-11-01T00:00:00.000Z' });
   assert.equal(Buffer.compare(before, readFileSync(file)), 0);
 });
 
-test('clause 3: listMoveTables finds every *.table.js under the cells logic folders with no central list [C7]', () => {
+test('moves.read.listmovetables-finds-every-table-js-under-the: clause 3: listMoveTables finds every *.table.js under the cells logic folders with no central list [C7]', () => {
   const root = join(files.root, 'tree');
   for (const file of ['packages/a/src/logic/x.table.js', 'packages/b/src/logic/deep/y.table.js', 'packages/b/src/logic/plain.js', 'packages/c/src/io/z.table.js']) {
     mkdirSync(join(root, file, '..'), { recursive: true });

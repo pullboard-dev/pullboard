@@ -44,9 +44,14 @@ export async function run(io, { first, second, rest, values }) {
     if (!second || rest.length || Boolean(values.add) === Boolean(values.remove) || (values.swap !== undefined && (!values.add || values.remove)) || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined) {
       throw new Refused('USAGE', 'pullboard milestone items <name> --add ids [--swap id] [--reason "<why>"] or --remove ids');
     }
+    if (values.as !== undefined && values.as !== 'person' || values.as === 'person' && (!values.add || values.swap !== undefined || !ctx.info.isMain)) {
+      throw new Refused('USAGE', 'an add past a milestone limit belongs to the person in the primary checkout: milestone items <name> --add ids --as person');
+    }
+    if (values.as === 'person') requirePersonChannel(ctx.io.personChannel);
     name = second;
     const next = await ordered(ctx, board, 'editMilestoneItems', [name, {
       agentId: me.id,
+      ...(values.as === 'person' ? { asPerson: true } : {}),
       add: values.add === undefined ? [] : ids(values.add),
       remove: values.remove === undefined ? [] : ids(values.remove),
       ...(values.swap === undefined ? {} : { swap: ids(values.swap) }),

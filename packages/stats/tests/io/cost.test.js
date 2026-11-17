@@ -19,7 +19,7 @@ function usage(model, fresh = 100_000, read = 200_000, write = 50_000, output = 
     cacheReadInputTokens: read, cacheWriteInputTokens: write, wallMs: 7, unknownReasons: [] };
 }
 
-test('legacy, missing-rate, shared and zero pricing preserve unknown versus measured zero [N2]', () => {
+test('stats.cost.legacy-missing-rate-shared-and-zero: legacy, missing-rate, shared and zero pricing preserve unknown versus measured zero [N2]', () => {
   const row = usage('alpha');
   assert.equal(usageDollars([row], prices).costUSD, .65);
   assert.equal(usageDollars([{ ...row, cacheWriteInputTokens: null }], prices).costUSD, null);

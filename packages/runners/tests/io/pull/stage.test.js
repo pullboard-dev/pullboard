@@ -8,8 +8,8 @@ import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
 import { enqueueRunnerJob } from '../../../src/io/pull/enqueue.js';
 import { enqueueStagedJob } from '../../../src/io/pull/stage.js';
 import { stageRunnerJob } from '../../../src/io/pull/scripts.js';
@@ -28,7 +28,7 @@ const FRAME = Buffer.from([0, 1, 2, 10, 255, 10, 7]);
 const NOW = 1_700_000_000_000;
 const ROW = { recovery: { request: 'r' }, rawOutput: false };
 
-test('clause 1: staging a pull job writes its row.json through a JS write call in a local folder, before anything ships [C7,#8820]', t => {
+test('runners.stage.staging-a-pull-job-writes-its: clause 1: staging a pull job writes its row.json through a JS write call in a local folder, before anything ships [C7,#8820]', t => {
   const staged = stageRunnerJob({ id: 's-1', row: ROW, frame: FRAME, command: 'node x', now: NOW, parent: privateFixtureFiles('pbstage-parent-').root });
   t.after(() => rmSync(staged.dir, { recursive: true, force: true }));
   assert.deepEqual(readFileSync(join(staged.dir, 'row.json')), staged.rowBytes);
@@ -37,7 +37,7 @@ test('clause 1: staging a pull job writes its row.json through a JS write call i
   assert.deepEqual(readdirSync(staged.dir).sort(), ['command', 'input', 'row.json', 'wanted']);
 });
 
-test('clause 2: the shipped job folder holds the same row.json bytes, input, command and wanted file the remote printf enqueue made [C7,#8820]', async t => {
+test('runners.stage.the-shipped-job-folder-holds-the: clause 2: the shipped job folder holds the same row.json bytes, input, command and wanted file the remote printf enqueue made [C7,#8820]', async t => {
   const old = runnerFixture(t), staged = runnerFixture(t);
   const job = { id: 's-2', row: ROW, frame: FRAME, command: 'node x', now: NOW };
   await enqueueRunnerJob(old.runner, { id: job.id, row: { enqueuedAt: NOW, ...ROW }, frame: FRAME, command: job.command }, { ssh: old.ssh, dir: old.dir });

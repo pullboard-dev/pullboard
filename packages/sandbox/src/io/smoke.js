@@ -16,6 +16,6 @@ export async function runPushReceiptSmoke(root, { agent, onWait, executionServic
   const browser = await checkNeedsBrowser(root, command);
   const gui = await checkNeedsGui(root, command);
   const run = await withGateSlot(root, lease => runProfiledShellAsync(root, command,
-    { gateLease: lease, waitMs: lease.waitMs }), { executionServices, browser, gui, agent, kind: 'test', onWait });
+    { gateLease: lease, waitMs: lease.waitMs }), { executionServices, browser, gui, agent, item: 'push-receipt-smoke', kind: 'builder-test', onWait });
   return { policyCommit: policy.commit, command, ...run };
 }

@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
@@ -83,7 +83,7 @@ async function serveAll(t, jobs) {
   return { ...board, first, second };
 }
 
-test('clause 1: a second job on the same runner reuses the checkout and starts its command in under 3 s after claim [P7]', { timeout: 60_000 }, // budget: two local git checkouts and two node children.
+test('drive.checkout.a-second-job-on-the: clause 1: a second job on the same runner reuses the checkout and starts its command in under 3 s after claim [P7]', { timeout: 60_000 }, // budget: two local git checkouts and two node children.
   async t => {
     const { receipts, claimedAt } = await serveAll(t, ({ first, second }) => [{ id: 'j1', commit: first, run: job(true) }, { id: 'j2', commit: second, run: job(false) }]);
     assert.equal(receipts.length, 2, JSON.stringify(receipts));
@@ -94,7 +94,7 @@ test('clause 1: a second job on the same runner reuses the checkout and starts i
     assert.equal(field(receipts[1], 'TRUNK'), 'refs/heads/main', 'a reused checkout still names its trunk');
   });
 
-test('clause 2: a reused checkout carries no file from the previous job [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('drive.checkout.a-reused-checkout-carries-no: clause 2: a reused checkout carries no file from the previous job [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { receipts } = await serveAll(t, ({ first, second }) => [{ id: 'j1', commit: second, run: job(true) }, { id: 'j2', commit: first, run: job(false) }]);
     assert.equal(receipts.length, 2, JSON.stringify(receipts));
@@ -104,14 +104,14 @@ test('clause 2: a reused checkout carries no file from the previous job [P7]', {
     assert.equal(readFileSync(join(field(receipts[1], 'CWD'), 'tracked.txt'), 'utf8'), 'original\n');
   });
 
-test('a fresh and a reused checkout both resolve the trunk\'s release tags, which pulled proofs unpack old releases from [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('drive.checkout.a-fresh-and-a-reused: a fresh and a reused checkout both resolve the trunk\'s release tags, which pulled proofs unpack old releases from [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { receipts, first } = await serveAll(t, ({ first, second }) => [{ id: 'j1', commit: second, run: job(false) }, { id: 'j2', commit: first, run: job(false) }]);
     assert.equal(receipts.length, 2, JSON.stringify(receipts));
     assert.deepEqual(receipts.map(receipt => field(receipt, 'RELEASE')), [first, first], receipts.map(receipt => receipt.tail).join('\n'));
   });
 
-test('#6681: a warm slot starts its command within 10 s of its claim at p90, and the receipt names where the time went [C7]', { timeout: 60_000 }, // budget: five local git checkouts and five node children.
+test('drive.checkout.c-6681-a-warm-slot-starts: #6681: a warm slot starts its command within 10 s of its claim at p90, and the receipt names where the time went [C7]', { timeout: 60_000 }, // budget: five local git checkouts and five node children.
   async t => {
     const { receipts } = await serveAll(t, ({ first, second }) => [first, second, first, second, first].map((commit, index) => ({ id: `j${index}`, commit, run: job(index === 0) })));
     assert.equal(receipts.length, 5, JSON.stringify(receipts));
@@ -124,7 +124,7 @@ test('#6681: a warm slot starts its command within 10 s of its claim at p90, and
     assert.equal(JSON.parse(field(receipts[4], 'STATUS')), '', 'a warm start is still exactly the commit\'s tree');
   });
 
-test('#6681: slots checking out one commit at once fetch it once and each reuse their own folder [C7]', { timeout: 60_000 }, // budget: four slots, each a git checkout and a node child.
+test('drive.checkout.c-6681-slots-checking-out-one: #6681: slots checking out one commit at once fetch it once and each reuse their own folder [C7]', { timeout: 60_000 }, // budget: four slots, each a git checkout and a node child.
   async t => {
     const { cache, trunk, first, second } = trunkRepo(t);
     const ids = [0, 1, 2, 3].map(index => ({ id: `s${index}`, commit: index % 2 ? first : second, run: job(true) }));
@@ -145,7 +145,7 @@ async function serveUnnamed(cache, trunk, jobs) {
   return board.receipts;
 }
 
-test('clause 1: after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('drive.checkout.after-a-runner-serve-restart: clause 1: after a runner serve restart, a job slot reuses the same checkout folder, keeping its warm files [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { cache, trunk, first, second } = trunkRepo(t);
     const before = await serveUnnamed(cache, trunk, [{ id: 'j1', commit: first, run: job(true) }]);
@@ -160,7 +160,7 @@ test('clause 1: after a runner serve restart, a job slot reuses the same checkou
     assert.deepEqual(slotLocks(cache), [], 'a finished serve gives its slot prefix back');
   });
 
-test('clause 2: a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
+test('drive.checkout.a-second-live-serve-on: clause 2: a second live serve on one host and cache takes its own slot folders, never the first serve\'s [P7]', { timeout: 60_000 }, // budget: as clause 1.
   async t => {
     const { cache, trunk, first } = trunkRepo(t);
     const folders = [];

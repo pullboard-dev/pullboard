@@ -31,7 +31,7 @@ function claimed(t, live, decide = decides) {
 /** The job row's step, owner and lease as stored. */
 const rowOf = (db, id) => db.prepare('SELECT job_step step, job_lease_owner owner, job_lease_until leaseUntil FROM job WHERE job_id = ?').get(id);
 
-test('clause 1: with moves.live.job on, a renew, a release and a receipt each write the job row the job table decides [C7,#8387]', t => {
+test('api.jobs-job-live.moves-live-job-renew-release: clause 1: with moves.live.job on, a renew, a release and a receipt each write the job row the job table decides [C7,#8387]', t => {
   const renewing = claimed(t, true);
   renewJob(renewing.db, { job: renewing.id, runner: 'r-holder', token: renewing.token, now: T0 + 1_000 });
   assert.equal(rowOf(renewing.db, renewing.id).leaseUntil, TABLE_LEASE, 'the renewed lease is the table\'s');
@@ -43,7 +43,7 @@ test('clause 1: with moves.live.job on, a renew, a release and a receipt each wr
   assert.deepEqual({ ...rowOf(posting.db, posting.id) }, { step: 'done', owner: null, leaseUntil: TABLE_LEASE });
 });
 
-test('clause 2: with moves.live.job on, a move the job table refuses is refused with the table\'s code and writes nothing [C7,#8387]', t => {
+test('api.jobs-job-live.moves-live-job-move-job: clause 2: with moves.live.job on, a move the job table refuses is refused with the table\'s code and writes nothing [C7,#8387]', t => {
   const { db, id, token } = claimed(t, true, () => ({ refused: { code: 'JOB_TABLE_REFUSED', message: 'the table says no', next: 'claim a new job' } }));
   const before = { ...rowOf(db, id) }, steps = db.prepare('SELECT COUNT(*) n FROM job_step').get().n;
   assert.throws(() => renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 }), { code: 'JOB_TABLE_REFUSED', next: 'claim a new job' });
@@ -51,13 +51,13 @@ test('clause 2: with moves.live.job on, a move the job table refuses is refused 
   assert.equal(db.prepare('SELECT COUNT(*) n FROM job_step').get().n, steps);
 });
 
-test('clause 2: a job table that throws never takes the runner\'s move down; the writer\'s own rules decide it [C7,#8387]', t => {
+test('api.jobs-job-live.job-table-throws-never-takes: clause 2: a job table that throws never takes the runner\'s move down; the writer\'s own rules decide it [C7,#8387]', t => {
   const { db, id, token } = claimed(t, true, () => { throw new Error('broken table'); });
   assert.equal(renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 }).renewed, true);
   assert.equal(rowOf(db, id).leaseUntil, T0 + 1_000 + 120_000);
 });
 
-test('clause 3: with moves.live.job off (the default) the writer\'s own rules decide, whatever the table says [C7,#8387]', t => {
+test('api.jobs-job-live.moves-live-job-off-default: clause 3: with moves.live.job off (the default) the writer\'s own rules decide, whatever the table says [C7,#8387]', t => {
   const { db, id, token } = claimed(t, undefined, () => { throw new Error('the table must not run'); });
   assert.equal(renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 }).renewed, true);
   assert.equal(rowOf(db, id).leaseUntil, T0 + 1_000 + 120_000);

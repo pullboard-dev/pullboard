@@ -1,4 +1,6 @@
+/** @pullboard-module-loads apps/cli/src/io/test/status-outcomes.js */
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../../../packages/kernel/light.js';
@@ -12,10 +14,12 @@ import { workTestRun } from '../../../../../packages/drive/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { testStatusOutcomesEnabled } from '../../../../../packages/config/index.js';
-import { statusOutcomes } from '../test/status-outcomes.js';
 import { context } from '../context.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+
+/** Loads the status-outcomes reader at the first status read that wants it, so no other command pays for it [C7,#10212]. */
+const requireModule = createRequire(import.meta.url);
 
 /** The CLI entry a queued run's worker runs: this build, named here so packages/drive never reaches into apps/. */
 const CLI_ENTRY = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
@@ -103,7 +107,7 @@ function sayTestRunStatus(io, ctx, id) {
   if (typeof id !== 'string' || !id.trim()) throw new Refused('USAGE', 'pass the run id: pullboard test --status <run id>');
   const found = withBoardRead(ctx, board => readTestRun(board, id.trim(), { runs: boardRunsHolder(board, ctx.file) }));
   // With test.statusOutcomes on, a finished run's document also carries each case's outcome, read from the frames the log's tail keeps [#9085].
-  io.result?.(testStatusOutcomesEnabled() && found.log && !['queued', 'running'].includes(found.status) ? { ...found, outcomes: statusOutcomes(found.log) } : found);
+  io.result?.(testStatusOutcomesEnabled() && found.log && !['queued', 'running'].includes(found.status) ? { ...found, outcomes: requireModule('../test/status-outcomes.js').statusOutcomes(found.log) } : found);
   if (found.status === 'queued' || found.status === 'running') io.say(`test run ${found.id} ${found.status}: ${found.files.join(' ') || '--affected'}; pullboard next brings the result`);
   else for (const line of testRunLines(found)) io.say(line);
   return ['red', 'lost', 'refused'].includes(found.status) ? 1 : 0;

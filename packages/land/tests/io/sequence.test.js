@@ -42,7 +42,7 @@ function handlers({ base, candidate }, over = {}) {
   return { steps, calls };
 }
 
-test('the finish steps are six, in order, and the next one is read from what the log holds [C7]', () => {
+test('land.sequence.six-steps-in-order: the finish steps are six, in order, and the next one is read from what the log holds [C7]', () => {
   assert.deepEqual(FINISH_STEPS, ['select', 'compose', 'prove', 'merge', 'record', 'publish']);
   assert.equal(Object.isFrozen(FINISH_STEPS), true);
   assert.equal(nextFinishStep({ steps: [] }), 'select');
@@ -53,7 +53,7 @@ test('the finish steps are six, in order, and the next one is read from what the
   assert.deepEqual(written, { select: { a: 1 }, merge: { commit: 'c' } }, 'the first payload of a step wins and foreign steps are ignored');
 });
 
-test('a landing runs all six steps in order, each handed what the earlier ones wrote, and ends done with its lease released [C7]', async t => {
+test('land.sequence.runs-all-steps: a landing runs all six steps in order, each handed what the earlier ones wrote, and ends done with its lease released [C7]', async t => {
   const land = landing(t);
   const { steps, calls } = handlers(land);
   const result = await finishSequence(land.db, 'land:1', { owner: 'driver-1', repo: land.repo, steps });
@@ -76,7 +76,7 @@ test('a landing runs all six steps in order, each handed what the earlier ones w
   assert.deepEqual(payload.publish, {}, 'a step that answers nothing writes an empty payload');
 });
 
-test('a finished landing runs nothing again, and a resumed one skips every step its log holds [C7]', async t => {
+test('land.sequence.finished-and-resumed: a finished landing runs nothing again, and a resumed one skips every step its log holds [C7]', async t => {
   const land = landing(t);
   const first = handlers(land, { record: () => { throw new Error('killed during record'); } });
   await assert.rejects(finishSequence(land.db, 'land:1', { owner: 'driver-1', repo: land.repo, steps: first.steps }), /killed during record/u);
@@ -94,7 +94,7 @@ test('a finished landing runs nothing again, and a resumed one skips every step 
   assert.deepEqual([again.done, again.ran, third.calls], [true, [], []]);
 });
 
-test('a green receipt at exactly the composition\'s trees is reused and prove does not run; any other receipt is not [C7]', async t => {
+test('land.sequence.reuses-exact-receipt: a green receipt at exactly the composition\'s trees is reused and prove does not run; any other receipt is not [C7]', async t => {
   const land = landing(t);
   const candidateTree = treeOf(land.repo, land.candidate);
   const baseTree = treeOf(land.repo, land.base);
@@ -113,7 +113,7 @@ test('a green receipt at exactly the composition\'s trees is reused and prove do
   assert.equal(proves, 1, 'a red receipt is not reused');
 });
 
-test('a red or infra proof stops the landing before merge, and a later run stays stopped [C7]', async t => {
+test('land.sequence.red-proof-stops: a red or infra proof stops the landing before merge, and a later run stays stopped [C7]', async t => {
   const land = landing(t);
   const red = handlers(land, { prove: () => ({ verdict: 'red', code: 'TEST_FAILURE' }) });
   const stopped = await finishSequence(land.db, 'land:1', { owner: 'd', repo: land.repo, steps: red.steps });
@@ -127,7 +127,7 @@ test('a red or infra proof stops the landing before merge, and a later run stays
   assert.deepEqual([still.done, still.code, still.ran, again.calls], [false, 'LAND_PROOF_NOT_GREEN', [], []]);
 });
 
-test('a landing whose live lease another driver holds is left alone, and it continues once the lease lapsed [C7]', async t => {
+test('land.sequence.live-lease-respected: a landing whose live lease another driver holds is left alone, and it continues once the lease lapsed [C7]', async t => {
   const land = landing(t);
   takeJob(land.db, 'land:1', 'driver-1', { now: 1000, leaseMs: 1000 });
   const blocked = handlers(land);
@@ -138,7 +138,7 @@ test('a landing whose live lease another driver holds is left alone, and it cont
   assert.equal(taken.done, true);
 });
 
-test('the sequence refuses a missing owner, repo, job or step handler, and a step that answers the wrong shape [C7]', async t => {
+test('land.sequence.refuses-bad-wiring: the sequence refuses a missing owner, repo, job or step handler, and a step that answers the wrong shape [C7]', async t => {
   const land = landing(t);
   const full = () => handlers(land).steps;
   await assert.rejects(finishSequence(land.db, 'land:1', { repo: land.repo, steps: full() }), refused('LAND_OWNER'));

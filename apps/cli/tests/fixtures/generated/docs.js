@@ -1,5 +1,6 @@
 /** Real isolated repository and child boundaries for documentation generation proofs [C7]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -9,27 +10,45 @@ import { cleanGitEnvironment } from '../../../../../packages/git/index.js';
 import { runFixtureChild } from '../child.js';
 import { runFixtureGit } from '../child.js';
 
-/** Copy the complete committed candidate, preserving module and data dependencies in actual Git. */
+/** The folder holding the committed candidate once the first case has built it. */
+let template = null;
+
+/** The cp flags that clone a tree where the file system can: BSD cp -c on macOS, GNU --reflink=auto elsewhere. */
+const CLONE = process.platform === 'darwin' ? ['-c', '-pR'] : ['--reflink=auto', '-a'];
+
+/** Copy the complete committed candidate, preserving module and data dependencies in actual Git. The first case builds it; a clone of it serves every later case, since archive, extract and the add of every file cost seconds a case [C7]. */
 export function docsRepository(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-generated-docs-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   delete env.NODE_TEST_CONTEXT;
+  /** Execute Git only inside this private fixture. */
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  /** Run a real candidate executable with the ordinary inherited Node options. */
+  const node = (...args) => runFixtureChild(process.execPath, args, { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+  if (template) {
+    const cloned = runFixtureChild('cp', [...CLONE, `${template}/.`, `${root}/`], { env });
+    assert.equal(cloned.status, 0, cloned.context);
+    return { root, env, git, node };
+  }
   const archiveFile = join(root, '.source.tar');
   const archive = runFixtureChild('git', ['archive', '--output', archiveFile, 'HEAD'], { cwd: join(import.meta.dirname, '../../../../..'), env });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', archiveFile, '-C', root], { env });
   assert.equal(extracted.status, 0, extracted.context);
   rmSync(archiveFile);
-  /** Execute Git only inside this private fixture. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  /** Run a real candidate executable with the ordinary inherited Node options. */
-  const node = (...args) => runFixtureChild(process.execPath, args, { cwd: root, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Generated documentation fixture');
   git('config', 'user.email', 'docs@example.invalid');
   git('config', 'core.hooksPath', '/dev/null');
   git('add', '.'); git('commit', '-qm', 'source fixture');
+  // The committed state is the template, taken before the case changes anything.
+  const copy = `${root}-template`;
+  mkdirSync(copy);
+  const saved = runFixtureChild('cp', [...CLONE, `${root}/.`, `${copy}/`], { env });
+  assert.equal(saved.status, 0, saved.context);
+  process.once('exit', () => rmSync(copy, { recursive: true, force: true }));
+  template = copy;
   return { root, env, git, node };
 }
 

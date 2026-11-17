@@ -88,7 +88,7 @@ test('clause 3: with census.rerunNonGreen off (the default), rows are exactly as
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(file => file === 'two.test.js', calls) });
   assert.equal(calls.length, 1, 'no file reruns');
   const rows = rowsOf(out);
-  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'file', 'host', 'secs', 'setupSecs', 'sha', 'shard', 'status']);
+  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'claimedAt', 'endedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
   assert.equal(rows['two.test.js'].status, 'red');
   const described = describeSetting('census.rerunNonGreen');
   assert.ok(described, 'census.rerunNonGreen has a description');

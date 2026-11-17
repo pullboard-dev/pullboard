@@ -6,6 +6,7 @@
  * as a callback, and the claim move is the cell that owns what a claim freezes.
  */
 import { createHash } from 'node:crypto';
+import { refuseEmptyBar } from '../../../config/index.js';
 import { loadDoctrine } from '../../../doctrine/index.js';
 import { agentDoctrine } from '../../../doctrine/index.js';
 import { foreignNodeOptions } from '../../../gate/index.js';
@@ -58,13 +59,15 @@ export function committedReader(root, commit) {
  * @param {{ captureVerifyPolicy?: boolean, board?: any, applyingDecisions?: any[] }} [options]
  * @returns {(item: any) => { text: string, digest: string }}
  */
-export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [] } = {}) {
+export function criterionFreezer({ root, isMain, config: checkoutConfig }, { captureVerifyPolicy = false, board, applyingDecisions = [], refuseEmpty = refuseEmptyBar() } = {}) {
   const cacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
   let doctrine;
   // agentDoctrine falls back to this checkout's own doctrine only when no main facts were read.
   const reader = { info: { root, isMain }, get doctrine() { return doctrine ??= loadDoctrine(root, checkoutConfig); } };
   /** Freeze the criterion; captureVerifyPolicy now only means a refreeze, which drops a legacy policy pin. */
   return (item) => {
+    // freeze.refuseEmptyBar: an empty bar can never be verified (a reviewer's clause check has nothing to read) [C7].
+    if (refuseEmpty && !String(item.item_criterion ?? '').trim()) throw new Refused('BAR_EMPTY', `item #${item.item_id} has an empty criterion, so it cannot be frozen`, 'ask the coordinator to give it numbered clauses with pullboard edit <id> --criterion "1. ... [test]" --reason "..."');
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
     const readsMain = board && !(isMain && !headCommit(root));
     let sourcePolicy = null;

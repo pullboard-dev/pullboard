@@ -13,7 +13,7 @@ import { rigorFixtureBoard } from '../../../gate/tests/fixtures/testkit.js';
 
 const fixture = () => rigorFixtureBoard(store, openKitBoard);
 
-test('a declined key is never drafted again under a new id, even for a new item [D1,H16]', () => {
+test('rigor.auto.declined-never-redrafted: a declined key is never drafted again under a new id, even for a new item [D1,H16]', () => {
   const box = fixture();
   try {
     for (const title of ['First', 'Second', 'Third']) box.reject(box.submit(title));
@@ -29,7 +29,7 @@ test('a declined key is never drafted again under a new id, even for a new item 
   } finally { box.close(); }
 });
 
-test('a coordinator bar-correction reopen is not counted as a refusal:REOPENED failure [D1,H16]', () => {
+test('rigor.auto.bar-correction-not-refusal: a coordinator bar-correction reopen is not counted as a refusal:REOPENED failure [D1,H16]', () => {
   const box = fixture();
   try {
     for (const title of ['First', 'Second', 'Third']) {

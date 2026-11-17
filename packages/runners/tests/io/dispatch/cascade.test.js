@@ -46,7 +46,7 @@ function observe(pool, host) {
   } finally { db.close(); }
 }
 
-test('clause 1: a cleanup-unverified job whose runner was already unavailable writes no second unavailable event and keeps the idle proof running [C7]', { timeout: 30_000 }, async t => {
+test('runners.cascade.a-cleanup-unverified-job-whose-runner: clause 1: a cleanup-unverified job whose runner was already unavailable writes no second unavailable event and keeps the idle proof running [C7]', { timeout: 30_000 }, async t => {
   const box = machine(t);
   const leases = [await takeResource(gateOptions(box)), await takeResource(gateOptions(box))];
   const onA = leases.filter(lease => lease.runner.host === 'fixture-a');
@@ -79,7 +79,7 @@ test('clause 1: a cleanup-unverified job whose runner was already unavailable wr
   } finally { for (const lease of [...replacements, ...leases.filter(lease => !onA.includes(lease))]) lease.release(); }
 });
 
-test('clause 1: the same cleanup on a runner that is not unavailable still quarantines it, and other cleanups still record [C7]', async t => {
+test('runners.cascade.the-same-cleanup-on-a-runner: clause 1: the same cleanup on a runner that is not unavailable still quarantines it, and other cleanups still record [C7]', async t => {
   const box = machine(t);
   (await takeResource(gateOptions(box))).release();
   const db = new DatabaseSync(box.pool);
@@ -93,7 +93,7 @@ test('clause 1: the same cleanup on a runner that is not unavailable still quara
   assert.equal(row.detail, 'CLEANUP_UNVERIFIED');
 });
 
-test('clause 2: a reproduction of one runner drop with eight waiting jobs writes one unavailable event after the fix, against nine before [C7]', { timeout: 30_000 }, async t => {
+test('runners.cascade.a-reproduction-of-one-runner-drop: clause 2: a reproduction of one runner drop with eight waiting jobs writes one unavailable event after the fix, against nine before [C7]', { timeout: 30_000 }, async t => {
   const box = machine(t);
   (await takeResource(gateOptions(box))).release();
   const jobs = 8;

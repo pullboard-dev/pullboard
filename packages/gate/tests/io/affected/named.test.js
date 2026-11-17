@@ -47,7 +47,7 @@ function repository(t) {
   return { root, base: run('rev-parse', 'HEAD').trim() };
 }
 
-test('clause 1: with gate.namedImportSelection on, a change behind a door selects the tests that take its names and the direct importers [C7,V4]', t => {
+test('gate.io-affected-named.with-gate-namedimportselection-on-a-change: clause 1: with gate.namedImportSelection on, a change behind a door selects the tests that take its names and the direct importers [C7,V4]', t => {
   const { root, base } = repository(t);
   const on = selectAffectedTests(root, { base, commit: base, changed: ['src/changed.js'], namedImports: true });
   assert.equal(on.full, false, on.reason);
@@ -60,7 +60,7 @@ test('clause 1: with gate.namedImportSelection on, a change behind a door select
   assert.equal(on.reasons['test/outer-changed.test.js'], 'src/changed.js -> src/door.js -> src/outer.js -> test/outer-changed.test.js');
 });
 
-test('clause 2: star, namespace, default, dynamic and bare imports of the door are still selected, and off selects as before [C7,V4]', t => {
+test('gate.io-affected-named.star-namespace-default-dynamic-and-bare: clause 2: star, namespace, default, dynamic and bare imports of the door are still selected, and off selects as before [C7,V4]', t => {
   const { root, base } = repository(t);
   const on = selectAffectedTests(root, { base, commit: base, changed: ['src/changed.js'], namedImports: true });
   for (const path of ['test/namespace.test.js', 'test/star.test.js', 'test/default.test.js', 'test/dynamic.test.js', 'test/bare.test.js']) {

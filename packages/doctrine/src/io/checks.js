@@ -394,6 +394,22 @@ function* measuredMain(root, mainCommit, command, timeoutMs, scope = undefined) 
 }
 
 /**
+ * The identity a RATCHET_ROSE refusal carries: a hash of this file's bytes and the rules with main's tree id.
+ * Pulled out so the refusal-trials ledger can be seeded with the same value without a probe submit.
+ *
+ * @param {string} root - Any checkout of the repository.
+ * @param {string} mainCommit - The accepted main the rules came from.
+ * @param {object[]} rules - The submit rules held against that main.
+ * @returns {string | null} Hex digest, or null when main's tree id cannot be read.
+ */
+export function ratchetMachineryRule(root, mainCommit, rules) {
+  const tree = gitOut(root, ['rev-parse', `${mainCommit}^{tree}`]);
+  if (!tree) return null;
+  return createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url)))
+    .update(JSON.stringify([rules, tree])).digest('hex');
+}
+
+/**
  * Hold the doctrine's counts for a submission. Rules, commands and modes come from accepted main;
  * the submitted commit may only lower a count. Each touched rule runs at the clean submitted
  * checkout; its total and each changed file's problems are compared with current main's measured problems, which run
@@ -488,9 +504,8 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
   }
   if (refusals.length) {
     const error = new Refused('RATCHET_ROSE', `${refusals.join('\n')}\nthe doctrine holds these counts; fix the new problems, commit, and submit again; only the person's signature raises count:`);
-    const tree = gitOut(root, ['rev-parse', `${mainCommit}^{tree}`]);
-    if (tree) error.machineryRule = createHash('sha256').update(readFileSync(fileURLToPath(import.meta.url)))
-      .update(JSON.stringify([rules, tree])).digest('hex');
+    const machineryRule = ratchetMachineryRule(root, mainCommit, rules);
+    if (machineryRule) error.machineryRule = machineryRule;
     throw error;
   }
   return results;

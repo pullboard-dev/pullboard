@@ -29,7 +29,7 @@ function focused(t, seed) {
   return { board, builder, seeded };
 }
 
-test('clause 1: with focus set and overflow off, next offers a Main red item placed in another milestone [N2,B26,C7]', t => {
+test('store.io-routing.with-focus-set-and-overflow-off: clause 1: with focus set and overflow off, next offers a Main red item placed in another milestone [N2,B26,C7]', t => {
   const { board, builder, seeded: red } = focused(t, board => {
     const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Main red: apps/cli/journeys/land/main.test.js', route: 'strong' });
     addMilestone(board, { agentId: 'coordinator', reason: 'Later release', name: '0.9.5', items: [id] });
@@ -38,13 +38,13 @@ test('clause 1: with focus set and overflow off, next offers a Main red item pla
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item?.item_id, red);
 });
 
-test('clause 1: with focus set and overflow off, next offers a Main red item in no milestone [N2,B26,C7]', t => {
+test('store.io-routing.with-focus-set-and-overflow-off-2: clause 1: with focus set and overflow off, next offers a Main red item in no milestone [N2,B26,C7]', t => {
   const { board, builder, seeded: red } = focused(t, board => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Main red: test/next.test.js', route: 'strong' }));
   assert.equal(roadmap(board).some(milestone => milestone.items.some(item => item.id === red)), false, 'the Main red item is in no milestone');
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item?.item_id, red);
 });
 
-test('clause 2: other items outside the focus milestone stay hidden when overflow is off [N2,B26,C7]', t => {
+test('store.io-routing.other-items-outside-the-focus-milestone: clause 2: other items outside the focus milestone stay hidden when overflow is off [N2,B26,C7]', t => {
   const { board, builder } = focused(t, board => {
     const later = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Later work' });
     addMilestone(board, { agentId: 'coordinator', reason: 'Later release', name: '0.9.5', items: [later] });

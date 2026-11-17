@@ -5,6 +5,7 @@ import {
   logEvent,
 } from "../../../io/board.js";
 import { COORDINATOR } from "../../../../../config/index.js";
+import { strictFullSuiteEnabled } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
@@ -25,7 +26,7 @@ import {
 const KEY = 'landing_lease';
 let provided = null;
 /**
- * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine, landingEngine, pulledEngine and runTable.
+ * Hand the store the move-table engines it runs: leaseEngine, releaseEngine, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine, landingEngine, pulledEngine, reclaimEngine and runTable.
  * Why injection: the moves cell already reads the store, so the store importing moves would close a cell cycle; the board composition root, which sees both, calls this once [C7].
  *
  * @param {{ leaseEngine: Function, releaseEngine: Function, withdrawEngine: Function, claimEngine: Function, submitEngine: Function, reopenEngine?: Function, verifyEngine?: Function, landingEngine?: Function, pulledEngine?: Function, runTable: Function }} engines
@@ -62,6 +63,11 @@ export function runVerifyTable(build, snapshot, move) {
   verifyBuilt ??= moveTables().verifyEngine(build());
   return moveTables().runTable(verifyBuilt.table, verifyBuilt.rules, snapshot, move);
 }
+/**
+ * Whether landing.strictFullSuite is on, read from the machine settings at the call.
+ * Why here: this file already holds the store's config edge for landing, so the merged writer reads the setting without a new cell import [M2,#9327].
+ */
+export function strictFullSuiteOn() { return strictFullSuiteEnabled(); }
 let mergedBuilt = null;
 /**
  * Run the landing merged table over a snapshot and move, built on first use over the landing's own limits, fault codes and repeat-hold prefix.
@@ -77,6 +83,14 @@ export function runMergedTable(snapshot, move) {
  */
 export function runPulledTable(snapshot, move) {
   const { table, rules } = moveTables().pulledEngine();
+  return moveTables().runTable(table, rules, snapshot, move);
+}
+/**
+ * Run the reclaim table over a snapshot and move, the table the board root hands over as reclaimEngine.
+ * Why here: this file is the store's one reader of the moves tables, so the maintenance writer reaches the table without a second cross-cell edge [C7,#9367].
+ */
+export function runReclaimTable(snapshot, move) {
+  const { table, rules } = moveTables().reclaimEngine();
   return moveTables().runTable(table, rules, snapshot, move);
 }
 let reopenBuilt = null;

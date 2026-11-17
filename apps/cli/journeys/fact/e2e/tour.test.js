@@ -4,7 +4,6 @@
  */
 import assert from 'node:assert/strict';
 import {
-  runFixtureChild as spawnSync,
   runFixtureChildAsync,
 } from '../../../tests/fixtures/child.js';
 import {
@@ -16,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import {
   after,
+  describe,
   test,
 } from 'node:test';
 
@@ -29,7 +29,9 @@ function sessionDigest(name, value) {
   return createHash('sha256').update(JSON.stringify([name, value])).digest('hex');
 }
 
-test('a second tour replaces the first demo and links nothing to the relay [N10]', { timeout: 300_000 }, () => {
+/** The two cases own separate sandboxes and homes, so they overlap their tours (about 60 s each) instead of adding them [C7,N10]. */
+describe('the scripted tour overlaps its cases [N10]', { concurrency: true }, () => {
+test('a second tour replaces the first demo and links nothing to the relay [N10]', { timeout: 300_000 }, async () => {
   // The machine's own list and relay state hold their own home, so a tour run here can only touch that home (#951).
   const box = sandbox();
   const home = join(box.dir, 'private-home');
@@ -46,7 +48,7 @@ test('a second tour replaces the first demo and links nothing to the relay [N10]
   delete tourEnv.PULLBOARD_MODEL;
   const repos = [];
   for (let run = 1; run <= 2; run += 1) {
-    const shown = spawnSync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: tourEnv, encoding: 'utf8' });
+    const shown = await runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: tourEnv, encoding: 'utf8' });
     assert.equal(shown.status, 0, `run ${run}: ${shown.stdout}${shown.stderr}`);
     repos.push(/Look around: cd (\S+) && pullboard log/u.exec(shown.stdout)[1]);
   }
@@ -80,4 +82,5 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
     assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
     assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
   }
+});
 });

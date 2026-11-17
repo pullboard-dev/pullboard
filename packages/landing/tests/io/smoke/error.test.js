@@ -21,7 +21,7 @@ function commitCli(repo) {
   return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, env, encoding: 'utf8' }).stdout.trim();
 }
 
-test('clause 1: a failed archive read names the failing tool and its error [C7]', t => {
+test('landing.error.a-failed-archive-read-names-the: clause 1: a failed archive read names the failing tool and its error [C7]', t => {
   const repo = temporaryRepository(t, 'pullboard-smoke-error-');
   const commit = commitCli(repo);
   const stubs = temporaryDirectory('pullboard-smoke-tar-');

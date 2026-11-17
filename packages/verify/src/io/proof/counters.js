@@ -12,7 +12,10 @@ import { moveFlowItem } from '../../../../stats/light.js';
 import { roleOf } from '../../../../stats/light.js';
 import { appendRuleProof } from '../rule/proof/append.js';
 import { deleteDerived } from './derived.js';
+import { derivedOn } from './derived.js';
+import { derivedTextRange } from './derived.js';
 import { derivedText } from './derived.js';
+import { derivedTextRows } from './derived.js';
 import { writeDerived } from './derived.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
@@ -141,9 +144,9 @@ export function proofCounter(board, key) {
   if (held) {
     let entry = held.get(key);
     if (!entry) {
-      const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
-      if (!row) return null;
-      entry = { text: row.meta_value, dirty: false }; held.set(key, entry);
+      const text = storedText(board, key);
+      if (text === null) return null;
+      entry = { text, dirty: false }; held.set(key, entry);
     }
     return decode(entry.text);
   }
@@ -158,8 +161,14 @@ export function derivedProofCounter(board, key) {
 
 /** Read and decode one stored record. */
 function readCounter(board, key) {
-  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
-  return row ? decode(row.meta_value) : null;
+  const text = storedText(board, key);
+  return text === null ? null : decode(text);
+}
+
+/** One counter's stored text, from the derived database when PULLBOARD_PROOF_DERIVED_DB is on and from board_meta otherwise; null when absent [C7]. */
+function storedText(board, key) {
+  if (derivedOn(board)) return derivedText(board, stored(key));
+  return statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key))?.meta_value ?? null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
@@ -181,10 +190,14 @@ function put(board, key, value) {
 /** Store one shard's encoded text now. */
 function storeText(board, key, text) { storeRows(board, [stored(key), text]); }
 
-/** Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row. */
+/**
+ * Store rows given as flat key, text pairs, many per statement: most of a replay's store time was the call into SQLite for each row.
+ * With PULLBOARD_PROOF_DERIVED_DB on the rows go to the derived database only and board_meta gets none [C7].
+ */
 function storeRows(board, pairs) {
   const rows = pairs.length / 2;
   writeDerived(board, pairs);
+  if (derivedOn(board)) return;
   for (let at = 0; at < rows; at += STORE_ROWS) {
     const count = Math.min(STORE_ROWS, rows - at);
     statement(board.db, storeSql(count)).run(...(rows <= STORE_ROWS ? pairs : pairs.slice(at * 2, (at + count) * 2)));
@@ -213,6 +226,7 @@ const keptShards = new Map();
 export function proofCounterRows(board, kind) {
   const file = APPEND_ONLY_KINDS.has(kind) && typeof board.db.location === 'function' ? board.db.location() : null;
   const prefix = stored(`${kind}:`);
+  if (derivedOn(board)) return derivedTextRows(board, prefix).map(decode);
   if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${prefix}*`)
     .map(row => decode(row.meta_value));
   const id = `${file}\0${kind}`;
@@ -235,8 +249,9 @@ export function proofCounterRows(board, kind) {
  * mixed-version writers replay all history in turn (#2288).
  */
 export function clearProofCounters(board) {
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ? AND meta_key NOT GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
   deleteDerived(board, `${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
+  if (derivedOn(board)) return;
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ? AND meta_key NOT GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`, `${PREFIX}report-*`);
 }
 
 /** Start a bounded all-time aggregate; window-specific contributions live in separate event shards. */
@@ -336,14 +351,19 @@ export function appendProofCounter(board, event) {
   // The capacity forecast is derived off the write lock (#2578): refreshCapacityOutsideWrite, from background maintenance.
 }
 
+/** The capacity samples stored between two dates, in key order, from the derived database when it is on and from board_meta otherwise [C7]. */
+function capacitySamples(board, from, to) {
+  const low = `${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`;
+  const high = `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`;
+  if (derivedOn(board)) return derivedTextRange(board, low, high).map(decode);
+  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key').all(low, high).map(row => decode(row.meta_value));
+}
+
 /** Refresh the derived forecast using bounded indexed sample dates, never native history. */
 function refreshCapacityCache(board, options) {
   options = { presence: board.runtimePorts?.verification?.withLocalSeatPresence, ...options };
   refreshCapacity(board, key => proofCounter(board, key), (key, value) => put(board, key, value),
-    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
-      'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
-      .all(`${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`, `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`)
-      .map(row => decode(row.meta_value)), options);
+    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : capacitySamples(board, from, to), options);
 }
 
 /**
@@ -356,10 +376,7 @@ export function refreshCapacityOutsideWrite(board, atomic, options) {
   const read = key => writes.has(key) ? writes.get(key) : proofCounter(board, key);
   options = { presence: board.runtimePorts?.verification?.withLocalSeatPresence, ...options };
   refreshCapacity(board, read, (key, value) => writes.set(key, value),
-    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : board.db.prepare(
-      'SELECT meta_value FROM board_meta WHERE meta_key>=? AND meta_key<? ORDER BY meta_key')
-      .all(`${PREFIX}capacity-sample:${new Date(from).toISOString().slice(0, 10)}`, `${PREFIX}capacity-sample:${new Date(to).toISOString().slice(0, 10)}`)
-      .map(row => decode(row.meta_value)), options);
+    (kind, from, to) => kind !== 'capacity-sample' ? proofCounterRows(board, kind) : capacitySamples(board, from, to), options);
   if (writes.size) atomic(board, () => { for (const [key, value] of writes) put(board, key, value); }, { reviewPolicy: false });
   return [...writes.keys()];
 }

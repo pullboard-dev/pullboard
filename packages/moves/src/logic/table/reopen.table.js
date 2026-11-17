@@ -18,7 +18,7 @@ const SPRINT_PACES = Object.freeze(['sprint']);
 /**
  * Build the reopen rules and table over the board's own cause check, handed in by the caller.
  * Why: moves may not reach into the store, and the cause forms must stay one source; the caller passes the store's `causeProblem`.
- * Snapshot: `{ actor: { id, joined }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted, supersedes, detail, computed }, withdrawal: { acceptEventId },
+ * Snapshot: `{ actor: { id, joined, granted? }, item: { id, status, commit, mergedCommit } | null, landing: { accepted, failure }, conflict: { accepted, supersedes, detail, computed }, withdrawal: { acceptEventId },
  * cause: { derived, overrides }, reservation }`, where landing, conflict and withdrawal are what git, the landing batches and the verdict lookup answered before the move ran,
  * `cause.derived` is the board's derived rigor cause (`overrides`: it wins over the conflict's own cause), and `reservation` is the first-refusal window the board offers.
  * The table decides which of them each outcome records: the cause on every return, the conflict detail on a conflict return, the reservation on a conflict, landing-failure or verdict-withdrawal return only.
@@ -37,7 +37,7 @@ export function reopenEngine(board) {
     joined: { says: 'the caller is a joined seat', holds: (s) => s.actor?.joined !== false },
     itemExists: { says: 'the item exists', holds: (s) => Boolean(s.item) },
     reopenable: { says: 'the item is submitted or verified', holds: (s) => board.states.includes(s.item?.status) },
-    authorised: { says: 'the coordinator reopens, or a verdict withdrawal is left to its reviewer', holds: (s, m) => m.actor === 'coordinator' || (m.withdrawVerdict === true && Boolean(s.withdrawal)) },
+    authorised: { says: 'the coordinator reopens, a verdict withdrawal is left to its reviewer, or the board granted the seat a reported conflict', holds: (s, m) => m.actor === 'coordinator' || s.actor?.granted === true || (m.withdrawVerdict === true && Boolean(s.withdrawal)) },
     noteGiven: { says: 'the reopen says why, unless it reports a merge conflict', holds: (s, m) => forMerge(m) || !blank(m.note) },
     causeWellFormed: { says: 'a named cause has a form the board knows', holds: (s, m) => board.causeProblem(m.cause) === null },
     notMerged: { says: 'the item was not merged', holds: (s) => !(s.item.status === 'verified' && s.item.mergedCommit) },

@@ -27,7 +27,7 @@ function holdRunnerSlot(host) {
   } finally { db.close(); }
 }
 
-test('clause 1: runner add with slots and browser at or above the current ones succeeds while the runner has active slots, and a decrease still refuses RUNNER_BUSY [C7,#3502]', () => {
+test('config.logic-settings-busy.clause-1-runner-add-with-slots-and: clause 1: runner add with slots and browser at or above the current ones succeeds while the runner has active slots, and a decrease still refuses RUNNER_BUSY [C7,#3502]', () => {
   const box = isolate();
   try {
     const base = { host: 'busy-runner.example.invalid', node: 'node', root: '/srv/busy', fixed: true };
@@ -46,7 +46,7 @@ test('clause 1: runner add with slots and browser at or above the current ones s
   } finally { box.restore(); }
 });
 
-test('clause 2: the pool grows gate and browser capacity on the next run while it has holders, and a decrease still refuses RESOURCE_CAPACITY_MISMATCH [C7,#3502]', async () => {
+test('config.logic-settings-busy.clause-2-the-pool-grows-gate-and-browser: clause 2: the pool grows gate and browser capacity on the next run while it has holders, and a decrease still refuses RESOURCE_CAPACITY_MISMATCH [C7,#3502]', async () => {
   const box = isolate();
   const held = [];
   /** Take one gate slot with the given gate and browser capacity. */

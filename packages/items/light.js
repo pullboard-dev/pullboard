@@ -10,9 +10,9 @@ export { itemPatchDigest, itemPatchRecords, itemPatches } from './src/io/patch/s
 export { outsideSource } from './src/logic/outside/source.js';
 export { itemPatchPaths } from './src/logic/paths.js';
 export { itemFiles, itemFileCollisions } from './src/logic/files.js';
-export { itemSummary, withListFields } from './src/logic/list.js';
+export { itemSummary, withListFields, filterByField, parseFieldFilter } from './src/logic/list.js';
 export { conflictCause, reopenCauseCorrection, reopenConflictEvidence } from './src/logic/reopen/cause.js';
-export { itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
+export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker } from './src/io/claim.js';
 export { projectItemDecisions } from './src/logic/decision/queue.js';
 export { caughtFrom } from './src/logic/caught.js';
 /** The file collisions and foreign blockers a status read prints, without the rest of the items cell [C7,#8646]. */

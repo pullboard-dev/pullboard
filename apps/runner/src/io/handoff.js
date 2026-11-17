@@ -63,10 +63,13 @@ async function cells(root, input, log, services) {
   for (const line of result?.warnings ?? []) log(`  ${line}`);
 }
 
-/** Composition: the candidate contains the pinned trunk and proves that same snapshot, when the item requires it. */
+/**
+ * Composition: the candidate contains the pinned trunk and proves that same snapshot, when the item requires it. The
+ * ticket's claim base rides along as the parent base, so a head already in main's history composes on its parent (#9445).
+ */
 async function composition(root, input, log, services) {
   if (!input.composition) return;
-  services.composition.requireSubmitComposition(root, input.composition, { commit: input.trunk ?? input.main }, input.main);
+  services.composition.requireSubmitComposition(root, input.composition, { commit: input.trunk ?? input.main }, input.main, input.base ?? null);
 }
 
 /** The runner's bounded-shell entry: every stage command runs under its process custody, never a bare /bin/sh [C7,E27]. */

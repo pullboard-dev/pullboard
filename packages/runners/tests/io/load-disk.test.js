@@ -13,7 +13,7 @@ import { sampleRunnerLoad } from '../../src/io/load.js';
 const DISKSTATS = '   8       0 sda 100 0 800 50 200 0 1600 90 0 40 140 0 0 0 0\n   8       1 sda1 1 0 8 1 1 0 8 1 0 999 2 0 0 0 0\n';
 const STAT = 'cpu  100 0 100 700 100 0 0 0 0 0\n';
 
-test('clause 1: with the setting on, sampleRunnerLoad returns disk busy % and I/O wait % beside load and cpus [C7,#9029]', () => {
+test('runners.load-disk.with-the-setting-on-samplerunnerload-returns: clause 1: with the setting on, sampleRunnerLoad returns disk busy % and I/O wait % beside load and cpus [C7,#9029]', () => {
   const reads = [{ busyMs: 1000, cpuTotal: 1000, cpuWait: 100 }, { busyMs: 1600, cpuTotal: 1400, cpuWait: 140 }];
   const clock = [10_000, 11_000];
   const read = () => reads.shift(), now = () => clock.shift();
@@ -26,7 +26,7 @@ test('clause 1: with the setting on, sampleRunnerLoad returns disk busy % and I/
   assert.equal(second.average.length, 3);
 });
 
-test('clause 1: macOS ioreg statistics and Linux /proc counters both parse to busy ms, and macOS has no iowait [C7,#9029]', () => {
+test('runners.load-disk.macos-ioreg-statistics-and-linux-proc: clause 1: macOS ioreg statistics and Linux /proc counters both parse to busy ms, and macOS has no iowait [C7,#9029]', () => {
   const mac = parseIoreg('x "Statistics" = {"Total Time (Read)"=2000000,"Total Time (Write)"=1000000,"Operations (Read)"=5}\n');
   assert.deepEqual(mac, { busyMs: 3, cpuTotal: null, cpuWait: null });
   assert.equal(parseIoreg('nothing here'), null);
@@ -46,7 +46,7 @@ function withSettings(settings, fn) {
   finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 2: with the setting off or unset, the sample is exactly the four load fields and no disk read happens [C7,#9029]', () => {
+test('runners.load-disk.with-the-setting-off-or-unset: clause 2: with the setting off or unset, the sample is exactly the four load fields and no disk read happens [C7,#9029]', () => {
   const read = () => assert.fail('a default sample must not read the disk');
   for (const settings of [{}, { gate: { sampleDiskIo: false } }]) {
     for (const options of [undefined, {}, { diskIo: false }, { read }]) {

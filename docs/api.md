@@ -235,6 +235,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `compact` | `version:number`, `days:number`, `jobs:number`, `rows:number`, `before:number`, `after:number` |
 | `contribute` | `version:number`, `file:string`, `shape:string`, `ok:boolean`, `failures:array` |
 | `explain` | `version:number`, `table:string`, `guards:array`, `outcomes:array` |
+| `field` | `version:number`, `field:object` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
@@ -324,6 +325,7 @@ The causes, each with its owner:
 | `ROUTE_UNSERVED` | open current work on a route that no active agent can take; `detail.items` names them | the coordinator, who starts an agent on the route |
 | `ITEM_UNTAKEABLE` | an open item that no active agent in its lane can take on its route | the coordinator |
 | `IDLE_AGENT` | an agent with no claim, review or event for 30 minutes while open work in its lane is one it could take | the agent itself |
+| `SEAT_NO_MODEL` | an active seat with no recorded model, or the model `unknown`; the finding's subject is the seat id | the coordinator |
 | `RANK_INVERSION` | a claim whose holder could take an earlier-ranked item that sits free; `detail.ahead` names it | the holder |
 
 An agent is active while it holds a claim or review, has submitted work still awaiting review, or had an event or shout in the last 30 minutes. Queue faults read the queue's own order, so `pullboard queue` and health agree.

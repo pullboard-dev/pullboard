@@ -13,6 +13,8 @@ import { gateRuns } from '../../../../../packages/flakes/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import { landWhy } from '../../../../../packages/landing/index.js';
 import { landWhyLines } from '../../../../../packages/landing/index.js';
+import { landOneByHand as landItemByHand } from '../../../../../packages/landing/index.js';
+import { heldTestDefects } from '../../../../../packages/landing/index.js';
 import { withBoardRead } from '../board/read.js';
 import { landingWaits } from '../landing/waiting.js';
 import { landingWaitLine } from '../landing/waiting.js';
@@ -20,6 +22,7 @@ import { context } from '../read.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   COORDINATOR,
+  loadMachineSettings,
 } from '../../../../../packages/config/index.js';
 import {
   requirePersonChannel,
@@ -57,6 +60,7 @@ export async function run(io, { first, second, rest, values }) {
     if (!rows.length) io.say('no recorded landing batches to replay');
     return 0;
   }
+  if (values.item !== undefined) return landOneByHand(ctx, board, me, values);
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   if (values.forced !== undefined) return offerForcedLanding(ctx, io, board, [first, second, ...rest], values);
   if (values.waive !== undefined) {
@@ -89,6 +93,28 @@ export async function run(io, { first, second, rest, values }) {
   if (!offered.offered) io.say('no verified items ready to land');
   return 0;
 });
+}
+
+/**
+ * `pullboard land --item <id> --reason "<why>"`: lands one accepted item by hand through the landing package (#9569, #9571), after the refusals that guard it.
+ * Off by default, because the board lands accepted items by itself once landing.byHand is not set.
+ */
+function landOneByHand(ctx, board, me, values) {
+  if (loadMachineSettings().landing?.byHand !== true) throw new Refused('BY_HAND_OFF', 'landing one item by hand is off: the board lands accepted items by itself', 'the person sets landing.byHand to true in the machine settings to land by hand; otherwise run pullboard next for other work');
+  if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands an item by hand', 'ask your coordinator to run pullboard land --item <id>');
+  const id = String(values.item);
+  if (!/^[1-9][0-9]*$/u.test(id)) throw new Refused('USAGE', `--item takes an item number, not "${id}"`, 'pullboard land --item <id>');
+  const item = store.getItem(board, Number(id));
+  if (!item || item.item_status !== 'verified' || item.item_merged_commit) throw new Refused('NOT_ACCEPTED', `#${id} is not an accepted item waiting to land${item ? ` (${item.item_status}${item.item_merged_commit ? ', already landed' : ''})` : ''}`, `wait for a reviewer to accept #${id}: pullboard show ${id}`);
+  const reason = String(values.reason ?? '').trim();
+  if (!reason) throw new Refused('HAND_REASON', 'landing by hand names why: pass a reason', `pullboard land --item ${id} --reason "<why>"`);
+  const trunk = mainCheckout(ctx.info.root);
+  // The hold is read on the checked-out trunk, as the automatic landing reads it; a waived defect still counts here, so the record names it.
+  const held = trunk ? heldTestDefects(ctx.info.root, board, { branch: trunk.branch, commit: trunk.commit }) : [];
+  const landed = landItemByHand(board, Number(id), { root: ctx.info.root, reason, held, agentId: me.id });
+  ctx.io.result?.(landed);
+  ctx.io.say?.(`#${id} landed by hand as ${landed.commit.slice(0, 12)}: ${landed.reason}; bypassed hold: ${landed.hold}`);
+  return 0;
 }
 
 /** The refusal when no runner can take a land job: no trunk remote of record and no local runner on this machine. */

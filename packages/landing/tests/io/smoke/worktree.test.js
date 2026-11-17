@@ -41,7 +41,7 @@ function commitBrokenCli(repo, message) {
   return spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, env: ENV, encoding: 'utf8' }).stdout.trim();
 }
 
-test('clause 1: a batch smoke runs in the existing worktree with no git archive and leaves its git status unchanged [C7]', { timeout: 180_000 }, () => {
+test('landing.worktree.a-batch-smoke-runs-in-the: clause 1: a batch smoke runs in the existing worktree with no git archive and leaves its git status unchanged [C7]', { timeout: 180_000 }, () => {
   const status = () => spawnSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).stdout;
   const before = status();
   const calls = [];
@@ -51,7 +51,7 @@ test('clause 1: a batch smoke runs in the existing worktree with no git archive 
   assert.equal(status(), before, 'the worktree git status is unchanged');
 });
 
-test('clause 2: a second smoke of a tree whose batch recorded a green receipt reuses it and runs none [C7]', t => {
+test('landing.worktree.a-second-smoke-of-a-tree: clause 2: a second smoke of a tree whose batch recorded a green receipt reuses it and runs none [C7]', t => {
   const repo = temporaryRepository(t, 'pullboard-smoke-receipt-');
   const first = commitBrokenCli(repo, 'one');
   assert.throws(() => runCommitCliSmoke(repo, first), error => error.code === 'LAND_CLI_SMOKE', 'with no receipt the broken CLI is smoked and refused');

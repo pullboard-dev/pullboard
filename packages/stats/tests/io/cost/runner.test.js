@@ -13,7 +13,7 @@ const RECEIPTS = [
   { id: 'd', kind: 'verdict', runner: 'big', durationMs: 99 * MINUTE },
 ];
 
-test('clause 1: an item cost is the sum of its check-run runner minutes times each runner cost per minute [C7]', () => {
+test('stats.runner.an-item-cost-is-the-sum: clause 1: an item cost is the sum of its check-run runner minutes times each runner cost per minute [C7]', () => {
   const { cost, perRunner } = itemRunnerCost(RECEIPTS, { big: BIG, small: SMALL });
   const expected = 12 * BIG + 5 * SMALL;
   assert.ok(Math.abs(cost - expected) < 1e-9, `${cost} vs ${expected}`);
@@ -21,7 +21,7 @@ test('clause 1: an item cost is the sum of its check-run runner minutes times ea
   assert.deepEqual(perRunner.map(row => [row.runner, row.minutes]), [['big', 12], ['small', 5]]);
 });
 
-test('clause 2: the runner cost is absent, never zero, when no rate card is set (no per-minute rate for any runner) [C7]', () => {
+test('stats.runner.the-runner-cost-is-absent-never: clause 2: the runner cost is absent, never zero, when no rate card is set (no per-minute rate for any runner) [C7]', () => {
   assert.equal(itemRunnerCost(RECEIPTS, undefined).cost, null);
   assert.equal(itemRunnerCost(RECEIPTS, {}).cost, null);
   assert.equal(itemRunnerCost(RECEIPTS, { elsewhere: BIG }).cost, null);

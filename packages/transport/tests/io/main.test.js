@@ -23,7 +23,7 @@ function children() {
     .filter(match => Number(match[2]) === process.pid && !/^ps\s/u.test(match[3])).map(match => ({ pid: Number(match[1]), command: match[3] }));
 }
 
-test('clause 1: the per-gate runner-controller is replaced by the shared channel; the Mac process table holds none during six concurrent gates [C7]', async () => {
+test('transport.main.the-per-gate-runner-controller-is: clause 1: the per-gate runner-controller is replaced by the shared channel; the Mac process table holds none during six concurrent gates [C7]', async () => {
   const files = privateFixtureFiles('pullboard-transport-10-');
   files.write('roots/a/.keep', '');
   files.write('roots/b/.keep', '');
@@ -77,7 +77,7 @@ function scriptedProbes(clock, answers) {
   };
 }
 
-test('clause 1: a lost channel requeues unfinished shards and keeps the runner; two failed probes 30 s apart quarantine [C7]', async () => {
+test('transport.main.a-lost-channel-requeues-unfinished-shards: clause 1: a lost channel requeues unfinished shards and keeps the runner; two failed probes 30 s apart quarantine [C7]', async () => {
   const files = privateFixtureFiles('pullboard-transport-11-');
   const requeued = [];
   const transport = createTransport({
@@ -132,7 +132,7 @@ test('clause 1: a lost channel requeues unfinished shards and keeps the runner; 
   assert.equal(probes.standing(runner).quarantined, false, 'failures 29.999 s apart do not quarantine');
 });
 
-test('clause 1: runner health is a lease any adapter renews by heartbeat; a lapsed lease is not a quarantine [C7]', async () => {
+test('transport.main.runner-health-is-a-lease-any: clause 1: runner health is a lease any adapter renews by heartbeat; a lapsed lease is not a quarantine [C7]', async () => {
   const clock = { now: 5_000_000 };
   const transport = createTransport({ adapter: scriptedProbes(clock, []), now: () => clock.now, leaseMs: 60_000 });
   const runner = { host: 'sandbox-1' };
@@ -156,7 +156,7 @@ function localTransport({ probeExit = 0 } = {}) {
   return { transport, opened, launched };
 }
 
-test('clause 1: connect(runner) returns a reused channel; two gates on one runner share it; probe is a separate call [C7]', async () => {
+test('transport.main.connect-runner-returns-a-reused-channel: clause 1: connect(runner) returns a reused channel; two gates on one runner share it; probe is a separate call [C7]', async () => {
   const { transport, opened, launched } = localTransport();
   try {
     const runner = { host: 'runner-a' };
@@ -188,7 +188,7 @@ test('clause 1: connect(runner) returns a reused channel; two gates on one runne
   } finally { transport.close(); }
 });
 
-test('clause 1: a failed probe leaves the shared channel serving its gates [C7]', async () => {
+test('transport.main.a-failed-probe-leaves-the-shared: clause 1: a failed probe leaves the shared channel serving its gates [C7]', async () => {
   const { transport } = localTransport({ probeExit: 255 });
   try {
     const runner = { host: 'runner-a' };
@@ -202,7 +202,7 @@ test('clause 1: a failed probe leaves the shared channel serving its gates [C7]'
   } finally { transport.close(); }
 });
 
-test('clause 1: the channel keeps arbitrary output, statuses and syntax errors to their own request [C7]', async () => {
+test('transport.main.the-channel-keeps-arbitrary-output-statuses: clause 1: the channel keeps arbitrary output, statuses and syntax errors to their own request [C7]', async () => {
   const { transport } = localTransport();
   try {
     const channel = transport.connect({ host: 'runner-a' });
@@ -218,7 +218,7 @@ test('clause 1: the channel keeps arbitrary output, statuses and syntax errors t
   } finally { transport.close(); }
 });
 
-test('clause 1: a lost channel is replaced on the next connect, and its pending request is refused [C7]', async () => {
+test('transport.main.a-lost-channel-is-replaced-on: clause 1: a lost channel is replaced on the next connect, and its pending request is refused [C7]', async () => {
   const { transport, opened } = localTransport();
   try {
     const runner = { host: 'runner-a' };
@@ -252,7 +252,7 @@ async function resultWritten(channel, root, job, shard) {
   assert.equal(reply.status, 0, `no result file at ${file}`);
 }
 
-test('clause 1: startShard writes job/shard files on the runner; fetchResult reads by digest; an invalid file is import.invalid and the shard resets [C7]', async () => {
+test('transport.main.startshard-writes-job-shard-files-on: clause 1: startShard writes job/shard files on the runner; fetchResult reads by digest; an invalid file is import.invalid and the shard resets [C7]', async () => {
   const files = privateFixtureFiles('pullboard-transport-9-');
   const transport = localTransportPart4();
   try {
@@ -288,7 +288,7 @@ test('clause 1: startShard writes job/shard files on the runner; fetchResult rea
   } finally { transport.close(); }
 });
 
-test('clause 1: a cut-short result file is import.invalid and resets its shard [C7]', async () => {
+test('transport.main.a-cut-short-result-file-is: clause 1: a cut-short result file is import.invalid and resets its shard [C7]', async () => {
   const files = privateFixtureFiles('pullboard-transport-9-');
   const transport = localTransportPart4();
   try {
@@ -311,7 +311,7 @@ test('clause 1: a cut-short result file is import.invalid and resets its shard [
   } finally { transport.close(); }
 });
 
-test('clause 1: a started shard is not started twice and its result outlives the channel that started it [C7]', async () => {
+test('transport.main.a-started-shard-is-not-started: clause 1: a started shard is not started twice and its result outlives the channel that started it [C7]', async () => {
   const files = privateFixtureFiles('pullboard-transport-9-');
   const transport = localTransportPart4();
   try {
@@ -336,7 +336,7 @@ test('clause 1: a started shard is not started twice and its result outlives the
   } finally { transport.close(); }
 });
 
-test('clause 1: shard ids are plain names, never paths [C7]', async () => {
+test('transport.main.shard-ids-are-plain-names-never: clause 1: shard ids are plain names, never paths [C7]', async () => {
   const transport = localTransportPart4();
   try {
     const channel = transport.connect({ host: 'runner-a' });
@@ -345,7 +345,7 @@ test('clause 1: shard ids are plain names, never paths [C7]', async () => {
   } finally { transport.close(); }
 });
 
-test('clause 1: startShard and fetchResult go through the runner adapter, so a non-SSH adapter plugs in the same way [C7]', async () => {
+test('transport.main.startshard-and-fetchresult-go-through-the: clause 1: startShard and fetchResult go through the runner adapter, so a non-SSH adapter plugs in the same way [C7]', async () => {
   const calls = [];
   const adapter = {
     kind: 'fake',

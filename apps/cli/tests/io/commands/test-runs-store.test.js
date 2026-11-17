@@ -41,6 +41,8 @@ function seatBox(flag) {
   if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
   // A seat at its own prompt: no machine variable, no outer CLI.
   for (const key of [...MACHINE_CONTEXT_ENV, 'PULLBOARD_TEST_RUNNER_PID']) delete box.env[key];
+  // The case cancels its own run, so the fixture must not wait for the queued run to settle (a board-held run kept the queue call for the whole 60 s sleep).
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   return box;
 }
 

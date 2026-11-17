@@ -1,3 +1,5 @@
+/** @pullboard-test-input test-tree */
+/** @pullboard-test-input packages/gate/data/tests/test-manifest.json packages/gate/data/tests/guards.json */
 /** The guard and budget tests the freeze deleted are restored, tagged harness and never planned for deletion [C7]. */
 /** @pullboard-world-pin: reads the committed test manifest and checks the restored guard files exist in the repository. */
 import assert from 'node:assert/strict';
@@ -10,7 +12,7 @@ const ROOT = new URL('../../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('packages/gate/data/tests/test-manifest.json', ROOT), 'utf8'));
 const GUARDS = JSON.parse(readFileSync(new URL('packages/gate/data/tests/guards.json', ROOT), 'utf8')).files;
 
-test('clause 2: the restored guard files are on disk, tagged harness, and a freeze plan never deletes them [C7]', () => {
+test('gate.freeze-guards.restored-guard-files-disk-tagged: clause 2: the restored guard files are on disk, tagged harness, and a freeze plan never deletes them [C7]', () => {
   const plan = planFreeze(manifest.files, { owner: () => null });
   for (const file of GUARDS) {
     const row = manifest.files.find(entry => entry.file === file);

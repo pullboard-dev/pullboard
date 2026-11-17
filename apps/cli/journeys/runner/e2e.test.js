@@ -43,7 +43,7 @@ async function addDiagnosedLight(box, ...args) {
   return added;
 }
 
-test('an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
+test('clause 1: an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
   const box = project();
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -68,12 +68,17 @@ test('an item carries a brief to whoever claims it; a light agent sees only its 
   assert.equal(added.code, 0, added.err);
   assert.match(added.out, /\nnext: pullboard next\n$/u);
   assert.equal(added.out.replace(/next: pullboard next\n$/u, '').trim(), `#2\ncheck baseline red at main ${box.git(box.repo, 'rev-parse', 'main')}: test -f web/page.js`);
-  assert.match((await box.runLocal(box.repo, 'list')).out, /#2 {2}open {2}web {2}Copy the header {2}light/);
+  const copied = JSON.parse((await box.runLocal(box.repo, 'list', '--json')).out).items.find(item => item.item_id === 2);
+  assert.equal(copied.item_status, 'open');
+  assert.equal(copied.item_lane, 'web');
+  assert.equal(copied.item_title, 'Copy the header');
+  assert.equal(copied.item_route, 'light');
   assert.doesNotMatch((await box.runLocal(box.repo, 'list', '--route', 'light')).out, /Design the page/);
   const made = (await box.runLocal(box.repo, 'worktree', 'web', '--route', 'light'));
   assert.match(made.out, /joined as web-2 \(fixture-model\) in the web lane, on the light route/);
   const light = made.out.match(/^made (\S+) /)[1];
-  assert.match((await box.runLocal(light, 'whoami')).out, /^web-2 \(fixture-model\) \(web lane, light route\)/);
+  const lightSeat = JSON.parse((await box.runLocal(light, 'whoami', '--json')).out);
+  assert.deepEqual([lightSeat.id, lightSeat.lane, lightSeat.route, lightSeat.model], ['web-2', 'web', 'light', 'fixture-model']);
   const next = (await box.runLocal(light, 'next'));
   assert.match(next.out, /claimed #2: Copy the header\nnext: build and commit in [^\n]+\nitem folder: [^\n]+; seat web-2; build, commit and submit there\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match((await box.runLocal(light, 'claim', '1')).err, /ROUTE/);

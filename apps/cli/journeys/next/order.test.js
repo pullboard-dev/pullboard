@@ -5,6 +5,7 @@ import {
   roadmap,
   addMilestone,
   editMilestoneItems,
+  orderMilestoneItems,
 } from '../../../../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../../../../packages/verify/index.js';
 import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
@@ -12,6 +13,7 @@ import { HOUR } from '../../tests/fixtures/next/order.js';
 import { MID_ITEM_DETAILS } from '../../tests/fixtures/next/order.js';
 import { FREEZE } from '../../tests/fixtures/next/order.js';
 import { boardFixture } from '../../tests/fixtures/next/order.js';
+import { coreItems } from '../../tests/fixtures/next/order.js';
 import { submitted } from '../../tests/fixtures/next/order.js';
 import { REVIEW_ROUTING_ENGINE } from '../../../../packages/state/light.js';
 import assert from 'node:assert/strict';
@@ -215,6 +217,27 @@ test('a builder gets the earliest milestone\'s open items first [B16]', async (t
   const resumed = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(resumed.item.item_id, sameMilestoneStrong, 'an existing held claim still resumes first');
   assert.notEqual(resumed.item.item_id, unlistedStrong);
+});
+
+test('a pinned eligible item is offered before an older unpinned one [B16,N2]', async (t) => {
+  const { board, builder } = boardFixture();
+  t.after(() => store.closeBoard(board));
+  const [older, pinned] = coreItems(board, [{ title: 'older unpinned work' }, { title: 'newer pinned work' }]);
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.4', items: [older, pinned] });
+  orderMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [pinned] });
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, pinned,
+    'the pinned item leads the milestone although an older item is also open');
+});
+
+test('a pinned item whose dependency is open is skipped [B16,N2]', async (t) => {
+  const { board, builder } = boardFixture();
+  t.after(() => store.closeBoard(board));
+  const [, pinned, free] = coreItems(board, [{ title: 'open prerequisite elsewhere' }, { title: 'pinned but waiting', after: [0] }, { title: 'unpinned ready work' }]);
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.4', items: [pinned, free] });
+  orderMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [pinned] });
+  const offered = store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id;
+  assert.notEqual(offered, pinned, 'a pinned item still waiting on an open dependency is not offered');
+  assert.equal(offered, free, 'the next eligible item in the milestone is offered instead');
 });
 
 test('recorded reserve-next moves retain their versioned ordering [B16,H16]', async (t) => {

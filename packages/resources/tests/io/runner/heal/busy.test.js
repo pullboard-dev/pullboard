@@ -24,7 +24,7 @@ function queueWith(holders) {
 const row = { host: HOST, since: '2026-11-06T01:16:00.000Z', detail: 'CLEANUP_UNVERIFIED' };
 const unhealthy = { healthy: false, step: 'idle proof', reason: 'runner resource lease is active' };
 
-test('a quarantined runner that other seats keep busy is left to the transport probe and its leak stop is skipped [C7]', async () => {
+test('resources.busy.a-quarantined-runner-that-other-seats: a quarantined runner that other seats keep busy is left to the transport probe and its leak stop is skipped [C7]', async () => {
   const { db, home } = queueWith([4242]);
   try {
     let idleProbes = 0;
@@ -37,7 +37,7 @@ test('a quarantined runner that other seats keep busy is left to the transport p
   } finally { db.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test('a quarantined runner that does not answer its leak probe, or answers with an error, stays quarantined [C7]', async () => {
+test('resources.busy.a-quarantined-runner-that-does-not: a quarantined runner that does not answer its leak probe, or answers with an error, stays quarantined [C7]', async () => {
   const { db, home } = queueWith([4242]);
   try {
     const refused = await healLeakedRunner(db, row, { host: HOST }, unhealthy,
@@ -49,7 +49,7 @@ test('a quarantined runner that does not answer its leak probe, or answers with 
   } finally { db.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
-test('a quarantined runner with no holders still proves idle and writable after its leaked job is stopped [C7]', async () => {
+test('resources.busy.a-quarantined-runner-with-no-holders: a quarantined runner with no holders still proves idle and writable after its leaked job is stopped [C7]', async () => {
   const { db, home } = queueWith([]);
   try {
     const idle = { healthy: true, idle: true, writable: true, step: 'idle proof', reason: 'no live runner process' };

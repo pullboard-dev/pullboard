@@ -9,7 +9,7 @@ import {
 } from '../entry.js';
 
 /** How many of the newest events a plain `pullboard log` prints; `--all` prints every one. */
-const PLAIN_LOG_EVENTS = 200;
+const PLAIN_LOG_EVENTS = 50;
 
 /** Run `pullboard log` and return its exit code. */
 export function run(io, { first, values = {} }) {

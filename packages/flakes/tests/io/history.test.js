@@ -27,21 +27,22 @@ function counting() {
   return parse;
 }
 
-test('a history warmed before the lock parses only the events since, inside it [C7]', () => {
+test('flakes.history.warm-parses-only-new-events: a history warmed before the lock parses only the events since, inside it [C7]', () => {
   const target = board();
-  for (let n = 0; n < 500; n += 1) run(target, `r${n}`);
+  const before = 500; // any history long enough that re-reading it all would be noticed
+  for (let n = 0; n < before; n += 1) run(target, `r${n}`);
   const parse = counting();
-  assert.equal(eventHistory(target, 'runs', ['gate-run'], parse).length, 500);
-  assert.equal(parse.calls, 500);
+  assert.equal(eventHistory(target, 'runs', ['gate-run'], parse).length, before);
+  assert.equal(parse.calls, before);
   target.db.exec('BEGIN IMMEDIATE');
   run(target, 'new');
   const inside = eventHistory(target, 'runs', ['gate-run'], parse);
   target.db.exec('COMMIT');
-  assert.equal(inside.length, 501);
-  assert.equal(parse.calls, 501, 'the lock reads one new event, not the 500 before it');
+  assert.equal(inside.length, before + 1);
+  assert.equal(parse.calls, before + 1, 'the lock reads one new event, not the whole history before it');
 });
 
-test('a run read inside a transaction that rolls back is never kept [C7]', () => {
+test('flakes.history.rolled-back-run-not-kept: a run read inside a transaction that rolls back is never kept [C7]', () => {
   const target = board();
   run(target, 'kept');
   assert.deepEqual(gateRuns(target).map(entry => entry.id), ['kept']);
@@ -53,17 +54,17 @@ test('a run read inside a transaction that rolls back is never kept [C7]', () =>
   assert.deepEqual(gateRuns(target).map(entry => entry.id), ['kept', 'later']);
 });
 
-test('a log that no longer matches the kept prefix is read again from the start [C7]', () => {
+test('flakes.history.mismatched-prefix-rereads: a log that no longer matches the kept prefix is read again from the start [C7]', () => {
   const target = board();
   for (const id of ['a', 'b', 'c']) run(target, id);
   const parse = counting();
   eventHistory(target, 'runs', ['gate-run'], parse);
   target.db.exec("DELETE FROM event WHERE event_id = 2");
   assert.deepEqual(eventHistory(target, 'runs', ['gate-run'], parse).map(entry => entry.id), [1, 3]);
-  assert.equal(parse.calls, 5, 'two events read again after the prefix changed');
+  assert.equal(parse.calls, 3 + 2, 'the first full read, then the two surviving events read again after the prefix changed');
 });
 
-test('shared runs are frozen, so one caller cannot change what the next reads [C7]', () => {
+test('flakes.history.shared-runs-frozen: shared runs are frozen, so one caller cannot change what the next reads [C7]', () => {
   const target = board();
   run(target, 'one', { failures: [{ file: 'a.test.js', name: 'x' }] });
   const [first] = gateRuns(target);
@@ -72,7 +73,7 @@ test('shared runs are frozen, so one caller cannot change what the next reads [C
   assert.equal(gateRuns(target)[0].tree, 't');
 });
 
-test('warming outside a transaction keeps the history; inside one it reads nothing early [C7]', () => {
+test('flakes.history.warm-inside-transaction-reads-nothing: warming outside a transaction keeps the history; inside one it reads nothing early [C7]', () => {
   const target = board();
   run(target, 'w');
   target.db.exec('BEGIN');

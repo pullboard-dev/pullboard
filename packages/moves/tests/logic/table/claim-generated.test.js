@@ -162,7 +162,7 @@ const BREAKS = [
     s.actorClaims.push(...Array.from({ length: 10 - k.live }, (_, i) => claim(120 + i, { parentId: 7 })));
     return { message: 'you already hold ten live claims; submit or release one before claiming another' };
   } },
-  ...['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY'].map(code => ({ row: `rows-in-force-${code.toLowerCase().replaceAll('_', '-')}`,
+  ...['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY', 'BAR_EMPTY'].map(code => ({ row: `rows-in-force-${code.toLowerCase().replaceAll('_', '-')}`,
     when: (s, k) => k.freezes, apply: (g, s) => { s.io.freeze = { refused: { code, message: 'frozen' } }; return { message: 'frozen' }; } })),
   { row: 'exit-key', apply: (g, s, m, k) => { m.exitRules = { ceiling: 0.8 }; m.exitClaimKey = !k.renewed && g.int(2) ? key('b') : g.pick(['nope', null, key('a').toUpperCase()]); } },
 ];
@@ -198,7 +198,7 @@ function expected({ s, m, k }) {
   via: [fresh ? 'claim' : 'renew', ...(named ? ['policy-refrozen-fact'] : []), ...(anchored ? ['exit-anchor'] : [])] };
 }
 
-test('moves.claim.rows-fire: generated: every guard, outcome and follow-up row of the claim table fires on some seeded case [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-rows-fire-generated-every-guard-outcome-and-follow-up: moves.claim.rows-fire: generated: every guard, outcome and follow-up row of the claim table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
@@ -206,12 +206,12 @@ test('moves.claim.rows-fire: generated: every guard, outcome and follow-up row o
   assert.ok(ok.length > CASES / 3, `only ${ok.length} unbroken claims`);
 });
 
-test('moves.claim.accepted-claims: generated: every unbroken claim is accepted, with the patch, events and follow-ups the restated rule gives [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-accepted-claims-generated-every-unbroken-claim-is-accepted: moves.claim.accepted-claims: generated: every unbroken claim is accepted, with the patch, events and follow-ups the restated rule gives [C7,#8264]', () => {
   assert.ok(Number.isSafeInteger(GRANT) && GRANT >= 1, `grant engine ${GRANT}`);
   for (const c of ok) assert.deepEqual(c.result, expected(c), `seed ${c.seed}`);
 });
 
-test('moves.claim.refusal-writes-nothing: generated: a refusal writes nothing and carries its row, code, message and the CLAIM_NEXT step for its code [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-refusal-writes-nothing-generated-a-refusal-writes-nothing-and: moves.claim.refusal-writes-nothing: generated: a refusal writes nothing and carries its row, code, message and the CLAIM_NEXT step for its code [C7,#8264]', () => {
   const own = new Set(['checkout-is-mine', 'no-coordinator-path', 'joined', 'in-lane', 'build-scope']);
   for (const c of results.filter(each => each.result.refused)) {
     const { refused } = c.result, row = TABLE.guards.find(each => each.id === refused.row);
@@ -223,7 +223,7 @@ test('moves.claim.refusal-writes-nothing: generated: a refusal writes nothing an
   }
 });
 
-test('moves.claim.deterministic: generated: the table is deterministic, reads its snapshot without changing it, and agrees with claimEngine at the same grant engine [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-deterministic-generated-the-table-is-deterministic-reads: moves.claim.deterministic: generated: the table is deterministic, reads its snapshot without changing it, and agrees with claimEngine at the same grant engine [C7,#8264]', () => {
   const same = claimEngine({ grantEngine: GRANT });
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.m);
@@ -233,7 +233,7 @@ test('moves.claim.deterministic: generated: the table is deterministic, reads it
   }
 });
 
-test('moves.claim.guard-breaks: metamorphic: break any one guard fact of an accepted claim and it refuses at that row with the words the command prints [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-guard-breaks-metamorphic-break-any-one-guard-fact: moves.claim.guard-breaks: metamorphic: break any one guard fact of an accepted claim and it refuses at that row with the words the command prints [C7,#8264]', () => {
   for (const c of ok.slice(0, 400)) {
     BREAKS.filter(b => !b.when || b.when(c.s, c.k)).forEach((b, i) => {
       const bad = broken(c, b, seeded(c.seed * 97 + i)), { refused } = run(bad.s, bad.m);
@@ -243,7 +243,7 @@ test('moves.claim.guard-breaks: metamorphic: break any one guard fact of an acce
   }
 });
 
-test('moves.claim.uncounted-facts: metamorphic: claims that do not count, settled waits, an untracked edit and a freeze refusal that is never read leave an accepted claim unchanged [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-uncounted-facts-metamorphic-claims-that-do-not-count: moves.claim.uncounted-facts: metamorphic: claims that do not count, settled waits, an untracked edit and a freeze refusal that is never read leave an accepted claim unchanged [C7,#8264]', () => {
   const irrelevant = [
     (s) => s.actorClaims.push(claim(ID), claim(84, { leaseUntil: at(0) }), claim(85, { awaitingGateOrReview: true })),
     (s) => { s.item.after.push(60, 62); s.claimWaiting.push(70, 71); },
@@ -260,7 +260,7 @@ test('moves.claim.uncounted-facts: metamorphic: claims that do not count, settle
   }
 });
 
-test('moves.claim.table-inputs: generated: claimEngine refuses CLAIM_TABLE_INPUTS without a whole grant engine of at least one [C7,#8264]', () => {
+test('moves.claim-generated.moves-claim-table-inputs-generated-claim-engine-refuses-claim-table-inputs-without-a: moves.claim.table-inputs: generated: claimEngine refuses CLAIM_TABLE_INPUTS without a whole grant engine of at least one [C7,#8264]', () => {
   for (const board of [undefined, {}, { grantEngine: 0 }, { grantEngine: -1 }, { grantEngine: 1.5 }, { grantEngine: '1' }, { grantEngine: Number.NaN }]) {
     assert.throws(() => claimEngine(board), { code: 'CLAIM_TABLE_INPUTS' }, JSON.stringify(board));
   }

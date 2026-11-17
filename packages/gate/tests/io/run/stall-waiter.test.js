@@ -8,7 +8,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 /** The most a waiter may take to notice a freed slot: far above the poll, far below any lease expiry. */
 const BOUND_MS = 3_000;
 
-test('clause 1: a waiter whose slot was freed without a wake-up takes it on its own re-check within a bounded interval [C7]', async t => {
+test('gate.io-run-stall-waiter.a-waiter-whose-slot-was-freed: clause 1: a waiter whose slot was freed without a wake-up takes it on its own re-check within a bounded interval [C7]', async t => {
   const home = privateFixtureFiles('pullboard-stall-waiter-').root;
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;

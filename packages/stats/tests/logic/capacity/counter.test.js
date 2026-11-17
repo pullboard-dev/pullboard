@@ -64,7 +64,7 @@ function successfulOutcome() {
   return box.samples('landingOutcome');
 }
 
-test('capacity observer measures each build attempt and one whole cycle through reject and reclaim [R1,R2]', () => {
+test('stats.counter.capacity-observer-measures-each-build-attempt: capacity observer measures each build attempt and one whole cycle through reject and reclaim [R1,R2]', () => {
   const box = observer();
   claimed(box);
   box.send('submit', 3, 1, submitted(A, 99));
@@ -93,7 +93,7 @@ test('capacity observer measures each build attempt and one whole cycle through 
   assert.deepEqual(box.samples('cycle').map(row => row.hours), [9], 'a later landing return cannot rewrite or duplicate the first acceptance cycle');
 });
 
-test('capacity review measurements require the matching submission and a live same-actor reservation [R1,R2]', () => {
+test('stats.counter.capacity-review-measurements-require-the-matching: capacity review measurements require the matching submission and a live same-actor reservation [R1,R2]', () => {
   for (const scenario of ['valid', 'wrong commit', 'wrong actor', 'expired', 'released']) {
     const box = observer();
     claimed(box);
@@ -107,7 +107,7 @@ test('capacity review measurements require the matching submission and a live sa
   }
 });
 
-test('capacity missing history stays unknown and an item fact preserves claim-expiry accounting [R1,R2]', () => {
+test('stats.counter.capacity-missing-history-stays-unknown-and: capacity missing history stays unknown and an item fact preserves claim-expiry accounting [R1,R2]', () => {
   const fragment = observer();
   fragment.send('submit', 2, 1, submitted(A, 100));
   fragment.send('accept', 4, 1, { commit: A }, 'reviewer');
@@ -126,7 +126,7 @@ test('capacity missing history stays unknown and an item fact preserves claim-ex
   assert.equal(box.samples('reworkGap').length, 1, 'the first claim did not manufacture a zero gap');
 });
 
-test('capacity terminal batches deduplicate trunk to landed and retain missing cycle boundaries [R1,R2]', () => {
+test('stats.counter.capacity-terminal-batches-deduplicate-trunk-to: capacity terminal batches deduplicate trunk to landed and retain missing cycle boundaries [R1,R2]', () => {
   const box = observer();
   const batch = { id: 'batch', startedAt: at(2), items: [{ id: 1 }, { id: 2 }] };
   box.send('landing_batch', 3, null, { batch: { ...batch, state: 'merging', updatedAt: at(3) } }, 'coordinator');
@@ -142,7 +142,7 @@ test('capacity terminal batches deduplicate trunk to landed and retain missing c
   assert.equal(planner.bounds.landingHours, 2, 'two accepted items use one measured two-member coordinator batch cycle');
 });
 
-test('capacity approval observations require ordered native authority and support prototype-like row IDs [R1,R2]', () => {
+test('stats.counter.capacity-approval-observations-require-ordered-native: capacity approval observations require ordered native authority and support prototype-like row IDs [R1,R2]', () => {
   const box = observer();
   box.send('spec_approval_baseline', 0, null, { rows: [{ id: 'untrusted' }] }, 'builder');
   assert.equal(box.read('capacity-approvals'), null);
@@ -160,7 +160,7 @@ test('capacity approval observations require ordered native authority and suppor
   assert.equal(Object.hasOwn(Object.prototype, 'G1'), false);
 });
 
-test('capacity cursor replay is idempotent and irrelevant null-item shouts touch no item or policy map [R1,R2]', () => {
+test('stats.counter.capacity-cursor-replay-is-idempotent-and: capacity cursor replay is idempotent and irrelevant null-item shouts touch no item or policy map [R1,R2]', () => {
   const box = observer();
   claimed(box);
   const event = box.send('submit', 2, 1, submitted(A, 100));
@@ -177,7 +177,7 @@ test('capacity cursor replay is idempotent and irrelevant null-item shouts touch
 
 
 // Completed outcome authority is distinct from gate timing and duplicate receipts.
-test('landing outcomes match accepted source episodes and deduplicate returns and merge receipts [R1,R2]', () => {
+test('stats.counter.landing-outcomes-match-accepted-source-episodes: landing outcomes match accepted source episodes and deduplicate returns and merge receipts [R1,R2]', () => {
   const box = observer();
   claimed(box);
   box.send('submit', 2, 1, submitted(A, 100));
@@ -202,7 +202,7 @@ test('landing outcomes match accepted source episodes and deduplicate returns an
 });
 
 
-test('unclassified accepted exits are right-censored: kept as unknown coverage and dropped from the rate [R1,R2]', () => {
+test('stats.counter.unclassified-accepted-exits-are-right-censored: unclassified accepted exits are right-censored: kept as unknown coverage and dropped from the rate [R1,R2]', () => {
   for (const kind of ['reopen', 'refreeze', 'escalate', 'withdraw']) {
     const box = observer();
     claimed(box);

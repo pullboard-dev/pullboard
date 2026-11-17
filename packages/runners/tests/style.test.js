@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { copyPackageFiles } from '../index.js';
 
-test('the repository static style command enforces its source rules [C7]', () => {
+test('runners.style.the-repository-static-style-command-enforces: the repository static style command enforces its source rules [C7]', () => {
   const before = performance.now();
   const child = runFixtureChild(process.execPath,
     ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', 'apps/cli/src/io/static/checks.js'],
@@ -23,7 +23,7 @@ test('the repository static style command enforces its source rules [C7]', () =>
   assert.equal(child.status, 0, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
 });
 
-test('the static checks read every source file for one import binding per line [C7]', t => {
+test('runners.style.the-static-checks-read-every-source: the static checks read every source file for one import binding per line [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = resolve(import.meta.dirname, '../../..');

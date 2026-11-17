@@ -27,6 +27,11 @@ function linkedBoards() {
   });
 }
 
+/** The engine integer a relay document records for one device or machine, or null when it records none. */
+function recordedEngine(entry) {
+  return Number.isSafeInteger(entry?.engine) && entry.engine > 0 ? entry.engine : null;
+}
+
 /** List the other computers that joined one linked board, by host name when the relay recorded it. */
 export async function joinedComputers(state) {
   const document = await rosterRead(state, '/auth/machines?board=' + state.board);
@@ -36,6 +41,7 @@ export async function joinedComputers(state) {
     name: typeof entry.name === 'string' ? computerName(entry.name) : null,
     created: Number.isSafeInteger(entry.created) ? entry.created : null,
     seen: Number.isSafeInteger(entry.seen) ? entry.seen : null,
+    engine: recordedEngine(entry),
   }));
 }
 
@@ -49,7 +55,7 @@ export async function boardPhones(state) {
   const document = await rosterRead(state, '/api/v1/devices');
   if (!Array.isArray(document?.devices)) return [];
   return document.devices.filter(entry => DEVICE.test(entry?.deviceId ?? '')).map(entry => ({
-    deviceId: entry.deviceId, seen: Number.isSafeInteger(entry.seen) ? entry.seen : null, revoked: entry.revoked === true,
+    deviceId: entry.deviceId, seen: Number.isSafeInteger(entry.seen) ? entry.seen : null, revoked: entry.revoked === true, engine: recordedEngine(entry),
   }));
 }
 

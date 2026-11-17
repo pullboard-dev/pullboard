@@ -39,7 +39,7 @@ function select(t, dependencyStatus) {
   return candidates(board, root, base, 8, { listItems: () => listed });
 }
 
-test('clause 1: an accepted item whose dependency is withdrawn is selected; an open dependency still blocks WAITS_ON_ITEM [C7]', t => {
+test('landing.dependency.an-accepted-item-whose-dependency-is: clause 1: an accepted item whose dependency is withdrawn is selected; an open dependency still blocks WAITS_ON_ITEM [C7]', t => {
   const withdrawn = select(t, 'withdrawn');
   assert.ok(!withdrawn.blocked.some(entry => entry.code === 'WAITS_ON_ITEM'), JSON.stringify(withdrawn.blocked));
   assert.deepEqual(withdrawn.ready.map(item => item.item_id), [2]);

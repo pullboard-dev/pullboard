@@ -18,7 +18,7 @@ function drive(board, runs) {
   endGateDriveUnstarted(board.db, 'gate:2:b', { owner: 'driver-2', code: 'X', message: 'no start', now: 3000, ...options });
 }
 
-test('clause 1: with a runs handle given (runs_store on), the gate drive writes its job rows only to the runs file [P7,C7,#9082]', t => {
+test('drive.gate-runs.with-a-runs-handle-given: clause 1: with a runs handle given (runs_store on), the gate drive writes its job rows only to the runs file [P7,C7,#9082]', t => {
   const board = fixtureBoard(t);
   // A second database with the same job tables stands in for the runs file, held the way boardRunsHolder holds it.
   const runs = { db: fixtureBoard(t).db };
@@ -30,7 +30,7 @@ test('clause 1: with a runs handle given (runs_store on), the gate drive writes 
   assert.equal(readGateDrive(board.db, 'gate:1:a'), null, 'and not from the board');
 });
 
-test('clause 2: with no runs handle (runs_store off), the gate drive writes the same board job rows as on main [P7,C7,#9082]', t => {
+test('drive.gate-runs.with-no-runs-handle-runs: clause 2: with no runs handle (runs_store off), the gate drive writes the same board job rows as on main [P7,C7,#9082]', t => {
   const board = fixtureBoard(t);
   drive(board, undefined);
   const none = fixtureBoard(t);

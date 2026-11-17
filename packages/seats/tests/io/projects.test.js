@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell seats */
 /** Disposable boards do not enter the person's project inventory [I8,N26,N35]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -32,7 +33,7 @@ function environment(t, values) {
   });
 }
 
-test('temporary roots and symlinked previews stay out of the person inventory [I8,N26,N35]', t => {
+test('seats.projects.temp-roots-excluded: temporary roots and symlinked previews stay out of the person inventory [I8,N26,N35]', t => {
   const box = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-project-exclusion-')));
   t.after(() => rmSync(box, { recursive: true, force: true }));
   const repo = join(box, 'preview');
@@ -50,7 +51,7 @@ test('temporary roots and symlinked previews stay out of the person inventory [I
   }
 });
 
-test('agent scratch and explicit transient previews are excluded without hiding ordinary agent projects [I8,N26]', t => {
+test('seats.projects.agent-scratch-excluded: agent scratch and explicit transient previews are excluded without hiding ordinary agent projects [I8,N26]', t => {
   environment(t, { HOME: resolve('/', 'person-home') });
   const home = homedir();
   for (const root of [join(home, '.claude', 'projects', 'session', 'scratchpad', 'board'),
@@ -61,7 +62,7 @@ test('agent scratch and explicit transient previews are excluded without hiding 
   assert.equal(projectRegistrationAllowed(durable, { NODE_TEST_CONTEXT: 'child-v8' }), false);
 });
 
-test('a normal repository remains listed and a custom registry does not admit temporary boards [I8,N26]', t => {
+test('seats.projects.normal-repo-listed: a normal repository remains listed and a custom registry does not admit temporary boards [I8,N26]', t => {
   const box = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-project-registry-')));
   const repo = mkdtempSync(join(process.cwd(), '.project-test-'));
   t.after(() => { rmSync(box, { recursive: true, force: true }); rmSync(repo, { recursive: true, force: true }); });

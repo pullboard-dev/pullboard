@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/items */
 /** Private-index patch composition preserves candidate and working-copy isolation [H16,V1]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -42,7 +43,7 @@ function fixture(t) {
   return { root, commit, record };
 }
 
-test('item patches compose immutable retry-identical commits without touching the live index [H16,V1]', t => {
+test('items.patch.compose-immutable: item patches compose immutable retry-identical commits without touching the live index [H16,V1]', t => {
   const { root, commit, record } = fixture(t);
   const index = readFileSync(join(root, '.git', 'index'));
   const before = command(root, 'status', '--porcelain=v1');
@@ -65,7 +66,7 @@ test('item patches compose immutable retry-identical commits without touching th
     { checked: 1, problem: null }, 'the real contribution checker accepts the exact composed range');
 });
 
-test('item patch tampering, stale binding, conflicts and unsafe paths fail closed [H16,V1]', t => {
+test('items.patch.fail-closed: item patch tampering, stale binding, conflicts and unsafe paths fail closed [H16,V1]', t => {
   const { root, commit, record } = fixture(t);
   const item = { item_commit: commit };
   const index = readFileSync(join(root, '.git', 'index'));
@@ -93,7 +94,7 @@ test('item patch tampering, stale binding, conflicts and unsafe paths fail close
   assert.equal(command(root, 'status', '--porcelain=v1'), status);
 });
 
-test('a clean retry composition preserves original patch binding and current trunk parent [H16,V1]', t => {
+test('items.patch.retry-keeps-binding: a clean retry composition preserves original patch binding and current trunk parent [H16,V1]', t => {
   const { root, commit, record } = fixture(t);
   command(root, 'commit', '-qm', 'Unrelated clean retry composition');
   const baseCommit = command(root, 'rev-parse', 'HEAD').trim();

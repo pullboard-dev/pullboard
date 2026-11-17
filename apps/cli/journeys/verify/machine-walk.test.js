@@ -208,6 +208,26 @@ function injectedCallees(file, body, load) {
 const tableDataCodes = (file, source) => /\/packages\/moves\/src\/logic\/table\/[\w-]+\.table\.js$/u.test(file)
   ? [...source.matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)].map(([, code]) => code) : [];
 
+const FACTS_BY_SOURCE = new Map();
+/** Local facts (raised codes and callees) of each parsed source, kept apart for caught and uncaught walks so each mode scans its own bodies first. */
+const LOCAL_FACTS = { true: new WeakMap(), false: new WeakMap() };
+/**
+ * The parsed facts of one file's source, shared by every walk in this file. Why: the broken-copy
+ * cases each start a fresh walk over nearly the same tree, and parsing every file again for each
+ * was most of this file's time. The key is the exact source text and its path, so a rewritten file
+ * is parsed on its own and no walk ever sees another's edit; the facts are only read, never changed.
+ *
+ * @param {string} source
+ * @param {string} sourceFile
+ * @returns {ReturnType<typeof sourceFacts>}
+ */
+function factsOf(source, sourceFile) {
+  const key = `${sourceFile}\u0000${source}`;
+  let facts = FACTS_BY_SOURCE.get(key);
+  if (!facts) FACTS_BY_SOURCE.set(key, facts = sourceFacts(source, sourceFile));
+  return facts;
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -222,7 +242,7 @@ function codeWalk(read, { caught = false } = {}) {
   const load = (file) => {
     if (!files.has(file)) {
       const { sourceFile, source } = machineSourceModule(file, read);
-      files.set(file, sourceFacts(source, sourceFile));
+      files.set(file, factsOf(source, sourceFile));
     }
     return files.get(file);
   };
@@ -230,7 +250,8 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || [...skip].some(entry => entry === key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces, source, stars } = load(file);
+    const parsed = load(file);
+    const { bodies, named, spaces, source, stars } = parsed;
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
     // An export bound to an on-demand loader is the function it loads.
@@ -243,7 +264,10 @@ function codeWalk(read, { caught = false } = {}) {
       return codes;
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
-    let facts = localFacts.get(key);
+    // The same source parsed once yields the same local facts in any walk of the same mode, except for the one file that reads another file's injection.
+    const shared = file !== INJECTED_TABLES.file;
+    const kept = shared ? LOCAL_FACTS[caught].get(parsed) : undefined;
+    let facts = localFacts.get(key) ?? kept?.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
@@ -255,6 +279,10 @@ function codeWalk(read, { caught = false } = {}) {
       callees.push(...runnerControllerCallees(file, body, source), ...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
       facts = { codes, callees };
       localFacts.set(key, facts);
+      if (shared) {
+        if (!LOCAL_FACTS[caught].has(parsed)) LOCAL_FACTS[caught].set(parsed, new Map());
+        LOCAL_FACTS[caught].get(parsed).set(key, facts);
+      }
     }
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
@@ -431,6 +459,8 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
     'AGENT_APPROVAL_REQUIRED is raised by refreeze but not declared there',
     'BAD_CONFIG is raised by claim but not declared there',
     'BAD_CONFIG is raised by refreeze but not declared there',
+    'BAR_EMPTY is raised by claim but not declared there',
+    'BAR_EMPTY is raised by refreeze but not declared there',
     'NO_POLICY is raised by claim but not declared there',
     'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
@@ -578,7 +608,7 @@ test('Rigor historical data boundaries do not hide a new projection refusal [M1,
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
-test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
+test('clause 2: a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
 });
 

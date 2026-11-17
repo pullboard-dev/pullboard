@@ -43,7 +43,7 @@ async function startRun(marker, { orphan }) {
   return { pid, gone: once(child.stdout, 'close') };
 }
 
-test('clause 1: a test run whose launching process is gone is stopped and recorded with its pid, command and reason [C7]', async () => {
+test('resources.stale-test-sweep.a-test-run-whose-launching-process: clause 1: a test run whose launching process is gone is stopped and recorded with its pid, command and reason [C7]', async () => {
   const marker = `orphan-${randomUUID()}`;
   const { pid, gone } = await startRun(marker, { orphan: true });
   assert.equal((await readProcesses()).find(row => row.pid === pid)?.ppid, 1, 'the run is an orphan');
@@ -62,7 +62,7 @@ test('clause 1: a test run whose launching process is gone is stopped and record
   } finally { try { process.kill(pid, 'SIGKILL'); } catch { /* Already stopped by the sweep. */ } }
 });
 
-test('clause 1: a test run past its file budget plus margin is stopped and recorded [C7]', async () => {
+test('resources.stale-test-sweep.a-test-run-past-its-file: clause 1: a test run past its file budget plus margin is stopped and recorded [C7]', async () => {
   const marker = `late-${randomUUID()}`;
   const { pid, gone } = await startRun(marker, { orphan: false });
   const db = eventDb();
@@ -75,7 +75,7 @@ test('clause 1: a test run past its file budget plus margin is stopped and recor
   } finally { try { process.kill(pid, 'SIGKILL'); } catch { /* Already stopped by the sweep. */ } }
 });
 
-test('clause 2: a test run whose owner is alive and within budget is never stopped [C7]', async () => {
+test('resources.stale-test-sweep.a-test-run-whose-owner-is: clause 2: a test run whose owner is alive and within budget is never stopped [C7]', async () => {
   const marker = `live-${randomUUID()}`;
   const { pid, gone } = await startRun(marker, { orphan: false });
   const db = eventDb();
@@ -87,28 +87,28 @@ test('clause 2: a test run whose owner is alive and within budget is never stopp
   } finally { process.kill(pid, 'SIGKILL'); }
 });
 
-test('clause 2: this process and its ancestors are never stopped, whatever their command line [C7]', () => {
+test('resources.stale-test-sweep.this-process-and-its-ancestors-are: clause 2: this process and its ancestors are never stopped, whatever their command line [C7]', () => {
   const processes = [{ pid: 10, ppid: 1, ageMs: 9e9, command: 'node bin/pullboard.js test a.test.js' }, { pid: 11, ppid: 10, ageMs: 9e9, command: 'node bin/run-tests.js' }];
   const stopped = [];
   assert.deepEqual(sweepStaleTests({ processes, own: 11, stop: pid => stopped.push(pid) }), []);
   assert.deepEqual(stopped, []);
 });
 
-test('ps elapsed times parse in every layout [C7]', () => {
+test('resources.stale-test-sweep.ps-elapsed-times-parse-in-every: ps elapsed times parse in every layout [C7]', () => {
   assert.equal(elapsedMs('05:07'), 307_000);
   assert.equal(elapsedMs('02:05:07'), 7_507_000);
   assert.equal(elapsedMs('1-02:05:07'), 93_907_000);
   assert.ok(Number.isNaN(elapsedMs('junk')));
 });
 
-test('clause 2: a process inside a test run never sweeps the machine, and a runner job is not an orphan [C7]', () => {
+test('resources.stale-test-sweep.a-process-inside-a-test-run: clause 2: a process inside a test run never sweeps the machine, and a runner job is not an orphan [C7]', () => {
   assert.equal(sweepAllowed({}), true);
   for (const name of ['PULLBOARD_TEST_RUNNER_PID', 'PULLBOARD_TEST_SANDBOX', 'NODE_TEST_CONTEXT']) assert.equal(sweepAllowed({ [name]: '1' }), false, name);
   const job = { pid: 20, ppid: 1, ageMs: 1000, command: 'node /Users/person/.pullboard-runner/jobs/abc/checkout/bin/run-tests.js a.test.js' };
   assert.deepEqual(sweepStaleTests({ processes: [job], own: 99, stop: () => assert.fail('a runner job is not stopped') }), []);
 });
 
-test('#7137 clause 1: a detached pullboard test --test-run driver with parent launchd/init is never stopped [C7]', () => {
+test('resources.stale-test-sweep.n7137-clause-1-a-detached-pullboard: #7137 clause 1: a detached pullboard test --test-run driver with parent launchd/init is never stopped [C7]', () => {
   const driver = { pid: 30, ppid: 1, ageMs: 120_000,
     command: '/Users/person/.nvm/versions/node/v22.22.2/bin/node /Users/person/repo/apps/cli/pullboard.js test --test-run 5aa66d18-0f5e-47ae-8361-f7385076e222 a.test.js' };
   const signalled = [];
@@ -119,7 +119,7 @@ test('#7137 clause 1: a detached pullboard test --test-run driver with parent la
   assert.deepEqual(sweepStaleTests({ processes: [plain], own: 99, stop: () => {} }).map(row => row.pid), [31]);
 });
 
-test('#7137 clause 2: a shell whose command line only mentions a test command is never stopped; only node processes are [C7]', () => {
+test('resources.stale-test-sweep.n7137-clause-2-a-shell-whose: #7137 clause 2: a shell whose command line only mentions a test command is never stopped; only node processes are [C7]', () => {
   const shells = [
     { pid: 40, ppid: 1, ageMs: 9e9, command: '/bin/zsh -c source snapshot.sh && cd repo && node --test test/a.test.js' },
     { pid: 41, ppid: 1, ageMs: 9e9, command: 'zsh -c pkill -f "node --test test/relay-sealed.test.js"' },

@@ -26,7 +26,7 @@ function queueWithEmptyLock(t, ageMs) {
   return { file, dir };
 }
 
-test('clause 1: an empty writer.lock older than the stale window is taken over and the queued writes apply [C7]', t => {
+test('resources.empty-lock.an-empty-writer-lock-older-than: clause 1: an empty writer.lock older than the stale window is taken over and the queued writes apply [C7]', t => {
   const { file, dir } = queueWithEmptyLock(t, 60_000);
   const applied = [];
   const leave = enterResourceQueue(file, { apply: entry => applied.push(entry.token), deadlineMs: 2_000 });
@@ -35,7 +35,7 @@ test('clause 1: an empty writer.lock older than the stale window is taken over a
   assert.deepEqual(readdirSync(dir), [], 'the queue drained and the writer was given up');
 });
 
-test('clause 2: an empty writer.lock younger than the stale window still holds the writer [C7]', t => {
+test('resources.empty-lock.an-empty-writer-lock-younger-than: clause 2: an empty writer.lock younger than the stale window still holds the writer [C7]', t => {
   const { file, dir } = queueWithEmptyLock(t, 0);
   const applied = [];
   assert.throws(() => enterResourceQueue(file, { apply: entry => applied.push(entry.token), deadlineMs: 300 }),

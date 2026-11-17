@@ -6,17 +6,15 @@
  */
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
-/** The one saveKeyedResult is the pin cell's, reached through the transport cell this cell already imports, so no pin edge is added. */
-export { saveKeyedResult } from '../../../transport/index.js';
+/** The one saveKeyedResult and loadKeyedResult are the pin cell's, reached through the transport cell this cell already imports, so no pin edge is added. */
+export { loadKeyedResult, saveKeyedResult } from '../../../transport/index.js';
 
 /**
  * Move a finished staging folder to its keyed name, unless a folder already holds that name; a staging folder that
@@ -83,25 +81,6 @@ export function sweepKeyedFolders(parent, { matches, keep = null, maxAgeMs, now 
     } catch { /* Another sweep removed it. */ }
   }
   return removed;
-}
-
-/** The file one key's result lives in: a digest of the key, so any key names a safe file. */
-function keyedResultPath(folder, key) {
-  return join(folder, createHash('sha256').update(key).digest('hex').slice(0, 32) + '.result');
-}
-
-/**
- * The saved bytes of one key's result, or null when there is none.
- *
- * @param {string} folder
- * @param {string} key
- * @returns {Buffer | null}
- */
-export function loadKeyedResult(folder, key) {
-  try { return readFileSync(keyedResultPath(folder, key)); } catch (error) {
-    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
-    throw error;
-  }
 }
 
 /** The variable a runner job names its runner's shared cache folder in; every job on one runner gets the same one. */

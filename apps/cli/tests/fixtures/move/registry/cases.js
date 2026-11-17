@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../child.js';
 import { runFixtureChild } from '../../child.js';
 import { runFixtureChildAsync } from '../../child.js';
-import { unpackRelease } from '../../release/archive.js';
+import { unpackRelease } from '../../../../../../packages/gate/tests/fixtures/release/archive.js';
 import { historyProblems } from './history.js';
 import {
   ENGINE_FOLDER,

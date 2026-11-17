@@ -31,7 +31,7 @@ async function enrollmentFor(keys, overrides = {}) {
 }
 
 /** Exercise the actual owner-only machine file, one-use enrollment and trusted wrapping boundary. */
-test('machine device enrollment survives a new process and refuses unrecorded or revoked recipients [H5,H15,H17]', async (t) => {
+test('link.poll.enrollment-survives-restart: machine device enrollment survives a new process and refuses unrecorded or revoked recipients [H5,H15,H17]', async (t) => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-device-roster-'));
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = home;

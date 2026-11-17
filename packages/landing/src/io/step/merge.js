@@ -12,6 +12,7 @@ import { isClean } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { hunkFreshnessEnabled } from '../../../../config/index.js';
 import { landingSquashEnabled } from '../../../../config/index.js';
 import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
@@ -61,7 +62,7 @@ async function resetDirtyOnce(state) {
 function baseVerdicts(state, base) {
   state.baseVerdicts ??= new Map();
   if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
-    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }));
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() }));
   return state.baseVerdicts.get(base);
 }
 

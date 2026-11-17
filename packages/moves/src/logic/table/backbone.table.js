@@ -38,17 +38,19 @@ export const JOB_KINDS = Object.freeze([
 export const CREATED_JOB_KINDS = Object.freeze(JOB_KINDS.filter(job => job.created !== false).map(job => job.kind));
 
 /**
- * Whether a job receipt counts for an item: green, from trusted code under a live lease, at the item's commit and frozen digest, and for a screen on the current base.
+ * Whether a job receipt counts for an item: green, from trusted code under a live lease, at the item's commit and frozen digest, and for a screen or a suite on the current base.
+ * A 'suite' receipt must also be a full-suite run (`suite: 'full'`) for the item's own group (its lane), so a partial suite or another group's run never counts [#9324].
  * Why one predicate: the landing rows that demand a receipt (screened, and the Always rows after it) read it here, so no row restates what a receipt must prove.
  *
- * @param {{ kind?: string, green?: boolean, trusted?: boolean, leased?: boolean, commit?: string, digest?: string, base?: string } | null | undefined} receipt
- * @param {{ kind: string, item: { commit?: string | null, digest?: string | null }, base?: string | null }} at - The kind wanted, the item as it stands, and the current base.
+ * @param {{ kind?: string, green?: boolean, trusted?: boolean, leased?: boolean, commit?: string, digest?: string, base?: string, suite?: string, group?: string } | null | undefined} receipt
+ * @param {{ kind: string, item: { commit?: string | null, digest?: string | null, group?: string | null }, base?: string | null }} at - The kind wanted, the item as it stands, and the current base.
  * @returns {boolean}
  */
 export function receiptCounts(receipt, { kind, item, base }) {
   if (!receipt || receipt.kind !== kind || receipt.green !== true || receipt.trusted !== true || receipt.leased !== true) return false;
   if (!item?.commit || receipt.commit !== item.commit || receipt.digest !== item.digest) return false;
-  return kind !== 'screen' || (Boolean(base) && receipt.base === base);
+  if (kind === 'suite' && (receipt.suite !== 'full' || !item.group || receipt.group !== item.group)) return false;
+  return (kind !== 'screen' && kind !== 'suite') || (Boolean(base) && receipt.base === base);
 }
 
 /**

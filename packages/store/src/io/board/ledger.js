@@ -131,6 +131,21 @@ export function ledgerHits(db, files, { command = 'proof', perFile = 2, budget =
 }
 
 /**
+ * The test files with the newest green proof rows in the ledger, newest first, at most `limit`. Why: a landing's contract
+ * files are chosen on the runner after the merge, so the board offers hits for the files it most recently saw pass [C7,#9301].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} [limit]
+ * @param {{ command?: string }} [options]
+ * @returns {string[]}
+ */
+export function ledgerRecentFiles(db, limit = 400, { command = 'proof' } = {}) {
+  if (missingLedgerTable(db)) return [];
+  return db.prepare("SELECT test_result_file AS file FROM test_result WHERE test_result_command = ? AND test_result_status = 'pass' GROUP BY test_result_file ORDER BY MAX(test_result_id) DESC LIMIT ?")
+    .all(command, limit).map(row => row.file);
+}
+
+/**
  * The test files the ledger holds proof rows for at any of `commits`, sorted: the plan a landing proves, read from the
  * board instead of a submit receipt or a live import graph. Why: one source of truth for what an item proved [P7].
  *

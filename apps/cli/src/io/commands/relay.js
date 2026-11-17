@@ -68,6 +68,7 @@ const SENDER_ONLY_RECOVERY = new Set(['B26_PERSON_CHANNEL', 'RELAY_LINKED', 'REL
 export async function run(io, { first, second, rest, values }) {
   if (first === 'canary') return (await import('../../../../../packages/link/index.js')).run(io, { first: second, second: rest[0], rest: rest.slice(1), values }, { context, ordered, withBoard, whoAmI });
   if (['on', 'join'].includes(first) && gitSyncLinked(io.cwd)) throw new Refused('GIT_SYNC_LINKED', 'this board already shares moves through Git; it cannot start a second move order', 'keep sharing this board through origin');
+  if (values.only !== undefined && !values.all) throw new Refused('USAGE', 'pullboard relay on --all --only <name>');
   if (values['new-browser'] && first !== 'pair') throw new Refused('USAGE', 'pullboard relay pair --new-browser');
   if (first === 'members') {
     if (!['set', 'clear'].includes(second) || (second === 'set' ? !rest.length : rest.length) || values.url || values.all || values.skip) throw new Refused('USAGE', 'pullboard relay members set <login> [<login> ...], or pullboard relay members clear');
@@ -127,8 +128,8 @@ export async function run(io, { first, second, rest, values }) {
     io.result?.(result); io.say(result.notice); return 0;
   }
   if (values.all) {
-    if (first !== 'on' || second || rest.length) throw new Refused('USAGE', 'pullboard relay on --all [--url <address>]');
-    return await relayOnAllCommand(values.url, io, { name: values.name });
+    if (first !== 'on' || second || rest.length) throw new Refused('USAGE', 'pullboard relay on --all [--url <address>] [--only <name>]');
+    return await relayOnAllCommand(values.url, io, { name: values.name, only: values.only });
   }
   if (['tokens', 'revoke'].includes(first)) {
     if (rest.length || values.url || (first === 'tokens' && second) || (first === 'revoke' && !second)) {

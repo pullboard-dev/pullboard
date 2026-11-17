@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/commits */
 /** The guard mutation uses only its caller's trusted check operation [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -17,7 +18,7 @@ function fixture(t) {
   return { root, item: { item_id: 1, item_criterion: 'guard: guard.js:2-2' } };
 }
 
-test('guard mutation calls the supplied check port with its actual lease and preserves other source [C7,V4]', async t => {
+test('commits.io-revert.guard-mutation-calls-the-supplied-check: guard mutation calls the supplied check port with its actual lease and preserves other source [C7,V4]', async t => {
   const { root, item } = fixture(t), lease = { token: 'owned-port-fixture' };
   let calls = 0;
   /** Exercise the genuine mutation on an owned source file without executing a substitute gate. */
@@ -35,7 +36,7 @@ test('guard mutation calls the supplied check port with its actual lease and pre
   assert.equal(calls, 1);
 });
 
-test('the check port cannot turn green, unavailable or missing guard evidence into a valid guard [C7,V4]', async t => {
+test('commits.io-revert.the-check-port-cannot-turn-green: the check port cannot turn green, unavailable or missing guard evidence into a valid guard [C7,V4]', async t => {
   const { root, item } = fixture(t);
   for (const [state, code] of [['pass', 'GUARD_CANNOT_FAIL'], ['unverified', 'CHECK_UNVERIFIED']]) {
     await assert.rejects(guardRevertNote(root, item, {}, { checkAtCommit: () => ({ state, stage: 'check' }) }), { code });

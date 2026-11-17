@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../fixtures/e2e.js';
 import { fixtureProjectPolicy } from '../fixtures/testkit.js';
 import { joinFixtureSeat } from '../fixtures/testkit.js';
+import { stopFixtureLocalRunner } from '../fixtures/runner/local-stop.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -18,7 +19,8 @@ async function queued() {
   fixtureProjectPolicy(box.repo, { config });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: set verify.queueAccept');
-  // The queued job is the proof here; the loopback runner is not waited on, so the check stays running.
+  // The queued job is the proof here: the loopback runner is stopped, not merely unwaited, so the check cannot finish between the accept and the second reviewer's call.
+  stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const first = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--json');
   assert.equal(first.code, 0, first.stdout + first.stderr);
