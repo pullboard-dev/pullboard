@@ -404,9 +404,13 @@
     "hand-policy": 2
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "tempdir": 4,
-    "hand-policy": 3,
+    "tempdir": 2,
+    "hand-policy": 2,
     "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "tempdir": 2,
+    "hand-policy": 1
   },
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
