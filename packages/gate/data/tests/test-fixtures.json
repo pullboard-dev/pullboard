@@ -278,7 +278,7 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/store/tests/relay-activation.test.js": {
+  "packages/board/tests/from-store/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
@@ -286,10 +286,10 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "packages/store/tests/review-grant-replay.test.js": {
+  "packages/board/tests/from-store/review-grant-replay.test.js": {
     "raw-board": 6
   },
-  "packages/store/tests/review-queue-replay.test.js": {
+  "packages/board/tests/from-store/review-queue-replay.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/engine/settings.test.js": {
@@ -302,7 +302,7 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "packages/store/tests/team-engine.test.js": {
+  "packages/board/tests/from-store/team-engine.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
@@ -850,7 +850,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/store/tests/logic/rework/once.test.js": {
+  "packages/board/tests/from-store/logic/rework/once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3

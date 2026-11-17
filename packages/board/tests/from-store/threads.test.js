@@ -1,9 +1,9 @@
 /** One pass over the event list gives every item its thread, as the per-item read does, so a cold state build never reads the log once per item [C7,#8480]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { itemThreads } from '../src/io/board/query.js';
-import { cellBoard } from './fixtures/cell.js';
+import * as store from '../../../store/index.js';
+import { itemThreads } from '../../../store/index.js';
+import { cellBoard } from '../fixtures/cell-board.js';
 
 // fixture-subject: addItem (a store unit test of itemThreads over seeded events; the board is opened through the kit)
 

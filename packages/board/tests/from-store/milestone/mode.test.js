@@ -1,15 +1,15 @@
 /** A milestone records whether it rolls over or takes items explicitly, over real Git and SQLite [N26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../index.js';
-import { editMilestone } from '../../index.js';
-import { roadmap } from '../../index.js';
-import { workQueue } from '../../../items/index.js';
-import { milestoneRoadmap } from '../../../roadmap/index.js';
-import { listApiProjects } from '../../../seats/index.js';
-import { cellBoard } from '../fixtures/cell.js';
-import { cellProject } from '../fixtures/cell.js';
-import { openCellBoard } from '../fixtures/cell.js';
+import * as store from '../../../../store/index.js';
+import { editMilestone } from '../../../../store/index.js';
+import { roadmap } from '../../../../store/index.js';
+import { workQueue } from '../../../../items/index.js';
+import { milestoneRoadmap } from '../../../../roadmap/index.js';
+import { listApiProjects } from '../../../../seats/index.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellProject } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../fixtures/cell-board.js';
 
 /** A real Git project and its board, with a milestone to edit and the roadmap document to read it back. */
 function fixture(t) {
