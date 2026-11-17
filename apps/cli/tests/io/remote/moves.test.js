@@ -185,8 +185,10 @@ function refusalLines(ran) {
 
 test('cli.io-remote-moves.a-move-the-served-board-refuses-prints: a move the served board refuses prints the same code and next: line as the local command [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
 sharedBody(async (seats) => {
+  // The holder is a seat of its own, so a slow earlier case that still holds the shared builder cannot turn this refusal into ONE_CLAIM [P7].
+  const holder = await served(seats.box, seats.box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
   const id = await seats.add('Remote refused item');
-  await moved(seats, seats.builder, 'claim', String(id));
+  await moved(seats, holder, 'claim', String(id));
   const remote = refusalLines(await seats.run(seats.verifier, 'claim', String(id)));
   const local = refusalLines(await runCliInProcess(['claim', String(id)], { cwd: seats.verifier.path, env: seats.box.env }));
   assert.deepEqual(remote, local, 'claiming a held item refuses alike by URL and on the board host');
