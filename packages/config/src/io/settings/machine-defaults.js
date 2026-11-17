@@ -7,6 +7,7 @@ export const MACHINE_DEFAULTS = {
   browserSlots: 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
+  'canary.directPush': false,
   'census.balanceByTime': false,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,

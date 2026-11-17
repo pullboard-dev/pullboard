@@ -74,6 +74,7 @@ export {
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
   requireDeclaredInputsEnabled,
+  canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintFsEnabled,
