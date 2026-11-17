@@ -2,7 +2,7 @@
 /** The MACHINE_CLAUSE_RED refusal tells the builder to fix, commit and submit again, never to merge main, and keeps naming the clause, command and receipt [C7,#10605]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fixture } from '../../fixtures/machine-pulled.js';
+import { fixture } from '../../../fixtures/machine-pulled.js';
 import { applyRunReceipt } from '../../../../src/io/board/run.js';
 
 const GREEN = { outcome: 'review', summary: { gate: { green: true, source: 'a'.repeat(40) }, machineReceipts: ['r1', 'r2'] } };
