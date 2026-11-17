@@ -12,7 +12,7 @@ import { watchStart } from '../../../../packages/shouts/index.js';
 const QUIET_READS = true;
 const SECONDS = 100;
 
-test('clause 1: followBoard on a quiet board with watch.quietReads on for 100 s prints this process\'s CPU percent as a number from 0 to 100 [C7,#9845]', { timeout: 170_000 }, async (t) => { // budget: a fixed 100 s idle measurement plus fixture setup; the ceiling is a hang bound, not a speed target.
+test('cli.journeys-watch-idle-cpu-on.followboard-on-a-quiet-board-with: clause 1: followBoard on a quiet board with watch.quietReads on for 100 s prints this process\'s CPU percent as a number from 0 to 100 [C7,#9845]', { timeout: 170_000 }, async (t) => { // budget: a fixed 100 s idle measurement plus fixture setup; the ceiling is a hang bound, not a speed target.
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
