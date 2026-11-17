@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell store */
 /** cancelGateJob ends an item's live gate job as cancelled through the runs port [C7,#3860]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
