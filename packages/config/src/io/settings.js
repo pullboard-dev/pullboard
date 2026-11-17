@@ -970,6 +970,11 @@ export function hotStateEnabled() {
   return loadMachineSettings().board?.hotState === true;
 }
 
+/** Whether board.crossProcessWrites is on (#9814, #8163): off by default; only an exact `true` turns it on. */
+export function readCrossProcessWrites() {
+  return loadMachineSettings().board?.crossProcessWrites === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
