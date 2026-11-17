@@ -36,14 +36,14 @@ function repository(t) {
   return { root, item };
 }
 
-test('clause 1: checkAtCommit returns the rename followed for a frozen check whose test file main renamed [C7]', t => {
+test('runner.renames.checkatcommit-returns-the-rename-followed-for-a: clause 1: checkAtCommit returns the rename followed for a frozen check whose test file main renamed [C7]', t => {
   const { root, item } = repository(t);
   const proof = checkAtCommit(root, item('test/old-name.test.js'));
   assert.equal(proof.state, 'pass', `${proof.stage}\n${proof.output}`);
   assert.deepEqual(proof.renames, [{ from: 'test/old-name.test.js', to: 'packages/x/tests/new-name.test.js' }]);
 });
 
-test('clause 2: checkAtCommit returns an empty rename list for a check with no renamed file [C7]', t => {
+test('runner.renames.checkatcommit-returns-an-empty-rename-list-for: clause 2: checkAtCommit returns an empty rename list for a check with no renamed file [C7]', t => {
   const { root, item } = repository(t);
   const proof = checkAtCommit(root, item('test/steady.test.js'));
   assert.equal(proof.state, 'pass', `${proof.stage}\n${proof.output}`);

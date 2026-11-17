@@ -33,7 +33,7 @@ function queued(t) {
   return { project, web, board, id, commit: project.git(web, 'rev-parse', 'HEAD') };
 }
 
-test('clause 1: queueing a hand-off creates a job row and every state change writes a step [C7]', (t) => {
+test('board.jobs.queueing-hand-off-creates-job-row: clause 1: queueing a hand-off creates a job row and every state change writes a step [C7]', (t) => {
   const { project, web, board, id, commit } = queued(t);
   const item = getItem(board, id);
   const tree = project.git(web, 'rev-parse', 'HEAD^{tree}');
@@ -56,7 +56,7 @@ test('clause 1: queueing a hand-off creates a job row and every state change wri
   assert.equal(view.steps[2].payload.error, 'FIXTURE_FINISHED');
 });
 
-test('clause 1: a board without the job tables refuses a hand-off it has nowhere to record [C7]', (t) => {
+test('board.jobs.board-without-the-job-tables-refuses: clause 1: a board without the job tables refuses a hand-off it has nowhere to record [C7]', (t) => {
   const { project, web, board, id, commit } = queued(t);
   board.db.exec('DROP TABLE job_step; DROP TABLE job');
   const item = getItem(board, id);

@@ -41,7 +41,7 @@ const appliedMark = (runs, job) => runs.db.prepare('SELECT job_applied FROM job 
 const eventsFor = (board, kind, job) => board.db.prepare('SELECT event_detail FROM event WHERE event_kind = ?').all(kind)
   .filter(row => JSON.parse(row.event_detail).job === job).length;
 
-test('a posted receipt waits unapplied; the drain applies it in one board move, then acks it in the runs file [B2,R2]', t => {
+test('board.inbox.posted-receipt-waits-unapplied-the-drain: a posted receipt waits unapplied; the drain applies it in one board move, then acks it in the runs file [B2,R2]', t => {
   const { board, runs, port } = queued(t);
   post(runs, JOB, 1, { status: 'green', outcome: 'green', failing: [], log: 'x'.repeat(500) });
   assert.equal(appliedMark(runs, JOB), null, 'posting leaves the inbox mark empty');
@@ -57,7 +57,7 @@ test('a posted receipt waits unapplied; the drain applies it in one board move, 
   assert.deepEqual(port.receiptsSince(0), [], 'an acked receipt leaves the inbox');
 });
 
-test('applying the same attempt twice, or an older one, changes no board row; a crash before the ack is settled by the next drain [B2,R2]', t => {
+test('board.inbox.applying-the-same-attempt-twice-older: applying the same attempt twice, or an older one, changes no board row; a crash before the ack is settled by the next drain [B2,R2]', t => {
   const { board, runs, port } = queued(t);
   post(runs, JOB, 2, { status: 'red', outcome: 'red', failing: ['a.test.js'] });
   assert.equal(applyRunReceipt(board, { by: 'coordinator', job: JOB, attempt: 2, outcome: 'red', summary: { failing: ['a.test.js'] } }).applied, true);
@@ -72,7 +72,7 @@ test('applying the same attempt twice, or an older one, changes no board row; a 
   assert.deepEqual(boardRun(board.db, JOB), after);
 });
 
-test('replaying the board events rebuilds the run rows, summaries included, with no runs file present [B2,R2]', t => {
+test('board.inbox.replaying-the-board-events-rebuilds-the: replaying the board events rebuilds the run rows, summaries included, with no runs file present [B2,R2]', t => {
   const { board, runs, port } = queued(t);
   queueRun(board, port, { by: 'coordinator', id: 'land:9:k', kind: 'land' });
   post(runs, JOB, 1, { status: 'green', outcome: 'green', cases: Array.from({ length: 30 }, (_, n) => `case ${n}`) });

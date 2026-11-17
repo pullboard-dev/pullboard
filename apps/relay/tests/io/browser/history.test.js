@@ -34,7 +34,7 @@ function page(id, gate = null, total = 3) {
   };
 }
 
-test('history finishes a pinned predecessor while newer moves keep their own current state [H15,H17]', async t => {
+test('relay.io-browser-history.history-finishes-a-pinned-predecessor-while: history finishes a pinned predecessor while newer moves keep their own current state [H15,H17]', async t => {
   const aGate = deferred(), bGate = deferred();
   const a = page('a', aGate), b = page('b', bGate);
   let current = { id: 'a', sequence: 7 }, alive = true;
@@ -67,7 +67,7 @@ test('history finishes a pinned predecessor while newer moves keep their own cur
   assert.equal(changes, before, 'a foreground read of completed history cannot emit another refresh and create an RPC feedback loop');
 });
 
-test('access loss discards held details and late background results cannot install or advertise completion [H15,H17]', async () => {
+test('relay.io-browser-history.access-loss-discards-held-details-and: access loss discards held details and late background results cannot install or advertise completion [H15,H17]', async () => {
   const gate = deferred(), source = page('removed', gate);
   let alive = true, installs = 0, failures = 0;
   const current = { id: 'removed', sequence: 1 };
@@ -81,7 +81,7 @@ test('access loss discards held details and late background results cannot insta
   assert.deepEqual(history.status(), { loaded: 0, total: null, complete: false, sequence: null });
 });
 
-test('partial history retains a readable current board and reports a failed incomplete progress state [H15,H17]', async t => {
+test('relay.io-browser-history.partial-history-retains-a-readable-current: partial history retains a readable current board and reports a failed incomplete progress state [H15,H17]', async t => {
   const source = page('partial', null, 4), failed = deferred();
   let current = null, history;
   history = createPhoneHistory({ active: () => true, current: () => ({ id: 'partial', sequence: 2 }),

@@ -27,7 +27,7 @@ function heldBoard(t) {
   return { board, id };
 }
 
-test('clause 1: holdItem stores an owner and a deadline one day out when holds.requireOwner is on [C7,#8539]', t => {
+test('board.hold-owner.holditem-stores-owner-and-deadline-one: clause 1: holdItem stores an owner and a deadline one day out when holds.requireOwner is on [C7,#8539]', t => {
   const { board, id } = heldBoard(t);
   const held = store.holdItem(board, id, { agentId: 'coordinator', requireOwner: true, reason: 'wait for the design', owner: 'lane:web' });
   const record = store.itemHoldOwner(board, id);
@@ -40,7 +40,7 @@ test('clause 1: holdItem stores an owner and a deadline one day out when holds.r
   assert.equal(store.itemHoldOwner(board, id).deadline, '2030-01-02T03:04:05.000Z');
 });
 
-test('clause 2: holds.requireOwner is off by default and a hold is exactly as before [C7,#8539]', t => {
+test('board.hold-owner.holds-requireowner-off-default-and-hold: clause 2: holds.requireOwner is off by default and a hold is exactly as before [C7,#8539]', t => {
   const { board, id } = heldBoard(t);
   const hold = store.holdItem(board, id, { agentId: 'coordinator', reason: 'plain hold' });
   assert.deepEqual(Object.keys(hold).sort(), ['item_hold_at', 'item_hold_by', 'item_hold_reason', 'item_id']);

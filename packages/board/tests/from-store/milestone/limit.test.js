@@ -47,7 +47,7 @@ function fixture(t) {
   return { project, board, builder, item, add, edit, members, plan };
 }
 
-test('a milestone with a limit refuses an add past it and accepts a swap [N26,H16]', (t) => {
+test('board.limit.milestone-with-limit-refuses-add-past: a milestone with a limit refuses an add past it and accepts a swap [N26,H16]', (t) => {
   const box = fixture(t);
   const first = box.item('Unstarted release work', 'open');
   const building = box.item('Already building', 'open');
@@ -79,7 +79,7 @@ test('a milestone with a limit refuses an add past it and accepts a swap [N26,H1
 });
 
 
-test('[N26,H16] caps validate edits, shipment carry and historical replay without partial changes', (t) => {
+test('board.limit.caps-validate-edits-shipment-carry-and: [N26,H16] caps validate edits, shipment carry and historical replay without partial changes', (t) => {
   const box = fixture(t);
   const first = box.item('First', 'open');
   const second = box.item('Second', 'open');
