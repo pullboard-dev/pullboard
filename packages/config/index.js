@@ -169,6 +169,7 @@ export {
   relayOfferEnabled,
   relayQueueOnFailureEnabled,
   pulledProfilePathsEnabled,
+  renewAfterSyncEnabled,
   setRelayCanary,
   setLandingPool,
   setGateSlots,

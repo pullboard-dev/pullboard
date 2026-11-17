@@ -1093,6 +1093,11 @@ export function relayQueueOnFailureEnabled() {
   return loadMachineSettings().relay?.queueOnFailure === true;
 }
 
+/** Whether relay.renewAfterSync is on (#9330): off by default; only an exact `true` turns it on. */
+export function renewAfterSyncEnabled() {
+  return loadMachineSettings().relay?.renewAfterSync === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
