@@ -13,6 +13,7 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
@@ -34,6 +35,7 @@ const BEFORE = {
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
@@ -48,6 +50,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -83,6 +86,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
@@ -130,6 +134,7 @@ const BEFORE = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'relay.queueOnFailure': false,
   'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
@@ -154,6 +159,7 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'submit.recoverFromJobRow': false,
   'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
@@ -163,6 +169,7 @@ const BEFORE = {
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
 
 test('clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {
@@ -221,6 +228,11 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: gate.adapterLintTimers is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.adapterLintTimers'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintTimers'], false);
 });
 
 test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
