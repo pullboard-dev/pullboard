@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/sync packages/landing */
+/** @pullboard-test-input source-cell packages/sync */
 /** Sync reaches landing through its light door, never the landing barrel [C7,#10129]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
