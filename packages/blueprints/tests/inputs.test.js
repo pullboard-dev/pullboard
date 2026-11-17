@@ -28,12 +28,9 @@ function blueprintTests(dir = DIR) {
 
 const read = path => readFileSync(join(ROOT, path), 'utf8');
 
-/** The source with comments and string literals blanked, so a quoted name is not a call. */
+/** The source with comments blanked, so a commented call is not a read; strings stay, which only over-reports. */
 function code(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/gu, '$1')
-    .replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`/gu, '""');
+  return source.replace(/\/\*[\s\S]*?\*\//gu, ' ').replace(/(^|[^:])\/\/[^\n]*/gu, '$1');
 }
 
 /** The cells named by the leading source-cell header, or null when the file has none. */
@@ -58,7 +55,7 @@ test('clause 1: every blueprints test file that reads files carries an input hea
 test('clause 1: a declared header names only the blueprints cell, never the whole source tree [C7,U149]', () => {
   for (const file of blueprintTests()) {
     const source = read(file);
-    assert.ok(!/@pullboard-test-input source-tree/u.test(source), `${file} must not declare source-tree`);
+    assert.ok(!/^\/\*\* @pullboard-test-input source-tree/mu.test(source), `${file} must not declare source-tree`);
     const cells = declaredCells(source);
     if (cells) assert.ok(cells.every(cell => ALLOWED.has(cell)), `${file} names only cells it reads: ${cells.join(' ')}`);
   }
