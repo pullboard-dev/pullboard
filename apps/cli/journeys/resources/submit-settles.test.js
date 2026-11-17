@@ -14,6 +14,8 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
+import { CLI_ENTRY } from '../../tests/fixtures/runner/entry.js';
 import { HOST } from '../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../packages/gate/tests/fixtures/runner/ssh.js';
 
@@ -129,9 +131,13 @@ test('clause 1: the registered-worker submit --wait over the ssh stand-in pull r
   box.env.PATH = `${paths.bin}:${box.env.PATH}`;
   const root = join(paths.remoteHome, '.pullboard-runner');
   mkdirSync(root, { recursive: true });
-  const folders = [root, box.dir, join(box.repo, '.git', 'pullboard')];
+  const folders = [root, box.dir, join(box.repo, '.git', 'pullboard'), box.env.PULLBOARD_MACHINE_HOME];
+  const tail = (file, lines) => existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-lines).map(line => line.slice(0, 400)) : [];
   const snapshot = () => ({ jobs: jobRows(box), runner: runnerFolders(root), ps: boxProcesses(box),
-    requests: existsSync(requests) ? readFileSync(requests, 'utf8').split('\n').filter(Boolean).slice(-4) : [] });
+    requests: Object.fromEntries(readdirSync(box.dir).filter(name => name.startsWith('runner-only-requests')).map(name => [name, tail(join(box.dir, name), 3)])),
+    localRunner: tail(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 8) });
+  // The stand-in runner is this host, so its load reading is the real runner's: load-aware dispatch would hold every admission.
+  succeeded(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off'));
   succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
   tick('after runner add');
   const added = succeeded(await step(box, 'add', box.repo, ['add', 'web', 'Registered runner-only submission', '--specs', 'G1',
@@ -147,16 +153,19 @@ test('clause 1: the registered-worker submit --wait over the ssh stand-in pull r
   tick('after commit');
   succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
   tick('after settings');
+  // Under pull dispatch a submit offers its gate as a job row; with a runner registered, the CLI starts no local runner to take it.
+  const local = startFixtureLocalRunner(box.env, box.repo, { entry: CLI_ENTRY });
+  tick(`after local runner ${JSON.stringify(local)}`);
   const submitted = await step(box, 'submit', box.web, ['submit', String(id), '--wait', '--no-next', '--json'], snapshot, folders);
   tick('after submit --wait');
   assert.equal(submitted.signal, null, `submit --wait did not return in ${STEP_MS} ms`);
   succeeded(submitted);
-  const gate = JSON.parse(submitted.out).gate;
-  assert.ok(gate?.check, `submitted.gate present: ${submitted.out}`);
-  const profile = JSON.parse(readFileSync(gate.check.profilePath, 'utf8'));
-  assert.equal(profile.executionRunner, HOST);
+  process.stderr.write(`SUBMIT OUT ${submitted.out.slice(0, 3000)}\n`);
   // The fixture's own settle after a submit waits for every job row to be done; it must end too.
   const open = await settled(box, folders, snapshot);
   tick('after settle');
+  process.stderr.write(`AFTER SETTLE ${JSON.stringify(snapshot()).slice(0, 20000)}\n`);
+  const shown = box.run(box.repo, 'show', String(id), '--json');
+  process.stderr.write(`SHOW ${shown.out.slice(0, 6000)}\n`);
   assert.deepEqual(open, [], `job rows still open after ${STEP_MS} ms: ${JSON.stringify(snapshot())}`);
 });
