@@ -28,7 +28,7 @@ const read = path => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines in a file's leading comment lines, as the text after the tag. */
 const headers = source => source.split(/\r?\n/u).slice(0, 5).map(line => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every roadmap test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('roadmap.inputs.readers-declare: clause 1: every roadmap test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = roadmapTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the roadmap cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && headers(read(file)).length === 0);
@@ -36,7 +36,7 @@ test('clause 1: every roadmap test file that reads files carries an input header
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/roadmap'], 'this file names only the roadmap cell');
 });
 
-test('clause 2: every roadmap test header is a non-empty declaration [C7,U149]', () => {
+test('roadmap.inputs.header-non-empty: clause 2: every roadmap test header is a non-empty declaration [C7,U149]', () => {
   for (const file of roadmapTests()) {
     for (const header of headers(read(file))) {
       assert.ok(header.trim().length > 0, `${file} has a header`);
