@@ -40,6 +40,19 @@ function nearestMarked(path, marked) {
   }
 }
 
+/** Manifest names whose change alters how every unit builds, so selection stops narrowing. */
+const SHARED_MANIFESTS = name => ['Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'go.work', 'mix.exs', 'mix.lock', 'Directory.Build.props'].includes(name)
+  || name.endsWith('.csproj') || name.endsWith('.sln');
+
+/** The first changed path that is a build manifest, or null; a manifest change selects the full gate [C7]. */
+export function changedUnitManifest(paths) {
+  for (const raw of paths ?? []) {
+    const path = clean(raw);
+    if (SHARED_MANIFESTS(path.slice(path.lastIndexOf('/') + 1))) return path;
+  }
+  return null;
+}
+
 /** A full-gate answer: no units, with the reason selection could not narrow. */
 function full(reason) {
   return { units: [], full: true, reason };

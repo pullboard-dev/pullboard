@@ -484,6 +484,9 @@ export function loadMachineSettings() {
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
   }
+  if (value.submit?.pendingFromJobRow !== undefined && typeof value.submit.pendingFromJobRow !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.pendingFromJobRow in ${file} must be true or false`);
+  }
   if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
   }
