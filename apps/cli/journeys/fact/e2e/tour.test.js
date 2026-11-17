@@ -23,6 +23,7 @@ import {
   test,
 } from 'node:test';
 
+import { DatabaseSync } from 'node:sqlite';
 import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 const e2e = createE2eHelpers();
@@ -32,6 +33,16 @@ const { BIN, sandbox } = e2e;
 /** The digest the agent-session ledger stores for one session identifier, as src/person.js computes it. */
 function sessionDigest(name, value) {
   return createHash('sha256').update(JSON.stringify([name, value])).digest('hex');
+}
+
+/** Milliseconds from each job's offer to its claim on the demo board, in offer order. */
+function offerToClaimMs(repo) {
+  // @pullboard-board-file journey: a read-only look at the jobs the tour's demo runner claimed.
+  const db = new DatabaseSync(join(repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
+  try {
+    db.exec('PRAGMA busy_timeout = 10000');
+    return db.prepare("SELECT o.job_step_at AS offered, c.job_step_at AS claimed FROM job_step o JOIN job_step c ON c.job_step_job = o.job_step_job AND c.job_step_name = 'claimed' AND c.job_step_seq = (SELECT MIN(job_step_seq) FROM job_step WHERE job_step_job = o.job_step_job AND job_step_name = 'claimed') WHERE o.job_step_name = 'offered' ORDER BY o.job_step_at").all().map(row => row.claimed - row.offered);
+  } finally { db.close(); }
 }
 
 /** The two cases own separate sandboxes and homes, so they overlap their tours (about 60 s each) instead of adding them [C7,N10]. */
@@ -63,7 +74,7 @@ test('a second tour replaces the first demo and links nothing to the relay [N10]
   assert.deepEqual(state.approvals, [], 'no relay link request or approval was made for either demo');
 });
 
-test('clause 1: the tour finishes when an agent session runs it [N10]', async () => {
+test('clause 1: the tour finishes when an agent session runs it [N10]', async t => {
   // A caller in Claude Code or Codex runs the tour; the scripted seats must not inherit the caller's session, so the
   // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
   const runs = [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']].map(([name, value]) => {
@@ -89,6 +100,7 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
     // The ledger holds the builder's claim and submit; the reviewer's verify passing already proves it is another session.
     assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
     assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
+    t.diagnostic(`offer-to-claim ms (runners.localWake ${wake ? 'on' : 'off'}, ${name}): ${JSON.stringify(offerToClaimMs(repo))}`);
     const settings = join(dirname(repo), '.pullboard-machine', 'settings.json');
     const demo = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')) : {};
     assert.equal(demo['runners.localWake'], wake ? true : undefined, `${name}: the demo settings carry the caller's runners.localWake only when it is on`);
