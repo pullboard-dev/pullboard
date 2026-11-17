@@ -13,11 +13,11 @@ const STATUS = readFileSync(resolve(REPO, 'apps/cli/src/io/commands/status.js'),
 /** Every module specifier status.js names, static or dynamic, that points into the view app. */
 const VIEW_SPECIFIERS = [...STATUS.matchAll(/(?:from\s*|import\s*\(\s*)'([^']*view\/[^']*)'/gu)].map(match => match[1]);
 
-test('clause 1: status.js imports the view only through view/needs.js [C7]', () => {
+test('cli.io-commands-status-doors-view-door.status-js-imports-the-view-only-through: clause 1: status.js imports the view only through view/needs.js [C7]', () => {
   assert.ok(VIEW_SPECIFIERS.length > 0, 'status.js no longer names the view needs door');
   for (const specifier of VIEW_SPECIFIERS) assert.ok(specifier.endsWith('/view/needs.js'), `${specifier} is not the view needs door`);
 });
 
-test('clause 1: status.js never imports view/index.js [C7]', () => {
+test('cli.io-commands-status-doors-view-door.status-js-never-imports-view-index-js: clause 1: status.js never imports view/index.js [C7]', () => {
   assert.doesNotMatch(STATUS, /view\/index\.js/u);
 });

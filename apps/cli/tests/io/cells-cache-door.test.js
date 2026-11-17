@@ -21,7 +21,7 @@ function sources(dir) {
     : entry.isDirectory() ? sources(`${dir}/${entry.name}`) : /\.(js|json|tsv)$/u.test(entry.name) ? [`${dir}/${entry.name}`] : []);
 }
 
-test('clause 1: the cache module is in the apps/cli cells folder, gone from its old codemap path, and no file imports the old path [C7,#9464]', () => {
+test('cli.io-cells-cache-door.the-cache-module-is-in-the-apps: clause 1: the cache module is in the apps/cli cells folder, gone from its old codemap path, and no file imports the old path [C7,#9464]', () => {
   assert.ok(existsSync(join(ROOT, 'apps/cli/src/io/cells/cache.js')), 'cache.js is in the apps/cli cells folder');
   assert.ok(!existsSync(join(ROOT, OLD)), 'the old codemap path no longer exists');
   const importers = ['apps', 'packages'].flatMap(sources).filter(file => !file.startsWith('packages/codemap/data/plan/')
@@ -29,14 +29,14 @@ test('clause 1: the cache module is in the apps/cli cells folder, gone from its 
   assert.deepEqual(importers, [], 'no file names the old path');
 });
 
-test('clause 1: the codemap door no longer exports the cache, and the door file serves its four names [C7,#9464]', () => {
+test('cli.io-cells-cache-door.the-codemap-door-no-longer-exports-the: clause 1: the codemap door no longer exports the cache, and the door file serves its four names [C7,#9464]', () => {
   for (const name of ['inventoryCache', 'inventoryCodeDigest', 'inventoryPending', 'observationCache']) {
     assert.equal(codemap[name], undefined, `${name} is no longer a codemap export`);
     assert.equal(typeof door[name], 'function', `${name} comes from the door file`);
   }
 });
 
-test('clause 1: the cache module reaches codemap, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
+test('cli.io-cells-cache-door.the-cache-module-reaches-codemap-git-and: clause 1: the cache module reaches codemap, git and kernel only through their doors, with the Git reader from the codemap door [C7,#9464]', () => {
   const cache = readFileSync(join(ROOT, 'apps/cli/src/io/cells/cache.js'), 'utf8');
   const from = [...cache.matchAll(/^import .* from '(\.[^']+)';$/gmu)].map(match => match[1]);
   assert.deepEqual([...new Set(from)].sort(), ['../../../../../packages/codemap/index.js', '../../../../../packages/git/index.js', '../../../../../packages/kernel/index.js']);

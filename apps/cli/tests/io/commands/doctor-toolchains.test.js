@@ -24,7 +24,7 @@ async function doctor(box) {
   return ran.stdout + ran.stderr;
 }
 
-test('clause 1: doctor with go.mod and runners that declare only node names go missing on every runner and the runner add step [C7]', async t => {
+test('cli.io-commands-doctor-toolchains.doctor-with-go-mod-and-runners-that: clause 1: doctor with go.mod and runners that declare only node names go missing on every runner and the runner add step [C7]', async t => {
   const box = goProject(t, [{ host: 'a.local', slots: 1, browser: 0, toolchains: { node: '22' } }]);
   const out = await doctor(box);
   const lines = out.split('\n').filter(line => /toolchain go is missing on every runner/u.test(line));
@@ -32,12 +32,12 @@ test('clause 1: doctor with go.mod and runners that declare only node names go m
   assert.match(lines[0], /pullboard runner add <ssh-host> --toolchain go=/u);
 });
 
-test('clause 2: a runner that declares go clears the toolchain line [C7]', async t => {
+test('cli.io-commands-doctor-toolchains.a-runner-that-declares-go-clears-the: clause 2: a runner that declares go clears the toolchain line [C7]', async t => {
   const box = goProject(t, [{ host: 'a.local', slots: 1, browser: 0, toolchains: { node: '22' } }, { host: 'b.local', slots: 1, browser: 0, toolchains: { go: '1.22' } }]);
   assert.doesNotMatch(await doctor(box), /toolchain go is missing/u);
 });
 
-test('clause 3: a repo with no runners prints no toolchain line [C7]', async t => {
+test('cli.io-commands-doctor-toolchains.a-repo-with-no-runners-prints-no: clause 3: a repo with no runners prints no toolchain line [C7]', async t => {
   const box = goProject(t, []);
   assert.doesNotMatch(await doctor(box), /toolchain .* is missing/u);
 });
