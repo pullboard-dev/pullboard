@@ -41,6 +41,19 @@ export const DISCOVERABLE_TOOLCHAINS = Object.freeze(['python3', 'go', 'cargo', 
 const VERSION_FLAG = { go: 'version', java: '-version' };
 
 /**
+ * Find cargo through rustup when it is not on PATH, and return its version answer.
+ * Why: Homebrew's rustup is keg-only, so cargo sits in a folder the job PATH lacks (#10386); asked only after the PATH answer failed [C7].
+ */
+function viaRustup(spawn) {
+  try {
+    const which = spawn('rustup', ['which', 'cargo'], { encoding: 'utf8', timeout: 1500 });
+    const path = which && !which.error && which.status === 0 ? String(which.stdout ?? '').trim() : '';
+    if (!isAbsolute(path) || /[\u0000-\u001f\u007f]/u.test(path)) return null;
+    return spawn(path, ['--version'], { encoding: 'utf8', timeout: 1500 });
+  } catch { return null; }
+}
+
+/**
  * Ask each known toolchain name for its version through the injected spawn and return name to version for those that answer.
  * Why: toolchains are declared by hand today, so most runners declare none and admission cannot route a Python job to the runner that has python3.
  * A command that is missing, exits non-zero, times out or prints no version is left out, never recorded empty [C7].
@@ -53,6 +66,7 @@ export function discoverToolchains({ spawn = spawnSync } = {}) {
   for (const name of DISCOVERABLE_TOOLCHAINS) {
     let result;
     try { result = spawn(name, [VERSION_FLAG[name] ?? '--version'], { encoding: 'utf8', timeout: 1500 }); } catch { continue; }
+    if (name === 'cargo' && (!result || result.error || result.status !== 0)) result = viaRustup(spawn);
     if (!result || result.error || result.status !== 0) continue;
     const version = /\d+(?:\.\d+)+/u.exec(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)?.[0];
     if (version) found[name] = version;
