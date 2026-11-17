@@ -170,6 +170,7 @@ const ROWS = Object.freeze({
   julia: ['julia'],
   make: ['make'],
   maven: ['java', 'mvn'],
+  nim: ['nimble'],
   node: ['node'],
   ocaml: ['dune'],
   perl: ['perl'],
