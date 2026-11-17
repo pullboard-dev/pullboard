@@ -114,6 +114,7 @@ const BEFORE = {
   'landing.squash': false,
   'landing.stallStop': false,
   'landing.staticAffectedOnly': false,
+  'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
   'machine.holdHeavyAboveLoad': false,
