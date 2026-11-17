@@ -22,7 +22,8 @@ export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseChec
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
-export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere } from "./src/io/config.js";
+export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages } from "./src/io/config.js";
+export { languageToolchains } from "./src/logic/language-toolchains.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { runClauseBaseComparison } from "./src/io/clause-base.js";
