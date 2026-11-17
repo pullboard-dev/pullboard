@@ -28,6 +28,9 @@ import { fsLintRows } from '../adapter-lints/fs.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
 import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
 import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
+import { viewTimerLayoutEnabled } from '../../../../config/index.js';
+import { VIEW_TIMER_CEILING_FILE } from '../adapter-lints/view-timer-layout.js';
+import { viewTimerLayoutRows } from '../adapter-lints/view-timer-layout.js';
 import { literalPinsEnabled } from '../../../../config/index.js';
 import { LITERAL_PIN_ALLOWLIST_FILE } from '../adapter-lints/literal-pins.js';
 import { literalPinRows } from '../adapter-lints/literal-pins.js';
@@ -244,6 +247,14 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     let ceilings = '{}';
     try { ceilings = readFileSync(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
     return idiomSpreadRows(treeSources(root, sources), { enabled, ceilings });
+  } },
+  // A view timer over 1 s that hides, removes or re-renders, held at a per-file ceiling that only falls; off (gate.viewTimerLayout) it reports nothing (#9523).
+  { name: 'view-timer-layout', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const enabled = context.viewTimerLayout ?? viewTimerLayoutEnabled();
+    if (enabled !== true) return [];
+    let ceilings = '{}';
+    try { ceilings = readFileSync(join(root, VIEW_TIMER_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no site is held. */ }
+    return viewTimerLayoutRows(treeSources(root, sources), { enabled, ceilings });
   } },
   // A test that pins an engine number, an exact file or case count, a file hash or a frozen JSON snapshot, off the approved-text allowlist; off (gate.literalPins) it reports nothing (#9385).
   { name: 'literal-pins', reads: TEST, run: (root, sources, context = MEMORY) => {

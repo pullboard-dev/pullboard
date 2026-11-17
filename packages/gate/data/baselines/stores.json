@@ -1577,6 +1577,10 @@
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
     },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
+    },
     "view.json": {
       "kind": "json",
       "owner": "apps/view/src/io/serve.js"
