@@ -41,13 +41,14 @@ test('clause 1: the sealed snapshot carries the item fields with their types and
   assert.deepEqual(full.relatedIds, [1]);
 });
 
-test('clause 2: a snapshot of items with no fields or links has the same sealed bytes as before and adds no keys [C7,#9358]', async () => {
-  const first = await fixture();
-  const second = await fixture();
-  const sizes = box => [...box.objects.values()].map(object => object.bytes.byteLength).sort((a, b) => a - b);
-  assert.deepEqual(sizes(first), sizes(second), 'two sealings of the same plain items make objects of the same sizes');
-  const boot = await first.page.presentation();
+test('clause 2: a snapshot of items with no fields or links adds no keys to any row and restores the document unchanged [C7,#9358]', async () => {
+  const plain = await fixture();
+  const boot = await plain.page.presentation();
   for (const item of boot.state.items) assert.ok(!Object.hasOwn(item, 'fields') && !Object.hasOwn(item, 'relatedIds'));
-  const full = await first.page.item(2);
+  const withNone = await fixture({ fields: [], relatedIds: [] });
+  const bootNone = await withNone.page.presentation();
+  assert.deepEqual(bootNone.state.items.map(item => Object.keys(item)), boot.state.items.map(item => Object.keys(item)), 'empty lists add no keys either');
+  const full = await plain.page.item(2);
   assert.ok(!Object.hasOwn(full, 'fields') && !Object.hasOwn(full, 'relatedIds'));
+  assert.deepEqual(await plain.page.native(), plain.document, 'the restore is the document that was sealed');
 });
