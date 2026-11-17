@@ -24,9 +24,11 @@ export function derivedPath(boardFile) {
 function attached(board) {
   if (process.env[DERIVED_SETTING] !== '1') return null;
   if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
-  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const databases = board.db.prepare('PRAGMA database_list').all();
+  const file = databases.find(row => row.name === 'main')?.file;
   const schema = file ? SCHEMA : null;
-  if (schema) {
+  // A wrapper around the same connection (a read proxy) is a new key above but already carries the attachment; attaching twice is refused.
+  if (schema && !databases.some(row => row.name === SCHEMA)) {
     board.db.prepare(`ATTACH DATABASE ? AS ${SCHEMA}`).run(derivedPath(file));
     board.db.exec(`CREATE TABLE IF NOT EXISTS ${SCHEMA}.proof_counter(meta_key TEXT PRIMARY KEY, meta_value TEXT) WITHOUT ROWID`);
   }
