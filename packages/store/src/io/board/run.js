@@ -23,6 +23,9 @@ import { runSummary } from "../../logic/board/runs.js";
 import { RUN_APPLIED_EVENT } from "../../logic/board/runs.js";
 import { RUN_QUEUED_EVENT } from "../../logic/board/runs.js";
 import { PENDING_STEP } from "./runs.js";
+import { runsPort } from "./runs.js";
+import { jobsOf } from "../../../../jobs/index.js";
+import { releaseLease } from "../../../../jobs/index.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
@@ -171,6 +174,34 @@ export function settleRunWithoutReceipt(board, { by, job, state, outcome }) {
 }
 
 /**
+ * Write a gate verdict's run row: one row per verdict job, state `awaiting` while main's receipts are outstanding, then
+ * `done` (or `withdrawn`) with its outcome. The record carries what the verdict needs to be judged again or read back.
+ * Why: with runs_store on a verdict waiting for main is a board run row, not a job step on the board's job tables [B2,M3].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle, inside the move.
+ * @param {{ id: string, item: number, candidate: string, base?: string | null, state: 'awaiting'|'done'|'withdrawn', outcome?: string | null, record: object, now?: number }} verdict
+ * @returns {{ id: string, state: string }}
+ */
+export function writeVerdictRun(db, { id, item, candidate, base = null, state, outcome = null, record, now = Date.now() }) {
+  db.prepare(`INSERT INTO run (run_job, run_kind, run_item, run_candidate, run_base, run_state, run_outcome, run_record, run_created, run_updated)
+    VALUES (?, 'gate-verdict', ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (run_job) DO UPDATE SET run_state = excluded.run_state, run_outcome = excluded.run_outcome, run_record = excluded.run_record, run_updated = excluded.run_updated`)
+    .run(id, item, candidate, base, state, outcome, JSON.stringify(record), now, now);
+  return { id, state };
+}
+
+/**
+ * The gate verdicts still waiting on main, oldest first, each with the record it was written with.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @returns {{ id: string, item: number, candidate: string, record: Record<string, any> }[]}
+ */
+export function awaitingVerdictRuns(db) {
+  return db.prepare("SELECT run_job, run_item, run_candidate, run_record FROM run WHERE run_kind = 'gate-verdict' AND run_state = 'awaiting' ORDER BY run_created, rowid").all()
+    .map(row => ({ id: row.run_job, item: row.run_item, candidate: row.run_candidate, record: JSON.parse(row.run_record) }));
+}
+
+/**
  * Hold an item's review on its run row's lease columns: the row `review:<item>` is created queued on first sight and
  * taken for the reviewer unless another reviewer's lease is still live. Written in the caller's move, never as a job row.
  * Why: with runs_store on a review lease is board data a move decides on, so it lives on the board's run row [B2].
@@ -257,4 +288,28 @@ export function saveSubmitHandoff(db, item, handoff, { now = Date.now() } = {}) 
     ON CONFLICT (run_job) DO UPDATE SET run_record = excluded.run_record, run_updated = excluded.run_updated`)
     .run(handoff.id, item, handoff.commit, handoff.main ?? null, JSON.stringify(handoff), now, now);
   return { job: handoff.id, step: handoff.state, seq: 0 };
+}
+
+/**
+ * End an item's live gate job as cancelled through the runs port, so its runner's next renew or receipt is refused [C7,#3860].
+ * A job already done or cancelled is left as it is; an item with no live gate job writes nothing.
+ *
+ * Why the lease is freed too: the cancelled step alone leaves the runner's lease standing, and a renew on a standing lease would succeed.
+ *
+ * @param {any} board - The open board, whose job tables serve while runs_store is off.
+ * @param {number} item
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null, now?: number, reason?: string }} [options] - runs: the board's runs holder while runs_store is on.
+ * @returns {{ written: boolean, jobs: string[] }} jobs: the gate jobs this call cancelled.
+ */
+export function cancelGateJob(board, item, { runs = null, now = Date.now(), reason = 'withdrawn' } = {}) {
+  const db = runs?.db ?? board.db;
+  const port = runsPort({ db });
+  const cancelled = [];
+  for (const view of jobsOf(db, { kind: 'gate', item })) {
+    if (['done', 'cancelled'].includes(view.step)) continue;
+    if (!port.cancel(view.id, { reason, now }).written) continue;
+    if (view.leaseOwner) releaseLease(db, view.id, view.leaseOwner, { now });
+    cancelled.push(view.id);
+  }
+  return { written: cancelled.length > 0, jobs: cancelled };
 }

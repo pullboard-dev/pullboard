@@ -17,7 +17,7 @@ import { waitsSnapshot } from '../../index.js';
 
 const OWNER = 'pool-51-mill-86cb1a';
 
-test('gates #6777, #6769 and #6469 held by a live auxiliary lease with progress 5 min old file no waits item [C7]', async t => {
+test('sentinels.waits-auxiliary-lease.live-lease-files-no-item: gates #6777, #6769 and #6469 held by a live auxiliary lease with progress 5 min old file no waits item [C7]', async t => {
   const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
   const root = temporaryDirectory('pullboard-waits-aux-');
   t.after(() => rmSync(root, { recursive: true, force: true }));

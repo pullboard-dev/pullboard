@@ -5983,10 +5983,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/lease.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
     ],
@@ -6004,14 +6000,6 @@
     ],
     "packages/store/tests/fixtures/dispatch.js": [
       "apps/cli"
-    ],
-    "packages/store/tests/fixtures/stats/compare.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
-    "packages/store/tests/fixtures/stats/time.js": [
-      "apps/cli",
-      "apps/lib"
     ]
   },
   "lightDoors": {

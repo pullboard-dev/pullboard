@@ -54,7 +54,7 @@ describe('verify journeys [V4,C7]', { concurrency: true }, () => {
     submitFixture(board, id, { agentId:first, commit:oldHead, tree:box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
     store.reopen(board, id, { agentId:'coordinator', note:'Another builder will continue this item.' });
     claim(second);
-    const committed = helpers.commitFile(box, secondPath, 'web/ready.txt', 'ready\n', 'feat(web): finish the handed-over item [G1]');
+    const committed = await helpers.commitFile(box, secondPath, 'web/ready.txt', 'ready\n', 'feat(web): finish the handed-over item [G1]');
     assert.equal(committed.status, 0, committed.stderr);
     const head = box.git(secondPath, 'rev-parse', 'HEAD');
     submitFixture(board, id, { agentId:second, commit:head, tree:box.git(secondPath, 'rev-parse', 'HEAD^{tree}') });
@@ -140,7 +140,7 @@ describe('verify journeys [V4,C7]', { concurrency: true }, () => {
     document(await fixtureAdd(box.runIn, box.repo, 'web', 'Review moving main', '--criterion', 'the feature builds', '--specs', 'G1', '--check', `node '${script}'`, '--json'));
     if (knownRed) document(await fixtureAdd(box.runIn, box.repo, 'web', 'Main red: web/known.test.js', '--criterion', 'known main red [G1] passes on main', '--specs', 'G1', '--check', 'node --test web/known.test.js', '--json'));
     document(await box.runIn(box.web, 'claim', '1', '--json'));
-    assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]').status, 0);
+    assert.equal((await helpers.commitFile(box, box.web, 'web/feature.js', 'built\n', 'feat(web): build feature [G1]')).status, 0);
     await submitUnsealed(box);
     const before = document(await box.runIn(box.repo, 'show', '1', '--json'));
     const reviewer = join(box.dir, 'reviewer');

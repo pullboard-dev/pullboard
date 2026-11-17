@@ -98,7 +98,7 @@ for (const shards of [1, 5]) {
   });
 }
 
-test('clause 2: the timed-out file is a complete, named red, so it is judged against main and the item like any red [C7,#3167]', async () => {
+test('landing.hung.the-timed-out-file-is-a: clause 2: the timed-out file is a complete, named red, so it is judged against main and the item like any red [C7,#3167]', async () => {
   startAll();
   const { box, run: pending } = scenario(1);
   const run = await pending;

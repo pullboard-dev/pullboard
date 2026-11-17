@@ -41,7 +41,7 @@ function request() {
   return { agentId: 'coordinator', action: 'request', token: randomUUID(), branch: 'refs/heads/main', pid: process.pid };
 }
 
-test('landing admission is FIFO and stale releases cannot free a successor [Q1,Q2,Q3]', t => {
+test('link.landing.fifo-stale-release-safe: landing admission is FIFO and stale releases cannot free a successor [Q1,Q2,Q3]', t => {
   const { boards: [board] } = fixture(t);
   const first = request(); const second = request(); const third = request();
   const acquired = store.landingLeaseMove(board, first);
@@ -64,7 +64,7 @@ test('landing admission is FIFO and stale releases cannot free a successor [Q1,Q
   assert.throws(() => store.landingLeaseMove(board, { ...fence, action: 'renew' }), error => error.code === 'LAND_LEASE_LOST');
 });
 
-test('a landing lease expires without lending the old holder another grant [Q3]', t => {
+test('link.landing.lease-expiry-fenced: a landing lease expires without lending the old holder another grant [Q3]', t => {
   const { boards: [board], advance } = fixture(t);
   const first = request(); const second = request();
   const granted = store.landingLeaseMove(board, first);
@@ -79,7 +79,7 @@ test('a landing lease expires without lending the old holder another grant [Q3]'
   assert.throws(() => store.landingLeaseMove(board, { ...first, agentId: 'web-1' }), error => error.code === 'COORDINATOR_ONLY');
 });
 
-test('ordered landing admission replays identically and a takeover fences the old invocation [Q1,Q2,H16,E19]', t => {
+test('link.landing.replay-and-takeover-fence: ordered landing admission replays identically and a takeover fences the old invocation [Q1,Q2,H16,E19]', t => {
   const box = fixture(t);
   let sequence = 0;
   /** Replay one exact receipt to both independent replicas, retaining the authenticated coordinator lineage. */
@@ -103,7 +103,7 @@ test('ordered landing admission replays identically and a takeover fences the ol
 });
 
 
-test('fenced landing moves never take a local or queued relay fallback [Q1,H16]', () => {
+test('link.landing.fenced-never-falls-back: fenced landing moves never take a local or queued relay fallback [Q1,H16]', () => {
   let applied = 0; let queued = 0;
   const cause = new Error('private relay unavailable');
   const callbacks = { apply() { applied++; return 'local'; }, queue(error, move, apply) { queued++; assert.equal(error, cause); assert.equal(move, 'sealed'); return apply(); } };
