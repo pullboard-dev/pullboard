@@ -25,6 +25,8 @@ import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
+export { browserFreeChecksEnabled } from '../logic/settings.js';
+export { reofferInfraEndEnabled } from '../logic/settings.js';
 export { boardRemote } from '../logic/settings.js';
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -54,11 +56,6 @@ export function gateQueueSettings() {
 }
 
 const DEFAULT_SHORT_SLOTS = 0;
-
-/** Browser-free check admission is deliberately opt-in per machine. */
-export function browserFreeChecksEnabled() {
-  return loadMachineSettings().gate?.browserFreeChecks === true;
-}
 
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {
@@ -108,11 +105,6 @@ export function recaptureHandoffEnabled() {
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
-}
-
-/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
-export function reofferInfraEndEnabled() {
-  return loadMachineSettings().gate?.reofferInfraEnd === true;
 }
 
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
@@ -978,6 +970,11 @@ export function readCrossProcessWrites() {
 /** Whether state.milestoneDelta is on (#9846, #9597): off by default; only an exact `true` turns it on. */
 export function milestoneDeltaEnabled() {
   return loadMachineSettings().state?.milestoneDelta === true;
+}
+
+/** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
+export function watchQuietReadsEnabled() {
+  return loadMachineSettings().watch?.quietReads === true;
 }
 
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */

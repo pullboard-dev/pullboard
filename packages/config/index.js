@@ -143,6 +143,7 @@ export {
   archiveEventsEnabled,
   hotStateEnabled,
   milestoneDeltaEnabled,
+  watchQuietReadsEnabled,
   readCrossProcessWrites,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,

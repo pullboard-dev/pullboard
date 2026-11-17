@@ -158,4 +158,5 @@ export const MACHINE_DEFAULTS = {
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
