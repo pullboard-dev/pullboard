@@ -955,6 +955,11 @@ export function stallStopEnabled() {
   return loadMachineSettings().landing?.stallStop === true;
 }
 
+/** Whether landing.parallelGates is on (#9747): off by default; only an exact `true` turns it on. */
+export function parallelGatesEnabled() {
+  return loadMachineSettings().landing?.parallelGates === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
