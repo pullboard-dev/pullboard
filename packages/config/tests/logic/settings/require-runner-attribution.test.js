@@ -19,12 +19,12 @@ function loadWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: gate.requireRunnerAttribution loads as true or false and refuses anything else [C7]', () => {
+test('config.logic-settings-require-runner.clause-1-gate-requirerunnerattribution: clause 1: gate.requireRunnerAttribution loads as true or false and refuses anything else [C7]', () => {
   assert.equal(loadWith({ gate: { requireRunnerAttribution: true } }).gate.requireRunnerAttribution, true);
   assert.equal(loadWith({ gate: { requireRunnerAttribution: false } }).gate.requireRunnerAttribution, false);
   assert.throws(() => loadWith({ gate: { requireRunnerAttribution: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS');
 });
 
-test('clause 1: gate.requireRunnerAttribution is absent by default [C7]', () => {
+test('config.logic-settings-require-runner.clause-1-gate-requirerunnerattribution-2: clause 1: gate.requireRunnerAttribution is absent by default [C7]', () => {
   assert.equal(loadWith({ gate: {} }).gate.requireRunnerAttribution, undefined);
 });

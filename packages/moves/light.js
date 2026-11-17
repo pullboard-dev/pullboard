@@ -3,6 +3,8 @@
 import { createRequire } from 'node:module';
 import { withMoveNextSteps as withRegistrySteps } from './src/io/registry.js';
 export { MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor } from './src/io/registry.js';
+/** The claim-head refusal, so a claim need not load the cell index's freezer and selection modules [C7,#9895]. */
+export { offMainHeadRefusal } from './src/io/claim-head.js';
 
 /**
  * Add the moves' own next steps to the default guidance.

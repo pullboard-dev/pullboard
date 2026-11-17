@@ -63,6 +63,8 @@ import {
 import { readUploadSize } from '../../logic/browser/status.js';
 import { deviceExcludedBoards } from './devices.js';
 import { attachRelayCause } from './status.js';
+import { setRelayStatus } from './status.js';
+import { statusFromLoad } from './status.js';
 
 const CHECKPOINT_WAIT_MS = 15_000;
 const KEYS = 'pullboard.relay.keys.v1';
@@ -677,6 +679,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
     });
     if (device.failure) { failure = device.failure; failureBoard = null; }
     available = document.boards.filter(board => BOARD.test(board.id) && typeof board.repository === 'string');
+    const loaded = statusFromLoad({ openBoard: (available.find(board => board.id === pair?.board) ?? available[0])?.repository ?? null, exclusions }); setRelayStatus(loaded.excluded ? loaded : null); // only an exclusion names a cause here [C7,#9667]
     inventoryLoaded = true;
     waitingBoards = new Map();
     sizeProblems = new Map();

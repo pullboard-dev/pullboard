@@ -29,7 +29,7 @@ function git(cwd, args) {
 }
 
 test('#5846 clause 1: the registry names one entry point for each operation [C7]', () => {
-  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree', 'stop-process-tree', 'sync-sleep', 'move-trunk']);
+  assert.deepEqual(OPERATIONS.map(row => row.name), ['run-tests', 'dispatch-gates', 'execute-gate', 'landing', 'record-proof', 'start-daemons', 'fetch-runner-code', 'create-worktree', 'stop-process-tree', 'sync-sleep', 'move-trunk', 'write-state-file']);
   for (const { entry } of OPERATIONS) assert.ok(readFileSync(new URL(entry, ROOT), 'utf8').length > 0, `${entry} exists`);
 });
 
@@ -224,4 +224,28 @@ test('#8055 [C7]: the mutation adapter is the one named spawner of tests outside
   const code = "import { execFile } from 'node:child_process';\nexecFile(process.execPath, ['--test', 'a.test.js']);\n";
   assert.deepEqual(operationSites(code, 'packages/sandbox/src/io/mutate.js'), []);
   assert.equal(operationSites(code, 'packages/sandbox/src/io/other.js').length, 1);
+});
+
+const WRITE_RENAME = "import { renameSync, writeFileSync } from 'node:fs';\nexport function save(file, text) {\n  writeFileSync(`${file}.tmp`, text);\n  renameSync(`${file}.tmp`, file);\n}\n";
+
+test('#6740 clause 2: write-state-file is entered at the kernel writeFileAtomic, and a private write-then-rename outside it is a known violation [C7]', () => {
+  const entry = OPERATIONS.find(row => row.name === 'write-state-file');
+  assert.equal(entry?.entry, 'packages/kernel/src/logic/atomic.js');
+  assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function writeFileAtomic/u);
+  assert.deepEqual(operationSites(WRITE_RENAME, 'packages/demo/src/io/save.js').map(row => [row.operation, row.line]), [['write-state-file', 3]]);
+  assert.deepEqual(operationSites(WRITE_RENAME, entry.entry), [], 'the entry itself is not a second path');
+  assert.deepEqual(operationSites("import { renameSync } from 'node:fs';\nrenameSync(a, b);\n", 'packages/demo/src/io/move.js'), [], 'a rename with no write is not a state-file write');
+  assert.deepEqual(operationSites(`// ${WRITE_RENAME.split('\n')[2].trim()}\n// renameSync(a, b);\n`, 'packages/demo/src/io/save.js'), [], 'a comment is not a site');
+  assert.deepEqual(operationSites(WRITE_RENAME, 'packages/demo/tests/save.test.js'), [], 'tests are not shipped source');
+});
+
+test('#6740 clause 2: the baseline records every private write-then-rename as a known violation, and the list can only shrink [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
+  assert.deepEqual(baseline['write-state-file'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['write-state-file']);
+  assert.equal(baseline['write-state-file'].length, 92, 'measured: 89 private helpers at claim, 5 added and 2 removed on main since (publishCacheEntry in codemap, #9883 removes it), the bar said 59');
+  const grown = { ...baseline, 'write-state-file': [...baseline['write-state-file'], 'packages/demo/src/io/save.js'] };
+  assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /write-state-file gains a second entry point/u);
+  const { 'write-state-file': recorded, ...before } = baseline;
+  assert.ok(recorded.length > 0);
+  assert.deepEqual(operationRatchetGrowth(baseline, before), [], 'an operation main does not list yet is a first record, not growth');
 });

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const FILES = ['packages/runners/src/io/dispatch.js', 'packages/runners/src/io/pull/delegate.js'];
 
-test('clause 1: dispatch.js and pull/delegate.js name no apps/ path and the ceiling holds no row for them [C7]', () => {
+test('runners.no-apps.dispatch-js-and-pull-delegate-js: clause 1: dispatch.js and pull/delegate.js name no apps/ path and the ceiling holds no row for them [C7]', () => {
   const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   for (const file of FILES) {
     assert.doesNotMatch(readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'), /apps\//u, file);
