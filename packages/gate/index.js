@@ -46,7 +46,7 @@ export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admis
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
-export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, SETTLED_FILE } from "./src/io/main/audit/state.js";
+export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, timerFiles, SETTLED_FILE } from "./src/io/main/audit/state.js";
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/io/main/audit/worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";
