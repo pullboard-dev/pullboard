@@ -18,6 +18,7 @@ export {
   listThinRead,
   loadMachineSettings,
   namedImportSelectionOn,
+  readThinCommands,
   retireIdleSeatHours,
   submitProofOnly,
   validateRunner,
