@@ -10,21 +10,14 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
-import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { writeFileAtomic } from '../../../kernel/light.js';
 
 const LOCK_STALE_MS = 5_000;
 const LOCK_RETRY_MS = 5;
-
-/** Write `text` to `file` by rename, so the file appears whole or not at all. */
-function writeAtomic(file, text) {
-  const temp = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
-  writeFileSync(temp, text);
-  renameSync(temp, file);
-}
 
 /** Read a JSON record, or null when it is missing or unreadable. */
 function readRecord(file) {
@@ -92,7 +85,7 @@ export function createFileWriteQueue(dir) {
       let outcome;
       try { outcome = { ok: true, value: await runs.get(next.id)() ?? null }; }
       catch (error) { outcome = { ok: false, error: { code: String(error?.code ?? 'WRITE_FAILED'), message: String(error?.message ?? error) } }; }
-      writeAtomic(resultFile(next.id), JSON.stringify(outcome));
+      writeFileAtomic(resultFile(next.id), JSON.stringify(outcome));
       rmSync(pendingFile(next.id), { force: true });
     }
   }
@@ -102,7 +95,7 @@ export function createFileWriteQueue(dir) {
     async submit({ id, run }) {
       const done = readRecord(resultFile(id));
       if (done) return done;
-      if (!existsSync(pendingFile(id))) writeAtomic(pendingFile(id), JSON.stringify({ seq: Date.now() * 1000 + (counter++ % 1000), pid: process.pid }));
+      if (!existsSync(pendingFile(id))) writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Date.now() * 1000 + (counter++ % 1000), pid: process.pid }));
       runs.set(id, run);
       for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
         if (takeLock(lock)) {

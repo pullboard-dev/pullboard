@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves packages/state */
 /** @pullboard-world-pin reads the state map fixture to prove the backbone table holds exactly its job kinds and serves words [C7,#8067]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
