@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
-import { missingReceiptPart } from './gate/missing-cause.js';
+import { missingReceiptPart } from './gate/where.js';
 import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
