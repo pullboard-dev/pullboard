@@ -450,6 +450,9 @@ export function loadMachineSettings() {
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
   }
+  if (value.next?.oneGitRead !== undefined && typeof value.next.oneGitRead !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.oneGitRead in ${file} must be true or false`);
+  }
   if (value.next?.readinessCache !== undefined && typeof value.next.readinessCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCache in ${file} must be true or false`);
   }

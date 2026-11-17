@@ -136,6 +136,7 @@ const BEFORE = {
   'next.itemNotices': false,
   'next.labelBounds': false,
   'next.lightShapedStrong': false,
+  'next.oneGitRead': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
