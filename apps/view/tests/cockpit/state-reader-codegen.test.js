@@ -8,7 +8,7 @@ import { pageScriptPart3 } from '../../index.js';
 
 /** Execute the actual generated board reader with explicit transport replies and no browser or board. */
 function compactBoardReader(replies, { local = true, snapshot = false, context = {} } = {}) {
-  const script = pageScriptPart3({ applyStateDelta, expandItemSummaries });
+  const script = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts() {}, expandItemSummaries });
   const start = script.indexOf('const sentStates = new Map();');
   const end = script.indexOf('/** Whether a board state already carries', start);
   assert.ok(start >= 0 && end > start, 'the generated script contains its actual state reader');
