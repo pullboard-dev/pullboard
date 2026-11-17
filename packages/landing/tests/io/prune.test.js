@@ -63,7 +63,7 @@ function recordReceipt(t, result) {
   return receipt;
 }
 
-test('a landing prunes only its landed clean worktree and names dirty and process-cwd trees [R3,C7]', async t => {
+test('landing.prune.a-landing-prunes-only-its-landed: a landing prunes only its landed clean worktree and names dirty and process-cwd trees [R3,C7]', async t => {
   const box = repository(t);
   const clean = box.tree('clean-seat');
   const dirty = box.tree('dirty-seat');
@@ -95,7 +95,7 @@ test('a landing prunes only its landed clean worktree and names dirty and proces
   assert.doesNotMatch(JSON.stringify(receipt), /processes|commandLine|argv/u, 'no global process arguments are retained');
 });
 
-test('landing prune retains untracked ignored and unlanded work without touching foreign paths [R3,C7]', async t => {
+test('landing.prune.landing-prune-retains-untracked-ignored-and: landing prune retains untracked ignored and unlanded work without touching foreign paths [R3,C7]', async t => {
   const box = repository(t);
   const { pruneRetiredWorktrees } = await pruner();
   const untracked = box.tree('untracked-seat');
@@ -118,7 +118,7 @@ test('landing prune retains untracked ignored and unlanded work without touching
   assert.ok(result.skipped.some(entry => entry.path === ahead.path && /landed/u.test(entry.reason)));
 });
 
-test('landing prune excludes protected trees and revalidates immediately before removal [R3,C7]', async t => {
+test('landing.prune.landing-prune-excludes-protected-trees-and: landing prune excludes protected trees and revalidates immediately before removal [R3,C7]', async t => {
   const box = repository(t);
   const { pruneRetiredWorktrees } = await pruner();
   const protectedTree = box.tree('proof-seat');
@@ -141,7 +141,7 @@ test('landing prune excludes protected trees and revalidates immediately before 
   assert.ok(existsSync(unsafe.path), 'missing board revalidation never permits deletion');
 });
 
-test('process cwd census parsing refuses incomplete or malformed observations [R3,C7]', async () => {
+test('landing.prune.process-cwd-census-parsing-refuses-incomplete: process cwd census parsing refuses incomplete or malformed observations [R3,C7]', async () => {
   const { parseWorkingDirectoryCensus } = await pruner();
   assert.equal(parseWorkingDirectoryCensus(''), null, 'empty output is unknown, not an idle machine');
   assert.equal(parseWorkingDirectoryCensus('p12\0fcwd\0'), null, 'missing cwd is unknown');
@@ -151,7 +151,7 @@ test('process cwd census parsing refuses incomplete or malformed observations [R
   assert.deepEqual(parsed, [{ pid: 12, path: '/fixture/tree' }, { pid: 34, path: '/fixture/elsewhere' }]);
 });
 
-test('landing prune refuses main caller aliases and a replaced common directory [R3,C7]', async t => {
+test('landing.prune.landing-prune-refuses-main-caller-aliases: landing prune refuses main caller aliases and a replaced common directory [R3,C7]', async t => {
   const box = repository(t);
   const foreign = repository(t);
   const { pruneRetiredWorktrees } = await pruner();

@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.parallelGates'));
 }
 
-test('clause 1: landing.parallelGates is a described machine setting whose default is off [C7,#9747]', () => {
+test('config.io-settings-parallel-gates-setting.clause-1-landing-parallelgates-is-a: clause 1: landing.parallelGates is a described machine setting whose default is off [C7,#9747]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,7 +34,7 @@ test('clause 1: landing.parallelGates is a described machine setting whose defau
   assert.match(unset.description ?? JSON.stringify(unset), /second batch/u);
 });
 
-test('clause 2: reading landing.parallelGates through the settings reader returns false when unset, true only for an exact true [C7,#9747]', () => {
+test('config.io-settings-parallel-gates-setting.clause-2-reading-landing-parallelgates: clause 2: reading landing.parallelGates through the settings reader returns false when unset, true only for an exact true [C7,#9747]', () => {
   assert.equal(withSettings({}, parallelGatesEnabled), false);
   assert.equal(withSettings({ landing: { parallelGates: true } }, parallelGatesEnabled), true);
   assert.throws(() => withSettings({ landing: { parallelGates: 'yes' } }, parallelGatesEnabled), /landing\.parallelGates/u);

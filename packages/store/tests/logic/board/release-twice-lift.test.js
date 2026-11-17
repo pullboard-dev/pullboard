@@ -21,8 +21,10 @@ function held(t, { lift, named = false }) {
   const claim = agentId => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7200000,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
   claim(first); store.release(board, id, first, '', 'BLOCKED');
+  // A release naming --on no longer counts toward the twice (#9722), so the named blocker sits in the history as the record an older board holds, between the two counted releases.
+  if (named) write(board, 'release', id, { reasonCode: 'BLOCKED', blockedOn: [blocker] });
   claim(second);
-  if (named) store.release(board, id, second, '', { blockedOn: [blocker] }, 'BLOCKED'); else store.release(board, id, second, '', 'BLOCKED');
+  store.release(board, id, second, '', 'BLOCKED');
   return { board, id, blocker };
 }
 

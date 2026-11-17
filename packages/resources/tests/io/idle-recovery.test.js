@@ -34,7 +34,7 @@ function unavailable(file) {
   try { return db.prepare('SELECT host,probe_after,probe_attempts FROM runner_unavailable WHERE host=?').get(RUNNER.host); } finally { db.close(); }
 }
 
-test('clause 1: a quarantined runner with no waiting gate gets a recovery probe within its probe interval [C7]', async t => {
+test('resources.idle-recovery.a-quarantined-runner-with-no-waiting: clause 1: a quarantined runner with no waiting gate gets a recovery probe within its probe interval [C7]', async t => {
   const { file, since, due } = await quarantined(t);
   let probes = 0;
   const failing = { probe: async () => { probes += 1; return { healthy: false, step: 'worker readiness', reason: 'not ready' }; }, transportProbe: async () => { probes += 1; return { healthy: false }; } };
@@ -48,7 +48,7 @@ test('clause 1: a quarantined runner with no waiting gate gets a recovery probe 
   assert.equal(probes, before, 'a runner not yet due is not probed again');
 });
 
-test('clause 2: a probe that answers clears the quarantine row with no gate involved [C7]', async t => {
+test('resources.idle-recovery.a-probe-that-answers-clears-the: clause 2: a probe that answers clears the quarantine row with no gate involved [C7]', async t => {
   const { file, since, due } = await quarantined(t);
   const healthy = { probe: async () => ({ healthy: true }), transportProbe: async () => ({ healthy: true }) };
   const cleared = await recoverIdleRunners([RUNNER], { ...healthy, file, now: Math.max(since, due) });

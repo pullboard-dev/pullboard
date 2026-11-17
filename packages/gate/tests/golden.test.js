@@ -14,7 +14,7 @@ const USER_PATHS = [
   'release', 'upgrade', 'relay-pair', 'view-open', 'doctor-first-run',
 ];
 
-test('clause 1: every user path names exactly one existing journey file, or is recorded as a gap [C7]', () => {
+test('gate.golden.user-path-names-exactly-one: clause 1: every user path names exactly one existing journey file, or is recorded as a gap [C7]', () => {
   const named = golden.paths.map(entry => entry.path);
   const gaps = golden.gaps.map(entry => entry.path);
   assert.deepEqual([...named, ...gaps].sort(), [...USER_PATHS].sort(), 'each user path is a golden path or a gap, once');
@@ -30,7 +30,7 @@ test('clause 1: every user path names exactly one existing journey file, or is r
   }
 });
 
-test('clause 2: every golden journey is tagged harness in the test manifest and carries no freeze tag [C7]', () => {
+test('gate.golden.golden-journey-tagged-harness-test: clause 2: every golden journey is tagged harness in the test manifest and carries no freeze tag [C7]', () => {
   for (const entry of golden.paths) {
     const row = manifest.files.find(item => item.file === entry.file);
     assert.ok(row, `${entry.file} has a manifest row`);
