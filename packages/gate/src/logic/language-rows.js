@@ -47,6 +47,7 @@ export const LANGUAGE_ROWS = Object.freeze([
   { language: 'nim', pattern: /\.nimble$/u, command: 'nimble test', tests: ['**/tests/**/*.nim', '**/test_*.nim'] },
   { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
   { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
+  { language: 'zig', markers: ['build.zig'], command: 'zig build test', tests: ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig'] },
 ]);
 
 /**
