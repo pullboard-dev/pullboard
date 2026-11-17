@@ -533,9 +533,6 @@
   "apps/cli/journeys/relay/hosted/boards.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/spec/cockpit/shared.test.js": {
     "launch": 1
   },
