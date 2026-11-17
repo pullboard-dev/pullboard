@@ -1,6 +1,5 @@
 /** A C++ CMake project goes through init, add, claim, commit, submit, the ctest gate and land on a scratch board [C7,#10515,#3705]. */
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
