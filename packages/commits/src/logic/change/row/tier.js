@@ -56,6 +56,11 @@ function ceilingParts(shape, doc) {
   return { rows, rest: JSON.stringify(rest), total: typeof total === 'number' ? total : null };
 }
 
+/** Whether the table's own check vouches that a newly listed file's row was split from a listed file; a throw refuses. */
+function coveredSplit(shape, context) {
+  return Boolean(shape?.splitCovered?.(context));
+}
+
 /**
  * Prove a staged change to a ceiling baseline only adds, renames or lowers rows of files this lane owns, and never
  * raises a ceiling: a file already listed may not raise any rule, and the rows of newly listed files (a split's new
@@ -63,11 +68,12 @@ function ceilingParts(shape, doc) {
  * because the rows were core's, though a split only moves ceilings and never adds to them [L3,C7].
  *
  * @param {string} path
- * @param {{ before: (path: string) => any, after: (path: string) => any, ownsFile: (file: string) => boolean, tables?: Record<string, { files?: boolean, bare?: boolean }> }} reads
- *   `tables` adds the source ceiling tables the gate cell owns and names (its CEILING_ROW_TABLES), with each one's row shape.
+ * @param {{ before: (path: string) => any, after: (path: string) => any, ownsFile: (file: string) => boolean, tables?: Record<string, { files?: boolean, bare?: boolean, splitCovered?: (context: object) => boolean }>, read?: (revision: string, path: string) => any }} reads
+ *   `tables` adds the source ceiling tables the gate cell owns and names (its CEILING_ROW_TABLES), with each one's row shape;
+ *   a shape's `splitCovered` vouches for a new file's row from the file it was split from, reading blobs through `read`.
  * @returns {{ allowed: boolean, problem: string | null }}
  */
-export function baselineRowChange(path, { before, after, ownsFile, tables = {} }) {
+export function baselineRowChange(path, { before, after, ownsFile, tables = {}, read }) {
   const shape = Object.hasOwn(tables, path) ? tables[path] : null;
   if (!BASELINE_TABLES.includes(path) && !shape) return { allowed: false, problem: null };
   try {
@@ -85,7 +91,7 @@ export function baselineRowChange(path, { before, after, ownsFile, tables = {} }
         if (typeof delta !== 'number' || Number.isNaN(delta)) throw Error('row is not a count');
         if (delta < 0) freed[rule] = (freed[rule] ?? 0) - delta;
         else if (delta > 0 && was) return { allowed: false, problem: `baseline row ${file} ${rule} would rise; a ceiling is never raised` };
-        else if (delta > 0) added[rule] = (added[rule] ?? 0) + delta;
+        else if (delta > 0 && !coveredSplit(shape, { file, old, next, read })) added[rule] = (added[rule] ?? 0) + delta;
       }
     }
     for (const rule of Object.keys(added)) {

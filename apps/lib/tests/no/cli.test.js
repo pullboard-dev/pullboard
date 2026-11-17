@@ -35,7 +35,7 @@ function closureOf(graph, start) {
   return seen;
 }
 
-test('clause 1: doctrine-fast declares and imports only scan.js and its listed @file-local checks [C7,#3808]', () => {
+test('lib.no-cli.doctrine-fast-declares-and-imports-only: clause 1: doctrine-fast declares and imports only scan.js and its listed @file-local checks [C7,#3808]', () => {
   const header = readFileSync(join(ROOT, FAST), 'utf8').split('\n')[0];
   const declared = /^\/\*\* @pullboard-module-loads (.+) \*\/$/u.exec(header)?.[1].split(' ');
   assert.deepEqual(declared, ['packages/gate/src/io/scan.js', ...FAST_CHECK_SCRIPTS]);
@@ -46,7 +46,7 @@ test('clause 1: doctrine-fast declares and imports only scan.js and its listed @
   assert.deepEqual(marked.sort(), [...FAST_CHECK_SCRIPTS].sort(), 'every @file-local check is listed, so none silently loses the fast path');
 });
 
-test('clause 1: doctrine-fast refuses an unlisted @file-local script and keeps a listed one [C7,#3808]', t => {
+test('lib.no-cli.doctrine-fast-refuses-an-unlisted-file: clause 1: doctrine-fast refuses an unlisted @file-local script and keeps a listed one [C7,#3808]', t => {
   const { root, write } = privateFixtureFiles('pb-fast-list-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   write('bin/checks/other.js', '/** @file-local reads only its files */\n');
@@ -55,7 +55,7 @@ test('clause 1: doctrine-fast refuses an unlisted @file-local script and keeps a
   assert.equal(fastCheckScript(root, 'node packages/gate/src/io/catch.js'), 'packages/gate/src/io/catch.js');
 });
 
-test('clause 1: in the selection graph doctrine-fast reaches neither static-tree-registry.js nor apps/cli/index.js [C7,#3808]', () => {
+test('lib.no-cli.in-the-selection-graph-doctrine-fast: clause 1: in the selection graph doctrine-fast reaches neither static-tree-registry.js nor apps/cli/index.js [C7,#3808]', () => {
   const graph = gate.codeMapGraph(ROOT, 'HEAD');
   const reached = closureOf(graph, FAST);
   assert.ok(reached.has('packages/gate/src/io/catch.js'), 'the declared checks stay in its closure');
@@ -88,7 +88,7 @@ function check(root) {
   return { status: result.status === 0 && rows.length === 0 ? 0 : 1, stderr: `${result.stderr}${rows.join('\n')}` };
 }
 
-test('clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/index.js, naming it and its path [C7,#3808]', t => {
+test('lib.no-cli.cell-lints-check-refuses-a-package: clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/index.js, naming it and its path [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', "import { run } from '../../../../apps/cli/index.js';\nexport const leaf = () => run();\n");
   box.commit();
@@ -99,7 +99,7 @@ test('clause 2: cell-lints --check refuses a package module that newly reaches a
   assert.doesNotMatch(stderr, /cliReach:packages\/beta/u, 'reach main already had is not refused');
 });
 
-test('clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/src/io/landing/audit.js [C7,#3808]', t => {
+test('lib.no-cli.cell-lints-check-refuses-a-package-2: clause 2: cell-lints --check refuses a package module that newly reaches apps/cli/src/io/landing/audit.js [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', "import { beta } from '../../../beta/index.js';\nexport const leaf = () => beta();\n");
   box.commit();
@@ -108,7 +108,7 @@ test('clause 2: cell-lints --check refuses a package module that newly reaches a
   assert.match(stderr, /cliReach:packages\/alpha\/src\/shell\/leaf\.js: reaches apps\/cli\/src\/io\/landing\/audit\.js through packages\/alpha\/src\/shell\/leaf\.js -> packages\/beta\/index\.js -> apps\/cli\/src\/io\/landing\/audit\.js/u);
 });
 
-test('clause 2: cell-lints --check passes a change that adds no package reach into the CLI [C7,#3808]', t => {
+test('lib.no-cli.cell-lints-check-passes-a-change: clause 2: cell-lints --check passes a change that adds no package reach into the CLI [C7,#3808]', t => {
   const box = cliFixture(t);
   box.put('packages/alpha/src/shell/leaf.js', 'export const leaf = () => 3;\n');
   box.commit();

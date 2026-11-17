@@ -39,7 +39,7 @@ function fixture(t, seats, clock) {
   return { board, claimed, credit, preflight };
 }
 
-test('Standard reachability skips the seat scan while the normal projection still lists reviewers [C7,V4]', t => {
+test('lib.no-reviewer.standard-reachability-skips-the-seat-scan: Standard reachability skips the seat scan while the normal projection still lists reviewers [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Standard reachability fixture' });
   store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE, freeze });
@@ -63,7 +63,7 @@ test('Standard reachability skips the seat scan while the normal projection stil
   assert.equal(enumerations, 1);
 });
 
-test('reachability rereads current Strict policy after a Standard projection [C7,V4]', t => {
+test('lib.no-reviewer.reachability-rereads-current-strict-policy-after: reachability rereads current Strict policy after a Standard projection [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Changed review policy fixture' });
   const standard = { ...store.getItem(f.board, id), item_status: 'submitted', item_built_by: 'core-1', item_builder_family: 'openai' };
@@ -75,7 +75,7 @@ test('reachability rereads current Strict policy after a Standard projection [C7
     'an earlier Standard observation cannot suppress the current Strict guard');
 });
 
-test('an OpenAI builder with a Claude-credited companion on a strict item is refused by name [C7,V4]', t => {
+test('lib.no-reviewer.an-openai-builder-with-a-claude: an OpenAI builder with a Claude-credited companion on a strict item is refused by name [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);
   const id = f.claimed('core-1');
   f.credit(id, 'core-2');
@@ -91,21 +91,21 @@ test('an OpenAI builder with a Claude-credited companion on a strict item is ref
   assert.equal(store.getItem(f.board, id).item_status, 'claimed');
 });
 
-test('the same item with an OpenAI-credited companion submits [C7,V4]', t => {
+test('lib.no-reviewer.the-same-item-with-an-openai: the same item with an OpenAI-credited companion submits [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);
   const id = f.claimed('core-1');
   f.credit(id, 'core-4');
   f.preflight(id, 'core-1');
 });
 
-test('a null-family builder on a strict item is refused naming the missing declaration [C7,V4]', t => {
+test('lib.no-reviewer.a-null-family-builder-on-a: a null-family builder on a strict item is refused naming the missing declaration [C7,V4]', t => {
   const f = fixture(t, [['core-1', undefined, 'a'], ['core-2', 'claude', 'b']]);
   const id = f.claimed('core-1');
   assert.throws(() => f.preflight(id, 'core-1'), error => /declared no vendor family/u.test(error.message) && /--family/u.test(error.message),
     'the builder-family guard predates this check and still speaks first');
 });
 
-test('seats with no declared family leave strict review unroutable and are named [C7,V4]', t => {
+test('lib.no-reviewer.seats-with-no-declared-family-leave: seats with no declared family leave strict review unroutable and are named [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', undefined, 'b'], ['core-3', undefined, 'c']]);
   const id = f.claimed('core-1');
   assert.throws(() => f.preflight(id, 'core-1'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
@@ -114,7 +114,7 @@ test('seats with no declared family leave strict review unroutable and are named
   f.preflight(id, 'core-1');
 });
 
-test('a seat that is gone does not count as an active reviewer [C7,V4]', t => {
+test('lib.no-reviewer.a-seat-that-is-gone-does: a seat that is gone does not count as an active reviewer [C7,V4]', t => {
   let ms = Date.parse('2026-10-28T12:00:00Z');
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']], { now: () => new Date(ms) });
   const id = f.claimed('core-1');
@@ -126,7 +126,7 @@ test('a seat that is gone does not count as an active reviewer [C7,V4]', t => {
   f.preflight(id, 'core-1');
 });
 
-test('the sentinel names an already-submitted strict item that became unreviewable [C7,V4]', t => {
+test('lib.no-reviewer.the-sentinel-names-an-already-submitted: the sentinel names an already-submitted strict item that became unreviewable [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b']]);
   const id = f.claimed('core-1');
   store.submit(f.board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40), files: [],
@@ -144,7 +144,7 @@ const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n
 /** Attach a coordinator companion patch credited to one author, exactly as the native move receives it. */
 const attach = (f, id, key, author) => store.attachItemPatch(f.board, id, { agentId: 'coordinator', key, commit: 'c'.repeat(40), patch: PATCH, author, presubmit: true });
 
-test('attaching a Claude-credited companion to a claimed OpenAI-built strict item is refused and changes nothing [C7,V4]', t => {
+test('lib.no-reviewer.attaching-a-claude-credited-companion-to: attaching a Claude-credited companion to a claimed OpenAI-built strict item is refused and changes nothing [C7,V4]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'claude', 'c'], ['core-4', 'openai', 'd']]);
   const id = f.claimed('core-1');
   const before = store.events(f.board);
@@ -154,7 +154,7 @@ test('attaching a Claude-credited companion to a claimed OpenAI-built strict ite
   assert.equal(attach(f, id, 'companion', 'core-4').changed, true, 'an OpenAI-credited companion still attaches');
 });
 
-test('historical family clears cannot hide the builder or companion from strict reachability [C7,V4,H16]', t => {
+test('lib.no-reviewer.historical-family-clears-cannot-hide-the: historical family clears cannot hide the builder or companion from strict reachability [C7,V4,H16]', t => {
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'openai', 'c']]);
   const id = f.claimed('core-1');
   f.board.executionEngineVersion = FAMILY_DECLARE_ENGINE - 1;
@@ -169,7 +169,7 @@ test('historical family clears cannot hide the builder or companion from strict 
   assert.deepEqual(store.events(f.board), before, 'a refused attach leaves the historical clears factual and adds no event');
 });
 
-test('a live attach is refused when the only eligible reviewer is gone, while replaying the recorded move succeeds [C7,V4]', t => {
+test('lib.no-reviewer.a-live-attach-is-refused-when: a live attach is refused when the only eligible reviewer is gone, while replaying the recorded move succeeds [C7,V4]', t => {
   let ms = Date.parse('2026-10-28T12:00:00Z');
   const f = fixture(t, [['core-1', 'openai', 'a'], ['core-2', 'claude', 'b'], ['core-3', 'openai', 'c']], { now: () => new Date(ms) });
   const id = f.claimed('core-1');

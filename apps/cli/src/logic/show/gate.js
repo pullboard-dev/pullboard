@@ -82,3 +82,35 @@ export function pulledRedLines(gateJob, item) {
     ...cases.slice(0, RED_ROWS), ...(cases.length > RED_ROWS ? [`  ${cases.length - RED_ROWS} more failing cases in the full log`] : []),
     ...tails.slice(-RED_ROWS), ...(typeof gate.logPath === 'string' ? [`full log: ${gate.logPath}`] : [])];
 }
+
+/**
+ * The phases of the landing receipt that merged an item, as show prints them: one line each, in the order the runner job ran them.
+ * Why: a landing's time was recorded but nothing read it, so a slow landing could not be told from a slow gate [C7,#9079].
+ *
+ * @param {Array<{ phase: string, ms: number }> | undefined} phases - the item's recorded landing phases; none for an item landed before they were kept.
+ * @returns {string[]} none when no phase was recorded.
+ */
+export function landingPhaseLines(phases) {
+  return (Array.isArray(phases) ? phases : []).map(row => `landing phase ${row.phase}: ${row.ms} ms`);
+}
+
+/**
+ * The exact-tree record of the newest landing batch that carried an item, or undefined for an item landed before the record existed.
+ * Why a text pre-filter: a board holds thousands of batch snapshots, and only the ones carrying a record are parsed [V38].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle.
+ * @param {number} id
+ * @returns {{ tree: string, pin?: string, cells?: string[], result?: string } | undefined}
+ */
+export function exactTreeOf(db, id) {
+  const row = db.prepare(`SELECT json_extract(event_detail, '$.batch.exactTree') AS record FROM event WHERE event_kind = 'landing_batch'
+    AND json_extract(event_detail, '$.batch.state') = 'landed' AND instr(event_detail, '"exactTree"') > 0
+    AND EXISTS (SELECT 1 FROM json_each(event_detail, '$.batch.items') WHERE json_extract(value, '$.id') = ?) ORDER BY event_id DESC LIMIT 1`).get(id);
+  return row?.record ? JSON.parse(row.record) : undefined;
+}
+
+/** The one line `pullboard show` prints beside the landing: the tree id, the tooling commit, the cells run and the result [V38]. */
+export function exactTreeLine(record) {
+  const proved = record.result ? `${record.result}, cells ${(record.cells ?? []).join(', ') || 'none'}` : 'not proved';
+  return `landing exact tree ${record.tree.slice(0, 12)}: tooling ${record.pin ? record.pin.slice(0, 12) : 'unknown'}, ${proved}`;
+}

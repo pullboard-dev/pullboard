@@ -55,7 +55,9 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   for (const [name, section] of [['tox.ini', 'pytest'], ['setup.cfg', 'tool:pytest']]) {
     if (!python && existsSync(join(root, name)) && readFileSync(join(root, name), 'utf8').includes(`[${section}]`)) python = true;
   }
-  if (python) add('python', 'pytest');
+  // A uv or poetry project keeps pytest in its own environment, so a lock file beside pyproject.toml fronts the command (uv wins over poetry) [C7,#10357].
+  const front = !existsSync(join(root, 'pyproject.toml')) ? '' : existsSync(join(root, 'uv.lock')) ? 'uv run ' : existsSync(join(root, 'poetry.lock')) ? 'poetry run ' : '';
+  if (python) add('python', `${front}pytest`);
   if (existsSync(join(root, 'composer.json'))) add('php', 'composer test');
   if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
@@ -125,3 +127,56 @@ export function setHere(io, command, rest, values) {
   io.say(`Next: commit ${CONFIG_FILE}, then run pullboard gate.`);
   return 0;
 }
+
+/* The runner toolchains each detected language needs, read from detectLanguages entries [C7]. */
+/** The probe's toolchain name rule (packages/runners/src/io/probe.js), so every name here is one a runner can record. */
+export const TOOLCHAIN_NAME = /^[a-z][a-z0-9+_-]{0,31}$/u;
+
+/** Each language's toolchains; a function reads the detected command when the front tool varies (uv, poetry, bundle, rake, gradle, flutter). */
+const ROWS = Object.freeze({
+  bun: ['bun'],
+  cmake: ['cmake', 'ctest'],
+  csharp: ['dotnet'],
+  dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
+  deno: ['deno'],
+  elixir: ['mix'],
+  go: ['go'],
+  gradle: command => (/^\s*gradle\s/u.test(command) ? ['gradle', 'java'] : ['java']),
+  haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
+  make: ['make'],
+  maven: ['java', 'mvn'],
+  node: ['node'],
+  perl: ['perl'],
+  php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),
+  python: command => [...(/^\s*uv\s/u.test(command) ? ['uv'] : /^\s*poetry\s/u.test(command) ? ['poetry'] : []), 'python3'],
+  ruby: command => (/^\s*bundle\s/u.test(command) ? ['bundle', 'ruby'] : /^\s*rake\s/u.test(command) ? ['rake', 'ruby'] : ['ruby']),
+  rust: ['cargo'],
+  sbt: ['java', 'sbt'],
+  swift: ['swift'],
+});
+
+/**
+ * The sorted unique toolchains a runner needs to test these detected languages, plus the languages no row knows.
+ * Why: runners record toolchains and admission reads runners.requiredToolchains, but nothing maps a repo to what it needs,
+ * so a Python job could be offered to a runner with no python3 and fail red instead of waiting for one that has it.
+ *
+ * @param {{ language: string, command?: string }[]} entries detectLanguages output
+ * @returns {{ toolchains: string[], unknown: string[] }}
+ */
+export function languageToolchains(entries) {
+  const toolchains = new Set();
+  const unknown = new Set();
+  for (const entry of entries ?? []) {
+    const language = entry?.language;
+    if (typeof language !== 'string' || !Object.hasOwn(ROWS, language)) {
+      unknown.add(String(language));
+      continue;
+    }
+    const row = ROWS[language];
+    for (const name of typeof row === 'function' ? row(String(entry.command ?? '')) : row) toolchains.add(name);
+  }
+  return { toolchains: [...toolchains].sort(), unknown: [...unknown].sort() };
+}
+
+/** Every language with a toolchain row, sorted. */
+export const TOOLCHAIN_LANGUAGES = Object.freeze(Object.keys(ROWS).sort());

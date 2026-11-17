@@ -66,10 +66,41 @@ import { landingOperations } from './merge.js';
 import { gateComponentTier } from '../../../../config/index.js';
 import { gateJunitReport } from '../../../../config/index.js';
 import { landingJunitFailures } from '../../../../config/index.js';
+import { landingCargoFailures } from '../../../../config/index.js';
 import { readJunitReport } from './junit-report.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
 const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
+
+/**
+ * The ports of the Sprint proof on the batch's tip: the changed paths, the code that ran, the static checks and one cell's own tests [V37].
+ * Why here: the static checks and the guard's runner placement are this step's; the proof file imports nothing.
+ * A cell with no test file has nothing to run and is green; the tests run under the guard's slot, on a runner when the machine is runners-only.
+ */
+export function sprintPorts(state) {
+  const root = state.batch.root;
+  const directory = join(dirname(root), 'logs');
+  let plan;
+  return {
+    changedFiles: () => git(root, ['diff', '--no-renames', '--name-only', state.batch.base, state.batch.tip]).split('\n').filter(Boolean),
+    pin: () => headCommit(state.root),
+    runStatic: () => runStaticChecks(root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+      agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .then(run => ({ isGreen: run === null || run.isGreen !== false, output: run?.output }), error => ({ isGreen: false, output: error?.message })),
+    runCell: async cell => {
+      // The change's own cells are the units the tier plan selects for the changed packages; a repository without tiers selects by import reach [V37].
+      plan ??= { tiers: selectTestTiers(root, { base: state.batch.base, commit: state.batch.tip, runner: state.config.affectedTests, componentTier: gateComponentTier() }) };
+      const named = plan.tiers ? plan.tiers.units : (plan.reach ??= selectAffectedTests(root, { base: state.batch.base, commit: state.batch.tip, suites: state.config.affectedSuites }).files);
+      const files = named.filter(file => file.startsWith(`${cell}/`));
+      const command = plan.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
+      if (!command) return { isGreen: true };
+      mkdirSync(directory, { recursive: true });
+      const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label: `sprint-${cell.replace('/', '-')}`,
+        onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
+      return { isGreen: run.isGreen === true, output: run.output };
+    },
+  };
+}
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
@@ -390,7 +421,7 @@ async function runGateGroup(state, label, options) {
   const reportPath = landingJunitFailures() ? gateJunitReport() : null;
   const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
   if (report?.code) state.say(`gate ${label}: JUnit report ${reportPath} not used (${report.code}); parsing the output`);
-  const junit = report?.xml ? { junitFailures: true, junitXml: report.xml } : {};
+  const junit = { ...(report?.xml ? { junitFailures: true, junitXml: report.xml } : {}), cargoFailures: landingCargoFailures() };
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
