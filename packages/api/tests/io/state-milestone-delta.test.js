@@ -29,7 +29,7 @@ const MILESTONES = 50;
 const HOUR = 3_600_000;
 
 /**
- * A served board of 2 items in each of 50 milestones, one of them landed an hour ago so the pace moves as the clock does.
+ * A served board of 2 items in each of 50 milestones, three of them landed an hour ago so the pace and its derived estimate move as the clock does.
  * The machine settings hold `state.milestoneDelta` as given.
  */
 async function served(t, milestoneDelta) {
@@ -54,12 +54,15 @@ async function served(t, milestoneDelta) {
       addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: `Delta release ${group}`, note: 'Delta fixture only', items: ids.slice(group * 2, group * 2 + 2) });
     }
   });
-  const head = 'a'.repeat(40);
   at = now;
-  cellClaim(board, ids[0], agents[0], { root: project.repo, leaseMs: 3 * HOUR });
-  submitFixture(board, ids[0], { agentId: agents[0].id, commit: head, tree: 'tree:milestone-delta' });
-  verify(board, ids[0], { agentId: agents[1].id, decision: 'ACCEPT', head, digest: getItem(board, ids[0]).item_frozen_digest, policy: 'any', note: 'Delta fixture only; no gate execution is claimed.' });
-  merged(board, ids[0], { agentId: 'coordinator', commit: 'b'.repeat(40) });
+  // Three landings inside the six-hour window, so every open milestone carries a pace-derived estimate [N26].
+  for (const [order, index] of [0, 2, 4].entries()) {
+    const head = String(order + 1).repeat(40);
+    cellClaim(board, ids[index], agents[0], { root: project.repo, leaseMs: 3 * HOUR });
+    submitFixture(board, ids[index], { agentId: agents[0].id, commit: head, tree: `tree:milestone-delta-${order}` });
+    verify(board, ids[index], { agentId: agents[1].id, decision: 'ACCEPT', head, digest: getItem(board, ids[index]).item_frozen_digest, policy: 'any', note: 'Delta fixture only; no gate execution is claimed.' });
+    merged(board, ids[index], { agentId: 'coordinator', commit: String(order + 4).repeat(40) });
+  }
   at = now;
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead, nativeBoardPorts, moveArgs: (body) => [body.verb] }, refusalDocument, runCommand: async () => 0,
     projects: () => [{ root: project.repo, name: 'Milestone delta fixture' }], now: () => now });
@@ -81,7 +84,7 @@ async function deltaAfter(box, change) {
   const before = await box.request(box.path + '/state');
   assert.equal(before.status, 200);
   assert.equal(before.document.state.milestones.length, MILESTONES);
-  assert.equal(before.document.state.milestones[0].summary.pace.last2h, 1, 'the landing is inside the two-hour window');
+  assert.equal(before.document.state.milestones[0].summary.pace.last2h, 3, 'the landings are inside the two-hour window');
   change();
   const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
   assert.ok(delta.document.delta, 'a later build answers with a delta');
