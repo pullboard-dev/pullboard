@@ -9,6 +9,7 @@ import { git } from '../../fixtures/plan.js';
 /** A real repository with a base commit and an item commit on top; each commit's tree differs. */
 function repository(t) {
   const { root, put } = fixture(t);
+  put('web/item.txt', 'base\n');
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'chore: base');
   const base = git(root, 'rev-parse', 'HEAD').trim();
