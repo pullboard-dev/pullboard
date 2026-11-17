@@ -41,14 +41,14 @@ function afterReceipt(t, flag, receipt) {
   return { open, answer, item: { ...item } };
 }
 
-test('clause 1: a queued landing is the open landing with runs_store on and off [B2,P7,#9114]', t => {
+test('api.landing-runs.queued-landing-open-landing-runs: clause 1: a queued landing is the open landing with runs_store on and off [B2,P7,#9114]', t => {
   for (const flag of [false, true]) {
     const { board, job } = landing(t, flag);
     assert.equal(openLandingJob(board.db), job.id, `runs_store ${flag ? 'on' : 'off'}: the offered landing is the open one`);
   }
 });
 
-test('clause 1: a landed receipt merges the same items with runs_store on and off [B2,P7,#9114]', t => {
+test('api.landing-runs.landed-receipt-merges-same-items: clause 1: a landed receipt merges the same items with runs_store on and off [B2,P7,#9114]', t => {
   const receipt = { outcome: 'landed', trunk: TRUNK, landed: [7], already: [] };
   const off = afterReceipt(t, false, receipt);
   const on = afterReceipt(t, true, receipt);
@@ -57,7 +57,7 @@ test('clause 1: a landed receipt merges the same items with runs_store on and of
   assert.equal(on.item.item_merged_commit, TRUNK);
 });
 
-test('clause 1: a trunk-busy receipt changes no item with runs_store on and off [B2,P7,#9114]', t => {
+test('api.landing-runs.trunk-busy-receipt-changes-item: clause 1: a trunk-busy receipt changes no item with runs_store on and off [B2,P7,#9114]', t => {
   const receipt = { outcome: 'trunk-busy' };
   const off = afterReceipt(t, false, receipt);
   const on = afterReceipt(t, true, receipt);

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** The landing composition guard reads its module graph from Git objects, cached on disk by tree id [C7,#3359]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

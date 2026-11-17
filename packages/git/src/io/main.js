@@ -1168,7 +1168,7 @@ export function localConfigIs(root, section, key, value) {
   return values.length === 1 && values[0] === value;
 }
 
-/** Read an unambiguous plain local config value without a Git process; undefined asks Git to decide. */
+/** Read an unambiguous plain local config value without a Git process; undefined asks Git to decide. Only the wanted key must be plain: an email or URL elsewhere no longer sends the read to Git [C7,#8574]. */
 export function plainLocalConfigValue(root, section, key) {
   const location = fileLocation(root, { clean: true });
   if (!location) return undefined;
@@ -1182,9 +1182,9 @@ export function plainLocalConfigValue(root, section, key) {
     if (/^\s*(?:[#;].*)?$/u.test(line)) continue;
     const header = /^\s*\[([A-Za-z0-9.-]+)(?:\s+"[^"\\]*")?\]\s*$/u.exec(line);
     if (header) { hasSection = true; inSection = header[1].toLowerCase() === section && !line.includes('"'); continue; }
-    const entry = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*([\w./-]+)\s*$/u.exec(line);
+    const entry = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*(?:=\s*(.*?))?\s*$/u.exec(line);
     if (!entry || !hasSection) return undefined;
-    if (inSection && entry[1].toLowerCase() === key) values.push(entry[2]);
+    if (inSection && entry[1].toLowerCase() === key) { if (!/^[\w./-]+$/u.test(entry[2] ?? '')) return undefined; values.push(entry[2]); }
   }
   return values.length > 1 ? undefined : values[0] ?? null;
 }
@@ -1316,16 +1316,18 @@ export function contains(root, ancestor, descendant) {
 
 /**
  * A path inside this worktree's git dir, for state that must never sit in the tree.
+ * With `files` on, the index is placed from the Git files too, as Git's own rule does (the worktree's dir), with no process to ask; a layout the files cannot place still asks Git [C7,#9853].
  *
  * @param {string} root
  * @param {string} name
+ * @param {{ files?: boolean }} [options]
  * @returns {string}
  */
-export function gitPath(root, name) {
-  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
+export function gitPath(root, name, { files = false } = {}) {
+  return fact(`gitPath:${JSON.stringify([resolve(root), name, files])}`, () => {
     // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
     // Git's own rule places MERGE_HEAD in the worktree's dir and info/grafts in the shared one: no process to ask.
-    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) ? fileLocation(root) : undefined;
+    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) || (files && name === 'index') ? fileLocation(root) : undefined;
     return location ? join(name === 'info/grafts' ? location.commonDir : location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
   });
 }

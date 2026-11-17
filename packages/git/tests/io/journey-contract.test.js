@@ -7,8 +7,8 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { cleanGitEnvironment } from '../../index.js';
 import { createMemoryGitAdapter } from '../../index.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
 
 /** Run the same scripted sequence through a `system` ({ git, write }) and return what it observed. */
 function script(system) {

@@ -92,7 +92,7 @@ async function openPool(home) {
   db.exec('PRAGMA busy_timeout = 10000');
   // Switching a new pool to WAL takes an exclusive lock that SQLite may refuse at once, without the busy wait,
   // when many files open the same new pool together; wait the lock out like any other.
-  for (let deadline = Date.now() + SETUP_LOCK_MS; ; await new Promise(next => setTimeout(next, POLL_MS))) {
+  for (let deadline = Date.now() + SETUP_LOCK_MS; ; await new Promise(next => setTimeout(next, POLL_MS))) { // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
     try { db.exec('PRAGMA journal_mode = WAL'); break; }
     catch (error) { if (!/locked|busy/iu.test(error.message) || Date.now() > deadline) throw error; }
   }
@@ -247,7 +247,7 @@ export async function takeTestFileToken(env = process.env) {
       process.stderr.write(`test-file-pool: parent ${pool.lender} is holding its token while nested files wait; use awaitNestedRun(child) only while yielding.\n`);
       reported = true;
     }
-    await new Promise(done => setTimeout(done, POLL_MS));
+    await new Promise(done => setTimeout(done, POLL_MS)); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
   }
   if (dispatched) path = db.prepare('SELECT path FROM file_holder WHERE pid = ?').get(process.pid)?.path ?? '';
   process.once('exit', () => {
@@ -288,7 +288,7 @@ export async function reserveTestFileToken(env, signal) {
         process.stderr.write(`test-file-pool: parent ${pool.lender} is holding its token while nested files wait; use awaitNestedRun(child) only while yielding.\n`);
         reported = true;
       }
-      if (!reserved) await new Promise(done => setTimeout(done, POLL_MS));
+      if (!reserved) await new Promise(done => setTimeout(done, POLL_MS)); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
     }
     db.prepare('UPDATE file_holder SET dispatch = ? WHERE pid = ?').run(nonce, process.pid);
     const owned = () => db.prepare('SELECT pid FROM file_holder WHERE dispatch = ?').get(nonce);
@@ -299,7 +299,7 @@ export async function reserveTestFileToken(env, signal) {
       async transferred() {
         while (!closed && owned()?.pid === process.pid) {
           signal?.throwIfAborted();
-          await new Promise(done => setTimeout(done, POLL_MS));
+          await new Promise(done => setTimeout(done, POLL_MS)); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
         }
       },
       /** A stream error does not authorize returning a token that its worker still owns. */
@@ -307,7 +307,7 @@ export async function reserveTestFileToken(env, signal) {
         while (!closed) {
           const holder = owned();
           if (!holder || holder.pid === process.pid || !alive(holder.pid)) return;
-          await new Promise(done => setTimeout(done, POLL_MS));
+          await new Promise(done => setTimeout(done, POLL_MS)); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
         }
       },
       /** Release only after the actual worker exits, or before any file was started. */
@@ -367,7 +367,7 @@ function lendThroughSyncCalls(pool, env, db, path) {
         db.prepare('UPDATE file_call SET closing = 1 WHERE call = ?').run(call);
         // Every file under this call, not only its own: one whose middle file died is still this call's work.
         const descent = db.prepare("SELECT pid FROM file_holder WHERE path = ? OR substr(path, 1, ?) = ?");
-        while (descent.all(callPath, callPath.length + 1, `${callPath}/`).some(({ pid }) => alive(pid))) pauseSync(POLL_MS);
+        while (descent.all(callPath, callPath.length + 1, `${callPath}/`).some(({ pid }) => alive(pid))) pauseSync(POLL_MS); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
         db.prepare('DELETE FROM file_call WHERE call = ?').run(call);
       }
     };
@@ -381,7 +381,7 @@ async function closeAsyncCall(db, call, callPath, closed) {
   await closed;
   const descent = db.prepare("SELECT pid FROM file_holder WHERE path = ? OR substr(path, 1, ?) = ?");
   while (descent.all(callPath, callPath.length + 1, `${callPath}/`).some(({ pid }) => alive(pid))) {
-    await new Promise(next => setTimeout(next, POLL_MS));
+    await new Promise(next => setTimeout(next, POLL_MS)); // budget: another process owns the SQLite pool state and no cross-process event exists, so a 25 ms poll stays
   }
   db.prepare('DELETE FROM file_call WHERE call = ?').run(call);
 }

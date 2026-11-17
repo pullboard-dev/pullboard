@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/spec */
 /** spec draft writes the draft row it prints, and refuses without printing an id when it cannot [S1]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -19,7 +20,7 @@ function fixture() {
   return files;
 }
 
-test('spec draft appends a draft row with the printed id to the spec file [S1]', () => {
+test('spec.draft.appends-row: spec draft appends a draft row with the printed id to the spec file [S1]', () => {
   const files = fixture();
   const { id, line } = draftRow(files.root, CONFIG, { target: 'spec', text: 'A new requirement.', gate: 'review' }, { loadDoctrine });
   assert.equal(id, 'G2');
@@ -29,7 +30,7 @@ test('spec draft appends a draft row with the printed id to the spec file [S1]',
   assert.ok(written.includes('- G1 [approved, must] Existing row.'), 'the existing row is untouched');
 });
 
-test('spec draft refuses with a next step and prints no id when the spec file cannot be written [S1]', (t) => {
+test('spec.draft.refuses-unwritable: spec draft refuses with a next step and prints no id when the spec file cannot be written [S1]', (t) => {
   const files = fixture();
   const path = join(files.root, 'SPEC.md');
   chmodSync(path, 0o444);

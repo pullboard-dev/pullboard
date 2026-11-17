@@ -19,6 +19,23 @@ import { importStyleViolations } from '../../../index.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { requireJourneyPathEnabled } from '../../../../config/index.js';
+import { requireRegisteredEnabled } from '../../../../config/index.js';
+import { adapterLintClockEnabled } from '../../../../config/index.js';
+import { adapterLintTimersEnabled } from '../../../../config/index.js';
+import { timerLintRows } from '../adapter-lints/timers.js';
+import { clockLintRows } from '../adapter-lints/clock.js';
+import { adapterLintFsEnabled } from '../../../../config/index.js';
+import { fsLintRows } from '../adapter-lints/fs.js';
+import { idiomSpreadEnabled } from '../../../../config/index.js';
+import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
+import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
+import { viewTimerLayoutEnabled } from '../../../../config/index.js';
+import { VIEW_TIMER_CEILING_FILE } from '../adapter-lints/view-timer-layout.js';
+import { viewTimerLayoutRows } from '../adapter-lints/view-timer-layout.js';
+import { literalPinsEnabled } from '../../../../config/index.js';
+import { LITERAL_PIN_ALLOWLIST_FILE } from '../adapter-lints/literal-pins.js';
+import { literalPinRows } from '../adapter-lints/literal-pins.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -34,6 +51,8 @@ import { candidateKnownBlockers } from '../board/request.js';
 import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
+import { unregisteredTestRows } from '../test/unregistered.js';
+import { journeyPathRows } from '../test/unregistered.js';
 import { cellsEdgeProblems } from '../edges.js';
 import { fileEdges } from '../edges.js';
 import { testCellsProblems } from '../test/cells.js';
@@ -147,17 +166,17 @@ function workerBundleReport(root) {
  * `STATIC_CHECKS` this is the only place a static class is named (#3233).
  */
 export const STATIC_TREE_CHECKS = Object.freeze([
-  { name: 'test-waits', reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
+  { name: 'test-waits', jsonInputs: ['test-waits-baseline'], reads: TEST, run: (root, sources, context = MEMORY) => testWaitGrowth(testWaitReport(root, { cache: context.cache('test-waits', 1), only: context.changed }), JSON.parse(readFileSync(join(root, 'packages/gate/data/baselines/test-waits-baseline.json'), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
-  { name: 'cli-launches', reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
+  { name: 'cli-launches', jsonInputs: ['cli-launches'], reads: TEST, run: (root, sources, context = MEMORY) => cliLaunchGrowth(cliLaunchReport(root, { cache: context.cache('cli-launches', 1), only: context.changed }), JSON.parse(readFileSync(join(root, CLI_LAUNCHES_FILE), 'utf8')))
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A new package test may not import the CLI app's child fixture outside the named exceptions; judged against where the branch met main [#8435].
-  { name: 'cli-child-import', reads: TEST, run: (root, sources, context = MEMORY) => cliChildImportProblems(root, { only: context.changed })
+  { name: 'cli-child-import', jsonInputs: ['cli-child-importers'], reads: TEST, run: (root, sources, context = MEMORY) => cliChildImportProblems(root, { only: context.changed })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A second entry point for an operation the registry names once, and a baseline that grows past main's (#5846).
-  { name: 'operation-entries', reads: SOURCE, run: root => operationEntryProblems(root) },
+  { name: 'operation-entries', jsonInputs: ['operation-entries'], reads: SOURCE, run: root => operationEntryProblems(root) },
   // Test sources are scanned one file at a time, so each file's sites are kept by blob [5567].
-  { name: 'test-fixtures', reads: TEST, run: (root, sources, context = MEMORY) => {
+  { name: 'test-fixtures', jsonInputs: ['test-fixtures'], reads: TEST, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('test-fixtures', 1);
     return fixtureProblems(root, join(root, 'packages/gate/data/tests/test-fixtures.json'), { only: context.changed, sitesOf: (path, text) => cache.get(path, blobOid(text), () => fixtureSites(text, path)) })
       .map(row => `${row.path}:${row.line}: ${row.text}`);
@@ -185,16 +204,34 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   // Modules a test closure reaches whose imports the graph newly cannot read; both graphs are kept per commit (#5840).
   { name: 'keyless', reads: SOURCE, run: root => keylessRows(root) },
   // Edges are read per file by blob; the ceilings and the plan are read fresh each run [5567].
-  { name: 'cells-edges', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+  { name: 'cells-edges', jsonInputs: ['cells-edges'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const cache = context.cache('file-edges', 1), text = new Map(treeSources(root, sources).map(row => [row.file, row.source]));
     return cellsEdgeProblems(root, {
       read: file => text.get(file) ?? readFileSync(join(root, file), 'utf8'),
       edgesOf: (file, source) => cache.get(file, blobOid(source), () => fileEdges(file, source)),
     }).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
-  { name: 'test-cells', reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
+  // A test file the change adds without a registry record or golden path: refused with tests.requireRegistered on, else one diagnostic line (#9402).
+  { name: 'test-registered', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const rows = unregisteredTestRows(root, { only: context.changed });
+    if (context.requireRegistered ?? requireRegisteredEnabled()) return rows;
+    for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireRegistered off): ${row}`);
+    return [];
+  } },
+  // A CLI journey the change adds that golden.json does not name: refused with tests.requireJourneyPath on, else one diagnostic line (#9403).
+  { name: 'journey-path', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const rows = journeyPathRows(root, { only: context.changed });
+    if (context.requireJourneyPath ?? requireJourneyPathEnabled()) return rows;
+    for (const row of rows) (context.report ?? MEMORY.report)(`diagnostic (tests.requireJourneyPath off): ${row}`);
+    return [];
+  } },
+  { name: 'test-cells', jsonInputs: ['test-cells', 'cell-order'], reads: SOURCE, run: (root, sources, context = MEMORY) => testCellsProblems(root, { cache: context.cache('test-cells', 1) }).map(row => `${row.path}:${row.line}: ${row.text}`) },
   // Repository paths in code that do not exist; the per-file count may only fall (#5302).
-  { name: 'missing-paths', reads: SOURCE, run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
+  { name: 'missing-paths', jsonInputs: ['missing-paths'], reads: SOURCE, run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
+  // Direct Date.now and timer reads outside the kernel; each file's count may only fall, and off (gate.adapterLintClock) it reports nothing (#9447).
+  { name: 'adapter-lint-clock', reads: SOURCE, run: (root, sources, context = MEMORY) => clockLintRows(root, { enabled: context.adapterLintClock ?? adapterLintClockEnabled() }) },
+  // Zero-delay deferrals, polls and timer pauses per file; each file's count per kind may only fall, and off (gate.adapterLintTimers) it reports nothing (#9518).
+  { name: 'adapter-lint-timers', reads: SOURCE, run: (root, sources, context = MEMORY) => timerLintRows(root, { enabled: context.adapterLintTimers ?? adapterLintTimersEnabled() }) },
   // File-local: given the changed paths, only their sources are read.
   { name: 'import-style', reads: SOURCE, run: (root, sources, context = MEMORY) => importStyleRows(context.changed ? sources.filter(row => context.changed.includes(row.file)) : sources, context.cache('import-style', 1)).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // Cell-partitioned: a cell's rows are kept under that cell's blobs plus the cells it imports [5567].
@@ -205,7 +242,33 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   // Reach from the API's request handlers; the known-violation set in request.js may only shrink [#6718].
   { name: 'api-request-io', reads: SOURCE, run: (root, sources) => apiRequestIoProblems(treeSources(root, sources), { known: candidateKnownBlockers(treeSources(root, sources)) })
     .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`) },
-  { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+  // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
+  { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
+  // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).
+  { name: 'idiom-spread', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const enabled = context.idiomSpread ?? idiomSpreadEnabled();
+    if (enabled !== true) return [];
+    let ceilings = '{}';
+    try { ceilings = readFileSync(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
+    return idiomSpreadRows(treeSources(root, sources), { enabled, ceilings });
+  } },
+  // A view timer over 1 s that hides, removes or re-renders, held at a per-file ceiling that only falls; off (gate.viewTimerLayout) it reports nothing (#9523).
+  { name: 'view-timer-layout', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const enabled = context.viewTimerLayout ?? viewTimerLayoutEnabled();
+    if (enabled !== true) return [];
+    let ceilings = '{}';
+    try { ceilings = readFileSync(join(root, VIEW_TIMER_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no site is held. */ }
+    return viewTimerLayoutRows(treeSources(root, sources), { enabled, ceilings });
+  } },
+  // A test that pins an engine number, an exact file or case count, a file hash or a frozen JSON snapshot, off the approved-text allowlist; off (gate.literalPins) it reports nothing (#9385).
+  { name: 'literal-pins', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const enabled = context.literalPins ?? literalPinsEnabled();
+    if (enabled !== true) return [];
+    let allowlist = '{}';
+    try { allowlist = readFileSync(join(root, LITERAL_PIN_ALLOWLIST_FILE), 'utf8'); } catch { /* No allowlist file: no pin is approved. */ }
+    return literalPinRows(treeSources(root, sources), { enabled, allowlist });
+  } },
+  { name: 'worker-bundle', jsonInputs: ['worker-bundle'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', 'packages/gate/data/ceilings/worker-bundle.json'], read: file => readFileSync(join(root, file), 'utf8') });
     const { rows, line } = context.cache('worker-bundle', 2).get('worker-bundle', scope, () => workerBundleReport(root));
@@ -213,7 +276,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     return rows;
   } },
   // The worker may import only from a reviewed list of units; cell-scoped like the bundle, since the closure is the runners cell's [#8461].
-  { name: 'worker-imports', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+  { name: 'worker-imports', jsonInputs: ['worker-imports'], reads: SOURCE, run: (root, sources, context = MEMORY) => {
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
     return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
@@ -234,6 +297,22 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     .map(row => `doctrine ${row.id}: ${row.state}\n${row.problems.join('\n')}`) },
 ]);
 
+/** Whether a class lists a changed gate data file, by the file's name without its folder or extension (jsonInputs) [C7,#9077]. */
+function readsDataFile(check, path) {
+  return path.startsWith('packages/gate/data/') && (check.jsonInputs ?? []).some(stem => path.endsWith(`/${stem}.json`));
+}
+
+/**
+ * The whole-tree classes a change runs: all of them for a null change, else those that read a changed path or list it as a gate data file in jsonInputs [C7,#9077].
+ *
+ * @param {string[] | null} changed - The changed paths, or null for a whole run.
+ * @param {object | null} apps - The app paths the caller hands in.
+ * @returns {typeof STATIC_TREE_CHECKS}
+ */
+export function staticClassesFor(changed, apps = null) {
+  return STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path, apps) || readsDataFile(check, path)));
+}
+
 /**
  * Run every whole-tree class on a checkout and collect every failure, in registry order. Given the paths a change touched
  * against a green main, a class that reads none of them is not run, and the file-local ones read only those paths [5814].
@@ -247,7 +326,7 @@ export function runStaticTreeRegistry(root, { changed = null, apps = null } = {}
   const tooling = toolingKey(sources);
   const caches = [];
   const context = { changed, apps, report: MEMORY.report, cache: (name, version) => { const made = fileCache({ name, version, tooling }); caches.push(made); return made; } };
-  const rows = STATIC_TREE_CHECKS.filter(check => !changed || changed.some(path => check.reads(path, apps))).flatMap(check => check.run(root, sources, context));
+  const rows = staticClassesFor(changed, apps).flatMap(check => check.run(root, sources, context));
   for (const made of caches) made.save();
   return rows;
 }

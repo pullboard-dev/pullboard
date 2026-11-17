@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/config/src/io/settings/descriptions.js */
 /** @pullboard-world-pin reads the shipped settings inventory to judge its compatibility toggles. */
 /** A compatibility toggle past its removeBy date turns the static checks red with its removal step; the count only falls [O6,C7]. */
 import assert from 'node:assert/strict';

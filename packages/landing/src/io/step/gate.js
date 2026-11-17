@@ -12,8 +12,9 @@ import { blockingFailures } from '../../../../verify/index.js';
 import { completeGate } from '../completion.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
-import { runLocalLandingGuard } from '../../logic/land/guard.js';
-import { requireNoRunnerRefusalOnlyRed } from '../../logic/land/guard.js';
+import { runLocalLandingGuard } from '../land/guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
+import { pipelineBase } from './base.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -28,6 +29,12 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { pinRunMain } from '../../../../gate/index.js';
+import { withLandingGateSlot } from '../../../../gate/index.js';
+import { landingControllerPlacement } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/index.js';
+import { testsNeedGui } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
@@ -56,6 +63,13 @@ import { mergeGroup } from './merge.js';
 import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
+import { gateComponentTier } from '../../../../config/index.js';
+import { gateJunitReport } from '../../../../config/index.js';
+import { landingJunitFailures } from '../../../../config/index.js';
+import { readJunitReport } from './junit-report.js';
+
+/** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
@@ -77,7 +91,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   // plan never stops landing, so repos whose checks are not literal Node test commands still land (#2897).
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
-  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
+  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests, componentTier: gateComponentTier() });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
     // The README badge files the landing itself writes select nothing; counted as changes they sent the whole batch to
@@ -354,7 +368,7 @@ async function runGateGroup(state, label, options) {
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = await (subset
     ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
-      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
+      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext }, GUARD_PORTS)
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
@@ -371,12 +385,18 @@ async function runGateGroup(state, label, options) {
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
     throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed while the gate ran; inspect ${logPath} and restore the recorded batch before adopting`);
   }
-  const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root));
+  // With landing.junitFailures on and gate.junitReport set, the report names failing cases too; a report that cannot be
+  // read is recorded and the output parse stands, never a refusal of the step [C7].
+  const reportPath = landingJunitFailures() ? gateJunitReport() : null;
+  const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
+  if (report?.code) state.say(`gate ${label}: JUnit report ${reportPath} not used (${report.code}); parsing the output`);
+  const junit = report?.xml ? { junitFailures: true, junitXml: report.xml } : {};
+  const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
   // never reaches diagnosis or the repeat guard [C7,#3693].
   requireNoRunnerRefusalOnlyRed({ ...gate, failures, logPath });
-  const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
+  const result = { ...gate, failures, ...(report?.code ? { junitCode: report.code } : {}), accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
   // cases red there too are filed as Main red and never charged to the items.
@@ -393,7 +413,7 @@ async function runGateGroup(state, label, options) {
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
     submissions: state.batch.items.map(({ id, commit }) => ({ id, commit })),
-    failures: [...new Set((gate.blockingVerdict ? failures : landingFailures(gate.output, state.batch.root, { excludeCancelled: true })).map(failure => failure.file).filter(Boolean))],
+    failures: [...new Set((gate.blockingVerdict ? failures : landingFailures(gate.output, state.batch.root, { excludeCancelled: true, ...junit })).map(failure => failure.file).filter(Boolean))],
     fileTimes: landingFileTimes(state.batch.root, gate.profile) };
   const warnings = gate.environment ? environmentWarnings(state.board, state.batch.items, gate.environment) : [];
   for (const warning of warnings) state.say(`#${warning.item} was checked on ${environmentLabel(warning.recorded)}; this landing ran on ${environmentLabel(warning.landing)}`);
@@ -441,11 +461,14 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
     checkLeaseNow();
-    git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
+    git(root, ['worktree', 'add', '--detach', batch.root, pipelineBase({ config, board }, batch)]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
   const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit, landingPorts,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
+  // With landing.pipeline on, the batch gates on main plus the earlier batch's merge; its record names that base [C7,#8937].
+  const base = pipelineBase(state, batch);
+  if (base !== batch.base) await save(state, { base });
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
   // A conflicting prefix is not its requested composition. Never test the smaller accidental tree.
