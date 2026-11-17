@@ -9,6 +9,9 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../packages/landing/index.js';
+import { landingPlanCheck } from '../../../../packages/landing/index.js';
+import { realGitAdapter } from '../../../../packages/git/index.js';
+import { withGitAdapter } from '../../../../packages/git/index.js';
 import { smokeCandidate } from '../../../../packages/landing/index.js';
 import { gateRunnerAdmission } from '../../../../packages/config/index.js';
 import { withEnvironment } from '../../../../packages/resources/index.js';
@@ -28,7 +31,7 @@ after(() => { for (const root of roots) rmSync(root, { recursive: true, force: t
  * A committed repository whose test runner writes a marker when it runs, and a machine with gate.runnersOnly on and no runner registered.
  * Anything that executes on this machine instead of waiting leaves the marker, so each case reads one place for "ran locally".
  */
-function lonely() {
+function lonely(extra = {}) {
   const directory = privateFixtureFiles('pullboard-runners-only-none-').root;
   roots.push(directory);
   const graph = fixtureCommittedGraph('pullboard-runners-only-none-repo-');
@@ -39,6 +42,7 @@ function lonely() {
   graph.put('package.json', JSON.stringify({ private: true, type: 'module' }) + '\n');
   fixtureProjectPolicy(graph.root, { config: { gate: 'node test/runner.js', affectedTests: 'node test/runner.js' } });
   graph.put('test/inherited.test.js', "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\ntest('the inherited main failure stays named [V4]', () => assert.equal(1, 2));\n");
+  for (const [file, text] of Object.entries(extra)) graph.put(file, text);
   graph.put('test/runner.js', `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   graph.put('apps/cli/pullboard.js', `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   const main = graph.commit();
@@ -93,4 +97,17 @@ test('clause 1: with no runner free, the gate of a submit waits for a runner and
   assert.notEqual(refused.code, 0, refused.out);
   assert.equal(JSON.parse(refused.out).error.code, 'RUNNER_WAIT_DEADLINE', refused.err || refused.out);
   assert.equal(existsSync(marker), false, 'the frozen check never ran locally');
+});
+
+test('clause 1: with no runner free, the cells-plan check reads Git objects only, runs no local process and still refuses an unnumbered engine [C7,#3011]', { timeout: 60000 }, async () => {
+  const box = lonely({ 'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n" });
+  const spawned = [];
+  const spy = { ...realGitAdapter, spawnSync(args, options) { spawned.push(args[0]); return realGitAdapter.spawnSync(args, options); },
+    execFileSync(args, options) { spawned.push(args[0]); return realGitAdapter.execFileSync(args, options); },
+    spawn(args, options) { spawned.push(args[0]); return realGitAdapter.spawn(args, options); } };
+  let refusal = null;
+  await withEnvironment(box.env, () => withGitAdapter(spy, async () => { try { await landingPlanCheck(box.root, box.main); } catch (error) { refusal = error; } }));
+  assert.equal(refusal?.code, 'LAND_ENGINE_UNNUMBERED', `the check answered at once instead of waiting: ${refusal?.message}`);
+  assert.ok(spawned.length > 0 && spawned.every(command => ['ls-tree', 'cat-file'].includes(command)), `only Git object reads: ${spawned.join(',')}`);
+  assert.equal(existsSync(box.marker), false, 'the plan check ran no local test or CLI process');
 });
