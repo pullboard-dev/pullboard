@@ -38,7 +38,7 @@ const dispatcher = times => async ({ files, write }) => {
 
 const rowsOf = out => readFileSync(out, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
 
-test('clause 1: every row carries claimedAt, startedAt and endedAt as ISO times for its job [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.every-row-carries-claimedat-startedat-and-endedat: clause 1: every row carries claimedAt, startedAt and endedAt as ISO times for its job [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   const times = { claimedAt: '2026-11-16T10:00:00.000Z', startedAt: '2026-11-16T10:00:05.000Z', endedAt: '2026-11-16T10:03:00.000Z', load1: 4.25 };
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(times) });
@@ -51,7 +51,7 @@ test('clause 1: every row carries claimedAt, startedAt and endedAt as ISO times 
   }
 });
 
-test('clause 1: a job that reports no times still gets ISO claim, start and end times, in order [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.a-job-that-reports-no-times-still: clause 1: a job that reports no times still gets ISO claim, start and end times, in order [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(null) });
   for (const row of rowsOf(out)) {
@@ -60,7 +60,7 @@ test('clause 1: a job that reports no times still gets ISO claim, start and end 
   }
 });
 
-test('clause 2: every row carries the runner\'s 1-minute load average at job start [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.every-row-carries-the-runner-s-1: clause 2: every row carries the runner\'s 1-minute load average at job start [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher({ claimedAt: '2026-11-16T10:00:00.000Z', startedAt: '2026-11-16T10:00:05.000Z', endedAt: '2026-11-16T10:03:00.000Z', load1: 4.25 }) });
   assert.deepEqual(rowsOf(out).map(row => row.load1), [4.25, 4.25]);

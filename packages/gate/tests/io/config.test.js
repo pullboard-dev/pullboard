@@ -58,6 +58,59 @@ test('gate.config.zig-globs: #10509 clause 2: detectTestGlobs for a build.zig ro
   assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['zig'], unknown: [] });
 });
 
+test('gate.config.julia-detected: #10513 clause 1: a root holding Project.toml and test/runtests.jl detects julia with a Pkg.test command [C7]', (t) => {
+  const root = rootWith(t, { 'Project.toml': 'name = "App"\n', 'test/runtests.jl': 'using Test\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'julia', command: "julia --project -e 'using Pkg; Pkg.test()'" }]);
+  assert.deepEqual(detectTestGlobs(root), ['test/**/*.jl', '**/runtests.jl']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['julia'], unknown: [] });
+});
+
+test('gate.config.julia-no-tests: #10513 clause 2: a root holding Project.toml with no test folder detects nothing [C7]', (t) => {
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': 'name = "App"\n' })), []);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': '', 'test/other.jl': '' })), []);
+});
+
+test('gate.config.ocaml-detected: #10510 clause 1: a root holding dune-project detects ocaml with dune test [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '(lang dune 3.0)\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'ocaml', command: 'dune test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.ml': '' })), []);
+});
+
+test('gate.config.ocaml-globs: #10510 clause 2: detectTestGlobs for a dune-project root returns the OCaml test globs of the ocaml row, and the dune toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['dune'], unknown: [] });
+});
+
+test('gate.config.clojure-lein: #10511 clause 1: a root holding project.clj detects clojure with lein test [C7]', (t) => {
+  const root = rootWith(t, { 'project.clj': '(defproject app "0.1.0")\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'clojure', command: 'lein test' }]);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['lein'], unknown: [] });
+});
+
+test('gate.config.clojure-deps: #10511 clause 2: a root holding only deps.edn detects clojure with clojure -M:test, and project.clj wins when both exist [C7]', (t) => {
+  const root = rootWith(t, { 'deps.edn': '{}\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'clojure', command: 'clojure -M:test' }]);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['clojure'], unknown: [] });
+  assert.deepEqual(detectLanguages(rootWith(t, { 'deps.edn': '{}\n', 'project.clj': '' })), [{ language: 'clojure', command: 'lein test' }]);
+});
+
+test('gate.config.clojure-globs: #10511 clause 3: detectTestGlobs for a clojure root returns the Clojure test globs of the clojure row [C7]', (t) => {
+  assert.deepEqual(detectTestGlobs(rootWith(t, { 'deps.edn': '{}\n' })), ['test/**/*.clj', '**/*_test.clj']);
+});
+
+test('gate.config.nim-detected: #10514 clause 1: a root holding a .nimble file detects nim with nimble test [C7]', (t) => {
+  const root = rootWith(t, { 'app.nimble': 'version = "0.1.0"\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'nim', command: 'nimble test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.nim': '' })), []);
+});
+
+test('gate.config.nim-globs: #10514 clause 2: detectTestGlobs for a .nimble root returns the Nim test globs of the nim row, and the nimble toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'app.nimble': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/tests/**/*.nim', '**/test_*.nim']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['nimble'], unknown: [] });
+});
+
 test('gate.config.crystal-detected: #10512 clause 1: a root holding shard.yml detects crystal with crystal spec [C7]', (t) => {
   const root = rootWith(t, { 'shard.yml': 'name: app\nversion: 0.1.0\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'crystal', command: 'crystal spec' }]);
