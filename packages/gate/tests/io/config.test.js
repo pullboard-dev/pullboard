@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
+import { detectGate } from '../../src/io/config.js';
 import { detectLanguages } from '../../src/io/config.js';
 import { detectTestGlobs } from '../../src/io/config.js';
 import { languageToolchains } from '../../src/io/config.js';
@@ -109,4 +110,38 @@ test('gate.config.nim-globs: #10514 clause 2: detectTestGlobs for a .nimble root
   const root = rootWith(t, { 'app.nimble': '' });
   assert.deepEqual(detectTestGlobs(root), ['**/tests/**/*.nim', '**/test_*.nim']);
   assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['nimble'], unknown: [] });
+});
+
+test('gate.config.nested-detected: #10367 clause 1: a root with no marker detects a go.mod one folder down and a node test script in another, each naming its folder, and the gate cds into each [C7]', (t) => {
+  const root = rootWith(t, { 'api/go.mod': 'module api\n', 'web/package.json': '{"scripts":{"test":"node --test"}}\n', 'docs/readme.md': '' });
+  assert.deepEqual(detectLanguages(root), [
+    { language: 'go', command: 'go test ./...', folder: 'api' },
+    { language: 'node', command: 'npm test', folder: 'web' },
+  ]);
+  assert.equal(detectGate(root), "(cd 'api' && go test ./...) && (cd 'web' && npm test)");
+  assert.deepEqual(detectTestGlobs(root), ['api/**/*_test.go']);
+});
+
+test('gate.config.nested-root-wins: #10367 clause 2: a root that detects any language is not scanned below, exactly as before [C7]', (t) => {
+  const root = rootWith(t, { 'go.mod': 'module app\n', 'svc/Cargo.toml': '[package]\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'go', command: 'go test ./...' }]);
+  assert.equal(detectGate(root), 'go test ./...');
+});
+
+test('gate.config.nested-skips: #10367 clause 3: dot folders, node_modules, vendor and target are never scanned [C7]', (t) => {
+  const root = rootWith(t, { '.hidden/go.mod': '', 'node_modules/go.mod': '', 'vendor/go.mod': '', 'target/go.mod': '' });
+  assert.deepEqual(detectLanguages(root), []);
+  assert.equal(detectGate(root), '');
+});
+
+test('gate.config.crystal-detected: #10512 clause 1: a root holding shard.yml detects crystal with crystal spec [C7]', (t) => {
+  const root = rootWith(t, { 'shard.yml': 'name: app\nversion: 0.1.0\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'crystal', command: 'crystal spec' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.cr': '' })), []);
+});
+
+test('gate.config.crystal-globs: #10512 clause 2: detectTestGlobs for a shard.yml root returns the Crystal spec globs of the crystal row, and the crystal toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'shard.yml': '' });
+  assert.deepEqual(detectTestGlobs(root), ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['crystal'], unknown: [] });
 });
