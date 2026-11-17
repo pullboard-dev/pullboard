@@ -15,7 +15,7 @@ function fixture(t) {
   return board;
 }
 
-test('clause 1: addItem with a readiness command stores it on the item [C7,H16]', (t) => {
+test('board.readiness-moves.additem-with-readiness-command-stores-the: clause 1: addItem with a readiness command stores it on the item [C7,H16]', (t) => {
   const board = fixture(t);
   // fixture-subject: addItem
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'With readiness', route: 'strong', readinessCommand: '  node --version  ' });
@@ -25,7 +25,7 @@ test('clause 1: addItem with a readiness command stores it on the item [C7,H16]'
   assert.equal(store.itemById(board, plain).item_readiness_command, '');
 });
 
-test('clause 2: editItem replaces the readiness command and an empty one clears it [C7,H16]', (t) => {
+test('board.readiness-moves.edititem-replaces-the-readiness-command-and: clause 2: editItem replaces the readiness command and an empty one clears it [C7,H16]', (t) => {
   const board = fixture(t);
   // fixture-subject: addItem
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Edit readiness', route: 'strong', readinessCommand: 'node --version' });
@@ -36,12 +36,12 @@ test('clause 2: editItem replaces the readiness command and an empty one clears 
   assert.equal(store.itemById(board, id).item_readiness_command, '');
 });
 
-test('clause 2: a readiness command too long is refused with BAD_READINESS [C7,H16]', (t) => {
+test('board.readiness-moves.readiness-command-too-long-refused-with: clause 2: a readiness command too long is refused with BAD_READINESS [C7,H16]', (t) => {
   const board = fixture(t);
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Long', route: 'strong', readinessCommand: 'x'.repeat(501) }), { code: 'BAD_READINESS' });
 });
 
-test('clause 3: replaying the same move log on a second board gives the same readiness command [C7,H16]', (t) => {
+test('board.readiness-moves.replaying-the-same-move-log-second: clause 3: replaying the same move log on a second board gives the same readiness command [C7,H16]', (t) => {
   const first = fixture(t);
   const second = fixture(t);
   const at = '2026-11-16T10:00:00.000Z';

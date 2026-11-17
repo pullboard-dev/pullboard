@@ -37,7 +37,7 @@ function drive(board, hook, run) {
 /** The writer's options for a recorded start move. */
 const startOptions = ({ actor, job, hook, retryJob, unrecoverable }) => ({ agentId: actor, job, ...(hook ? { hookProjection: hook } : {}), ...(retryJob ? { retryJob } : {}), ...(unrecoverable ? { unrecoverable } : {}) });
 
-test('clause 1: the store hand-off start writer applies the START table and agrees on every replayed move [C7,#8279]', t => {
+test('board.submit-handoff-start-table.the-store-hand-off-start-writer: clause 1: the store hand-off start writer applies the START table and agrees on every replayed move [C7,#8279]', t => {
   assert.ok(starts.length >= 10, 'the replay holds the board\'s starts and requeues');
   assert.deepEqual([...new Set(starts.map(record => record.via))].sort(), ['retry', 'start']);
   for (const record of starts) {
@@ -51,7 +51,7 @@ test('clause 1: the store hand-off start writer applies the START table and agre
   }
 });
 
-test('clause 1: a start for a gate that moved on is refused by both the START table and the writer [C7,#8279]', t => {
+test('board.submit-handoff-start-table.start-for-gate-that-moved-refused: clause 1: a start for a gate that moved on is refused by both the START table and the writer [C7,#8279]', t => {
   const [record] = starts.filter(entry => entry.via === 'start');
   const cases = [
     [{ owner: 'someone-else' }, 'SUBMIT_HANDOFF_CHANGED'], [{ digest: 'f'.repeat(64) }, 'SUBMIT_HANDOFF_CHANGED'], [{ status: 'open' }, 'SUBMIT_HANDOFF_CHANGED'],
@@ -67,7 +67,7 @@ test('clause 1: a start for a gate that moved on is refused by both the START ta
   assert.deepEqual(foreign.wrote.refused, foreign.decided.refused);
 });
 
-test('clause 1: a merge hook without its receipts is refused by both the START table and the writer [C7,#8279]', t => {
+test('board.submit-handoff-start-table.merge-hook-without-its-receipts-refused: clause 1: a merge hook without its receipts is refused by both the START table and the writer [C7,#8279]', t => {
   const [record] = starts.filter(entry => entry.via === 'start');
   const board = boardFor(t, record.snapshot);
   const hook = { job: record.move.job, commit: 'a'.repeat(40), tree: 'b'.repeat(40), digest: record.snapshot.item.frozenDigest, receipts: [] };

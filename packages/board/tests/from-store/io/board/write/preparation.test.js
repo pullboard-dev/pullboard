@@ -46,7 +46,7 @@ function concurrentWriter(t, file, item) {
   return new Promise(resolve => worker.once('message', () => resolve(worker)));
 }
 
-test('clause 1: claim succeeds quickly while a concurrent writer touches an unrelated item every 500 ms [B2,C7]', async t => {
+test('board.preparation.claim-succeeds-quickly-while-concurrent-writer: clause 1: claim succeeds quickly while a concurrent writer touches an unrelated item every 500 ms [B2,C7]', async t => {
   const { project, board, seat, target, other } = setup(t);
   const writer = await concurrentWriter(t, project.boardFile, other);
   let frozen = 0;
@@ -62,7 +62,7 @@ test('clause 1: claim succeeds quickly while a concurrent writer touches an unre
   assert.equal(frozen, 1, 'unrelated writes never forced a second preparation');
 });
 
-test('clause 1: a write to the claimed item itself during preparation still re-prepares, then claims [B2,C7]', t => {
+test('board.preparation.write-the-claimed-item-itself-during: clause 1: a write to the claimed item itself during preparation still re-prepares, then claims [B2,C7]', t => {
   const { project, board, seat, target } = setup(t);
   const peer = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   let frozen = 0;
@@ -75,7 +75,7 @@ test('clause 1: a write to the claimed item itself during preparation still re-p
   assert.equal(getItem(board, target).item_status, 'claimed');
 });
 
-test('clause 2: a claim whose own item keeps changing refuses BOARD_BUSY naming the writer command and pid [B2,C7]', t => {
+test('board.preparation.claim-whose-own-item-keeps-changing: clause 2: a claim whose own item keeps changing refuses BOARD_BUSY naming the writer command and pid [B2,C7]', t => {
   const { project, board, seat, target } = setup(t);
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(project.dir, 'machine-home');

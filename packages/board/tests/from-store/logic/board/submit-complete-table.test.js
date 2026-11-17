@@ -50,7 +50,7 @@ const json = (value) => JSON.parse(JSON.stringify(value));
 const { records } = recorded();
 const completions = records.filter(record => record.table === 'COMPLETE');
 
-test('clause 1: the store hand-off completion writer applies the COMPLETE table and agrees on every replayed move [C7,#8282]', t => {
+test('board.submit-complete-table.the-store-hand-off-completion-writer: clause 1: the store hand-off completion writer applies the COMPLETE table and agrees on every replayed move [C7,#8282]', t => {
   assert.equal(completions.length, 13, 'the replay holds the board\'s thirteen completions');
   for (const record of completions) {
     const { seen, threw } = drive(boardFor(t, record.snapshot), record);
@@ -63,7 +63,7 @@ test('clause 1: the store hand-off completion writer applies the COMPLETE table 
   }
 });
 
-test('clause 1: a completion by a worker that is not the current job is refused by both the table and the writer [C7,#8282]', t => {
+test('board.submit-complete-table.completion-worker-that-not-the-current: clause 1: a completion by a worker that is not the current job is refused by both the table and the writer [C7,#8282]', t => {
   const [record] = completions;
   const stranger = { ...record, move: { ...record.move, actor: 'someone-else' } };
   const { seen, threw } = drive(boardFor(t, record.snapshot), stranger);
