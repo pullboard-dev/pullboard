@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/relay/tests/fixtures/v093-data/** */
 /** A relay data folder written by v0.9.3 opens on the current service with its journals and credentials intact [C7,H16]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

@@ -64,6 +64,7 @@ export {
   excuseMainTimingReds,
   pendingFromJobRow,
   recoverFromJobRow,
+  residentChecks,
   gateComponentTier,
   landingJunitFailures,
   gateJunitReport,
@@ -267,7 +268,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, runnerOnlyCompose, withdrawCancelsJob } from './src/logic/settings.js';
+export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, reachableDispatcherOn, readThinCommands, relayPruneReceipts, runnerOnlyCompose, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
