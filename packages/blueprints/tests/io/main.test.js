@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/blueprints */
 /** Every bundled blueprint is a gallery card, valid, and carries the checks it promises, read through the cell's front door [S1,I1]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
