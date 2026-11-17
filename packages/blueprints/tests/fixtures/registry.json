@@ -1,0 +1,6 @@
+{
+  "blueprints.gallery.bundled-and-valid": {"proves":{"specs":["S1"],"claim":"every gallery blueprint is bundled and valid."},"why":"A card that ships without its blueprint, or invalid, breaks the gallery.","kind":"cell unit","inputs":["packages/blueprints/index.js"]},
+  "blueprints.starter.criterion-and-check": {"proves":{"specs":["S1","I1"],"claim":"every bundled starter item carries a criterion and a check."},"why":"A starter item with no check proves nothing once built.","kind":"cell unit","inputs":["packages/blueprints/index.js"]},
+  "blueprints.rows.carry-checks": {"proves":{"specs":["S1","I1"],"claim":"bundled blueprint rows carry the checks they promise."},"why":"A row without its promised check silently weakens the blueprint.","kind":"cell unit","inputs":["packages/blueprints/index.js"]},
+  "blueprints.registry.complete": {"proves":{"specs":["C7"],"claim":"every blueprints-cell test has a stable ID and one complete record, and an unregistered test is reported and fails only with tests.registryStrict on."},"why":"Without a record per test a test can be deleted or duplicated with no one noticing what it proved.","kind":"cell unit","inputs":["packages/blueprints/tests/fixtures/registry.json"]}
+}
