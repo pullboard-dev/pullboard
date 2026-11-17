@@ -6,13 +6,14 @@ import * as light from '../../light.js';
 
 const FILE = new URL('../../light.js', import.meta.url);
 
-/** Every name the config light door exported before it was reflowed [C7]. */
+/** Every name the config light door exports: those from before it was reflowed [C7], plus settings readers added since. */
 const BEFORE = [
   'CONFIG_FILE',
   'COORDINATOR',
   'DOCTRINE_FILE',
   'LEGACY_DOCTRINE_FILE',
   'boardRemote',
+  'browserFreeChecksEnabled',
   'configFromSource',
   'doctrineFile',
   'environmentProblem',
@@ -23,6 +24,8 @@ const BEFORE = [
   'loadMachineSettings',
   'maintenanceDurations',
   'namedImportSelectionOn',
+  'readThinCommands',
+  'reofferInfraEndEnabled',
   'retireIdleSeatHours',
   'submitProofOnly',
   'validateRunner',
