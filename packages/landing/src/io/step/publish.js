@@ -206,8 +206,52 @@ export async function prepareFlakeLanding(state) {
 /** The finish steps the automatic lander has done before its finish runs: engines in each item merge, the gate, the audits at start, stale verdicts at selection. */
 const AUTOMATIC_EARLIER = ['amendLandingEngines', 'gate', 'activateMainAudits', 'returnStaleVerdicts'];
 
-/** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
-export async function publish(state) {
+/**
+ * With landing.pipeline on, refuse to publish a batch while an earlier-started batch on the same branch is still in flight.
+ * Why: two batches gate side by side, but each fast-forwards main from its own base, so the one that started first must land
+ * first or the later one's publish moves main under it. Off, nothing changes from the one-at-a-time landing [C7,#8973].
+ *
+ * @param {{ config: object, board: object }} state
+ * @param {{ id: string, branch: string, startedAt?: string }} batch
+ * @param {{ batches?: () => object[] }} [options] The recorded batches; the board's by default.
+ */
+export function requirePublishTurn(state, batch, { batches = () => store.landingBatches(state.board) } = {}) {
+  if (state.config?.landing?.pipeline !== true || !Number.isFinite(Date.parse(batch.startedAt ?? ''))) return;
+  const started = (other) => Date.parse(other.startedAt ?? '');
+  const earlier = batches().filter(other => other.id !== batch.id && other.branch === batch.branch
+    && !['landed', 'blocked'].includes(other.state) && Number.isFinite(started(other))
+    && (started(other) < started(batch) || started(other) === started(batch) && other.id < batch.id));
+  if (earlier.length) throw new Refused('LAND_MOVED', `batch ${earlier[0].id} started before ${batch.id} and is still in flight; the earlier batch publishes first, then adopt this one`);
+}
+
+/**
+ * With landing.pipeline on, a batch gated on top of an earlier batch that then blocked proved a tree that will never exist:
+ * record it blocked, so the lander rebuilds and gates it again on main, and refuse the publish. A batch whose earlier batch
+ * landed (or is still in flight) is untouched: it publishes without a second gate. Off, nothing changes [C7,#3155,#8938].
+ *
+ * @param {{ config: object, board: object, write: Function }} state
+ * @param {{ id: string, branch: string, base: string, startedAt?: string, revision?: number }} batch
+ * @param {{ batches?: () => object[] }} [options] The recorded batches; the board's by default.
+ */
+export async function discardOrphanedBatch(state, batch, { batches = () => store.landingBatches(state.board) } = {}) {
+  if (state.config?.landing?.pipeline !== true || !Number.isFinite(Date.parse(batch.startedAt ?? ''))) return;
+  const parent = batches().find(other => other.id !== batch.id && other.branch === batch.branch && other.state === 'blocked' && other.tip === batch.base);
+  if (!parent) return;
+  const message = `batch ${parent.id} failed, and ${batch.id} was gated on top of it; ${batch.id} is discarded and gated again on main`;
+  await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked',
+    refusal: { code: 'LAND_MAIN_MOVED', message, at: state.board.clock.now().toISOString() } }, revision: batch.revision ?? 0 }]);
+  throw new Refused('LAND_MAIN_MOVED', message);
+}
+
+/**
+ * Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main.
+ *
+ * @param {object} state
+ * @param {{ batches?: () => object[], finish?: Function }} [options] The recorded batches the publish turn reads, and the finish sequence; the board's and finishLanding by default.
+ */
+export async function publish(state, { batches, finish = finishLanding } = {}) {
+  requirePublishTurn(state, state.batch, batches ? { batches } : undefined);
+  await discardOrphanedBatch(state, state.batch, batches ? { batches } : undefined);
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
   if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
@@ -235,7 +279,7 @@ export async function publish(state) {
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
-  await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
+  await finish(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
 }

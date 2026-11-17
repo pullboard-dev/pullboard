@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A main-moved notice that fails during a landing is kept and replayed on the next lander wake until it succeeds [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -29,7 +30,7 @@ function logged(root) {
   return readFileSync(deferredNoticesFile(root), 'utf8').trim().split('\n').map(line => JSON.parse(line));
 }
 
-test('clause 1: a failed main-moved notice is appended to deferred-notices.jsonl with its kind, main and time [C7]', async t => {
+test('landing.notices.a-failed-main-moved-notice-is: clause 1: a failed main-moved notice is appended to deferred-notices.jsonl with its kind, main and time [C7]', async t => {
   const root = scratch(t);
   const said = [];
   const tip = 'a'.repeat(40);
@@ -42,7 +43,7 @@ test('clause 1: a failed main-moved notice is appended to deferred-notices.jsonl
   assert.match(entry.at, /^\d{4}-\d\d-\d\dT/u);
 });
 
-test('clause 1: the next lander wake replays pending notices in order and drops each that succeeds [C7]', async t => {
+test('landing.notices.the-next-lander-wake-replays-pending: clause 1: the next lander wake replays pending notices in order and drops each that succeeds [C7]', async t => {
   const root = scratch(t);
   const [first, second, third] = ['1', '2', '3'].map(digit => digit.repeat(40));
   for (const main of [first, second, third]) appendDeferredNotice(root, { kind: 'main-moved', main });

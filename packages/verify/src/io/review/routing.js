@@ -10,6 +10,7 @@ export { seatFamily };
 import { ENGINE_VERSION } from '../../../../state/index.js';
 import { FAMILY_ALIAS_ENGINE } from '../../../../state/light.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../state/light.js';
+import { REVIEW_RELEASE_REASON_ENGINE } from '../../../../state/light.js';
 import { familyName } from '../../logic/review/policy.js';
 import { sameFamilyProblem } from '../../logic/review/policy.js';
 import { familyAliasesOf } from '../../logic/review/policy.js';
@@ -109,11 +110,13 @@ export function requireStrictBuilderFamily(board, id, agentId) {
   if (!canonicalFamily(board, declared)) throw new Refused('UNDECLARED_BUILDER_FAMILY', `#${id} is strict and ${agentId} declared no vendor family; rejoin with: pullboard join <lane> --family <vendor>, then resubmit`);
 }
 
-/** Preserve the native release cooldown and its historical floor through explicit board readers [V1,R1]. */
+/** Preserve the native release cooldown and its historical floor through explicit board readers [V1,R1]. Returns the time the cooldown ends, 'a new submission' when only a resubmit lifts it, or null. */
 export function reviewReleaseCooldown(board, itemId, agentId, { engineVersion, reviewReleasesSinceSubmit, cooldownMs }) {
   if ((board.executionEngineVersion ?? engineVersion) < 5) return null;
   const event = reviewReleasesSinceSubmit(board, itemId, agentId).find((release) => !release.legacy);
   if (!event) return null;
+  // A review dropped for family or size cannot become right by waiting: it stays out of this reviewer's offers until the item is resubmitted (#8922).
+  if ((board.executionEngineVersion ?? engineVersion) >= REVIEW_RELEASE_REASON_ENGINE && ['FAMILY', 'TOO_LARGE'].includes(event.code)) return 'a new submission';
   const until = Date.parse(event.event_at) + cooldownMs;
   return until > board.clock.now().getTime() ? new Date(until).toISOString() : null;
 }

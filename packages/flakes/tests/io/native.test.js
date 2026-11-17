@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/flakes */
 /** Failure classification probes a file's failing cases together and records each case's own outcome [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -65,7 +66,7 @@ function originalRun(box) {
   return { isGreen: false, output: result.stdout + result.stderr };
 }
 
-test('three failures in one file produce one candidate probe, one main probe and three recorded outcomes [C7,H16]', async t => {
+test('flakes.native.one-probe-per-file: three failures in one file produce one candidate probe, one main probe and three recorded outcomes [C7,H16]', async t => {
   const box = project(t);
   const pin = flakeSource(box.root, { main: box.main, privateCheck: true });
   const run = originalRun(box);
@@ -94,7 +95,7 @@ test('three failures in one file produce one candidate probe, one main probe and
   assert.deepEqual(run.flakeDiagnostics.observations.map(row => row.recorded), [true, true, true]);
 });
 
-test('without a batch writer each case is still recorded once, after every probe has run [C7,H16]', async t => {
+test('flakes.native.records-once-without-writer: without a batch writer each case is still recorded once, after every probe has run [C7,H16]', async t => {
   const box = project(t);
   const pin = flakeSource(box.root, { main: box.main, privateCheck: true });
   const run = originalRun(box);
@@ -107,7 +108,7 @@ test('without a batch writer each case is still recorded once, after every probe
   assert.ok(recorded.every(row => row.probesSoFar === 2), 'no case is recorded between probes');
 });
 
-test('a batch probe that crashes after some cases ran proves none of them [C7,H16]', async t => {
+test('flakes.native.crashed-batch-proves-none: a batch probe that crashes after some cases ran proves none of them [C7,H16]', async t => {
   const box = project(t);
   const pin = flakeSource(box.root, { main: box.main, privateCheck: true });
   const run = originalRun(box);

@@ -14,7 +14,7 @@ const { nativeCommit, nativeFixture } = hookFixtures({ runFixtureChild, runFixtu
 
 
 
-test("merging main brings in the foreign files main added, deleted and renamed [H16,B26]", (t) => {
+test('doctrine.hooks-renames-and-keeps.merging-main-brings-in-the-foreign-files: merging main brings in the foreign files main added, deleted and renamed [H16,B26]', (t) => {
   const box = nativeFixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   assert.equal(box.git(box.lane, 'add', '-A').status, 0);
@@ -35,7 +35,7 @@ test("merging main brings in the foreign files main added, deleted and renamed [
   assert.equal(readFileSync(join(box.lane, 'view', 'moved'), 'utf8').length > 0, true, "main's rename arrived");
 });
 
-test('keeping this side of a conflicted foreign file resolves a main merge [H16,B26]', (t) => {
+test('doctrine.hooks-renames-and-keeps.keeping-this-side-of-a-conflicted: keeping this side of a conflicted foreign file resolves a main merge [H16,B26]', (t) => {
   const box = nativeFixture(t);
   let result = box.git(box.main, 'switch', '-c', 'historical-view');
   assert.equal(result.status, 0, result.stderr);

@@ -12,6 +12,7 @@ import {
   state,
 } from './handoff.js';
 import { startFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 
 /** The pids of this fixture's own frozen check processes that are still running, read from the process table. */
 export function checkPids(box) {
@@ -45,7 +46,7 @@ export function runnerPid(box) {
  * Why the shared starter: it is never this test's own child, so a stop does not wait on an unreaped zombie (HOW TO MIGRATE 8a).
  */
 export function freshRunner(box) {
-  return startFixtureLocalRunner(box.env, box.repo).pid;
+  return startFixtureLocalRunner(box.env, box.repo, { entry: CLI_ENTRY }).pid;
 }
 
 /** Wait for a condition; a miss names the gate job and the runner log, so a stalled step says where it stopped. */

@@ -177,7 +177,7 @@ export function itemPanelModel(item, ctx) {
   rows.reverse();
 
   const full = thread.filter(entry => !['usage', 'shared-usage'].includes(entry.kind)).length;
-  return { head, section, full, gate, journey, clauses, proven: clauses.filter(clause => clause.state === 'ok').length, check, brief: ctx.brief || '', briefLong: String(ctx.brief || '').length > 190 || String(ctx.brief || '').split(/\r?\n/u).length > 3, files: ctx.files || [], history: rows, historyOpen: Boolean(ctx.historyOpen) };
+  return { head, section, full, gate, journey, clauses, proven: clauses.filter(clause => clause.state === 'ok').length, check, fields: Array.isArray(item.fields) ? item.fields.filter(field => field && field.name) : [], links: Array.isArray(item.links) ? item.links.filter(link => link && Number.isSafeInteger(link.id)) : [], brief: ctx.brief || '', briefLong: String(ctx.brief || '').length > 190 || String(ctx.brief || '').split(/\r?\n/u).length > 3, files: ctx.files || [], history: rows, historyOpen: Boolean(ctx.historyOpen) };
 }
 
 /**
@@ -247,6 +247,9 @@ export function itemPanelHtml(model, h) {
       + (c.warn ? '<div class="ip-row ip-mo"><span>This check already passed before the work, so it proves nothing.</span></div>' : '') + '</div>');
   }
   if (model.brief) out += sec('Brief', '', '<div class="ip-card ip-bc item-panel-expand"><div class="ip-bt item-panel-brief item-panel-clamp">' + h.rich(model.brief) + '</div>' + (model.briefLong ? more(false) : '') + '</div>');
+  // Typed fields and free related links (#1321): each only when the item carries some, so an item with neither draws exactly what it did [C7].
+  if (model.fields.length) out += sec('Fields', String(model.fields.length), '<div class="ip-card item-panel-fields">' + model.fields.map(field => '<div class="ip-row ip-fld" data-field="' + esc(field.name) + '"><b>' + esc(field.name) + '</b><span class="ip-cap">' + esc(field.type) + '</span><span>' + esc(field.value) + '</span></div>').join('') + '</div>');
+  if (model.links.length) out += sec('Related', String(model.links.length), '<div class="ip-card item-panel-related">' + model.links.map(link => '<div class="ip-row ip-rel" data-related="' + link.id + '">' + h.rich('#' + link.id) + (link.title ? ' <span>' + esc(link.title) + '</span>' : '') + '</div>').join('') + '</div>');
   if (model.files.length) {
     const shown = model.files.slice(0, 5), rest = model.files.length - shown.length;
     const tests = model.files.filter(path => /(?:^|\/)(?:tests?|journeys)\//u.test(path)).length;

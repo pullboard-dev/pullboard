@@ -49,7 +49,7 @@ function firstPoll() {
   return { polled, onPoll: () => seen() };
 }
 
-test('clause 1: an earlier waiter bound to a full runner never delays a later waiter another runner admits [C7]', async t => {
+test('resources.owner.an-earlier-waiter-bound-to-a: clause 1: an earlier waiter bound to a full runner never delays a later waiter another runner admits [C7]', async t => {
   const { root } = fixture(t);
   const runners = [{ host: 'studio-host', slots: 1, browser: 1 }, { host: 'mini', slots: 2, browser: 2 }];
   const base = pool(root, runners, { browser: true, browserCapacityProvider: () => 0 });
@@ -76,7 +76,7 @@ test('clause 1: an earlier waiter bound to a full runner never delays a later wa
   }
 });
 
-test('clause 1: an earlier waiter that stopped polling never holds a free runner slot from a later waiter [C7]', async t => {
+test('resources.owner.an-earlier-waiter-that-stopped-polling: clause 1: an earlier waiter that stopped polling never holds a free runner slot from a later waiter [C7]', async t => {
   const { root } = fixture(t, { clock: true });
   const runners = [{ host: 'mini', slots: 1, browser: 0 }];
   const base = pool(root, runners);
@@ -109,7 +109,7 @@ test('clause 1: an earlier waiter that stopped polling never holds a free runner
   }
 });
 
-test('clause 2: a runner whose worker misses READY is recorded unavailable, held out when it recurs, and its bound waiter is re-placed [C7]', async t => {
+test('resources.owner.a-runner-whose-worker-misses-ready: clause 2: a runner whose worker misses READY is recorded unavailable, held out when it recurs, and its bound waiter is re-placed [C7]', async t => {
   const { root, file } = fixture(t);
   const runners = [{ host: 'studio-host', slots: 1, browser: 0 }, { host: 'mini', slots: 2, browser: 0 }];
   const base = pool(root, runners);
@@ -159,7 +159,7 @@ test('clause 2: a runner whose worker misses READY is recorded unavailable, held
   }
 });
 
-test('clause 2: a waiter bound to an unready runner with no other place ends infrastructure-red within its admission timeout [C7]', async t => {
+test('resources.owner.a-waiter-bound-to-an-unready: clause 2: a waiter bound to an unready runner with no other place ends infrastructure-red within its admission timeout [C7]', async t => {
   const { root } = fixture(t);
   const runners = [{ host: 'studio-host', slots: 1, browser: 0 }, { host: 'mini', slots: 1, browser: 0 }];
   const base = pool(root, runners);

@@ -78,16 +78,19 @@ const BEFORE = [
   'provideMainRedNotes',
   'provideMainTestRecorder',
   'provideRefusalTrials',
+  'provideTimingExcuse',
   'pulledGateReds',
   'queueDraining',
   'queueFor',
   'queueOffer',
   'readApiBody',
   'readLandShardReceipts',
+  'recordPhaseReceipts',
   'releaseJob',
   'releaseParticipationShards',
   'renewJob',
   'reofferLandingJob',
+  'reportRunaway',
   'serveApi',
   'shardClaimCap',
   'shardJobs',
@@ -96,7 +99,7 @@ const BEFORE = [
   'withdrawLandShards',
 ];
 
-test('clause 1: no barrel line passes 120 chars and multi-name exports list one name per line, sorted [C7]', () => {
+test('api.barrel-shape.barrel-line-passes-120-chars: clause 1: no barrel line passes 120 chars and multi-name exports list one name per line, sorted [C7]', () => {
   const text = readFileSync(FILE, 'utf8');
   for (const line of text.split('\n')) assert.ok(line.length <= 120, `line too long: ${line.slice(0, 60)}`);
   for (const match of text.matchAll(/export \{([^}]*)\} from/g)) {
@@ -108,6 +111,6 @@ test('clause 1: no barrel line passes 120 chars and multi-name exports list one 
   }
 });
 
-test('clause 2: the barrel exports exactly the names it did before the reflow [C7]', () => {
+test('api.barrel-shape.barrel-exports-exactly-names-did: clause 2: the barrel exports exactly the names it did before the reflow [C7]', () => {
   assert.deepEqual(Object.keys(api).sort(), BEFORE);
 });

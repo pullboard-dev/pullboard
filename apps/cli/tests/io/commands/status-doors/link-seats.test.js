@@ -37,7 +37,7 @@ test('clause 1: each light door exports the names status takes from it [C7]', ()
 
 test('clause 1: status loads the view needs summary lazily inside run, with no static view import [C7]', () => {
   assert.doesNotMatch(STATUS, /^(?:import|export)\s[^;]*from\s*'[^']*apps\/view\/|^(?:import|export)\s[^;]*from\s*'(?:\.\.\/)+view\//mu);
-  const lazy = STATUS.indexOf("const { personNeedsSummary } = await import('../../../../view/index.js');");
+  const lazy = STATUS.indexOf("const { personNeedsSummary } = await import('../../../../view/needs.js');");
   assert.ok(lazy > STATUS.indexOf('export async function run('), 'the lazy view import is missing or sits outside run');
 });
 
