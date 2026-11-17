@@ -127,7 +127,7 @@ export async function registryMergeProof() {
   const started = Date.now();
   const phases = [];
   /** Record elapsed seconds at a named step; past 150 s the proof fails with the table instead of being killed silent [C7]. */
-  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 150000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
+  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 70000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-merge-'));
   try {
     const root = join(directory, 'repo');
