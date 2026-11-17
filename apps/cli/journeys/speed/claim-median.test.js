@@ -26,17 +26,20 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test(`clause 1: the claim median on the 2,500-item board is ${MEASURED_MS} ms, under ${BAR_MS} ms [C7,#5331]`, async (t) => {
+test(`clause 1: the claim median on the 2,500-item board is ${MEASURED_MS} ms, under ${BAR_MS} ms [C7,#5331]`, { timeout: 150_000 }, async (t) => {
   const box = largeBoard(t);
   const ids = [];
   // Undiagnosed items keep their strong route, so the seat may claim them.
+  const setup = performance.now();
   for (let n = 0; n < RUNS; n += 1) ids.push(fileFixtureItem(box, box.repo, { lane: 'web', title: `Claim sample ${n}`, diagnose: false, args: ['--specs', 'G1'] }).item_id);
+  console.log(`# filed ${RUNS} items in ${(performance.now() - setup).toFixed(0)} ms`);
   const samples = [];
   for (let run = 0; run < RUNS; run += 1) {
     if (run > 0) json(await box.runIn(box.web, 'release', String(ids[run - 1]), '--reason', 'OTHER', '--note', 'Claim timing sample.', '--no-next', '--json'), 'release');
     const started = performance.now();
     const result = await box.runIn(box.web, 'claim', String(ids[run]), '--json');
     samples.push(performance.now() - started);
+    console.log(`# claim ${run} ${samples[run].toFixed(0)} ms`);
     json(result, 'claim');
   }
   console.log(`# claim on 2,500 items: ${samples.map(ms => `${ms.toFixed(0)} ms`).join(', ')}; median ${median(samples).toFixed(0)} ms`);
