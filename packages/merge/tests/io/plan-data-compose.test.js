@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/merge */
 /** @pullboard-world-pin builds real git repositories in a private root; every conflict is a real merge of two branches. */
 /** Plan shards and data-read files compose by entry wherever main is composed: source advance (review retry is tested in verify) [C7,D3]. */
 import assert from 'node:assert/strict';

@@ -103,6 +103,7 @@ const BEFORE = {
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.junitFailures': false,
+  'landing.junitSignatures': false,
   'landing.parallelGates': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
