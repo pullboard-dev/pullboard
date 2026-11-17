@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "total": 69,
+  "files": {
+    "apps/cli/src/io/commands/next.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/hook/push.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/landing/automatic.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/resident/socket.js": {
+      "deferral0": 1
+    },
+    "apps/cli/src/io/runner/local/serve.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/scale.js": {
+      "poll": 1
+    },
+    "apps/cli/src/io/submit/pulled.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/submit/wait.js": {
+      "pause": 1
+    },
+    "apps/cli/src/io/tool/build.js": {
+      "pause": 1,
+      "poll": 2
+    },
+    "apps/cli/src/io/worktree/maintenance/scheduler.js": {
+      "pause": 1,
+      "poll": 2
+    },
+    "apps/relay/src/io/auth/http.js": {
+      "poll": 1
+    },
+    "apps/relay/src/io/browser/history.js": {
+      "deferral0": 2
+    },
+    "apps/view/src/io/history.js": {
+      "poll": 1
+    },
+    "apps/view/src/io/page/actions.js": {
+      "deferral0": 6,
+      "poll": 2
+    },
+    "apps/view/src/io/page/boards.js": {
+      "deferral0": 1
+    },
+    "apps/view/src/io/page/connect.js": {
+      "deferral0": 2
+    },
+    "apps/view/src/io/page/menu.js": {
+      "deferral0": 1
+    },
+    "apps/view/src/io/page/render.js": {
+      "deferral0": 2
+    },
+    "packages/activity/src/io/wait.js": {
+      "deferral0": 1
+    },
+    "packages/api/src/io/cost.js": {
+      "deferral0": 1
+    },
+    "packages/api/src/io/gate.js": {
+      "deferral0": 1
+    },
+    "packages/api/src/io/http.js": {
+      "deferral0": 1
+    },
+    "packages/codemap/src/io/cell/parser/worker.js": {
+      "poll": 1
+    },
+    "packages/drive/src/io/keyed.js": {
+      "pause": 1,
+      "poll": 1
+    },
+    "packages/drive/src/io/local.js": {
+      "pause": 1,
+      "poll": 2
+    },
+    "packages/drive/src/io/prune.js": {
+      "deferral0": 1
+    },
+    "packages/gate/src/io/adapter-lints/timers.js": {
+      "pause": 1
+    },
+    "packages/gate/src/io/inventory.js": {
+      "poll": 2
+    },
+    "packages/gate/src/io/main/audit/scheduler.js": {
+      "pause": 1,
+      "poll": 1
+    },
+    "packages/gate/src/io/run-tests.js": {
+      "poll": 2,
+      "deferral0": 2
+    },
+    "packages/gate/src/io/slot.js": {
+      "poll": 1
+    },
+    "packages/items/src/io/digest.js": {
+      "pause": 1
+    },
+    "packages/items/src/io/submit/wait.js": {
+      "pause": 1
+    },
+    "packages/jobs/src/io/launch.js": {
+      "pause": 1
+    },
+    "packages/landing/src/io/resource.js": {
+      "pause": 1
+    },
+    "packages/landing/src/io/worker.js": {
+      "poll": 1
+    },
+    "packages/link/src/io/relay/handover.js": {
+      "poll": 1
+    },
+    "packages/person/src/io/confirmation.js": {
+      "pause": 1
+    },
+    "packages/resources/src/io/main.js": {
+      "poll": 1
+    },
+    "packages/runners/src/io/controller/watch.js": {
+      "poll": 1
+    },
+    "packages/sandbox/src/io/take.js": {
+      "pause": 1
+    },
+    "packages/shouts/src/io/watch.js": {
+      "pause": 1
+    },
+    "packages/stats/src/io/cost/checkpoint.js": {
+      "poll": 1
+    },
+    "packages/stats/src/io/cost/due.js": {
+      "pause": 1,
+      "poll": 1
+    },
+    "packages/store/src/io/write-queue.js": {
+      "deferral0": 1
+    },
+    "packages/transport/src/io/gate.js": {
+      "poll": 1
+    }
+  }
+}
