@@ -61,6 +61,9 @@ import { moveDeclarationFiles } from '../../../../index.js';
 import { createFixtureMemo } from '../../../../index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
 import { receiptDigest } from '../../../../../git/index.js';
+import { heavyLocalHoldEnabled } from '../../../../../config/index.js';
+import { loadMachineSettings } from '../../../../../config/index.js';
+import { withHeavyLocalWork } from '../../../../../resources/index.js';
 import { foreignNodeOptions } from '../../../../../kernel/index.js';
 import { cellsCacheDirectory } from '../cache-files.js';
 import { publishCacheEntry } from '../cache-files.js';
@@ -524,4 +527,14 @@ export function main(argv) {
   throw new Refused('CELLS_PLAN_MODE', 'use node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --cuts-all | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --move-tests <cell> [<path>...] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+/**
+ * Run main, and with machine.holdHeavyAboveLoad on make the heavy modes (--check, --moved) wait in the local resource line above the load ceiling; off, run exactly as before.
+ * Why: a plan check re-reads the whole tree, and a loaded machine must not take another heavy job [C7,#10078].
+ */
+export async function mainHeld(argv) {
+  const mode = argv[0] ?? '--check';
+  if ((mode !== '--check' && mode !== '--moved') || !heavyLocalHoldEnabled()) return main(argv);
+  return withHeavyLocalWork(`cells-plan ${mode}`, () => main(argv), { settings: loadMachineSettings, root: resolve('.') });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) mainHeld(process.argv.slice(2)).then(code => { process.exitCode = code; });

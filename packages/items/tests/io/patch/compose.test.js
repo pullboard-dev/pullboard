@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/items */
 /** Private-index patch composition preserves candidate and working-copy isolation [H16,V1]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
