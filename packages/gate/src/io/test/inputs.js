@@ -27,7 +27,6 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
-import { requireDeclaredInputsEnabled } from '../../../../config/index.js';
 import { isSourceCellLine } from '../affected/inputs.js';
 import { sourceCellPrefixes } from '../affected/inputs.js';
 import {
@@ -144,13 +143,13 @@ function firstAnchoredSourcePath(source, { code, strings }, outsideSrc = false) 
 
 /**
  * One problem per test file that reads source files without the declaration. With
- * tests.requireDeclaredInputs on (the default of `outsideSrc`, read here at the io edge), reads of
+ * tests.requireDeclaredInputs on (`outsideSrc`, passed in by the static registry so this file reads no setting), reads of
  * paths under tests/fixtures, data or docs count too; off keeps the source-tree rule alone.
  *
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path), outsideSrc = requireDeclaredInputsEnabled()) {
+export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path), outsideSrc = false) {
   const problems = [];
   for (const path of files.filter(path => TEST_FILE.test(path))) {
     const source = read(path);
