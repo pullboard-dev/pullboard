@@ -26,12 +26,13 @@ function noteAfter(t, receipt) {
   const job = offerLandingJob(board.db, { items: [{ id: 7, commit: MAIN, ref: 'refs/pullboard/land/7' }], expect: MAIN, config: CONFIG });
   const answer = applyLandingReceipt(board, { job: job.id, receipt }, {});
   const rows = board.db.prepare("SELECT event_detail FROM event WHERE item_id = 7 AND event_kind = 'reopen' ORDER BY event_id").all();
-  return { answer, note: rows.map(row => JSON.parse(row.event_detail).note).join('\n') };
+  const all = board.db.prepare('SELECT event_kind, event_detail FROM event WHERE item_id = 7 ORDER BY event_id').all().map(row => row.event_kind + ' ' + row.event_detail).join('\n');
+  return { answer, all, note: rows.map(row => JSON.parse(row.event_detail).note).join('\n') };
 }
 
 test('api.gate-red-reopen-note.red-tree-fix-and-resubmit: clause 1: the reopen note of a land job that checked the merged tree red says fix it, commit and resubmit, with no "merge current main" [C7,U159]', t => {
-  const { answer, note } = noteAfter(t, { outcome: 'red', detail: 'test failed: a.test.js', returned: [{ id: 7, reason: 'red', detail: 'test failed: a.test.js' }] });
-  assert.deepEqual(answer.returned, [7]);
+  const { answer, note, all } = noteAfter(t, { outcome: 'red', detail: 'test failed: a.test.js', returned: [{ id: 7, reason: 'red', detail: 'test failed: a.test.js' }] });
+  assert.deepEqual(answer.returned, [7], all);
   assert.match(note, /fix it, commit and resubmit \(submit composes current main\)/u);
   assert.doesNotMatch(note, /merge current main/u);
 });
