@@ -6,7 +6,7 @@ import { readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-test('kernel.writer-moved.the-kernel-no-longer-holds-writefileatomic: #10495 clause 1: the kernel has no atomic.js, and neither its front door nor its light door exports writeFileAtomic [C7,CD31]', async () => {
+test('kernel.index.the-kernel-no-longer-holds-writefileatomic: #10495 clause 1: the kernel has no atomic.js, and neither its front door nor its light door exports writeFileAtomic [C7,CD31]', async () => {
   assert.equal(readdirSync(fileURLToPath(new URL('../src/logic', import.meta.url))).includes('atomic.js'), false);
   const front = await import('../index.js');
   const light = await import('../light.js');
