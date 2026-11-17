@@ -4,6 +4,13 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
+  rust: row => {
+    const crate = (row.classname ?? '').split('::')[0];
+    return crate ? `${crate}/` : null;
+  },
+  // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
+  cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
 };
