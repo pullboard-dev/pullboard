@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A red land job keeps the failing test names, a path to its full log, and the merged commit [C7,#8499]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
