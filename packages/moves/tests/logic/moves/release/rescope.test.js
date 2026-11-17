@@ -17,7 +17,7 @@ function giveBack(box, id, seat, reason) {
 }
 
 for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
-  test(`clause 1 and clause 2: ${reason} stops next offering the item to the same lane and route; health names it [C7]`, async t => {
+  test('moves.release-rescope.blocked-reasons-stop-next: clause 1 and clause 2: [C7] ' + reason + ' stops next offering the item to the same lane and route; health names it', async t => {
     const box = fixture(t);
     const id = box.add('Item that needs re-scope');
     giveBack(box, id, box.seats.actor, reason);
@@ -45,7 +45,7 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
 }
 
 for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) {
-  test(`clause 3: ${reason} keeps today's behaviour and never marks the item for re-scope [C7]`, async t => {
+  test('moves.release-rescope.other-reasons-keep-offer: clause 3: [C7] ' + reason + " keeps today's behaviour and never marks the item for re-scope", async t => {
     const box = fixture(t);
     const id = box.add('Item given back for another reason');
     box.claim(id, box.seats.actor);
@@ -59,7 +59,7 @@ for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) {
 }
 
 for (const reset of ['refreeze', 'reroute']) {
-  test(`clause 1: ${reset} restores a scoped-out item through next [C7]`, async t => {
+  test('moves.release-rescope.reset-restores-through-next: clause 1: [C7] ' + reset + ' restores a scoped-out item through next', async t => {
     const box = fixture(t);
     const id = box.add('Scope reset fixture');
     giveBack(box, id, box.seats.actor, 'ROUTED_ELSEWHERE');
