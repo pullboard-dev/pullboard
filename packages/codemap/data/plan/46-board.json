@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/board",
  "frontDoor": "packages/board/index.js",
+ "lightFrontDoor": "packages/board/light.js",
  "paths": [],
  "reexports": [],
  "imports": [

@@ -10,7 +10,7 @@ import * as store from "./board.js";
  * Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands.
  * workingFiles is a Map, or a function returning one that runs only when a repair needs routing.
  */
-export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes, workingFiles = new Map() } = {}) {
+export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes, workingFiles = new Map(), pendingFromJobRow = false } = {}) {
   const items = store.listItems(board);
   const reviewing = new Set(items.filter(item => item.item_status === 'submitted').map(item => store.reviewHolder(board, item)).filter(Boolean));
   // A caller already reviewing resumes that reservation; main red must not interrupt review work.
@@ -38,7 +38,7 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
         const dependency = items.find(item => item.item_id === id);
         return dependency && !['verified', 'withdrawn'].includes(dependency.item_status);
       }) || store.foreignBlockers(board, claim).length > 0;
-      if (!waiting || !observation || observation.unknown || observation.files.length || pendingSubmitHandoff(board, claim)) continue;
+      if (!waiting || !observation || observation.unknown || observation.files.length || pendingSubmitHandoff(board, claim, { fromJobRow: pendingFromJobRow })) continue;
     }
     const omitIds = items.filter(item => !repairs.has(item.item_id) && item.item_id !== claim?.item_id).map(item => item.item_id);
     const selected = store.nextFor(board, { agentId: seat.agent_id, lane: seat.agent_lane,

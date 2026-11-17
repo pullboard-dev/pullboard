@@ -11,11 +11,13 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
+import { readGateJobs } from "./dashboard/gates.js";
 import { boardCounts } from "../logic/counts.js";
 import { firstLandings } from "../logic/counts.js";
 import { withReadySplit } from "../logic/counts.js";
 import { machineRead } from "./pipeline/machine.js";
 import { milestoneFocus } from "../../../../packages/roadmap/index.js";
+import { milestoneForecast } from "../../../../packages/roadmap/index.js";
 /** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/item/rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
@@ -392,7 +394,7 @@ function dashboardRunners(root, commonDir, now) {
     value = { ...value, runners: value.runners.map(runner => ({ ...runner, name: names[runner.runner - 1] ?? null, offline: runner.cpu === null && runner.ram === null })) };
   }
   // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
-  if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
+  if (value) value = { ...value, finished: finishedRuns(commonDir, now), gates: readGateJobs(store.boardFilePath(commonDir), now, { open: store.openBoardReadOnly, jobsFor: runsJobs }) };
   runnerReads.set(commonDir, { at: now, value });
   return value;
 }
@@ -1099,7 +1101,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     try {
       // The board, and the Roadmap at its own address (N38), are the one page.
-      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null }));
+      if (req.method === 'GET' && (url.pathname === '/' || /^\/(?:[^/]+\/)?(?:progress|dashboard|home|items|shouts|spec|doctrine|activity|pipeline|roadmap|cost|settings)(?:\/[^/]+)?$/.test(url.pathname))) return asset(req, res, 'text/html; charset=utf-8', renderPage('', { paths: true, apiHeaders: {}, stylesheet: '/view.css', costPrices: loadMachineSettings().costPrices ?? null, milestoneDelta: loadMachineSettings().state?.milestoneDelta === true ? { forecast: milestoneForecast } : null }));
       if (req.method === 'GET' && url.pathname === '/view.css') return asset(req, res, 'text/css; charset=utf-8', VIEW_CSS);
       return json(res, 404, { error: 'no such page' });
     } catch (error) {

@@ -35,7 +35,7 @@ function fixture(t, sources) {
 /** Read one generated row by its stable repository-relative identity. */
 function row(manifest, file) { return manifest.files.find(row => row.file === file); }
 
-test('single-package purity, cross-package imports and git spawning select T1, T3 and T3 [C7,CS4,CD44]', t => {
+test('gate.io-test-scripts-tiers.single-package-purity-cross-package-imports: single-package purity, cross-package imports and git spawning select T1, T3 and T3 [C7,CS4,CD44]', t => {
   const root = fixture(t, {
     'packages/math/index.js': 'export const add = (a,b) => a+b;',
     'packages/text/index.js': 'export const title = "text";',
@@ -54,7 +54,7 @@ test('single-package purity, cross-package imports and git spawning select T1, T
   assert.match(row(report, 'test/git.test.js').reasons.join(' '), /process/u);
 });
 
-test('helper-hidden boards and processes, browser and runner calls remain journeys [C7,CS4,CD47]', t => {
+test('gate.io-test-scripts-tiers.helper-hidden-boards-and-processes-browser: helper-hidden boards and processes, browser and runner calls remain journeys [C7,CS4,CD47]', t => {
   const root = fixture(t, {
     'packages/math/index.js': 'export const n = 1;',
     'test/helper.js': 'import { spawnSync } from "node:child_process"; export const git = () => spawnSync("git");',
@@ -71,7 +71,7 @@ test('helper-hidden boards and processes, browser and runner calls remain journe
   assert.equal(row(report, 'test/quoted.test.js').tier, 'T1', 'fixture source in comments and strings does not spawn infrastructure');
 });
 
-test('literal CommonJS imports and flat packages retain their unit ownership [C7,CS4]', t => {
+test('gate.io-test-scripts-tiers.literal-commonjs-imports-and-flat-packages: literal CommonJS imports and flat packages retain their unit ownership [C7,CS4]', t => {
   const root = fixture(t, {
     'lib/value.cjs': 'module.exports = 1;',
     'test/unit.test.cjs': 'const value = require("../lib/value.cjs"); require("assert").equal(value, 1);',
@@ -83,7 +83,7 @@ test('literal CommonJS imports and flat packages retain their unit ownership [C7
   assert.equal(row(report, 'test/git.test.cjs').tier, 'T3');
 });
 
-test('the same generation command is byte-stable and check mode exposes class changes [C7,CS4,CD44]', t => {
+test('gate.io-test-scripts-tiers.the-same-generation-command-is-byte: the same generation command is byte-stable and check mode exposes class changes [C7,CS4,CD44]', t => {
   const root = fixture(t, {
     'packages/math/index.js': 'export const n = 1;',
     'test/unit.test.js': 'import "../packages/math/index.js";',

@@ -78,7 +78,7 @@ function newCommit(f) {
   return commitFile(f.project, f.web, 'web/result.txt', 'corrected result\n', 'fix(web): correct result [G1]').status;
 }
 
-test('current claims ignore a historical rejection reservation while historical replay retains it [C7,V6]', t => {
+test('board.any.current-claims-ignore-historical-rejection-reservation: current claims ignore a historical rejection reservation while historical replay retains it [C7,V6]', t => {
   const f = fixture(t, { engine: REJECT_OPEN_ENGINE - 1 });
   assert.ok(store.firstRefusal(f.board, f.id), 'the old engine seals its original reservation');
   assert.throws(() => f.claim(f.peer), { code: 'REOPEN_HELD_FOR_BUILDER' });

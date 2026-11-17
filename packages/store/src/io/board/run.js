@@ -26,6 +26,9 @@ import { PENDING_STEP } from "./runs.js";
 import { runsPort } from "./runs.js";
 import { jobsOf } from "../../../../jobs/index.js";
 import { releaseLease } from "../../../../jobs/index.js";
+import { endWithdrawnGateHop } from "./hop.js";
+import { acceptPulledMachine } from "./submit.js";
+import { machineVerifyPulledOn } from "./submit.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
@@ -116,11 +119,17 @@ export function reconcileQueued(board, runs, port, id, { now = board.clock.now()
  * takes the outcome, the capped summary and an event; anything else (no run, a run already done or withdrawn, an
  * attempt not newer than the applied one) changes nothing.
  *
+ * With gate.machineVerifyPulled on, a green gate receipt that names `machineReceipts` (recorded proof receipt ids) for a
+ * submitted, machine-eligible item also records the machine accept, so the item reaches landing with its clause command
+ * receipts; off, or without those ids, the item stays in review as before. The setting is read before the write opens [C7,#10253].
+ *
  * @param {any} board
  * @param {{ by: string, job: string, attempt: number, outcome: string, summary?: object }} receipt - Read from the runs file before this write opens.
- * @returns {{ applied: boolean }}
+ * @param {{ machineVerifyPulled?: boolean }} [options] - machineVerifyPulled overrides the machine setting (tests).
+ * @returns {{ applied: boolean, machineAccepted?: boolean }}
  */
-export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {} }) {
+export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {} }, { machineVerifyPulled } = {}) {
+  const pulled = machineVerifyPulled ?? machineVerifyPulledOn();
   return atomic(board, () => {
     const run = boardRun(board.db, job);
     if (!run || run.run_state !== 'queued' || !(attempt > run.run_attempt)) return { applied: false };
@@ -129,7 +138,7 @@ export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {}
     board.db.prepare("UPDATE run SET run_state = 'done', run_attempt = ?, run_outcome = ?, run_summary = ?, run_updated = ? WHERE run_job = ? AND run_state = 'queued' AND run_attempt < ?")
       .run(attempt, outcome, JSON.stringify(kept), now, job, attempt);
     logEvent(board, by, RUN_APPLIED_EVENT, run.run_item, { job, attempt, outcome, summary: kept, state: 'done' }, new Date(now));
-    return { applied: true };
+    return pulled ? { applied: true, machineAccepted: acceptPulledMachine(board, run, summary) } : { applied: true };
   });
 }
 
@@ -294,6 +303,8 @@ export function saveSubmitHandoff(db, item, handoff, { now = Date.now() } = {}) 
  * End an item's live gate job as cancelled through the runs port, so its runner's next renew or receipt is refused [C7,#3860].
  * A job already done or cancelled is left as it is; an item with no live gate job writes nothing.
  *
+ * The item's open gate hop ends too, when the board has a hop table (gate.fencedHop was on).
+ *
  * Why the lease is freed too: the cancelled step alone leaves the runner's lease standing, and a renew on a standing lease would succeed.
  *
  * @param {any} board - The open board, whose job tables serve while runs_store is off.
@@ -311,5 +322,7 @@ export function cancelGateJob(board, item, { runs = null, now = Date.now(), reas
     if (view.leaseOwner) releaseLease(db, view.id, view.leaseOwner, { now });
     cancelled.push(view.id);
   }
+  // The item's fenced hop ends with its gate, so a driver stepping it is refused HOP_FENCED [C7,#10224].
+  if (cancelled.length) endWithdrawnGateHop(board.db, item);
   return { written: cancelled.length > 0, jobs: cancelled };
 }

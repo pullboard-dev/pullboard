@@ -22,7 +22,7 @@ function eventually(directory, file, needle) {
   });
 }
 
-test('the wake writes its stdout and a crash on stderr to worker.log in its directory [C7,#2913]', { timeout: 20_000 }, async t => {
+test('gate.io-shards-landing-log.the-wake-writes-its-stdout-and: the wake writes its stdout and a crash on stderr to worker.log in its directory [C7,#2913]', { timeout: 20_000 }, async t => {
   const root = mkdtempSync(join(tmpdir(), 'pb-wake-log-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const worker = join(root, 'wake.mjs');

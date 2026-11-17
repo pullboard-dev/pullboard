@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: swift test --xunit-output report.xml (SwiftPM, XCTest XUnit XML).
+     Case names read "clause N: ..." as a test method of that name would be written. No tool is needed to read it. -->
+<testsuites tests="3" failures="1">
+  <testsuite name="CalcTests.CalcTests" errors="0" tests="3" failures="1" skipped="1" time="0.021">
+    <testcase classname="CalcTests.CalcTests" name="clause 1: adds two numbers" time="0.001"/>
+    <testcase classname="CalcTests.CalcTests" name="clause 2: halves a number" time="0.002">
+      <failure message="XCTAssertEqual failed: (&quot;1&quot;) is not equal to (&quot;2&quot;)"></failure>
+    </testcase>
+    <testcase classname="CalcTests.CalcTests" name="clause 3: later" time="0.000">
+      <skipped message="not yet"/>
+    </testcase>
+  </testsuite>
+</testsuites>

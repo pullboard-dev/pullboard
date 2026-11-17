@@ -47,7 +47,7 @@ const BASE = {
   'packages/b/index.js': "import { a } from '../a/index.js';\nexport const b = a;\n",
 };
 
-test('clause 1: a new cross-cell import and a deep import beyond the ceiling are flagged and a clean file passes [C7]', () => {
+test('gate.io-edges-checks.a-new-cross-cell-import-and: clause 1: a new cross-cell import and a deep import beyond the ceiling are flagged and a clean file passes [C7]', () => {
   const root = fixture(BASE);
   const ceilings = ceilingsOf(cellsEdgeReport(root));
   assert.deepEqual(cellsEdgeProblems(root, { ceilings }), [], 'today passes');
@@ -62,7 +62,7 @@ test('clause 1: a new cross-cell import and a deep import beyond the ceiling are
   assert.doesNotMatch(text, /clean\.js/u);
 });
 
-test('clause 2: the same new edge passes once the plan declares it and the refusal names the lower front door or the coordinator [C7]', () => {
+test('gate.io-edges-checks.the-same-new-edge-passes-once: clause 2: the same new edge passes once the plan declares it and the refusal names the lower front door or the coordinator [C7]', () => {
   const files = { ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" };
   const before = fixture({ ...BASE });
   const ceilings = ceilingsOf(cellsEdgeReport(before));
@@ -74,7 +74,7 @@ test('clause 2: the same new edge passes once the plan declares it and the refus
   assert.deepEqual(cellsEdgeProblems(declared, { ceilings }), []);
 });
 
-test('clause 3: the check runs in the changed-file static list and in the full static preflight [C7]', () => {
+test('gate.io-edges-checks.the-check-runs-in-the-changed: clause 3: the check runs in the changed-file static list and in the full static preflight [C7]', () => {
   const root = fixture({ ...BASE, 'packages/b/deep.js': "import { inner } from '../a/src/inner.js';\nexport const deep = inner;\n" });
   mkdirSync(join(root, 'packages/gate/data/baselines'), { recursive: true });
   copyFileSync(join(REPO, 'packages/gate/data/baselines/test-waits-baseline.json'), join(root, 'packages/gate/data/baselines/test-waits-baseline.json'));
@@ -102,7 +102,7 @@ function importSource(files) {
   return `${files.map(file => `await import(${JSON.stringify(pathToFileURL(join(CHECKS, file)).href)});`).join('\n')}\nconsole.log('imported', ${files.length});\n`;
 }
 
-test('clause 1: importing packages/gate/src/io/edges.js never throws when process.argv[1] names no file [C7]', () => {
+test('gate.io-edges-checks.importing-packages-gate-src-io-edges: clause 1: importing packages/gate/src/io/edges.js never throws when process.argv[1] names no file [C7]', () => {
   // The saved check-baseline worker retry runs `node -e <source> <id> <request>`, so argv[1] is an item id, not a file.
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', importSource(['edges.js']), '424242', 'request'], { cwd: REPO, encoding: 'utf8' });
   assert.equal(child.status, 0, child.context);
@@ -110,7 +110,7 @@ test('clause 1: importing packages/gate/src/io/edges.js never throws when proces
   assert.match(child.stdout, /imported 1/u);
 });
 
-test('clause 2: every gate check main-module guard tolerates a deleted argv[1] script [C7]', () => {
+test('gate.io-edges-checks.every-gate-check-main-module-guard: clause 2: every gate check main-module guard tolerates a deleted argv[1] script [C7]', () => {
   const files = guardedChecks();
   assert.ok(files.includes('edges.js') && files.includes('launches.js') && files.includes('sizes.js'), files.join(', '));
   const inputs = privateFixtureFiles('checks-main-guard-');

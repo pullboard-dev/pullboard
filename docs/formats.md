@@ -6,103 +6,15 @@ Run `node docs/tools/update-docs.js` to refresh the marked tables, API shapes, l
 
 ## SPEC.md and DOCTRINE.md
 
-Doctrine means the house rules for agentic development. New repos use `DOCTRINE.md`; existing `PRACTICE.md` files keep working. Rename a tracked legacy file with `git mv -- PRACTICE.md DOCTRINE.md`; for an untracked file, use `mv -- PRACTICE.md DOCTRINE.md`. Keeping both names is refused because they define the same repo doctrine. The configuration and API retain their `practice` field names; an explicitly configured custom path still works.
+The row grammar, statuses, tiers, signers and id namespaces are on [docs/formats/spec.md](formats/spec.md).
 
-Both files use the shared row grammar in `packages/spec/src/logic/grammar.js`, whose version is `SPEC_GRAMMAR_VERSION`. Either file may declare the current version on its own line as `<!-- pullboard-grammar N -->`; without a marker, the file uses the current grammar. A marker inside a fenced code example is ignored. The parser accepts only the version it reads and refuses a mismatched or invalid marker with `A5_GRAMMAR_VERSION`; upgrade Pullboard or use a file written for its grammar. Pullboard does not rewrite these files during an upgrade.
-
-A section begins with `## `; a row must be beneath a section and occupies one line:
-
-```text
-- ID [status[, tier]] requirement text | gate: <command> | serves: <ID, ID> | signers: <principal, principal>
-```
-
-The identifier expression, statuses and tiers below come from the parser:
-
-<!-- id-pattern:start -->
-| Identifier | Parser expression |
-| --- | --- |
-| `ID` | `^[A-Za-z]+\d+(?:\.\d+)*$` |
-<!-- id-pattern:end -->
-
-<!-- statuses:start -->
-| Status | Meaning |
-| --- | --- |
-| `approved` | decided and in force |
-| `draft` | proposed, not decided |
-| `pending` | open question |
-| `fact` | true today |
-| `wont` | not building; the row stays permanent |
-| `retired` | no longer in force; the row stays permanent |
-<!-- statuses:end -->
-
-<!-- tiers:start -->
-| Tier | Meaning |
-| --- | --- |
-| `must` | An approved must row names a gate. Other statuses may omit it. |
-| `aim` | An aim; no gate is required. |
-<!-- tiers:end -->
-
-After the requirement text, `gate:` names the check, `serves:` names comma-separated ids, and `signers:` names comma-separated SSH principals; each field may be omitted. Each signer is one unique principal with no spaces, commas or leading `#`; the list names the exact principals required for signed sign-offs. An approved row is met only when every listed principal has a verified SSH receipt for its current text; missing, stale or unverified receipts leave it unmet. A row may also carry `source:`, the reference a blueprint rule came from, written as its name, then its id and address when it has them (`| source: Example Framework OPS 8 https://example.com/ops-8`). The parsed row gains a `source` string only when the field is written, so a row without one parses exactly as before; an empty `source:` is an error. `spec show` prints the source and `spec --json` rows carry it. Other trailing keys are recorded as unknown and rejected by `spec check`. A malformed row-like line is an error, and rows inside fenced code blocks are examples rather than input. IDs are permanent: mark a cut row `wont` or `retired` instead of deleting it.
-
-The row object returned by `parseSpec` has these fields:
-
-### ID namespaces and collisions
-
-A bare id names a row in `SPEC.md`. A doctrine row is cited as `doctrine:<id>` in item spec ids and commit headers, even when a row with the same bare id exists in `SPEC.md`. `spec check` compares the current rows in `SPEC.md` and `DOCTRINE.md` (or a legacy `PRACTICE.md`), and rows within either file. Collisions already present in the primary checkout's attached branch are reported as known warnings; adding a colliding row is an error that names both file paths and line numbers. A detached primary checkout cannot establish this baseline. A commit that cites a bare id shared with a doctrine row warns that the bare id resolves to `SPEC.md`; use the `doctrine:` prefix to cite the doctrine row.
-
-`parseSpec` also returns `grammarVersion`, equal to `SPEC_GRAMMAR_VERSION` after the file's marker has been checked.
-
-<!-- parser-fields:start -->
-| Parsed field | Meaning |
-| --- | --- |
-| `id` | Stable row identifier. |
-| `status` | One token from the status list. |
-| `tier` | Optional second token: must or aim. |
-| `text` | Requirement text before trailing fields. |
-| `gate` | Check named by gate, or an empty string. |
-| `serves` | Comma-separated ids named by serves, or an empty list. |
-| `signers` | Comma-separated SSH principals named by signers, or an empty list. |
-| `unknown` | Unrecognized trailing fields; spec check reports them. |
-| `section` | Containing ## heading. |
-| `line` | 1-based source line. |
-<!-- parser-fields:end -->
-
-### Blueprint rule sources
-
-A blueprint is one JSON file (format 1, described at the top of `packages/blueprints/index.js`). Its `kind` is `product`, `architecture`, `practice` or `beyond-code`; a file that says `infrastructure`, the old name, loads as `architecture`. A rule may carry `source: { name, id, url }`: `name` is required, `id` and `url` are optional, each is one line without `|`, and `url` is an `http` or `https` address. `pullboard blueprint add` and `init --blueprint` copy it onto the drafted row's `source:` field; the row's text stays the rule and its reason. Every rule of an architecture blueprint names its source, since it paraphrases a known-good reference: a rule without one refuses the blueprint with `BLUEPRINT_NO_SOURCE`, naming the blueprint and the rule, when it is loaded or saved.
 ## Proposed rulings and resume doctrine notes
 
-The coordinator proposes a standing ruling with `pullboard spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` (or a shout reference such as `"shout 42"`). A source is required. The draft lives in the configured doctrine file, with `Source: ...` in its text, and the returned id is qualified as `doctrine:DR1`. The person approves or declines that id through the existing `spec approve` or `spec decline` commands; the coordinator runs `spec apply`.
-
-`resume --json` includes `doctrineNotes`, an array of newly seen approved repo rules, each with `id`, `text` and `gate`. Drafts and pending applications are excluded. Text resume prints the same rules. Each checkout records its own displayed rule text under its Git directory, so a second checkout receives its own notice. Repeated resumes return an empty array until an approved rule changes.
-
-Resume and criterion freezing use the primary branch's committed doctrine together with the person's applied exact-row decisions. An older agent checkout can therefore read an approved ruling and detect that a frozen citation is stale without changing its branch or local doctrine file. Proposed or unapplied changes do not replace the in-force rule.
+Standing rulings and the resume doctrine notes are on [docs/formats/rulings.md](formats/rulings.md).
 
 ## Resume release notes
 
-<!-- resume-release-notes:start -->
-`pullboard resume --json` adds a `whatsNew` field to its version-1 envelope. `whatsNew` is `null` when nothing is new. After an upgrade it contains the released versions newer than this checkout last ran, newest first:
-
-```json
-{
-  "whatsNew": {
-    "releases": [
-      {
-        "version": "0.8.7",
-        "headline": "A new session",
-        "paragraph": "Release headline paragraph."
-      }
-    ],
-    "omitted": 0,
-    "notes": "CHANGELOG.md"
-  }
-}
-```
-
-Each `releases` entry has a version number, the release headline from its `###` heading in `CHANGELOG.md`, and that heading's paragraph. Added, Changed and Fixed lists are excluded. Only the newest three releases are included; `omitted` counts the earlier releases left out, and `notes` names the full release notes.
-
-Both text and JSON resumes record the displayed version once per checkout. Later resumes at the same version have no extra text and a null `whatsNew` field. A checkout's first run records its version quietly. The record is `pullboard-checkout/resume-version` in the checkout's Git directory, outside the shared board; linked worktrees keep separate records. JSON resume includes the notes in its response when recording that version, so a JSON call does not consume notes without exposing them.
-<!-- resume-release-notes:end -->
+The `whatsNew` field and the per-checkout version record are on [docs/formats/resume-notes.md](formats/resume-notes.md).
 
 ## SQLite board schema
 
@@ -643,49 +555,7 @@ The `pass` event is emitted by `passDecision` only for the coordinator in the hi
 
 ## Static view export
 
-`pullboard view --export DIR` writes a read-only site from the same API v1 documents used by the live view. The page fetches these files without a session key and reads the events file to replay the snapshot. The export contains no server, credentials or writable board actions.
-
-<!-- snapshot-files:start -->
-| File below `DIR` | Contents and reader |
-| --- | --- |
-| `index.html` | Snapshot page; reads the JSON files below and drives event replay. |
-| `view.css` | Stylesheet linked by `index.html`. |
-| `api/v1/boards.json` | API v1 board listing; the page selects the board to show. |
-| `api/v1/boards/<board-id>/state.json` | API v1 state for that board; the page uses it as the final snapshot. |
-| `api/v1/boards/<board-id>/events.json` | API v1 event list; the page replays it from the selected board state. |
-<!-- snapshot-files:end -->
-
-The schema, trigger and parser tables are checked against live `openBoard(':memory:')` and `parseSpec` results. The static export is generated and its files, API v1 shapes and page readers are checked by `docs/formats.test.js`.
-
-### Landing records
-
-Engine 8 adds `recordLandingBatch`, `recordLandingWaiver`, `recordLandingFlake` and `finishLandingBatch`. Older engines stop before applying these operations. Their append-only events need no schema migration. A batch snapshot has version 1, identity, base and tip commits, trunk branch, landing worktree, items with their first-containing merge commits, state, owner, log path and revision. Additional owner-lease and environment fields can be added without changing version 1. A revision refuses stale updates. Successful push precedes the atomic merged receipts and single `main-moved` event. An engine-12 landing finish ordered after an engine-33 checked re-review still records the tree the older client actually pushed. If that legacy batch did not check the newer reviewed head, it also appends `landing-review-moved` with `code: "LAND_ITEM_MOVED"` and the exact verdict, checked head and landed merge. The newer review reads stale until its checked composition reaches the known trunk; the earlier landing receipt and verdicts remain immutable. Recovery creates a separate correction item rather than reopening or re-reviewing the already-landed original. Historical finishes ordered before the newer review retain their original receipts.
-
-A person waiver records its identity, named test, expiry, reason and person channel. A distinct landing proof records the exact batch tree and each failing test with its covering waiver identity. Pre-push checks every waiver against the current time; this proof never writes an ordinary green-gate stamp. Flake records retain a test path, source digest, failing names and one defect item, so a repeated observation does not create another defect.
-
-Engine 34 adds the agent/coordinator `orderMilestoneItems` move, carrying a milestone name and its ordered subset of item ids. Earlier engines refuse it before changing the board or replay cursor. Ranked item ids stay with their milestone in its `order` metadata; old entries without it keep their prior queue order. Recorded next/reserve moves below engine 34 retain their original ordering even when later metadata contains ranks. The stable minimum is `MILESTONE_RANK_ENGINE` (34); engine slots 25 through 33 belong to their separately allocated train items.
-
-`WORK_ORDER_ENGINE` lets the coordinator's `orderMilestoneItems` carry `place` (`pin`, `sink` or `lift`) and, for a pin or sink, a `reason`. A pin appends its ids to the milestone's `order`, a sink to its `sunk` list, and both record the reason under each id in its `reasons` map; a lift removes the ids from all three. Earlier engines refuse a move with `place`. From this engine on, next and reserve moves order unranked items by the computed queue order (unblock count, effort, readiness), sunk items last; recorded moves below it keep their milestone, rank, route and age order.
-
-Engine 43 (`RIGOR_NOTICE_ENGINE`) posts one coordinator shout and one typed `rigor-notice` receipt when a reject, reopen or person never-again fact makes a cause repeat. Both are part of that move’s transaction. Recorded engines through 42 retain their original event streams. A person’s exact row-decision receipt for a typed Rigor source silences that repeat until a new item repeats it; later commits on an already known item do not override the decline.
-
-A proved Rigor draft carries `source: rigor:<percent-encoded JSON>` with `version: 1`, its `key`, `evidence` (`items`, `occurrences`, `neverAgain`) and `proof` (`check`, `red`, `green`). The proof contains actual full commits, executed exit statuses and problem counts. The existing spec and doctrine row grammar reads this field; prose mentioning Rigor is not a typed source. The person uses ordinary Approve or Decline, and the coordinator applies the approved row without a new build item.
-
-`RIGOR_AUTO_ENGINE` adds implicit evidence-only proposals to reject, reopen, person never-again and attributable conflict-hold moves. An omitted cause derives from a current-head structured reviewer failure, structured landing tests, exact conflict files, or a coarse coded verdict/reopen category; notes never identify tests. File keys use `conflict:<URI-escaped path>` and stay architectural advice rather than code-rule failures. Explicit `--cause` wins. Older recorded engines retain their original causes, notices and event streams.
-
-The triggering transaction reserves ordinary board row-draft entries with `written: false`, `gate: review`, `tier: aim`, and a terminal `Source: rigor-auto:<percent-encoded JSON>` in their text. This distinct source has `version: 1`, `unproved: true`, `key` and exact repeat `evidence` (`items`, `occurrences`, `neverAgain`, event ids); it has no executed red/green proof. One receipt names the created drafts. It changes no repository file and approves no rule. Needs you exposes each pending proposal, including a visible collision if another row occupies its id with different fields. `spec apply` explicitly materializes these proposals after preflighting existing person decisions and all automatic row definitions across both files. The existing exact-file person approval/decline then applies. `rigor --draft-splits` prepares existing automatic split advice instead of creating a second proposal. An exact person replacement remains authoritative on later application; a stale or unrelated row cannot impersonate it.
-
-Pending proposals are deduplicated per cause and target. A decline covers all items seen through the actual decision, and only a new item can re-propose that declined cause. The read-only digest restates each unanswered automatic draft once per briefing after `landing.cadence`, defaulting to one day when no cadence is configured. Creation is automatic on relevant new failure moves; this is not a historical backfill, a proof of causation, or an automatic remedy.
-
-Engine 54 replaces the automatic strong-to-strong ceiling escalation with one coordinator notice per rejection pair, naming the builder and both rejection receipts. Ordinary rejection still reopens and clears the owner and lease. Light and mid routes keep engine-50 automatic escalation. Engines 50 through 53 retain their original ceiling escalation when replayed.
-
-### Native release receipts
-
-A native release gate runs the accepted command afresh on its exact clean accepted head. It requires nonempty compatible work on every registered executor, with at least eight distinct executors. Placement restricts ordinary admission; it grants no browser, GUI, memory or timing capability. CPU-runner work cannot count as local participation. Missing hosts or incomplete collection refuse the release.
-
-The gate's private receipt writer records a version-one `kind: "release"` receipt with full collection and a required `participationDigest` of every canonical participation field. The gate finalizes its observed participation and run interval before writing that digest; the wrapper reuses those exact fields. Ordinary gate, landing and proof receipts cannot carry this release-only field and retain their previous bytes. Its collection `batchId` is this release run's UUID, separate from a board landing batch. After validating that receipt and actual shard participation, the producer writes a version-one `{gateReceipt, participation}` envelope under the common Git directory's `pullboard/release-receipts/`. Participation binds head, tree, accepted command digest, required executor identities, an exact partition of completed files, per-shard source and command digest, cleanup and the run interval. Only this successful execution path leaves the reusable green stamp.
-
-Structural validation or a local file grants no publishing authority. The hosted consumer authenticates the exact main-commit producer workflow run and its unique artifact through GitHub, then independently binds the envelope to the tagged Git tree and committed command. Invalid, red or pending producer evidence fails; only an absent producer permits the existing main-CI fallback. The npm publisher remains hosted with OIDC provenance. Provisioning and the timed eight-node release remain separate from these data-format checks.
+The exported files, the replay page and the landing, Rigor and release-receipt engine notes are on [docs/formats/static-view.md](formats/static-view.md).
 
 ## Native proof provenance
 

@@ -49,6 +49,8 @@ import { insertItem } from "./add.js";
 import { validateItemAddition } from "./add.js";
 import { appendFact } from "./fact.js";
 import { movesLiveEnabled } from "../../../../config/index.js";
+import { loadMachineSettings } from "../../../../config/index.js";
+import { boundProofReceipt } from "../receipts.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
 
 /** A moves.live machine setting, a file read: call it before a board write opens, never inside one [C7,#8385]. */
@@ -342,4 +344,25 @@ export function recordedBaseRows(board, base) {
     const receipt = readGateReceipt(store, name.slice(0, -5));
     return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
   });
+}
+
+/**
+ * Record the machine accept for a green pulled gate receipt on a submitted, machine-eligible item; false when the receipt
+ * is not green, names no receipts, or the item is not eligible. Why: c77c8f38cf made submit pulled-only and dropped the
+ * machine-verified path, so the receipt side is the one place the proof of a pulled gate can stand in for a reviewer [C7,#10253].
+ */
+export function acceptPulledMachine(board, run, summary) {
+  const ids = summary?.machineReceipts;
+  if (run.run_item == null || summary?.gate?.green !== true || !Array.isArray(ids) || !ids.length) return false;
+  const item = getItem(board, run.run_item);
+  if (item?.item_status !== 'submitted') return false;
+  const files = (item.item_files ?? '').split('\n').filter(Boolean);
+  const options = { commit: item.item_commit, tree: item.item_tree, policyCommit: run.run_base ?? summary.gate.source, agentId: item.item_built_by, files,
+    machineReceipts: ids.map(receiptId => boundProofReceipt(board, { receiptId })) };
+  return Boolean(acceptMachineSubmission(board, item, options, { getItem, moveItem, logEvent }));
+}
+
+/** Whether a green pulled gate may record the machine accept (#10253): off by default; only an exact `true` turns it on. */
+export function machineVerifyPulledOn() {
+  return loadMachineSettings().gate?.machineVerifyPulled === true;
 }

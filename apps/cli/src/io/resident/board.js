@@ -260,6 +260,20 @@ function clientStream(store, frame, isTTY, columns) {
   } };
 }
 
+/**
+ * Answer a client's call to a check this process holds loaded (an unknown name or a throw hands it back to the client's
+ * own child). Why here and not in main: a call is data in, data out, and has no command line to dispatch [C7,#5330].
+ */
+async function answerClientCall(request, send) {
+  const { answerCall, knownCall } = await import('./calls.js');
+  if (!knownCall(request.call)) return null;
+  const previous = process.env.GIT_OPTIONAL_LOCKS;
+  process.env.GIT_OPTIONAL_LOCKS = '0';
+  try { send({ t: 'result', value: await answerCall(request.call, request.payload ?? {}) }); } catch { return null; }
+  finally { if (previous === undefined) delete process.env.GIT_OPTIONAL_LOCKS; else process.env.GIT_OPTIONAL_LOCKS = previous; }
+  return 0;
+}
+
 /** Run one forwarded command and stream its output and exit code back. */
 async function serve(socket, request) {
   const send = (value) => { if (!socket.destroyed) socket.write(JSON.stringify(value) + '\n'); };
@@ -283,6 +297,7 @@ async function serve(socket, request) {
       try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
       if (abandoned(request)) return null;
       send({ t: 'start' });
+      if (request.call) return await answerClientCall(request, send);
       // Written synchronously, so it holds even while this command blocks the event loop.
       try { writeFileSync(busyFile, `${process.pid} ${Date.now()}\n`); } catch { /* Clients then queue as before. */ }
       const ceiling = residentCommandCeiling(baseEnv);

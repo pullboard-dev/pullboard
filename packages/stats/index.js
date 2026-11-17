@@ -181,6 +181,8 @@ export {
 export {
   readTimeHistory,
   appendTimeCheckpoint,
+  STATS_HISTORY_FILE,
+  statsHistoryFile,
 } from './src/io/time/history.js';
 
 export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/logic/actions.js';

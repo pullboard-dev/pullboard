@@ -64,7 +64,7 @@ function fixture(t) {
   return { board, project, builder, reviewer, claim, edit, rejectOnce, edits };
 }
 
-test('[B10,B31] a corrected bar records why the old one was wrong', (t) => {
+test('board.corrections.corrected-bar-records-why-the-old: [B10,B31] a corrected bar records why the old one was wrong', (t) => {
   const box = fixture(t);
   const { board } = box;
   box.claim(1);
@@ -116,7 +116,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', (t) => {
   assert.deepEqual(barStatsLines(stats), ['bars: coordinator: 2 corrections, 1 reject caused by a bar, 1 reject caused by the build']);
 });
 
-test('[B31,H16] the bar-correction rule replays by engine and takes nothing from the move but the reason', () => {
+test('board.corrections.the-bar-correction-rule-replays-engine: [B31,H16] the bar-correction rule replays by engine and takes nothing from the move but the reason', () => {
   let at = Date.parse('2026-10-17T00:00:00.000Z');
   const board = openCellBoard(':memory:', { now: () => new Date(at += 1000) });
   try {

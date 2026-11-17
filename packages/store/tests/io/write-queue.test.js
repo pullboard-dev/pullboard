@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createWriteQueue } from '../../src/io/write-queue.js';
 
-test('clause 1: writes submitted to the write-queue port apply one at a time in submission order [C7,#8925]', async () => {
+test('store.io-write-queue.writes-submitted-to-the-write-queue: clause 1: writes submitted to the write-queue port apply one at a time in submission order [C7,#8925]', async () => {
   const queue = createWriteQueue();
   const order = [];
   let running = 0;
@@ -23,7 +23,7 @@ test('clause 1: writes submitted to the write-queue port apply one at a time in 
   assert.equal(queue.pending(), 0);
 });
 
-test('clause 2: a failed write rejects only its own caller and later writes still apply [C7,#8925]', async () => {
+test('store.io-write-queue.a-failed-write-rejects-only-its: clause 2: a failed write rejects only its own caller and later writes still apply [C7,#8925]', async () => {
   const queue = createWriteQueue();
   const order = [];
   const first = queue.submit(() => { order.push('first'); });
