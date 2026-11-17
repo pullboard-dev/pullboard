@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto';
 import {
   setResourceCapacity,
   updateRunnerSettings,
-} from '../../../resources/index.js';
+} from '../../../resources/light.js';
 import { validateRunner } from '../logic/settings.js';
 import { PERSON_SET } from '../logic/settings.js';
 import { parsePersonSet } from '../logic/settings.js';
@@ -41,8 +41,8 @@ import {
   readGateQueueSettings,
   readMachineSettingsFile,
 } from '../../../queue/index.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { machineHome } from '../../../resources/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { machineHome } from '../../../resources/light.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };
