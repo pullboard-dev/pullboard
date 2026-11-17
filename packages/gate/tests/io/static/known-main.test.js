@@ -1,10 +1,10 @@
-/** @pullboard-test-input source-cell packages/gate */
 /** With gate.knownMainStatic on, a static finding main also has never refuses an item; the rest still does [C7,#10450]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { runStaticChecks } from '../../../src/io/static/check.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
@@ -31,20 +31,20 @@ const mainFindings = async () => [{ rule: 'runs a git fetch outside the one entr
 
 test('clause 1: with gate.knownMainStatic on and every finding also red on main, runStaticChecks returns them as knownMain and throws no GATE_RED [C7,#10450]', async t => {
   const root = redRepo(t, [MAIN_ROW], { gate: { knownMainStatic: true } });
-  const result = await runStaticChecks(root, { staticChecks: 'sh check.sh' }, { mainFindings });
+  const result = await runStaticChecks(root, { staticChecks: 'sh check.sh' }, { executionServices, mainFindings });
   assert.deepEqual(result.knownMain, [{ rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' }]);
 });
 
 test('clause 2: a finding red only on the item still throws GATE_RED naming just that finding, and with the setting off the throw is unchanged [C7,#10450]', async t => {
   const root = redRepo(t, [MAIN_ROW, ITEM_ROW], { gate: { knownMainStatic: true } });
-  await assert.rejects(runStaticChecks(root, { staticChecks: 'sh check.sh' }, { mainFindings }), error => {
+  await assert.rejects(runStaticChecks(root, { staticChecks: 'sh check.sh' }, { executionServices, mainFindings }), error => {
     assert.equal(error.code, 'GATE_RED');
     assert.match(error.message, /packages\/b\/y\.js:9/u);
     assert.doesNotMatch(error.message, /packages\/a\/x\.js/u, 'main\'s finding is not named');
     return true;
   });
   const off = redRepo(t, [MAIN_ROW], {});
-  await assert.rejects(runStaticChecks(off, { staticChecks: 'sh check.sh' }, { mainFindings }), error => {
+  await assert.rejects(runStaticChecks(off, { staticChecks: 'sh check.sh' }, { executionServices, mainFindings }), error => {
     assert.equal(error.code, 'GATE_RED');
     assert.match(error.message, /packages\/a\/x\.js:3/u, 'the setting off names every finding');
     return true;
