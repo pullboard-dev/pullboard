@@ -11,6 +11,7 @@ import { projectItemState } from "../../../../packages/api/index.js";
 import { performanceCores } from "../../../../packages/gate/index.js";
 import { landingPace } from "../../../../packages/roadmap/index.js";
 import { dashboardRecent } from "./dashboard/recent.js";
+import { readGateJobs } from "./dashboard/gates.js";
 import { boardCounts } from "../logic/counts.js";
 import { firstLandings } from "../logic/counts.js";
 import { withReadySplit } from "../logic/counts.js";
@@ -393,7 +394,7 @@ function dashboardRunners(root, commonDir, now) {
     value = { ...value, runners: value.runners.map(runner => ({ ...runner, name: names[runner.runner - 1] ?? null, offline: runner.cpu === null && runner.ram === null })) };
   }
   // The runs already done sit beside those in flight, so a runner that ran jobs never reads as one that ran none (#7945).
-  if (value) value = { ...value, finished: finishedRuns(commonDir, now) };
+  if (value) value = { ...value, finished: finishedRuns(commonDir, now), gates: readGateJobs(store.boardFilePath(commonDir), now, { open: store.openBoardReadOnly, jobsFor: runsJobs }) };
   runnerReads.set(commonDir, { at: now, value });
   return value;
 }
