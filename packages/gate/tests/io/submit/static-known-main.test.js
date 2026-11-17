@@ -16,11 +16,17 @@ const ITEM_ROW = 'packages/b/y.js:9: tests read a cell by path';
 const PLAN = { check: '', selection: { full: false, reason: '', files: [] }, deferred: false, deferFullFallback: false, deferSelection: false,
   invariants: [], registryGuards: [], proofFiles: [], fullConfig: { gate: 'true' }, hasFinalProof: false, phases: [], testTiers: null };
 
-/** A committed fixture repository whose static command prints `rows` and exits red, under a machine home holding `settings`. */
-function redRepo(t, rows, settings) {
+/** A committed fixture repository whose static command prints `rows` and exits red. */
+function checkRepo(rows) {
   const { root } = privateFixtureFiles('pullboard-submit-known-main-');
   writeFileSync(join(root, 'check.sh'), `${rows.map(row => `echo 'STATIC_RED ${row}'`).join('\n')}\nexit 1\n`);
   fixtureCommitAll(root);
+  return root;
+}
+
+/** The item's repository, under a machine home holding `settings`. */
+function redRepo(t, rows, settings) {
+  const root = checkRepo(rows);
   const home = join(root, '..', `${root.split('/').at(-1)}-machine`);
   mkdirSync(home, { recursive: true });
   fixtureMachineSettings(home, settings);
@@ -31,8 +37,8 @@ function redRepo(t, rows, settings) {
 }
 
 /** A main checkout whose static command prints main's one finding; the helper records the commit it was asked for. */
-function mainCheckout(t, calls) {
-  const main = redRepo(t, [MAIN_ROW], {});
+function mainCheckout(calls) {
+  const main = checkRepo([MAIN_ROW]);
   return async (_root, commit, run) => { calls.push(commit); return run(main); };
 }
 
@@ -44,7 +50,7 @@ function submit(root, options) {
 test('gate.io-submit-static-known-main.with-the-setting-on-a-red-only-in: clause 1: with the setting on, a static red only in main\'s findings returns a result carrying those rows as staticKnownMain [C7,#10564]', async t => {
   const root = redRepo(t, [MAIN_ROW], { gate: { knownMainStatic: true } });
   const calls = [];
-  const result = await submit(root, { withMainCheckout: mainCheckout(t, calls) });
+  const result = await submit(root, { withMainCheckout: mainCheckout(calls) });
   assert.equal(result.isGreen, true);
   assert.deepEqual(result.staticKnownMain, [{ rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' }]);
   assert.equal(calls.length, 1, 'main was read once');
@@ -53,13 +59,13 @@ test('gate.io-submit-static-known-main.with-the-setting-on-a-red-only-in: clause
 
 test('gate.io-submit-static-known-main.a-finding-red-only-on-the-item: clause 2: a finding red only on the item still refuses GATE_RED, and with the setting off no main findings are read [C7,#10564]', async t => {
   const root = redRepo(t, [MAIN_ROW, ITEM_ROW], { gate: { knownMainStatic: true } });
-  await assert.rejects(submit(root, { withMainCheckout: mainCheckout(t, []) }), error => {
+  await assert.rejects(submit(root, { withMainCheckout: mainCheckout([]) }), error => {
     assert.equal(error.code, 'GATE_RED');
     assert.match(error.message, /packages\/b\/y\.js:9/u);
     return true;
   });
   const off = redRepo(t, [MAIN_ROW], {});
   const calls = [];
-  await assert.rejects(submit(off, { withMainCheckout: mainCheckout(t, calls) }), error => error.code === 'GATE_RED');
+  await assert.rejects(submit(off, { withMainCheckout: mainCheckout(calls) }), error => error.code === 'GATE_RED');
   assert.deepEqual(calls, [], 'with the setting off main is never read');
 });
