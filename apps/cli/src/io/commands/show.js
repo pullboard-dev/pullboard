@@ -14,6 +14,7 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
+import { queueWaitLines } from '../../logic/show/gate.js';
 import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
@@ -200,6 +201,7 @@ export async function run(io, { first, values }) {
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
   for (const line of pulledWaitingLines(gateJob, item)) io.say(line);
+  for (const line of queueWaitLines(gateJob)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
