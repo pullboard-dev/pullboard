@@ -1384,7 +1384,7 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
   assert.equal(split.children.length, 2, 'one child per numbered clause');
 }, ['add', 'init', 'split']);
 
-catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON', [], async () => {
+catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON', ['field'], async () => {
   const box = await project();
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   let saved = {};
