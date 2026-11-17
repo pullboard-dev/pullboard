@@ -22,6 +22,9 @@ const failures = changedStaticFailures(root, JSON.parse(files), { only: [name] }
 if (failures.length) process.stderr.write(failures.join('\\n') + '\\n');
 process.exitCode = failures.length ? 1 : 0;`;
 
+/** The notices Node itself prints to a child's stderr (an experimental-feature warning with its pid), which are not findings. */
+const NODE_NOTICE = /^\(node:\d+\) |^\(Use `node /u;
+
 /** Checks that judge the whole tree whatever files changed. */
 const TREE_CHECKS = new Set(['sync-spawn-in-leases', 'no-runtime-assumptions', 'store-registry', 'layout', 'compat-toggles', 'engine-folder']);
 
@@ -40,7 +43,7 @@ function runOne(root, name, files) {
     let text = '';
     child.stderr.on('data', chunk => { text += chunk; });
     child.on('error', error => done({ name, failures: [`${name}: could not start (${error.message})`], ms: performance.now() - started }));
-    child.on('close', code => done({ name, failures: code === 0 ? [] : text.split('\n').filter(Boolean), ms: performance.now() - started }));
+    child.on('close', code => done({ name, failures: code === 0 ? [] : text.split('\n').filter(line => line && !NODE_NOTICE.test(line)), ms: performance.now() - started }));
   });
 }
 
