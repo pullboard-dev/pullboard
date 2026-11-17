@@ -19,7 +19,7 @@ function row(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: landing.junitSignatures set through a real settings.json is read, not refused BAD_MACHINE_SETTINGS [C7,#9768]', () => {
+test('config.io-landing-junit-signatures-setting.clause-1-landing-junitsignatures-set: clause 1: landing.junitSignatures set through a real settings.json is read, not refused BAD_MACHINE_SETTINGS [C7,#9768]', () => {
   assert.equal(row({}).value, false);
   assert.equal(row({ landing: { junitSignatures: true } }).value, true);
   assert.equal(row({ landing: { junitSignatures: false } }).value, false);

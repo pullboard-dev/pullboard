@@ -33,7 +33,7 @@ function board(t, prefix) {
   return { repo, second };
 }
 
-test('clause 1: relay off from two worktrees of one board records one board exclusion [C7,#9415]', t => {
+test('link.relay-off.two-worktrees-one-exclusion: clause 1: relay off from two worktrees of one board records one board exclusion [C7,#9415]', t => {
   const { repo, second } = board(t, 'pullboard-off-any-worktree-');
   assert.equal(excludeRelayByPerson(second, IO, { localRecords: records() }), true);
   const first = readRelayMachine().excluded.slice();

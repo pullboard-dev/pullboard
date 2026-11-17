@@ -25,7 +25,7 @@ export function vendorOfModel(model) {
 }
 
 /**
- * The canonical vendor family a declared label names (OpenAI and openai read as openai; Claude and anthropic as anthropic), or the
+ * The canonical vendor family a declared label names (any spelling of a known vendor reads as its one family), or the
  * label itself when no known vendor spelling matches. Why: seats register mixed spellings and the family guard then sees four
  * families where there are two (#9681).
  */

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/landing packages/gate */
 /** Landing derives the test registries, so a test move in any lane needs no core-lane patch [C7,V24]. */
 import assert from 'node:assert/strict';
 import {

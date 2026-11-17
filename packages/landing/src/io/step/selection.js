@@ -17,6 +17,7 @@ import * as store from '../../../../store/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { landingLeaseState } from '../../../../store/index.js';
 import { sameEnvironment } from '../../../../verify/light.js';
+import { hunkFreshnessEnabled } from '../../../../config/index.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { cachedMainComparison } from '../main/red.js';
@@ -206,7 +207,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
-  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() });
   // A coordinator's named landing takes the named items at their named proven commits whatever their status [C7,#5559].
   const proven = named ? new Map(named.map(({ id, commit }) => [id, commit])) : null;
   const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)

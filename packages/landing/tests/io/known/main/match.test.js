@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing packages/gate */
 /** Known-main matching discards runtime noise without granting a file-wide exemption [V4,B3,C7]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

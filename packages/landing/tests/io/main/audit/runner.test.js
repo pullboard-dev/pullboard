@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A pinned main comparison may use only a registered runner with the candidate's observed environment [V4,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

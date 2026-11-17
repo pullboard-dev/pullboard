@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell packages/landing packages/git apps/cli */
+/** @pullboard-test-input docs-tree */
 /** Landing regenerates stale shared documentation into its merge before the gate, and leaves current documentation alone [B3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing packages/codemap */
 /** @pullboard-world-pin reads the committed cells plan, the landing sources and the front door to prove the guard.js move. */
 /** The landing guard sits in the shell cell with its importers repointed, and its static import closure reaches no CLI front door [C7]. */
 import assert from 'node:assert/strict';

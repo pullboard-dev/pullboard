@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing packages/gate */
 /** @pullboard-world-pin: clause 1 reads the shipped landing and gate sources to prove no landing step blocks the lease heartbeat. */
 /** A landing awaits every runner run, so its landing lease heartbeat keeps beating while tests run [C7]. */
 import assert from 'node:assert/strict';
