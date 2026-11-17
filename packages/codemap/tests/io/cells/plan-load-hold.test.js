@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell codemap config resources */
+/** @pullboard-test-input source-cell codemap */
 /** cells-plan --check and --moved wait in the local resource line above the load ceiling when machine.holdHeavyAboveLoad is on [C7,#10078]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
