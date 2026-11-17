@@ -47,7 +47,7 @@ function cargoEnvironment() {
   }
   const rustc = rustupWhich('rustc');
   const folders = [cargo && dirname(cargo), rustc && dirname(rustc)].filter(Boolean);
-  return { PATH: [...new Set(folders), process.env.PATH ?? ''].join(':'), ...(existsSync(REAL_RUSTUP) ? { RUSTUP_HOME: REAL_RUSTUP } : {}), ...(rustc ? { RUSTC: rustc } : {}) };
+  return { folders: [...new Set(folders)], ...(existsSync(REAL_RUSTUP) ? { RUSTUP_HOME: REAL_RUSTUP } : {}), ...(rustc ? { RUSTC: rustc } : {}) };
 }
 
 const CARGO = cargoEnvironment();
@@ -63,7 +63,9 @@ const BASE_ITEM = '#[test]\nfn adds_nothing() {\n    assert_eq!(crate::math::add
 /** A sandbox whose gate and runner see cargo: the variables are set before the first command starts the runner. */
 function cargoSandbox(settings = {}) {
   const box = helpers.sandbox();
-  Object.assign(box.env, CARGO, { CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: join(box.dir, 'target'), CARGO_TERM_COLOR: 'never' });
+  const { folders, ...cargoVariables } = CARGO ?? { folders: [] };
+  box.env.PATH = [...folders, box.env.PATH].join(':');
+  Object.assign(box.env, cargoVariables, { CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: join(box.dir, 'target'), CARGO_TERM_COLOR: 'never' });
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   return box;
 }
