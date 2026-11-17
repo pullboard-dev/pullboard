@@ -1,16 +1,16 @@
 /** With runs_store on, claim sizes N from runner slots in a runs snapshot read before its board write; off, from the board's job rows as on main [B2,#9015]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellClaim } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellRepo } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
-import { claimAdmission } from '../../../index.js';
-import { claimsPerSeat } from '../../../index.js';
-import { createJob } from '../../../../jobs/index.js';
-import { takeJob } from '../../../../jobs/index.js';
-import { writeStep } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { claimAdmission } from '../../../../../store/index.js';
+import { claimsPerSeat } from '../../../../../store/index.js';
+import { createJob } from '../../../../../jobs/index.js';
+import { takeJob } from '../../../../../jobs/index.js';
+import { writeStep } from '../../../../../jobs/index.js';
 
 /** A runner r1 that declared 4 jobs a moment ago and holds one live job: 3 free slots. */
 function serve(db, at) {
