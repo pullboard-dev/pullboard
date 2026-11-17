@@ -29,21 +29,21 @@ const listed = (base, ids, extra = {}) => ids.map(id => ({ item_id: id, item_sta
 const roadmap = (...lists) => lists.map((items, index) => ({ name: `m${index}`, items, order: [] }));
 const picked = (board, root, base, items, options = {}) => candidates(board, root, base, 8, { listItems: () => items, ...options });
 
-test('clause 1: with two accepted items, the one in an earlier milestone lands first even if accepted later [C7,#3157]', t => {
+test('landing.priority.with-two-accepted-items-the-one: clause 1: with two accepted items, the one in an earlier milestone lands first even if accepted later [C7,#3157]', t => {
   const { root, board, base } = scratch(t, { accepted: [21, 22], milestones: roadmap([22, 99], [21]) });
   const items = listed(base, [21, 22]);
   assert.deepEqual(picked(board, root, base, items, { priority: true }).ready.map(item => item.item_id), [22, 21]);
   assert.deepEqual(picked(board, root, base, items).ready.map(item => item.item_id), [21, 22], 'priority off keeps the accept order');
 });
 
-test('clause 2: a person-urgent accepted item lands before all others, whatever its milestone [C7,#3157]', t => {
+test('landing.priority.a-person-urgent-accepted-item-lands: clause 2: a person-urgent accepted item lands before all others, whatever its milestone [C7,#3157]', t => {
   const { root, board, base } = scratch(t, { accepted: [31, 32, 33], milestones: roadmap([31], [32], [33]) });
   board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run('item_urgent:33', 'on');
   const items = listed(base, [31, 32, 33]);
   assert.deepEqual(picked(board, root, base, items, { priority: true }).ready.map(item => item.item_id), [33, 31, 32]);
 });
 
-test('clause 3: a held or stale item is skipped without changing the order of the rest [C7,#3157]', t => {
+test('landing.priority.a-held-or-stale-item-is: clause 3: a held or stale item is skipped without changing the order of the rest [C7,#3157]', t => {
   const { root, board, base } = scratch(t, { accepted: [41, 42, 43], milestones: roadmap([41], [42], [43]) });
   const items = listed(base, [41, 42, 43], { 41: { item_hold_at: '2026-11-16T00:00:00.000Z', item_hold_reason: 'held' } });
   const { ready, blocked } = picked(board, root, base, items, { priority: true });

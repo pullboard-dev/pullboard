@@ -14,7 +14,7 @@ import { startServeSentinel } from '../../index.js';
 const { root } = privateFixtureFiles('sentinel-serve-cli-');
 after(() => rmSync(root, { recursive: true, force: true }));
 
-test('clause 1: the scan child runs the CLI entry the caller passes, with the health-only words [C7]', async () => {
+test('sentinels.serve-cli.scan-child-runs-passed-entry: clause 1: the scan child runs the CLI entry the caller passes, with the health-only words [C7]', async () => {
   const log = join(root, 'argv.json');
   const entry = join(root, 'entry.js');
   writeFileSync(entry, `require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)) + '\\n');\n`);
@@ -26,7 +26,7 @@ test('clause 1: the scan child runs the CLI entry the caller passes, with the he
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)), [['sentinel', 'run', '--health-only', '--json']]);
 });
 
-test('clause 1: serve.js names no apps/ path and the committed ceiling holds no row for it [C7]', () => {
+test('sentinels.serve-cli.serve-names-no-apps-path: clause 1: serve.js names no apps/ path and the committed ceiling holds no row for it [C7]', () => {
   assert.doesNotMatch(readFileSync(new URL('../../src/io/serve.js', import.meta.url), 'utf8'), /apps\//u);
   const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   assert.equal(ceilings.packageApps['packages/sentinels/src/io/serve.js'], undefined);

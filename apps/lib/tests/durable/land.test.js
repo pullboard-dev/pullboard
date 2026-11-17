@@ -1,6 +1,5 @@
 /** @pullboard-test-input apps/cli/src/io/commands/merged.js apps/cli/src/io/commands/land.js */
-/** Durable gate 18/20: the landing finish sequence's six steps are job steps; a resumed landing continues [C7].  * @pullboard-test-input source-tree
- */
+/** Durable gate 18/20: the landing finish sequence's six steps are job steps; a resumed landing continues [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';

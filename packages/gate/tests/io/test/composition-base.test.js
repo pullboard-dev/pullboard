@@ -32,7 +32,7 @@ function repository(t) {
   return { root, run, trunk: run('rev-parse', 'main'), item: run('rev-parse', 'item') };
 }
 
-test('clause 1: a land merge (HEAD^1 main, HEAD^2 item) has the trunk parent as its base, so a file main added later passes [C7,#9524]', t => {
+test('gate.io-test-composition-base.a-land-merge-head-1-main: clause 1: a land merge (HEAD^1 main, HEAD^2 item) has the trunk parent as its base, so a file main added later passes [C7,#9524]', t => {
   const { root, run, trunk, item } = repository(t);
   run('checkout', '-q', '--detach', trunk);
   run('merge', '-q', '--no-ff', '-m', 'Merge #9524 onto main [C7]', item);
@@ -43,7 +43,7 @@ test('clause 1: a land merge (HEAD^1 main, HEAD^2 item) has the trunk parent as 
   assert.ok(added.includes('item.txt'));
 });
 
-test('clause 1: a gate merge (HEAD^1 item, HEAD^2 main) still has the second parent as its base [C7,#9524]', t => {
+test('gate.io-test-composition-base.a-gate-merge-head-1-item: clause 1: a gate merge (HEAD^1 item, HEAD^2 main) still has the second parent as its base [C7,#9524]', t => {
   const { root, run, trunk, item } = repository(t);
   run('checkout', '-q', '--detach', item);
   run('merge', '-q', '--no-ff', '-m', 'Merge main into the item', trunk);

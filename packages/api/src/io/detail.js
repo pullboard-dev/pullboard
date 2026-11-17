@@ -45,7 +45,7 @@ export function fileMarkerForPath(path) {
  * @returns {(board: { root: string, id: string }, id: number) => any} The item's detail, or null when the board has no such item.
  */
 export function itemDetailReader({ withReadBoard, projectItemState, isMain, boardOpeners, onItemBuild, cells }) {
-  const { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled } = cells;
+  const { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled, hunkFreshnessEnabled } = cells;
   // Each board's item details by item id, and each board's spec-approval view (#1040).
   const detailCache = new Map();
   const approvalCache = new Map();
@@ -115,7 +115,7 @@ export function itemDetailReader({ withReadBoard, projectItemState, isMain, boar
     const source = store.getItem(currentBoard, id);
     const base = projectItemSpecApprovals(projectItemState(currentBoard, source, status), approval);
     // The projector owns this transaction's connection; only derived values cross requests.
-    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }).state(source);
+    const verdictState = verdictProjector(board.root, currentBoard, { main: tip }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled?.() === true }).state(source);
     const projected = {
       ...base,
       ...(verdictState ? { verdictState } : {}),

@@ -37,7 +37,7 @@ async function streamPolls(box) {
   return polls;
 }
 
-test("the relay client fixture polls at the relay's production interval by default [H5,C7]", async t => {
+test("relay.relay-client-fixture.the-relay-client-fixture-polls-at: the relay client fixture polls at the relay's production interval by default [H5,C7]", async t => {
   const box = await relayDirectFixture(t);
   await box.link();
   const polls = await streamPolls(box);
@@ -46,7 +46,7 @@ test("the relay client fixture polls at the relay's production interval by defau
   assert.ok(polls <= ceiling, `the open stream is polled at most every ${PRODUCTION_POLL_MS} ms: ${polls} polls in ${WINDOW_MS} ms, at most ${ceiling}`);
 });
 
-test('a relay client fixture case can ask for a faster poll by name [H5,C7]', async t => {
+test('relay.relay-client-fixture.a-relay-client-fixture-case-can: a relay client fixture case can ask for a faster poll by name [H5,C7]', async t => {
   const box = await relayDirectFixture(t, { pollMs: 20 });
   await box.link();
   const polls = await streamPolls(box);

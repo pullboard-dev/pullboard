@@ -28,7 +28,7 @@ async function settle() {
   for (let turn = 0; turn < 5; turn++) await Promise.resolve();
 }
 
-test('three stages of 2, 3 and 4 s finish in about 4 s, not 9 s [C7]', async () => {
+test('gate.io-main-concurrent.three-stages-of-2-3-and: three stages of 2, 3 and 4 s finish in about 4 s, not 9 s [C7]', async () => {
   const durations = { static: 2_000, cells: 3_000, tests: 4_000 };
   const run = drivenStages(Object.keys(durations));
   const rows = [];
@@ -48,7 +48,7 @@ test('three stages of 2, 3 and 4 s finish in about 4 s, not 9 s [C7]', async () 
   assert.deepEqual(rows.map(row => [row.name, row.green]), [['static', true], ['cells', true], ['tests', true]]);
 });
 
-test('the first red stage cancels the others and refuses at once [C7]', async () => {
+test('gate.io-main-concurrent.the-first-red-stage-cancels-the: the first red stage cancels the others and refuses at once [C7]', async () => {
   const run = drivenStages(['static', 'cells', 'tests']);
   const gate = runGateStages(run.stages, { now: () => run.clock.now });
   await settle();

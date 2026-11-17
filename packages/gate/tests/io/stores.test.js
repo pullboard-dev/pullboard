@@ -217,7 +217,7 @@ test('#6746 clause 1: build.js is the one home of writeTimer and the maintenance
 test('#6746 clause 2: the store-homes baseline drops the scheduler timer rows, 2 of 4 [CD2]', () => {
   const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
   assert.equal(baseline['apps/cli/src/io/worktree/maintenance/scheduler.js'], undefined);
-  assert.deepEqual(baseline['apps/cli/src/io/tool/build.js'], { 'timer.guard.sqlite': 1, 'timer.json': 1 });
+  assert.equal(baseline['apps/cli/src/io/tool/build.js'], undefined, 'build.js reaches the timer files through timerFiles and keeps no ceiling [#10207]');
 });
 
 test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word registers as the unlisted stem *.json [CD2]', () => {
@@ -345,4 +345,16 @@ test('#7015 clause 1: no store-file site in any package or app builds its name f
 
 test('#7013 clause 1: no store-file site under packages/link builds its name from a stemless template [CD2]', () => {
   assert.deepEqual(stemlessIn('packages/link/'), [], 'name each file from the link registry const storeName(key)');
+});
+
+test('#8623 clause 1: stats-history.jsonl, timer.guard.sqlite, timer.json and vendors.json are off writeOwnerDebt, each owned by its writer or marked repo-data, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  const settled = ['stats-history.jsonl', 'timer.guard.sqlite', 'timer.json', 'vendors.json'];
+  assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['stats-history.jsonl'].owner, 'packages/stats/src/io/time/history.js', 'the module that appends the history owns it');
+  assert.equal(registry.stores['vendors.json'].kind, 'repo-data', 'vendors.json is only read');
+  assert.equal(Object.values(baseline).filter(row => row['stats-history.jsonl']).length, 0, 'no second home names the history file');
 });

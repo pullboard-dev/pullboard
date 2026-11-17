@@ -36,7 +36,7 @@ const read = path => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines among a file's leading comment lines, as the text after the tag. */
 const headers = source => source.split(/\r?\n/u).slice(0, 5).map(line => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every rigor test file that reads repo files carries an input header naming the cells it reads [C7,U149]', () => {
+test('rigor.inputs.readers-declare: clause 1: every rigor test file that reads repo files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = cellTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the rigor cell has test files to check');
   for (const reader of REPO_READERS) assert.ok(files.includes(reader), `${reader} is a rigor test`);
@@ -46,7 +46,7 @@ test('clause 1: every rigor test file that reads repo files carries an input hea
   assert.ok(files.some(file => READS.test(read(file))), 'the scan sees file reads');
 });
 
-test('clause 2: no rigor test declares the whole source tree except the existing ones, and every header names cells or files [C7,U149]', () => {
+test('rigor.inputs.no-whole-tree: clause 2: no rigor test declares the whole source tree except the existing ones, and every header names cells or files [C7,U149]', () => {
   for (const file of cellTests()) {
     for (const header of headers(read(file))) {
       if (header.trim() === 'source-tree') assert.ok(TREE_OK.includes(file), `${file} declares source-tree`);

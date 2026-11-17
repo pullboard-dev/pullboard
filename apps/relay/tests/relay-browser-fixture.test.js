@@ -34,7 +34,7 @@ async function stalledCommand(chrome, pending) {
   );
 }
 
-test('clause 2: real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]', {
+test('relay.relay-browser-fixture.real-chrome-names-a-stalled-command: clause 2: real Chrome names a stalled command when it exceeds the CDP bound [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const chrome = await stableChrome(await startChrome({ commandTimeoutMs: STALL_BOUND_MS }));
@@ -46,7 +46,7 @@ test('clause 2: real Chrome names a stalled command when it exceeds the CDP boun
   await assert.rejects(chrome.pollTask(task, 250, 'task lost to navigation'), /did not arrive within 250ms/);
 });
 
-test('paired Chrome excludes idle event streams and reports only held state requests [H16,C7]', {
+test('relay.relay-browser-fixture.paired-chrome-excludes-idle-event-streams: paired Chrome excludes idle event streams and reports only held state requests [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -95,7 +95,7 @@ test('paired Chrome excludes idle event streams and reports only held state requ
 });
 
 
-test('relay idle readiness waits for a real held request and then observes its completion [H16,C7]', {
+test('relay.relay-browser-fixture.relay-idle-readiness-waits-for-a: relay idle readiness waits for a real held request and then observes its completion [H16,C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
