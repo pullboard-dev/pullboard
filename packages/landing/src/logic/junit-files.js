@@ -6,6 +6,8 @@ export const JUNIT_FILE_ROWS = {
   ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
+  haskell: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
   // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
