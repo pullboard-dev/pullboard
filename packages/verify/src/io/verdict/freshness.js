@@ -132,7 +132,7 @@ export function staleVerdictRefusal(item, state) {
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, derived }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -209,6 +209,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const state = item => {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
+    // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
+    const known = derived?.(item);
+    if (known !== undefined) return known;
     const accepted = acceptedVerdict(board, item);
     const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };
