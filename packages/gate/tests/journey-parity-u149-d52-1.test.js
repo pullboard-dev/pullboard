@@ -1,3 +1,4 @@
+/** @pullboard-world-pin: clause 3 counts the cases in the two journey files it names, whose source it reads. */
 /** @pullboard-test-input apps/cli/journeys/verify/team/repair.test.js apps/cli/journeys/verify/team/repair-landing.test.js */
 /**
  * The parity check for the verify/team repair journeys (#10062, U149 dep52 slice 1): the one case of each runs twice, once with every
@@ -5,6 +6,8 @@
  * by #10411, repair here [C7].
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
@@ -16,4 +19,12 @@ const SAMPLES = [
 test('clause 1: a sample of the verify/team repair journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
+});
+
+test('clause 3: both converted journeys keep their one case each [C7]', () => {
+  for (const { journey, cases } of SAMPLES) {
+    const source = readFileSync(resolve(import.meta.dirname, '../../..', journey), 'utf8');
+    assert.equal(source.match(/^test\(/gmu).length, 1, `${journey} keeps exactly one case`);
+    assert.ok(source.includes(cases[0]), `${journey} keeps its case ${cases[0]}`);
+  }
 });
