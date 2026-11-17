@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-cell shouts */
-/** An idle watcher with watch.quietReads off is measured for CPU over 120 s in this process, and the percent is printed [C7,#9845,#9618]. */
+/** An idle watcher with watch.quietReads off is measured for CPU over 100 s in this process, and the percent is printed [C7,#9845,#9618]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
@@ -11,9 +11,9 @@ import { watchOptions } from '../../../../packages/shouts/index.js';
 import { watchStart } from '../../../../packages/shouts/index.js';
 
 const QUIET_READS = false;
-const SECONDS = 120;
+const SECONDS = 100;
 
-test('clause 1: followBoard on a quiet board with watch.quietReads off for 120 s prints this process\'s CPU percent as a number from 0 to 100 [C7,#9845]', { timeout: 170_000 }, async (t) => { // budget: a fixed 120 s idle measurement plus fixture setup; the ceiling is a hang bound, not a speed target.
+test('clause 1: followBoard on a quiet board with watch.quietReads off for 100 s prints this process\'s CPU percent as a number from 0 to 100 [C7,#9845]', { timeout: 170_000 }, async (t) => { // budget: a fixed 100 s idle measurement plus fixture setup; the ceiling is a hang bound, not a speed target.
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
