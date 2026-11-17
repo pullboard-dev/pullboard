@@ -80,7 +80,7 @@ function boardDigest(db) {
 
 
 /** Measure complete fresh CLI processes without a module hook, warmup, or output shortcut. */
-export async function assertStartupBudgets(t) {
+export async function assertStartupBudgets(t, sink = {}) {
   const cleanups=[];
   const {root,db}=fixture({after(fn){cleanups.push(fn);}});
   try {
@@ -142,6 +142,8 @@ export async function assertStartupBudgets(t) {
     report.bareNodeMedianMs=bareMedian;
     report.floorLines=Object.entries(medians).map(([name,median])=>`${name} median ${median.toFixed(2)} ms, bare node median ${bareMedian.toFixed(2)} ms, overhead ${(median-bareMedian).toFixed(2)} ms`);
     for (const line of report.floorLines) t.diagnostic(line);
+    // The report is handed out before any ceiling assertion, so a row over its ceiling still leaves its floor readable.
+    Object.assign(sink, report);
     // Goal: 100 ms (#1048). Each row is an audited exception at its measured runner median (#5994); rows only go down, and the 0.9.5 de-barrel item brings them to the goal.
     for (const [name, median] of Object.entries(medians)) {
       assert.ok(median < ceilings[name], `${name} end-to-end median ${median.toFixed(2)} ms exceeds its ${ceilings[name]} ms row in startup-budget.json (goal 100 ms)`);

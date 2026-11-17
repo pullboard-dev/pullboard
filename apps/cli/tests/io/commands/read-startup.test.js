@@ -66,13 +66,13 @@ test('clause 2: the list thin row is 200 ms and the list row stays at its audite
   assert.equal(ceilings.list, 1500);
 });
 
-let startupReport;
+const startupReport = {};
 test('clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
-  startupReport = await assertStartupBudgets(t);
+  await assertStartupBudgets(t, startupReport);
 });
 
 test('clause 1: the version row reports its median, the bare node median and the overhead as a diagnostic line [C7]', () => {
-  assert.ok(startupReport, 'the startup measurement above did not return its report');
+  assert.ok(startupReport.floorLines, 'the startup measurement above did not produce its report');
   const line = startupReport.floorLines.find(text => text.startsWith('version median '));
   assert.match(line, /^version median \d+\.\d\d ms, bare node median \d+\.\d\d ms, overhead -?\d+\.\d\d ms$/u);
   assert.equal(startupReport.floorLines.length, Object.keys(startupReport.mediansMs).length);
