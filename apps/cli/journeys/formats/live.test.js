@@ -456,7 +456,7 @@ function exerciseUpgrade() {
   }
 }
 
-test('clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
+test('cli.journeys-formats-live.a5-schema-versions-event-kinds-and: clause 1: [A5] schema, versions, event kinds and event detail fields match live behavior', async t => {
   const board = openBoard(':memory:');
   try {
     const version = board.db.prepare('PRAGMA user_version').get().user_version;

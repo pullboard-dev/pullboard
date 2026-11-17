@@ -54,7 +54,7 @@ async function waitForFile(filename, child, description, detail = async () => ''
   assert.ok(existsSync(filename), `${description}${child.fixtureFailure ? `: ${child.fixtureFailure}` : ''}${existsSync(filename) ? '' : await detail()}`);
 }
 
-test('check cleanup waits for every background writer [C7]', async () => {
+test('cli.journeys-baseline-check-part2.check-cleanup-waits-for-every-background: check cleanup waits for every background writer [C7]', async () => {
   const box = await project();
   const startedFile = join(box.dir, 'baseline-started');
   const releaseFile = join(box.dir, 'baseline-release');

@@ -34,13 +34,13 @@ async function noModelFindings(box) {
   return JSON.parse(health.out).stuck.filter(entry => entry.cause === 'SEAT_NO_MODEL');
 }
 
-test('clause 1: health lists each seat whose recorded model is missing or unknown, by seat id [C7,#9696]', async () => {
+test('cli.journeys-health-seats-no-model.health-lists-each-seat-whose-recorded: clause 1: health lists each seat whose recorded model is missing or unknown, by seat id [C7,#9696]', async () => {
   const { box, ids } = projectWithSeats([null, 'unknown', FIXTURE_MODEL]);
   const found = await noModelFindings(box);
   assert.deepEqual(found.map(entry => entry.subject).sort(), [ids[0], ids[1]].sort());
 });
 
-test('clause 2: a board whose seats all declared a model prints no such line [C7,#9696]', async () => {
+test('cli.journeys-health-seats-no-model.a-board-whose-seats-all-declared: clause 2: a board whose seats all declared a model prints no such line [C7,#9696]', async () => {
   const { box } = projectWithSeats([FIXTURE_MODEL, FIXTURE_MODEL]);
   assert.deepEqual(await noModelFindings(box), []);
   const text = await box.runLocal(box.repo, 'health');
