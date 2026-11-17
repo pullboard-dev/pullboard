@@ -42,7 +42,7 @@ export function commitInProcess(box, cwd, args) {
   // With nothing staged git refuses before it runs any hook, so that case takes the real path.
   if (!plain.flags.includes('--allow-empty') && git('diff', '--cached', '--quiet').status === 0) return null;
   return (async () => {
-    const pre = await runPreCommitInProcess(box, cwd);
+    const pre = await runPreCommitInProcess(box, cwd, { staticCheck: '' });
     if (pre.status !== 0) return { status: 1, stdout: '', stderr: pre.stderr };
     const msg = await runCommitMsgInProcess(box, cwd, plain.message);
     if (msg.status !== 0) return { status: 1, stdout: '', stderr: msg.stderr };
