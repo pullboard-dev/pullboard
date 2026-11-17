@@ -24,23 +24,23 @@ const waived = { file: 'apps/cli/journeys/verify/machine.test.js', name: 'every 
 const own = { file: 'apps/cli/journeys/spec/board.test.js', name: 'spec apply waits for a busy board' };
 const other = { file: 'apps/cli/journeys/release/model.test.js', name: 'model names render' };
 
-test('named unwaived failures of an unaccounted red gate are bisectable [C7,#2900]', t => {
+test('landing.unaccounted.named-unwaived-failures-of-an-unaccounted: named unwaived failures of an unaccounted red gate are bisectable [C7,#2900]', t => {
   assert.deepEqual(bisectableFailures(board(t), [waived, own, other], PORTS), [own, other]);
 });
 
-test('waived failures are dropped before bisect, so a waived red never blocks a batch [C7,#2900]', t => {
+test('landing.unaccounted.waived-failures-are-dropped-before-bisect: waived failures are dropped before bisect, so a waived red never blocks a batch [C7,#2900]', t => {
   const opened = board(t);
   assert.deepEqual(unwaivedFailures(opened, [waived, waived], PORTS), []);
   assert.equal(bisectableFailures(opened, [waived], PORTS), null, 'nothing left to bisect when every red is waived');
 });
 
-test('only unnamed failures still need a person; named reds bisect beside an unnamed one [C7,#2900]', t => {
+test('landing.unaccounted.only-unnamed-failures-still-need-a: only unnamed failures still need a person; named reds bisect beside an unnamed one [C7,#2900]', t => {
   assert.equal(bisectableFailures(board(t), [{ file: null, name: 'This operation was aborted' }], PORTS), null);
   // An unnamed row rides along: the named reds split the batch and the rebuilt green set's whole-plan run catches the rest.
   assert.deepEqual(bisectableFailures(board(t), [own, { file: null, name: 'This operation was aborted' }], PORTS), [own]);
 });
 
-test('bisect compares only unwaived reds with base main; a live-waived red file is never compared [C7,#2900]', async t => {
+test('landing.unaccounted.bisect-compares-only-unwaived-reds-with: bisect compares only unwaived reds with base main; a live-waived red file is never compared [C7,#2900]', async t => {
   const opened = board(t);
   const compared = [];
   const compare = async (_root, { tests }) => { compared.push(...tests.map(test => test.file)); return { main: 'base', files: [] }; };

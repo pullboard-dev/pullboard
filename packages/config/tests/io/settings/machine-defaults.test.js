@@ -13,6 +13,8 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.compactShouts': false,
+  'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
@@ -31,9 +33,11 @@ const BEFORE = {
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
   'engine.nameBehindDevice': false,
+  'flakes.rereadRatchet': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
@@ -48,6 +52,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -74,8 +79,10 @@ const BEFORE = {
   'gate.runnersFirst': false,
   'gate.runnersOnly': false,
   'gate.sampleDiskIo': false,
+  'gate.selectionUnit': 'file',
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
+  'gate.staticLoadAdmission': false,
   'gate.staticMemo': false,
   'gate.staticSlots': 2,
   'gate.submitAuthorization': 'runner',
@@ -83,6 +90,8 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.viewTimerLayout': false,
+  'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
@@ -94,8 +103,11 @@ const BEFORE = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'jobs.recordLapse': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
+  'landing.junitFailures': false,
+  'landing.junitSignatures': false,
   'landing.parallelGates': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
@@ -103,11 +115,15 @@ const BEFORE = {
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
   'landing.stallStop': false,
+  'landing.staticAffectedOnly': false,
+  'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
+  'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
+  'moves.judgeByRelease': false,
   'moves.live.claim': false,
   'moves.live.handoff': false,
   'moves.live.job': false,
@@ -122,13 +138,21 @@ const BEFORE = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.labelBounds': false,
+  'next.lightShapedStrong': false,
+  'next.oneGitRead': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
+  'next.routeByTier': false,
+  'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
+  'read.thinCommands': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'relay.queueOnFailure': false,
+  'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
@@ -138,21 +162,27 @@ const BEFORE = {
   'runnerRates': {},
   'runners': [],
   'runners.drainOnFetchFailure': false,
+  'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
   'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   'scratch': null,
+  'sentinels.landingSelfCheck': false,
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'spec.requireFactQuote': false,
+  'state.milestoneDelta': false,
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'submit.recoverFromJobRow': false,
+  'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
@@ -161,9 +191,10 @@ const BEFORE = {
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
 
-test('clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {
+test('config.io-settings-machine-defaults.clause-1-every-machine-default-key-sits: clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {
   const lines = readFileSync(FILE, 'utf8').split('\n');
   const start = lines.findIndex((line) => line.startsWith('export const MACHINE_DEFAULTS = {'));
   const end = lines.findIndex((line, i) => i > start && line === '};');
@@ -195,14 +226,14 @@ function defaultsProblems(defaults) {
   return problems;
 }
 
-test('clause 1: every key in BEFORE keeps its value in MACHINE_DEFAULTS [O6]', () => {
+test('config.io-settings-machine-defaults.clause-1-every-key-in-before-keeps-its: clause 1: every key in BEFORE keeps its value in MACHINE_DEFAULTS [O6]', () => {
   const kept = {};
   for (const key of Object.keys(BEFORE)) kept[key] = MACHINE_DEFAULTS[key];
   assert.deepEqual(kept, BEFORE);
   assert.match(readFileSync(INVENTORY, 'utf8'), /MACHINE_DEFAULTS/);
 });
 
-test('clause 2: every key outside BEFORE defaults to false or null [O6]', () => {
+test('config.io-settings-machine-defaults.clause-2-every-key-outside-before: clause 2: every key outside BEFORE defaults to false or null [O6]', () => {
   const added = Object.entries(MACHINE_DEFAULTS).filter(([key]) => !(key in BEFORE));
   for (const [key, value] of added) {
     assert.ok(value === false || value === null, `${key} is new and must default off, got ${JSON.stringify(value)}`);
@@ -210,7 +241,7 @@ test('clause 2: every key outside BEFORE defaults to false or null [O6]', () => 
   assert.deepEqual(defaultsProblems(MACHINE_DEFAULTS), []);
 });
 
-test('clause 3: removing a BEFORE key or changing its value fails the check [O6]', () => {
+test('config.io-settings-machine-defaults.clause-3-removing-a-before-key-or: clause 3: removing a BEFORE key or changing its value fails the check [O6]', () => {
   const gone = { ...MACHINE_DEFAULTS };
   delete gone['gate.fencedHop'];
   assert.deepEqual(defaultsProblems(gone), ['gate.fencedHop is gone']);
@@ -221,27 +252,37 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
 });
 
-test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
+test('config.io-settings-machine-defaults.clause-1-gate-adapterlinttimers-is-in: clause 1: gate.adapterLintTimers is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.adapterLintTimers'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintTimers'], false);
+});
+
+test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
   assert.equal(BEFORE['gate.idiomSpread'], false);
   assert.equal(MACHINE_DEFAULTS['gate.idiomSpread'], false);
 });
 
-test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
+test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
 });
 
-test('clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
+test('config.io-settings-machine-defaults.clause-1-next-lightshapedstrong-is-a: clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['next.lightShapedStrong'], false);
+  assert.ok(SETTING_DESCRIPTIONS['next.lightShapedStrong']);
+});
+
+test('config.io-settings-machine-defaults.clause-1-gate-overlapstaticproof-is-a: clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.overlapStaticProof'], false);
   assert.ok(SETTING_DESCRIPTIONS['gate.overlapStaticProof']);
 });
 
-test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
+test('config.io-settings-machine-defaults.clause-1-review-relaxrequiredfamily-is-a: clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
   assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
   assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
 });
 
-test('clause 1: runners.requiredToolchains is a machine setting, blank by default, with a description [C7]', () => {
+test('config.io-settings-machine-defaults.clause-1-runners-requiredtoolchains-is-a: clause 1: runners.requiredToolchains is a machine setting, blank by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['runners.requiredToolchains'], null);
   assert.ok(SETTING_DESCRIPTIONS['runners.requiredToolchains']);
 });
@@ -263,13 +304,13 @@ async function declaredInputsWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: tests.requireDeclaredInputs is listed with a description and defaults to false [C7,#9799]', async () => {
+test('config.io-settings-machine-defaults.clause-1-tests-requiredeclaredinputs-is: clause 1: tests.requireDeclaredInputs is listed with a description and defaults to false [C7,#9799]', async () => {
   assert.equal(MACHINE_DEFAULTS['tests.requireDeclaredInputs'], false);
   assert.ok(SETTING_DESCRIPTIONS['tests.requireDeclaredInputs']);
   assert.equal(await declaredInputsWith({}), false);
 });
 
-test('clause 2: only the exact value true turns tests.requireDeclaredInputs on [C7,#9799]', async () => {
+test('config.io-settings-machine-defaults.clause-2-only-the-exact-value-true-turns: clause 2: only the exact value true turns tests.requireDeclaredInputs on [C7,#9799]', async () => {
   assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: true } }), true);
   assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: false } }), false);
 });

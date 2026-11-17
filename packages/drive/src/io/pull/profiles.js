@@ -23,3 +23,19 @@ export function keepPhaseProfiles(folder, phases) {
     return { ...phase, profileKept: name };
   });
 }
+
+/**
+ * A gate receipt's phase rows with each profile kept: the `phases` array the gate entry prints, and the `check` and `proof` rows a job may print alone.
+ * Why both shapes: the board reads the array by role, and a one-row job names its phase by key [C7,#9614].
+ *
+ * @param {string} folder - The job's kept folder.
+ * @param {Record<string, any>} gate - The parsed gate receipt.
+ * @returns {Record<string, any>} The receipt, with profileKept on the rows whose profile was copied.
+ */
+export function keepGateProfiles(folder, gate) {
+  if (!gate || typeof gate !== 'object') return gate;
+  const next = { ...gate };
+  if (Array.isArray(gate.phases)) next.phases = keepPhaseProfiles(folder, gate.phases);
+  for (const role of ['check', 'proof']) if (gate[role] && typeof gate[role] === 'object') next[role] = keepPhaseProfiles(folder, [gate[role]])[0];
+  return next;
+}

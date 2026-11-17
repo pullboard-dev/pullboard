@@ -20,7 +20,7 @@ function withSettings(settings, read) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: docs.regenerateOnCommit is a described setting, off by default, on only for an exact true [C7,#9664]', () => {
+test('config.io-docs-regenerate-on-commit-setting.clause-1-docs-regenerateoncommit-is-a: clause 1: docs.regenerateOnCommit is a described setting, off by default, on only for an exact true [C7,#9664]', () => {
   const row = withSettings({}, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'docs.regenerateOnCommit'));
   assert.equal(row.default, false);
   assert.equal(row.value, false);

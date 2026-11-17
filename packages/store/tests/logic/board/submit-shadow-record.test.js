@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-queue-records.json */
 /** @pullboard-world-pin reads the recorded submit history and queue moves fixtures to drive the submit writers with them. With moves.shadow on, the COMMIT and SUBMIT compares are recorded on the board; off, nothing is [C7,#8379]. */
 /** @pullboard-test-input packages/moves/tests/fixtures/table/submit-history.json packages/store/tests/fixtures/submit-queue-records.json packages/store/src/io/submission.js packages/store/src/io/submit/handoff/shadow.js */
 import assert from 'node:assert/strict';

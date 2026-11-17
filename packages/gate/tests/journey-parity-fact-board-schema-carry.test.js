@@ -10,7 +10,7 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/fact/board/schema-carry.test.js', cases: ['a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]'] }];
 
-test('clause 1: a sample of the fact/board/schema-carry journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-fact-board-schema-carry.a-sample-of-the-fact-board-schema: clause 1: a sample of the fact/board/schema-carry journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

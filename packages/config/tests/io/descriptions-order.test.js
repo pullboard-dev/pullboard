@@ -18,7 +18,7 @@ function rowLines() {
   return lines.slice(start + 1, end);
 }
 
-test('clause 1: description rows are one per line and in sorted key order inside each comment-headed group [C7]', () => {
+test('config.io-descriptions-order.clause-1-description-rows-are-one-per: clause 1: description rows are one per line and in sorted key order inside each comment-headed group [C7]', () => {
   let group = [];
   const check = () => {
     const keys = group.map(keyOf);
@@ -35,7 +35,7 @@ test('clause 1: description rows are one per line and in sorted key order inside
   check();
 });
 
-test('clause 2: every key described before the sort is still described with the same text [C7]', () => {
+test('config.io-descriptions-order.clause-2-every-key-described-before-the: clause 2: every key described before the sort is still described with the same text [C7]', () => {
   const now = new Map(rowLines().filter((line) => !line.startsWith('  //')).map((line) => [keyOf(line), line]));
   BEFORE.keys.forEach((key, i) => {
     const hash = BEFORE.hashes[i];

@@ -9,7 +9,7 @@ import { test } from 'node:test';
 const TESTS = import.meta.dirname;
 const KIT_IMPORT = /\b(?:import|export)\b[^;'"`]*?\bfrom\s*['"][^'"]*apps\/cli\/tests\/fixtures\/[^'"]*['"]/u;
 
-test('clause 1: no test under packages/git/tests imports a module of the CLI fixture kit [C7]', () => {
+test('git.kit-home.no-kit-imports: clause 1: no test under packages/git/tests imports a module of the CLI fixture kit [C7]', () => {
   const offenders = readdirSync(TESTS, { recursive: true })
     .filter((name) => /\.test\.m?js$/u.test(name) && !name.split('/').includes('node_modules'))
     .filter((name) => KIT_IMPORT.test(readFileSync(join(TESTS, name), 'utf8')));

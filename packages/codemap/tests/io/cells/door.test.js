@@ -43,28 +43,28 @@ function movedWithPureDoor(t, { body = 'export class Refused extends Error {}\n'
   return { ...project, moved: () => plan(root, '--moved', 'kernel') };
 }
 
-test('a pure.js that imports only src/core files passes, and a shim through it is no front-door bypass [C7,D3]', t => {
+test('codemap.door.a-pure-js-that-imports: a pure.js that imports only src/core files passes, and a shim through it is no front-door bypass [C7,D3]', t => {
   const { moved } = movedWithPureDoor(t);
   const run = moved();
   assert.deepEqual(run.problems, []);
   assert.equal(run.status, 0);
 });
 
-test('a pure.js whose closure imports a node: built-in is refused with its reason [C7,D3]', t => {
+test('codemap.door.a-pure-js-whose-closure: a pure.js whose closure imports a node: built-in is refused with its reason [C7,D3]', t => {
   const { moved } = movedWithPureDoor(t, { body: "import { createHash } from 'node:crypto';\nexport class Refused extends Error { static id = createHash; }\n" });
   const run = moved();
   assert.equal(run.status, 1);
   assert.ok(run.problems.some(text => text.includes('node:crypto') && text.includes('pure front door')), run.problems.join('\n'));
 });
 
-test('a pure.js that re-exports a shell file is refused with its reason [C7,D3]', t => {
+test('codemap.door.a-pure-js-that-re: a pure.js that re-exports a shell file is refused with its reason [C7,D3]', t => {
   const { moved } = movedWithPureDoor(t, { door: "export { Refused } from './src/logic/refused.js';\nexport { run } from './src/io/process.js';\n" });
   const run = moved();
   assert.equal(run.status, 1);
   assert.ok(run.problems.some(text => text.includes('non-core file') && text.includes('src/io/process.js')), run.problems.join('\n'));
 });
 
-test('a pureDoor that is not <cell>/pure.js is refused [C7,D3]', t => {
+test('codemap.door.a-puredoor-that-is-not: a pureDoor that is not <cell>/pure.js is refused [C7,D3]', t => {
   const { moved } = movedWithPureDoor(t, { key: 'packages/kernel/other.js' });
   assert.ok(moved().problems.some(text => text.includes('pureDoor must be packages/kernel/browser.js')));
 });
