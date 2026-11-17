@@ -38,7 +38,6 @@ export const BOARD_FILE_BASELINE = {
   "apps/cli/journeys/show/policy/dependency.test.js": 1,
   "apps/cli/journeys/verify/checks.test.js": 1,
   "apps/cli/journeys/verify/checks-output.test.js": 1,
-  "apps/cli/journeys/verify/checks-large-output.test.js": 1,
   "packages/board/tests/from-store/engine-replay.test.js": 2,
   "apps/cli/journeys/engine/exchange.test.js": 14,
   "apps/cli/journeys/flow/replay.test.js": 2,
