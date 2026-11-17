@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { readRemoteGateHolders } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
-import { waitForCondition } from '../../../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { readRemoteGateHolders } from '../../../fixtures/runner/holders.js';
+import { waitForCondition } from '../../../fixtures/runner/holders.js';
 import { runFixtureChildAsync } from '../../../fixtures/child.js';
 
 test('a runner fixture wait observes a real holder release within its fixture deadline [C7]', async t => {
@@ -30,7 +30,7 @@ test('a runner fixture timeout names elapsed time and last state at its real tes
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-deadline-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'held.test.mjs');
-  const module = pathToFileURL(join(import.meta.dirname, '../../../../../../apps/cli/tests/fixtures/runner/holders.js')).href;
+  const module = pathToFileURL(join(import.meta.dirname, '../../../fixtures/runner/holders.js')).href;
   writeFileSync(file, `import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { waitForCondition } from ${JSON.stringify(module)};

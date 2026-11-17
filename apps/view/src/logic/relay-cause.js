@@ -6,7 +6,7 @@ const nameOf = (cause) => [cause.label, cause.machine].find((value) => typeof va
 /**
  * Map one relay-unavailable cause (the shape relayUnavailableCause returns) to what the phone shows. A network failure stays
  * "Check your connection"; sharing off and an excluded board each name their own cause and the one command that fixes it, with
- * who excluded the board and why only when they are known. Pure: no relay import, no I/O.
+ * who excluded the board and why only when they are known. A named excluded board gets the exact command that relinks just it (relay on --all --only <name>). Pure: no relay import, no I/O.
  *
  * @param {{cause?: string, machine?: string|null, by?: string|null, reason?: string|null, name?: string|null}} [cause] - The cause.
  * @returns {{message: string, command: string|null}} The message and its fix command, or null when no command helps.
@@ -19,6 +19,10 @@ export function relayCauseMessage(cause = {}) {
     case 'excluded': {
       const who = cause.by ? ` by ${cause.by}` : '';
       const why = cause.reason && cause.reason !== 'unknown historical exclusion' ? `: ${cause.reason}` : '';
+      if (typeof cause.name === 'string' && cause.name) {
+        const arg = /^[\w.@-]+$/u.test(cause.name) ? cause.name : `'${cause.name.replace(/'/gu, `'\\''`)}'`;
+        return { message: `The board ${cause.name} is excluded from sharing${who}${why}.`, command: `pullboard relay on --all --only ${arg}` };
+      }
       return { message: `This board is excluded from sharing${who}${why}.`, command: 'pullboard relay on' };
     }
     case 'asleep':

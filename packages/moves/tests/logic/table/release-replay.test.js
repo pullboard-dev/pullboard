@@ -36,9 +36,9 @@ test('clause 1: replaying recorded board history through the release and reclaim
   assert.deepEqual(reclaim.disagreements, []);
   assert.deepEqual([release.total, release.agreed, release.notReplayable], [records.release.length, records.release.length, 0]);
   assert.deepEqual([reclaim.total, reclaim.agreed, reclaim.notReplayable], [records.reclaim.length, records.reclaim.length, 0]);
-  // 65 recorded releases, one or two per path: 56 decided by the release table, 8 by maintenance, 1 whose route changed off the record.
-  assert.deepEqual([HISTORY.releases.length, release.agreed, reclaim.agreed], [65, 56, 8]);
-  assert.deepEqual(records.unreplayable.map(entry => entry.path), ['release: the item route changed off the record']);
+  // 65 recorded releases, one or two per path: 55 decided by the release table, 8 by maintenance, 1 whose route changed off the record, 1 that counted a structured blocker (#2956).
+  assert.deepEqual([HISTORY.releases.length, release.agreed, reclaim.agreed], [65, 55, 8]);
+  assert.deepEqual(records.unreplayable.map(entry => entry.path), ['release: the item route changed off the record', 'release: counted a structured blocker, which no longer counts']);
 });
 
 test('clause 1: the replay covers every release path the board used, follow-ups included [C7,#8240]', () => {

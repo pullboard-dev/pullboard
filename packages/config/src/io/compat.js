@@ -24,7 +24,7 @@ function schema(base) {
     inbox: { tokenBudget: null, keepUntilActed: null, escalateAfterMinutes: null, batchedMarks: null },
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
-    landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
+    landing: { ...fields(['publish', 'timeout', 'stall', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'priorityOrder', 'first', 'auditOnly', 'splitRed', 'trunkRemote']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt', 'landedReviews', 'queueAccept', 'requireRowRewrite']) },
     resume: fields(['adoptOrphans']),
