@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { cargoTestCases } from '../../src/logic/cargo-cases.js';
+import { cargoTestCases } from '../../src/logic/junit.js';
 
 const OUTPUT = readFileSync(new URL('../fixtures/cargo-test-output.txt', import.meta.url), 'utf8');
 
