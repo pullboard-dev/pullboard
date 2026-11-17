@@ -6,7 +6,6 @@ import { test } from 'node:test';
 import { maintainLapsedBeforeWrite } from '../../src/io/claim.js';
 import { crossLaneFixture } from '../../tests/fixtures/e2e.js';
 import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
-import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 
 /** Read the fixture board directly: its event count and one item's owner. */
 function look(box, fn) {
@@ -36,8 +35,8 @@ test('clause 1: a claim issues exactly one board write, with no inline lapsed-cl
 
 test('clause 2: claim, submit and verify run no inline lapsed-claim capture when health.lapsedSweep is on, and still do when it is off [C7,#8924]', async () => {
   const captured = [];
-  const ports = lapsedOn => ({ lapsedOn: () => lapsedOn, capture: () => { captured.push(lapsedOn); return null; } });
-  const ctx = { io: {}, info: { root: privateFixtureFiles('one-write-').root } };
+  const ports = lapsedOn => ({ lapsedOn: () => lapsedOn, recovered: () => false, capture: () => { captured.push(lapsedOn); return null; } });
+  const ctx = { io: {}, info: { root: '.' } };
   for (const operation of ['claim', 'submit', 'verify']) {
     await maintainLapsedBeforeWrite(ctx, {}, operation, [], 'seat-1', ports(true));
   }
