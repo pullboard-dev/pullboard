@@ -17,7 +17,7 @@ import { renewJob } from '../../index.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
-test('clause 1: a runner claims only a job whose needs it has, and a second claimant gets nothing while the lease lives [P7]', t => {
+test('api.queue.runner-claims-only-job-whose: clause 1: a runner claims only a job whose needs it has, and a second claimant gets nothing while the lease lives [P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:1', kind: 'gate', needs: ['node22', 'browser'], now: 1 });
   assert.equal(claimJob(db, { runner: 'r-plain', capabilities: ['node22'], now: 10 }), null, 'a runner without browser takes nothing');
@@ -33,7 +33,7 @@ test('clause 1: a runner claims only a job whose needs it has, and a second clai
   assert.throws(() => renewJob(db, { job: 'gate:1', runner: 'r-rival', token: won.token, now: 30 }), error => error.code === 'JOB_LEASE_MOVED', 'a token works only for the runner it was given to');
 });
 
-test('clause 2: a lapsed lease returns the job and the next claim takes it, with no process holding it on the board host [P7]', t => {
+test('api.queue.lapsed-lease-returns-job-next: clause 2: a lapsed lease returns the job and the next claim takes it, with no process holding it on the board host [P7]', t => {
   const { root } = privateFixtureFiles('pullboard-job-queue-');
   const file = join(root, 'board.sqlite');
   // Each step opens and closes its own connection: the queue lives in rows only, never in a process that must stay up.
@@ -53,7 +53,7 @@ test('clause 2: a lapsed lease returns the job and the next claim takes it, with
   assert.equal(withFresh(db => offerJob(db, { id: 'shard:9', kind: 'shard', needs: ['node22'], now: lapsed + 4 })).attempt, 3, 'a repeated offer leaves a held job as it is');
 });
 
-test('#6546: a release records its reason and backs off per attempt, and the current claim renews a lapsed lease no one took [C7]', t => {
+test('api.queue.x6546-release-records-reason-backs: #6546: a release records its reason and backs off per attempt, and the current claim renews a lapsed lease no one took [C7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'land:7', kind: 'land', now: 1 });
   const first = jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now: 10 }).claim;
@@ -65,7 +65,7 @@ test('#6546: a release records its reason and backs off per attempt, and the cur
   assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: lapsed + 30_001 }).attempt, 2);
 });
 
-test('clause 3: a receipt is recorded under its job only with the current claim token, and a repeat returns the stored one [P7]', t => {
+test('api.queue.receipt-recorded-under-job-only: clause 3: a receipt is recorded under its job only with the current claim token, and a repeat returns the stored one [P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:2', kind: 'gate', now: 1 });
   const held = claimJob(db, { runner: 'r-a', capabilities: [], now: 10 });
@@ -82,7 +82,7 @@ test('clause 3: a receipt is recorded under its job only with the current claim 
   assert.equal(claimJob(db, { runner: 'r-b', capabilities: [], now: 10 + LEASE_MS + 1 }), null, 'a done job is never claimed again');
 });
 
-test('the queue answers only under gate.runnerDispatch pull, and refuses an unknown action or a bad capability list [P7]', t => {
+test('api.queue.queue-answers-only-under-gate: the queue answers only under gate.runnerDispatch pull, and refuses an unknown action or a bad capability list [P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:3', kind: 'gate', now: 1 });
   assert.throws(() => jobQueueCall(db, { action: 'claim', runner: 'r-a' }, { mode: 'controller', now: 2 }), error => error.code === 'JOBS_NOT_PULL');
@@ -93,7 +93,7 @@ test('the queue answers only under gate.runnerDispatch pull, and refuses an unkn
   assert.equal(jobQueueCall(db, { action: 'claim', runner: 'r-a' }, { mode: 'pull', now: 2 }).claim.job, 'gate:3');
 });
 
-test('clause 1: a drained runner is offered no job and takes one again once undrained, while a held job stays with its lease [C7,P7]', t => {
+test('api.queue.drained-runner-offered-job-takes: clause 1: a drained runner is offered no job and takes one again once undrained, while a held job stays with its lease [C7,P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:held', kind: 'gate', needs: [], now: 1 });
   offerJob(db, { id: 'gate:next', kind: 'gate', needs: [], now: 2 });

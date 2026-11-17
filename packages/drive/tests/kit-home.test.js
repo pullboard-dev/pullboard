@@ -14,7 +14,7 @@ function walk(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(join(dir, entry.name)) : entry.name.endsWith('.js') ? [join(dir, entry.name)] : []);
 }
 
-test('clause 1: no test file under packages/drive/tests imports a module of the CLI fixture kit [C7]', () => {
+test('drive.kit-home.no-test-file-under-packages: clause 1: no test file under packages/drive/tests imports a module of the CLI fixture kit [C7]', () => {
   const importers = walk(TESTS).filter(file => file !== import.meta.filename && KIT.test(readFileSync(file, 'utf8')));
   assert.deepEqual(importers, [], 'repoint these to packages/gate/tests/fixtures');
 });
