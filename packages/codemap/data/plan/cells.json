@@ -438,10 +438,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "packages/codemap/src/io/cells/scripts/cache.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "packages/state/src/io/engine/metadata.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
