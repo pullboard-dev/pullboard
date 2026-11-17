@@ -85,6 +85,11 @@ export function excuseMainTimingReds() {
   return loadMachineSettings().gate?.excuseMainTimingReds === true;
 }
 
+/** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
+export function gateComponentTier() {
+  return loadMachineSettings().gate?.componentTier === true;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;

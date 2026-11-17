@@ -59,6 +59,7 @@ export {
   tableReplayEnabled,
   overlapStaticProofEnabled,
   excuseMainTimingReds,
+  gateComponentTier,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,

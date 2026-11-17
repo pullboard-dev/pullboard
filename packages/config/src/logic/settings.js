@@ -172,6 +172,9 @@ export function loadMachineSettings() {
   if (value.gate?.excuseMainTimingReds !== undefined && typeof value.gate.excuseMainTimingReds !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.excuseMainTimingReds in ${file} must be true or false`);
   }
+  if (value.gate?.componentTier !== undefined && typeof value.gate.componentTier !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.componentTier in ${file} must be true or false`);
+  }
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
