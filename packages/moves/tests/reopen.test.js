@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-test-loads packages/store/src/io/board.js src/claims.js packages/state/src/io/engine.js src/exchange.js packages/state/src/io/machine.js */
 /** Real Git, SQLite and ordered-engine coverage for coordinator criterion reopen, called as the board move [V2,V6,H16]. */
 import assert from 'node:assert/strict';
@@ -44,7 +45,7 @@ import { cellSeat } from '../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../store/tests/fixtures/cell.js';
 import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 /** The model name the builder seat joins with. */
 const BUILDER_MODEL = 'Fixture builder';
@@ -256,7 +257,7 @@ async function assertLegacyVerifiedReopen(t, fx, item, note) {
   }
 }
 
-test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V6,O8]', (t) => {
+test('moves.reopen.coordinator-submitted: clause 1: the coordinator reopens a submitted item without a verdict [V2,V6,O8]', (t) => {
   const fx = fixture(t);
   const submitted = submitItem(fx);
   reserve(fx, 1);
@@ -301,7 +302,7 @@ test('clause 1: the coordinator reopens a submitted item without a verdict [V2,V
   assert.equal(store.getItem(fx.board, 1).item_criterion, 'The page renders a heading.');
 });
 
-test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]', (t) => {
+test('moves.reopen.note-cites-semicolon-test: a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]', (t) => {
   const fx = fixture(t);
   const item = verifiedItem(fx, 61, 'export const status = "PASS_QUOTED";\n');
   const mergeCommit = 'b'.repeat(40);
@@ -393,7 +394,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
     'the current CLI preserves unquoted evidence found after prose');
 });
 
-test('clause 2: a verified item returns to its builder on recorded landing evidence and refuses malformed notes [B3,V4]', async (t) => {
+test('moves.reopen.verified-returns-builder: clause 2: a verified item returns to its builder on recorded landing evidence and refuses malformed notes [B3,V4]', async (t) => {
   const fx = fixture(t);
   const item = verifiedItem(fx, 1, 'export const status = "RED";\n');
   const originalAccept = readItem(fx, item.id).thread.find((event) => event.type === 'move' && event.kind === 'accept');
@@ -504,7 +505,7 @@ function manualMergeReturn(t, { file, name, body, noteFor, label }) {
     'the append-only accept remains in history');
 }
 
-test('manual reopen accepts a failing root-level test after an unrecorded two-parent merge [B3,V4]', (t) => {
+test('moves.reopen.manual-root-level-failing: manual reopen accepts a failing root-level test after an unrecorded two-parent merge [B3,V4]', (t) => {
   manualMergeReturn(t, {
     file: 'root.test.js', name: 'root-level landing behavior remains green', label: 'root-level',
     body: [
@@ -518,7 +519,7 @@ test('manual reopen accepts a failing root-level test after an unrecorded two-pa
   });
 });
 
-test('manual reopen records a timestamp-prefixed failing test after an unrecorded two-parent merge [B3,V4]', (t) => {
+test('moves.reopen.manual-timestamp-prefixed: manual reopen records a timestamp-prefixed failing test after an unrecorded two-parent merge [B3,V4]', (t) => {
   manualMergeReturn(t, {
     file: 'test/a.test.js', name: 'keeps it', label: 'released',
     body: [
@@ -537,7 +538,7 @@ function freezer(fx) {
   return criterionFreezer({ root: fx.repo, isMain: true, config: loadConfig(fx.repo) }, { captureVerifyPolicy: true, board: fx.board });
 }
 
-test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
+test('moves.reopen.same-commit-again: a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   let engine10Store, engine10Exchange;
   const fx = fixture(t);
   const submitted = submitItem(fx);
@@ -713,7 +714,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(store.getItem(fx.board, 1).item_verdict, 'REJECT');
 });
 
-test('a reviewer withdraws its own accept before landing and the builder gets the item back [V2,V6,H16]', (t) => {
+test('moves.reopen.reviewer-withdraws-accept: a reviewer withdraws its own accept before landing and the builder gets the item back [V2,V6,H16]', (t) => {
   /** Give an accepted private item a real reviewer and an enabled builder-return window. */
   const withdrawalFixture = () => {
     const fx = fixture(t, { config: { claim: { reopenFirstRefusalMinutes: 30 } } });

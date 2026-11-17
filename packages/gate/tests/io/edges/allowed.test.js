@@ -27,7 +27,7 @@ function fixture(allowedEdges) {
   return inputs.root;
 }
 
-test('clause 1: an allowedEdges entry no import uses is reported as stale [C7]', () => {
+test('gate.io-edges-allowed.an-allowededges-entry-no-import-uses: clause 1: an allowedEdges entry no import uses is reported as stale [C7]', () => {
   const root = fixture(['a->b', 'b->a']);
   assert.deepEqual(unusedAllowedEdges(root), ['b->a']);
   const stale = cellsEdgeProblems(root, { ceilings: { files: {}, cells: {} } }).filter(problem => /used by no import/u.test(problem.text));
@@ -35,13 +35,13 @@ test('clause 1: an allowedEdges entry no import uses is reported as stale [C7]',
   assert.match(stale[0].text, /"b->a"/u);
 });
 
-test('clause 1: an allowedEdges entry an import uses stays quiet [C7]', () => {
+test('gate.io-edges-allowed.an-allowededges-entry-an-import-uses: clause 1: an allowedEdges entry an import uses stays quiet [C7]', () => {
   const root = fixture(['a->b']);
   assert.deepEqual(unusedAllowedEdges(root), []);
   assert.deepEqual(cellsEdgeProblems(root, { ceilings: { files: {}, cells: {} } }).filter(problem => /used by no import/u.test(problem.text)), []);
 });
 
-test('clause 1: the committed plan carries no allowedEdges entry that no import uses [C7]', () => {
+test('gate.io-edges-allowed.the-committed-plan-carries-no-allowededges: clause 1: the committed plan carries no allowedEdges entry that no import uses [C7]', () => {
   const root = new URL('../../../../../', import.meta.url).pathname;
   assert.deepEqual(unusedAllowedEdges(root), []);
 });

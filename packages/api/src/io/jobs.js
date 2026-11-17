@@ -25,6 +25,7 @@ import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
+import { noteLapse } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
@@ -59,6 +60,15 @@ export function heldShards(db, runner, now, { runs = null } = {}) {
 function heldCensus(db, runner, now) {
   return db.prepare(`SELECT COUNT(*) AS held FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
     WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NOT NULL`).get(runner, now).held;
+}
+
+/**
+ * How many jobs this runner holds a live lease on now that are not census jobs (no censusPerRunner on the offer).
+ * Why: a runner holding only census jobs is quiet by its own doing, so census.jobsPerRunnerQuiet may offer it more of them [C7,#9500].
+ */
+function heldOther(db, runner, now) {
+  return db.prepare(`SELECT COUNT(*) AS held FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_lease_owner = ? AND job.job_lease_until >= ? AND job.job_step IN ('offered', 'claimed') AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`).get(runner, now).held;
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -141,11 +151,12 @@ function runnerId(runner) {
  * run and the data it reads on stdin [P7].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, avoid?: string[], now?: number }} fields
+ * @param {{ id: string, kind: string, needs?: string[], run?: string[], payload?: Record<string, unknown> | null, item?: number | null, candidate?: string | null, base?: string | null, request?: Record<string, unknown> | null, priority?: string | null, censusPerRunner?: number | null, censusPerRunnerQuiet?: number | null, avoid?: string[], now?: number }} fields
  * @returns {ReturnType<typeof jobView>}
  */
-export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, avoid = [], now = Date.now() }, queue = null) {
+export function offerJob(db, { id, kind, needs = [], run = [], payload = null, item = null, candidate = null, base = null, request = null, priority = null, censusPerRunner = null, censusPerRunnerQuiet = null, avoid = [], now = Date.now() }, queue = null) {
   if (censusPerRunner !== null && !(Number.isSafeInteger(censusPerRunner) && censusPerRunner >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunner is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunner as set, or none');
+  if (censusPerRunnerQuiet !== null && !(Number.isSafeInteger(censusPerRunnerQuiet) && censusPerRunnerQuiet >= 1)) throw new Refused('JOB_CENSUS_CAP', 'a census job\'s censusPerRunnerQuiet is a whole number of jobs, 1 or more', 'offer it with census.jobsPerRunnerQuiet as set, or none');
   const wanted = names(needs, 'needs');
   const avoided = names(avoid, 'avoid');
   const rank = jobClass(priority);
@@ -159,7 +170,7 @@ export function offerJob(db, { id, kind, needs = [], run = [], payload = null, i
   if (offered && Buffer.byteLength(JSON.stringify(offered)) > REQUEST_BYTES) {
     throw new Refused('JOB_REQUEST', `a job request's offered row is a JSON object of at most ${REQUEST_BYTES} bytes once its parts of ${PART_BYTES} bytes or more are named; keep large inputs in git and name them`);
   }
-  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}), ...(avoided.length ? { avoid: avoided } : {}) };
+  const row = { needs: wanted, ...(rank ? { priority: rank } : {}), ...(argv.length ? { run: argv } : {}), ...(payload === null ? {} : { payload }), ...(offered ? { request: offered } : {}), ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}), ...(avoided.length ? { avoid: avoided } : {}) };
   // With runs_store on the offer goes through queueRun: the runs file holds the job, the board one queued run row [B2,P7].
   if (queue) return queueOffer(queue, { id, kind, item, candidate, base, request, offered: row });
   return atomically(db, () => {
@@ -243,7 +254,7 @@ export function offeredRequest(db, job, { runs = null } = {}) {
 export function openJob(db, { kind, item, candidate }, { runs = null } = {}) {
   if (runs) db = runs.db;
   const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
+    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step NOT IN ('done', 'cancelled') ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
   return row ? jobView(db, row.job_id) : null;
 }
 
@@ -298,7 +309,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -311,7 +322,10 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
     const shardsFull = Number.isSafeInteger(cores) && cores >= 1 && heldShards(db, runner, now) >= shardClaimCap(cores);
     // A census job offered with census.jobsPerRunner set waits while this runner holds that many census jobs; other jobs are offered as before [C7,#9136].
     let census = null;
-    const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= offer.censusPerRunner;
+    // With census.jobsPerRunnerQuiet also set, a runner holding no job but census ones is offered up to that many instead [C7,#9500].
+    let other = null;
+    const censusCap = offer => (offer.censusPerRunnerQuiet && (other ??= heldOther(db, runner, now)) === 0 ? Math.max(offer.censusPerRunnerQuiet, offer.censusPerRunner) : offer.censusPerRunner);
+    const censusFull = offer => offer.censusPerRunner && (census ??= heldCensus(db, runner, now)) >= censusCap(offer);
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
     for (const { row, offer } of ordered) {
@@ -320,9 +334,12 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
+      // jobs.recordLapse: what the earlier claim held and last wrote, read before this claim overwrites the lease [C7,#9247].
+      const lapsed = recordLapse && row.job_attempt >= 1 ? lapseOf(db, row, now) : null;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
+      if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
@@ -339,6 +356,21 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
+}
+
+/**
+ * What the earlier claim of a job whose lease ran out held: its runner, attempt and lease end, when it last renewed or wrote a step, and the last step it wrote.
+ * Why: a lapse left no record, so six claims of one land job could not be told from a runner that never started [C7,#9247].
+ *
+ * @returns {{ runner: string | null, attempt: number, leaseUntil: number, lastAt: number | null, lastStep: string | null } | null} null when no runner ever held the job.
+ */
+function lapseOf(db, row, now) {
+  const held = db.prepare('SELECT job_lease_owner AS owner, job_lease_until AS until FROM job WHERE job_id = ?').get(row.job_id);
+  if (!held?.owner || held.until >= now) return null;
+  // A renewal of a gate job leaves a note: step; any other kind's last sign of life is its newest step.
+  const last = db.prepare("SELECT job_step_name AS name, job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  const noted = db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = ? AND job_step_name NOT LIKE 'note:%' AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  return { runner: held.owner, attempt: row.job_attempt, leaseUntil: held.until, lastAt: last?.at ?? null, lastStep: noted?.name ?? null };
 }
 
 /** acquireOrEnd's answer for a gate job it ended because its hop is over. */
@@ -487,7 +519,7 @@ function shadowOf(db) {
   const decide = jobTable;
   return { recorder: true,
     decide: (snapshot, move) => { try { return decide(snapshot, move); } catch (error) { return { threw: error?.code ?? String(error?.message ?? error) }; } },
-    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare)) };
+    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
 /**
@@ -533,7 +565,9 @@ function shadowed(db, move, now, write) {
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
       try { result = write(); } catch (error) {
-        seen = { move: move.name, job: move.job, decided, wrote: { refused: error.code } };
+        // A hop fence is the gate hop table's refusal, composed into the writer's move: the job table that patched has the hop's refusal to follow, so the compare reads it as the same refusal [C7,#9784].
+        const hopFence = error.code === 'HOP_FENCED' && !answer.threw && !answer.refused ? { refused: error.code } : decided;
+        seen = { move: move.name, job: move.job, decided: hopFence, wrote: { refused: error.code } };
         throw error;
       }
       shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
@@ -610,10 +644,10 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request - ref: the landing ref holding the merged commit, which a shard's runner fetches.
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
-export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, queue = null, now = Date.now() }) {
+export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, reuseCommits = null, queue = null, now = Date.now() }) {
   // With runs_store on the land job and its shards live in the runs file; the ledger stays on the board's `db` [B2,P7].
   const jobs = queue ? queue.runs.db : db;
   const held = jobRequest(jobs, { job, runner, token });
@@ -636,7 +670,7 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
     return buckets.map((part, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
-      const ledger = ledgerHits(db, part, { budget: 16_000 });
+      const ledger = ledgerHits(db, part, { budget: 16_000, ...(Array.isArray(reuseCommits) ? { commits: reuseCommits.slice(0, 64) } : {}) });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
         request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
           shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
@@ -720,6 +754,8 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
   if (Buffer.byteLength(JSON.stringify(receipt)) > RECEIPT_BYTES) throw new Refused('JOB_RECEIPT', `a receipt is at most ${RECEIPT_BYTES} bytes; keep output in a report file and post its digest`);
   return shadowed(db, { name: 'receipt', job, runner, token }, now, () => atomically(db, () => {
     const held = heldBy(db, job, runner, token);
+    // A cancelled job (its gate was withdrawn) takes no receipt and stays cancelled, as a receipt after done stores nothing [C7,#3860].
+    if (held.step === 'cancelled') return { job, attempt: held.attempt, receipt, recorded: false };
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
@@ -809,23 +845,25 @@ export function jobArtifacts(db, job) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
-  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, queue, now });
+  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, reuseCommits: body.reuseCommits, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
   if (action === 'receipt') {
-    const posted = postReceipt(db, { job, runner, token, receipt, now, hop });
-    if (posted.recorded) withdrawLandShards(db, job, { now });
+    // With runs_store on (queue set) the job lives in the runs file, so the receipt posts there [B2,P7].
+    const home = queue ? queue.runs.db : db;
+    const posted = postReceipt(home, { job, runner, token, receipt, now, hop });
+    if (posted.recorded) withdrawLandShards(home, job, { now });
     if (!posted.recorded || !onReceipt) return posted;
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }

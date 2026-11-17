@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/submit/missing.test.js', cases: ['clause 1: submit refuses in under a second when the frozen check names a missing test file and lists the added files, with gate.refuseMissingCheckFile on [C7]'] }];
 
-test('clause 1: a submit gate fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-submit-gate.a-submit-gate-fixture-sample-gives-the: clause 1: a submit gate fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the converted submit gate fixture calls start no CLI process when the journey runs in-process [C7]', () => {
+test('gate.journey-parity-submit-gate.the-converted-submit-gate-fixture-calls-start: clause 2: the converted submit gate fixture calls start no CLI process when the journey runs in-process [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/submit/gate.js', import.meta.url), 'utf8');
   const call = source.slice(source.indexOf('function fixtureCall'), source.indexOf('/** Create a private Git repository'));
   assert.match(call, /JOURNEY_MODE !== 'process' && !REAL_COMMANDS\.has\(args\[0\]\)/u, 'only a heavy command or process mode starts a process');

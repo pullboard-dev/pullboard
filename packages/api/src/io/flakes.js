@@ -96,17 +96,18 @@ function storedRun(ports, board, { item, submit, candidate, tree, main, runner, 
  * whose red-and-green pair on one tree files the quarantine. Every failure is a note on the item, never a changed verdict.
  *
  * @param {any} board
- * @param {{ job: string, receipt: Record<string, any>, item: number, candidate: string, main: string, submit: Record<string, any> }} gateJob
+ * @param {{ job: string, receipt: Record<string, any>, item: number, candidate: string, main: string, submit: Record<string, any>, queue?: { runs: { db: any } } | null }} gateJob
  * @returns {{ observations: number, runs: number } | null} null when the receipt carries no pairs.
  */
-export function recordPulledPairs(board, { job, receipt, item, candidate, main, submit, admit = null }) {
+export function recordPulledPairs(board, { job, receipt, item, candidate, main, submit, admit = null, queue = null }) {
   const pairs = Array.isArray(receipt?.gate?.pairs) ? receipt.gate.pairs.filter(pair => typeof pair?.file === 'string' && Array.isArray(pair.names) && pair.paired) : [];
   const ports = boardPorts(board);
   const tree = submit.companion?.tree ?? submit.tree;
   if (!pairs.length || !ports || !SHA.test(String(candidate)) || !SHA.test(String(tree))) return null;
   const lane = store.getItem(board, item)?.item_lane;
   const evidenceRoot = join(dirname(ports.receipts.boardReceiptStore(board)), 'flake-evidence');
-  const runner = board.db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
+  // With runs_store on the job's receipt step is in the runs file the queue holds, not the board's job rows [B2,P7,#9007].
+  const runner = (queue ? queue.runs.db : board.db).prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
   const runnerName = runner ? JSON.parse(runner.job_step_payload).runner ?? null : null;
   const done = { observations: 0, runs: 0 }, problems = [];
   // The pair's runs name the Submit admission this gate job held, the witness the controller's Submit recorded as it paired [C7,H16].

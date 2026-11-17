@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
@@ -363,6 +365,14 @@
       "kind": "sqlite",
       "owner": "packages/verify/src/io/proof/derived.js"
     },
+    "*.derived-state.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/health/src/io/derived.js"
+    },
+    "*.rigor-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/rigor/src/io/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -475,6 +485,18 @@
     "activation.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "adapter-lint-clock.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/clock.js"
+    },
+    "adapter-lint-fs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
+    "adapter-lint-timers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/timers.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -624,6 +646,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
     },
+    "app-harnesses.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/matrix.js"
+    },
     "compiler.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/parser/worker.js"
@@ -733,6 +759,10 @@
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
     },
+    "idiom-spread.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/idiom-spread.js"
+    },
     "index.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/test/action/memo.js"
@@ -772,6 +802,10 @@
     "legacy.json": {
       "kind": "json",
       "owner": "packages/state/src/io/engine/numbers.js"
+    },
+    "literal-pins-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
       "kind": "json",
@@ -1111,7 +1145,7 @@
     },
     "stats-history.jsonl": {
       "kind": "jsonl",
-      "owner": "apps/cli/src/io/commands/stats.js"
+      "owner": "packages/stats/src/io/time/history.js"
     },
     "storage-quota.sqlite": {
       "kind": "sqlite",
@@ -1161,6 +1195,10 @@
       "kind": "table",
       "owner": "packages/items/src/io/decision.js"
     },
+    "table:derived_state": {
+      "kind": "table",
+      "owner": "packages/health/src/io/derived.js"
+    },
     "table:device": {
       "kind": "table",
       "owner": "apps/relay/src/io/store/device.js"
@@ -1174,6 +1212,10 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "table:event": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/event/log.js"
+    },
+    "table:event_archive": {
       "kind": "table",
       "owner": "packages/store/src/io/board/event/log.js"
     },
@@ -1232,11 +1274,15 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
-    },    "table:item_field": {
+    },
+    "table:item_field": {
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
-
+    "table:item_related": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/related.js"
+    },
     "table:job": {
       "kind": "table",
       "owner": "packages/jobs/src/io/lease.js"
@@ -1474,7 +1520,7 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "temporary-edges.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/codemap/src/io/cells/scripts/cache.js"
     },
     "test-cells.json": {
@@ -1511,11 +1557,11 @@
     },
     "timer.guard.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "timer.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "tooling-pin.json": {
       "kind": "json",
@@ -1526,7 +1572,7 @@
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
     },
     "vendors.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/items/src/logic/vendors.js"
     },
     "view-bind.json": {
@@ -1536,6 +1582,10 @@
     "view-reuse.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
     },
     "view.json": {
       "kind": "json",
@@ -1568,13 +1618,20 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "readiness-cache.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],
-  "writeOwnerDebt": [
-    "stats-history.jsonl",
-    "timer.guard.sqlite",
-    "timer.json",
-    "vendors.json"
-  ]
+  "writeOwnerDebt": []
 }

@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
+import { keepGateProfiles } from './pull/profiles.js';
 import { watchProgress } from './progress.js';
 import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
@@ -277,6 +278,23 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
 }
 
 /**
+ * A turn runner that lets up to `limit` works run at once and queues the rest in order.
+ * Why: with runners.fetchConcurrent on, N slots wanting N different commits fetch together instead of each waiting for every fetch before its own [#9884].
+ *
+ * @param {number} limit
+ * @returns {(work: () => Promise<any>) => Promise<any>}
+ */
+export function countingTurns(limit) {
+  let running = 0;
+  const waiting = [];
+  const next = () => { while (running < limit && waiting.length) { running += 1; waiting.shift()(); } };
+  return work => new Promise((resolve, reject) => {
+    waiting.push(() => { Promise.resolve().then(work).then(resolve, reject).finally(() => { running -= 1; next(); }); });
+    next();
+  });
+}
+
+/**
  * Fetch one commit from the trunk remote into the runner's cache and check it out in the named folder. Every commit in
  * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
  * from its checkout's own objects) finds them there.
@@ -294,10 +312,11 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
  * @param {{ ref?: string | null, main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
  *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
  *   git: the Git launches the caller hands in, since drive launches no git of its own [C7]; ref: the landing ref a land shard's candidate sits under, fetched by name when the commit is absent [#7818].
+ *   fetchTurn: runs the fetch turn when it is not the same as exclusive; with runners.fetchConcurrent on, serveRunner hands in countingTurns so fetches of different commits overlap [#9884].
  *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
@@ -317,7 +336,7 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
-    const missing = await exclusive(async () => {
+    const missing = await (fetchTurn ?? exclusive)(async () => {
       for (const one of absent) {
         const refused = fetchGate?.(); if (refused) return refused;
         const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
@@ -640,11 +659,12 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
+ * @param {boolean} [options.pulledProfilePaths] - gate.pulledProfilePaths: copy each gate phase's timing profile into the job's kept folder and name it on the phase row as profileKept; default off.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, handBackUnrunnable = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -769,6 +789,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Hand checkout work to the shared object cache one job at a time: concurrent fetches into one bare store race on its refs. */
   let cacheLock = Promise.resolve();
   const serially = work => { const turn = cacheLock.then(work, work); cacheLock = turn.catch(() => {}); return turn; };
+  // With runners.fetchConcurrent on, fetches of different missing commits take up to 4 turns at once; the object store is still made, and checkouts dropped, one at a time [#9884].
+  const fetchTurns = fetchConcurrent ? countingTurns(4) : null;
   /**
    * Run one claimed job in its slot and say how it ended; null when the runner stopped before it held anything.
    * Why a slot: concurrent jobs each own a checkout and, for handled kinds, a working folder, so no two share files.
@@ -832,7 +854,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
     let late = false, deadline = null;
-    const fetching = checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref,
+    const fetching = checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, ...(fetchTurns ? { fetchTurn: fetchTurns } : {}), git, ref,
       ...(fetchFailFast || drainOnFetchFailure ? { onFetch } : {}), ...(fetchFailFast ? { fetchGate: () => late ? 'the claim already went back to the queue' : recentFetchFailure() } : {}) });
     // With runners.fetchFailFast on, a fetch still running 120 s after the claim sends the job back naming that, and a fetch queued behind it never starts for this job [#9024].
     const checkout = await (fetchFailFast ? Promise.race([fetching, new Promise(resolve => {
@@ -887,6 +909,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
+    // With gate.pulledProfilePaths on, each phase's timing profile is copied beside its log in the kept folder and named on its row (profileKept); the copy comes before the job's folder, which holds the profiles, is removed [C7,#9614].
+    const keptGate = gate && pulledProfilePaths && kept ? keepGateProfiles(kept, gateReceipt(result, claim.candidate, 0).gate) : null;
     try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
@@ -899,7 +923,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const exclusiveEvidence = timed ? { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: slots, admittedAt: new Date(started).toISOString(), finishedAt: new Date(finishedAt).toISOString() } : {};
     // With runners.postedLineNamesCase on, a red job's posted line ends naming its first failing case, so serve.log shows it without the board [#9084].
     const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
-    const receipt = { ...exclusiveEvidence, ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+    const receipt = { ...exclusiveEvidence, ...(gate ? { ...gateReceipt(result, claim.candidate, Date.now() - started), ...(keptGate ? { gate: keptGate } : {}) }
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {

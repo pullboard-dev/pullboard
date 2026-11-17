@@ -19,7 +19,7 @@ const VALID = {
   Security: lines('version: "0.9.4"', 'impact: reads another seat state', 'disclose: 90 days', 'bar:', '  - 1: the read is refused [command]', 'check:', '  - 1: node bin/x.js'),
 };
 
-test('[CR2] every one of the seven shapes parses through the exported parse function', () => {
+test('commits.logic-contribution.every-one-of-the-seven-shapes-parses: [CR2] every one of the seven shapes parses through the exported parse function', () => {
   assert.equal(CONTRIBUTION_SHAPES.length, 7);
   for (const shape of CONTRIBUTION_SHAPES) {
     const { fields } = parseContributionRecord(VALID[shape], shape);
@@ -27,7 +27,7 @@ test('[CR2] every one of the seven shapes parses through the exported parse func
   }
 });
 
-test('[CR2] values keep their types: lists stay lists, quoted text stays text, block text keeps its lines', () => {
+test('commits.logic-contribution.values-keep-their-types-lists-stay-lists: [CR2] values keep their types: lists stay lists, quoted text stays text, block text keeps its lines', () => {
   const { fields } = parseContributionRecord(VALID.Bug, 'Bug');
   assert.equal(fields.version, '0.9.4');
   assert.deepEqual(fields.bar, ['1: the refusal names the file [test]']);
@@ -59,7 +59,7 @@ const REFUSED = [
   ['an unknown shape', VALID.Ask, 'Question', 'CONTRIB_SHAPE', 'shape'],
 ];
 
-test('[CR5] every unsafe or malformed record is refused with its field, rule and fix', () => {
+test('commits.logic-contribution.every-unsafe-or-malformed-record-is: [CR5] every unsafe or malformed record is refused with its field, rule and fix', () => {
   for (const [name, text, shape, code, field] of REFUSED) {
     assert.throws(() => parseContributionRecord(text, shape), error => {
       assert.equal(error.code, code, `${name}: ${error.message}`);

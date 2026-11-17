@@ -3,6 +3,7 @@ import {
   agentTree,
   agentsReport,
 } from '../../../../../packages/seats/index.js';
+import { localConsumers } from '../../../../../packages/resources/index.js';
 import {
   boardId,
   listAgents,
@@ -14,7 +15,7 @@ import {
 } from '../entry.js';
 
 /** Run `pullboard agents` and return its exit code. */
-export function run(io, { values = {} } = {}) {
+export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
-  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board, { listAgents, boardId, listItems })), { detail: values.detail });
+  return agentsReport(io, withBoard(ctx, (board) => agentTree(ctx.info, ctx.config, board, { listAgents, boardId, listItems })), { detail: values.detail, consumers: await localConsumers() });
 }

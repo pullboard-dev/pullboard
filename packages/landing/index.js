@@ -5,7 +5,7 @@ export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LAND
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
 export * from "./src/logic/land/collisions.js";
-export * from "./src/logic/land/guard.js";
+export * from "./src/io/land/guard.js";
 export * from "./src/io/land.js";
 export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
@@ -43,6 +43,7 @@ export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";
 export * from "./src/io/step/selection.js";
+export { landOneByHand } from "./src/io/land/hand.js";
 export * from "./src/io/step/merge.js";
 export * from "./src/io/step/failures.js";
 export * from "./src/io/step/gate.js";
