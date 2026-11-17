@@ -18,7 +18,7 @@ function groupQueue(t) {
   return { queue, opened, put, has };
 }
 
-test('clause 1: several commands queued together are committed in one transaction, in submission order [C7,#8926]', async t => {
+test('store.io-group-commit.several-commands-queued-together-are-committed: clause 1: several commands queued together are committed in one transaction, in submission order [C7,#8926]', async t => {
   const { queue, opened, put, has } = groupQueue(t);
   const order = [];
   const jobs = ['a', 'b', 'c'].map(name => queue.submit(() => { order.push(name); put(`group-${name}`, name); return name; }));
@@ -31,7 +31,7 @@ test('clause 1: several commands queued together are committed in one transactio
   assert.equal(opened.transactions, 2, 'a later command opens its own transaction');
 });
 
-test('clause 2: one failing command in a group rolls back only itself and the rest commit [C7,#8926]', async t => {
+test('store.io-group-commit.one-failing-command-in-a-group: clause 2: one failing command in a group rolls back only itself and the rest commit [C7,#8926]', async t => {
   const { queue, put, has } = groupQueue(t);
   const first = queue.submit(() => { put('keep-1', '1'); });
   const bad = queue.submit(() => { put('lose-me', 'x'); throw new Error('boom'); });
