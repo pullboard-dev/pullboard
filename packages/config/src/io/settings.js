@@ -967,6 +967,11 @@ export function readCrossProcessWrites() {
   return loadMachineSettings().board?.crossProcessWrites === true;
 }
 
+/** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
+export function watchQuietReadsEnabled() {
+  return loadMachineSettings().watch?.quietReads === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
