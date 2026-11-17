@@ -23,15 +23,15 @@ function json(result, what) {
 }
 
 /** File three items, then time `pullboard next --build` three times in process, handing each claim back untimed. */
-function timeNext(box, title) {
+async function timeNext(box, title) {
   // Undiagnosed items keep their strong route, so the seat is offered one.
   for (let n = 0; n < RUNS; n += 1) fileFixtureItem(box, box.repo, { lane: 'web', title: `${title} ${n}`, diagnose: false, args: ['--specs', 'G1'] });
   const samples = [];
   let previous = null;
   for (let run = 0; run < RUNS; run += 1) {
-    if (previous) json(box.run(box.web, 'release', String(previous), '--reason', 'OTHER', '--note', 'Next timing sample.', '--no-next', '--json'), 'release');
+    if (previous) json(await box.runIn(box.web, 'release', String(previous), '--reason', 'OTHER', '--note', 'Next timing sample.', '--no-next', '--json'), 'release');
     const started = performance.now();
-    const result = box.run(box.web, 'next', '--build', '--json');
+    const result = await box.runIn(box.web, 'next', '--build', '--json');
     samples.push(performance.now() - started);
     assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
     const answer = JSON.parse(result.out);
@@ -41,13 +41,13 @@ function timeNext(box, title) {
   return samples;
 }
 
-test('clause 1: pullboard next runs three times in process on the 2,500-item board and prints each run in ms [C7,#5329]', (t) => {
-  const samples = timeNext(largeBoard(t), 'Next sample');
+test('clause 1: pullboard next runs three times in process on the 2,500-item board and prints each run in ms [C7,#5329]', async (t) => {
+  const samples = await timeNext(largeBoard(t), 'Next sample');
   assert.equal(samples.length, RUNS);
   samples.forEach(ms => assert.ok(ms > 0, `a run took ${ms} ms`));
 });
 
-test('clause 2: the median of the three timed runs is a positive number, with no millisecond bar asserted yet [C7,#5329]', (t) => {
-  const middle = median(timeNext(largeBoard(t), 'Median sample'));
+test('clause 2: the median of the three timed runs is a positive number, with no millisecond bar asserted yet [C7,#5329]', async (t) => {
+  const middle = median(await timeNext(largeBoard(t), 'Median sample'));
   assert.ok(Number.isFinite(middle) && middle > 0, `median ${middle}`);
 });
