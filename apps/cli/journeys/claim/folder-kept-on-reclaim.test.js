@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -44,7 +45,7 @@ test('clause 1: a released claim leaves its item folder\'s uncommitted changes o
   assert.ok(draftKept(folder), 'the staged and the untracked file are both still on disk, byte for byte');
 });
 
-test('clause 2: a later claim of the same item by another seat leaves the first seat\'s folder untouched [C7,#2965]', async t => {
+test('clause 2: a later claim of the same item by another seat archives the first seat\'s dirty folder, recoverable from its archive ref, and records the archive in a fact [C7,#2965]', async t => {
   const { box, id, folder } = await released(t);
   const fresh = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', fresh, '-b', 'web/two');
@@ -52,6 +53,14 @@ test('clause 2: a later claim of the same item by another seat leaves the first 
   assert.equal(joined.code, 0, joined.err);
   box.git(fresh, 'merge', '-q', 'main');
   const reclaimed = await box.runLocal(fresh, 'claim', id);
-  assert.ok(existsSync(folder), `the first seat's folder survives the second claim (claim answered ${reclaimed.code}: ${reclaimed.err}${reclaimed.out})`);
-  assert.ok(draftKept(folder), 'its uncommitted files are unchanged after the second seat claimed the item');
+  assert.equal(reclaimed.code, 0, reclaimed.err + reclaimed.out);
+  const shown = await box.runLocal(fresh, 'show', id);
+  const recovery = shown.out.match(/Archived prior item folder (.+?) from \S+ before takeover\.\s*Recovery: (\{.*\})/u);
+  assert.ok(recovery, `a fact on the item records the archive:\n${shown.out}`);
+  assert.equal(recovery[1], folder, 'the fact names the first seat\'s folder');
+  const { directory, head, ref } = JSON.parse(recovery[2]);
+  assert.equal(String(box.git(fresh, 'rev-parse', '--verify', ref)).trim(), head, 'the archive ref resolves to the folder\'s head');
+  const bytes = [...readdirSync(join(directory, 'blobs')).map(blob => join('blobs', blob)), 'staged.patch', 'unstaged.patch']
+    .map(name => readFileSync(join(directory, name), 'utf8'));
+  assert.ok(bytes.some(text => text.includes(DRAFT.trim())), 'the uncommitted draft bytes are recoverable from the archive');
 });
