@@ -25,7 +25,7 @@ function fixtureTest(module) {
 import { value } from '../lib/${module}.js';
 /** Check the module. */
 function check() { if (value !== 'green') throw new Error('${module} is red'); }
-test('${module} [C7]', check);
+test('gate.io-test-account-receipts.module: ${module} [C7]', check);
 `;
 }
 
@@ -77,7 +77,7 @@ function makeFixture(t) {
   return { change, run };
 }
 
-test('clause 1: a file run twice unchanged is reused, and after an import edit it ran and names the import [C7]', (t) => {
+test('gate.io-test-account-receipts.a-file-run-twice-unchanged-is: clause 1: a file run twice unchanged is reused, and after an import edit it ran and names the import [C7]', (t) => {
   const fixture = makeFixture(t);
   const first = fixture.run();
   assert.equal(first.status, 0, first.output);
@@ -105,7 +105,7 @@ test('clause 1: a file run twice unchanged is reused, and after an import edit i
   assert.equal(fourth.account.rows.find(row => row.file === 'test/b.test.js').missed, 'file', 'an edit to the file itself is named as the file');
 });
 
-test('clause 2: the run prints one summary line with the reused and ran counts and the top missed inputs [C7]', (t) => {
+test('gate.io-test-account-receipts.the-run-prints-one-summary-line: clause 2: the run prints one summary line with the reused and ran counts and the top missed inputs [C7]', (t) => {
   const fixture = makeFixture(t);
   fixture.run();
   fixture.change('lib/shared.js', "export const shared = 'green'; // edited\n");
