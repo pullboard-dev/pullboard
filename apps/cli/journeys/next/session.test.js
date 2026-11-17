@@ -48,7 +48,7 @@ async function seatIds(box) {
   return JSON.parse((await box.runLocal(box.repo, 'agents', '--json')).out).agents.map(agent => agent.agent_id ?? agent.id).sort();
 }
 
-test('clause 2: next in a seat made with --lock-lane never claims in the web lane or opens a seat, and only names the work [GH27]', async () => {
+test('cli.journeys-next-session.next-in-a-seat-made-with: clause 2: next in a seat made with --lock-lane never claims in the web lane or opens a seat, and only names the work [GH27]', async () => {
   const box = e2e.project();
   const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
   const api = await seat(box, 'api', { lock: true });
@@ -64,7 +64,7 @@ test('clause 2: next in a seat made with --lock-lane never claims in the web lan
   assert.ok(other.id);
 });
 
-test('clause 3: two seats of one session each run next and release in their own lane without NOT_YOURS [GH27]', async () => {
+test('cli.journeys-next-session.two-seats-of-one-session-each: clause 3: two seats of one session each run next and release in their own lane without NOT_YOURS [GH27]', async () => {
   const box = e2e.project();
   const webItem = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web work', check: 'true', args: ['--specs', 'G1'] });
   const apiItem = fileFixtureItem(box, box.repo, { lane: 'api', title: 'Api work', check: 'true', args: ['--specs', 'G1'] });
@@ -86,7 +86,7 @@ test('clause 3: two seats of one session each run next and release in their own 
   assert.deepEqual(await seatIds(box), before, 'no seat was opened by either next');
 });
 
-test('clause 1: next in an idle api seat moves that same seat to the web lane, claims there, and releases without NOT_YOURS [GH27]', async () => {
+test('cli.journeys-next-session.next-in-an-idle-api-seat: clause 1: next in an idle api seat moves that same seat to the web lane, claims there, and releases without NOT_YOURS [GH27]', async () => {
   const box = e2e.project();
   const web = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Web only work', check: 'true', args: ['--specs', 'G1'] });
   const api = await seat(box, 'api');
