@@ -28,7 +28,7 @@ function fixture(t, runsStore) {
     jobRows: () => board.db.prepare('SELECT (SELECT COUNT(*) FROM job) AS jobs, (SELECT COUNT(*) FROM job_step) AS steps').get() };
 }
 
-test('clause 1: with runs_store on, a review reservation made by reserve holds its lease in the run lease columns [B2]', t => {
+test('store.io-board-review-lease-reserve.with-runs-store-on-a-review: clause 1: with runs_store on, a review reservation made by reserve holds its lease in the run lease columns [B2]', t => {
   const f = fixture(t, true);
   store.reserveReview(f.board, f.id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
   const row = f.run();
@@ -38,7 +38,7 @@ test('clause 1: with runs_store on, a review reservation made by reserve holds i
   assert.equal(store.getItem(f.board, f.id).item_review_by, 'core-2');
 });
 
-test('clause 2: with runs_store on, reopen releases the lease in the run lease columns [B2]', t => {
+test('store.io-board-review-lease-reserve.with-runs-store-on-reopen-releases: clause 2: with runs_store on, reopen releases the lease in the run lease columns [B2]', t => {
   const f = fixture(t, true);
   store.reserveReview(f.board, f.id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
   store.reopen(f.board, f.id, { agentId: 'coordinator', note: 'the criterion needs correction' });
@@ -48,7 +48,7 @@ test('clause 2: with runs_store on, reopen releases the lease in the run lease c
   assert.equal(row.run_state, 'done');
 });
 
-test('clause 3: with runs_store on, neither move writes a job or job_step row [B2]', t => {
+test('store.io-board-review-lease-reserve.with-runs-store-on-neither-move: clause 3: with runs_store on, neither move writes a job or job_step row [B2]', t => {
   const f = fixture(t, true);
   const before = f.jobRows();
   store.reserveReview(f.board, f.id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
@@ -56,7 +56,7 @@ test('clause 3: with runs_store on, neither move writes a job or job_step row [B
   assert.deepEqual(f.jobRows(), before);
 });
 
-test('clause 4: with runs_store off, reserve holds its lease on a job row as before [B2]', t => {
+test('store.io-board-review-lease-reserve.with-runs-store-off-reserve-holds: clause 4: with runs_store off, reserve holds its lease on a job row as before [B2]', t => {
   const f = fixture(t, false);
   store.reserveReview(f.board, f.id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
   assert.equal(f.run(), undefined);
