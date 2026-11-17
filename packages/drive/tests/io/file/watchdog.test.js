@@ -6,7 +6,7 @@ import { DEFAULT_FILE_IDLE_MS } from '../../../index.js';
 import { fileWatchdogLimits } from '../../../index.js';
 import { fileIdleHung } from '../../../index.js';
 
-test('whole-file limits default to five minutes and select exact file overrides [C7,V10]', () => {
+test('drive.watchdog.whole-file-limits-default-to: whole-file limits default to five minutes and select exact file overrides [C7,V10]', () => {
   assert.deepEqual(fileWatchdogLimits('test/a.test.js', {}), { wallMs: 300_000, baseWallMs: 300_000, loadFactor: 1, budgetMs: 180_000, idleMs: 90_000 });
   assert.equal(DEFAULT_FILE_WALL_MS, 300_000);
   assert.equal(DEFAULT_FILE_IDLE_MS, 90_000);
@@ -22,17 +22,17 @@ test('whole-file limits default to five minutes and select exact file overrides 
   for (const value of ['[]', 'null', '{']) assert.throws(() => fileWatchdogLimits('x', { PULLBOARD_TEST_FILE_LIMITS: value }));
 });
 
-test('a file budget row raises the watchdog kill to its ms and never lowers it [C7,V10]', () => {
+test('drive.watchdog.a-file-budget-row-raises: a file budget row raises the watchdog kill to its ms and never lowers it [C7,V10]', () => {
   assert.equal(fileWatchdogLimits('a.test.js', { PULLBOARD_TEST_FILE_ROW_BUDGET_MS: '240000' }).budgetMs, 240000);
   assert.equal(fileWatchdogLimits('a.test.js', { PULLBOARD_TEST_FILE_ROW_BUDGET_MS: '60000' }).budgetMs, 180000);
   assert.equal(fileWatchdogLimits('a.test.js', {}).budgetMs, 180000);
 });
 
-test('an explicit file budget wins over the dispatcher row so a smaller kill is honoured [C7,V10]', () => {
+test('drive.watchdog.an-explicit-file-budget-wins: an explicit file budget wins over the dispatcher row so a smaller kill is honoured [C7,V10]', () => {
   assert.equal(fileWatchdogLimits('a.test.js', { PULLBOARD_TEST_FILE_BUDGET_MS: '2000', PULLBOARD_TEST_FILE_ROW_BUDGET_MS: '120000' }).budgetMs, 2000);
 });
 
-test('idle classification requires a complete silent window and less than one percent CPU [C7,V10]', () => {
+test('drive.watchdog.idle-classification-requires-a-complete: idle classification requires a complete silent window and less than one percent CPU [C7,V10]', () => {
   assert.equal(fileIdleHung({ quietMs: 89_999, cpuMicros: 0 }, 90_000), false);
   assert.equal(fileIdleHung({ quietMs: 90_000, cpuMicros: 899_999 }, 90_000), true);
   assert.equal(fileIdleHung({ quietMs: 90_000, cpuMicros: 900_000 }, 90_000), false);

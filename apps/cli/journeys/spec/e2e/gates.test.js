@@ -93,14 +93,15 @@ test('decisions default up the chain, pass to the person, and return to the orig
   assert.equal((await box.runIn(box.repo, 'answer', personDecision, 'Yes.', '--as', 'person')).code, 0);
 });
 
-test('pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
+test('clause 1: pullboard worktree makes a joined worktree for a lane in one command [I4]', async () => {
   const box = project();
   const made = await box.runIn(box.repo, 'worktree', 'api');
   assert.equal(made.code, 0, made.err);
   const path = join(box.dir, 'repo-api-1');
   assert.match(made.out, /on branch api\/1, joined as api-1 \(fixture-model\) in the api lane/);
   assert.match(made.out, new RegExp(`start every command with: cd ${path} &&\n {2}cd ${path} && pullboard inbox\n {2}cd ${path} && pullboard next`));
-  assert.match((await box.runIn(path, 'whoami')).out, /^api-1 \(fixture-model\) \(api lane\)/);
+  const apiSeat = JSON.parse((await box.runIn(path, 'whoami', '--json')).out);
+  assert.deepEqual([apiSeat.id, apiSeat.lane, apiSeat.model], ['api-1', 'api', 'fixture-model']);
   assert.match((await box.runIn(box.repo, 'worktree', 'api')).out, /repo-api-2 on branch api\/2, joined as api-2/);
   assert.match((await box.runIn(box.repo, 'worktree', 'nope')).err, /NO_LANE/);
 });
@@ -164,7 +165,7 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
 
   const submitBox = await setup();
   assert.equal((await submitBox.runIn(submitBox.web, 'claim', '1')).code, 0);
-  commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  await commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
   writeFileSync(join(submitBox.web, 'SPEC.md'), marker + SPEC);
   const submit = await submitBox.runIn(submitBox.web, 'submit', '1');
   assert.equal(submit.code, 1);
@@ -175,7 +176,7 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
 
   const verifyBox = await setup();
   assert.equal((await verifyBox.runIn(verifyBox.web, 'claim', '1')).code, 0);
-  commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  await commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
   assert.equal((await verifyBox.runIn(verifyBox.web, 'submit', '1')).code, 0);
   verifyBox.git(verifyBox.repo, 'switch', '--detach', 'web/one');
   writeFileSync(join(verifyBox.repo, 'SPEC.md'), marker + SPEC);
@@ -209,7 +210,7 @@ test('a linked-worktree push isolates the gate from Git hook variables and leave
 });
 
 // Process-level: git itself runs the installed pre-commit hook, which starts the CLI through the PATH shim.
-test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', () => {
+test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', async () => {
   const box = project();
   const probe = foreignGitScript(box, 'fixer', { fixer: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, fix: [{ run: `node ${JSON.stringify(probe.file)}`, files: ['*.js'] }] }));
@@ -218,7 +219,7 @@ test('a linked-worktree commit isolates fixers while its own staged index still 
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'probe.js'), 'const value = 1;   \n');
   box.git(box.web, 'add', 'web/probe.js');
-  const committed = box.tryGit(box.web, 'commit', '-q', '-m', 'feat(web): a formatted probe [G1]');
+  const committed = await box.tryGit(box.web, 'commit', '-q', '-m', 'feat(web): a formatted probe [G1]');
   assert.equal(box.git(box.repo, 'config', '--get', 'core.bare'), 'false');
   assert.equal(committed.status, 0, committed.stderr);
   assert.equal(box.git(probe.bare, 'rev-parse', '--is-bare-repository'), 'true');

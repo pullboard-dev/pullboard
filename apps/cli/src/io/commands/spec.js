@@ -7,6 +7,7 @@ import { verifiedPasskeyRowDecision } from '../../../../../packages/person/index
 import {
   planRowVerificationApply,
   rowVerificationFindings,
+  needsReviewFindings,
 } from '../../../../../packages/spec/index.js';
 import { planAutomaticRigorApply } from '../../../../../packages/rigor/index.js';
 import {
@@ -27,6 +28,7 @@ import {
 import {
   COORDINATOR,
   cascadeRejectEnabled,
+  requireFactQuoteEnabled,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from '../../../../../packages/config/index.js';
@@ -63,9 +65,8 @@ import {
   requireSignedPerson,
   signsPersonMoves,
 } from '../../../../../packages/person/index.js';
-import {
-  Refused,
-} from '../../../../../packages/kernel/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { rowDecisionsFor } from './spec/apply-row.js';
 import {
   rowDecisionContext,
 } from '../../../../../packages/spec/index.js';
@@ -152,6 +153,12 @@ function verifierFindings(ctx, parsed) {
     ?? rowVerificationFindings(null, parsed, source, { rowDrafts });
 }
 
+/** Needs-review warnings for the spec file while spec.cascadeReject is on (#9343); a check never initializes a board. */
+function reviewFindings(ctx, parsed) {
+  const enabled = cascadeRejectEnabled();
+  return enabled ? hookRead(ctx, board => needsReviewFindings(board, parsed, { enabled })) ?? [] : [];
+}
+
 /**
  * The spec commands: reads, sign-offs and person decisions applied by the coordinator.
  *
@@ -174,7 +181,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     approve: ['by', 'text'],
     decline: ['reason'],
     answer: [],
-    apply: [],
+    apply: ['row'],
     fit: ['text', 'reason'],
   }[first ?? '--json'];
   if (!commandFlags) throw new Refused('USAGE', 'use pullboard spec --json | check | view | show <id> | verify <id> accepted|rejected --reason "why" | unmet [--must] | draft "<text>" | signoff <ids> | approve <ids> | decline <ids> --reason "why" | answer <id> "<choice or text>" | apply');
@@ -371,7 +378,7 @@ export async function specCommand(io, { first, second, rest, values }) {
       if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
       // Every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
-      const first = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      const first = planRowApply(ctx.info.root, ctx.config, rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
       // Stale decisions are held and named; the command fails only when nothing at all could apply [B2].
       if (first.held.length && !first.records.length) throw new Refused('STALE_ROW_DECISION', first.held.map(held => `${held.why}`).join('; '), first.held.map(held => held.next).join('; '));
       assertNoCitedSpecDecline(store.rowDecisions(board), store.listItems(board, { all: true }));
@@ -382,11 +389,11 @@ export async function specCommand(io, { first, second, rest, values }) {
       const drafted = pendingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).map((draft) => draftRow(ctx.info.root, ctx.config, { target: 'spec', text: draft.text, gate: draft.gate, tier: draft.tier, section: /^(.*?)\d+$/u.exec(draft.id)[1], id: draft.id }, { loadDoctrine }));
       drafted.forEach((row) => io.say(`${row.file}: ${row.id} drafted from a lane, for the person to approve`));
       clashingRowDrafts(loadSpec(ctx.info.root, ctx.config), store.rowDrafts(board)).forEach((draft) => io.say(`${ctx.config.spec}: ${draft.id} holds other text, so the draft by ${draft.by} was not written; shout ${draft.by} to run pullboard spec draft again and cite the new id`));
-      const preflight = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(board), { passkeyDecision, holdStale: true }, { loadDoctrine });
+      const preflight = planRowApply(ctx.info.root, ctx.config, rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
       let preparedApply;
       const applied = await ordered(ctx, board, 'applyRowDecisions', [{ agentId: me.id, events: preflight.records.map(record => record.event) }], {
         prepareInWriter(currentBoard) {
-          const plan = planRowApply(ctx.info.root, ctx.config, store.rowDecisions(currentBoard), { passkeyDecision, holdStale: true }, { loadDoctrine });
+          const plan = planRowApply(ctx.info.root, ctx.config, rowDecisionsFor(store.rowDecisions(currentBoard), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
           try {
             writeRowApply(ctx.info.root, plan);
             const args = { agentId: me.id, events: plan.records.map(record => record.event) };
@@ -461,9 +468,10 @@ export async function specCommand(io, { first, second, rest, values }) {
     const messages = [...baselineNotes];
     for (const [name, parsed] of files) {
       const findings = [
-        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...lintSpec(parsed, { requireFactQuote: requireFactQuoteEnabled() }).filter((finding) => !finding.message.startsWith('duplicate id;')),
         ...(name === ctx.config.spec && parsed.rows.some(row => row.verify !== undefined)
           ? verifierFindings(ctx, parsed) : []),
+        ...(name === ctx.config.spec ? reviewFindings(ctx, parsed) : []),
         ...(name !== ctx.config.spec ? parsed.rows.filter(row => row.verify !== undefined).map(row => ({ level: 'error', line: row.line, id: row.id,
           message: 'ROW_VERIFY_PROVENANCE: verifier annotations currently require an exact board-drafted SPEC row' })) : []),
         ...missingGateFindings(parsed, ctx.info.root),

@@ -6,6 +6,11 @@
  */
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
 import { UNBUILDABLE } from '../../../sandbox/index.js';
@@ -27,8 +32,13 @@ import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { machineSettingsFile } from '../../../config/index.js';
+import { nextReadinessCache } from '../../../config/index.js';
+import { nextLabelBounds } from '../../../config/index.js';
+import { nextCapBuilders } from '../../../config/index.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
@@ -48,7 +58,7 @@ const requireModule = createRequire(import.meta.url);
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
  *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
- *   mainLaneWork: Function, claimWorktreeSnapshot: Function }} NextPorts
+ *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function }} NextPorts
  */
 
 /**
@@ -152,8 +162,9 @@ export async function nextOnce(ctx, values, ports) {
           { blockedOn: unmet, worktreeSnapshot: claimWorktreeSnapshot(target.info.root) }, 'BLOCKED']);
         return { retry: true, retryDetail: { phase: 'parked claim', item: item.item_id, code: 'WAITING', message: `#${item.item_id} waits on ${unmet.map(id => `#${id}`).join(', ')}` } };
       }
+      // A held claim is the seat's own work in progress: its folder holds its edits, so next reads no status of it (a renewed open) [C7,#8574].
       let itemFolder;
-      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, {}, ports); }
+      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: true }, ports); }
       catch (error) {
         // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
         // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
@@ -200,11 +211,33 @@ export async function nextOnce(ctx, values, ports) {
 
 /**
  * Run an item's readiness command in this seat's checkout; the failure line (command, exit code, output) or null when it
- * passes or the item has none. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
+ * passes or the item has none. With next.readinessCache the result is kept for the main commit it ran on, so a second next on
+ * the same commit does not rerun the command, and a new main commit reruns it and re-offers an item that now passes [C7,#8794]. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
  */
 function readinessFailure(ctx, item) {
   const command = typeof item.item_readiness_command === 'string' ? item.item_readiness_command.trim() : '';
   if (!command) return null;
+  if (!nextReadinessCache()) return runReadiness(ctx, command);
+  const main = resolveCommit(ctx.info.root, 'main');
+  if (!main) return runReadiness(ctx, command);
+  const file = join(dirname(machineSettingsFile()), 'readiness-cache.json');
+  const key = `${item.item_id}:${command}`;
+  let kept = {};
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    if (parsed?.main === main && parsed.results && typeof parsed.results === 'object') kept = parsed.results;
+  } catch { /* no cache yet, or one a crash left half written: run the command */ }
+  if (Object.hasOwn(kept, key)) return kept[key];
+  const failure = runReadiness(ctx, command);
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ main, results: { ...kept, [key]: failure } }));
+  } catch { /* an unwritable cache only costs a rerun */ }
+  return failure;
+}
+
+/** Run one readiness command in this seat's checkout; its failure line or null on exit 0. */
+function runReadiness(ctx, command) {
   const run = spawnSync(command, { shell: true, cwd: ctx.info.root, encoding: 'utf8', timeout: 30_000 });
   if (run.status === 0) return null;
   const output = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim().slice(0, 300);
@@ -287,8 +320,8 @@ function builderRework(board, items, agents, me) {
 }
 
 /** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
-function keepsClaim(me, item, values) {
-  return item.item_lane === me.lane && store.ROUTES.includes(me.route) && store.ROUTES.includes(item.item_route)
+function keepsClaim(me, item, values, laneOff = false) {
+  return (laneOff || item.item_lane === me.lane) && store.ROUTES.includes(me.route) && store.ROUTES.includes(item.item_route)
     && store.canTake(me.route, item.item_route) && (values.routes ?? store.ROUTES).includes(item.item_route) && (!values.runnable || Boolean(item.item_check));
 }
 
@@ -317,6 +350,45 @@ function familyRelaxedOnly(ctx, board, me, item) {
   return Boolean(strict.familyAllows(item));
 }
 
+/** The most queue entries read past the top to find the first one that fills a label below its minimum. */
+const LABEL_PICK_DEPTH = 40;
+
+/**
+ * next.labelBounds (off by default): when a declared label this seat could serve is below its minimum and its maximum allows,
+ * the top item carrying that label is offered instead of the queue top; otherwise the queue top stands [C7,#9164].
+ * Why here: the candidates are the same offers next would make in queue order, so held, waiting and ineligible items are already dropped.
+ * A candidate outside the focused milestone is marked closed, so a minimum fills only from milestones open for work now.
+ *
+ * @param {any} ctx
+ * @param {any} board
+ * @param {any[]} items - Every board item.
+ * @param {any} selection - The options the queue top was chosen with.
+ * @param {{ item: any }} queueTop - The queue's own answer.
+ * @param {Function} pickForLabelMinimum - The queue cell's pure pick, handed in by the command line.
+ * @param {Function} firstUnderLabelMax - The queue cell's pure skip of items whose label is at its max, handed in the same way.
+ * @returns {any} The answer to use: the queue's, or one for the label's top item.
+ */
+function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMinimum, firstUnderLabelMax) {
+  const declared = ctx.config.labels;
+  if (!declared || !Object.keys(declared).length) return queueTop;
+  const focus = milestoneFocus(board, { milestones: store.milestones });
+  const candidates = [], answers = new Map();
+  let answer = queueTop;
+  for (let depth = 0; answer.item && depth < LABEL_PICK_DEPTH; depth += 1) {
+    const entry = answer.item;
+    candidates.push({ ...(items.find(row => row.item_id === entry.item_id) ?? entry), milestoneOpen: !focus || focus.ids.has(entry.item_id) });
+    answers.set(entry.item_id, answer);
+    selection = { ...selection, omitIds: [...selection.omitIds, entry.item_id] };
+    answer = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+  }
+  const pick = pickForLabelMinimum(declared, items, candidates);
+  if (pick) return answers.get(pick.item_id);
+  // A label at its max beats a pin: the first candidate under every max is offered, and when none is the queue offers nothing [#9165].
+  const free = firstUnderLabelMax(declared, items, candidates);
+  if (free) return answers.get(free.item_id);
+  return candidates.length ? { item: null, reasons: ['every item next could offer carries a label already at its maximum (next.labelBounds)'] } : queueTop;
+}
+
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values, ports) {
   const { whoAmI, currentReworkRoutingPolicy, mainLaneWork } = ports;
@@ -340,6 +412,8 @@ function nextPick(ctx, board, values, ports) {
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   // One offer serves both checks: a mandatory first review is what the full offer returns first (#2978).
   const found = relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
+  // laneMode off: this seat's lane is only its label, so every lane's items are its own and next never moves it [C7,#8906].
+  const laneOff = ctx.config.laneMode === 'off' && !ctx.info.isMain;
   const ownClaim = items.find(item => item.item_status === 'claimed' && item.item_owner === me.id && !(values.omitIds ?? []).includes(item.item_id) && !awaitingGateOrReview(board, item)
     && !(values.wait > 0 && store.submitHandoffFailure(board, item)));
   // A review this seat's family can take only by relaxation never stands in front of build work (#3681).
@@ -347,22 +421,23 @@ function nextPick(ctx, board, values, ports) {
   // An eligible review, reserved for this seat or not, comes before its own held build: N41 takes the review, then the build (#7060, #7721).
   if (found?.mandatory && !values.build && !familyOnly) return { autoReview: found.item, item: found.item, reasons: [] };
   // A seat already holding a build continues it without selecting; only a starved review comes first (#2450, #2978).
-  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values))
+  if (ownClaim && found?.urgent !== 'age' && !values.defaultLoop && !rejectionReturnEnabled(board) && ownClaim.item_parent_id === null && keepsClaim(me, ownClaim, values, laneOff))
     return { claim: true, me, item: ownClaim, held: true, shared: [], reasons: [], reviewSkipped: null };
   const warm = warmFiles(ctx, board, me, ports);
   // queue.contention (off unless a project turns it on): the recent conflict rate of each file steers next [C7,#8527].
   const contention = ctx.config.queue?.contention === true ? { threshold: ctx.config.queue.contentionThreshold ?? 1,
     rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
-  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
+  const selection = { ...(laneOff ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}), buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}) };
-  const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
+  const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
+  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
   const reworks = own.item ? [] : builderRework(board, items, agents, me);
-  const elsewhere = own.item || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
+  const elsewhere = own.item || laneOff || ctx.info.isMain || ctx.io.personChannel === 'view' || ctx.io.personRequest ? null : store.nextFor(board, { ...selection,
     omitIds: [...selection.omitIds, ...reworks.map(entry => entry.item_id)], lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const picked = elsewhere?.item ? elsewhere : own;
   const { item, reasons, shared, lightReserved } = picked;
@@ -379,6 +454,10 @@ function nextPick(ctx, board, values, ports) {
   const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)
     ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
   const selectedOffer = focusOffer ?? offer;
+  // next.capBuilders (off by default): with that many other seats already holding claims, a build seat is offered the waiting review [C7,#8545].
+  const cap = held || values.build ? 0 : nextCapBuilders();
+  if (cap && selectedOffer?.item && new Set(items.filter(entry => entry.item_status === 'claimed' && entry.item_owner && entry.item_owner !== me.id).map(entry => entry.item_owner)).size >= cap)
+    return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: false, reasons: [`${cap} builder seats already hold claims (next.capBuilders); reviewing instead of building`] };
   if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || held || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, buildHeld: held, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
   if (!item && reworks.length && !ctx.info.isMain) {
     const [first] = reworks;
@@ -389,11 +468,14 @@ function nextPick(ctx, board, values, ports) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
     return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
+      ...(values.idleBlockers === true ? { blockers: own.blockers ?? [] } : {}),
       ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown', skips: [...(!values.build ? offer?.skips ?? [] : []), ...(own.skips ?? []), ...(picked.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3) } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+  // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
+  const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
+  if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
     : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };

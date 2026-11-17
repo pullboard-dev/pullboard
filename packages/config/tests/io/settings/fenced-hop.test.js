@@ -19,11 +19,11 @@ function enabledWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: gate.fencedHop reads true when the machine settings leave it unset [C7,#8327]', () => {
+test('config.io-settings-fenced-hop.clause-1-gate-fencedhop-reads-true-when: clause 1: gate.fencedHop reads true when the machine settings leave it unset [C7,#8327]', () => {
   assert.equal(enabledWith({ gate: { runnerDispatch: 'pull' } }), true);
   assert.equal(enabledWith({}), true);
 });
 
-test('clause 2: gate.fencedHop reads false when the machine settings set it false [C7,#8327]', () => {
+test('config.io-settings-fenced-hop.clause-2-gate-fencedhop-reads-false-when: clause 2: gate.fencedHop reads false when the machine settings set it false [C7,#8327]', () => {
   assert.equal(enabledWith({ gate: { fencedHop: false } }), false);
 });

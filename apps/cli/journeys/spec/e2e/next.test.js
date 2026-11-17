@@ -46,7 +46,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runIn(box.web, 'claim', '1');
-  commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   // A pulled submit returns queued; settle its gate before a verdict reads the item [V4,C7,#7897].
   const first = await box.runIn(box.web, 'submit', '1', '--json');
   assert.equal(first.code, 0, first.err + first.out);
@@ -66,7 +66,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const refrozenItem = `${box.web}-item-1`;
-  assert.equal(commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]').status, 0);
+  assert.equal((await commitFile(box, refrozenItem, 'web/a.html', '<h1>Hi again</h1>', 'feat(web): update page [G1]')).status, 0);
   const resubmitted = await box.runIn(refrozenItem, 'submit', '1', '--json');
   assert.equal(resubmitted.code, 0, resubmitted.err || resubmitted.out);
   assert.equal((await settleSubmit(t, { repo: box.repo, env: box.env, run: box.runIn }, JSON.parse(resubmitted.out))).gate.green, true);
@@ -166,7 +166,7 @@ test('a deleted spec row is refused at commit; spec check finds any id gone from
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));
   box.git(box.repo, 'add', 'SPEC.md');
-  const refused = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): drop the api row');
+  const refused = await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): drop the api row');
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /SPEC.md: G2 is gone; ids are permanent: keep the row and mark it wont/);
   box.git(box.repo, 'commit', '-q', '--no-verify', '-m', 'docs(spec): drop the api row');
@@ -183,8 +183,8 @@ test('a deleted spec row is refused at commit; spec check finds any id gone from
   const fixed = await box.runIn(box.repo, 'spec', 'check');
   assert.equal(fixed.code, 0, fixed.out);
   box.git(box.repo, 'add', 'SPEC.md');
-  assert.equal(box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): keep every id').status, 0);
-  const cited = commitFile(box, box.repo, 'docs/api.md', 'x', 'feat(api): call the api [G2]');
+  assert.equal((await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs(spec): keep every id')).status, 0);
+  const cited = await commitFile(box, box.repo, 'docs/api.md', 'x', 'feat(api): call the api [G2]');
   assert.notEqual(cited.status, 0);
   assert.match(cited.stderr, /G2 is marked won't build/);
 });
