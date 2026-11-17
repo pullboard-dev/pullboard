@@ -182,7 +182,7 @@ const CLAIM_RULES = defineRules({
   insideSource: { says: 'an outside PR item stays with its author', holds: (s) => s.item.outside !== 'pull-request' },
   inLane: { says: 'an item is built from its own lane; the refusal names where to build it', holds: (s) => s.item.lane === s.actor.lane },
   lightDiagnosed: { says: 'light work by a light seat needs a current diagnosis', holds: (s, m) => !(seatRoute(s, m) === 'light' && s.item.route === 'light' && !s.item.diagnosed) },
-  routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) },
+  routeAllows: { says: 'a seat takes work at or below its route', holds: (s, m) => routeIndex(seatRoute(s, m)) >= routeIndex(s.item.route) || m.shapedStrong === true && seatRoute(s, m) === 'light' && s.item.route === 'strong' },
   budgetValid: { says: 'the board build budget is positive minutes',
     holds: (s, m) => isRenewal(s, m) || (typeof s.io.buildBudgetMinutes === 'number' && Number.isFinite(s.io.buildBudgetMinutes) && s.io.buildBudgetMinutes > 0) },
   buildScope: { says: 'a new claim fits the board build budget', holds: (s, m) => isRenewal(s, m) || s.item.expectedMinutes == null || s.item.expectedMinutes <= s.io.buildBudgetMinutes },
@@ -293,7 +293,7 @@ function claimTable(grantEngine) {
  * Build the claim rules and table over the grant engine the board stamps on every claim, handed in by the caller.
  * Snapshot: `{ now, actor: { id, lane, route, model, joined }, item, items, claimWaiting, laneHold, actorClaims, history, usedExitKeys, io, deferred }`;
  * `io` holds the fields in CLAIM_IO, `deferred` the precomputed `barProblem`, `reworkRouting`, `exitContinuation`, `lineCapacity`, `submitAdmission` and `submitOutcome`.
- * Move: `{ id, actor, leaseMs, itemFolder, autoNext, reviewSkipped, adoptCorrection, routeCap, exitRules, exitClaimKey, factId }`.
+ * Move: `{ id, actor, leaseMs, itemFolder, autoNext, reviewSkipped, adoptCorrection, routeCap, shapedStrong, exitRules, exitClaimKey, factId }`.
  * Why: moves may not own the engine version; the caller passes state's `AGENT_GRANT_ENGINE`, so there is no second copy to drift (as hop.table.js takes the jobs lease rule).
  *
  * @param {{ grantEngine: number }} board

@@ -135,6 +135,7 @@ export {
   reviewStarveShout,
   nextLabelBounds,
   nextCapBuilders,
+  nextLightShapedStrong,
   nextRouteByTier,
   nextHoldAboveLoad,
   heavyLocalHoldEnabled,
