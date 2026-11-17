@@ -57,10 +57,10 @@ async function nextWebItem(box, title) {
 }
 
 /** Write a scenario's files in its own native item worktree and commit them through hooks. */
-function commitWebAt(box, web, files, message) {
+async function commitWebAt(box, web, files, message) {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(web, 'web', name), text);
   box.git(web, 'add', '-A');
-  const committed = box.tryGit(web, 'commit', '-q', '-m', message);
+  const committed = await box.tryGit(web, 'commit', '-q', '-m', message);
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
@@ -80,13 +80,13 @@ function assertDoctrineReport(output, expected) {
 }
 
 /** Replace the rule's committed fields on main and try to commit them through the hooks. */
-function editRule(box, from, to) {
+async function editRule(box, from, to) {
   const file = join(box.repo, 'DOCTRINE.md');
   const before = readFileSync(file, 'utf8');
   assert.ok(before.includes(from), `the doctrine holds ${from}`);
   writeFileSync(file, before.replace(from, to));
   box.git(box.repo, 'add', 'DOCTRINE.md');
-  return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
+  return await box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
 test("clause 1: a pulled submit prints each doctrine count line as N, was M, holding [D1,D3,C7]", async t => {
@@ -94,7 +94,7 @@ test("clause 1: a pulled submit prints each doctrine count line as N, was M, hol
 
   // A fall passes and is shown as N, was M.
   const fellItem = await nextWebItem(box, 'Finish the page');
-  commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
+  await commitWebAt(box, fellItem.web, { 'a.html': 'TODO two\n', 'b.html': 'done\n' }, 'feat(web): finish the page [G1]');
   const fell = await settled(t, box, fellItem.web, fellItem.id);
   assert.equal(fell.gate.green, true, JSON.stringify(fell.gate.analysis));
   assert.ok(fell.gate.analysis.notes.includes('doctrine: Q1 Web pages carry no TODO markers. · 1, was 2 · holding'), fell.gate.analysis.notes.join('\n'));
@@ -111,15 +111,15 @@ test("clause 1: a pulled submit prints each doctrine count line as N, was M, hol
   assert.deepEqual(json.rules[0].problems, ['web/a.html:1:TODO two']);
 
   // Raising count: needs the person's signature; lowering it is a normal commit.
-  const raised = editRule(box, 'count: 2', 'count: 3');
+  const raised = await editRule(box, 'count: 2', 'count: 3');
   assert.notEqual(raised.status, 0, 'an unsigned raise is refused');
   assert.match(raised.stderr, /Q1 raises count: from 2 to 3 without the person's signature/);
-  const lowered = editRule(box, 'count: 3', 'count: 1');
+  const lowered = await editRule(box, 'count: 3', 'count: 1');
   assert.equal(lowered.status, 0, `${lowered.stdout}${lowered.stderr}`);
   writeFileSync(join(box.repo, 'DOCTRINE.md'), readFileSync(join(box.repo, 'DOCTRINE.md'), 'utf8').replace('count: 1', 'count: 4'));
   const approved = await box.inProcess(box.repo, 'spec', 'approve', 'doctrine:Q1');
   assert.equal(approved.code, 0, approved.err);
   box.git(box.repo, 'add', 'DOCTRINE.md');
-  const signed = box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: the person raises the quality count');
+  const signed = await box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: the person raises the quality count');
   assert.equal(signed.status, 0, `a raise the person approved commits: ${signed.stdout}${signed.stderr}`);
 });

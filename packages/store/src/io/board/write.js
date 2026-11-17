@@ -95,8 +95,11 @@ function warmHistories(board) {
 /** One file queue handle per queue folder for this process, so every claim shares its pending records and drain lock. */
 const FILE_QUEUES = new Map();
 
+/** The operations that go through the file write queue with board.crossProcessWrites on: one list, never a copy per operation (#9816, #9817, #8163). */
+const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify']);
+
 /**
- * The write id of a queued claim: the caller's own move id when its options carry one, else a digest of the board, the
+ * The write id of a queued write: the caller's own move id when its options carry one, else a digest of the board, the
  * operation and the arguments. Why args and never time or pid: a caller that crashed and retries the same claim must
  * reach the same result file, so it gets the first answer and never a second claim event (#9816, #8163).
  */
@@ -106,7 +109,7 @@ function queuedWriteId(board, operation, args) {
 }
 
 /**
- * Submit a claim to the machine's shared file write queue and give back what its result file holds.
+ * Submit a claim, release or verdict to the machine's shared file write queue and give back what its result file holds.
  * With board.crossProcessWrites on this returns a promise; the queue answers across processes, so it cannot be synchronous.
  */
 async function writeThroughFileQueue(board, operation, args, actor, options) {
@@ -119,7 +122,7 @@ async function writeThroughFileQueue(board, operation, args, actor, options) {
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock. With
- * board.crossProcessWrites on, a claim goes through the machine's file write queue instead and the call returns a promise;
+ * board.crossProcessWrites on, a claim, a release and a verdict go through the machine's file write queue instead and the call returns a promise;
  * every other operation, and every operation with the setting off, writes directly as before.
  * @param {any} board
  * @param {string} operation
@@ -128,7 +131,7 @@ async function writeThroughFileQueue(board, operation, args, actor, options) {
  * @returns {any}
  */
 export function writeBoardCommand(board, operation, args, actor, options = {}) {
-  if (operation === 'claim' && readCrossProcessWrites()) return writeThroughFileQueue(board, operation, args, actor, options);
+  if (QUEUED_OPERATIONS.has(operation) && readCrossProcessWrites()) return writeThroughFileQueue(board, operation, args, actor, options);
   return writeBoardDirect(board, operation, args, actor, options);
 }
 
