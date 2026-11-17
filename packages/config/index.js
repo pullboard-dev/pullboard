@@ -161,6 +161,7 @@ export {
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   parallelGatesEnabled,
+  staticParallelMax,
   reuseGateReceiptsEnabled,
   asyncFetchEnabled,
   stallStopEnabled,
