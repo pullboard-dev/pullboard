@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell board store stats state */
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
