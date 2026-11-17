@@ -37,6 +37,7 @@ import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
+import { asyncFetchEnabled } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -292,5 +293,5 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
 async function landJobHandler(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
   const { diagnoseLandingRed } = await import('./flakes.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed, asyncFetch: asyncFetchEnabled() });
 }
