@@ -24,7 +24,8 @@ test('gate.app-edges-io.cli-static-entry-owns-app: clause 1: the CLI static entr
   const entry = read('apps/cli/src/io/static/checks.js');
   for (const path of ['apps/cli/src/logic/help.js', 'apps/relay/src/io/deploy', 'apps/cli/index.js']) assert.ok(entry.includes(`'${path}'`), path);
   assert.match(entry, /specCheck: Object\.freeze\(\['apps\/cli\/pullboard\.js', 'spec', 'check'\]\)/u);
-  assert.match(entry, /runStaticTreeRegistry\(process\.argv\[1\], \{ changed: [^}]*apps: JSON\.parse/u);
+  assert.match(entry, /const scope = \{ changed: [^}]*apps: JSON\.parse/u);
+  assert.match(entry, /runStaticTreeRegistry\(process\.argv\[1\], scope\)/u);
 });
 
 test('gate.app-edges-io.class-needs-app-paths-handed: clause 1: a class that needs app paths and is handed none fails loudly instead of passing [C7]', () => {
