@@ -4,16 +4,16 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../index.js';
-import { appliedSequence } from '../../../../../state/index.js';
-import { applyEngineMove } from '../../../../../state/index.js';
-import { prepareEngineMove } from '../../../../../state/index.js';
-import { exportBoard } from '../../../../index.js';
-import { importBoard } from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
+import * as store from '../../../../../../store/index.js';
+import { appliedSequence } from '../../../../../../state/index.js';
+import { applyEngineMove } from '../../../../../../state/index.js';
+import { prepareEngineMove } from '../../../../../../state/index.js';
+import { exportBoard } from '../../../../../../store/index.js';
+import { importBoard } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
 test('a rehome destination import obeys lane and claimed item grants on independent replicas [E15,E21,H16]', t => {
   const sourceProject = cellProject(t);
