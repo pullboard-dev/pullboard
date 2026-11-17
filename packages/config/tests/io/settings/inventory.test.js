@@ -53,5 +53,6 @@ test('config.settings-inventory.exact-tree-check-listed-off: clause 2: pullboard
   const [on] = repoRows(t, { landing: { exactTreeCheck: true } });
   assert.equal(on.value, true);
   assert.equal(on.origin, 'configured');
-  assert.throws(() => repoRows(t, { landing: { exactTreeCheck: 'yes' } }), /exactTreeCheck|unsupported type/u, 'a non-boolean is refused');
+  const [bad] = repoRows(t, { landing: { exactTreeCheck: 'yes' } });
+  assert.ok(bad.error, 'a non-boolean value is reported as an error on the row, never read as on');
 });
