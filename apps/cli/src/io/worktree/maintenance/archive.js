@@ -27,6 +27,7 @@ import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { cleanGitEnvironment } from '../../../../../../packages/git/index.js';
+import { Refused } from '../../../../../../packages/kernel/index.js';
 
 const MAX_OBSERVATION_BYTES = 64 * 1024 * 1024;
 const CHUNK_BYTES = 1024 * 1024;
@@ -364,4 +365,20 @@ export function maintenanceArchiveMatches(root, archive) {
     if (maintenanceGit(root, ['rev-parse', '--verify', stored.ref]).trim() !== stored.head) return false;
     return maintenanceSnapshot(root, { includeMetadata: Boolean(stored.metadata) }).signature === stored.signature;
   } catch { return false; /* Unknown observations never authorize cleanup. */ }
+}
+
+/**
+ * Archive a dirty prior item folder, or refuse naming the worktree-archives path when that folder is a link to a missing volume.
+ * Why: claim crashed ENOENT after recording the claim; the dirty folder stays untouched and the claim reports the refusal [C7].
+ */
+export function archiveOrRefuse(root, common, options) {
+  try { return archiveMaintenanceWorktree(root, common, options); }
+  catch (error) {
+    const base = join(resolve(common), 'pullboard', 'worktree-archives');
+    let broken = false;
+    try { broken = lstatSync(base).isSymbolicLink() && !existsSync(base); } catch { broken = false; }
+    if (!broken) throw error;
+    throw new Refused('ITEM_FOLDER_ARCHIVE_UNREACHABLE', `worktree archive folder ${base} is unreachable (a link to a missing volume); ${root} is retained untouched`,
+      `reconnect the volume or repoint ${base}, then pullboard claim again`);
+  }
 }

@@ -10,7 +10,7 @@ import { dirname } from 'node:path';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { archiveMaintenanceWorktree } from '../worktree/maintenance/archive.js';
+import { archiveOrRefuse } from '../worktree/maintenance/archive.js';
 import { maintenanceArchiveMatches } from '../worktree/maintenance/archive.js';
 import { git } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
@@ -275,7 +275,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
   if (status.status !== 0) throw new Error(`cannot inspect prior item folder ${tree.path}; retained`);
   if (status.stdout) {
     if (typeof onArchive !== 'function') throw new Error('a dirty item folder needs a native recovery note before removal');
-    const archive = archiveMaintenanceWorktree(tree.path, ctx.info.commonDir, { includeMetadata: true });
+    const archive = archiveOrRefuse(tree.path, ctx.info.commonDir, { includeMetadata: true });
     await onArchive({ ...archive, previousPath: tree.path, previousHolder: holder.agent_id });
     requireOwnership();
     if (!maintenanceArchiveMatches(tree.path, archive)) throw new Error(`prior item folder ${tree.path} changed after archive; retained`);
