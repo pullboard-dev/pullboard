@@ -36,13 +36,13 @@ test('clause 1: opt-in native submit uses a real registered worker even with fre
   } });
   tick('after runner add');
   const id = JSON.parse(registered.added.out).item.item_id;
-  succeeded(box.run(box.web, 'claim', String(id), '--json'));
+  succeeded(await box.runAsync(box.web, 'claim', String(id), '--json'));
   tick('after claim');
   const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
   tick('after commit');
-  succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
-  const settings = JSON.parse(succeeded(box.run(box.repo, 'settings', '--json')).out).settings;
+  succeeded(await box.runAsync(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+  const settings = JSON.parse(succeeded(await box.runAsync(box.repo, 'settings', '--json')).out).settings;
   assert.ok(settings.gateSlots > 0, 'local capacity remains available throughout this control');
   assert.equal(settings.gate.runnersFirst, false, 'runner-only does not depend on runner-first preference');
   const runner = await serveRegisteredRunner(t, box, registered);
