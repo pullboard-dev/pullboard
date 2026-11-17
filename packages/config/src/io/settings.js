@@ -125,6 +125,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
+export function recordLapseEnabled() {
+  return loadMachineSettings()['jobs.recordLapse'] === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;

@@ -91,6 +91,7 @@ export const MACHINE_DEFAULTS = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'jobs.recordLapse': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.junitFailures': false,
