@@ -1,40 +1,38 @@
 /** @pullboard-test-input source-cell packages/activity */
-/** The activity cell's tests declare the inputs they read, so affected-test selection can see them [C7,U149,#9900]. */
-/** @pullboard-world-pin: the clauses read the activity cell's own test files, which are the subject of the declared-inputs rule. */
+/** Every activity-cell test that reads files declares the cells it reads in a header line [C7,U149,#9900]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { relative } from 'node:path';
 import { test } from 'node:test';
-import { declaresSource } from '../../gate/src/io/test/inputs.js';
-import { READ } from '../../gate/src/io/test/inputs.js';
-import { testInputProblems } from '../../gate/src/io/test/inputs.js';
 
 const DIR = import.meta.dirname;
-const ROOT = join(DIR, '..', '..', '..');
-const SELF = 'packages/activity/tests/inputs.test.js';
+const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
+const CELL_HEADER = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
+const TREE_HEADER = /^\/\*\* @pullboard-test-input source-tree \*\/$/u;
 
-/** Every test file under the activity cell's tests folder, as repo-relative paths. */
-function activityTests(dir = DIR) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return activityTests(path);
-    return /\.test\.js$/u.test(entry.name) ? [relative(ROOT, path)] : [];
-  });
+/** Every test file under the activity cell's tests folder, nested folders included. */
+function testFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
 }
 
-const read = path => readFileSync(join(ROOT, path), 'utf8');
+/** True when the leading comment lines carry a source-cell header; a source-tree header does not count, it reads every cell. */
+function declares(source) {
+  for (const line of source.split(/\r?\n/u)) {
+    if (CELL_HEADER.test(line)) return true;
+    if (TREE_HEADER.test(line)) return false;
+    if (!/^\/\*\* @pullboard-/u.test(line)) return false;
+  }
+  return false;
+}
 
-test('activity.inputs.declared: clause 1: every activity test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
-  const files = activityTests();
-  assert.ok(files.length >= 5, 'the activity cell has test files to check');
-  const undeclared = files.filter(file => READ.test(read(file)) && !declaresSource(read(file)));
-  assert.deepEqual(undeclared, [], 'file readers without a header');
-});
+const files = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+const readers = files.filter(({ source }) => READ.test(source));
 
-test('activity.inputs.rule-clean: clause 2: with the outside-src rule on, the reader rule reports none in packages/activity/tests [C7,U149]', () => {
-  const files = activityTests();
-  assert.ok(files.includes(SELF));
-  assert.deepEqual(testInputProblems(ROOT, files, read, true), []);
+test('clause 1: every test file in packages/activity/tests that reads files carries an input header naming the cells it reads, and none names the whole tree [C7,U149]', () => {
+  assert.ok(files.length >= 5, 'the scan finds the cell test files');
+  const bare = readers.filter(({ source }) => !declares(source)).map(({ file }) => file.slice(DIR.length + 1));
+  assert.deepEqual(bare, []);
+  const tree = files.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1));
+  assert.deepEqual(tree, []);
 });
