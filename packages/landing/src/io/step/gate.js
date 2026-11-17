@@ -14,6 +14,7 @@ import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
 import { runLocalLandingGuard } from '../land/guard.js';
 import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
+import { pipelineBase } from './base.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -451,11 +452,14 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
     checkLeaseNow();
-    git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
+    git(root, ['worktree', 'add', '--detach', batch.root, pipelineBase({ config, board }, batch)]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
   const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit, landingPorts,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
+  // With landing.pipeline on, the batch gates on main plus the earlier batch's merge; its record names that base [C7,#8937].
+  const base = pipelineBase(state, batch);
+  if (base !== batch.base) await save(state, { base });
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
   // A conflicting prefix is not its requested composition. Never test the smaller accidental tree.
