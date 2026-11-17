@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardModel } from '../../../src/io/dashboard/model.js';
 import { dashboardHtml } from '../../../src/logic/render/dashboard.js';
+import { agentFloorModel } from '../../../src/logic/agent/floor/model.js';
 
 const now = Date.parse('2026-11-15T18:00:00Z'), minute = 60_000;
 const until = new Date(now + 30 * minute).toISOString();
@@ -41,4 +42,15 @@ test('clause 1: a board with no stalled or waiting claim shows no such tiles [C7
   const html = dashboardHtml(plain);
   assert.doesNotMatch(html, /<\/b>stalled/u);
   assert.doesNotMatch(html, /<\/b>waiting/u);
+});
+
+test('clause 3: neither the dashboard nor the agent floor counts the stalled claim as building [C7]', () => {
+  const model = board();
+  const floor = agentFloorModel(model, []);
+  const keyOf = id => floor.groups.find(group => group.agents.some(agent => agent.id === id))?.key;
+  assert.equal(keyOf('view-1'), 'building');
+  assert.equal(keyOf('view-2'), 'stalled', 'the stalled claim sits apart from building');
+  assert.equal(keyOf('view-3'), 'stalled', 'the waiting claim sits apart from building');
+  assert.equal(floor.numbers.building, 1);
+  assert.equal(model.stages.building, 1);
 });

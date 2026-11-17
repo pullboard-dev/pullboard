@@ -30,6 +30,7 @@ import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { carryLandingHops } from '../../../../../packages/landing/index.js';
 import { landingMainReds } from '../../../../../packages/landing/index.js';
+import { landingPriorityCompare } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
@@ -207,6 +208,8 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const pinned = new Map((Array.isArray(policy.config?.landing?.first) ? policy.config.landing.first : []).map((id, index) => [id, index]));
     const rank = item => ids ? ids.indexOf(item.item_id) : accepted.get(item.item_id) ?? Number.MAX_SAFE_INTEGER;
     const pin = item => !ids && pinned.has(item.item_id) ? pinned.get(item.item_id) : Number.MAX_SAFE_INTEGER;
+    // landing.priorityOrder: the order next uses (urgent or pinned, milestone position) goes before accept order; named ids keep their order [C7,#3157].
+    const byPriority = !ids && policy.config?.landing?.priorityOrder === true ? landingPriorityCompare(board) : () => 0;
     const commitOf = item => item.item_status === 'verified' ? checkedLandingCommit(board, item) : item.item_commit;
     // An item stacked on another's unverified submission waits, named; a named one refuses; forced is the person's call [B3,E8,#7395].
     const candidates = all.filter(wanted);
@@ -219,7 +222,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       if (stacked && ids) throw new Refused('STACKED_UNVERIFIED', `#${item.item_id} holds #${stacked.item_id}'s unverified submission ${stacked.item_commit.slice(0, 12)}`, `land #${stacked.item_id} after its verify, or rebuild #${item.item_id} without it`);
       if (stacked) ctx.io.say?.(`#${item.item_id} waits: STACKED_UNVERIFIED on #${stacked.item_id} ${stacked.item_commit.slice(0, 12)}`);
       return !stacked;
-    }).sort((left, right) => pin(left) - pin(right) || rank(left) - rank(right) || left.item_id - right.item_id);
+    }).sort((left, right) => pin(left) - pin(right) || byPriority(left, right) || rank(left) - rank(right) || left.item_id - right.item_id);
     // Each merge carries the engine's landing message from the item's frozen rows, so spec coverage reads its trailers [B3,R3,C7].
     if (publishHold && !chosen.length) throw publishHold.refusal;
     const messages = checkLandingMessages(chosen, landingContext(root, policy.commit, policy.config, commitOf));
@@ -253,7 +256,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
         const flakes = typeof pairPrefix === 'function' ? landingFlakes(root, policy, chosen.find(item => item.item_id === batch[0].id), batch[0].commit, pairPrefix) : null;
         // With gate.fencedHop on, each item's gate hop epoch rides on the job, and the runner pushes trunk through the fences [C7,#8437].
         const hops = carryLandingHops(board.db, batch, { enabled: fencedHopEnabled() });
-        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, reofferTrunkBusy: loadMachineSettings().landing?.reofferTrunkBusy === true, squash: loadMachineSettings().landing?.squash === true, reuseGateReceipts: loadMachineSettings().landing?.reuseGateReceipts === true, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [], ...(queue ? { queue } : {}),
+        const job = offerLandingJob(board.db, { items: batch, expect, trunk: trunkRef(root), forced, deferred, flakes, hops, mainReds, reofferTrunkBusy: loadMachineSettings().landing?.reofferTrunkBusy === true, squash: loadMachineSettings().landing?.squash === true, reuseGateReceipts: loadMachineSettings().landing?.reuseGateReceipts === true, reuseContractResults: loadMachineSettings().landing?.reuseContractResults === true, stallStop: loadMachineSettings().landing?.stallStop === true, ...(policy.config.landing?.shardProof === true ? { shardGate: landingShardGate() } : {}), badges: badgeDocuments?.(board) ?? [], ...(queue ? { queue } : {}),
           ...(hosted ? { config: { ...policy.config, trunk: { ...policy.config.trunk, remote } }, needs: [BOARD_HOST], checkout: true, upstream: hostUpstream(root, policy.config) } : { config: policy.config, checkout: intoCheckout }) });
         ctx.io.say?.(`offered ${forced ? 'forced ' : ''}land job ${job.id} for ${batch.map(entry => `#${entry.id}`).join(' ')}; a runner merges and pushes trunk`);
         jobs.push(job.id);

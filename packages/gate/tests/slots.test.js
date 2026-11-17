@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { waitForCondition } from '../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from './fixtures/runner/holders.js';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const RESOURCE = 'liveness-test';

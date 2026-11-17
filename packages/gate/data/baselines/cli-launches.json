@@ -204,13 +204,19 @@
     "launch": 1
   },
   "apps/cli/journeys/gate/main.test.js": {
-    "launch": 6
+    "launch": 4
+  },
+  "apps/cli/journeys/gate/main-refusals.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/rigor/checks.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/hooks/main.test.js": {
-    "launch": 4
+    "launch": 1
+  },
+  "apps/cli/journeys/hooks/drafts.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/relay/canary/ack.test.js": {
     "launch": 1
@@ -377,6 +383,9 @@
   "apps/cli/journeys/stats/cost.test.js": {
     "launch": 1
   },
+  "apps/cli/journeys/stats/cost-sessions.test.js": {
+    "launch": 1
+  },
   "packages/gate/tests/parser.test.js": {
     "launch": 4
   },
@@ -515,12 +524,6 @@
   "apps/cli/journeys/hold/span.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/doctrine/rulings.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/fact/msg.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/hook/once.test.js": {
     "launch": 1
   },
@@ -546,7 +549,10 @@
     "launch": 1
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
     "launch": 1
@@ -567,7 +573,10 @@
     "launch": 1
   },
   "packages/runners/tests/io/package/files.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "packages/runners/tests/io/package/files-closure.test.js": {
+    "launch": 1
   },
   "packages/runners/tests/io/package/compiler.test.js": {
     "launch": 5
@@ -621,7 +630,10 @@
     "launch": 5
   },
   "apps/cli/journeys/init/calls.test.js": {
-    "launch": 6
+    "launch": 5
+  },
+  "apps/cli/journeys/init/calls-head.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/idempotent.test.js": {
     "launch": 2
@@ -694,9 +706,6 @@
   },
   "apps/cli/journeys/version/node.test.js": {
     "launch": 7
-  },
-  "apps/cli/journeys/imports/cross-lane-edits.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/submit/empty.test.js": {
     "launch": 1
@@ -890,9 +899,6 @@
   "packages/gate/tests/io/requeue/retry.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/inbox/budget.test.js": {
-    "launch": 1
-  },
   "packages/resources/tests/io/runner/heal/drain.test.js": {
     "launch": 1
   },
@@ -1017,7 +1023,10 @@
     "launch": 1
   },
   "apps/cli/tests/io/commands/test.test.js": {
-    "launch": 7
+    "launch": 2
+  },
+  "apps/cli/tests/io/commands/test-discovery.test.js": {
+    "launch": 5
   },
   "apps/cli/journeys/hook/amend.test.js": {
     "launch": 2
@@ -1039,9 +1048,6 @@
   },
   "apps/cli/journeys/show/rows.test.js": {
     "launch": 5
-  },
-  "apps/cli/journeys/verify/checks.test.js": {
-    "launch": 1
   },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
     "launch": 1
@@ -1069,9 +1075,6 @@
   },
   "apps/cli/journeys/init/empty.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/hook/slot.test.js": {
-    "launch": 2
   },
   "apps/cli/journeys/submit/pull.test.js": {
     "launch": 1
@@ -1376,9 +1379,6 @@
   "packages/gate/tests/io/browser/admission/resources.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/edges/door.test.js": {
-    "launch": 2
-  },
   "apps/cli/journeys/next/skips/folder/live.test.js": {
     "launch": 1
   },
@@ -1395,9 +1395,6 @@
     "launch": 1
   },
   "apps/cli/journeys/relay/person/requests.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/release/model-idle.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/release/model-tour.test.js": {
@@ -1574,7 +1571,7 @@
   "packages/resources/tests/io/heartbeat/blocked.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/gate/newcomer.test.js": {
+  "apps/cli/journeys/gate/newcomer-setup.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/journal/preload/refusal.test.js": {
@@ -1629,6 +1626,9 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/http/state.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/verify/checks-heavy.test.js": {
     "launch": 1
   }
 }

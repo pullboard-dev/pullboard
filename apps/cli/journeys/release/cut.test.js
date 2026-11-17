@@ -18,21 +18,24 @@ test('clause 1: a version cut walks the CLI from a clean board to a recorded rel
     return JSON.parse(result.out);
   };
 
-  assert.match((await run('roadmap')).out, /no milestones|^$/iu, 'a clean board has no release yet');
-  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Ship the page', '--specs', 'G1');
-  assert.equal(added.code, 0, added.err);
-  assert.equal((await run('milestone', 'add', '1.0', '--note', 'first cut')).code, 0);
-  const id = Number(/#(\d+)/u.exec(added.out)?.[1]);
-  assert.equal((await run('milestone', 'items', '1.0', '--add', String(id), '--reason', 'the cut scope')).code, 0);
+  assert.deepEqual((await json('roadmap')).milestones, [], 'a clean board has no release yet');
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', 'Ship the page', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal((await json('milestone', 'add', '1.0', '--note', 'first cut')).milestone.name, '1.0');
+  assert.equal((await json('milestone', 'items', '1.0', '--add', String(id), '--reason', 'the cut scope')).milestone.name, '1.0');
 
-  assert.equal((await run('milestone', 'add', '1.1')).code, 0);
+  assert.equal((await json('milestone', 'add', '1.1')).milestone.name, '1.1');
   const main = box.git(box.repo, 'rev-parse', 'main');
   const shipped = await json('milestone', 'ship', '1.0');
+  assert.equal(shipped.milestone.name, '1.0', 'the shipped milestone is the one cut');
   assert.equal(shipped.milestone.shipped.commit, main, "the release is recorded at main's commit");
   assert.deepEqual([shipped.into, shipped.moved], ['1.1', [id]], 'the unlanded item carries into the next release');
   const roadmap = await json('roadmap');
   const text = JSON.stringify(roadmap);
   assert.ok(text.includes(main), 'the roadmap shows the recorded release commit');
-  const again = await run('milestone', 'ship', '1.0');
+  assert.equal(roadmap.milestones.some(entry => entry.name === '1.0'), true, 'the roadmap lists the cut release by name');
+  const again = await run('milestone', 'ship', '1.0', '--json');
   assert.notEqual(again.code, 0, 'a recorded release cannot be cut twice');
+  assert.equal(JSON.parse(again.out).error.code, 'MILESTONE_SHIPPED');
 });

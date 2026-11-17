@@ -9,6 +9,7 @@ import { Refused } from '../../../kernel/index.js';
 import { ledgerFiles } from '../../../store/index.js';
 import { ledgerHits } from '../../../store/index.js';
 import { ledgerMainReds } from '../../../store/index.js';
+import { ledgerRecentFiles } from '../../../store/index.js';
 import { landingWaiverKind } from '../../../store/index.js';
 import { PERSON } from '../../../store/index.js';
 import { runsStoreOn } from '../../../store/index.js';
@@ -94,13 +95,15 @@ function landingItems(items) {
  *   reason a forced landing names, carried on the job and its key, and its job runs no check; mode is no longer read, since landing
  *   pulls in any mode. config.landing.publish "separate" rides on the job, so a red item parks and the clean ones land.
  *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file [B2,P7]; null writes the board's job rows as before.
+ *   reuseContractResults: landing.reuseContractResults (default off), the contracts carry a hit list of the ledger's newest green files, so the runner reuses a contract file whose inputs are unchanged (#9301).
+ *   stallStop: landing.stallStop (default off), rides the job as a flag so its runner stops a check with no progress for two minutes (#8749).
  *   reuseGateReceipts: landing.reuseGateReceipts (default off), the items' own green gate rows head the proof's hit list and ride the job as a flag (#9243).
  *   squash: landing.squash, on the job so its runner lands each item as one single-parent commit (#9219).
  *   reofferTrunkBusy: landing.reofferTrunkBusy, on the job so its runner carries a green static check to a tip whose new commits miss the batch's files (#9103).
  *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, squash = false, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, reuseGateReceipts = false, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, squash = false, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, reuseGateReceipts = false, reuseContractResults = false, stallStop = false, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -124,7 +127,9 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
   const separate = config?.landing?.publish === 'separate';
   // The runner selects, on each tree it checks, the affected tests no submit proved: contracts main gained after submit [C7,#7378].
   const runner = typeof config?.affectedTests === 'string' && config.affectedTests.trim();
-  const contracts = !forced && runner && !/[\0\n\r]/u.test(runner) ? { runner } : null;
+  // landing.reuseContractResults (off by default): the newest green ledger rows ride with the contracts, so a contract file at an unchanged inputKey is reused [C7,#9301].
+  const contractLedger = reuseContractResults === true && !forced && runner && !/[\0\n\r]/u.test(runner) ? ledgerHits(db, ledgerRecentFiles(db), { budget: 16_000, perFile: 1 }) : null;
+  const contracts = !forced && runner && !/[\0\n\r]/u.test(runner) ? { runner, ...(reuseContractResults === true ? { reuse: true, ...(contractLedger ? { ledger: contractLedger } : {}) } : {}) } : null;
   // The person's live waivers ride on the job, so its runner holds no landing for a waived test, whether the proof or the contracts ran it; a new waiver is a new job [#655,C7].
   const waivers = proof || contracts ? livePersonWaivers(db, now) : [];
   const key = createHash('sha256').update(JSON.stringify([remote, trunk, expect, landed, ...(forced ? [forced] : []), ...(waivers.length ? [waivers.map(waiver => waiver.id)] : []), ...(fenced.length ? [fenced] : [])])).digest('hex').slice(0, 16);
@@ -144,7 +149,9 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
     ...(squash === true && !forced ? { squash: true } : {}),
     ...(reofferTrunkBusy === true && !forced ? { reofferTrunkBusy: true } : {}),
     // landing.reuseGateReceipts rides on the job only when on, so its runner may count the hit list's files as reused [C7,#9243].
-    ...(reuseGateReceipts === true && !forced && proof ? { reuseGateReceipts: true } : {}) };
+    ...(reuseGateReceipts === true && !forced && proof ? { reuseGateReceipts: true } : {}),
+    // landing.stallStop rides on the job only when on, so its runner may stop a check that shows no progress for two minutes [C7,#8749].
+    ...(stallStop === true ? { stallStop: true } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }

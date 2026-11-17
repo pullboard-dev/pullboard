@@ -52,6 +52,7 @@ import {submitGateConfig} from './tooling/packages/gate/index.js';
 import {policyAt} from './tooling/packages/sandbox/index.js';
 import {git} from './tooling/packages/git/index.js';
 import {runGate,runProfiledShellAsync,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
+import {pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui} from './tooling/packages/gate/index.js';
 import {receiptRecorder} from './tooling/packages/flakes/index.js';
 import {context,cli$ordered as ordered,withBoard,resourceAgent,cli$freezer as freezer,queuedItemLease} from './tooling/apps/cli/index.js';
 import {runnerExecutionServices} from './tooling/packages/runners/index.js';
@@ -218,7 +219,7 @@ await withBoard(ctx,async board=>{
 }
 if(P('guard')){ran.push('guard');
 const guards=await runLocalLandingGuard(root,config,{files:['test/control.test.js'],directory:root+'/../logs',label:'guard',onFailure:observer,
- quarantines,proofContext:{...proofContext,kind:'land'}});
+ quarantines,proofContext:{...proofContext,kind:'land'}},{runProfiledShellAsync,pinRunMain,withLandingGateSlot,landingControllerPlacement,testsNeedBrowser,testsNeedGui,runnerExecutionServices,landingExecutionServices});
 assert.equal(guards.isGreen,true);assert.equal(guards.exitCode,1);
 assert.ok(guards.proofReceiptId,'a selective landing exception keeps its own actual native receipt');
 const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node tooling/apps/cli/src/io/run/tests.js'},['test/control.test.js'],

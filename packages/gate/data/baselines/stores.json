@@ -363,6 +363,10 @@
       "kind": "sqlite",
       "owner": "packages/verify/src/io/proof/derived.js"
     },
+    "*.rigor-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/rigor/src/io/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -475,6 +479,14 @@
     "activation.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/main/audit/worker.js"
+    },
+    "adapter-lint-clock.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/clock.js"
+    },
+    "adapter-lint-fs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/fs.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -624,6 +636,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
     },
+    "app-harnesses.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/matrix.js"
+    },
     "compiler.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/parser/worker.js"
@@ -732,6 +748,10 @@
     "identity.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
+    },
+    "idiom-spread.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/idiom-spread.js"
     },
     "index.json": {
       "kind": "json",
@@ -907,7 +927,7 @@
     },
     "pullboard-item.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/item/folder/identity.js"
+      "owner": "packages/items/src/io/claim.js"
     },
     "pullboard-parent-session.json": {
       "kind": "json",
@@ -919,7 +939,7 @@
     },
     "pullboard-runner-policy.json": {
       "kind": "json",
-      "owner": "apps/cli/src/io/read.js"
+      "owner": "packages/landing/src/io/runner/job.js"
     },
     "pullboard-source-snapshot.json": {
       "kind": "json",
@@ -947,7 +967,7 @@
     },
     "recovery.json": {
       "kind": "json",
-      "owner": "packages/config/src/io/git/sync.js"
+      "owner": "packages/sync/src/io/git/repair.js"
     },
     "refusal-trials.json": {
       "kind": "json",
@@ -967,7 +987,7 @@
     },
     "relay-health.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/api/src/io/main.js"
+      "owner": "packages/link/src/io/relay/canary/health.js"
     },
     "relay-outbox.guard.sqlite": {
       "kind": "sqlite",
@@ -1177,6 +1197,10 @@
       "kind": "table",
       "owner": "packages/store/src/io/board/event/log.js"
     },
+    "table:event_archive": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/event/log.js"
+    },
     "table:excluded_inventory": {
       "kind": "table",
       "owner": "apps/relay/src/io/store/excluded.js"
@@ -1188,6 +1212,10 @@
     "table:facts": {
       "kind": "table",
       "owner": "packages/codemap/src/io/main-facts-cache.js"
+    },
+    "table:field_decl": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
     },
     "table:file_call": {
       "kind": "table",
@@ -1228,6 +1256,14 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
+    },
+    "table:item_field": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/fields.js"
+    },
+    "table:item_related": {
+      "kind": "table",
+      "owner": "packages/store/src/io/board/item/related.js"
     },
     "table:job": {
       "kind": "table",
@@ -1466,7 +1502,7 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "temporary-edges.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/codemap/src/io/cells/scripts/cache.js"
     },
     "test-cells.json": {
@@ -1560,14 +1596,22 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "readiness-cache.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],
   "writeOwnerDebt": [
-    "pullboard-item.json",
-    "pullboard-runner-policy.json",
-    "recovery.json",
-    "relay-health.sqlite",
     "stats-history.jsonl",
     "timer.guard.sqlite",
     "timer.json",
