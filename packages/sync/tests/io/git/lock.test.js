@@ -55,7 +55,7 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-test('a dead legacy Git lock is quarantined intact with recovery metadata outside it [H11,C7]', async t => {
+test('sync.git-lock.dead-lock-quarantined: a dead legacy Git lock is quarantined intact with recovery metadata outside it [H11,C7]', async t => {
   const box = fixture(t);
   const pid = deadPid();
   legacyLease(box, pid);
@@ -90,7 +90,7 @@ test('a dead legacy Git lock is quarantined intact with recovery metadata outsid
   assert.equal(inspectGitSyncLock(box.marker).state, 'absent');
 });
 
-test('a live legacy Git lease has unknown expiry and an aborted waiter leaves it untouched [H11,C7]', async t => {
+test('sync.git-lock.live-lease-untouched: a live legacy Git lease has unknown expiry and an aborted waiter leaves it untouched [H11,C7]', async t => {
   const box = fixture(t);
   const originalToken = legacyLease(box, process.pid);
   const original = readFileSync(join(box.lock, 'pid'));
@@ -114,7 +114,7 @@ test('a live legacy Git lease has unknown expiry and an aborted waiter leaves it
   } finally { db.close(); }
 });
 
-test('an actual expired Git owner is fenced and its finally cannot release the successor [H11,C7]', async t => {
+test('sync.git-lock.expired-owner-fenced: an actual expired Git owner is fenced and its finally cannot release the successor [H11,C7]', async t => {
   const box = fixture(t);
   const firstEntered = deferred();
   const finishFirst = deferred();
@@ -172,7 +172,7 @@ test('an actual expired Git owner is fenced and its finally cannot release the s
   }
 });
 
-test('a callback error survives a real private SQLite cleanup failure [H11,C7]', async t => {
+test('sync.git-lock.callback-error-survives-cleanup-failure: a callback error survives a real private SQLite cleanup failure [H11,C7]', async t => {
   const box = fixture(t);
   const original = new Error('private fixture callback failed');
   const diagnostics = [];
@@ -188,7 +188,7 @@ test('a callback error survives a real private SQLite cleanup failure [H11,C7]',
   assert.ok(existsSync(box.lock), 'failed cleanup retains the owner evidence for recovery');
 });
 
-test('a symlink owner file remains unknown and never supplies takeover authority [H11,C7]', async t => {
+test('sync.git-lock.symlink-owner-no-takeover: a symlink owner file remains unknown and never supplies takeover authority [H11,C7]', async t => {
   const box = fixture(t);
   mkdirSync(box.lock);
   const target = join(box.root, 'unrelated-private-input');

@@ -50,6 +50,7 @@ export {
 } from './src/io/agent/session.js';
 export {
   agentTree,
+  idleSeats,
   agentTreeLines,
   agentsReport,
 } from './src/io/agent/tree.js';
@@ -127,6 +128,7 @@ export {
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/logic/route/escalation.js';
+export { lightShaped } from './src/logic/route/shaped.js';
 export {
   seatAddress,
   addressedSeat,
@@ -180,6 +182,8 @@ export {
   originRepository,
 } from './src/logic/github/origin.js';
 export { ESCALATE_AFTER_BOUNCES, MODEL_TIERS, modelTier, routeByTier } from './src/logic/tier.js';
+export { itemTierPin } from './src/logic/tier-pin.js';
+export { bouncesAtTier } from './src/logic/tier-bounces.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,

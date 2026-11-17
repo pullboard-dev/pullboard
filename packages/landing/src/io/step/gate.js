@@ -12,8 +12,8 @@ import { blockingFailures } from '../../../../verify/index.js';
 import { completeGate } from '../completion.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
-import { runLocalLandingGuard } from '../../logic/land/guard.js';
-import { requireNoRunnerRefusalOnlyRed } from '../../logic/land/guard.js';
+import { runLocalLandingGuard } from '../land/guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -28,6 +28,12 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { pinRunMain } from '../../../../gate/index.js';
+import { withLandingGateSlot } from '../../../../gate/index.js';
+import { landingControllerPlacement } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/index.js';
+import { testsNeedGui } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
@@ -56,6 +62,10 @@ import { mergeGroup } from './merge.js';
 import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
+import { gateComponentTier } from '../../../../config/index.js';
+
+/** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
@@ -77,7 +87,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   // plan never stops landing, so repos whose checks are not literal Node test commands still land (#2897).
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
-  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
+  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests, componentTier: gateComponentTier() });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
     // The README badge files the landing itself writes select nothing; counted as changes they sent the whole batch to
@@ -354,7 +364,7 @@ async function runGateGroup(state, label, options) {
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = await (subset
     ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
-      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
+      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext }, GUARD_PORTS)
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
