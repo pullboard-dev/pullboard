@@ -11,7 +11,7 @@ import { runFixtureChild } from '../../../fixtures/child.js';
 
 const runner = fileURLToPath(new URL('../../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
-test('an unknown option after the file is refused by name [C7]', () => {
+test('gate.io-run-tests-options.an-unknown-option-after-the-file: an unknown option after the file is refused by name [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-unknown-option-after-')); try {
     writeFileSync(join(root, 'option.test.mjs'), "import { test } from 'node:test';\ntest('a case runs', () => {});\n");
     const result = runFixtureChild(process.execPath, [runner, 'option.test.mjs', '--foo'], { cwd: root, encoding: 'utf8' });
@@ -21,7 +21,7 @@ test('an unknown option after the file is refused by name [C7]', () => {
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('--test-only after the file is refused by name [C7]', () => {
+test('gate.io-run-tests-options.test-only-after-the-file-is: --test-only after the file is refused by name [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-test-only-after-')); try {
     writeFileSync(join(root, 'only.test.mjs'), "import { test } from 'node:test';\ntest('a case runs', () => {});\n");
     const result = runFixtureChild(process.execPath, [runner, 'only.test.mjs', '--test-only'], { cwd: root, encoding: 'utf8' });
@@ -38,7 +38,7 @@ function twoCaseFile(name) {
   } catch (error) { rmSync(root, { recursive: true, force: true }); throw error; }
 }
 
-test('a skip pattern after the file in the equals form runs only the other case [C7]', () => {
+test('gate.io-run-tests-options.a-skip-pattern-after-the-file: a skip pattern after the file in the equals form runs only the other case [C7]', () => {
   const fixture = twoCaseFile('skip-equals.test.mjs');
   try {
     const result = fixture.runSkip(['--test-skip-pattern=alpha']);
@@ -48,7 +48,7 @@ test('a skip pattern after the file in the equals form runs only the other case 
   } finally { rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
-test('a skip pattern after the file in the separate-value form runs only the other case [C7]', () => {
+test('gate.io-run-tests-options.a-skip-pattern-after-the-file-2: a skip pattern after the file in the separate-value form runs only the other case [C7]', () => {
   const fixture = twoCaseFile('skip-separate.test.mjs');
   try {
     const result = fixture.runSkip(['--test-skip-pattern', 'alpha']);

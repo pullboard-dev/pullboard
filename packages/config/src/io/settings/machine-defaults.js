@@ -109,6 +109,7 @@ export const MACHINE_DEFAULTS = {
   'landing.staticAffectedOnly': false,
   'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
+  'launch.reachableDispatcher': false,
   'list.thinRead': false,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
