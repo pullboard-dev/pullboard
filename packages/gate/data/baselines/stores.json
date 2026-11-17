@@ -363,6 +363,10 @@
       "kind": "sqlite",
       "owner": "packages/verify/src/io/proof/derived.js"
     },
+    "*.derived-state.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/health/src/io/derived.js"
+    },
     "*.rigor-derived.sqlite": {
       "kind": "sqlite",
       "owner": "packages/rigor/src/io/derived.js"
@@ -487,6 +491,10 @@
     "adapter-lint-fs.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
+    "adapter-lint-timers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/timers.js"
     },
     "auth.sqlite": {
       "kind": "sqlite",
@@ -792,6 +800,10 @@
     "legacy.json": {
       "kind": "json",
       "owner": "packages/state/src/io/engine/numbers.js"
+    },
+    "literal-pins-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
       "kind": "json",
@@ -1180,6 +1192,10 @@
     "table:decision_handoff_v1": {
       "kind": "table",
       "owner": "packages/items/src/io/decision.js"
+    },
+    "table:derived_state": {
+      "kind": "table",
+      "owner": "packages/health/src/io/derived.js"
     },
     "table:device": {
       "kind": "table",

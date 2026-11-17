@@ -9,6 +9,11 @@ import { requirePersonChannel } from '../../../../../packages/person/index.js';
 /** The pullboard check command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import {
+  checklistGaps,
+  checklistReceipt,
+  reviewChecklist,
+} from '../../../../../packages/state/index.js';
+import {
   checkNeedsBrowser,
   explicitCheckFiles,
 } from '../../../../../packages/gate/index.js';
@@ -68,7 +73,16 @@ export async function run(io, { first, second, rest, values }) {
     return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id, agents: store.listAgents(board) };
   });
   const check = frozenCheck(item);
-  if (!check) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+  if (!check) {
+    // No test check, but a numbered criterion: the review checklist is the proof, and the board says which lines name no evidence (#996).
+    const thread = withBoard(ctx, board => store.itemThread(board, item.item_id));
+    if (!reviewChecklist(item, thread).length) throw new Refused('NO_CHECK', `#${item.item_id} has no check command; its proof is the project gate: pullboard gate`);
+    const gaps = checklistGaps(item, thread);
+    if (gaps.length) throw new Refused('CLAUSE_UNTICKED', `#${item.item_id} has no test check; its review checklist is not met: ${gaps.join('; ')}`,
+      `pullboard fact ${item.item_id} note "clause <n> [test|command|screenshot|measurement|reasoning]: <a file path, link or quoted passage>", then check again`);
+    io.say(`checklist for #${item.item_id} names evidence on every line; the reviewer judges it: ${checklistReceipt(item, thread)}`);
+    return 0;
+  }
   const by = author || 'unknown (legacy)';
   const authorName = author ? agentDisplayName(agents, ctx.config, author) : by;
   const notice = `check #${item.item_id} set by ${authorName}: ${check}`;

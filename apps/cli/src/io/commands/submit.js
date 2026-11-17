@@ -104,6 +104,7 @@ import {
 import { changedLines } from '../../../../../packages/items/index.js';
 import { missingCheckFiles } from '../../../../../packages/items/index.js';
 import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
+import { recoverFromJobRow } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -244,6 +245,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // A pulled submit's own move is its gate-offer note; a lost reply to it is answered with the job it already offered [C7,H16].
   if (recovered?.operation === 'appendFact' && recovered.args[0] === id) {
     const offered = await (await import('../submit/pull.js')).recoverOfferedGate(ctx, id, recovered);
+    if (offered !== null) return offered;
+  }
+  // With submit.recoverFromJobRow on and no note held, the gate job row this seat offered answers instead [C7,#9825].
+  if (!recovered && recoverFromJobRow()) {
+    const offered = await (await import('../submit/pull.js')).recoverOfferedGateFromJobRow(ctx, id);
     if (offered !== null) return offered;
   }
   // gate.runnersOnly means no gate runs on this computer: with no registered runner a pulled submit would queue for the loopback local runner or wait forever, so refuse before any job row, read here in the IO layer [C7,V4,#9398].
