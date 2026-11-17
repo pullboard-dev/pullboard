@@ -91,3 +91,45 @@ export async function landOnce(box) {
   return settleLand(box, JSON.parse(landed.out));
 }
 
+
+/**
+ * Record one forced landing, no verdict, whose builder is a really submitted seat of the chosen model family, and return its item id.
+ * Why: `verify.family` reads the builder's declared family, so a landing built by no seat, or by a seat of no family, is offered to
+ * no reviewer and cannot prove the other-family offer (runs 47aea589 and f96787e7, #4992) [C7,#9862].
+ *
+ * @param {object} box - A box from `fixture`.
+ * @param {object} t - The running test, for the submit settle.
+ * @param {{ family: string, name?: string }} options - The builder seat's declared family.
+ * @returns {Promise<number>}
+ */
+export async function landedBy(box, t, { family, name = `Landed by ${family}` }) {
+  /** The public CLI, in process, exactly as `fixture` drives it. */
+  const cli = (cwd, ...args) => captureCommandInProcess(main, args, { cwd, env: box.env });
+  const slug = family.toLowerCase().replace(/[^a-z0-9]+/gu, '-');
+  const file = `web/landed-by-${slug}.txt`;
+  const seat = join(box.dir, `builder-${slug}`);
+  box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', `web/${slug}`, 'main');
+  const joined = await cli(seat, 'join', 'web', '--family', family, '--model', FIXTURE_MODEL, '--json');
+  assert.equal(joined.code, 0, joined.err + joined.out);
+  const added = await cli(box.repo, 'add', 'web', name, '--specs', 'G1',
+    '--brief', `Files: ${file}\nChange: add the marker\nTest: the marker file exists`, '--criterion', 'The change marker exists.', '--check', `test -f ${file}`, '--wait', '--json');
+  assert.equal(added.code, 0, added.err + added.out);
+  const item = JSON.parse(added.out).item.item_id;
+  const claim = await cli(seat, 'claim', String(item));
+  assert.equal(claim.code, 0, claim.err);
+  writeFileSync(join(seat, file), 'source change\n');
+  box.git(seat, 'add', '-A');
+  box.git(seat, 'commit', '-q', '-m', 'feat(web): private landed-by source [G1]');
+  const submitted = await cli(seat, 'submit', String(item), '--wait', '--no-next', '--json');
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  await settleSubmit(t, box, JSON.parse(submitted.out));
+  // budget: hang ceiling for one receipt write after the gate job is done, never a speed assertion.
+  const pending = await whenRunnerSettles(box.env, () => { const row = onBoard(box, board => getItem(board, item)); return row.item_status === 'claimed' ? null : row; },
+    { deadlineMs: 60_000, what: `#${item} leaving claimed after its gate` });
+  assert.equal(pending.item_status, 'submitted', `#${item} settled its gate but is ${pending.item_status}`);
+  // A forced merge records only a commit already on main, as the blitz lander leaves it.
+  box.git(box.repo, 'merge', '-q', '--no-edit', `web/${slug}`);
+  const merged = await cli(box.repo, 'merged', String(item), pending.item_commit, '--forced', 'blitz lander landed it before review', '--waive-proof', 'fixture', '--json');
+  assert.equal(merged.code, 0, merged.out + merged.err);
+  return item;
+}

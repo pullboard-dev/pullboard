@@ -25,6 +25,8 @@ import { parseRunnerRate } from '../logic/runner-rates.js';
 import { validateServe } from '../logic/settings.js';
 import { validateBoardRemote } from '../logic/settings.js';
 export { loadMachineSettings };
+export { browserFreeChecksEnabled } from '../logic/settings.js';
+export { reofferInfraEndEnabled } from '../logic/settings.js';
 export { boardRemote } from '../logic/settings.js';
 import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../logic/settings.js';
@@ -55,11 +57,6 @@ export function gateQueueSettings() {
 
 const DEFAULT_SHORT_SLOTS = 0;
 
-/** Browser-free check admission is deliberately opt-in per machine. */
-export function browserFreeChecksEnabled() {
-  return loadMachineSettings().gate?.browserFreeChecks === true;
-}
-
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
@@ -80,6 +77,16 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
+/** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
+export function excuseMainTimingReds() {
+  return loadMachineSettings().gate?.excuseMainTimingReds === true;
+}
+
+/** Whether submit.recoverFromJobRow is on (#9824): off by default; only an exact `true` turns it on. */
+export function recoverFromJobRow() {
+  return loadMachineSettings().submit?.recoverFromJobRow === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
@@ -98,11 +105,6 @@ export function recaptureHandoffEnabled() {
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
-}
-
-/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
-export function reofferInfraEndEnabled() {
-  return loadMachineSettings().gate?.reofferInfraEnd === true;
 }
 
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
@@ -130,6 +132,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether canary.directPush is on (#9746): off by default; only an exact `true` turns it on. */
+export function canaryDirectPushEnabled() {
+  return loadMachineSettings().canary?.directPush === true;
+}
+
 /** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
 export function requireDeclaredInputsEnabled() {
   return loadMachineSettings().tests?.requireDeclaredInputs === true;
@@ -153,6 +160,11 @@ export function adapterLintFsEnabled() {
 /** Whether the static check refuses a statement shape copied into 3 or more files: off by default; only an exact `true` turns it on [C7,#9521]. */
 export function idiomSpreadEnabled() {
   return loadMachineSettings().gate?.idiomSpread === true;
+}
+
+/** Whether the static check refuses a test that pins an engine number, an exact count, a file hash or a frozen JSON snapshot: off by default; only an exact `true` turns it on [C7,#9385]. */
+export function literalPinsEnabled() {
+  return loadMachineSettings().gate?.literalPins === true;
 }
 
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
@@ -404,6 +416,11 @@ export function reviewStarveShout() {
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
+}
+
+/** Whether flakes.rereadRatchet is on (#9436): off by default; only an exact `true` lets a batch record re-read the flake ratchet in its write transaction. */
+export function flakesRereadRatchetEnabled() {
+  return loadMachineSettings().flakes?.rereadRatchet === true;
 }
 
 /** Whether test.statusOutcomes is on (#9085): off by default; only an exact `true` turns it on. */
@@ -955,6 +972,16 @@ export function hotStateEnabled() {
   return loadMachineSettings().board?.hotState === true;
 }
 
+/** Whether board.crossProcessWrites is on (#9814, #8163): off by default; only an exact `true` turns it on. */
+export function readCrossProcessWrites() {
+  return loadMachineSettings().board?.crossProcessWrites === true;
+}
+
+/** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
+export function watchQuietReadsEnabled() {
+  return loadMachineSettings().watch?.quietReads === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
@@ -973,6 +1000,16 @@ export function stallStopEnabled() {
 /** Whether landing.parallelGates is on (#9747): off by default; only an exact `true` turns it on. */
 export function parallelGatesEnabled() {
   return loadMachineSettings().landing?.parallelGates === true;
+}
+
+/** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
+export function asyncFetchEnabled() {
+  return loadMachineSettings().landing?.asyncFetch === true;
+}
+
+/** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
+export function relayQueueOnFailureEnabled() {
+  return loadMachineSettings().relay?.queueOnFailure === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
