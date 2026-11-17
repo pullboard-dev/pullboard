@@ -89,6 +89,7 @@ export const MACHINE_DEFAULTS = {
   'jobs.handBackUnrunnable': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
+  'landing.junitFailures': false,
   'landing.parallelGates': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
