@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners */
+/** @pullboard-test-input packages/runners/src/io/bridge.js packages/runners/src/io/dispatch.js */
 /** @pullboard-world-pin: clause 1 reads the shipped runners sources to prove the pull path imports its helpers from bridge.js. */
 /** The pull path's helpers live outside dispatch.js, so #7526 can delete the SSH transport [C7]. */
 import assert from 'node:assert/strict';
