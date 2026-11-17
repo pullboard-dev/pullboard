@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/cli/index.js packages/codemap/src/io/cell/scripts/lints.js packages/doctrine/src/io/fast.js packages/gate/src/io/** */
 /** @pullboard-world-pin: clause 1 reads the shipped doctrine-fast header and the bin/checks scripts to prove the declared loads. */
 /** No package module reaches the CLI front door: doctrine-fast loads only its fast checks and a ratchet holds the line [C7]. */
 import assert from 'node:assert/strict';
