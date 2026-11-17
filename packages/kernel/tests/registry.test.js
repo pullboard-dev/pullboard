@@ -11,15 +11,13 @@ const TITLE_ID = /^test\('([^':\s]+): /gmu;
 const TESTS = /^test\(/gmu;
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
-/** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
-const TEMPLATES = new RegExp('\\x60[^\\x60]*\\x60', 'gu');
-
+/** No kernel test file holds a fixture project with its own test( lines, so every line-start test( is this cell's; stripping template literals instead paired the lone backticks in repo-paths.test.js wrongly and hid three tests [C7,U148]. */
 function registryFindings(files, records) {
   const ids = [];
   const findings = [];
   const known = new Set(Object.keys(records));
   for (const { file, source } of files) {
-    const code = source.replace(TEMPLATES, '');
+    const code = source;
     const found = [...code.matchAll(TITLE_ID)].map((match) => match[1]);
     const missing = [...code.matchAll(TESTS)].length - found.length;
     if (missing > 0) findings.push(`${file}: ${missing} test title(s) start without an ID and a colon`);
