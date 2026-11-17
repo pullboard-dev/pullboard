@@ -87,8 +87,14 @@ test('clause 1: a spec revision shows old and proposed rows side by side with pr
     }
     assert.deepEqual(chrome.exceptions, []);
   } finally {
+    const T = Date.now(), P = m => console.error('PROBE10034 +' + (Date.now() - T) + 'ms ' + m);
+    P('finally start');
     if (chrome) await closeSnapshotChrome(chrome);
+    P('chrome closed');
     await view.stop();
+    P('view stopped');
     rmSync(profile, { recursive: true, force: true });
+    P('profile removed; handles ' + process.getActiveResourcesInfo().join(','));
+    setTimeout(() => console.error('PROBE10034 late handles ' + process.getActiveResourcesInfo().join(',')), 20000).unref();
   }
 });
