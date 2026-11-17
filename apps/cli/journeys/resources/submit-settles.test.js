@@ -1,14 +1,12 @@
 /** @pullboard-test-input source-cell apps/cli packages/gate */
 /** A runner-only submit with the ssh stand-in registered settles its pulled gate in bounded time, or names where it stands; before #10303 it sat queued to the 180 s kill [C7,V4]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
@@ -18,7 +16,6 @@ import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
-const CLI = resolve(import.meta.dirname, '../../pullboard.js');
 // Budget: each pull-runner step (add --wait, submit --wait, the settle after it) must end well inside the 180 s file kill.
 const STEP_MS = 60_000;
 
@@ -60,23 +57,18 @@ function boxProcesses(box) {
   } catch (error) { return [`ps failed: ${error.message}`]; }
 }
 
-/** Run one CLI step in its own process and kill it at STEP_MS, logging where the box stood then. */
-function step(box, label, cwd, args, snapshot) {
+/** Run one CLI step in its own process, or give up at STEP_MS and log where the box stood then; the fixture settle is the caller's. */
+async function step(box, label, cwd, args, snapshot) {
   const started = Date.now();
-  return new Promise(done => {
-    const child = spawn(process.execPath, [CLI, ...args], { cwd, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = '', err = '';
-    child.stdout.on('data', part => { out += part; });
-    child.stderr.on('data', part => { err += part; });
-    const cap = setTimeout(() => { child.kill('SIGKILL'); }, STEP_MS);
-    child.on('close', (code, signal) => {
-      clearTimeout(cap);
-      const seconds = (Date.now() - started) / 1000;
-      process.stderr.write(`STEP ${label} ${seconds.toFixed(1)}s code=${code} signal=${signal}\n${signal || code ? `STDERR ${label} ${err.split('\n').slice(-25).join('\n')}\n` : ''}`);
-      if (signal) process.stderr.write(`STATE ${label} at cap ${JSON.stringify(snapshot())}\n`);
-      done({ code, signal, out, err, seconds });
-    });
-  });
+  const cap = AbortSignal.timeout(STEP_MS);
+  const capped = new Promise(done => cap.addEventListener('abort', () => done(null), { once: true }));
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
+  let result;
+  try { result = await Promise.race([box.runAsync(cwd, ...args), capped]); } finally { delete box.env.PULLBOARD_FIXTURE_UNSETTLED; }
+  const seconds = (Date.now() - started) / 1000;
+  process.stderr.write(`STEP ${label} ${seconds.toFixed(1)}s code=${result?.code ?? 'capped'}\n`);
+  if (!result || result.code) process.stderr.write(`STATE ${label} ${JSON.stringify(snapshot())}\n${result?.err ?? ''}\n`);
+  return result ?? { code: null, capped: true, out: '', err: `${label} did not return in ${STEP_MS} ms` };
 }
 
 /** Require native CLI success before using a result as setup evidence. */
@@ -100,15 +92,15 @@ test('clause 1: a runner-only submit --wait with the ssh stand-in registered ret
   root = registered.root;
   tick('after add --wait and runner add');
   const id = JSON.parse(registered.added.out).item.item_id;
-  succeeded(box.run(box.web, 'claim', String(id), '--json'));
+  succeeded(await box.runAsync(box.web, 'claim', String(id), '--json'));
   const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
-  succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
+  succeeded(await box.runAsync(box.repo, 'settings', 'gate.runnersOnly', 'on'));
   serveBoardQueue(box);
   tick('after claim, commit, settings and local runner');
   const submitted = await step(box, 'submit', box.web, ['submit', String(id), '--wait', '--no-next', '--json'], snapshot);
   tick('after submit --wait');
-  assert.equal(submitted.signal, null, `submit --wait did not return in ${STEP_MS} ms`);
+  assert.ok(!submitted.capped, submitted.err);
   const queued = JSON.parse(succeeded(submitted).out);
   assert.equal(queued.queued, true, 'a pulled submit returns once its gate job is offered');
   let job;
