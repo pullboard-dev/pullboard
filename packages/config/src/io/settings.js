@@ -264,6 +264,12 @@ export function censusSoloFileSeconds() {
   return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
 }
 
+/** Seconds a pulled census job's files may run when every file in it has a recorded time under this; null (the default) keeps the 600 s stop [C7,#10350]. */
+export function censusFileKillSeconds() {
+  const secs = loadMachineSettings().census?.fileKillSeconds;
+  return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
+}
+
 /** Census test jobs one runner may hold at once; null (the default) leaves census jobs uncapped beyond runner slots [C7,#9136]. */
 export function censusJobsPerRunner() {
   const jobs = loadMachineSettings().census?.jobsPerRunner;

@@ -301,6 +301,21 @@ export function timeBoundJobs(files, times, limitMs) {
 }
 
 /**
+ * The file kill, in milliseconds, a pulled census job carries under census.fileKillSeconds: that many seconds when every
+ * file in the job has a recorded time under it, else null (the job keeps the usual 600 s stop). Why: a file with a short
+ * record that runs on was hung or stalled, and it need not hold its job to the hard stop [C7,#10350].
+ *
+ * @param {string[]} files - The job's files.
+ * @param {Record<string, number>} times - Recorded ms per file.
+ * @param {number|null} killSeconds - The census.fileKillSeconds setting.
+ * @returns {number|null}
+ */
+export function shardFileKillMs(files, times, killSeconds) {
+  if (!killSeconds || !files.length) return null;
+  return files.every(file => Number.isFinite(times[file]) && times[file] < killSeconds * 1000) ? killSeconds * 1000 : null;
+}
+
+/**
  * The census plan: by measured time, heaviest job first, when `balanceByTime` is on; otherwise exactly what `base` (the
  * landing planner) cuts, so a machine that has not opted in plans as it always did [C7].
  *
