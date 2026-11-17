@@ -36,6 +36,7 @@ const BEFORE = {
   'flakes.rereadRatchet': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
