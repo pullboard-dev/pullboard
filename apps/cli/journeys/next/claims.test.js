@@ -20,6 +20,8 @@ import { runFixtureChild } from '../../tests/fixtures/child.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { chargedText } from '../../tests/fixtures/load.js';
 import { loadClock } from '../../tests/fixtures/load.js';
+import { fixture } from '../../tests/fixtures/next/take.js';
+import { main } from '../../tests/fixtures/native.js';
 
 const BUDGET_MS = 200;
 const CLI = new URL('../../tests/fixtures/native.js', import.meta.url).href;
@@ -31,7 +33,7 @@ function freeze(item) {
   return { text: JSON.stringify({ title: item.item_title, criterion: 'fixture work', check: 'true', rows: [] }), digest: 'fixture' };
 }
 
-test('next stays under 200 ms with forty claimed worktrees [H24]', (t) => {
+test('cli.journeys-next-claims.next-stays-under-200-ms-with: next stays under 200 ms with forty claimed worktrees [H24]', (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -103,7 +105,7 @@ console.log(JSON.stringify(result));`;
   return result;
 }
 
-test('next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', async t => {
+test('cli.journeys-next-claims.next-inbox-and-show-stay-under: next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -142,4 +144,37 @@ test('next, inbox and show stay under 200 ms with forty recorded claims and scan
   t.diagnostic(`medians with ${CLAIMS} claims: ${report} (H24 ceiling ${BUDGET_MS} ms); next phases: ${times.next?.profile}`);
   const foreign = launches.lines().filter(line => others.some(path => line.startsWith(`${path}\t`)));
   assert.deepEqual(foreign, [], 'commands read other seats from the maintenance record without running Git there');
+});
+
+/** Run plain text `next` as one seat and return what it printed. */
+async function plainNext(box, seat) {
+  let out = '', err = '';
+  const code = await main(['next'], { cwd: seat.path, clock: box.clock,
+    stdout: { isTTY: false, write: part => { out += part; } }, stderr: { write: part => { err += part; } } });
+  assert.equal(code, 0, out + err);
+  return out;
+}
+
+test('clause 1: next prints the bar line once, directly after the check line of every claim [C7,#10557]', async t => {
+  const box = await fixture(t, { perSeat: 2 });
+  const first = box.add('First claimed work', { brief: 'Files: web/first.js\nTest: the real board selects the item.' });
+  const second = box.add('Second claimed work', { brief: 'Files: web/second.js\nTest: the real board selects the item.' });
+  const lines = (await plainNext(box, box.seats.actor)).split('\n');
+  const bars = lines.flatMap((line, index) => line.startsWith('that is your bar;') ? [index] : []);
+  const checks = lines.flatMap((line, index) => line.startsWith('check: ') ? [index] : []);
+  assert.ok(checks.length >= 1, 'next claimed at least one item');
+  assert.deepEqual(bars, checks.map(index => index + 1), 'one bar line sits directly after each check line, and nowhere else');
+  const claimed = store.listItems(box.board).filter(item => item.item_status === 'claimed' && [first, second].includes(item.item_id));
+  assert.equal(claimed.length, checks.length, 'every claimed item shows its check');
+  for (const index of bars) assert.match(lines[index], /pullboard show \d+ adds the thread and history only/u);
+});
+
+test('clause 2: a plain next that offers a review prints no bar line and stays under 2,048 bytes [C7,#10557]', async t => {
+  const box = await fixture(t);
+  const review = box.add('Review before another build');
+  box.submit(review);
+  const out = await plainNext(box, box.seats.actor);
+  assert.ok(out.includes(`#${review}`), out);
+  assert.ok(!out.includes('that is your bar'), 'a review offer is not a claimed bar');
+  assert.ok(Buffer.byteLength(out) < 2048, `the review offer is ${Buffer.byteLength(out)} bytes`);
 });

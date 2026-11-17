@@ -661,6 +661,14 @@ export function heavyLocalHoldEnabled() {
 }
 
 /**
+ * Whether next offers a light seat an open light-shaped strong item when no light item is free (#9568): off by default, so
+ * next routes items as before; only an exact `true` turns it on.
+ */
+export function nextLightShapedStrong() {
+  return loadMachineSettings().next?.lightShapedStrong === true;
+}
+
+/**
  * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
  * claims as before; only an exact `true` turns it on.
  */
@@ -945,6 +953,17 @@ export function setClauseInspection(enabled) {
   if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'inspection.clauses must be true or false; run pullboard settings inspection.clauses on|off');
   const latest = loadMachineSettings();
   const next = { ...latest, inspection: { ...latest.inspection, clauses: enabled } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Turn runners.localWake on or off, keeping every other machine setting.
+ * Why a writer: the key is stored flat ("runners" is the runner list), so setPersonSetting's nested path cannot write it [C7,#10418].
+ */
+export function setLocalWake(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'runners.localWake must be true or false');
+  const next = { ...loadMachineSettings(), 'runners.localWake': enabled };
   writeMachineSettings(next);
   return next;
 }

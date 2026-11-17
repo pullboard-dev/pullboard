@@ -10,7 +10,7 @@ import { fitDigest } from '../../tests/fixtures/blueprint.js';
 import { batchCode } from '../../tests/fixtures/blueprint.js';
 import { fitBoard } from '../../tests/fixtures/blueprint.js';
 
-test('an agent cannot approve its own fit proposal [S1,E3,B26]', async () => {
+test('cli.journeys-blueprint-proposal-own.an-agent-cannot-approve-its-own: an agent cannot approve its own fit proposal [S1,E3,B26]', async () => {
   const { box, worktree, seat, as, key } = fitBoard();
   const W3 = key('W3');
   ok(seat('blueprint', 'fit', 'legacy-web-app.json', W3, 'drop', '--reason', 'no pages here', '--json'), 'propose');
@@ -94,7 +94,7 @@ test('an agent cannot approve its own fit proposal [S1,E3,B26]', async () => {
   assert.deepEqual(approved.decisions.map((record) => [record.id, record.decision]), [[W3, 'decline'], [W4, 'approve']]);
 });
 
-test('a Something else answer that names the stack fits a plain Node project [A8]', () => {
+test('cli.journeys-blueprint-proposal-own.a-something-else-answer-that-names: a Something else answer that names the stack fits a plain Node project [A8]', () => {
   // A plain Node project is not one of A8's named frameworks, so Something else takes the stack's name (#916).
   const { seat, key } = fitBoard();
   const stack = 'Node.js with built-in node:http and node:test';

@@ -2,10 +2,14 @@
 
 /** Language to a function from a case row ({ classname, file }) to a repo-relative path, or null when it cannot say. */
 export const JUNIT_FILE_ROWS = {
+  // rspec_junit_formatter writes classname as the dotted spec path (spec.calc_spec) and usually a file attribute too.
+  ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
+  // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
+  crystal: row => (row.classname && /\.cr$/u.test(row.classname) ? row.classname : null),
   // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
   bun: row => row.classname || null,
   // Surefire writes a dotted class in classname (com.example.CalcTest), no file attribute; Maven's source layout holds the test.
@@ -24,6 +28,8 @@ export const JUNIT_FILE_ROWS = {
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
+  // dune test with an OCaml JUnit reporter (alcotest or ounit2 output) writes the suite name in classname (Calc) and no file attribute; dune keeps it in test/calc.ml.
+  ocaml: row => (row.classname ? `test/${row.classname.toLowerCase()}.ml` : null),
   // vitest --reporter=junit writes the test file path as classname and no file attribute (src/math.test.ts).
   typescript: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null),
   // node --test --test-reporter=junit writes file (absolute, inside the checkout) on every case, which junitFile already prefers; the row only answers a case the reporter left without one.
@@ -51,6 +57,12 @@ export const JUNIT_FILE_ROWS = {
     const name = (row.classname ?? '').split(/[\\.]/u).pop();
     return name ? `tests/${name}.php` : null;
   },
+  // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  // nim unittest's JUnit output names the test file module in classname (tcalc) and no file attribute; nimble keeps tests in tests/<name>.nim.
+  nim: row => (row.classname ? `tests/${row.classname.replace(/\.nim$/u, '')}.nim` : null),
+  // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
+  clojure: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null),
+  perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
 /**

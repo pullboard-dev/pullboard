@@ -14,7 +14,10 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
-import { landingPhaseLines } from '../../logic/show/landing.js';
+import { queueWaitLines } from '../../logic/show/gate.js';
+import { landingPhaseLines } from '../../logic/show/gate.js';
+import { exactTreeLine } from '../../logic/show/gate.js';
+import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
@@ -125,6 +128,9 @@ export async function run(io, { first, values }) {
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
     const landingPhases = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`landing_phases:${id}`);
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
+    // The exact-tree record of the landing batch that carried a landed item sits beside its phases; an older landing has none [V16,V38].
+    const exactTree = item.item_merged_commit ? exactTreeOf(board.db, id) : undefined;
+    if (exactTree) item.landing_exact_tree = exactTree;
     // Typed fields load the full store only while items.typedFields is on: with it off the read is what it was [C7,#9352].
     const fields = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).itemFields(board, id, { enabled: true }) : [];
     // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
@@ -164,7 +170,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), ...(item.landing_phases ? { landing: { phases: item.landing_phases } } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), ...(item.landing_phases || item.landing_exact_tree ? { landing: { ...(item.landing_phases ? { phases: item.landing_phases } : {}), ...(item.landing_exact_tree ? { exactTree: item.landing_exact_tree } : {}) } } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -195,6 +201,7 @@ export async function run(io, { first, values }) {
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
   for (const line of pulledWaitingLines(gateJob, item)) io.say(line);
+  for (const line of queueWaitLines(gateJob)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
@@ -296,6 +303,7 @@ export async function run(io, { first, values }) {
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
   if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
+  if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
   io.say('thread:');
   for (const entry of thread) {

@@ -99,7 +99,7 @@ export const SEAT_LOOP = `## Worker loop
 Never wait: submit and move on.
 
 1. \`pullboard next\`: a build or a verify.
-2. \`pullboard show <id>\`: your bar, frozen at claim.
+2. \`next\` printed your bar; \`pullboard show <id>\` only for the thread and history.
 3. **Build** in your lane's folders; pre-commit refuses others.
 4. **Commit**, then \`pullboard submit <id>\`; it returns at once.
 5. **Repeat.** \`next\` returns reds and rejects; fix and resubmit.

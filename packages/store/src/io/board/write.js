@@ -11,7 +11,7 @@ import { ENGINE_VERSION } from "../../../../state/index.js";
 import { REVIEW_GATE_RECEIPT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 import { processMachineHome } from "../../../../kernel/light.js";
-import { writeFileAtomic } from "../../../../kernel/light.js";
+import { writeFileAtomic } from "../atomic.js";
 import { readCrossProcessWrites } from "../../../../config/index.js";
 import { createFileWriteQueue } from "../write-queue-file.js";
 import { createHash } from "node:crypto";

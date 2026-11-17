@@ -11,7 +11,7 @@ import { parseSpec } from '../../../../../../packages/spec/index.js';
 import { SPEC } from '../../../fixtures/spec/box.js';
 import { specBoxInProcess } from '../../../fixtures/spec/box.js';
 
-test('spec draft files a row in the named section [S1,C7]', async (t) => {
+test('cli.io-spec-main-draft.spec-draft-files-a-row-in-the: spec draft files a row in the named section [S1,C7]', async (t) => {
   const specSource = `# Demo
 
 ## K · Constraints
@@ -55,7 +55,7 @@ test('spec draft files a row in the named section [S1,C7]', async (t) => {
   assert.match(misplaced.stderr, /FLAG_NOT_ALLOWED.*section/u);
 });
 
-test('spec draft with an inline gate names the flag to use [S1,P4]', async (t) => {
+test('cli.io-spec-main-draft.spec-draft-with-an-inline-gate-names: spec draft with an inline gate names the flag to use [S1,P4]', async (t) => {
   const box = await specBoxInProcess(t, { freshInit: true });
   const result = await box.spec('draft', 'A requirement | gate: node --test test/example.test.js');
   assert.equal(result.status, 1);
@@ -65,7 +65,7 @@ test('spec draft with an inline gate names the flag to use [S1,P4]', async (t) =
 });
 
 /** Exercise fresh-init examples, cross-file ID reservation, and fail-closed malformed rows. */
-test('spec draft never reuses an existing id [S1,C7]', async (t) => {
+test('cli.io-spec-main-draft.spec-draft-never-reuses-an-existing-id: spec draft never reuses an existing id [S1,C7]', async (t) => {
   const fresh = await specBoxInProcess(t, { freshInit: true });
   const freshSpec = join(fresh.root, fresh.specName);
   assert.equal(parseSpec(readFileSync(freshSpec, 'utf8')).rows.length, 0, 'the fenced examples are not real rows');
@@ -98,7 +98,7 @@ test('spec draft never reuses an existing id [S1,C7]', async (t) => {
   }
 });
 
-test('a drafted row reads as draft [S1,C7]', async (t) => {
+test('cli.io-spec-main-draft.a-drafted-row-reads-as-draft: a drafted row reads as draft [S1,C7]', async (t) => {
   const specSource = SPEC.replace(
     '- G2 [retired] Old idea.',
     '- G2 [retired] Old idea.\n- G3 [pending, must] Still a question. | gate: review',
@@ -124,7 +124,7 @@ test('a drafted row reads as draft [S1,C7]', async (t) => {
   ], 'both an existing pending question and a newly drafted row remain approvable');
 });
 
-test('spec --json emits one versioned document with every field, including empty fields [S13]', async (t) => {
+test('cli.io-spec-main-draft.spec-json-emits-one-versioned-document-with: spec --json emits one versioned document with every field, including empty fields [S13]', async (t) => {
   const box = await specBoxInProcess(t);
   const shown = await box.spec('--json');
   assert.equal(shown.status, 0, shown.stderr);
@@ -144,7 +144,7 @@ test('spec --json emits one versioned document with every field, including empty
   });
 });
 
-test('spec --json combines both configured files and keeps every row status [S13]', async (t) => {
+test('cli.io-spec-main-draft.spec-json-combines-both-configured-files-and: spec --json combines both configured files and keeps every row status [S13]', async (t) => {
   const practice = '# Practice\n\n## P · Practice\n- P1 [fact] A fact.\n- P2 [pending, must] A question.\n- P3 [wont] An old plan.\n';
   const box = await specBoxInProcess(t, { specName: 'requirements.md', practiceName: 'ways.md', practice });
   const shown = await box.spec('--json');
@@ -161,7 +161,7 @@ test('spec --json combines both configured files and keeps every row status [S13
   ]);
 });
 
-test('spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', async (t) => {
+test('cli.io-spec-main-draft.spec-json-refuses-errors-in-either-file: spec --json refuses errors in either file with versioned spec-check diagnostics [S13, S4, A1]', async (t) => {
   const box = await specBoxInProcess(t, { practice: '# Practice\n\n## P\n- P1 [approved, must] No gate.\n' });
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [maybe, must] Bad status. | serves: K9\n`);
   const check = await box.spec('check');
@@ -179,7 +179,7 @@ test('spec --json refuses errors in either file with versioned spec-check diagno
   assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
-test('spec --json also refuses a committed row removed from practice [S13, S8]', async (t) => {
+test('cli.io-spec-main-draft.spec-json-also-refuses-a-committed-row: spec --json also refuses a committed row removed from practice [S13, S8]', async (t) => {
   const box = await specBoxInProcess(t, { practice: '# Practice\n\n## P\n- P1 [fact] Kept forever.\n' });
   writeFileSync(join(box.root, box.practiceName), '# Practice\n\n## P\n');
   const check = await box.spec('check');
@@ -193,7 +193,7 @@ test('spec --json also refuses a committed row removed from practice [S13, S8]',
   assert.equal(document.error.code, 'COMMAND_FAILED');
 });
 
-test('warning-only specs keep spec-check success while JSON stays a single document [S13]', async (t) => {
+test('cli.io-spec-main-draft.warning-only-specs-keep-spec-check-success: warning-only specs keep spec-check success while JSON stays a single document [S13]', async (t) => {
   const box = await specBoxInProcess(t);
   writeFileSync(join(box.root, box.specName), `${SPEC}\n- K2 [draft] ${'word '.repeat(25)}\n`);
   const check = await box.spec('check');
