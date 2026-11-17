@@ -62,7 +62,7 @@ function attempt({ tree = TREE, drop = () => null, calls }) {
 /** The submit's file command, as gate-submit writes it. */
 const filesCommand = files => COMMAND + files.map(file => './' + file).join(' ');
 
-test('clause 1: a gate rerun after RUNNER_UNAVAILABLE runs only the shard with no pass for the same tree, and the passed shards go into the combined receipt unchanged [C7]', async t => {
+test('gate.io-main-reuse.a-gate-rerun-after-runner-unavailable: clause 1: a gate rerun after RUNNER_UNAVAILABLE runs only the shard with no pass for the same tree, and the passed shards go into the combined receipt unchanged [C7]', async t => {
   machine(t);
   const calls = [];
   const attempts = [];
@@ -103,7 +103,7 @@ test('clause 1: a gate rerun after RUNNER_UNAVAILABLE runs only the shard with n
   assert.equal(readTestOutcomes(merged.output, first.timingRunId), null, 'no frame is left under the dropped attempt\'s id');
 });
 
-test('clause 1: a different tree, or a red shard, reuses nothing and runs those files again [C7]', async t => {
+test('gate.io-main-reuse.a-different-tree-or-a-red: clause 1: a different tree, or a red shard, reuses nothing and runs those files again [C7]', async t => {
   const root = machine(t);
   const calls = [];
   const red = attempt({ calls, drop: () => null });
@@ -125,7 +125,7 @@ test('clause 1: a different tree, or a red shard, reuses nothing and runs those 
   assert.equal(shardPassStore(null, filesCommand([])), null, 'a run with no pinned tree keeps no passes');
 });
 
-test('clause 1: a proof whose every file is reused requests no browser slot, and a proof with a file left to run still does [C7]', async t => {
+test('gate.io-main-reuse.a-proof-whose-every-file-is: clause 1: a proof whose every file is reused requests no browser slot, and a proof with a file left to run still does [C7]', async t => {
   const root = machine(t);
   const store = shardPassStore(TREE, filesCommand([]), { folder: join(root, 'passes') });
   const timingRunId = randomUUID();

@@ -15,7 +15,7 @@ import { sourceObjects } from '../../../index.js';
 import { defaults } from '../../../../config/index.js';
 
 /** Construct history with long names using shared blob objects, without checking files out. */
-test('runner history above 8 MiB scans and reports an actual smaller bound with byte count [H16,C7]', t => {
+test('runners.bound.runner-history-above-8-mib-scans: runner history above 8 MiB scans and reports an actual smaller bound with byte count [H16,C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-history-bound-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);
@@ -44,7 +44,7 @@ function commitFile(root, path, body) {
   return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
 }
 
-test('a clean history verdict is cached per commit, so a descendant scan reads only its new commits; blocked new paths still refuse [C7]', t => {
+test('runners.bound.a-clean-history-verdict-is-cached: a clean history verdict is cached per commit, so a descendant scan reads only its new commits; blocked new paths still refuse [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-history-cache-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);

@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/src/io/submit/remote.js packages/gate/src/io/main/audit/nudge.js */
 /** Durable gate 21: the cells inventory is a content-keyed job result, not a producer process [C7]. */
 /** @pullboard-world-pin: clause 1 reads the shipped production callers to prove none nudges or waits on a producer process. */
 import assert from 'node:assert/strict';
