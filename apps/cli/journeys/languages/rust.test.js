@@ -53,6 +53,7 @@ function cargoEnvironment() {
 const CARGO = cargoEnvironment();
 const UNAVAILABLE = 'cargo unavailable on this machine';
 
+const BRIEF = 'Files:\n- src/item.rs\nChange:\n- Add the item test.\nTest:\n- cargo test passes.';
 const MANIFEST = '[package]\nname = "scratch_crate"\nversion = "0.1.0"\nedition = "2021"\n';
 const MATH = 'pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n';
 const LIB = 'pub mod math;\n\n#[cfg(test)]\nmod item;\n';
@@ -114,7 +115,7 @@ async function crateBoard() {
 /** File and claim one item in the seat, then commit a new item test and try to submit it; returns the item id, commit and submit result. */
 async function buildAndSubmit(board, id, itemText) {
   const { box, repo, web } = board;
-  const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', args: ['--specs', 'G1'], run: box.runLocal })).item_id);
+  const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
   if (!id) assert.equal((await box.runLocal(web, 'claim', item)).code, 0);
   writeFileSync(join(web, 'src', 'item.rs'), itemText);
   box.git(web, 'add', '-A');
