@@ -122,10 +122,11 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents', 'hotState'].includes(key))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits, archiveEvents and hotState; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents', 'crossProcessWrites', 'hotState'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits, archiveEvents, crossProcessWrites and hotState; remove it to use the local board`);
   }
   if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
+  if (board.crossProcessWrites !== undefined && typeof board.crossProcessWrites !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.crossProcessWrites in ${file} must be true or false`);
   if (board.hotState !== undefined && typeof board.hotState !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.hotState in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
   if (board.commits !== undefined && !['bundle', 'pushed'].includes(board.commits)) throw new Refused('BAD_MACHINE_SETTINGS', `board.commits in ${file} must be bundle or pushed; run pullboard settings board.commits bundle, or pushed, or off to remove it`);
@@ -326,6 +327,12 @@ export function loadMachineSettings() {
   if (value.api?.codeStampCache !== undefined && typeof value.api.codeStampCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `api.codeStampCache in ${file} must be true or false`);
   }
+  if (value.watch !== undefined && (!value.watch || typeof value.watch !== 'object' || Array.isArray(value.watch) || Object.keys(value.watch).some(key => key !== 'quietReads'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `watch in ${file} holds only quietReads; remove other keys`);
+  }
+  if (value.watch?.quietReads !== undefined && typeof value.watch.quietReads !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `watch.quietReads in ${file} must be true or false`);
+  }
   if (value.add !== undefined && (!value.add || typeof value.add !== 'object' || Array.isArray(value.add) || Object.keys(value.add).some(key => key !== 'warnUnnamedTest'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `add in ${file} holds only warnUnnamedTest; remove other keys`);
   }
@@ -440,6 +447,9 @@ export function loadMachineSettings() {
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
+  if (value.gate?.withdrawCancelsJob !== undefined && typeof value.gate.withdrawCancelsJob !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.withdrawCancelsJob in ${file} must be true or false`);
+  }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
@@ -548,6 +558,11 @@ export function healthDiskFloorGb() {
 /** Whether old relay request receipts are dropped (#9337): off by default; only an exact `true` turns it on. */
 export function relayPruneReceipts() {
   return loadMachineSettings().relay?.pruneReceipts === true;
+}
+
+/** Whether withdrawing an item also cancels its live gate job (#3860): off by default; only an exact `true` turns it on. */
+export function withdrawCancelsJob() {
+  return loadMachineSettings().gate?.withdrawCancelsJob === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
@@ -706,4 +721,14 @@ export function validRunnerCpuLoad(value) {
 export function boardRemote() {
   const board = loadMachineSettings().board;
   return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
+}
+
+/** Browser-free check admission is deliberately opt-in per machine; it lives here, not in the io settings file, so the light door reaches no resources module. */
+export function browserFreeChecksEnabled() {
+  return loadMachineSettings().gate?.browserFreeChecks === true;
+}
+
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
 }
