@@ -22,6 +22,8 @@ function repository(t) {
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'feat: item 7');
   const tip = git(root, 'rev-parse', 'HEAD').trim();
+  // The checkout stays on the tip, detached, while main waits at the base: the batch root holds the composed tree and main has not moved.
+  git(root, 'checkout', '-q', '--detach', tip);
   git(root, 'update-ref', 'refs/heads/main', base);
   const treeOf = commit => git(root, 'rev-parse', `${commit}^{tree}`).trim();
   return { root, base, tip, treeOf, main: () => git(root, 'rev-parse', 'refs/heads/main').trim() };
