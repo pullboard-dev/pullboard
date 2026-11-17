@@ -33,7 +33,7 @@ function runStep(entry) {
 
 const PROOF_FILES = 4000; // enough listed files that the line passes 64 KiB
 
-test('clause 1: a result line over 64 KiB with warnings on stderr parses and binds to main and source [C7]', () => {
+test('cli.io-submit-gate-large.a-result-line-over-64-kib-with: clause 1: a result line over 64 KiB with warnings on stderr parses and binds to main and source [C7]', () => {
   const entry = `import { DatabaseSync } from 'node:sqlite';
 const root = process.argv[2];
 const result = { main: process.env.MAIN_PIN ?? '', source: 's'.repeat(40), files: Array.from({ length: ${PROOF_FILES} }, (_, i) => 'test/file-' + i + '.test.js') };
@@ -55,7 +55,7 @@ for (let at = 0; at < text.length; at += 16384) {
   assert.match(run.stdout, /warning at 0/u);
 });
 
-test('clause 2: the step is spawned with stderr separate and ExperimentalWarning disabled [C7]', () => {
+test('cli.io-submit-gate-large.the-step-is-spawned-with-stderr-separate: clause 2: the step is spawned with stderr separate and ExperimentalWarning disabled [C7]', () => {
   const entry = `process.stdout.write('PULLBOARD_TRUSTED_RESULT ' + JSON.stringify({ argv: process.execArgv }) + '\\n');
 process.stderr.write('late warning\\n');
 `;

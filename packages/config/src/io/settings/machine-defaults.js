@@ -166,6 +166,7 @@ export const MACHINE_DEFAULTS = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
+  'runners.localWake': false,
   'runners.postedLineNamesCase': false,
   'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,

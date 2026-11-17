@@ -20,7 +20,7 @@ async function withBoard(body) {
   try { return await body(board.db, files.root); } finally { closeBoard(board); }
 }
 
-test('clause 1: driveOnce refuses with a code when a transition lacks what it needs [C7]', async () => {
+test('lib.durable-drive.driveonce-refuses-with-a-code-when: clause 1: driveOnce refuses with a code when a transition lacks what it needs [C7]', async () => {
   await withBoard(async (db) => {
     createJob(db, { id: 'g3', kind: 'gate', now: 1 });
     await assert.rejects(driveOnce(db, 'g3', {}), { code: 'DRIVE_OWNER' });
@@ -29,7 +29,7 @@ test('clause 1: driveOnce refuses with a code when a transition lacks what it ne
   });
 });
 
-test('clause 1: drainLoop calls driveOnce until the job reaches its terminal step [C7]', async () => {
+test('lib.durable-drive.drainloop-calls-driveonce-until-the-job: clause 1: drainLoop calls driveOnce until the job reaches its terminal step [C7]', async () => {
   const board = openBoard(':memory:');
   try {
     createJob(board.db, { id: 'loop', kind: 'gate', now: 1 });

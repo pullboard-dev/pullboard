@@ -1,4 +1,5 @@
-/** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. @pullboard-test-input source-cell apps/cli packages/codemap/data/plan */
+/** @pullboard-test-input packages/codemap/data/plan/** */
+/** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -19,7 +20,7 @@ function planOwners(file) {
     || file === cell.pureDoor || file.startsWith(cell.root + '/') || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name);
 }
 
-test('clause 1: [C7] touchedCells returns the same cells from folders as from the plan rows, with the rows removed', () => {
+test('cli.io-submit-touched-cells-folder.c7-touchedcells-returns-the-same-cells-from: clause 1: [C7] touchedCells returns the same cells from folders as from the plan rows, with the rows removed', () => {
   const files = [...new Set(cells.flatMap(cell => [cell.frontDoor, cell.pureFrontDoor, cell.lightFrontDoor, cell.pureDoor, ...cell.paths.map(row => row[1])]).filter(Boolean))];
   assert.ok(files.length > 1000, 'the plan on main has rows to attribute');
   for (const file of files) {
@@ -31,7 +32,7 @@ test('clause 1: [C7] touchedCells returns the same cells from folders as from th
   assert.deepEqual(touchedCells(['README.md', 'packages/nonexistent/index.js'], bare, bare, []), [], 'a path in no planned cell names none');
 });
 
-test('clause 2: [C7] checkMoved is chosen from folders: cellHasMovedPaths names the same cells with the plan rows removed', () => {
+test('cli.io-submit-touched-cells-folder.c7-checkmoved-is-chosen-from-folders-cellhasmovedpaths: clause 2: [C7] checkMoved is chosen from folders: cellHasMovedPaths names the same cells with the plan rows removed', () => {
   const maps = [new Map(), new Map()];
   let rows = 0;
   for (const cell of cells) for (const [from, to] of cell.paths) { maps[rows % 2].set(from, to); rows += 1; }

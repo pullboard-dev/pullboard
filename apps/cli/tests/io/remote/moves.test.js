@@ -94,7 +94,7 @@ async function moved(seats, seat, ...args) {
   return JSON.parse(ran.stdout);
 }
 
-test('next, claim, fact and release from a boardless clone change the served board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and eight CLI calls, not a throughput claim.
+test('cli.io-remote-moves.next-claim-fact-and-release-from-a: next, claim, fact and release from a boardless clone change the served board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and eight CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote movable item');
   const offered = await moved(seats, seats.builder, 'next');
@@ -112,7 +112,7 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
 
-test("submit and verify post through /moves and print the served board's result [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
+test('cli.io-remote-moves.submit-and-verify-post-through-moves-and: submit and verify post through /moves and print the served board\'s result [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote reviewed item');
   await moved(seats, seats.builder, 'claim', String(id));
@@ -130,7 +130,7 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
 
-test('shout from a boardless clone reaches the served board with the seat as sender and opens no local board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two CLI calls, not a throughput claim.
+test('cli.io-remote-moves.shout-from-a-boardless-clone-reaches-the: shout from a boardless clone reaches the served board with the seat as sender and opens no local board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const shouted = await moved(seats, seats.builder, 'shout', 'coordinator', '--kind', 'blocker', 'written from another host');
   assert.ok(shouted.id, 'the board answered with the shout id');
@@ -153,7 +153,7 @@ function refusalLines(ran) {
   return { code, next };
 }
 
-test('a move the served board refuses prints the same code and next: line as the local command [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
+test('cli.io-remote-moves.a-move-the-served-board-refuses-prints: a move the served board refuses prints the same code and next: line as the local command [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote refused item');
   await moved(seats, seats.builder, 'claim', String(id));
@@ -167,7 +167,7 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'a refused move opened no local board');
 }));
 
-test('clause 1: a seat joined by URL claims, commits in its own clone and submits, exiting 0 with the clone as the source [P7,C7]', { timeout: 120_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and five CLI calls, not a throughput claim.
+test('cli.io-remote-moves.a-seat-joined-by-url-claims-commits: clause 1: a seat joined by URL claims, commits in its own clone and submits, exiting 0 with the clone as the source [P7,C7]', { timeout: 120_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and five CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote clone item');
   const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });
@@ -187,7 +187,7 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
 
-test('a claim by a seat joined by URL opens no item folder on the board host [C7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one join and one claim, not a throughput claim.
+test('cli.io-remote-moves.a-claim-by-a-seat-joined-by: a claim by a seat joined by URL opens no item folder on the board host [C7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one join and one claim, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote folderless item');
   const own = (...args) => runCliInProcess(args, { cwd: seats.clone, env: { ...seats.box.env, PULLBOARD_MACHINE_HOME: seats.machine, PULLBOARD_AGENT: '' } });

@@ -91,7 +91,7 @@ async function call(url, path, body, headers = {}) {
   return { status: response.status, body: response.status === 204 ? null : await response.json() };
 }
 
-test('clause 1: a pull runner with no inbound connection registers, takes the gate job by lease, fetches its tree bundle by tree id, runs the project command and posts a result file the board records in one write [C7]', async () => {
+test('lib.durable-runner.a-pull-runner-with-no-inbound: clause 1: a pull runner with no inbound connection registers, takes the gate job by lease, fetches its tree bundle by tree id, runs the project command and posts a result file the board records in one write [C7]', async () => {
   const keys = runnerKeys();
   const board = await boardFixture('one-job', [keys.publicKey]);
   try {
@@ -135,7 +135,7 @@ test('clause 1: a pull runner with no inbound connection registers, takes the ga
   } finally { await board.close(); }
 });
 
-test('clause 2: an untrusted key is refused, the receipt cell refuses an unsigned or wrongly signed result, and the runner holds only a job token scoped to one job [C7]', async () => {
+test('lib.durable-runner.an-untrusted-key-is-refused-the: clause 2: an untrusted key is refused, the receipt cell refuses an unsigned or wrongly signed result, and the runner holds only a job token scoped to one job [C7]', async () => {
   const keys = runnerKeys(), stranger = runnerKeys();
   const trusted = [keys.publicKey];
   const board = await boardFixture('signed', trusted);

@@ -127,7 +127,7 @@ async function project(t, { predates = false } = {}) {
   return { root, worktree, seat, git, run, advance };
 }
 
-test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
+test('cli.journeys-worktree-current.b17-b3-b34-a-worktree-behind: [B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   const entry = join(box.worktree, 'apps/cli/pullboard.js');
@@ -158,7 +158,7 @@ test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; ho
   assert.equal(current.stderr.split(MAIN_MARK).length - 1, 1, 'its entry carries main\'s marker once, from its own copy');
 });
 
-test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
+test('cli.journeys-worktree-current.clause-1-b17-3164-the-main: clause 1 [B17,#3164]: the main checkout and a CLI run against another repo keep their own code; another checkout of the same repo never runs stale code', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   const fromMain = box.run(box.root, process.execPath, [join(box.root, 'apps/cli/pullboard.js'), 'whoami']);
@@ -176,7 +176,7 @@ test('clause 1 [B17,#3164]: the main checkout and a CLI run against another repo
   assert.doesNotMatch(fromMain.stderr + sameRepo.stderr + elsewhere.stderr, /main checkout CLI not found/u, 'no case is a fallback worth a line');
 });
 
-test('[B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
+test('cli.journeys-worktree-current.b17-a-worktree-whose-main-checkout: [B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
   const box = await project(t);
   markDispatch(join(box.worktree, 'apps/cli/pullboard.js'), OWN_MARK);
   renameSync(join(box.root, 'apps/cli/pullboard.js'), join(box.root, 'bin/pullboard.js.gone'));
@@ -188,7 +188,7 @@ test('[B17] a worktree whose main checkout CLI is missing runs its own code and 
   assert.match(missing.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'));
 });
 
-test('[B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
+test('cli.journeys-worktree-current.b17-a-worktree-made-before-the: [B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
   const box = await project(t, { predates: true });
   const entry = join(box.worktree, 'apps/cli/pullboard.js');
   markDispatch(entry, OWN_MARK);

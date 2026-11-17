@@ -11,6 +11,7 @@ const FIXTURE_CEILINGS = 'packages/gate/data/tests/test-fixtures.json';
 
 /** The source ceiling tables the hook hands the commits cell's lane check, from the module that names them (#10242). */
 export { CEILING_ROW_TABLES } from '../../ceilings/rows.js';
+export { splitRowCovered } from '../../ceilings/rows.js';
 
 /** True for a test file the gate's tree walk visits: it skips node_modules, work and dot directories. */
 function walkedTestName(file) {

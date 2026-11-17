@@ -50,7 +50,7 @@ function proofDocument(result) {
   return JSON.parse(result.out);
 }
 
-test('the board stamps every proof receipt and show prints the chain [C7,H16]', async (t) => {
+test('cli.journeys-show-main.the-board-stamps-every-proof-receipt: the board stamps every proof receipt and show prints the chain [C7,H16]', async (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const command = `env -u NODE_TEST_CONTEXT ${JSON.stringify(process.execPath)} --test --test-reporter=tap web/proof.test.js`;
@@ -153,7 +153,7 @@ const BREAKS = {
   PS: String.fromCharCode(0x2029),
 };
 
-test('show prints the latest verdict in full and earlier ones as one line; --history and --json print every note [N30]', async () => {
+test('cli.journeys-show-main.show-prints-the-latest-verdict-in: show prints the latest verdict in full and earlier ones as one line; --history and --json print every note [N30]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-show-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');

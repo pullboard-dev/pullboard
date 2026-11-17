@@ -87,7 +87,7 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
-  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/index.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
+  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/light.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
   // Machine-verified submit lands after its record, and that landing call is caught like verify's; the same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
