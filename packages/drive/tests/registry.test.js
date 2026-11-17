@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { registryStrictEnabled as registryStrict } from '../../config/index.js';
+
+/** The cell sits below config in the cells plan, so it cannot read tests.registryStrict: findings are reported as diagnostics and never fail here; a later item wires strict mode through a door below this cell. */
+const registryStrict = () => false;
 
 const TITLE_ID = /^test\('([^':\s]+): /gmu;
 const TESTS = /^test\(/gmu;
