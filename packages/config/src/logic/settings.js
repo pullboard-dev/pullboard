@@ -716,3 +716,13 @@ export function boardRemote() {
   const board = loadMachineSettings().board;
   return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
 }
+
+/** Browser-free check admission is deliberately opt-in per machine; it lives here, not in the io settings file, so the light door reaches no resources module. */
+export function browserFreeChecksEnabled() {
+  return loadMachineSettings().gate?.browserFreeChecks === true;
+}
+
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
+}
