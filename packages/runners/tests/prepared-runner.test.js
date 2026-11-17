@@ -10,7 +10,7 @@ import { preparedRunner } from './fixtures/prepared.js';
 import { temporaryDirectory } from '../../store/tests/fixtures/tmp.js';
 import { preparedRunnerCounts } from './fixtures/prepared.js';
 
-test('clause 1: two runner journey cases in one process reuse one prepared runner and see no state of the earlier case [C7,#8262]', () => {
+test('runners.prepared-runner.two-runner-journey-cases-in-one: clause 1: two runner journey cases in one process reuse one prepared runner and see no state of the earlier case [C7,#8262]', () => {
   const first = preparedRunner(() => temporaryDirectory('prepared-runner-test-'));
   const runnerFolder = join(first.home, '.pullboard-runner');
   for (const name of ['cache/shared-cache', 'repos', 'jobs/J1', 'queue', 'recovery']) mkdirSync(join(runnerFolder, name), { recursive: true });
