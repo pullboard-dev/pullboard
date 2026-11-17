@@ -40,7 +40,7 @@ function setup(t, settings) {
   const landed = cellItem(board, { lane: 'web', title: 'Verdict fixture', criterion: '1. It works [test]', specIds: ['G1'], route: 'mid', brief: BRIEF, check: 'node --test web/result.test.js' }).item_id;
   merged(board, landed, { agentId: 'coordinator', commit: COMMIT, forced: 'landed by hand', waiveProof: 'test fixture' });
   const count = (id, kind) => events(board, { itemId: id }).filter(e => e.event_kind === kind).length;
-  const release = () => writeBoardCommand(board, 'release', [claimed, seat.id, 'giving it back'], seat.id);
+  const release = () => writeBoardCommand(board, 'release', [claimed, seat.id, 'giving it back', undefined, 'OTHER'], seat.id);
   const verdict = () => writeBoardCommand(board, 'verify', [landed, { agentId: reviewer.id, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the result is wrong',
     head: COMMIT, digest: '', policy: 'any', landed: true, keepCheck: true }], reviewer.id);
   return { board, claimed, landed, home, count, release, verdict };
