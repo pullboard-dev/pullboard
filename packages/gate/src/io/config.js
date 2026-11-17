@@ -32,6 +32,21 @@ const LANGUAGE_TESTS = Object.freeze({
 });
 
 /**
+ * The unittest command for a root with test_*.py files at its top or in a tests folder, else empty.
+ * Why: discover skips a folder with no __init__.py, so a tests folder is named with -s [C7,#10366].
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+function unittestCommand(root) {
+  const isTest = (name) => /^test_.*\.py$/u.test(name);
+  if (readdirSync(root).some(isTest)) return 'python3 -m unittest discover';
+  const tests = join(root, 'tests');
+  if (existsSync(tests) && readdirSync(tests).some(isTest)) return 'python3 -m unittest discover -s tests';
+  return '';
+}
+
+/**
  * Every ecosystem the project uses, each with its test command, in a fixed order, without running anything.
  * Why: a repo with several languages needs each one's tests in its gate, not only the first found [#3707].
  *
@@ -58,6 +73,11 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   // A uv or poetry project keeps pytest in its own environment, so a lock file beside pyproject.toml fronts the command (uv wins over poetry) [C7,#10357].
   const front = !existsSync(join(root, 'pyproject.toml')) ? '' : existsSync(join(root, 'uv.lock')) ? 'uv run ' : existsSync(join(root, 'poetry.lock')) ? 'poetry run ' : '';
   if (python) add('python', `${front}pytest`);
+  else {
+    // A plain unittest repo has no marker file: a test_ file at the root or in tests/ is the whole signal [C7,#10366].
+    const unittest = unittestCommand(root);
+    if (unittest) add('python', unittest);
+  }
   if (existsSync(join(root, 'composer.json'))) add('php', 'composer test');
   if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
