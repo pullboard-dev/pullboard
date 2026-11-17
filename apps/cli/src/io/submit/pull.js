@@ -558,8 +558,8 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   // A repo with no gate command is refused before any job row is written, as the controller path refuses it (NO_GATE).
   if (!config.gate?.trim()) throw missingGate(root);
   let markAt = Date.now();
-  /** Name the queueing step that just ended on stderr [C7]. */
-  const mark = step => { process.stderr.write(`submit-mark queueing/${step}: ${Date.now() - markAt} ms\n`); markAt = Date.now(); };
+  /** Name the queueing step that just ended on stderr when PULLBOARD_SUBMIT_MARKS is set, as the submit phase marks do, so a plain submit prints nothing extra [C7]. */
+  const mark = step => { if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark queueing/${step}: ${Date.now() - markAt} ms\n`); markAt = Date.now(); };
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
     return itemCollisionPlan(board, held, listItems(board, { all: true }));
