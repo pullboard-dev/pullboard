@@ -8,7 +8,7 @@ import { trimGateCheckouts } from './src/io/gate-checkout-pool.js';
 import { GATE_CHECKOUT_IDLE_MS } from './src/io/gate-checkout-pool.js';
 import { changedStaticFailures } from './src/io/changed/static.js';
 import { stagedHookFailures } from './src/io/changed/static.js';
-import { CEILING_ROW_TABLES } from './src/io/changed/scripts/static.js';
+import { CEILING_ROW_TABLES } from './src/io/ceilings/rows.js';
 import { STATIC_CHECKS } from './src/io/static/check/registry.js';
 import { runStaticRegistry } from './src/io/static/check/registry.js';
 import { acceptRelease } from './src/io/release/accept.js';

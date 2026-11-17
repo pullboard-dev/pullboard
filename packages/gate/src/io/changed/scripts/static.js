@@ -5,28 +5,12 @@ import { stagedHookFailures as gateStagedFailures } from '../static.js';
 import { fixtureGrowthIn } from '../../test/fixtures.js';
 import { testNameSites } from '../../test/names.js';
 import { TEST_FILE } from '../../scan.js';
-import { CELLS_EDGES_CEILINGS } from '../../test/tier/selection.js';
-import { CLOCK_CEILING_FILE } from '../../adapter-lints/clock.js';
-import { FS_CEILING_FILE } from '../../adapter-lints/fs.js';
-import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
-import { STORE_BASELINE } from '../../stores.js';
 export { changedStaticFailures } from '../static.js';
 
 const FIXTURE_CEILINGS = 'packages/gate/data/tests/test-fixtures.json';
 
-/**
- * The per-file source ceiling tables whose rows a lane may move between its own files in one commit when no rule's
- * total rises, each named by the module that owns it, with its row shape: `files` keeps the rows under that key and
- * `bare` rows are plain counts. The pre-commit hands this to the commits cell's lane check, so no path is spelled twice
- * (coordinator ruling 17 Nov, #10242) [L3,C7].
- */
-export const CEILING_ROW_TABLES = Object.freeze({
-  [LOAD_BEARING_CEILINGS]: Object.freeze({}),
-  [STORE_BASELINE]: Object.freeze({}),
-  [CLOCK_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
-  [FS_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
-  [CELLS_EDGES_CEILINGS]: Object.freeze({ files: true }),
-});
+/** The source ceiling tables the hook hands the commits cell's lane check, from the module that names them (#10242). */
+export { CEILING_ROW_TABLES } from '../../ceilings/rows.js';
 
 /** True for a test file the gate's tree walk visits: it skips node_modules, work and dot directories. */
 function walkedTestName(file) {
