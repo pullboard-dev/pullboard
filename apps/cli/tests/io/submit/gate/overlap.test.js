@@ -55,7 +55,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', `import { mark } from './mark.js';
 export async function requireSubmitCells(root, main, source) { mark(root, 'cells'); return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n`);
-  put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put('apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('bin/static-checks.js', STATIC);
   git(controller, 'add', '.');
   git(controller, '-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'main');
