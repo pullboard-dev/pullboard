@@ -4,26 +4,26 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { addMilestone } from '../../../store/index.js';
-import { atomic } from '../../../store/index.js';
-import { getItem } from '../../../store/index.js';
-import { merged } from '../../../store/index.js';
-import { shout } from '../../../store/index.js';
-import { verify } from '../../../store/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { cellClaim } from '../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../store/tests/fixtures/cell.js';
-import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { serveApi } from '../../index.js';
-import { nativeBoardPorts } from '../../../../apps/lib/index.js';
-import { openBoard } from '../../../../apps/lib/index.js';
-import { openBoardForRead } from '../../../../apps/lib/index.js';
-import { viewApiPorts } from '../../../../apps/view/index.js';
-import { refusalDocument } from '../../../../apps/cli/index.js';
-import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
-import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
+import { addMilestone } from '../../../../packages/store/index.js';
+import { atomic } from '../../../../packages/store/index.js';
+import { getItem } from '../../../../packages/store/index.js';
+import { merged } from '../../../../packages/store/index.js';
+import { shout } from '../../../../packages/store/index.js';
+import { verify } from '../../../../packages/store/index.js';
+import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../packages/store/tests/fixtures/cell.js';
+import { serveApi } from '../../../../packages/api/index.js';
+import { nativeBoardPorts } from '../../../lib/index.js';
+import { openBoard } from '../../../lib/index.js';
+import { openBoardForRead } from '../../../lib/index.js';
+import { viewApiPorts } from '../../../view/index.js';
+import { refusalDocument } from '../../index.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
+import { fetchFresh } from '../../tests/fixtures/http.js';
+import { fixtureMachineSettings } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
 const MILESTONES = 50;
 const HOUR = 3_600_000;
@@ -101,14 +101,14 @@ test('clause 1: with state.milestoneDelta on, a delta after one event on one ite
   assert.deepEqual(delta.merge.milestones.set.map(milestone => milestone.name), ['Delta release 7']);
 });
 
-test('clause 2: a pace count change alone does not make a milestone part of the delta [C7,#9846]', async (t) => {
+test('clause 2: with state.milestoneDelta on, an event that moves only a milestone pace-derived estimate, window or reason leaves that milestone out of the delta [C7,#9846]', async (t) => {
   const box = await served(t, true);
   const delta = await deltaAfter(box, () => { box.advance(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones, undefined, 'a moved pace, and the estimate derived from it, resend no milestone');
   assert.equal(delta.milestonePace.last2h, 0, 'the pace travels once beside the delta');
 });
 
-test('clause 3: with the setting off the whole milestone list is sent as today [C7,#9846]', async (t) => {
+test('clause 3: with the setting off, that same event puts the milestone row in the delta as today [C7,#9846]', async (t) => {
   const box = await served(t, false);
   const delta = await deltaAfter(box, () => { box.advance(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones.set.length, MILESTONES, 'every milestone is sent again once the pace moved');
