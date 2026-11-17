@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded withdraw and reopen history fixture to replay it through the tables. The withdraw and reopen tables replay moves recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8258]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

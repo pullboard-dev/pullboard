@@ -29,13 +29,13 @@ function refrozen({ repo, board, item }, refreeze = false) {
   return criterionFreezer({ root: repo.root, isMain: true, config: loadConfig(repo.root) }, { board, captureVerifyPolicy: refreeze })(item);
 }
 
-test('clause 1: a first claim under pace sprint records pace sprint in the item\'s frozen policy [V2]', t => {
+test('moves.pace.freeze-sprint-recorded: clause 1: a first claim under pace sprint records pace sprint in the item\'s frozen policy [V2]', t => {
   const fx = claimed(t, 'sprint');
   assert.equal(JSON.parse(fx.item.item_frozen).pace, 'sprint');
   assert.equal(itemPace(fx.item), 'sprint');
 });
 
-test('clause 2: switching the pace setting after the claim leaves the item\'s frozen pace unchanged [V2]', t => {
+test('moves.pace.freeze-survives-switch: clause 2: switching the pace setting after the claim leaves the item\'s frozen pace unchanged [V2]', t => {
   const fx = claimed(t, 'sprint');
   fx.repo.put('pullboard.json', JSON.stringify({ ...CELL_CONFIG, pace: 'steady' }, null, 2) + '\n');
   fx.repo.commitAll();
@@ -47,7 +47,7 @@ test('clause 2: switching the pace setting after the claim leaves the item\'s fr
   assert.equal(itemPace({ item_frozen: again.text }), 'sprint');
 });
 
-test('clause 3: an item frozen before this change reads its pace as steady [V2]', t => {
+test('moves.pace.legacy-reads-steady: clause 3: an item frozen before this change reads its pace as steady [V2]', t => {
   const fx = claimed(t, null);
   const frozen = JSON.parse(fx.item.item_frozen);
   assert.equal(Object.hasOwn(frozen, 'pace'), false, 'a steady freeze writes the same bar text as before paces');

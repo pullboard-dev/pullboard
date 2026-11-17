@@ -170,6 +170,7 @@ import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
@@ -493,7 +494,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
-        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
         if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
           `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
         if (moved && !knownMain) {

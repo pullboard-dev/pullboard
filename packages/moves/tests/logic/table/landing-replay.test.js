@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded landing history fixture to replay it through the tables. The landing tables replay select, record, merged and park decisions recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8249]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,7 +34,7 @@ const NAMES = ['select', 'record', 'merged', 'outcome'];
 const clone = (value) => structuredClone(value);
 const decide = (name, record, change = {}) => runTable(LANDING.tables[name], LANDING.rules, { ...clone(record.snapshot), ...change.snapshot }, { ...clone(record.move), ...change.move });
 
-test('clause 1: replaying recorded board history through the landing tables gives zero disagreements [C7,#8249]', () => {
+test('moves.landing-replay.replaying-recorded-board-history-through-the-landing: clause 1: replaying recorded board history through the landing tables gives zero disagreements [C7,#8249]', () => {
   const reports = Object.fromEntries(NAMES.map(name => [name, replay(name, records[name])]));
   for (const report of Object.values(reports)) assert.deepEqual(report.disagreements, []);
   for (const name of NAMES) assert.deepEqual([reports[name].total, reports[name].agreed, reports[name].notReplayable], [records[name].length, records[name].length, 0]);
@@ -43,7 +44,7 @@ test('clause 1: replaying recorded board history through the landing tables give
   assert.deepEqual(records.unreplayable, []);
 });
 
-test('clause 1: each batch selection walks the pending items in landing order and picks and sets aside what the board did [C7,#8249]', () => {
+test('moves.landing-replay.each-batch-selection-walks-the-pending-items: clause 1: each batch selection walks the pending items in landing order and picks and sets aside what the board did [C7,#8249]', () => {
   for (const record of records.selection) {
     const stale = new Set(record.stale);
     const answer = selectBatch(LANDING, clone(record.snapshot), record.maximum, id => (stale.has(id) ? { staleVerdict: { reason: 'stale' } } : {}));
@@ -53,7 +54,7 @@ test('clause 1: each batch selection walks the pending items in landing order an
   }
 });
 
-test('clause 1: the replay covers a candidate, a finished landing, a plain and a forced merge and a repeat park [C7,#8249]', () => {
+test('moves.landing-replay.the-replay-covers-a-candidate-a-finished: clause 1: the replay covers a candidate, a finished landing, a plain and a forced merge and a repeat park [C7,#8249]', () => {
   assert.deepEqual([...via('select', records.select)], ['ready']);
   assert.deepEqual([...via('record', records.record)], ['land']);
   assert.deepEqual([...via('merged', records.merged)].sort(), ['forced-unfinished', 'merge']);
@@ -62,7 +63,7 @@ test('clause 1: the replay covers a candidate, a finished landing, a plain and a
   assert.ok(parks.every(record => /^landing-repeat-v1:\{.*\} landing parked #\d+$/u.test(record.recorded.events[0].detail.reason)));
 });
 
-test('clause 1: a recorded decision replayed with one captured fact broken is a disagreement the replay names [C7,#8249]', () => {
+test('moves.landing-replay.a-recorded-decision-replayed-with-one-captured: clause 1: a recorded decision replayed with one captured fact broken is a disagreement the replay names [C7,#8249]', () => {
   const [record] = records.record;
   const stranger = { ...clone(record), move: { ...clone(record.move), actor: 'someone-else' } };
   assert.deepEqual(replay('record', [stranger]).disagreements.map(entry => [entry.event, entry.table.code]), [[record.event.id, 'COORDINATOR_ONLY']]);
@@ -71,7 +72,7 @@ test('clause 1: a recorded decision replayed with one captured fact broken is a 
   assert.deepEqual(replay('select', [held]).disagreements.map(entry => [entry.event, entry.table.code]), [[pick.event.id, 'ITEM_HELD']]);
 });
 
-test('clause 1: the select table refuses in the order the lander walks, with its words and next steps [C7,#8249]', () => {
+test('moves.landing-replay.the-select-table-refuses-in-the-order: clause 1: the select table refuses in the order the lander walks, with its words and next steps [C7,#8249]', () => {
   const [pick] = records.select;
   const item = (change) => ({ snapshot: { item: { ...clone(pick.snapshot.item), ...change } } });
   const refuse = (change) => decide('select', pick, change).refused;
@@ -96,7 +97,7 @@ test('clause 1: the select table refuses in the order the lander walks, with its
   assert.equal(refuse({ snapshot: { collisionFree: true, picked: { touched: { 'a.js': 1 } }, io: { changedFiles: ['a.js'] } } }).message, 'shares a.js');
 });
 
-test('clause 1: the record and merged tables refuse in the order the board throws, with its words [C7,#8249]', () => {
+test('moves.landing-replay.the-record-and-merged-tables-refuse-in: clause 1: the record and merged tables refuse in the order the board throws, with its words [C7,#8249]', () => {
   const [land] = records.record;
   const refuse = (change) => decide('record', land, change).refused;
   assert.equal(refuse({ move: { actor: 'core-1' } }).code, 'COORDINATOR_ONLY');
@@ -115,7 +116,7 @@ test('clause 1: the record and merged tables refuse in the order the board throw
   assert.deepEqual([stop({ move: { forced: undefined }, snapshot: { item: { id: 1, status: 'open' } } }).code, stop({ move: { forced: undefined }, snapshot: { item: { id: 1, status: 'open' } } }).next], ['NOT_VERIFIED', LANDING_NEXT.NOT_VERIFIED]);
 });
 
-test('clause 1: the commands read their refusal wording and next steps from the landing table [C7,#8249]', () => {
+test('moves.landing-replay.the-commands-read-their-refusal-wording-and: clause 1: the commands read their refusal wording and next steps from the landing table [C7,#8249]', () => {
   for (const code of ['LAND_BATCH', 'LAND_ITEM_MOVED', 'LAND_NOT_PUSHED']) assert.equal(finishLandingBatch.nextSteps[code], LANDING_NEXT[code]);
   assert.equal(recordLandingBatch.nextSteps.LAND_BATCH, LANDING_NEXT.LAND_BATCH);
   assert.equal(recordLandingTestDefect.nextSteps.LAND_TEST_DEFECT, LANDING_NEXT.LAND_TEST_DEFECT);
@@ -124,7 +125,7 @@ test('clause 1: the commands read their refusal wording and next steps from the 
   assert.throws(() => landingEngine({ limits: {} }), { code: 'LANDING_TABLE_INPUTS' });
 });
 
-test('clause 1: the admit and outcome tables hold the trunk, adopt, park and return as the lander does [C7,#8249]', () => {
+test('moves.landing-replay.the-admit-and-outcome-tables-hold-the: clause 1: the admit and outcome tables hold the trunk, adopt, park and return as the lander does [C7,#8249]', () => {
   const state = { now: '2026-11-15T12:00:00.000Z', batches: [], defects: [], waivers: [], io: { trunk: { commit: 'a'.repeat(40), branch: 'main' } } };
   const admit = (change, move = {}) => runTable(LANDING.tables.admit, LANDING.rules, { ...state, ...change }, { name: 'admit', ...move });
   assert.equal(admit({ io: {} }).refused.code, 'LAND_TRUNK');

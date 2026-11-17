@@ -8,13 +8,13 @@ import { cellsEdgeReport } from '../src/io/edges.js';
 const REPO = join(import.meta.dirname, '../../..');
 const SRC = /^packages\/[^/]+\/src\//;
 
-test('clause 1: the live report lists no packages/*/src file that reaches apps/ [C7]', () => {
+test('gate.app-edges-src.live-report-lists-packages-src: clause 1: the live report lists no packages/*/src file that reaches apps/ [C7]', () => {
   const live = cellsEdgeReport(REPO).packageApps;
   const bad = Object.keys(live).filter(file => SRC.test(file));
   assert.deepEqual(bad, [], `package source files reach an app: ${bad.join(', ')}`);
 });
 
-test('clause 1: the committed cells-edges.json ceiling holds no packageApps row for a packages/*/src file [C7]', () => {
+test('gate.app-edges-src.committed-cells-edges-json-ceiling: clause 1: the committed cells-edges.json ceiling holds no packageApps row for a packages/*/src file [C7]', () => {
   const ceiling = JSON.parse(readFileSync(join(REPO, 'packages/gate/data/ceilings/cells-edges.json'), 'utf8')).packageApps;
   const bad = Object.keys(ceiling).filter(file => SRC.test(file));
   assert.deepEqual(bad, [], `ceiling rows for package source files: ${bad.join(', ')}`);
