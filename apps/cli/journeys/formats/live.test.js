@@ -415,6 +415,7 @@ function exerciseUpgrade() {
   const file = join(directory, 'board.sqlite');
   let board;
   try {
+    // @pullboard-board-file migration: a durable file is aged, closed and reopened to prove the upgrade.
     board = openBoard(file);
     assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, SCHEMA_VERSION,
       'opening an older board advances its schema version in place');
@@ -434,6 +435,7 @@ function exerciseUpgrade() {
     supported.exec(`PRAGMA user_version = ${SCHEMA_VERSION}; DELETE FROM board_meta WHERE meta_key = 'event_log_version'`);
     supported.close();
 
+    // @pullboard-board-file migration: the aged file is reopened, and its schema and rows must come through.
     board = openBoard(file);
     assert.equal(board.db.prepare("SELECT item_title FROM item").get().item_title, 'Preserved row');
     assert.ok(board.db.prepare('PRAGMA table_info(shout)').all().some((column) => column.name === 'shout_evidence_kind'));

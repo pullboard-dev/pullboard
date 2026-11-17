@@ -6,14 +6,12 @@
       "path": "init",
       "file": "apps/cli/journeys/init/gate.test.js",
       "specs": [
-        "A1",
         "B26",
         "C3",
         "C7",
         "H5",
         "I1",
         "I2",
-        "L3",
         "N26"
       ],
       "commands": [
@@ -126,7 +124,6 @@
         "B3",
         "C7",
         "V1",
-        "V18",
         "V4",
         "V8"
       ],
@@ -237,17 +234,11 @@
       "path": "view-open",
       "file": "apps/cli/journeys/view/e2e.test.js",
       "specs": [
-        "A2",
-        "D1",
-        "D2",
-        "D3",
-        "D4",
         "I8",
         "N26",
         "N27",
         "N32",
-        "N39",
-        "S8"
+        "N39"
       ],
       "commands": [
         "view",
