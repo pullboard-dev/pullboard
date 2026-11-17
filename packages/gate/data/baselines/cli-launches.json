@@ -611,7 +611,7 @@
   "apps/cli/journeys/relay/agent.test.js": {
     "launch": 2
   },
-  "packages/runners/tests/lints.test.js": {
+  "packages/runners/tests/lints-baseline.test.js": {
     "launch": 5
   },
   "apps/cli/journeys/init/calls.test.js": {

@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell packages/gate */
+/** @pullboard-test-input packages/codemap/data/plan/renames.tsv packages/codemap/data/plan/path-map/freeze.json packages/codemap/data/plan/34-gate.json */
 /** @pullboard-world-pin reads the gate sources and the committed plan to prove the freeze.js and freeze-paths.js moves. */
 /** The gate logic freeze.js and freeze-paths.js sit in the shell cell under distinct names, with importers repointed [C7]. */
 import assert from 'node:assert/strict';
