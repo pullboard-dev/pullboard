@@ -50,7 +50,7 @@ function claimThenRelease({ commonDir, environment }, append) {
   return changes.items.find((value) => value.item === 7).records[0];
 }
 
-test('a fixed session id with PULLBOARD_SESSION_LOG records the transcript tokens [N2]', (t) => {
+test('stats.session.a-fixed-session-id-with-pullboard: a fixed session id with PULLBOARD_SESSION_LOG records the transcript tokens [N2]', (t) => {
   const run = fixture(t);
   const log = join(run.dir, 'wrapper-transcript.jsonl');
   writeFileSync(log, message('before', -MINUTE, { input_tokens: 900, output_tokens: 90 }));
@@ -62,7 +62,7 @@ test('a fixed session id with PULLBOARD_SESSION_LOG records the transcript token
   assert.deepEqual(record.unknownReasons, []);
 });
 
-test('PULLBOARD_SESSION_DIR names the newest transcript in that folder [N2]', (t) => {
+test('stats.session.pullboard-session-dir-names-the-newest: PULLBOARD_SESSION_DIR names the newest transcript in that folder [N2]', (t) => {
   const run = fixture(t);
   const folder = join(run.dir, 'project');
   mkdirSync(folder);
@@ -79,7 +79,7 @@ test('PULLBOARD_SESSION_DIR names the newest transcript in that folder [N2]', (t
   assert.equal(record.outputTokens, 4);
 });
 
-test('a declared transcript wins over the session id lookup [N2]', (t) => {
+test('stats.session.a-declared-transcript-wins-over-the: a declared transcript wins over the session id lookup [N2]', (t) => {
   const run = fixture(t);
   const projects = join(run.environment.CLAUDE_CONFIG_DIR, 'projects', 'fixture');
   mkdirSync(projects);
@@ -90,7 +90,7 @@ test('a declared transcript wins over the session id lookup [N2]', (t) => {
   assert.equal(sessionSource(run.environment).file, join(projects, 'studio-seat-fixed.jsonl'));
 });
 
-test('without a resolvable transcript the recorded reason is wrapper-session-id-fixed [N2]', (t) => {
+test('stats.session.without-a-resolvable-transcript-the-recorded: without a resolvable transcript the recorded reason is wrapper-session-id-fixed [N2]', (t) => {
   const run = fixture(t);
   assert.equal(sessionSource(run.environment), null);
   for (const declared of [{}, { PULLBOARD_SESSION_LOG: join(run.dir, 'missing.jsonl') }, { PULLBOARD_SESSION_DIR: join(run.dir, 'missing') }, { PULLBOARD_SESSION_LOG: 'relative.jsonl' }]) {
