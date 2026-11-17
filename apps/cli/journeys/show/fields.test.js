@@ -29,6 +29,8 @@ async function fixture(t) {
     assert.equal(added.status, 0, added.stdout + added.stderr);
     ids.push((JSON.parse(added.stdout).result ?? JSON.parse(added.stdout)).item.item_id);
   }
+  const milestone = await run(['milestone', ...['add'], 'Release', '--items', ids.join(','), '--reason', 'a roadmap with three items']);
+  assert.equal(milestone.status, 0, milestone.stdout + milestone.stderr);
   const setting = on => writeFileSync(file, JSON.stringify({ ...saved, items: { ...saved.items, typedFields: on } }));
   setting(true);
   assert.equal((await run(['field', 'declare', 'priority', 'choice', '--choices', 'low,high'])).status, 0);
