@@ -47,7 +47,7 @@ test('clause 1: spec apply --row G1 --commit --json on a clean checkout with spe
   assert.match(applied.commit, /^[0-9a-f]{40}$/u);
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), applied.commit, 'the commit is the new head');
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD~1'), before, 'one commit on top of the old head');
-  assert.equal(box.git(box.repo, 'log', '-1', '--format=%s'), 'spec: approve G1');
+  assert.equal(box.git(box.repo, 'log', '-1', '--format=%s'), 'docs(spec): approve G1');
   assert.equal(row(box, 'G1').text, 'The page renders accessibly.');
   assert.equal(box.git(box.repo, 'status', '--porcelain'), '', 'the checkout is clean again');
 });
