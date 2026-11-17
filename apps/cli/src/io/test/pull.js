@@ -292,7 +292,7 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
  * Wait on a job's row until a runner posts its receipt, keeping the seat alive. Refuses when no runner claims it within
  * gate.runnerWaitMs, as a runner-only test run waits today.
  *
- * @returns {Promise<{ receipt: Record<string, any>, runner: string | null }>}
+ * @returns {Promise<{ receipt: Record<string, any>, runner: string | null, enqueuedAt: string | null }>}
  */
 async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
   const deadline = Date.now() + gateRunnerWaitMs();
@@ -301,7 +301,7 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS,
     const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
-    if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null };
+    if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null, enqueuedAt: Number.isFinite(view.created) ? new Date(view.created).toISOString() : null };
     const holder = view.leaseOwner && view.leaseUntil > Date.now() ? view.leaseOwner : null;
     if (holder && holder !== claimed) { claimed = holder; say?.(`pullboard test: runner ${holder} took test job ${job}`); }
     if (!claimed && Date.now() > deadline) {
@@ -330,13 +330,13 @@ async function runJobFor(ctx, fields, { agent, say, testRun }) {
   if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
+    const { receipt, runner, enqueuedAt } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, enqueuedAt, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,

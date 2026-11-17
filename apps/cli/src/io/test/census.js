@@ -130,7 +130,7 @@ const CENSUS_TIMES_WRITE = /^# census-times \{.*\}\n?$/u;
  * @param {string} output - The shard's log text.
  * @param {Date} fallbackStart - When this census began.
  * @param {number} fallbackLoad - The 1-minute load when it began.
- * @returns {{ claimedAt: string, startedAt: string, endedAt: string, load1: number }}
+ * @returns {{ enqueuedAt: string, claimedAt: string, startedAt: string, endedAt: string, load1: number }}
  */
 function jobTimes(output, fallbackStart, fallbackLoad) {
   let told = {};
@@ -139,7 +139,7 @@ function jobTimes(output, fallbackStart, fallbackLoad) {
   const iso = value => (typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null);
   const now = new Date().toISOString(), began = fallbackStart.toISOString();
   const startedAt = iso(told.startedAt) ?? iso(told.claimedAt) ?? began;
-  return { claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
+  return { enqueuedAt: iso(told.enqueuedAt) ?? began, claimedAt: iso(told.claimedAt) ?? startedAt, startedAt, endedAt: iso(told.endedAt) ?? now, load1: Number.isFinite(told.load1) ? told.load1 : Math.round(fallbackLoad * 100) / 100 };
 }
 
 /**
@@ -191,7 +191,7 @@ function pulledCensus(ctx, io, values = {}) {
         const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : { ...fileBudgetField(values), ...(shardFileKillMs(shard.files, times, killSeconds) ? { fileBudgetMs: shardFileKillMs(shard.files, times, killSeconds) } : {}) }), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
-        write(`# census-times ${JSON.stringify({ claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
+        write(`# census-times ${JSON.stringify({ enqueuedAt: ran.enqueuedAt, claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
         const timed = pulledTimeLines(ran.times, FILE_TIME_LINE) + pulledTimeLines(ran.caseMs, FILE_CASE_LINE);
         write(`${formatTestOutcomes(randomUUID(), ran.outcomes ?? verdictOutcomes(ran.verdicts) ?? [])}${timed}${ran.output}\n`);
       } catch (error) {
