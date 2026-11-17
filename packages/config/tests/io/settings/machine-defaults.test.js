@@ -166,6 +166,7 @@ const BEFORE = {
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
 
 test('clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {
