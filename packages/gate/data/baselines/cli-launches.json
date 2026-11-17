@@ -233,9 +233,6 @@
   "apps/cli/journeys/fact/wake.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/add/bar-lint.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/board/baseline/report.test.js": {
     "launch": 1
   },
@@ -471,9 +468,6 @@
     "launch": 1
   },
   "packages/landing/tests/io/shards/filter.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/publish/agent.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
