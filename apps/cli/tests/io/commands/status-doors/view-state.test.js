@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
 import { test } from 'node:test';
-import { styleSources } from '../../../../../codemap/index.js';
+import { styleSources } from '../../../../../../packages/codemap/index.js';
 
 const REPO = new URL('../../../../../..', import.meta.url).pathname;
 const SOURCES = new Map(styleSources(REPO).map(row => [row.file, row.source]));
