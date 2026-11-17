@@ -29,7 +29,7 @@ function fixture(t, enabled) {
   return { db, hop: { enabled, item: 7, write: gateHopMove, decide } };
 }
 
-test('clause 1: with gate.fencedHop on, a second gate-drive for the same item is refused HOP_FENCED naming the first [C7,#8274]', t => {
+test('board.gate-drive-hop.with-gate-fencedhop-second-gate-drive: clause 1: with gate.fencedHop on, a second gate-drive for the same item is refused HOP_FENCED naming the first [C7,#8274]', t => {
   const { db, hop } = fixture(t, true);
   const first = admitGateDrive(db, 'handoff-a', { owner: 'driver-a', now: NOW, hop });
   assert.equal(first.owner, 'driver-a');
@@ -43,7 +43,7 @@ test('clause 1: with gate.fencedHop on, a second gate-drive for the same item is
   assert.equal(readGateDrive(db, 'handoff-b')?.owner ?? null, null, 'the refused driver left no admitted record');
 });
 
-test('clause 1: with gate.fencedHop on, the driver renews its hop at its epoch and a stale driver is refused HOP_FENCED [C7,#8274]', t => {
+test('board.gate-drive-hop.with-gate-fencedhop-the-driver-renews: clause 1: with gate.fencedHop on, the driver renews its hop at its epoch and a stale driver is refused HOP_FENCED [C7,#8274]', t => {
   const { db, hop } = fixture(t, true);
   admitGateDrive(db, 'handoff-a', { owner: 'driver-a', now: NOW, hop });
   assert.equal(renewGateDriveHop(db, 'handoff-a', { owner: 'driver-a', hop }).hop.owner, 'driver-a');
@@ -52,7 +52,7 @@ test('clause 1: with gate.fencedHop on, the driver renews its hop at its epoch a
   assert.throws(() => renewGateDriveHop(db, 'handoff-a', { owner: 'driver-a', hop }), error => error.code === 'HOP_FENCED' && /driver-c/u.test(error.message));
 });
 
-test('clause 1: with gate.fencedHop off, gate-drive admits two drivers and writes no hop row [C7,#8274]', t => {
+test('board.gate-drive-hop.with-gate-fencedhop-off-gate-drive: clause 1: with gate.fencedHop off, gate-drive admits two drivers and writes no hop row [C7,#8274]', t => {
   const { db, hop } = fixture(t, false);
   admitGateDrive(db, 'handoff-a', { owner: 'driver-a', now: NOW, hop });
   admitGateDrive(db, 'handoff-b', { owner: 'driver-b', now: NOW, hop });

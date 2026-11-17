@@ -16,7 +16,7 @@ import * as store from "../../../../../../../store/index.js";
 import * as items from "../../../../../../../items/index.js";
 import { openCellBoard as openBoard } from "../../../../../fixtures/cell-board.js";
 
-test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
+test('board.offer.accepted-offer-makes-most-one-child: an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
   assert.equal(typeof items.acceptItemOffer, 'function', 'the shared item-offer contract must exist');
   const api = items;
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-item-offer-'));

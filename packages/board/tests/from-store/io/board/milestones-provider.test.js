@@ -20,7 +20,7 @@ function fixture(t) {
   return { board, ship, shipped };
 }
 
-test('clause 2: with no provider set the module still answers through its current import, so shipping records the stats gauge [C7,H16]', t => {
+test('board.milestones-provider.with-provider-set-the-module-still: clause 2: with no provider set the module still answers through its current import, so shipping records the stats gauge [C7,H16]', t => {
   const box = fixture(t);
   box.ship();
   const recorded = box.shipped().coordinatorActions;
@@ -28,7 +28,7 @@ test('clause 2: with no provider set the module still answers through its curren
   assert.equal(recorded.previous, null);
 });
 
-test('clause 1: a provided release is the one shipMilestone calls and its answer is what the ship event records [C7,H16]', t => {
+test('board.milestones-provider.provided-release-the-one-shipmilestone-calls: clause 1: a provided release is the one shipMilestone calls and its answer is what the ship event records [C7,H16]', t => {
   const box = fixture(t);
   const calls = [];
   provideCoordinatorMilestoneRelease((board, options) => { calls.push(options); return { gauge: { provided: true }, previous: null, problem: null }; });

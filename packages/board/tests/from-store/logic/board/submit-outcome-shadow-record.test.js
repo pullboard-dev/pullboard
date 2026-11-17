@@ -33,7 +33,7 @@ function renew(board) {
   return outcome;
 }
 
-test('clause 1: with moves.shadow on, a submit outcome whose table answer differs adds one disagreement to the recorded counts [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-submit-outcome-whose: clause 1: with moves.shadow on, a submit outcome whose table answer differs adds one disagreement to the recorded counts [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot, true);
   const hook = store.shadowHook(board, 'submitOutcomeShadow', 'outcome', store.outcomeDiffers, () => true);
   const { id } = record.move;
@@ -46,7 +46,7 @@ test('clause 1: with moves.shadow on, a submit outcome whose table answer differ
   assert.deepEqual(counts.last.map(({ differs }) => differs), ['recorded.code', 'skipped']);
 });
 
-test('clause 2: with moves.shadow on, a matching submit outcome adds one compare and no disagreement when its claim commits [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-matching-submit-outcome: clause 2: with moves.shadow on, a matching submit outcome adds one compare and no disagreement when its claim commits [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot, true);
   const outcome = store.checkedSubmitOutcome(board, record.move.id, record.move.actor, record.renewal, null);
   assert.equal(store.readShadow(board, 'outcome'), null, 'nothing is recorded before the claim commits');
@@ -56,7 +56,7 @@ test('clause 2: with moves.shadow on, a matching submit outcome adds one compare
   assert.equal(counts.disagreed, 0, JSON.stringify(counts.last));
 });
 
-test('clause 3: with moves.shadow off no submit outcome compare is recorded [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-off-submit-outcome: clause 3: with moves.shadow off no submit outcome compare is recorded [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot);
   renew(board);
   assert.equal(store.readShadow(board, 'outcome'), null);
