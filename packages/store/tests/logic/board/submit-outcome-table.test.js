@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-outcome-records.json */
 /** @pullboard-world-pin reads the recorded refusal renewals fixture to drive the submit outcome writer with it. The store submit writer applies the submit table and agrees on every replayed move [C7,#8271]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
