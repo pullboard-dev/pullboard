@@ -477,6 +477,11 @@ export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
 }
 
+/** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
+export function releaseRerouteUntouched() {
+  return loadMachineSettings().release?.rerouteUntouched === true;
+}
+
 /** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
 export function holdsLiftSettled() {
   return loadMachineSettings().holds?.liftSettled === true;
