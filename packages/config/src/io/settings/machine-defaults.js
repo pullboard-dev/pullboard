@@ -116,6 +116,7 @@ export const MACHINE_DEFAULTS = {
   'next.readinessCheck': false,
   'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
+  'read.thinCommands': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
