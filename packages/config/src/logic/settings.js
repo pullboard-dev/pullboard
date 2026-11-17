@@ -490,11 +490,17 @@ export function loadMachineSettings() {
   if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
   }
+  if (value.submit?.residentChecks !== undefined && typeof value.submit.residentChecks !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.residentChecks in ${file} must be true or false`);
+  }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
   if (value.gate?.withdrawCancelsJob !== undefined && typeof value.gate.withdrawCancelsJob !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.withdrawCancelsJob in ${file} must be true or false`);
+  }
+  if (value.launch?.reachableDispatcher !== undefined && typeof value.launch.reachableDispatcher !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `launch.reachableDispatcher in ${file} must be true or false`);
   }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
@@ -623,6 +629,11 @@ export function relayPruneReceipts() {
 /** Whether withdrawing an item also cancels its live gate job (#3860): off by default; only an exact `true` turns it on. */
 export function withdrawCancelsJob() {
   return loadMachineSettings().gate?.withdrawCancelsJob === true;
+}
+
+/** Whether the handoff dispatcher check starts through spawnReachable (#10243): off by default; only an exact `true` turns it on. */
+export function reachableDispatcherOn() {
+  return loadMachineSettings().launch?.reachableDispatcher === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
