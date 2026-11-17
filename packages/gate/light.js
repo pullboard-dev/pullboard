@@ -164,6 +164,7 @@ export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
 export { junitAttributes, junitCases } from './src/logic/junit.js';
 export { junitClauseTicks } from './src/logic/junit-ticks.js';
+export { junitCommand, JUNIT_LANGUAGES } from './src/logic/junit-commands.js';
 export { cargoTestCases } from './src/logic/cargo-cases.js';
 export { evaluate as evaluateCla, appendSignatures as appendClaSignatures, readSignatures as readClaSignatures } from './src/io/check/cla.js';
 export { allTestOutcomes } from './src/io/test/outcomes.js';
