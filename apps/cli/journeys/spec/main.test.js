@@ -393,6 +393,5 @@ test('clause 1: rejecting a row sends every row that serves it back for review [
   assert.deepEqual(sent.map(shout => shout.shout_text.match(/; (\S+) serves/u)[1]).sort(), [first, third].sort());
   const checked = await box.runLocal(box.repo, 'spec', 'check');
   const text = `${checked.out ?? checked.stdout}${checked.err ?? checked.stderr}`;
-  for (const id of [first, third]) assert.match(text, new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'u'), `spec check names ${id}`);
-  assert.ok(text.includes(first) && text.includes(third) || /:\d+/u.test(text), 'spec check reports both rows');
+  assert.equal(text.match(new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'gu'))?.length, 2, `spec check names both rows: ${text}`);
 });
