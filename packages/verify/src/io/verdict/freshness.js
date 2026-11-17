@@ -281,12 +281,12 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
 const PRESENTATION_VERDICTS = new Map();
 
 /** Reuse derived presentation values, never a closed board connection or mutable native row. */
-export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader }) {
+export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader, hunkKeyed = false }) {
   // The caller's reader keeps the trunk watcher out of this light module; an unknown tip lets the projector resolve the trunk itself.
   const tip = trunkRevisionReader(info)();
   const event = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const key = JSON.stringify([info.commonDir, boardId(board)]);
-  const revision = JSON.stringify([tip, event]);
+  const revision = JSON.stringify([tip, event, hunkKeyed]);
   let cached = PRESENTATION_VERDICTS.get(key);
   if (cached?.revision !== revision) {
     cached = { revision, states: new Map() };
@@ -294,7 +294,7 @@ export function cachedVerdictStates(root, board, info, { events, acceptedVerdict
     PRESENTATION_VERDICTS.set(key, cached);
     while (PRESENTATION_VERDICTS.size > 32) PRESENTATION_VERDICTS.delete(PRESENTATION_VERDICTS.keys().next().value);
   }
-  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem, hunkKeyed });
   /** Refresh only a changed item; unchanged sealed presentations start no new Git process. */
   return item => {
     const raw = JSON.stringify(item);
