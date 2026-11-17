@@ -49,7 +49,7 @@ async function startedRecords(root) {
 const record = () => ({ sequence: 9, revision: 'old', current: true, ...Object.fromEntries(FIELDS.map(field => [field, { json: ['x'] }])) });
 const saved = (more = {}) => ({ version: 1, key: 'c\0old-code', formats: 'f', board: BOARD, sequence: 9, carry: {}, record: record(), ...more });
 
-test('clause 1: a snapshot saved by other code is served as a stale record with no revision, so no read takes it as current [C7,#8471]', async t => {
+test('api.state-materializer-stale.snapshot-saved-other-code-served: clause 1: a snapshot saved by other code is served as a stale record with no revision, so no read takes it as current [C7,#8471]', async t => {
   const [served, ...rest] = await startedRecords(codeTree(t, saved()));
   assert.equal(rest.length, 0);
   assert.equal(served.restored, true);
@@ -58,7 +58,7 @@ test('clause 1: a snapshot saved by other code is served as a stale record with 
   assert.equal(served.record.current, false);
 });
 
-test('clause 2: a snapshot saved for other formats, or missing a field a read joins, is never served [C7,#8471]', async t => {
+test('api.state-materializer-stale.snapshot-saved-other-formats-missing: clause 2: a snapshot saved for other formats, or missing a field a read joins, is never served [C7,#8471]', async t => {
   assert.deepEqual(await startedRecords(codeTree(t, saved({ formats: 'older' }))), [], 'another schema or event log format');
   assert.deepEqual(await startedRecords(codeTree(t, saved({ record: { ...record(), open: undefined } }))), [], 'a record without the open variant');
   assert.deepEqual(await startedRecords(codeTree(t, saved({ key: 'other-board\0old-code' }))), [], 'another board');
