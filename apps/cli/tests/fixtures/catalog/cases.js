@@ -521,36 +521,26 @@ catalogCase('[A1] command results match the catalog across roots: spec and hooks
 }, ['blueprint', 'doctrine', 'hook', 'init', 'spec']);
 
 
-catalogCase('[A1] command results match the catalog across roots: items, shouts and runs', [
+catalogCase('[A1] command results match the catalog across roots: items and spec changes', [
   'add',
-  'answer',
   'check',
   'claim',
-  'decisions',
   'done',
   'edit',
   'escalate',
   'fact',
-  'forget',
   'hold',
-  'inbox',
   'join',
   'list',
   'merged',
-  'next',
-  'pass',
   'patch',
   'patch attach',
   'patch list',
   'patch remove',
   'refreeze',
   'release',
-  'run',
-  'shout',
   'show',
   'submit',
-  'sweep',
-  'tour',
   'verify',
   'why',
   'why file',
@@ -606,11 +596,35 @@ catalogCase('[A1] command results match the catalog across roots: items, shouts 
   await json(box, repo, 'escalate', ['5', '--note', 'the first route needs another pass']);
   await json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   await json(box, repo, 'hold', ['app', '--off']);
+}, ['add', 'check', 'claim', 'done', 'edit', 'escalate', 'fact', 'hold', 'init', 'join', 'list', 'merged', 'next', 'patch', 'refreeze', 'release', 'show', 'spec', 'submit', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
 
-  await json(box, secondPath, 'shout', ['Please decide', '--decision', '--kind', 'question']);
+
+catalogCase('[A1] command results match the catalog across roots: shouts, runs and next', [
+  'answer',
+  'decisions',
+  'forget',
+  'inbox',
+  'next',
+  'pass',
+  'run',
+  'shout',
+  'sweep',
+  'tour',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+
+  const review = await json(box, repo, 'worktree', ['review']);
+  const reviewPath = review.path;
+  const secondPath = join(box.dir, 'review-two');
+  await box.git(repo, 'worktree', 'add', '-q', secondPath, '-b', 'review/two');
+  await json(box, secondPath, 'join', ['review']);
+  await json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
+  const first = await json(box, secondPath, 'shout', ['First ask', '--decision', '--kind', 'question']);
+  const second = await json(box, secondPath, 'shout', ['Second ask', '--decision', '--kind', 'question']);
   await json(box, repo, 'decisions');
-  await json(box, repo, 'pass', ['1', 'The test run is complete']);
-  await json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
+  await json(box, repo, 'pass', [String(first.id), 'The test run is complete']);
+  await json(box, repo, 'answer', [String(second.id), 'Yes, keep the change', '--as', 'person']);
   await json(box, secondPath, 'inbox');
   await json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
@@ -631,7 +645,7 @@ catalogCase('[A1] command results match the catalog across roots: items, shouts 
   assert.ok(tourRepo && existsSync(tourRepo), 'the reported tour repo exists until the test cleans it up');
   assert.match(basename(dirname(tourRepo)), /^pullboard-tour-/, 'cleanup is confined to the generated tour folder');
   TEMP_DIRS.push(dirname(tourRepo));
-}, ['add', 'answer', 'check', 'claim', 'decisions', 'done', 'edit', 'escalate', 'fact', 'forget', 'hold', 'inbox', 'init', 'join', 'list', 'merged', 'next', 'pass', 'patch', 'refreeze', 'release', 'run', 'shout', 'show', 'spec', 'submit', 'sweep', 'tour', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
+}, ['add', 'answer', 'decisions', 'forget', 'inbox', 'init', 'join', 'next', 'pass', 'run', 'shout', 'sweep', 'tour', 'whoami', 'worktree']);
 
 
 catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', [
@@ -1407,8 +1421,8 @@ catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real
 }, ['add', 'field', 'init']);
 
 /**
- * The four run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
- * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; four files run on four runners.
+ * The run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
+ * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; separate files run on separate runners.
  */
 const CATALOG_GROUPS = {
   'results-a1': [
@@ -1417,8 +1431,11 @@ const CATALOG_GROUPS = {
   'results-a2': [
     '[A1] command results match the catalog across roots: spec and hooks',
   ],
-  results: [
-    '[A1] command results match the catalog across roots: items, shouts and runs',
+  'results-b1': [
+    '[A1] command results match the catalog across roots: items and spec changes',
+  ],
+  'results-b2': [
+    '[A1] command results match the catalog across roots: shouts, runs and next',
   ],
   lanes: [
     '[A1,B21,B27] a lane decision is answered by its agent through CLI JSON',
