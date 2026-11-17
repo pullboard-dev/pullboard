@@ -154,6 +154,11 @@ export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
 }
 
+/** Whether the static check refuses new zero-delay deferrals, polls and timer pauses: off by default; only an exact `true` turns it on [C7,#9518]. */
+export function adapterLintTimersEnabled() {
+  return loadMachineSettings().gate?.adapterLintTimers === true;
+}
+
 /** Whether the static check refuses view timers outside the view timer layout: off by default; only an exact `true` turns it on [C7]. */
 export function viewTimerLayoutEnabled() {
   return loadMachineSettings().gate?.viewTimerLayout === true;

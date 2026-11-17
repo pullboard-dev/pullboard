@@ -315,3 +315,65 @@ export function clauseInspectionSummary(item, thread, { gateFiles = new Set(), h
     return `${clause.number}. ${clause.text.slice(0, 80)} -> ${tick.kind}${tick.kind === 'reasoning' ? ' (weakest evidence)' : ''}: ${tick.evidence}`;
   }).join(' | ')}`;
 }
+
+const LINK = /\bhttps?:\/\/[^\s"'`)]+/iu;
+const FILE_PATH = /(?:^|[\s("'`])(?:[\w.@-]+\/)+[\w.@-]*\w(?::\d+)?(?=$|[\s)"'`,;:.])|(?:^|[\s("'`])[\w-]+\.[A-Za-z][A-Za-z0-9]{0,5}(?::\d+)?(?=$|[\s)"'`,;:])/u;
+const NOT_A_FILE = /^(?:e\.g|i\.e|vs|etc)$/iu;
+const QUOTED = /"[^"\n]{3,}"|“[^”\n]{3,}”|`[^`\n]{3,}`/u;
+
+/**
+ * Whether one tick's evidence names something a reviewer can open: a file path, a link or a quoted passage.
+ * Why: a checklist with no test check is proved only by review evidence, so the board decides mechanically which
+ * lines name any, and the verifier spends judgment on what they show, never on whether they exist [C7].
+ *
+ * @param {string} evidence - The text after `clause <n> [kind]:` in the builder's tick.
+ * @returns {boolean}
+ */
+export function namesEvidence(evidence) {
+  const text = String(evidence ?? '');
+  if (LINK.test(text) || QUOTED.test(text)) return true;
+  const withoutLinks = text.replace(/\bhttps?:\/\/\S+/giu, ' ');
+  const found = [...withoutLinks.matchAll(new RegExp(FILE_PATH.source, 'gu'))];
+  return found.some(match => !NOT_A_FILE.test(match[0].trim().replace(/^["'`(]/u, '').replace(/[.,;:)"'`]+$/u, '')));
+}
+
+/**
+ * The review checklist of an item that has no test check: its numbered clauses, each with the builder's tick.
+ * Empty when the item has a check (the check proves it, and a checklist never stands in for it) or no numbered clauses.
+ *
+ * @param {object} item - The item row.
+ * @param {object[]} thread - The item's thread.
+ * @returns {{ number: number, text: string, kind: string|null, tick: { kind: string, evidence: string }|null }[]}
+ */
+export function reviewChecklist(item, thread) {
+  if (String(item.item_check ?? '').trim()) return [];
+  const clauses = criterionClauses(item.item_criterion);
+  if (!clauses.length) return [];
+  const ticks = clauseTicks(thread, item.item_built_by ?? item.item_owner);
+  return clauses.map(clause => ({ ...clause, tick: ticks.get(clause.number) ?? null }));
+}
+
+/**
+ * A refusal naming every checklist line that names no file, link or quoted passage; null when each line does,
+ * or when the item has a test check or no checklist. Why: without a check nothing ran, so an accept resting on a line
+ * with no evidence would be a bare say-so [C7].
+ */
+export function checklistEvidenceProblem(item, thread) {
+  const problems = checklistGaps(item, thread);
+  if (!problems.length) return null;
+  return new Refused('CLAUSE_UNTICKED', `#${item.item_id} has no test check, so its review checklist is its only proof, and ${problems.join('; ')}`,
+    `reject it for the missing evidence: pullboard verify ${item.item_id} reject --reason TEST_FAILURE --clause "<frozen wording>" --note "<the line that names no file, link or quoted passage>"`);
+}
+
+/** One sentence per checklist line that has no tick or whose tick names no file, link or quoted passage. */
+export function checklistGaps(item, thread) {
+  return reviewChecklist(item, thread).filter(line => !line.tick || !namesEvidence(line.tick.evidence))
+    .map(line => `clause ${line.number} (${line.text.slice(0, 80)}) ${line.tick ? `names no file, link or quoted passage: ${line.tick.evidence.slice(0, 80)}` : 'has no evidence'}`);
+}
+
+/** The receipt line of an accept that checklist evidence proved, or null when no checklist applied. */
+export function checklistReceipt(item, thread) {
+  const lines = reviewChecklist(item, thread);
+  if (!lines.length || checklistEvidenceProblem(item, thread)) return null;
+  return `review evidence proved it: ${lines.map(line => `${line.number}. ${line.text.slice(0, 60)} -> ${line.tick.kind}: ${line.tick.evidence}`).join(' | ')}`;
+}
