@@ -11,6 +11,11 @@ export const JUNIT_FILE_ROWS = {
     const crate = (row.classname ?? '').split('::')[0];
     return crate ? `${crate}/` : null;
   },
+  // mix test with junit_formatter writes the module in classname (Elixir.MathTest) and no file attribute; MathTest maps to test/math_test.exs.
+  elixir: row => {
+    const name = (row.classname ?? '').replace(/^Elixir\./u, '').split('.').pop();
+    return name ? `test/${name.replace(/([a-z0-9])([A-Z])/gu, '$1_$2').toLowerCase()}.exs` : null;
+  },
   // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
