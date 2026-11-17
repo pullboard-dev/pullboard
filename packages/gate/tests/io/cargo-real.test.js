@@ -57,7 +57,7 @@ test('gate.cargo-real.fails: clause 2: the failing test enabled by a feature exi
   const run = cargoTest(cargo, root, ['--features', 'fails']);
   assert.notEqual(run.status, 0);
   const { cases, reason } = cargoTestCases(run.stdout);
-  assert.equal(reason, null, `${run.stdout}\n${run.stderr}`.slice(-1500));
+  assert.equal(reason, null, `${cargo} ${process.env.PATH} ${spawnSync('sh', ['-c', 'command -v cargo rustc rustup; ls /opt/homebrew/opt/rustup/bin; rustup which rustc 2>&1'], { encoding: 'utf8' }).stdout} ${run.stdout}\n${run.stderr}`.slice(-1500));
   assert.deepEqual(cases.filter((found) => found.outcome === 'fail').map((found) => found.name), ['tests::broken']);
 });
 
