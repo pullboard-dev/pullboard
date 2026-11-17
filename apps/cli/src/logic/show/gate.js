@@ -93,3 +93,24 @@ export function pulledRedLines(gateJob, item) {
 export function landingPhaseLines(phases) {
   return (Array.isArray(phases) ? phases : []).map(row => `landing phase ${row.phase}: ${row.ms} ms`);
 }
+
+/**
+ * The exact-tree record of the newest landing batch that carried an item, or undefined for an item landed before the record existed.
+ * Why a text pre-filter: a board holds thousands of batch snapshots, and only the ones carrying a record are parsed [V38].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle.
+ * @param {number} id
+ * @returns {{ tree: string, pin?: string, cells?: string[], result?: string } | undefined}
+ */
+export function exactTreeOf(db, id) {
+  const row = db.prepare(`SELECT json_extract(event_detail, '$.batch.exactTree') AS record FROM event WHERE event_kind = 'landing_batch'
+    AND json_extract(event_detail, '$.batch.state') = 'landed' AND instr(event_detail, '"exactTree"') > 0
+    AND EXISTS (SELECT 1 FROM json_each(event_detail, '$.batch.items') WHERE json_extract(value, '$.id') = ?) ORDER BY event_id DESC LIMIT 1`).get(id);
+  return row?.record ? JSON.parse(row.record) : undefined;
+}
+
+/** The one line `pullboard show` prints beside the landing: the tree id, the tooling commit, the cells run and the result [V38]. */
+export function exactTreeLine(record) {
+  const proved = record.result ? `${record.result}, cells ${(record.cells ?? []).join(', ') || 'none'}` : 'not proved';
+  return `landing exact tree ${record.tree.slice(0, 12)}: tooling ${record.pin ? record.pin.slice(0, 12) : 'unknown'}, ${proved}`;
+}
