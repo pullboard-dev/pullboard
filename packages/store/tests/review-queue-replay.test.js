@@ -21,7 +21,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 import { submitFixture } from './fixtures/submit.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
