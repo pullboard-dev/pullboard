@@ -330,7 +330,10 @@
     "launch": 7
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 9
+    "launch": 6
+  },
+  "apps/cli/journeys/fact/board/busy-migration.test.js": {
+    "launch": 3
   },
   "apps/cli/journeys/view/background.test.js": {
     "launch": 9
