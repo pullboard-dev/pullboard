@@ -40,7 +40,7 @@ function image(board) {
   };
 }
 
-test('outbox undo replaces changed values without losing composite bigint and blob keys [H21,H16]', t => {
+test('outbox.undo.replaces-changed-values: outbox undo replaces changed values without losing composite bigint and blob keys [H21,H16]', t => {
   const board = fixture(t, 'CREATE TABLE sample (id INTEGER, token BLOB, value TEXT, PRIMARY KEY(id, token))');
   const key = 9007199254740993n;
   const token = Buffer.from([0, 255, 10]);
@@ -54,7 +54,7 @@ test('outbox undo replaces changed values without losing composite bigint and bl
   assert.equal(board.db.prepare('SELECT value FROM sample WHERE id=? AND token=?').get(key, token).value, 'before');
 });
 
-test('outbox undo refuses a missing row and rolls back earlier inverses and trigger changes [H21,H16]', t => {
+test('outbox.undo.missing-row-rolls-back: outbox undo refuses a missing row and rolls back earlier inverses and trigger changes [H21,H16]', t => {
   const board = fixture(t, "CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO sample VALUES(2,'before')");
   const first = capture(board.db, "INSERT INTO sample VALUES(1,'queued')");
   const second = capture(board.db, "UPDATE sample SET value='queued too' WHERE id=2");
@@ -64,7 +64,7 @@ test('outbox undo refuses a missing row and rolls back earlier inverses and trig
   assert.deepEqual(image(board), before, 'the successful newest inverse is rolled back with the refused older one');
 });
 
-test('outbox undo never replaces an occupied row when restoring a deleted row [H21,H16]', t => {
+test('outbox.undo.occupied-row-kept: outbox undo never replaces an occupied row when restoring a deleted row [H21,H16]', t => {
   const board = fixture(t, "CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO sample VALUES(1,'removed')");
   const queued = capture(board.db, 'DELETE FROM sample');
   board.db.exec("INSERT INTO sample VALUES(1,'another owner')");
@@ -73,7 +73,7 @@ test('outbox undo never replaces an occupied row when restoring a deleted row [H
   assert.deepEqual(image(board), before);
 });
 
-test('outbox undo refuses a uniqueness constraint without retaining partial changes [H21,H16]', t => {
+test('outbox.undo.uniqueness-no-partial: outbox undo refuses a uniqueness constraint without retaining partial changes [H21,H16]', t => {
   const board = fixture(t, "CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT UNIQUE); INSERT INTO sample VALUES(1,'before'),(2,'other')");
   const queued = capture(board.db, "UPDATE sample SET value='queued' WHERE id=1");
   board.db.exec("UPDATE sample SET value='before' WHERE id=2");
@@ -82,7 +82,7 @@ test('outbox undo refuses a uniqueness constraint without retaining partial chan
   assert.deepEqual(image(board), before);
 });
 
-test('outbox undo restores a whole changeset with cross-table foreign keys [H21,H16]', t => {
+test('outbox.undo.restores-changeset: outbox undo restores a whole changeset with cross-table foreign keys [H21,H16]', t => {
   const board = fixture(t, 'CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE child (id INTEGER PRIMARY KEY, parent INTEGER REFERENCES parent(id)); INSERT INTO parent VALUES(1); INSERT INTO child VALUES(1,1)');
   const queued = capture(board.db, 'DELETE FROM child; DELETE FROM parent');
   assert.equal(undoQueued(board, [queued]), null);
@@ -90,7 +90,7 @@ test('outbox undo restores a whole changeset with cross-table foreign keys [H21,
   assert.deepEqual(board.db.prepare('PRAGMA foreign_key_check').all(), []);
 });
 
-test('outbox undo refuses a foreign key conflict and restores its transaction [H21,H16]', t => {
+test('outbox.undo.foreign-key-conflict: outbox undo refuses a foreign key conflict and restores its transaction [H21,H16]', t => {
   const board = fixture(t, 'CREATE TABLE parent (id INTEGER PRIMARY KEY); CREATE TABLE sample (id INTEGER PRIMARY KEY, value INTEGER REFERENCES parent(id)); INSERT INTO parent VALUES(1),(2); INSERT INTO sample VALUES(1,1)');
   const queued = capture(board.db, 'UPDATE sample SET value=2');
   board.db.exec('DELETE FROM parent WHERE id=1');
@@ -101,7 +101,7 @@ test('outbox undo refuses a foreign key conflict and restores its transaction [H
 });
 
 
-test('outbox undo rejects an unterminated table header and rolls back its setup [H21,H16]', t => {
+test('outbox.undo.unterminated-header: outbox undo rejects an unterminated table header and rolls back its setup [H21,H16]', t => {
   const board = fixture(t, "CREATE TABLE sample (id INTEGER PRIMARY KEY, value TEXT); INSERT INTO sample VALUES(1,'kept')");
   const before = image(board);
   const malformed = Buffer.from([0x54, 1, 1, 0x61]).toString('base64');

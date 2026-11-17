@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { createGitMemo } from '../../src/io/memo.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** A repository with trunk at one commit and a branch two commits ahead, plus a counting memo. */
 function fixture() {

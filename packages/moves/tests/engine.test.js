@@ -34,7 +34,7 @@ import { ENGINE_VERSION } from '../../state/index.js';
 import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 import { discoverEngines } from '../../state/index.js';
 import { Refused } from '../../kernel/light.js';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';

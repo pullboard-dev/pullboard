@@ -179,3 +179,41 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
       sharedSessions: Object.values(state.sharedTotals).filter((value) => value.seats.includes(agent) && value.revision > (existingShared.find((row) => row.id === value.id)?.revision ?? 0)).map((value) => structuredClone(value)) };
   });
 }
+
+/** The counter fields of one coordinator usage row. */
+const COORDINATOR_FIELDS = ['inputTokens', 'outputTokens', ...SPLIT_COUNTS];
+
+/**
+ * The coordinator session's usage since the last acknowledged record, as model rows, or null when nothing grew.
+ * Reads only the bytes past the session log's cursor. The board keeps one immutable row per session id, so the first
+ * record keeps the session id and each later one is `<session id>.<n>` holding only the growth since the one before [C7,#9685].
+ */
+export function coordinatorUsagePending(info, { session, source, now }) {
+  return change(info, (state) => {
+    state.cursors ??= {};
+    const snapshot = sessionSnapshot(source, undefined, now, state.cursors);
+    if (!snapshot) return null;
+    const seen = state.coordinator?.[session] ?? { count: 0, totals: {} };
+    const records = [];
+    for (const [model, total] of Object.entries(snapshot.totals)) {
+      const before = seen.totals[model] ?? Object.fromEntries(COORDINATOR_FIELDS.map(name => [name, 0]));
+      const grown = Object.fromEntries(COORDINATOR_FIELDS.map(name => [name,
+        total[name] !== null && before[name] !== null && total[name] >= before[name] ? total[name] - before[name] : null]));
+      if (COORDINATOR_FIELDS.every(name => grown[name] === 0)) continue;
+      const unknown = grown.inputTokens === null || grown.outputTokens === null;
+      records.push({ model, ...grown, knownInputTokens: grown.inputTokens ?? 0, knownOutputTokens: grown.outputTokens ?? 0, wallMs: 0,
+        unknownReasons: unknown ? ['native-counter-unreadable-or-decreased'] : [] });
+    }
+    if (!records.length) return null;
+    return { id: seen.count === 0 ? session : `${session.slice(0, 120)}.${seen.count}`, records, totals: structuredClone(snapshot.totals) };
+  });
+}
+
+/** Remember that the board holds the usage `coordinatorUsagePending` named, so the next record carries only newer growth. */
+export function coordinatorUsageAcknowledge(info, { session, totals }) {
+  return change(info, (state) => {
+    state.coordinator ??= {};
+    const seen = state.coordinator[session] ?? { count: 0, totals: {} };
+    state.coordinator[session] = { count: seen.count + 1, totals };
+  });
+}

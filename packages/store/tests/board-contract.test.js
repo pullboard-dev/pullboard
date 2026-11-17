@@ -9,7 +9,6 @@ import { cellItem } from './fixtures/cell.js';
 import { cellSeat } from './fixtures/cell.js';
 import { submitFixture } from './fixtures/submit.js';
 import { temporaryRepository } from './fixtures/submit.js';
-import { requireFixtureReviewFamilies } from '../../../apps/cli/tests/fixtures/review/family.js';
 
 const COMMIT = 'a'.repeat(40);
 const POLICY = { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } };
@@ -32,7 +31,9 @@ function script({ board, tick }) {
   cellSeat(board, { lane: 'coordinator', path: '/repo' });
   const builder = cellSeat(board, { lane: 'core', path: '/builder', family: 'Contract Builder Vendor', route: 'mid' });
   const other = cellSeat(board, { lane: 'core', path: '/other', family: 'Contract Reviewer Vendor', route: 'mid' });
-  requireFixtureReviewFamilies(board);
+  store.setLineSetting(board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: true,
+    reason: 'Private fixture explicitly requires declared vendor pairs; this changes no operational board.',
+    window: { syntheticPolicy: 1 } });
   const filed = [
     cellItem(board, { lane: 'core', title: 'first', criterion: 'one', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the first' }),
     cellItem(board, { lane: 'core', title: 'second', criterion: 'two', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/b.js\nTest: proves the second' }),
