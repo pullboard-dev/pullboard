@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded claim history fixture to replay it through the table. The claim and renew table replays claims recorded on a real board with zero disagreements, and refuses what the board refuses [C7,#8241]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

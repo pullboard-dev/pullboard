@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-world-pin reads the package test sources to prove none imports the CLI child fixture. */
 /** No package test imports the CLI app's child fixture, which only re-exports the gate's [C7]. */
 import assert from 'node:assert/strict';
