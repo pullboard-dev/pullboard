@@ -24,14 +24,19 @@ async function readySubmit(t, { on }) {
   return { box, id, folder, git, before, main: git(box.repo, 'rev-parse', 'refs/heads/main') };
 }
 
-/** Submit item `id` from its folder and return the output and the gate job's commit, the item's submitted commit and the board. */
+/**
+ * Submit item `id` from its folder and return the output, the queued gate job's commit and the item thread's submit fact.
+ * A pulled submit is recorded on the board as its queued gate job; item_commit is written only when a runner's receipt lands.
+ */
 async function submitted(t, { box, id, folder }) {
   const result = await box.runLocal(folder, 'submit', String(id));
   assert.equal(result.code, 0, `${result.err}\n${result.out}`);
   const { board } = await pullQueue(t, box);
   const [row] = jobsOf(board.db, { kind: 'gate', item: id });
-  const item = board.db.prepare('SELECT item_commit FROM item WHERE item_id = ?').get(id);
-  return { result, candidate: row.candidate, submittedCommit: item.item_commit };
+  const shown = await box.runLocal(folder, 'show', String(id));
+  assert.equal(shown.code, 0, shown.err);
+  const fact = shown.out.split('\n').find(line => /automatic main merge: source /u.test(line)) ?? '';
+  return { result, candidate: row.candidate, main: row.base, fact };
 }
 
 test('clause 1: with submit.composeAsObject on, submit leaves the branch, HEAD, index and checkout alone and submits a composition object with parents main then head under refs/pullboard/compose [C7,U159]', async t => {
@@ -54,22 +59,22 @@ test('clause 1: with submit.composeAsObject on, submit leaves the branch, HEAD, 
 
 test('clause 2: the composition is the commit the board records for the submit, and the submit names it a composition, not a merge into the builder source [C7,U159]', async t => {
   const ready = await readySubmit(t, { on: true });
-  const { box, folder, before, main, id } = ready;
-  const { result, candidate, submittedCommit } = await submitted(t, ready);
-  assert.equal(submittedCommit, candidate, 'the item records the gate job commit');
-  assert.equal(ready.git(folder, 'rev-parse', `refs/pullboard/compose/${id}/${main.slice(0, 12)}`), submittedCommit);
+  const { folder, before, main, id } = ready;
+  const { result, candidate, main: jobMain, fact } = await submitted(t, ready);
+  assert.equal(jobMain, main, 'the gate job is pinned to the main the composition used');
+  assert.equal(ready.git(folder, 'rev-parse', `refs/pullboard/compose/${id}/${main.slice(0, 12)}`), candidate, 'the gate job proves the kept composition');
+  assert.match(fact, new RegExp(`composed main ${main} with head ${before.head} as an object under refs/pullboard/compose/${id}/${main.slice(0, 12)}`, 'u'));
+  assert.match(fact, new RegExp(`source ${before.head}, main ${main}, merge ${candidate}\\.`, 'u'), 'the fact names the submitted composition');
   assert.match(result.out, new RegExp(`Composed main ${main.slice(0, 12)} with head ${before.head.slice(0, 12)} as ${candidate.slice(0, 12)}`, 'u'));
   assert.doesNotMatch(result.out, /into the builder source/u);
-  const shown = await box.runLocal(folder, 'show', String(id));
-  assert.equal(shown.code, 0, shown.err);
-  assert.match(shown.out, new RegExp(`composed main ${main} with head ${before.head} as an object under refs/pullboard/compose/${id}/${main.slice(0, 12)}`, 'u'));
 });
 
 test('clause 3: with the setting off (default), submit records the object merge with parents head then main and writes no compose ref [C7,U159]', async t => {
   const ready = await readySubmit(t, { on: false });
   const { folder, git, before, main } = ready;
-  const { result, candidate, submittedCommit } = await submitted(t, ready);
-  assert.equal(submittedCommit, candidate);
+  const { result, candidate, fact } = await submitted(t, ready);
+  assert.match(fact, new RegExp(`source ${before.head}, main ${main}, merge ${candidate}\\.`, 'u'));
+  assert.doesNotMatch(fact, /composed main/u);
   assert.equal(git(folder, 'show', '-s', '--format=%P', candidate), `${before.head} ${main}`, 'parents are head then main, as before');
   assert.equal(git(folder, 'for-each-ref', 'refs/pullboard/compose'), '', 'no compose ref is written');
   assert.match(result.out, /into the builder source/u);
