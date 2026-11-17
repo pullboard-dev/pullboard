@@ -8,6 +8,8 @@ import { withFixtureBoard } from '../../fixtures/board.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { recordShadow } from '../../../../../packages/store/index.js';
 import { movesReport } from '../../../src/io/commands/moves.js';
+import { LIVE_SWITCH } from '../../../src/io/commands/moves.js';
+import { moveTableNames } from '../../../src/io/commands/moves.js';
 
 /** The fixture repo's board file. */
 const boardFile = box => join(box.root, '.git', 'pullboard', 'board.sqlite');
@@ -23,7 +25,7 @@ function recorded(t) {
   return box;
 }
 
-test('clause 1: moves prints each table\'s compares, disagreements and first compare time [C7,#8378]', async t => {
+test('cli.io-commands-moves.moves-prints-each-table-s-compares-disagreements: clause 1: moves prints each table\'s compares, disagreements and first compare time [C7,#8378]', async t => {
   const box = recorded(t);
   const ran = await runCliInProcess(['moves'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -32,7 +34,7 @@ test('clause 1: moves prints each table\'s compares, disagreements and first com
   assert.match(ran.stdout, /submit\s+none\s+0\s+0\s+never/u);
 });
 
-test('clause 2: moves --json gives each table a state of live, shadow or none [C7,#8378]', async t => {
+test('cli.io-commands-moves.moves-json-gives-each-table-a-state: clause 2: moves --json gives each table a state of live, shadow or none [C7,#8378]', async t => {
   const box = recorded(t);
   const ran = await runCliInProcess(['moves', '--json'], { cwd: box.root, env: box.env });
   const report = JSON.parse(ran.stdout);
@@ -44,7 +46,7 @@ test('clause 2: moves --json gives each table a state of live, shadow or none [C
   assert.deepEqual(tables.find(row => row.table === 'claim').lastDisagreements.map(row => row.id), [9]);
 });
 
-test('clause 3: moves writes nothing to the board [C7,#8378]', async t => {
+test('cli.io-commands-moves.moves-writes-nothing-to-the-board: clause 3: moves writes nothing to the board [C7,#8378]', async t => {
   const box = recorded(t);
   const count = () => withFixtureBoard(boardFile(box), board => ({ ...board.db.prepare('SELECT (SELECT COUNT(*) FROM event) events, (SELECT COUNT(*) FROM board_meta) meta, (SELECT meta_value FROM board_meta WHERE meta_key = ?) claim').get('moves.shadow.claim') }));
   const before = count();
@@ -58,7 +60,7 @@ const SHADOWS = Object.fromEntries(['claim', 'commit', 'submit', 'start', 'compl
 const TABLES = ['backbone', 'claim', 'hop', 'job', 'landing', 'lease', 'outbox', 'pulled', 'reclaim', 'release', 'reopen', 'submit', 'verify', 'withdraw'];
 const row = (rows, table) => rows.find(entry => entry.table === table);
 
-test('clause 1: commit compares read live under moves.live.submit, start and complete under moves.live.handoff [C7,#9188]', () => {
+test('cli.io-commands-moves.commit-compares-read-live-under-moves-live: clause 1: commit compares read live under moves.live.submit, start and complete under moves.live.handoff [C7,#9188]', () => {
   const off = movesReport(SHADOWS, TABLES, {});
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(off, table).state), ['shadow', 'shadow', 'shadow', 'shadow']);
   const submitOn = movesReport(SHADOWS, TABLES, { moves: { live: { submit: true } } });
@@ -67,7 +69,7 @@ test('clause 1: commit compares read live under moves.live.submit, start and com
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(handoffOn, table).state), ['shadow', 'shadow', 'live', 'live']);
 });
 
-test('clause 2: hop reads live while gate.fencedHop is unset or on, and pulled always reads live [C7,#9188]', () => {
+test('cli.io-commands-moves.hop-reads-live-while-gate-fencedhop-is: clause 2: hop reads live while gate.fencedHop is unset or on, and pulled always reads live [C7,#9188]', () => {
   assert.equal(row(movesReport({}, TABLES, {}), 'hop').state, 'live');
   assert.equal(row(movesReport({}, TABLES, { gate: { fencedHop: true } }), 'hop').state, 'live');
   assert.equal(row(movesReport({}, TABLES, { gate: { fencedHop: false } }), 'hop').state, 'none');
@@ -75,7 +77,7 @@ test('clause 2: hop reads live while gate.fencedHop is unset or on, and pulled a
   assert.equal(row(movesReport({}, TABLES, {}), 'pulled').state, 'live');
 });
 
-test('clause 3: each row names the switch that puts its writer live, or none for a writer that always runs its table [C7,#9188]', () => {
+test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each row names the switch that puts its writer live, or none for a writer that always runs its table [C7,#9188]', () => {
   const rows = movesReport(SHADOWS, TABLES, {});
   const switches = Object.fromEntries(rows.map(entry => [entry.table, entry.liveSwitch]));
   assert.deepEqual(switches, {
@@ -86,3 +88,25 @@ test('clause 3: each row names the switch that puts its writer live, or none for
   const allOn = movesReport(SHADOWS, TABLES, { moves: { live: { claim: true, submit: true, handoff: true, outcome: true, job: true, reopen: true, outbox: true } } });
   assert.deepEqual(allOn.filter(entry => entry.state !== 'live').map(entry => entry.table), ['backbone', 'reclaim'], 'every table with a writer reads live once its switch is on');
 });
+
+{
+  /** Table files as the moves cell has them: none named start or complete. */
+  const PATHS = ['backbone', 'claim', 'hop', 'job', 'landing', 'lease', 'outbox', 'pulled', 'reclaim', 'release', 'reopen', 'submit', 'verify', 'withdraw']
+    .map(name => `packages/moves/src/logic/table/${name}.table.js`);
+  const row = (rows, table) => rows.find(entry => entry.table === table);
+
+  test('clause 1: with no start or complete file and nothing recorded, start and complete list as none, 0 compares, under moves.live.handoff [C7]', () => {
+    const rows = movesReport({}, moveTableNames(PATHS), {});
+    for (const table of ['start', 'complete']) {
+      const found = row(rows, table);
+      assert.ok(found, `${table} is listed`);
+      assert.deepEqual([found.state, found.compared, found.liveSwitch], ['none', 0, 'moves.live.handoff']);
+    }
+  });
+
+  test('clause 2: start and complete read live with moves.live.handoff on, and every LIVE_SWITCH key is listed exactly once [C7]', () => {
+    const rows = movesReport({}, moveTableNames(PATHS), { moves: { live: { handoff: true } } });
+    assert.deepEqual(['start', 'complete'].map(table => row(rows, table).state), ['live', 'live']);
+    for (const table of Object.keys(LIVE_SWITCH)) assert.equal(rows.filter(entry => entry.table === table).length, 1, `${table} listed once`);
+  });
+}
