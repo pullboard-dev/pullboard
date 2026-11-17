@@ -128,6 +128,8 @@ export async function tour(io) {
   const seatSession = (who) => ({ CLAUDECODE: '1', CLAUDE_CODE_SESSION_ID: `${basename(dir)}-${who}` });
   const timings = [];
   // PULLBOARD_TOUR_REAL_HOOKS=1: the scripted commits run git's own hook scripts as processes, as a person's commit does [N10,#10408].
+  // How long each scripted commit took, hooks included, said at the end so a slow commit is seen [N10,#10408].
+  const commitMs = [];
   const realHooks = process.env.PULLBOARD_TOUR_REAL_HOOKS === '1';
 
   /** The environment one scripted seat runs with. */
@@ -217,9 +219,14 @@ export async function tour(io) {
     throw new TourStopped(`the land job for #${id} did not land it in two minutes; pullboard runner local shows this machine's runner`);
   };
   /** One scripted commit: its hooks run in this process, unless the real ones were asked for. */
-  const commit = (who, message, { all = false } = {}) => commitWithHooks({ message, all, real: realHooks, messageFile: join(dir, `commit-message-${who}`),
-    label: `git ${typed(['commit', '-q', all ? '-am' : '-m', message])}`,
-    run: (file, args, options) => run(who, file, args, options), pb: (args, options) => pb(who, args, options) });
+  const commit = async (who, message, { all = false } = {}) => {
+    const started = performance.now();
+    try {
+      return await commitWithHooks({ message, all, real: realHooks, messageFile: join(dir, `commit-message-${who}`),
+        label: `git ${typed(['commit', '-q', all ? '-am' : '-m', message])}`,
+        run: (file, args, options) => run(who, file, args, options), pb: (args, options) => pb(who, args, options) });
+    } finally { commitMs.push(performance.now() - started); }
+  };
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });
@@ -304,5 +311,6 @@ export async function tour(io) {
   io.say(`Look around: cd ${repo} && pullboard log`);
   io.say('see it: pullboard view');
   io.err(slowestSteps(timings));
+  io.err(`scripted commits: ${commitMs.map((ms) => `${Math.round(ms)} ms`).join(', ')}`);
   return 0;
 }
