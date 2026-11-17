@@ -23,7 +23,7 @@ const PRIVATE = ['ordinary', 'credential', 'value', '123456789'].join('-');
 /** Scan one controlled line without returning its values in diagnostics. */
 function findings(text) { return secretsIn([{ path: 'fixture.js', line: 1, text }]); }
 
-test('only the exact public assigned-secret sentinel is safe [C7,S1]', () => {
+test('commits.runner-scan-leak.only-the-exact-public-assigned-secret: only the exact public assigned-secret sentinel is safe [C7,S1]', () => {
   assert.deepEqual(findings(`const record = { secret: '${SENTINEL}' };`), []);
   assert.deepEqual(findings(`const record = { secret: "${SENTINEL}" };`), []);
   assert.deepEqual(findings(`writeFileSync(sessionPath, JSON.stringify({ ...JSON.parse(sessionBytes), secret: '${SENTINEL}' }));`), []);

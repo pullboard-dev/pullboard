@@ -34,7 +34,7 @@ function fixture() {
 }
 
 /** A take hands the runner the gate's base, tooling pin and attempt, and its result signed over them is accepted [C7]. */
-test('a shard offered for a gate carries its base, tooling and attempt into the signed result [C7]', () => {
+test('transport.pull-binding.a-shard-offered-for-a-gate: a shard offered for a gate carries its base, tooling and attempt into the signed result [C7]', () => {
   const { adapter, claim, signResult } = fixture();
   assert.equal(claim.base, GATE.base);
   assert.equal(claim.tooling, GATE.tooling);
@@ -44,7 +44,7 @@ test('a shard offered for a gate carries its base, tooling and attempt into the 
 });
 
 /** A result signed with an empty base, tooling or attempt is refused for a gate that has them [C7]. */
-test('a result signed with an empty base, tooling or attempt is refused for a gate that has them [C7]', () => {
+test('transport.pull-binding.a-result-signed-with-an-empty: a result signed with an empty base, tooling or attempt is refused for a gate that has them [C7]', () => {
   for (const empty of ['base', 'tooling', 'attempt']) {
     const { adapter, claim, signResult } = fixture();
     const bound = { base: GATE.base, tooling: GATE.tooling, attempt: GATE.attempt, [empty]: '' };

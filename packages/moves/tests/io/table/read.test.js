@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** The read-only reader builds the snapshot each recorded move saw, and tables are found by discovery [C7,#8070]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -8,7 +9,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { listMoveTables } from '../../../index.js';
 import { readMoveRecords } from '../../../index.js';
 

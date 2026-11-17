@@ -1,5 +1,6 @@
 /** The catalog's real-CLI cases, each naming the JSON_SHAPES.commands keys it covers; catalog.test.js runs them [A1,C7,#8843]. */
 import assert from 'node:assert/strict';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import {
   runFixtureExecFile as execFileSync,
@@ -13,6 +14,7 @@ import {
   safeFixtureDiagnostic,
   privateFixtureFiles,
 } from '../child.js';
+import { stopFixtureLocalRunners } from '../runner/local-stop.js';
 import { performance } from 'node:perf_hooks';
 import {
   appendFileSync,
@@ -79,13 +81,13 @@ const BIN = resolve(import.meta.dirname, '../../../pullboard.js');
 const TEMP_DIRS = [];
 // The light-route model the hand-off case joins with.
 const LIGHT_MODEL = 'gpt-6-luna';
-// Local runners that pull submits started on a case's machine; killed when the file ends.
-const LOCAL_RUNNERS = [];
 const COMPILE_CACHE = privateFixtureFiles('pullboard-api-compile-cache-').root;
 TEMP_DIRS.push(COMPILE_CACHE);
 const covered = new Set();
 const coveredRoots = new Set();
 const catalogCases = [];
+// The roots the running case has added so far, so a case can be held to the roots it declared.
+const caseRoots = new AsyncLocalStorage();
 
 // Bound real CLI/Git/server/watch children together; each private workflow keeps its command order.
 let childSlots = 3;
@@ -136,9 +138,30 @@ function spawnCatalogChild(release, command, args, options) {
 }
 
 
-/** Queue one independent real-repository case that names the JSON_SHAPES.commands keys it covers; the catalog test waits for all of them. */
-function catalogCase(name, covers, run) {
-  catalogCases.push({ name, covers, run });
+/** Record one root command as exercised, for the run as a whole and for the case that is running. */
+function addRoot(command) {
+  coveredRoots.add(command);
+  caseRoots.getStore()?.add(command);
+}
+
+/** Wrap a case's run so it fails if it adds a root command it did not declare; the declarations are what the static union is built from. */
+function declaredRun(roots, run) {
+  const declared = new Set(roots);
+  return async (t) => {
+    const added = new Set();
+    const result = await caseRoots.run(added, () => run(t));
+    const undeclared = [...added].filter((root) => !declared.has(root)).sort();
+    assert.deepEqual(undeclared, [], `the case added roots it did not declare; add them to its roots: ${undeclared.join(', ')}`);
+    return result;
+  };
+}
+
+/**
+ * Queue one independent real-repository case that names the JSON_SHAPES.commands keys it covers and the root commands
+ * its run adds to coveredRoots; the catalog test waits for all of them, and coverage.test.js checks the declared roots statically.
+ */
+function catalogCase(name, covers, run, roots) {
+  catalogCases.push({ name, covers, roots, run: declaredRun(roots, run) });
 }
 
 after(async () => {
@@ -147,8 +170,10 @@ after(async () => {
   for (const child of serverChildren.keys()) child.kill('SIGKILL');
   await Promise.all(serverChildren.values());
   await cleanupFixtureChildren();
-  for (const pid of LOCAL_RUNNERS) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
-  for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
+  // A queued submit starts a loopback local runner in each case's machine home; stop them and wait for the exits, or one still writes into the folder being removed [C7,#9714].
+  stopFixtureLocalRunners(TEMP_DIRS.map((dir) => join(dir, 'home')));
+  // A killed local runner may still be writing into a case's folder for a moment; the run's sandbox removes what is left.
+  for (const dir of TEMP_DIRS) { try { rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch (error) { console.warn(`catalog cleanup: a child process still held ${dir} (${error.code}); the run's sandbox removes it`); } }
 });
 
 const SPEC = `# API fixture
@@ -261,7 +286,7 @@ function shapeFor(command, subcommand) {
   const key = candidates.find((candidate) => JSON_SHAPES.commands[candidate]);
   assert.ok(key, `JSON_SHAPES.commands must document ${command}${subcommand ? ` ${subcommand}` : ''}`);
   covered.add(key);
-  coveredRoots.add(command);
+  addRoot(command);
   return JSON_SHAPES.commands[key];
 }
 
@@ -304,7 +329,6 @@ async function json(box, cwd, command, args = [], subcommand) {
   if ((command === 'submit' || command === 'done') && document.queued) {
     shapeFor(command, subcommand); // marks the command as exercised; its inline-result fields (id, pin, gate) come from the settled receipt below
     assertRequiredShape(document, { item: 'number', commit: 'string', gateJob: 'string', queued: 'boolean' }, `queued ${command}`);
-    if (document.localRunner?.pid) LOCAL_RUNNERS.push(document.localRunner.pid);
     const settled = await whenRunnerSettles(box.env, async () => {
       const shown = await box.runLocal(cwd, 'show', String(document.item), '--json', '--no-next');
       const read = shown.status === 0 ? JSON.parse(shown.stdout) : null;
@@ -322,7 +346,7 @@ async function uncataloguedRootJSON(box, cwd, command, args = []) {
   assert.equal(result.status, 0, `${command} ${args.join(' ')}: ${result.stderr}${result.stdout}`);
   assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   const document = parseOneDocument(result.stdout);
-  coveredRoots.add(command);
+  addRoot(command);
   return document;
 }
 
@@ -348,83 +372,34 @@ function parseOneDocument(stdout) {
 }
 
 
-catalogCase('[A1] command results match the catalog across roots and subcommands', [
-  'add',
+catalogCase('[A1] command results match the catalog across roots: reads', [
   'agents',
-  'answer',
   'badge',
-  'blueprint add',
-  'blueprint starters',
   'capacity',
-  'check',
-  'claim',
-  'decisions',
   'doctor',
-  'doctrine check',
-  'done',
-  'edit',
-  'escalate',
-  'fact',
-  'forget',
   'gate',
   'health',
   'heartbeat',
   'help',
-  'hold',
-  'hook commit-msg',
-  'hook pre-commit',
-  'hook pre-merge-commit',
-  'hook pre-push',
   'hooks',
-  'inbox',
   'init',
-  'join',
   'lanes',
   'ledger',
   'lifecycle',
-  'list',
   'log',
-  'merged',
-  'next',
-  'pass',
-  'patch',
-  'patch attach',
-  'patch list',
-  'patch remove',
   'prompt',
-  'refreeze',
-  'release',
   'request',
   'resources',
   'resume',
-  'run',
   'settings',
-  'shout',
-  'show',
   'skills',
-  'spec',
-  'spec check',
-  'spec draft',
-  'spec show',
-  'spec signers',
-  'spec signoff',
-  'spec unmet',
-  'spec view',
   'stats',
   'stats moves',
   'stats pipeline',
   'status',
-  'submit',
-  'sweep',
-  'tour',
-  'verify',
   'version',
   'whoami',
-  'why',
-  'why file',
-  'withdraw',
-  'worktree',
-], async (t) => {
+], async () => {
   const box = await project();
   const { repo } = box;
   assert.equal(box.initialized.version, 1);
@@ -486,6 +461,30 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'log');
   await json(box, repo, 'list');
   await json(box, repo, 'gate');
+}, ['agents', 'badge', 'capacity', 'decisions', 'doctor', 'gate', 'health', 'heartbeat', 'help', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'stats', 'status', 'version', 'whoami']);
+
+
+catalogCase('[A1] command results match the catalog across roots: spec and hooks', [
+  'blueprint add',
+  'blueprint starters',
+  'doctrine check',
+  'hook commit-msg',
+  'hook pre-commit',
+  'hook pre-merge-commit',
+  'hook pre-push',
+  'spec',
+  'spec check',
+  'spec draft',
+  'spec show',
+  'spec signers',
+  'spec signoff',
+  'spec unmet',
+  'spec view',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+  assert.equal(box.initialized.version, 1);
+  assertRequiredShape(box.initialized, shapeFor('init').required, 'init');
 
   await json(box, repo, 'spec', ['--json']);
   await json(box, repo, 'spec', ['check'], 'check');
@@ -519,6 +518,37 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
+}, ['blueprint', 'doctrine', 'hook', 'init', 'spec']);
+
+
+catalogCase('[A1] command results match the catalog across roots: items and spec changes', [
+  'add',
+  'check',
+  'claim',
+  'done',
+  'edit',
+  'escalate',
+  'fact',
+  'hold',
+  'join',
+  'list',
+  'merged',
+  'patch',
+  'patch attach',
+  'patch list',
+  'patch remove',
+  'refreeze',
+  'release',
+  'show',
+  'submit',
+  'verify',
+  'why',
+  'why file',
+  'withdraw',
+  'worktree',
+], async (t) => {
+  const box = await project();
+  const { repo } = box;
 
   const review = await json(box, repo, 'worktree', ['review']);
   const reviewPath = review.path;
@@ -566,11 +596,34 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'escalate', ['5', '--note', 'the first route needs another pass']);
   await json(box, repo, 'hold', ['app', '--reason', 'exercise JSON']);
   await json(box, repo, 'hold', ['app', '--off']);
+}, ['add', 'check', 'claim', 'done', 'edit', 'escalate', 'fact', 'hold', 'init', 'join', 'list', 'merged', 'next', 'patch', 'refreeze', 'release', 'show', 'spec', 'submit', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
 
-  await json(box, secondPath, 'shout', ['Please decide', '--decision', '--kind', 'question']);
+
+catalogCase('[A1] command results match the catalog across roots: shouts, runs and next', [
+  'answer',
+  'decisions',
+  'forget',
+  'inbox',
+  'next',
+  'pass',
+  'run',
+  'shout',
+  'sweep',
+  'tour',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+
+  const review = await json(box, repo, 'worktree', ['review']);
+  const reviewPath = review.path;
+  const secondPath = join(box.dir, 'review-two');
+  await box.git(repo, 'worktree', 'add', '-q', secondPath, '-b', 'review/two');
+  await json(box, secondPath, 'join', ['review']);
+  await json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
+  const first = await json(box, secondPath, 'shout', ['First ask', '--decision', '--kind', 'question']);
   await json(box, repo, 'decisions');
-  await json(box, repo, 'pass', ['1', 'The test run is complete']);
-  await json(box, repo, 'answer', ['2', 'Yes, keep the change', '--as', 'person']);
+  const passed = await json(box, repo, 'pass', [String(first.id), 'The test run is complete']);
+  await json(box, repo, 'answer', [String(passed.id), 'Yes, keep the change', '--as', 'person']);
   await json(box, secondPath, 'inbox');
   await json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
@@ -591,7 +644,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.ok(tourRepo && existsSync(tourRepo), 'the reported tour repo exists until the test cleans it up');
   assert.match(basename(dirname(tourRepo)), /^pullboard-tour-/, 'cleanup is confined to the generated tour folder');
   TEMP_DIRS.push(dirname(tourRepo));
-});
+}, ['add', 'answer', 'decisions', 'forget', 'inbox', 'init', 'join', 'next', 'pass', 'run', 'shout', 'sweep', 'tour', 'whoami', 'worktree']);
 
 
 catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', [
@@ -616,7 +669,7 @@ catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI J
   assert.equal(delivered.shout_from, 'app-1');
   assert.equal(delivered.shout_answers, ask.id);
   assert.equal(delivered.shout_text, 'Retry once.');
-});
+}, ['answer', 'inbox', 'init', 'shout']);
 
 
 catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only', [
@@ -688,7 +741,7 @@ catalogCase('[A1,B21,B27] decisions shows an agent its direct and lane asks only
   assert.equal(coordinatorText.status, 0, coordinatorText.stderr);
   assert.match(coordinatorText.stdout, new RegExp(`#${coordinatorAsk}\\b`));
   assert.doesNotMatch(coordinatorText.stdout, new RegExp(`#(?:${app1Ask}|${app2Ask}|${reviewAsk})\\b`));
-});
+}, ['answer', 'decisions', 'init', 'pass', 'shout']);
 
 
 catalogCase('[A1] refusals are one JSON document with exact public error fields', [
@@ -715,7 +768,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   assertRequiredShape(shipDocument.error, JSON_SHAPES.errorFields, 'ship refusal');
   assert.equal(shipDocument.error.code, 'USAGE');
   assert.match(shipDocument.error.message, /ship needs exactly one owned item/u);
-  coveredRoots.add('ship');
+  addRoot('ship');
 
   const noRow = await jsonError(box, repo, 'spec', ['show', 'G99'], {
     status: 1,
@@ -789,7 +842,7 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   assert.equal(invalidDocument.error.message, textCheck.stdout.trim());
   assert.equal(invalidDocument.error.next, 'read the reported output above, fix what it names, and run the command again');
   rmSync(box.dir, { recursive: true, force: true });
-});
+}, ['init', 'next', 'ship', 'spec', 'status']);
 
 
 catalogCase('[A1] long-running servers flush one JSON document before shutdown', ['init', 'serve', 'view'], async (t) => {
@@ -840,14 +893,14 @@ catalogCase('[A1] long-running servers flush one JSON document before shutdown',
     });
     const document = await ready;
     assert.equal(document.version, 1);
-    coveredRoots.add(command);
+    addRoot(command);
     assertRequiredShape(document, shapeFor(command).required, command);
     child.kill('SIGTERM');
     await closed;
     assert.equal(stderr, '');
     assert.deepEqual(parseOneDocument(stdout), document, `${command} does not flush a second document on shutdown`);
   }
-});
+}, ['init', 'serve', 'view']);
 
 catalogCase('[A1,A2] watch --json prints one catalog document per event line', ['init', 'shout', 'watch'], async (t) => {
   const box = await project();
@@ -882,7 +935,7 @@ catalogCase('[A1,A2] watch --json prints one catalog document per event line', [
   const [code] = await closed;
   assert.equal(code, 0);
   assert.equal(stdout, `${JSON.stringify(document)}\n`, 'watch prints no end-of-command document');
-});
+}, ['init', 'shout', 'watch']);
 
 
 catalogCase('[A1,A10] view exports a static folder through its JSON variant', ['add', 'init', 'view export'], async () => {
@@ -910,7 +963,7 @@ catalogCase('[A1,A10] view exports a static folder through its JSON variant', ['
   assert.equal(events.eventLogVersion, EVENT_LOG_VERSION);
   assert.ok(events.events.some((event) => event.event_kind === 'add' && event.item_id === item.item_id));
   assert.deepEqual(events.events.map((event) => event.event_id), events.events.map((event) => event.event_id).sort((a, b) => a - b));
-});
+}, ['add', 'init', 'view']);
 
 
 catalogCase('[A1,E13,E14,E15] move returns its real CLI result across local boards', ['move'], async (t) => {
@@ -932,7 +985,7 @@ catalogCase('[A1,E13,E14,E15] move returns its real CLI result across local boar
   assert.equal(moved.document.destination, `~fixture/repository#${moved.document.item.destinationItemId}`);
   assert.match(moved.document.moveId, /^[0-9a-f-]{36}$/u);
   assert.equal(moved.document.item.item.item_title, 'Catalog move source');
-});
+}, ['move']);
 
 catalogCase('[A1] catalog commands keep their real repository exercises', [
   'add',
@@ -1022,7 +1075,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   assert.equal(offering.status, 0, offering.stderr || offering.stdout);
   const landing = parseOneDocument(offering.stdout);
   covered.add('land');
-  coveredRoots.add('land');
+  addRoot('land');
   assert.ok(!landing.offered, `nothing is verified, so no land job is offered: ${offering.stdout}`);
   assert.deepEqual(landing.items ?? [], [], offering.stdout);
   const published = join(source.dir, 'published.git');
@@ -1031,7 +1084,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   const publishing = await source.run(source.repo, 'publish', '--json');
   assert.equal(publishing.status, 0, publishing.stderr || publishing.stdout);
   const publication = parseOneDocument(publishing.stdout);
-  coveredRoots.add('publish');
+  addRoot('publish');
   const trunkHead = await source.git(source.repo, 'rev-parse', 'HEAD');
   assert.deepEqual([publication.head, publication.published, publication.red], [trunkHead, true, []]);
   assert.equal(await source.git(published, 'rev-parse', 'refs/heads/main'), trunkHead, 'publish pushed the head the suite passed');
@@ -1156,7 +1209,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   const handoff = await uncataloguedRootJSON(source, handoffPath, 'handoff');
   assert.ok(Number.isSafeInteger(handoff.handoff.item), 'handoff opens a replacement item from the joined worktree');
   assert.equal(handoff.resume.agent, joined.agent);
-});
+}, ['add', 'bar', 'blueprint', 'check', 'claim', 'companion', 'digest', 'export', 'flakes', 'gate', 'handoff', 'import', 'init', 'join', 'labels', 'land', 'lane', 'lanes', 'loop', 'maintenance', 'milestone', 'publish', 'queue', 'relay', 'reopen', 'rigor', 'roadmap', 'runner', 'search', 'seats', 'sentinel', 'sentinels', 'spec', 'stats', 'submit', 'takeover', 'tool-build', 'trace', 'verify', 'why']);
 
 catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'init'], async () => {
   const box = await project();
@@ -1167,7 +1220,7 @@ catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay thro
   assert.ok(Array.isArray(result.replay.items));
   assert.ok(Array.isArray(result.replay.landingOrder));
   assert.equal(typeof result.replay.stages, 'object');
-});
+}, ['flow', 'init']);
 
 catalogCase('[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON', ['add', 'init', 'map'], async () => {
   const box = await project();
@@ -1192,18 +1245,18 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.match(plain.stdout, /\nnext: pullboard next\n$/u, 'the text-only footer is present');
   assert.equal(plain.stdout.replace(/\nnext: pullboard next\n$/u, '\n'), `${card.map}\n`,
     'JSON carries exactly the ordinary rendered card, excluding only its trailing text action');
-});
+}, ['add', 'init', 'map']);
 
 catalogCase('[A1] intake records a real outside pull request through the CLI', [], async (t) => {
   const box = intakeFixture(t);
   const document = intakeFixtureJSON(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'the outside fixture is recorded without running its code',
     '--check', 'node --test test/contribution.test.js');
-  coveredRoots.add('intake');
+  addRoot('intake');
   assert.ok(Number.isSafeInteger(document.item.item_id));
   assert.equal(document.item.item_status, 'submitted');
   assert.equal(document.item.item_commit, box.commit);
-});
+}, ['intake']);
 
 catalogCase('[A1,C7] test runs named test files as a pulled job and reports the runner', ['init', 'test'], async () => {
   const box = await project();
@@ -1220,7 +1273,7 @@ catalogCase('[A1,C7] test runs named test files as a pulled job and reports the 
   assert.deepEqual(result.counts, { passed: 1, failed: 0, skipped: 0 });
   assert.match(readFileSync(result.logPath, 'utf8'), /^ok 1 - catalog passes/mu,
     'the actual TAP is retained in the complete log instead of the public summary');
-});
+}, ['init', 'test']);
 
 catalogCase('[A1,H11] sync shares a board through a real Git remote without an account', ['init', 'sync'], async () => {
   const source = await project();
@@ -1232,7 +1285,7 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
   assert.equal(result.sequence, 0);
   assert.equal(result.pending, null);
   assert.match(await source.git(remote, 'rev-parse', result.ref), /^[0-9a-f]{40,64}$/u);
-});
+}, ['init', 'sync']);
 
 catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', [
   'add',
@@ -1246,17 +1299,17 @@ catalogCase('[A1,B26] slice creates a frozen child of a claimed item through rea
   await json(source, source.repo, 'claim', [String(parent.item_id)]);
   const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
   assert.deepEqual([item.item_parent_id, item.item_criterion], [parent.item_id, 'Every slice inherits this bar.'], 'the slice inherits its parent and frozen criterion');
-});
+}, ['add', 'check', 'claim', 'init', 'slice']);
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', ['init'], () =>
-  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots }));
+  exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots: { add: addRoot } }), ['gate-health', 'init', 'push-receipts', 'shadow-batch', 'test-value', 'waits']);
 
 catalogCase('[A1,C7] red explain reports absent evidence through the catalog', ['init', 'red'], async () => {
   const box = await project();
   const result = await json(box, box.repo, 'red', ['explain', 'test/catalog.test.js']);
   assert.equal(result.file, 'test/catalog.test.js');
   assert.equal(result.unavailable, 'no recorded red on main history');
-});
+}, ['init', 'red']);
 
 catalogCase('[A1,C7] mutate reports caught and missed faults through the catalog', ['init', 'mutate'], async () => {
   const box = await project();
@@ -1270,34 +1323,34 @@ catalogCase('[A1,C7] mutate reports caught and missed faults through the catalog
   assert.equal(report.cell, 'cells/calc');
   assert.equal(report.all, true);
   assert.equal(report.caught + report.missed, report.faults.length, 'every seeded fault is caught or missed');
-});
+}, ['init', 'mutate']);
 
 catalogCase('[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog', ['cells', 'init'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'cells');
   assert.ok(Array.isArray(report.cells), 'cells lists every cell');
   assert.deepEqual(report.unsealed, report.cells.filter((row) => row.state === 'unsealed').map((row) => row.cell), 'unsealed names the unsealed cells');
-});
+}, ['cells', 'init']);
 
 catalogCase('[A1,C7,#8842] route suggests light items through the catalog', ['init', 'route'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'route', ['--suggest']);
   assert.equal(report.suggest, 'light');
   assert.ok(Array.isArray(report.items), 'route lists the strong items that meet the light shape');
-});
+}, ['init', 'route']);
 
 catalogCase('[A1,C7] rules replays the event log through the catalog', ['init', 'rules'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'rules');
   assert.equal(report.judged, report.agreed + report.disagreementCount, 'every judged event agrees or is listed');
-});
+}, ['init', 'rules']);
 
 catalogCase('[A1,C7] compact reports a dry run through the catalog', ['compact', 'init'], async () => {
   const box = await project();
   const report = await json(box, box.repo, 'compact', ['--dry-run']);
   assert.equal(report.dryRun, true);
   assert.equal(report.rows, 0, 'a new board has no old finished steps to archive');
-});
+}, ['compact', 'init']);
 
 catalogCase('[A1,C7,#8071] replay reports a table through the catalog', ['init', 'replay'], async () => {
   const box = await project();
@@ -1306,7 +1359,7 @@ catalogCase('[A1,C7,#8071] replay reports a table through the catalog', ['init',
   writeFileSync(join(dir, 'demo.table.js'), 'export const DEMO_RULES = {};\nexport const DEMO_TABLE = { name: \'demo\', guards: [], outcomes: [] };\n');
   const report = await json(box, box.repo, 'replay', ['demo']);
   assert.equal(report.table, 'demo');
-});
+}, ['init', 'replay']);
 
 catalogCase('[A1,C7,#8072] explain reports a table through the catalog', ['explain', 'init'], async () => {
   const box = await project();
@@ -1315,7 +1368,7 @@ catalogCase('[A1,C7,#8072] explain reports a table through the catalog', ['expla
   writeFileSync(join(dir, 'demo.table.js'), 'export const DEMO_RULES = {};\nexport const DEMO_TABLE = { name: \'demo\', guards: [], outcomes: [] };\n');
   const report = await json(box, box.repo, 'explain', ['demo']);
   assert.equal(report.table, 'demo');
-});
+}, ['explain', 'init']);
 
 catalogCase('[A1,C7] contribute check reports an accepted record through the catalog', ['contribute', 'init'], async () => {
   const box = await project();
@@ -1324,7 +1377,7 @@ catalogCase('[A1,C7] contribute check reports an accepted record through the cat
   const report = await json(box, box.repo, 'contribute', ['check', file, 'Bug'], 'check');
   assert.equal(report.ok, true, JSON.stringify(report.failures));
   assert.deepEqual([report.shape, report.failures], ['Bug', []]);
-});
+}, ['contribute', 'init']);
 
 catalogCase('[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing', [], async () => {
   const box = await project();
@@ -1333,7 +1386,7 @@ catalogCase('[A1,C7,#8515] coordinate resumes the coordinator through real CLI J
   assert.ok(Array.isArray(first.all), 'coordinate reports the same resume view the coordinator reads');
   const second = await uncataloguedRootJSON(box, box.repo, 'coordinate');
   assert.deepEqual([second.all.length, second.agents.length], [first.all.length, first.agents.length], 'running it twice adds no agent or request');
-});
+}, ['coordinate', 'init']);
 
 catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI JSON', [], async () => {
   const box = await project();
@@ -1341,7 +1394,7 @@ catalogCase('[A1,C7,#8378] moves reports each move table state through real CLI 
   assert.ok(Array.isArray(tables) && tables.length > 0, 'moves lists every move table');
   for (const row of tables) assert.ok(['live', 'shadow', 'map', 'none'].includes(row.state), `table ${row.table} has a known state`);
   assert.deepEqual(tables.map((row) => row.table), tables.map((row) => row.table).sort(), 'tables come in name order');
-});
+}, ['init', 'moves']);
 
 catalogCase('[A1,C7,#8916] split files one child per numbered clause through real CLI JSON', [], async () => {
   const box = await project();
@@ -1351,6 +1404,75 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
   const split = await uncataloguedRootJSON(box, box.repo, 'split', [String(parent.item_id)]);
   assert.equal(split.parent, parent.item_id);
   assert.equal(split.children.length, 2, 'one child per numbered clause');
-});
+}, ['add', 'init', 'split']);
 
-export { catalogCases, covered, coveredRoots };
+catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON', ['field'], async () => {
+  const box = await project();
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* A fixture box with no settings file starts empty. */ }
+  writeFileSync(settings, JSON.stringify({ ...saved, items: { ...saved.items, typedFields: true } }));
+  const item = (await json(box, box.repo, 'add', ['coordinator', 'Field parent', '--criterion', 'It holds a field.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
+  const declared = await uncataloguedRootJSON(box, box.repo, 'field', ['declare', 'priority', 'choice', '--choices', 'low,high']);
+  assert.equal(declared.field.name, 'priority');
+  const set = await uncataloguedRootJSON(box, box.repo, 'field', ['set', String(item.item_id), 'priority', 'high']);
+  assert.equal(set.field.value, 'high');
+}, ['add', 'field', 'init']);
+
+/**
+ * The run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
+ * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; separate files run on separate runners.
+ */
+const CATALOG_GROUPS = {
+  'results-a1': [
+    '[A1] command results match the catalog across roots: reads',
+  ],
+  'results-a2': [
+    '[A1] command results match the catalog across roots: spec and hooks',
+  ],
+  'results-b1': [
+    '[A1] command results match the catalog across roots: items and spec changes',
+  ],
+  'results-b2': [
+    '[A1] command results match the catalog across roots: shouts, runs and next',
+  ],
+  lanes: [
+    '[A1,B21,B27] a lane decision is answered by its agent through CLI JSON',
+    '[A1,B21,B27] decisions shows an agent its direct and lane asks only',
+    '[A1] refusals are one JSON document with exact public error fields',
+    '[A1] long-running servers flush one JSON document before shutdown',
+    '[A1,A2] watch --json prints one catalog document per event line',
+    '[A1,A10] view exports a static folder through its JSON variant',
+    '[A1,E13,E14,E15] move returns its real CLI result across local boards',
+  ],
+  exercises: [
+    '[A1] catalog commands keep their real repository exercises',
+  ],
+  commands: [
+    '[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON',
+    '[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON',
+    '[A1] intake records a real outside pull request through the CLI',
+    '[A1,C7] test runs named test files as a pulled job and reports the runner',
+    '[A1,H11] sync shares a board through a real Git remote without an account',
+    '[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON',
+    '[A1,C7] additive roots expose a real report and refuse missing native audit evidence',
+    '[A1,C7] red explain reports absent evidence through the catalog',
+    '[A1,C7] mutate reports caught and missed faults through the catalog',
+    '[A1,C7,#8842] cells lists sealed and unsealed cells through the catalog',
+    '[A1,C7,#8842] route suggests light items through the catalog',
+    '[A1,C7] rules replays the event log through the catalog',
+    '[A1,C7] compact reports a dry run through the catalog',
+    '[A1,C7,#8071] replay reports a table through the catalog',
+    '[A1,C7,#8072] explain reports a table through the catalog',
+    '[A1,C7] contribute check reports an accepted record through the catalog',
+    '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
+    '[A1,C7,#8378] moves reports each move table state through real CLI JSON',
+    '[A1,C7,#8916] split files one child per numbered clause through real CLI JSON',
+    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',
+  ],
+};
+
+/** The catalog cases of each run file, keyed by group name, in registration order. */
+const catalogGroups = Object.fromEntries(Object.entries(CATALOG_GROUPS).map(([group, wanted]) => [group, catalogCases.filter(({ name }) => wanted.includes(name))]));
+
+export { addRoot, catalogCases, catalogGroups, covered, coveredRoots, declaredRun };

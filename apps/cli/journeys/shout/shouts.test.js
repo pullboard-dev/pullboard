@@ -47,10 +47,10 @@ async function catchUp(page, shown) {
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'shout', 'web', 'first');
-  box.run(alpha.repo, 'shout', 'web', 'second');
+  await box.runIn(alpha.repo, 'shout', 'web', 'first');
+  await box.runIn(alpha.repo, 'shout', 'web', 'second');
   const beta = project(box, 'beta');
-  box.run(beta.repo, 'shout', 'web', 'beta has its own');
+  await box.runIn(beta.repo, 'shout', 'web', 'beta has its own');
   const view = await startView(box);
   try {
     const store = storage();
@@ -58,12 +58,12 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     const page = await openPage(view, { store });
     assert.equal(count(page), '', 'the shouts there before the first look count as seen, not as 2');
 
-    box.run(alpha.web, 'shout', 'all', 'web-1 is on it');
+    await box.runIn(alpha.web, 'shout', 'all', 'web-1 is on it');
     await catchUp(page, () => count(page) === '1');
     assert.equal(count(page), '1', 'a shout since then counts');
     await page.click({ tab: 'shouts' });
     assert.equal(count(page), '', 'opening Shouts sees it');
-    box.run(alpha.web, 'shout', 'all', 'and done');
+    await box.runIn(alpha.web, 'shout', 'all', 'and done');
     // The mark moves to the newest shout the open Shouts tab shows, so read until the feed shows this one [C7].
     await catchUp(page, () => page.show('feed').includes('and done'));
     assert.ok(page.show('feed').includes('and done'), 'the open Shouts tab shows the shout that just arrived');
@@ -71,7 +71,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     await page.click({ tab: 'items' });
 
     // A shout lands while the page is closed: the reload counts it, and only it.
-    box.run(alpha.web, 'shout', 'all', 'while you were away');
+    await box.runIn(alpha.web, 'shout', 'all', 'while you were away');
     const reloaded = await openPage(view, { store });
     // The first read of a page takes the state the server keeps, from before this shout [A2,C7]; the live page's stream
     // then catches up by a delta. This page has no stream, so catch up as it does.
@@ -108,7 +108,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
     await new Promise((done) => setTimeout(done, 600));
     await racing.run('refresh()');
     assert.equal(racing.element('proj-name').textContent, 'beta');
-    box.run(beta.repo, 'shout', 'web', 'beta moves on');
+    await box.runIn(beta.repo, 'shout', 'web', 'beta moves on');
     await catchUp(racing, () => count(racing) === '1');
     assert.equal(count(racing), '1', 'the shout that came after counts');
   } finally {
@@ -135,12 +135,12 @@ test('an empty feed says so on one line [N26]', async () => {
 test('clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
-  box.run(alpha.web, 'claim', '1'); // Evidence needs a bound item and commit, not a restated submit.
+  await box.runIn(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.runIn(alpha.web, 'claim', '1'); // Evidence needs a bound item and commit, not a restated submit.
   const head = box.git(alpha.web, 'rev-parse', 'HEAD');
-  box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
-  box.run(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
-  box.run(alpha.web, 'shout', 'all', 'nothing to show');
+  await box.runIn(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured <fast>', '--item', '1', '--commit', head.slice(0, 7));
+  await box.runIn(alpha.web, 'shout', 'all', 'tried a cache', '--evidence', 'attempt', '--outcome', 'failed', '--item', '1', '--commit', 'HEAD');
+  await box.runIn(alpha.web, 'shout', 'all', 'nothing to show');
   const view = await startView(box);
   try {
     const page = await openPage(view);
@@ -165,8 +165,9 @@ test('clause 2: a shout shows the evidence it carries [B22]', async () => {
 test('a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.web, 'shout', 'all', 'web-1 is on the greeting');
+  await box.runIn(alpha.web, 'shout', 'all', 'web-1 is on the greeting');
   const view = await startView(box);
+  // Kept a real process: this case proves the standalone `pullboard serve` start-up and its board key, not a call's result.
   // The standalone API an agent can start with pullboard serve: a board key, never the person.
   const serve = spawn(process.execPath, [BIN, 'serve', '--port', '0', '--json'], { cwd: alpha.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { if (serve.exitCode === null) serve.kill('SIGTERM'); });
@@ -189,8 +190,8 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     ], 'the conversation keeps native author and recipient order, naming the model and recipient only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
-    assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');
-    const lines = box.run(alpha.repo, 'log').split('\n').filter((line) => / shout /.test(line));
+    assert.deepEqual(said(JSON.parse(await box.runIn(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');
+    const lines = (await box.runIn(alpha.repo, 'log')).split('\n').filter((line) => / shout /.test(line));
     assert.deepEqual(lines.map((line) => line.slice(21, 45).trim()), [`web-1 (${MACHINE_MODEL})`, 'person', 'person'], `pullboard log names the person: ${lines.join('\n')}`);
     assert.ok(lines.every((line) => !line.includes('coordinator (unknown)')), 'never as coordinator (unknown)');
 

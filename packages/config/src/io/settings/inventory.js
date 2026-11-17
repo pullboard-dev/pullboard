@@ -14,7 +14,7 @@ import {
 import { repoInfo } from '../../../../git/index.js';
 import {
   machineSettingsFile,
-} from '../../../../resources/index.js';
+} from '../../../../resources/light.js';
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,
@@ -85,7 +85,7 @@ function checkedValue(key, value, fallback) {
   // gate.timingRunner is "auto", a runner host, or false (off), as the machine settings loader accepts.
   if (key === 'gate.timingRunner' && value === false) return value;
   const expected = key === 'landing.environment' ? 'object' : fallback === null
-    ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key === 'claims.perSeat' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
+    ? (key === 'gate.memoryFloorMB' || key === 'machine.loadCeiling' || key === 'submitDeferAbove' || key === 'claims.perSeat' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
   if (value !== null && (expected === 'array' ? !Array.isArray(value) : expected !== 'object' && typeof value !== expected)) {
     throw new Refused('BAD_SETTINGS', `setting ${key} has an unsupported type; restore its documented value`);
   }

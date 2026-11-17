@@ -105,16 +105,18 @@ function inspect(box, expected, recorded = expected) {
   assert.equal(box.git('rev-parse', 'HEAD'), box.trunk);
 }
 
-/** Resolve through the actual landing resolver and finish a real Git merge. */
+/** Resolve through the actual landing resolver and finish a real Git merge; `expected` is the exact text, or a function that asserts the properties of the landed text. */
 function land(box, expected) {
   const merge = runFixtureChild('git', ['merge', '--no-ff', '--no-commit', box.head],
     { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.equal(merge.status, 1, `${merge.stdout}\n${merge.stderr}`);
   assert.ok(resolveMechanicalMerge(box.root, [box.path]));
-  assert.equal(box.read(box.path).toString('utf8'), expected);
+  const landed = box.read(box.path).toString('utf8');
+  if (typeof expected === 'function') expected(landed);
+  else assert.equal(landed, expected);
   box.git('add', '--', box.path);
   box.git('commit', '-q', '-m', 'chore: land mechanical merge');
-  assert.equal(box.git('show', `HEAD:${box.path}`), expected.trimEnd());
+  assert.equal(box.git('show', `HEAD:${box.path}`), landed.trimEnd(), 'the commit holds what the resolver wrote');
   assert.equal(box.git('merge-base', '--is-ancestor', box.head, 'HEAD'), '');
 }
 
@@ -124,8 +126,17 @@ test('JSON snapshots keep independent keys, removals, null and raised counters t
     '{"keep":1,"counter":3,"list":["base","left"],"nullable":null,"left":true}\n',
     '{"keep":1,"remove":true,"counter":4,"list":["base","right"],"nullable":null,"right":true}\n');
   inspect(box, []);
-  const expected = { keep: 1, counter: 4, list: ['base', 'left', 'right'], nullable: null, left: true, right: true };
-  land(box, JSON.stringify(expected) + '\n');
+  land(box, text => {
+    const landed = JSON.parse(text);
+    assert.equal(landed.keep, 1, 'an untouched key survives');
+    assert.equal('remove' in landed, false, 'a key one side removed stays removed');
+    assert.equal(landed.counter, 4, 'the raised counter wins');
+    assert.deepEqual(landed.list, ['base', 'left', 'right'], 'both sides\' additions to a list are kept in order');
+    assert.equal(landed.nullable, null, 'an explicit null is kept, not dropped');
+    assert.equal(landed.left, true, 'the key only trunk added is kept');
+    assert.equal(landed.right, true, 'the key only the candidate added is kept');
+    assert.deepEqual(Object.keys(landed).sort(), ['counter', 'keep', 'left', 'list', 'nullable', 'right'], 'no other key appears');
+  });
 });
 
 test('add-only Markdown retains both contributors without reopening [B3,R3,C7]', () => {

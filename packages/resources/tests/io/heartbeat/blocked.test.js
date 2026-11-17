@@ -34,7 +34,7 @@ function deadPid() {
   return spawnSync(process.execPath, ['-e', '']).pid;
 }
 
-test('clause 1: a queued gate keeps its queue entry through 135 s of sequential runner probes, and its next renewal succeeds [C7]', async (t) => {
+test('resources.blocked.a-queued-gate-keeps-its-queue: clause 1: a queued gate keeps its queue entry through 135 s of sequential runner probes, and its next renewal succeeds [C7]', async (t) => {
   const home = privateFixtureFiles('pb-probe-heartbeat-').root;
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
@@ -84,7 +84,7 @@ test('clause 1: a queued gate keeps its queue entry through 135 s of sequential 
   admitted.release();
 });
 
-test('clause 2: a queued gate whose process is gone is still removed from the queue [C7]', async (t) => {
+test('resources.blocked.a-queued-gate-whose-process-is: clause 2: a queued gate whose process is gone is still removed from the queue [C7]', async (t) => {
   const home = privateFixtureFiles('pb-probe-heartbeat-').root;
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;

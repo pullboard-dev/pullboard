@@ -1,0 +1,115 @@
+/**
+ * The cross-process board write queue [C7,#8163]: a file form of the write-queue port, so a caller that crashes after
+ * submitting still finds its write's result. Why: the in-process queue keeps writes in one promise chain, and a
+ * crashed caller loses both its write and its answer. Nothing calls this yet and no setting is read here.
+ *
+ * Layout in `dir`: `<id>.pending` (the write waits), `<id>.result` ({ ok, value } or { ok: false, error }), and
+ * `drain.lock` (the process now draining). Records are written to a temp name and renamed, so a reader never sees half.
+ */
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { writeFileAtomic } from '../../../kernel/light.js';
+
+const LOCK_STALE_MS = 5_000;
+const LOCK_RETRY_MS = 5;
+
+/** Read a JSON record, or null when it is missing or unreadable. */
+function readRecord(file) {
+  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+}
+
+/** True when the lock's owning process is gone, or the lock never got an owner record and is a few seconds old. */
+function lockIsStale(lock) {
+  const held = readdirSync(lock).map(name => Number.parseInt(name, 10)).find(Number.isInteger);
+  if (held !== undefined) {
+    try { process.kill(held, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
+  }
+  try { return Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS; } catch { return false; }
+}
+
+/** Take the drain lock without blocking; true when this process now holds it. */
+function takeLock(lock) {
+  try { mkdirSync(lock); } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    return false;
+  }
+  writeFileSync(join(lock, `${process.pid}.holder`), '');
+  return true;
+}
+
+/** Wait a few ms without blocking the event loop. */
+const pause = ms => new Promise(done => setTimeout(done, ms));
+
+/**
+ * @param {string} dir the queue directory shared by every process
+ * @returns {{ submit: (write: { id: string, run: () => unknown }) => Promise<{ ok: boolean, value?: unknown, error?: { code: string, message: string } }>,
+ *   result: (id: string) => { ok: boolean, value?: unknown, error?: { code: string, message: string } } | null }}
+ */
+export function createFileWriteQueue(dir) {
+  mkdirSync(dir, { recursive: true });
+  const lock = join(dir, 'drain.lock');
+  const resultFile = id => join(dir, `${id}.result`);
+  const pendingFile = id => join(dir, `${id}.pending`);
+  const runs = new Map();
+  let counter = 0;
+
+  /** True when `pid` is a live process. */
+  function alive(pid) {
+    try { process.kill(pid, 0); return true; } catch (error) { return error.code !== 'ESRCH'; }
+  }
+
+  /** The oldest pending write still worth running; drops records already answered or whose owner died (its function is gone). */
+  function nextPending() {
+    const entries = readdirSync(dir).filter(name => name.endsWith('.pending')).map(name => {
+      const record = readRecord(join(dir, name));
+      return { id: name.slice(0, -'.pending'.length), seq: record?.seq ?? 0, pid: record?.pid };
+    }).sort((a, b) => a.seq - b.seq || (a.id < b.id ? -1 : 1));
+    return entries.find(entry => {
+      if (existsSync(resultFile(entry.id)) || (!runs.has(entry.id) && Number.isInteger(entry.pid) && !alive(entry.pid))) {
+        rmSync(pendingFile(entry.id), { force: true });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /** Run this process's pending writes oldest first; stops at the oldest write another live process owns, so it runs it next. */
+  async function drain() {
+    for (let next = nextPending(); next && runs.has(next.id); next = nextPending()) {
+      let outcome;
+      try { outcome = { ok: true, value: await runs.get(next.id)() ?? null }; }
+      catch (error) { outcome = { ok: false, error: { code: String(error?.code ?? 'WRITE_FAILED'), message: String(error?.message ?? error) } }; }
+      writeFileAtomic(resultFile(next.id), JSON.stringify(outcome));
+      rmSync(pendingFile(next.id), { force: true });
+    }
+  }
+
+  return {
+    /** Queue a write; resolves with its stored outcome. A repeat of an id that has a result returns it unrun. */
+    async submit({ id, run }) {
+      const done = readRecord(resultFile(id));
+      if (done) return done;
+      if (!existsSync(pendingFile(id))) writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Date.now() * 1000 + (counter++ % 1000), pid: process.pid }));
+      runs.set(id, run);
+      for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
+        if (takeLock(lock)) {
+          try { await drain(); } finally { rmSync(lock, { recursive: true, force: true }); }
+          if (!readRecord(resultFile(id))) await pause(LOCK_RETRY_MS);
+        } else {
+          if (lockIsStale(lock)) rmSync(lock, { recursive: true, force: true });
+          await pause(LOCK_RETRY_MS);
+        }
+      }
+      runs.delete(id);
+      return readRecord(resultFile(id));
+    },
+    /** The stored outcome of write `id`, or null when it has not finished. */
+    result: id => readRecord(resultFile(id)),
+  };
+}

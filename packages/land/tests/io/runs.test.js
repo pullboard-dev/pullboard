@@ -23,13 +23,13 @@ function landed(t) {
   return { repo: repo.root, base: repo.commit, commit, db: cellBoard(t, ':memory:').db };
 }
 
-test('landing jobs are named by what they land, so a repeat finds the same row [C7]', () => {
+test('land.runs.job-named-by-landing: landing jobs are named by what they land, so a repeat finds the same row [C7]', () => {
   assert.equal(LANDING_JOB_KIND, 'landing');
   assert.equal(mergedLandingJobId([4, 9], 'abc'), 'land:merged:4,9:abc');
   assert.equal(batchLandingJobId('b-7'), 'land:batch:b-7');
 });
 
-test('a hand landing runs the caller\'s check, record and publish around the one merge it answers, and pins the tooling [C7]', async t => {
+test('land.runs.hand-landing-one-merge: a hand landing runs the caller\'s check, record and publish around the one merge it answers, and pins the tooling [C7]', async t => {
   const land = landed(t);
   const seen = [];
   const result = await landMerged(land.db, { repo: land.repo, ids: [4, 9], commit: land.commit, base: land.base, owner: 'coordinator',
@@ -45,7 +45,7 @@ test('a hand landing runs the caller\'s check, record and publish around the one
   assert.deepEqual([job.kind, job.item, job.candidate, job.base, job.step], [LANDING_JOB_KIND, 4, land.commit, land.base, 'done']);
 });
 
-test('a second hand landing of the same items and commit answers the same commit and records nothing again [C7]', async t => {
+test('land.runs.hand-landing-idempotent: a second hand landing of the same items and commit answers the same commit and records nothing again [C7]', async t => {
   const land = landed(t);
   let records = 0;
   const options = { repo: land.repo, ids: [4], commit: land.commit, owner: 'coordinator', record: () => { records += 1; return {}; } };
@@ -55,7 +55,7 @@ test('a second hand landing of the same items and commit answers the same commit
   assert.equal(jobView(land.db, mergedLandingJobId([4], land.commit)).base, land.commit, 'without a base the landed commit stands on itself');
 });
 
-test('a hand landing killed in its record resumes from the saved steps, and a refusing check writes nothing [C7]', async t => {
+test('land.runs.hand-landing-resumes: a hand landing killed in its record resumes from the saved steps, and a refusing check writes nothing [C7]', async t => {
   const land = landed(t);
   let checks = 0;
   let attempts = 0;
@@ -72,7 +72,7 @@ test('a hand landing killed in its record resumes from the saved steps, and a re
   assert.deepEqual(jobView(refusing.db, mergedLandingJobId([1], refusing.commit)).steps, []);
 });
 
-test('a hand landing refuses no items, a short commit id, a missing record step and a lease held by another driver [C7]', async t => {
+test('land.runs.hand-landing-refusals: a hand landing refuses no items, a short commit id, a missing record step and a lease held by another driver [C7]', async t => {
   const land = landed(t);
   const base = { repo: land.repo, ids: [4], commit: land.commit, owner: 'c', record: () => ({}) };
   await assert.rejects(landMerged(land.db, { ...base, ids: [] }), refused('LAND_ITEMS'));
@@ -84,7 +84,7 @@ test('a hand landing refuses no items, a short commit id, a missing record step 
   await assert.rejects(landMerged(land.db, base), error => error.code === 'JOB_LEASED' && /held by someone-else/u.test(error.message));
 });
 
-test('a batch landing records only a landed batch with a full tip, once, and answers the batch\'s own tip [C7]', async t => {
+test('land.runs.batch-landing-once: a batch landing records only a landed batch with a full tip, once, and answers the batch\'s own tip [C7]', async t => {
   const land = landed(t);
   assert.equal(await landBatch(land.db, { repo: land.repo, batch: { id: 'b1', tip: land.commit, state: 'open' }, owner: 'd' }), null);
   assert.equal(await landBatch(land.db, { repo: land.repo, batch: { id: 'b1', tip: 'short', state: 'landed' }, owner: 'd' }), null);
