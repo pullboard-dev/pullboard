@@ -1,4 +1,4 @@
-import { validateAcceptedInventory } from '../../../../index.js';
+import { validateAcceptedInventory } from '../../../../../packages/codemap/index.js';
 /** Cache immutable base inventories on the machine and incrementally inspect a candidate [C7,D3]. */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -9,17 +9,17 @@ import { serialize } from 'node:v8';
 import { deserialize } from 'node:v8';
 import { gzipSync } from 'node:zlib';
 import { gunzipSync } from 'node:zlib';
-import { cellInventory } from '../../../../index.js';
-import { updateCellInventory } from '../../../../index.js';
-import { needsFullCensus } from '../../../../index.js';
-import { receiptDigest } from '../../../../../git/index.js';
-import { checkCommandDefinition } from '../../../../../git/index.js';
+import { cellInventory } from '../../../../../packages/codemap/index.js';
+import { updateCellInventory } from '../../../../../packages/codemap/index.js';
+import { needsFullCensus } from '../../../../../packages/codemap/index.js';
+import { receiptDigest } from '../../../../../packages/git/index.js';
+import { checkCommandDefinition } from '../../../../../packages/git/index.js';
 import { fileURLToPath } from 'node:url';
-import { cellGit as git } from '../../../../index.js';
-import { cellsCacheDirectory } from '../cache-files.js';
-import { publishCacheEntry } from '../cache-files.js';
-import { Refused } from '../../../../../kernel/index.js';
-import { temporaryCellEdges } from '../../../../index.js';
+import { cellGit as git } from '../../../../../packages/codemap/index.js';
+import { cellsCacheDirectory } from '../../../../../packages/codemap/index.js';
+import { publishCacheEntry } from '../../../../../packages/codemap/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { temporaryCellEdges } from '../../../../../packages/codemap/index.js';
 
 /** A cache is never evidence for a moved or dirty immutable source. */
 function unchanged(checkout, commit) {
@@ -32,10 +32,10 @@ function unchanged(checkout, commit) {
 const ANCESTORS = 200;
 
 /** The project root the default inventory code is named inside. */
-const TOOL_ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
+const TOOL_ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 
 /** The modules whose code decides an inventory's content: the census, its incremental update and the import parsers. */
-const INVENTORY_CODE = ['../../cell/lint/inventory.js', '../../module/imports.js', './cache.js']
+const INVENTORY_CODE = ['../../../../../packages/codemap/src/io/cell/lint/inventory.js', '../../../../../packages/codemap/src/io/module/imports.js', './cache.js']
   .map(path => fileURLToPath(new URL(path, import.meta.url)));
 let inventoryCode;
 
@@ -183,7 +183,7 @@ function stableChecker(key) {
   if (!key || !Array.isArray(key.code)) return null;
   try {
     return receiptDigest({ node: process.version, preloads: key.config?.preloads ?? null,
-      files: checkCommandDefinition(fileURLToPath(new URL('../../../../../..', import.meta.url)), [], key.code).map(file => [file.path, file.mode, file.digest]) });
+      files: checkCommandDefinition(fileURLToPath(new URL('../../../../..', import.meta.url)), [], key.code).map(file => [file.path, file.mode, file.digest]) });
   } catch { return null; }
 }
 

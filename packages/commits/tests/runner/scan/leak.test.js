@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/commits packages/runners */
 /** Public negative-auth fixtures remain transferable without exempting secrets or private history [C7,S1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

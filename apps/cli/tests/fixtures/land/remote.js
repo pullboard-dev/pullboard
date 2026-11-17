@@ -9,14 +9,20 @@ import { join } from 'node:path';
 import { runFixtureChild } from '../child.js';
 import { fixtureAdd } from '../testkit.js';
 import { fixtureJoin } from '../testkit.js';
+import { fixtureSettledMachine } from '../testkit.js';
 
-/** Preserve every independent observable failure so the prefeature control proves both paths. */
-export function assertNoRemoteLanding(sandbox, commitFile) {
+/**
+ * Preserve every independent observable failure so the prefeature control proves both paths.
+ * Why in process: each of the 15 CLI steps as its own process cost 4-18 s on a runner (127 s of the case's 143 s, 589 s in
+ * a loaded census), so the steps go through box.runIn and the builder's commit runs its hooks in this process [C7,#10405].
+ */
+export async function assertNoRemoteLanding(sandbox, commitFile) {
   const box = sandbox();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const repo = join(box.dir, 'local-repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = box.run(repo, 'init');
+  const initialized = await box.runIn(repo, 'init');
   assert.equal(initialized.code, 0, initialized.err);
   const configFile = join(repo, 'pullboard.json');
   const original = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -28,38 +34,38 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   writeFileSync(join(repo, 'SPEC.md'), '# Local fixture\n\n## Goals\n- G1 [approved, must] The local result exists. | gate: true\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure local landing');
-  const added = fixtureAdd(box.run, repo, 'web', 'Local result', '--specs', 'G1', '--criterion', 'The result exists.', '--check', 'test -f web/result.txt', '--wait', '--json');
+  const added = await fixtureAdd(box.runIn, repo, 'web', 'Local result', '--specs', 'G1', '--criterion', 'The result exists.', '--check', 'test -f web/result.txt', '--wait', '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
-  const made = box.run(repo, 'worktree', 'web', '--model', 'local-builder', '--json');
+  const made = await box.runIn(repo, 'worktree', 'web', '--model', 'local-builder', '--json');
   assert.equal(made.code, 0, made.err);
   const builder = JSON.parse(made.out).path;
-  assert.equal(box.run(builder, 'claim', String(item)).code, 0);
-  const committed = commitFile(box, builder, 'web/result.txt', 'local result\n', 'feat(web): local result [G1]');
+  assert.equal((await box.runIn(builder, 'claim', String(item))).code, 0);
+  const committed = await commitFile(box, builder, 'web/result.txt', 'local result\n', 'feat(web): local result [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = box.run(builder, 'submit', String(item), '--json');
+  const submitted = await box.runIn(builder, 'submit', String(item), '--json');
   assert.equal(submitted.code, 0, submitted.err);
   const head = JSON.parse(submitted.out).commit;
   const reviewer = join(box.dir, 'local-reviewer');
   box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
-  assert.equal(fixtureJoin(box.run, reviewer, 'web', '--model', 'local-reviewer').code, 0);
-  const accepted = box.run(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.', '--json');
+  assert.equal((await fixtureJoin(box.runIn, reviewer, 'web', '--model', 'local-reviewer')).code, 0);
+  const accepted = await box.runIn(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.', '--json');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
   const machine = new URL('../../../../../packages/link/index.js', import.meta.url).href;
   const enabled = runFixtureChild(process.execPath, ['--input-type=module', '-e', `import { updateRelayMachine } from ${JSON.stringify(machine)}; updateRelayMachine(state => { state.autoLink = true; });`], { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(enabled.status, 0, enabled.stderr);
-  const status = box.run(repo, 'status', '--json');
+  const status = await box.runIn(repo, 'status', '--json');
   observe(() => assert.equal(status.code, 0, status.err));
   observe(() => assert.equal(JSON.parse(status.out).error, undefined, 'an inherited link-all never turns local status into a relay refusal'));
   observe(() => assert.equal(JSON.parse(status.out).relay.linked, false, 'status reports the local board as not linked'));
-  const explicit = box.run(repo, 'relay', 'on', '--json');
+  const explicit = await box.runIn(repo, 'relay', 'on', '--json');
   observe(() => assert.equal(explicit.code, 1, 'an explicit link still requires a GitHub origin'));
   observe(() => assert.equal(JSON.parse(explicit.out).error.code, 'RELAY_ORIGIN'));
-  const landed = box.run(repo, 'land', '--json');
+  const landed = await box.runIn(repo, 'land', '--json');
   observe(() => assert.equal(landed.code, 1, landed.err));
   observe(() => assert.equal(JSON.parse(landed.out).error.code, 'BOARD_LANDS_ACCEPTED'));
-  const recorded = JSON.parse(box.run(repo, 'show', String(item), '--json').out);
+  const recorded = JSON.parse((await box.runIn(repo, 'show', String(item), '--json')).out);
   observe(() => assert.ok(recorded.item_merged_commit, 'acceptance automatically records the landing'));
   observe(() => assert.equal(box.git(repo, 'rev-parse', 'main'), recorded.item_merged_commit));
   observe(() => assert.equal(readFileSync(join(repo, 'web/result.txt'), 'utf8'), 'local result\n'));
@@ -69,7 +75,7 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
     mkdirSync(remoteRepo);
     box.git(remoteRepo, 'init', '-q', '-b', 'main');
     box.git(remoteRepo, 'remote', 'add', 'origin', origin);
-    assert.equal(box.run(remoteRepo, 'init').code, 0);
+    assert.equal((await box.runIn(remoteRepo, 'init')).code, 0);
     const withRemote = JSON.parse(readFileSync(join(remoteRepo, 'pullboard.json'), 'utf8'));
     observe(() => assert.equal(withRemote.landing, undefined, 'a configured remote keeps the existing push-and-land default'));
     observe(() => assert.equal(box.git(remoteRepo, 'remote', 'get-url', 'origin'), origin));

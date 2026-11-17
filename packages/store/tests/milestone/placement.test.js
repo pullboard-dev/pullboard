@@ -25,7 +25,7 @@ const placedIn = (board, id) => store.milestones(board).filter(entry => entry.it
 /** The item's recorded placement events. */
 const placements = (board, id) => store.itemThread(board, id).filter(row => row.kind === 'milestone_placed');
 
-test('an item waiting on an item in release N is placed in N or later [N26,B35]', t => {
+test('store.milestone-placement.an-item-waiting-on-an-item: an item waiting on an item in release N is placed in N or later [N26,B35]', t => {
   const { board, add, late } = placementBoard(t);
   const follower = add('Follows the late work', { after: [late] });
   assert.deepEqual(placedIn(board, follower), ['M'], 'never earlier than what it waits on, though the current release is N');
@@ -35,7 +35,7 @@ test('an item waiting on an item in release N is placed in N or later [N26,B35]'
   assert.match(event.detail.note, /placed in M by dependencies; waits on #\d+ in M; lane core -> N/u, 'the rule and its inputs are shown on the item');
 });
 
-test('an item serving a spec row in release M lands in M [N26,B35]', t => {
+test('store.milestone-placement.an-item-serving-a-spec-row: an item serving a spec row in release M lands in M [N26,B35]', t => {
   const { board, add } = placementBoard(t);
   const row = add('Serves the later row', { specIds: ['G2'] });
   assert.deepEqual(placedIn(board, row), ['M']);
@@ -44,7 +44,7 @@ test('an item serving a spec row in release M lands in M [N26,B35]', t => {
   assert.deepEqual(placedIn(board, plain), ['N'], 'without rows or waits it joins its lane release');
 });
 
-test('a manual placement of a placed item is refused, and an override records its reason [N26,B35]', t => {
+test('store.milestone-placement.a-manual-placement-of-a-placed: a manual placement of a placed item is refused, and an override records its reason [N26,B35]', t => {
   const { board, add } = placementBoard(t);
   const item = add('Placed by the board');
   assert.deepEqual(placedIn(board, item), ['N']);
@@ -57,7 +57,7 @@ test('a manual placement of a placed item is refused, and an override records it
   assert.equal(override.detail.reason, 'the person moved it to the later release');
 });
 
-test('a default board places new items without a setting or coordinator placement move [N26,B35]', t => {
+test('store.milestone-placement.a-default-board-places-new-items: a default board places new items without a setting or coordinator placement move [N26,B35]', t => {
   const board = fixtureBoard(t);
   addMilestone(board, { agentId: 'coordinator', name: 'N', items: [] });
   const item = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Default placement', route: 'strong' });
@@ -69,7 +69,7 @@ test('a default board places new items without a setting or coordinator placemen
     error => error.code === 'MILESTONE_PLACED' && error.message.includes('the board places items'));
 });
 
-test('a person override moves the automatic assignment and records its reason [N26,B35,H16]', t => {
+test('store.milestone-placement.a-person-override-moves-the-automatic: a person override moves the automatic assignment and records its reason [N26,B35,H16]', t => {
   const { board, add } = placementBoard(t);
   const item = add('Person moves it');
   editMilestoneItems(board, 'M', { agentId: 'person', add: [item], reason: 'the person selects this release' });
@@ -78,7 +78,7 @@ test('a person override moves the automatic assignment and records its reason [N
   assert.equal(placements(board, item).at(-1).detail.reason, 'the person selects this release');
 });
 
-test('historical adds retain their recorded lack of automatic placement [N26,B35,H16]', t => {
+test('store.milestone-placement.historical-adds-retain-their-recorded-lack: historical adds retain their recorded lack of automatic placement [N26,B35,H16]', t => {
   const board = fixtureBoard(t);
   board.executionEngineVersion = MILESTONE_PLACEMENT_ENGINE - 1;
   addMilestone(board, { agentId: 'coordinator', name: 'N', items: [] });
@@ -89,7 +89,7 @@ test('historical adds retain their recorded lack of automatic placement [N26,B35
   assert.deepEqual(placedIn(board, item), ['N']);
 });
 
-test('plain catalog seeding and ordering of new work require recorded overrides [N26,B35]', t => {
+test('store.milestone-placement.plain-catalog-seeding-and-ordering-of: plain catalog seeding and ordering of new work require recorded overrides [N26,B35]', t => {
   const board = fixtureBoard(t);
   const item = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'New catalog input', route: 'strong' });
   assert.match(placements(board, item)[0].detail.note, /no suitable unshipped milestone/u);
@@ -101,7 +101,7 @@ test('plain catalog seeding and ordering of new work require recorded overrides 
   assert.equal(placements(board, item).at(-1).detail.reason, 'the person sets release priority');
 });
 
-test('automatic order keeps an unranked prerequisite ahead of new work [N26,B35]', t => {
+test('store.milestone-placement.automatic-order-keeps-an-unranked-prerequisite: automatic order keeps an unranked prerequisite ahead of new work [N26,B35]', t => {
   const { board, add, early } = placementBoard(t);
   const ranked = add('Explicitly ranked');
   store.orderMilestoneItems(board, 'N', { agentId: 'coordinator', items: [ranked], reason: 'fixture priority' });
