@@ -184,6 +184,7 @@ const BEFORE = {
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
+  'submit.residentChecks': false,
   'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
