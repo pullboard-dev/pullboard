@@ -19,7 +19,7 @@ function loadTransportWith(failure) {
   return { said, load: run(pageStartup, { documentElement: {} }, module, () => {}, () => Promise.resolve(), () => ({})) };
 }
 
-test('clause 1: a load failure carrying relay_off or excluded shows that cause in the startup line [C7,#9457]', async () => {
+test('view.x-io-relay-cause-wire.clause-1-a-load-failure-carrying-relay: clause 1: a load failure carrying relay_off or excluded shows that cause in the startup line [C7,#9457]', async () => {
   for (const cause of [{ cause: 'relay_off', machine: 'Tower' }, { cause: 'excluded', machine: 'Tower', name: 'main-board', by: 'Pat' }]) {
     const failure = Object.assign(new Error('The relay did not answer.'), { relayCause: cause });
     const { said, load } = loadTransportWith(failure);
@@ -30,7 +30,7 @@ test('clause 1: a load failure carrying relay_off or excluded shows that cause i
   }
 });
 
-test('clause 2: a load failure with no relayCause still reads as Check your connection [C7,#9457]', async () => {
+test('view.x-io-relay-cause-wire.clause-2-a-load-failure-with-no: clause 2: a load failure with no relayCause still reads as Check your connection [C7,#9457]', async () => {
   const failure = new Error('The relay client did not load within 15 seconds.');
   const { said, load } = loadTransportWith(failure);
   await assert.rejects(load(), failure);
