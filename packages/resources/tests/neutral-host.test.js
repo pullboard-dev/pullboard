@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/resources */
 /** No tracked file under packages/resources/tests names this machine's old machine host; fixtures use a neutral host name [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
