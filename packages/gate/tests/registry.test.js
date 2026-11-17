@@ -59,3 +59,15 @@ test('gate.registry.complete: clause 1: [C7,U148] every registered test has a st
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
 });
+
+test('gate.registry.first-28: clause 2: the first 28 test files through journey-parity-export-team-board.test.js each carry an ID in every test title and one record per ID [C7,U148]', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = readdirSync(DIR).filter((name) => name.endsWith('.test.js')).sort();
+  const first = names.slice(0, names.indexOf('journey-parity-export-team-board.test.js') + 1).filter((name) => name !== 'registry.test.js');
+  assert.ok(first.length >= 27, 'the first files are present');
+  const files = first.map((name) => ({ file: join(DIR, name), source: readFileSync(join(DIR, name), 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
+  assert.ok(ids.length > 0);
+});
