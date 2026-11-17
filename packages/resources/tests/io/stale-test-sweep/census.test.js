@@ -7,7 +7,7 @@ import { sweepStaleTests } from '../../../src/io/stale-test-sweep.js';
 
 const CENSUS = 'node apps/cli/pullboard.js test --census --wait --no-file-limit --out /Users/person/census/1115-1404-2d7f1e086d.jsonl';
 
-test('clause 1: a live census process past the file budget is never stopped by the sweep [C7]', () => {
+test('resources.census.a-live-census-process-past-the: clause 1: a live census process past the file budget is never stopped by the sweep [C7]', () => {
   // The 15 Nov 2:04 pm census: its process died about 1,030 s in, and 19 of 36 shards got no rows.
   const drivers = [
     { pid: 3380, ppid: 900, ageMs: 1_030_000, command: CENSUS },
@@ -19,7 +19,7 @@ test('clause 1: a live census process past the file budget is never stopped by t
   assert.deepEqual(signalled, [], 'no census process is signalled');
 });
 
-test('clause 2: a test process started under a census process is still stopped past the file budget [C7]', () => {
+test('resources.census.a-test-process-started-under-a: clause 2: a test process started under a census process is still stopped past the file budget [C7]', () => {
   const child = { pid: 3390, ppid: 3380, ageMs: STALE_TEST_AFTER_MS + 1, command: '/usr/local/bin/node bin/run-tests.js apps/cli/journeys/publish/catalog.test.js' };
   const signalled = [];
   const stopped = sweepStaleTests({ processes: [{ pid: 3380, ppid: 900, ageMs: 1_030_000, command: CENSUS }, child], own: 7, stop: pid => signalled.push(pid) });

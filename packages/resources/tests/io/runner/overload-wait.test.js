@@ -13,7 +13,7 @@ function pool(t) {
   return db;
 }
 
-test('clause 1: a wait on a runner over 1.5x its cores prints overloaded with its load, not queue priority [C7]', t => {
+test('resources.overload-wait.a-wait-on-a-runner-over: clause 1: a wait on a runner over 1.5x its cores prints overloaded with its load, not queue priority [C7]', t => {
   const db = pool(t), now = Date.now();
   const runners = [
     { host: 'hot', slots: 2, browser: 0, cores: 4, cpuLoad: { at: new Date(now - 1000).toISOString(), busyPercent: 99, average: [9.5, 8, 7] } },

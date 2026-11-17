@@ -12,22 +12,22 @@ import {
 const FILE = 'packages/gate/src/io/static/registry.js';
 const read = path => readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
 
-test('clause 1: registry.js names no apps/ path [C7]', () => {
+test('gate.app-edges-io.registry-js-names-apps-path: clause 1: registry.js names no apps/ path [C7]', () => {
   assert.doesNotMatch(read(FILE), /apps\//u);
 });
 
-test('clause 1: the ceiling holds no packageApps row for registry.js [C7]', () => {
+test('gate.app-edges-io.ceiling-holds-packageapps-row-registry: clause 1: the ceiling holds no packageApps row for registry.js [C7]', () => {
   assert.equal(JSON.parse(read('packages/gate/data/ceilings/cells-edges.json')).packageApps[FILE], undefined);
 });
 
-test('clause 1: the CLI static entry owns the app paths and the spec-check command it hands in [C7]', () => {
+test('gate.app-edges-io.cli-static-entry-owns-app: clause 1: the CLI static entry owns the app paths and the spec-check command it hands in [C7]', () => {
   const entry = read('apps/cli/src/io/static/checks.js');
   for (const path of ['apps/cli/src/logic/help.js', 'apps/relay/src/io/deploy', 'apps/cli/index.js']) assert.ok(entry.includes(`'${path}'`), path);
   assert.match(entry, /specCheck: Object\.freeze\(\['apps\/cli\/pullboard\.js', 'spec', 'check'\]\)/u);
   assert.match(entry, /runStaticTreeRegistry\(process\.argv\[1\], \{ changed: [^}]*apps: JSON\.parse/u);
 });
 
-test('clause 1: a class that needs app paths and is handed none fails loudly instead of passing [C7]', () => {
+test('gate.app-edges-io.class-needs-app-paths-handed: clause 1: a class that needs app paths and is handed none fails loudly instead of passing [C7]', () => {
   for (const name of ['relay-boundary', 'prose-commands']) {
     const check = STATIC_TREE_CHECKS.find(row => row.name === name);
     assert.match(check.run('/nowhere', [], { cache: () => ({}) })[0], /the caller passed no app paths/u, name);

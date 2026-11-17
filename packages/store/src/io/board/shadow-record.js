@@ -32,8 +32,9 @@ export function firstDifference(left, right, path = '') {
  * @param {string} table
  * @param {number | string | null} id - The item or job the move was on.
  * @param {string | null} differs - The first differing path, or null when the table agreed.
+ * @param {string | null} [refusal] - The code the writer refused the move with, kept on a disagreement so its cause is named; an agreeing compare takes none.
  */
-export function recordShadow(board, table, id, differs) {
+export function recordShadow(board, table, id, differs, refusal = null) {
   try {
     const at = (board.clock?.now() ?? new Date()).toISOString();
     const key = shadowKey(table);
@@ -45,7 +46,7 @@ export function recordShadow(board, table, id, differs) {
     if (differs) {
       counts.disagreed += 1;
       counts.lastDisagreedAt = at;
-      counts.last = [...counts.last, { id, at, differs }].slice(-KEPT);
+      counts.last = [...counts.last, typeof refusal === 'string' && refusal ? { id, at, differs, refusal } : { id, at, differs }].slice(-KEPT);
     }
     writeBoardMeta(board.db, key, JSON.stringify(counts));
   } catch { /* A recording fault leaves the move as the writer wrote it. */ }

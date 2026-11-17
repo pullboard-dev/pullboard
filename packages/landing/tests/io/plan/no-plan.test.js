@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/landing */
 /** Landing derives, guards and scans a batch without reading the cells plan, which is absent from the tree [C7,#6295]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
