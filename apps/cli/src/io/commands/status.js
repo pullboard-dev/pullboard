@@ -5,6 +5,9 @@ import { allItemsNeedingRescope } from '../../../../../packages/store/index.js';
 import { withLocalSeatPresence } from '../../../../../packages/store/index.js';
 import { readCapacity } from '../../../../../packages/stats/light.js';
 import { capacityLines } from '../../../../../packages/stats/light.js';
+import { statusShowUsefulBuilders } from '../../../../../packages/config/index.js';
+import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
+import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
 import { lineSettings } from '../../../../../packages/state/index.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
@@ -76,6 +79,10 @@ export async function run(io, { values }) {
   // One fallback reclaim pass before answering: a gate job stalled by a dead dispatcher moves one step (DJ15).
   const reclaim = await fallbackReclaim(ctx, 'status');
   let landing = null;
+  let batchLine = null;
+  // Loaded here, not at the top, so the landing batch module stays out of status's startup imports [C7].
+  const { adaptiveBatchLine } = await import('../landing/adaptive.js');
+  const { adaptiveBatchEnabled } = await import('../../../../../packages/config/index.js');
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: relay?.relayLinked ?? (() => false) }, readers);
@@ -98,7 +105,8 @@ export async function run(io, { values }) {
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
-    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    batchLine = adaptiveBatchLine(board, adaptiveBatchEnabled());
+    return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
@@ -106,6 +114,7 @@ export async function run(io, { values }) {
     if (exclusion) Object.assign(summary.relay, { excluded: true, exclusion });
   }
   summary.reclaim = reclaim;
+  summary.landingBatch = batchLine;
   summary.memoryHeld = memoryHeldRuns();
   // These status readers load here, not through the packages' light doors: those doors are the runner worker's, and a status reader in them widens the worker bundle [C7].
   const { retainedReceipts } = await import('../../../../../packages/gate/index.js');
@@ -128,7 +137,9 @@ export async function run(io, { values }) {
   if (summary.specApprovalBaseline?.invalid) io.say('approval baseline unreadable: existing rows need approval evidence; restore a known-good board export to recover the original baseline');
   io.say(reviewQueueLine(ctx, summary.reviewQueue, span));
   io.say(landingLine(landing));
+  if (summary.landingBatch) io.say(summary.landingBatch);
   for (const line of capacityLines(summary.capacityForecast)) io.say(line);
+  if (summary.usefulBuilders) for (const line of usefulBuilderLines(summary.usefulBuilders)) io.say(line);
   io.say(signingLine(summary.person));
   for (const entry of [...summary.staleState.holds, ...summary.staleState.claims, ...summary.staleState.reviews]) {
     const incomplete = entry.evidence?.complete !== true;

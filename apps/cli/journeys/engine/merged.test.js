@@ -23,7 +23,7 @@ import {
 import { exportBoard } from '../../../../packages/store/index.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { unpackRelease } from '../../tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../../../packages/gate/tests/fixtures/release/archive.js';
 
 const HOUR = 3_600_000;
 // Every CLI call here runs through runIn: in this process by default, a real process under PULLBOARD_JOURNEY_MODE=process, which the
