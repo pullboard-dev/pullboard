@@ -10,11 +10,13 @@ import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { orderedReceiptMoves } from './gate/moves.js';
+import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { releaseBackoffMs } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
+import { applyRunReceipt } from '../../../store/index.js';
 import { offeredRequest } from './jobs.js';
 import { SHARD_JOB_KIND } from './jobs.js';
 import { LANDING_JOB_KIND } from './landing.js';
@@ -408,11 +410,12 @@ export function failingParts(receipt) {
  * @param {string} main - The accepted main the gate job was offered against.
  * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[], inputKeys: Record<string, string> }) =>
  *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
+ * @param {{ excuseTiming?: boolean }} [options] - excuseTiming: a timing-table case that fails on both sides under one name reads onMain even when its signature differs, since its message carries measured milliseconds (#9755); a host may also turn it on for every comparison through provideTimingExcuse. Default off: nothing changes.
  * @returns {{ cases: { phase: string, file: string, name: string, signature: string | null, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
  *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
  *   when no lookup is given (gate.mainComparison off) or when main's receipts cannot be keyed.
  */
-export function compareGateWithMain(board, receipt, main, lookup) {
+export function compareGateWithMain(board, receipt, main, lookup, options = {}) {
   const gate = receipt?.gate ?? {};
   if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership) return null;
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
@@ -427,6 +430,7 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
   if (cases.some(row => !classes.has(row.file))) return null;
   const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
+  const excuse = options?.excuseTiming === true || (typeof timingExcuse === 'function' && timingExcuse() === true);
   return {
     cases: cases.map(row => {
       const one = classes.get(row.file);
@@ -435,9 +439,11 @@ export function compareGateWithMain(board, receipt, main, lookup) {
       // unsigned case on either side differs, so a changed assertion is never excused by main's red of that name [V4,B3].
       // A main-test receipt keeps each name clipped, so a longer case is matched by that clip; the signature still has to agree (#7495).
       const clipped = row.name.slice(0, MAIN_CASE_NAME_UNITS);
-      const same = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
+      const signedSame = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
         : row.signature !== null && !one.own.includes(row.name);
       const byName = named ? named.some(main => main.name === clipped) : !one.own.includes(row.name);
+      // With excuseTiming on, main's red of a timing-table case under the same name is the gate's red, whatever the measured milliseconds say (#9755).
+      const same = signedSame || (excuse && byName && sameTimingRed(row, row));
       return { ...row, onMain: one.owner === 'unknown' ? null : same, ...(one.owner !== 'unknown' && byName && !same ? { differs: true } : {}), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
@@ -642,7 +648,30 @@ function submitOvertaken(board, id, options) {
  */
 export function applyGateReceipt(board, posted, ports = {}) {
   // Every policy read in the application, not only the submit, meets a detached primary: the receipt often applies while the coordinator verifies [C7,#8011].
-  return withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  const applied = withRetainedTrunkPolicy(board, () => applyGateReceiptReads(board, posted, ports));
+  // A settled gate carries the timing profiles its runner kept, as the inline submit's gate does [C7,#9615].
+  const gate = applied.outcome === 'stale' || applied.outcome === 'not-gate' ? null : pulledProfilePaths(posted?.receipt);
+  return gate ? { ...applied, gate } : applied;
+}
+
+/**
+ * The kept timing profile files a pulled receipt names: its check and proof phase rows each carry `profileKept`, one plain
+ * file name in the job's kept `output.folder`. Anything else (no folder, a path, `.`, `..`) is ignored, so a receipt can never
+ * point the board outside the folder its runner kept.
+ * Why: only the inline submit's gate exposed check.profilePath and proofProfilePath before [C7,#9615].
+ *
+ * @param {Record<string, any> | undefined} receipt
+ * @returns {{ check?: { profilePath: string }, proofProfilePath?: string } | null} null when no phase names a kept profile.
+ */
+function pulledProfilePaths(receipt) {
+  const folder = typeof receipt?.output?.folder === 'string' && receipt.output.folder ? receipt.output.folder : null;
+  if (!folder) return null;
+  const pathOf = role => {
+    const name = (receipt.gate?.phases ?? []).find(row => row?.role === role)?.profileKept;
+    return typeof name === 'string' && /^[\w.-]+$/u.test(name) && name !== '.' && name !== '..' ? join(folder, name) : null;
+  };
+  const check = pathOf('check'), proof = pathOf('proof');
+  return check || proof ? { ...(check ? { check: { profilePath: check } } : {}), ...(proof ? { proofProfilePath: proof } : {}) } : null;
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
@@ -897,6 +926,18 @@ function countGate(board, receiptIds, job) {
 /** The main-receipt lookup this process's board API applies red gate receipts with; null until a host provides one. */
 let mainComparison = null;
 
+/** Whether a timing red on main excuses the same red on a gate, asked on each comparison; null until a host provides one (#9755). */
+let timingExcuse = null;
+
+/**
+ * Provide the question compareGateWithMain asks to excuse timing reds, for every board this process serves; null removes
+ * it. Why a provider: the setting belongs to the host, and the board API's routes read no settings themselves.
+ * @param {(() => boolean) | null} fn - Answers true to excuse a timing red that main also has.
+ */
+export function provideTimingExcuse(fn) {
+  timingExcuse = typeof fn === 'function' ? fn : null;
+}
+
 /**
  * Provide the main-receipt lookup red gate receipts are compared with, for every board this process serves; null
  * removes it. Why a provider: `pullboard serve` owns the lookup (the landing and drive cells hold main's receipts) and
@@ -923,7 +964,10 @@ export function provideMainComparison(lookup) {
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
   if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
-  const answer = jobQueueCall(board.db, body, { queue: body?.action === 'shards' ? queueFor(board, 'coordinator') : null, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => applyJobReceipt(board, posted, { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now }) });
+  // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
+  const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
+  const ports = { compareWithMain, ordered, endStale, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
+  const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }
 
@@ -965,6 +1009,27 @@ export function gateLedgerHits(db, request, files) {
   const hits = budget > 0 ? store.ledgerHits(db, files, { budget }) : null;
   if (hits) request.input.data.ledger = hits;
   return request;
+}
+
+/**
+ * Apply one receipt from the runs inbox while runs_store is on: when the board's run row is still queued for an older
+ * attempt, run the receipt applier and settle the row (outcome, summary, event); then ack the receipt in the runs file.
+ * A receipt already applied, or for an older attempt, changes nothing but its ack, so a crash between the move and the
+ * ack repeats as a no-op. The applier does file I/O, so it runs outside a board write [B2,P7].
+ *
+ * @param {any} board
+ * @param {NonNullable<ReturnType<typeof queueFor>>} queue
+ * @param {{ job: string, attempt: number, receipt: Record<string, any> }} posted
+ * @param {Parameters<typeof applyJobReceipt>[2]} [ports]
+ * @returns {{ applied: boolean, outcome?: string }}
+ */
+export function applyQueuedReceipt(board, queue, { job, attempt, receipt }, ports = {}) {
+  const run = boardRun(board.db, job);
+  const fresh = run?.run_state === 'queued' && attempt > run.run_attempt;
+  const answer = fresh ? applyJobReceipt(board, { job, attempt, receipt }, { ...ports, queue }) : { applied: false, outcome: 'already-applied' };
+  if (fresh) applyRunReceipt(board, { by: queue.by, job, attempt, outcome: String(receipt.outcome ?? receipt.status ?? 'unknown'), summary: receipt });
+  queue.port.ack(job, attempt);
+  return answer;
 }
 
 /**

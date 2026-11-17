@@ -65,11 +65,17 @@ function goneRelease(board, item, actor, observation) {
   return { seat: observation.seat, lastSeen: at };
 }
 
+/** Whether a release with this reason counts toward release-twice; an untouched hand-back counts only for INELIGIBLE or ROUTED_ELSEWHERE with `board.rerouteUntouched` on, as in release.table.js. */
+function countsToward(board, reasonCode, untouched) {
+  if (untouched) return board.rerouteUntouched === true && ['INELIGIBLE', 'ROUTED_ELSEWHERE'].includes(reasonCode);
+  return ['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(reasonCode);
+}
+
 /** Only a holder's structured quality release counts; OTHER has no reliable provenance. */
 function chosenQualityRelease(board, id, row, detail) {
-  if (!['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(detail.reasonCode)
+  if (!countsToward(board, detail.reasonCode, Boolean(detail.untouchedAutoClaim))
     || detail.review || detail.staleClaim || detail.goneSeat || detail.idleClaim || detail.expiredClaim
-    || detail.untouchedAutoClaim || detail.exitHandoff || infraRelease(board, id, row, detail)) return false;
+    || detail.exitHandoff || infraRelease(board, id, row, detail)) return false;
   const previous = board.db.prepare(`SELECT event_kind, event_by FROM event WHERE item_id=? AND event_id<?
     AND event_kind IN ('claim','release','submit','withdraw','merged','reopen') ORDER BY event_id DESC LIMIT 1`).get(id, row.event_id);
   return previous?.event_kind === 'claim' && previous.event_by === row.event_by;
@@ -192,7 +198,9 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       const seatRoute = board.db.prepare('SELECT agent_route FROM agent WHERE agent_id=?').get(agentId)?.agent_route;
       if (seatRoute === item.item_route) escalate(board, id, { agentId: 'coordinator', note: `${agentId} released at the ${seatRoute} route: ${reasonCode}${note?.trim() ? ` (${note.trim()})` : ''}` });
     }
-    if (!wrongDiagnosis && currentEligible && !item.item_hold_reason
+    const countsNow = qualityHolds ? !stale && !gone && !exitHandoff && item.item_status === 'claimed' && item.item_owner === agentId
+      && countsToward(board, reasonCode, untouchedAutoClaim) : currentEligible;
+    if (!wrongDiagnosis && countsNow && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
       const routeEpisode = (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_ROUTE_ENGINE ? lastRouteChange(board, id) : 0;
       const releases = lastChosenReleases(board, id, (row, detail) => row.event_id > routeEpisode && (qualityHolds ? chosenQualityRelease(board, id, row, detail)

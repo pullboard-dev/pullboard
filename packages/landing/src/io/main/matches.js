@@ -7,6 +7,8 @@ import { accountedFailures } from '../land.js';
 import { failureSignature } from '../../../../gate/index.js';
 import { classifyMainRed } from '../../../../receipt/index.js';
 import { comparisonStatus } from '../../../../receipt/index.js';
+/** The signed-result check the board's pull route verifies with; this file already reaches the receipt cell, so the CLI adds no edge to it [C7,#8765]. */
+export { checkSignedResult } from '../../../../receipt/index.js';
 import {
   MAIN_FAILURE_SIGNATURE_VERSION,
   normalizedFailureDiagnostics,

@@ -32,6 +32,7 @@ import { revokeRelayPersonSession } from '../relay.js';
 import { terminalQr } from '../../../../person/light.js';
 import { relayOfferEnabled } from '../../../../config/index.js';
 import { Refused } from '../../../../kernel/light.js';
+import { clearRelayExclusion } from './exclusion.js';
 import { publishExcludedBoards } from './excluded.js';
 import { plannedRelayBoard } from './relink.js';
 
@@ -198,22 +199,35 @@ export async function revokeRelayDevice(deviceId, io) {
   return revokeDeviceWithSignIn(device, io);
 }
 
-/** Link non-excluded registry entries and report an explicit outcome for every registered project. */
-async function linkProjects(session, io, { onBoardOutcome, waiting = new Set() } = {}) {
+/**
+ * Link non-excluded registry entries and report an explicit outcome for every registered project.
+ * With `only`, link just the board of that name and clear its exclusion; the others are left as they were.
+ * Why: an excluded board's skip line names the one command that relinks it, so the person is never left without a way out [C7,#9416].
+ * `link` and `projects` are the seams a test passes in place of the relay and the registry.
+ *
+ * @param {any} session
+ * @param {any} io
+ * @param {{onBoardOutcome?: Function, waiting?: Set<string>, only?: string, link?: Function, projects?: {root: string, name: string}[]}} [options]
+ */
+export async function linkProjects(session, io, { onBoardOutcome, waiting = new Set(), only, link = relayOn, projects = listApiProjects() } = {}) {
   const machine = readRelayMachine();
   const linked = [];
   const failed = [];
-  const projects = listApiProjects();
+  if (only !== undefined && !projects.some(project => project.name === only)) {
+    throw new Refused('USAGE', `No registered board is named ${only}; registered boards: ${projects.map(project => project.name).join(', ') || 'none'}; run pullboard relay on --all --only <name> with one of those names.`);
+  }
   for (const project of projects) {
-    if (machine.excluded.includes(project.root)) {
+    if (only !== undefined && project.name !== only) continue;
+    if (only === undefined && machine.excluded.includes(project.root)) {
       onBoardOutcome?.({ root: project.root, name: project.name, outcome: 'skipped', reason: 'Excluded from automatic linking on this machine.' });
-      io.say(`Did not link ${project.name}: it is excluded from automatic linking on this machine.`);
+      io.say(`Did not link ${project.name}: it is excluded from automatic linking on this machine. To link it, run: pullboard relay on --all --only ${project.name}`);
       continue;
     }
     // A board whose link card is on the phone waits for that tap; see waitForLinkApprovals.
     if (waiting.has(project.root)) continue;
     try {
-      const result = await relayOn(project.root, session.url, io, { session, quiet: true, strict: true });
+      const result = await link(project.root, session.url, io, { session, quiet: true, strict: true });
+      if (only !== undefined) clearRelayExclusion(project.root);
       linked.push({ project: project.name, root: project.root, board: result.board });
       onBoardOutcome?.({ root: project.root, name: project.name, outcome: 'linked', reason: '' });
       io.say(`Linked ${project.name}.`);
@@ -224,7 +238,8 @@ async function linkProjects(session, io, { onBoardOutcome, waiting = new Set() }
       io.err(`Did not link ${project.name}: ${reason}`);
     }
   }
-  io.say(`Linked ${linked.length} of ${projects.length} registered ${projects.length === 1 ? 'board' : 'boards'}.`);
+  const total = only === undefined ? projects.length : 1;
+  io.say(`Linked ${linked.length} of ${total} registered ${total === 1 ? 'board' : 'boards'}.`);
   return { linked, failed };
 }
 
@@ -386,7 +401,7 @@ async function pairFirstDevice(session, board, linked, io, { signal, onPairingUR
 }
 
 /** Explicit foreground sign-in repairs links; only board machine credentials survive this command. */
-export async function relayOnAll(address, io, { signal, onPairingURL, onSignIn, onLinking, onBoardOutcome, pairAdditional = false, name } = {}) {
+export async function relayOnAll(address, io, { signal, onPairingURL, onSignIn, onLinking, onBoardOutcome, pairAdditional = false, name, only } = {}) {
   const label = computerName(name);
   requirePersonChannel(io.personChannel);
   // A cancelled or declined sign-in must not migrate machine state or scrub existing board links.
@@ -413,10 +428,10 @@ export async function relayOnAll(address, io, { signal, onPairingURL, onSignIn, 
   onLinking?.();
   if (label !== undefined) updateRelayMachine(machine => { machine.computerName = label; });
   // The view's sign-in links every board itself; a terminal run waits for cards already on the phone.
-  const waiting = onPairingURL ? [] : waitingLinkApprovals(session);
+  const waiting = onPairingURL || only !== undefined ? [] : waitingLinkApprovals(session);
   const waitingIds = new Set(waiting.map(entry => entry.context.id));
   updateRelayMachine(state => { state.autoLink = true; state.owner = { account: session.account, ...(session.login ? { login: session.login } : {}), url: session.url }; state.approvals = state.approvals.filter(entry => waitingIds.has(entry.context.id)); });
-  const result = await linkProjects(session, io, { onBoardOutcome, waiting: new Set(waiting.map(entry => entry.root)) });
+  const result = await linkProjects(session, io, { onBoardOutcome, only, waiting: new Set(waiting.map(entry => entry.root)) });
   const devices = readRelayMachine().devices.filter(device => device.account === session.account && device.url === session.url);
   if (devices.length && !pairAdditional) io.say('Your phone is already paired; the linked boards appear there.');
   const pairing = (devices.length && !pairAdditional) || !result.linked.length ? { paired: devices.length > 0 }
@@ -438,13 +453,13 @@ export async function relayOnAll(address, io, { signal, onPairingURL, onSignIn, 
  * @param {{pairAdditional?: boolean}} options - Explicitly enroll one more browser; default setup stays idempotent.
  * @returns {Promise<number>}
  */
-export async function relayOnAllCommand(address, io, { pairAdditional = false, name } = {}) {
+export async function relayOnAllCommand(address, io, { pairAdditional = false, name, only } = {}) {
   const controller = new AbortController();
   const cancelSignIn = () => controller.abort();
   process.once('SIGINT', cancelSignIn);
   process.once('SIGTERM', cancelSignIn);
   let result;
-  try { result = await relayOnAll(address, io, { signal: controller.signal, pairAdditional, name }); }
+  try { result = await relayOnAll(address, io, { signal: controller.signal, pairAdditional, name, only }); }
   finally { process.off('SIGINT', cancelSignIn); process.off('SIGTERM', cancelSignIn); }
   io.result?.(result);
   if (result.outcome) {
