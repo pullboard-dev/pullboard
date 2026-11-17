@@ -55,6 +55,8 @@ import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
 import { censusVerdictLists } from '../../logic/census.js';
+import { censusPhases } from '../../logic/census.js';
+import { censusPhaseLine } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
 import { shardFileKillMs } from '../../logic/census.js';
 import { previousShardMs } from '../../logic/census.js';
@@ -212,10 +214,10 @@ function pulledCensus(ctx, io, values = {}) {
  * @param {object} io
  * @param {{ info: { root: string } }} ctx
  * @param {{ out?: string, json?: boolean, 'no-file-limit'?: boolean }} values
- * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards }} [options] - `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
+ * @param {{ shards?: number, prefixes?: string[], run?: typeof runLandingShards, clock?: () => number }} [options] - `clock` reads the time in milliseconds for the phase seconds; `shards` overrides the count the registered runners give; `prefixes` limits the census to files under them (a sample for timing); `run` replaces the shard dispatcher.
  * @returns {Promise<number>}
  */
-export async function runCensus(io, ctx, values, { shards, prefixes = [], run } = {}) {
+export async function runCensus(io, ctx, values, { shards, prefixes = [], run, clock = Date.now } = {}) {
   const root = ctx.info.root;
   const sha = cleanHead(root);
   const tracked = await trackedTests(root);
@@ -246,7 +248,9 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   const last = new Map();
   const settled = [];
   const censusStart = new Date(), startLoad = loadavg()[0];
+  const marks = { start: clock(), first: null, pass1: 0 };
   const emit = (shard, record) => {
+    marks.first ??= clock();
     const text = shardRows({ ...record, files: shard.files.map(file => fileKey(file)), outcomes: allTestOutcomes(record.output), times: shardFileTimes(record.output) }, sha);
     const told = jobTimes(record.output, censusStart, startLoad);
     for (const row0 of text) {
@@ -273,7 +277,6 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   process.env[LANDING_COLLECT_ALL_ENV] = '1';
   process.env[COLLECTION_ID_ENV] = env.id;
   io.err(`pullboard test --census: ${files.length} files at ${sha.slice(0, 10)} in ${plan.length} shards; rows go to ${out}`);
-  const started = Date.now();
   const bound = browserBoundFiles(root, files).then(list => new Set(list));
   const base = { root, runner: resolve(root, 'apps/cli/src/io/run/tests.js'), fullScope: true, parseProcessCensus,
     runnerAdmission: gateRunnerAdmission(), needsGui: shardFiles => testsNeedGui(root, shardFiles),
@@ -282,6 +285,7 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
     try {
       if (files.length) await run({ ...base, files, count: plan.length, write });
     } finally {
+      marks.pass1 = clock();
       // A shard that never reached a last word still owes its files a row.
       for (const shard of plan.entries()) {
         const [index, entry] = shard;
@@ -304,8 +308,9 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
   if (censusRecordFileTimesEnabled()) { const measured = rowFileTimes([...rows.values()].filter(row => !row.carried)); if (Object.keys(measured).length) writeFileTimes(root, measured, { keep: tracked }); }
   const counts = {};
   for (const row of rows.values()) counts[row.status] = (counts[row.status] ?? 0) + 1;
-  const seconds = Math.round((Date.now() - started) / 1000);
-  io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, counts });
+  const phases = censusPhases({ ...marks, end: clock() }), seconds = phases.wallSecs;
+  io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, counts });
   io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried from ${carry.from.slice(0, 10)})` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
+  io.say(censusPhaseLine(phases));
   return (counts.green ?? 0) === everyFile.length ? 0 : 1;
 }
