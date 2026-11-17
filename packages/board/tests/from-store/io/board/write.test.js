@@ -19,15 +19,15 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { closeCellBoard } from '../../fixtures/cell.js';
-import { openCellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
+import { closeCellBoard } from '../../../fixtures/cell-board.js';
+import { openCellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import {
   beginImmediateQueued,
   boardWriteHolderText,
   configureBoardJournal,
   prepareBoardWriteIdentity,
-} from '../../../index.js';
+} from '../../../../../store/index.js';
 
 /** The pid of a process that has already exited. */
 function deadPid() {

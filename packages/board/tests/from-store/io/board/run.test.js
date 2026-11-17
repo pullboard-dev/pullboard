@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellSandbox } from '../../fixtures/cell.js';
-import { closeCellBoard } from '../../fixtures/cell.js';
-import { openCellBoard } from '../../fixtures/cell.js';
-import { exportBoard } from '../../../index.js';
-import { importBoard } from '../../../index.js';
-import { RUN_OBJECT_NAMES } from '../../../index.js';
-import { ensureGateHopTable } from '../../../index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../fixtures/cell-board.js';
+import { openCellBoard } from '../../../fixtures/cell-board.js';
+import { exportBoard } from '../../../../../store/index.js';
+import { importBoard } from '../../../../../store/index.js';
+import { RUN_OBJECT_NAMES } from '../../../../../store/index.js';
+import { ensureGateHopTable } from '../../../../../store/index.js';
 
 /** Every schema object on the board except the run table's own (its key index included) and SQLite's statistics tables, by name, with its SQL. */
 function otherObjects(db) {

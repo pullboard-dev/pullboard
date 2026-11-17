@@ -1,11 +1,11 @@
 /** A reject on a landed mid item files its follow-up and records the verdict instead of refusing NO_BRIEF [C7,#8835]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 const BRIEF = 'Fix the thing.\n\nFiles:\n- web/result.txt\n\nTest: web/result.test.js asserts the result.';
 const COMMIT = 'a'.repeat(40);
