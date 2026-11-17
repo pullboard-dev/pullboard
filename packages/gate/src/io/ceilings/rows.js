@@ -1,5 +1,5 @@
 /** The source ceiling tables whose rows a lane may move between its own files, each path from its owning module [L3,C7]. */
-import { CELLS_EDGES_CEILINGS } from '../test/tier/selection.js';
+import { CELLS_EDGES_CEILINGS } from '../edges.js';
 import { CLOCK_CEILING_FILE } from '../adapter-lints/clock.js';
 import { FS_CEILING_FILE } from '../adapter-lints/fs.js';
 import { LOAD_BEARING_CEILINGS } from '../../logic/load/bearing.js';
