@@ -41,7 +41,7 @@ export async function run(io, { first, second, rest, values }) {
   if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window', 'detail', 'audit'].includes(key))) {
     throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] [--detail|--audit] to read carrying capacity and test execution work');
   }
-  if (values.audit) return (await import('./capacity-audit.js')).runAudit(io, values, gateRuns);
+  if (values.audit) return (await import('../capacity-audit.js')).runAudit(io, values, gateRuns);
   const ctx = context(io);
   const to = ctx.clock.now().toISOString();
   const from = new Date(Date.parse(to) - flowWindowMinutes(values.window ?? '14d') * 60_000).toISOString();

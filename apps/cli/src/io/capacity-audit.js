@@ -1,8 +1,8 @@
-/** pullboard capacity --audit: the agent, runner and jobs-per-runner counts the board data supports, read only [C7,U151]. */
-import { flowWindowMinutes } from '../../../../../packages/stats/index.js';
-import { events } from '../../../../../packages/store/index.js';
-import { context } from '../entry.js';
-import { withBoardRead } from '../entry.js';
+/** The capacity audit: the agent, runner and jobs-per-runner counts the board data supports, read only [C7,U151]. */
+import { flowWindowMinutes } from '../../../../packages/stats/index.js';
+import { events } from '../../../../packages/store/index.js';
+import { context } from './entry.js';
+import { withBoardRead } from './entry.js';
 
 const HOUR_MS = 3_600_000;
 const RULE = 'runners bind when the mean gate jobs in flight per runner reaches one; otherwise the agents bind';

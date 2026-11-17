@@ -1,4 +1,4 @@
-/** pullboard capacity --audit reports agents, runners and jobs per runner from recorded data, and only reads [C7,U151]. @pullboard-test-input source-cell apps/cli */
+/** The capacity audit reports agents, runners and jobs per runner from recorded data, and only reads [C7,U151]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -7,8 +7,8 @@ import {
   after,
   test,
 } from 'node:test';
-import { auditCapacity } from '../../../src/io/commands/capacity-audit.js';
-import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { auditCapacity } from '../../src/io/capacity-audit.js';
+import { createE2eHelpers } from '../fixtures/e2e.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
