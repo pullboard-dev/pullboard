@@ -22,14 +22,13 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: pullboard next runs three times in process on the 2,500-item board, each run claiming work [C7,#5329]', (t) => {
-  const box = largeBoard(t);
+/** File three items, then time `pullboard next --build` three times in process, handing each claim back untimed. */
+function timeNext(box, title) {
   // Undiagnosed items keep their strong route, so the seat is offered one.
-  for (let n = 0; n < RUNS; n += 1) fileFixtureItem(box, box.repo, { lane: 'web', title: `Next sample ${n}`, diagnose: false, args: ['--specs', 'G1'] });
+  for (let n = 0; n < RUNS; n += 1) fileFixtureItem(box, box.repo, { lane: 'web', title: `${title} ${n}`, diagnose: false, args: ['--specs', 'G1'] });
   const samples = [];
   let previous = null;
   for (let run = 0; run < RUNS; run += 1) {
-    // Each run's claim is handed back untimed, so every run is a fresh claim.
     if (previous) json(box.run(box.web, 'release', String(previous), '--reason', 'OTHER', '--note', 'Next timing sample.', '--no-next', '--json'), 'release');
     const started = performance.now();
     const result = box.run(box.web, 'next', '--build', '--json');
@@ -38,27 +37,17 @@ test('clause 1: pullboard next runs three times in process on the 2,500-item boa
     const answer = JSON.parse(result.out);
     previous = answer?.item?.item_id ?? answer?.item_id ?? null;
   }
-  t.diagnostic(`next samples ${samples.map(ms => ms.toFixed(0)).join(', ')} ms`);
   console.log(`# next on 2,500 items: ${samples.map(ms => `${ms.toFixed(0)} ms`).join(', ')}; median ${median(samples).toFixed(0)} ms`);
+  return samples;
+}
+
+test('clause 1: pullboard next runs three times in process on the 2,500-item board and prints each run in ms [C7,#5329]', (t) => {
+  const samples = timeNext(largeBoard(t), 'Next sample');
   assert.equal(samples.length, RUNS);
   samples.forEach(ms => assert.ok(ms > 0, `a run took ${ms} ms`));
 });
 
 test('clause 2: the median of the three timed runs is a positive number, with no millisecond bar asserted yet [C7,#5329]', (t) => {
-  const box = largeBoard(t);
-  for (let n = 0; n < RUNS; n += 1) fileFixtureItem(box, box.repo, { lane: 'web', title: `Median sample ${n}`, diagnose: false, args: ['--specs', 'G1'] });
-  const samples = [];
-  let previous = null;
-  for (let run = 0; run < RUNS; run += 1) {
-    if (previous) json(box.run(box.web, 'release', String(previous), '--reason', 'OTHER', '--note', 'Next timing sample.', '--no-next', '--json'), 'release');
-    const started = performance.now();
-    const result = box.run(box.web, 'next', '--build', '--json');
-    samples.push(performance.now() - started);
-    assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
-    const answer = JSON.parse(result.out);
-    previous = answer?.item?.item_id ?? answer?.item_id ?? null;
-  }
-  const middle = median(samples);
-  console.log(`# next median ${middle.toFixed(0)} ms (${samples.map(ms => ms.toFixed(0)).join(', ')})`);
+  const middle = median(timeNext(largeBoard(t), 'Median sample'));
   assert.ok(Number.isFinite(middle) && middle > 0, `median ${middle}`);
 });
