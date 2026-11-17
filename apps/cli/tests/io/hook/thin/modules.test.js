@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-const APP = resolve(import.meta.dirname, '../../..');
+const APP = resolve(import.meta.dirname, '../../../..');
 
 /** Modules the thin entry's graph held before the hook checks were split by hook: one graph served every hook (counted at main, 797). */
 const BEFORE = 797;

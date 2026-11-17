@@ -8,7 +8,6 @@ import { busyRefusal } from '../../../../../packages/store/light.js';
 import { openBoardReadOnly } from '../../../../../packages/store/light.js';
 import { awaitingGateOrReview } from '../../../../../packages/store/light.js';
 import * as store from '../../../../../packages/store/light.js';
-import { landingBatchOwnsRoot } from '../../../../../packages/landing/light.js';
 import { trunkRef } from '../../../../../packages/sandbox/light.js';
 import { Refused } from '../../../../../packages/kernel/light.js';
 import { applyFixers } from '../../../../../packages/commits/index.js';
@@ -76,7 +75,10 @@ export async function preCommitHook(io, ctx, info, first, hookRead, rowDecisions
   const isMain = info.isMain && !remoteSeat;
   const agent = remoteSeat ?? (isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
     ?? (first === 'pre-merge-commit' ? submitHandoffHookActor?.(ctx, board) : null)));
-  const landing = hookRead(ctx, (board) => landingBatchesAt(board, info.root).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+  // The landing door loads only when a landing batch names this checkout, so an ordinary commit never pays for its graph [C7,#8841].
+  const batches = hookRead(ctx, (board) => landingBatchesAt(board, info.root)) ?? [];
+  const ownsRoot = batches.length ? (await import('../../../../../packages/landing/light.js')).landingBatchOwnsRoot : null;
+  const landing = batches.some((batch) => ownsRoot(batch, info.root));
   if (first === 'pre-commit' && !landing) refuseSeatItemWork(info.root, hookRead(ctx, (board) => store.agentAt(board, info.root)));
   if (landing) io.caller('coordinator', info.root);
   else if (agent) io.caller('seat', info.root);
