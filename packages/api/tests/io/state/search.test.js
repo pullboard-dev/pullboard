@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/api */
 /** Item search answers from the last built state and never waits for a newer build [A2,C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
