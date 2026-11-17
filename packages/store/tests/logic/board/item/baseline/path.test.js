@@ -18,7 +18,7 @@ for (const [label, check] of [
   });
 }
 
-test('a quote that does not close around the path infers nothing and still refuses NO_BRIEF [B14,C7,#3120]', t => {
+test('store.logic-board-item-baseline-path.a-quote-that-does-not-close: a quote that does not close around the path infers nothing and still refuses NO_BRIEF [B14,C7,#3120]', t => {
   const board = fixtureBoard(t);
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'unbalanced', route: 'mid', criterion: 'x passes',
     check: "node apps/cli/src/io/run/tests.js 'test/x.test.js\"" }), { code: 'NO_BRIEF' });

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { firstChangedInput } from '../../../../src/io/test/account.js';
 
-test('clause 1: a test-cache part whose files field is not an array reads as an unknown input and never throws [C7]', () => {
+test('gate.io-test-account-unreadable.a-test-cache-part-whose-files: clause 1: a test-cache part whose files field is not an array reads as an unknown input and never throws [C7]', () => {
   const fixture = privateFixtureFiles('pullboard-cache-account-');
   const good = { test: 'a.test.js', files: [['a.test.js', 'x']], runner: [], inputs: [], tracked: null, options: [] };
   fixture.write('parts/old.json', JSON.stringify({ ...good, files: 'not a list' }));
