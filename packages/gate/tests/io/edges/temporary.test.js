@@ -61,7 +61,7 @@ function fixture(t) {
   return { root, put, check, policy, declaration };
 }
 
-test('the actual cut command accepts only declared temporary edges and retains unlisted imports [C7]', t => {
+test('gate.io-edges-temporary.the-actual-cut-command-accepts-only: the actual cut command accepts only declared temporary edges and retains unlisted imports [C7]', t => {
   const box = fixture(t);
   let result = box.check();
   assert.equal(result.status, 1, result.stdout + result.stderr);
@@ -77,7 +77,7 @@ test('the actual cut command accepts only declared temporary edges and retains u
   assert.match(result.stderr, /src\/unlisted.js/u);
 });
 
-test('missing contracts, invalid dates, expired entries and duplicates fail by edge name [C7]', t => {
+test('gate.io-edges-temporary.missing-contracts-invalid-dates-expired-entries: missing contracts, invalid dates, expired entries and duplicates fail by edge name [C7]', t => {
   const box = fixture(t);
   for (const [change, expected] of [[{ contractItem: null }, /contract item/u], [{ expires: '2026-02-30' }, /real UTC date/u],
     [{ expires: '2000-01-01' }, /expired/u], [{ importer: '../escape.js' }, /repository module paths/u]]) {
@@ -93,7 +93,7 @@ test('missing contracts, invalid dates, expired entries and duplicates fail by e
   assert.match(box.check().stderr, /invalid JSON/u);
 });
 
-test('each declared edge remains visible as shim debt, including expired debt [C7]', t => {
+test('gate.io-edges-temporary.each-declared-edge-remains-visible-as: each declared edge remains visible as shim debt, including expired debt [C7]', t => {
   const box = fixture(t), before = cellLintReport(box.root, { importsIn, commonJsIn }).metrics.shims.count;
   box.policy([box.declaration]);
   let report = cellLintReport(box.root, { importsIn, commonJsIn });

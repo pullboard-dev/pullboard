@@ -22,7 +22,7 @@ async function signedPerson(box, auth) {
   return auth.pollDevice(flow.ticket);
 }
 
-test('machine credentials mint and list same-board agents but cannot link, revoke, or mint machines [H16,B26]', async (t) => {
+test('relay.io-auth-http.machine-credentials-mint-and-list-same: machine credentials mint and list same-board agents but cannot link, revoke, or mint machines [H16,B26]', async (t) => {
   const provider = await githubFixture(t);
   const root = mkdtempSync(join(tmpdir(), 'pullboard-machine-auth-'));
   let now = Date.now();
@@ -73,7 +73,7 @@ test('machine credentials mint and list same-board agents but cannot link, revok
 });
 
 
-test('deleted-copy receipts grant no access and keep revocation and expiry distinct [H16,H17,E9]', async (t) => {
+test('relay.io-auth-http.deleted-copy-receipts-grant-no-access: deleted-copy receipts grant no access and keep revocation and expiry distinct [H16,H17,E9]', async (t) => {
   const provider = await githubFixture(t);
   const root = mkdtempSync(join(tmpdir(), 'pullboard-deleted-credential-'));
   const database = join(root, 'auth.sqlite');

@@ -10,7 +10,7 @@ import { cellBoard } from '../fixtures/cell-board.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 
-test('clause 1: a fixture project built without asking for real git gets the in-memory git adapter [C7]', t => {
+test('board.fixtures-stand-ins.fixture-project-built-without-asking-for: clause 1: a fixture project built without asking for real git gets the in-memory git adapter [C7]', t => {
   const project = cellProject(t);
   assert.equal(project.real, false);
   assert.ok(project.adapter, 'the project carries its stand-in');
@@ -21,14 +21,14 @@ test('clause 1: a fixture project built without asking for real git gets the in-
   assert.equal(project.git(project.repo, 'rev-parse', 'HEAD'), headCommit(project.repo));
 });
 
-test('clause 2: a fixture board built without asking for a real board is an in-memory board [C7]', t => {
+test('board.fixtures-stand-ins.fixture-board-built-without-asking-for: clause 2: a fixture board built without asking for a real board is an in-memory board [C7]', t => {
   const repo = cellRepo(t);
   const board = cellBoard(t, repo.boardFile);
   assert.ok(board.db, 'the board opens');
   assert.equal(existsSync(repo.boardFile), false, 'no board file was created');
 });
 
-test('clause 3: a fixture that asks for real git gets a real repository, and a real board file [C7]', t => {
+test('board.fixtures-stand-ins.fixture-that-asks-for-real-git: clause 3: a fixture that asks for real git gets a real repository, and a real board file [C7]', t => {
   const repo = cellRepo(t, { real: true });
   assert.equal(repo.real, true);
   assert.equal(repo.adapter, null);

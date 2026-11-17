@@ -49,7 +49,7 @@ function fixture(t) {
   return { ...files, sh };
 }
 
-test('a journey tagged delete is removed only when the manifest names a covering test [C7]', () => {
+test('gate.io-test-scripts-freeze.a-journey-tagged-delete-is-removed: a journey tagged delete is removed only when the manifest names a covering test [C7]', () => {
   const plan = planFreeze(ROWS, { owner });
   const by = file => plan.find(change => change.file === file);
   assert.deepEqual(by('apps/cli/journeys/dup/covered.test.js').coveredBy, ['packages/math/tests/add.test.js']);
@@ -59,7 +59,7 @@ test('a journey tagged delete is removed only when the manifest names a covering
   assert.equal(by('apps/cli/journeys/dup/nospec.test.js').action, 'refused');
 });
 
-test('kept and converted files move into the owning cell tests folder, with old and new paths recorded [C7]', t => {
+test('gate.io-test-scripts-freeze.kept-and-converted-files-move-into: kept and converted files move into the owning cell tests folder, with old and new paths recorded [C7]', t => {
   const repo = fixture(t);
   const { status, stdout, stderr } = runFreezeCommand([repo.root], { owner });
   assert.equal(status, 0, stderr);
@@ -79,7 +79,7 @@ test('kept and converted files move into the owning cell tests folder, with old 
   assert.match(readFileSync(`${repo.root}/packages/math/tests/journeys/add/main.test.js`, 'utf8'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/apps\/cli\/tests\/fixtures\/e2e\.js'/u);
 });
 
-test('the dry run prints every planned change and the count per action without touching files [C7]', t => {
+test('gate.io-test-scripts-freeze.the-dry-run-prints-every-planned: the dry run prints every planned change and the count per action without touching files [C7]', t => {
   const repo = fixture(t);
   const before = runFixtureGit(['status', '--porcelain'], { cwd: repo.root });
   const { status, stdout } = runFreezeCommand(['--dry-run', '--manifest', 'packages/gate/data/tests/test-manifest.json', repo.root], { owner });
@@ -93,12 +93,12 @@ test('the dry run prints every planned change and the count per action without t
   assert.ok(!existsSync(`${repo.root}/${FREEZE_RECORD_FILE}`));
 });
 
-test('a moved file keeps its imports pointing at the same targets [C7]', () => {
+test('gate.io-test-scripts-freeze.a-moved-file-keeps-its-imports: a moved file keeps its imports pointing at the same targets [C7]', () => {
   assert.equal(rebaseSpecifiers("import a from './a.js'; await import('../b.js');", 'x/y/t.test.js', 'x/z/w/t.test.js'),
     "import a from '../../y/a.js'; await import('../../b.js');");
 });
 
-test('clause 1: the freeze record names a generated move-table test for every deleted release, claim, submit, verify and landing journey [C7,#8744]', () => {
+test('gate.io-test-scripts-freeze.the-freeze-record-names-a-generated: clause 1: the freeze record names a generated move-table test for every deleted release, claim, submit, verify and landing journey [C7,#8744]', () => {
   const root = join(import.meta.dirname, '../../../../../..');
   const record = JSON.parse(readFileSync(join(root, FREEZE_RECORD_FILE), 'utf8'));
   const folder = file => /^apps\/cli\/journeys\/([^/]+)\//u.exec(file)?.[1];

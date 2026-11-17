@@ -60,7 +60,6 @@
     "apps/cli/journeys/runner/policy.test.js",
     "apps/cli/journeys/runner/stage.test.js",
     "apps/cli/journeys/runner/lost.test.js",
-    "apps/cli/journeys/runner/lost.recovery.test.js",
     "apps/cli/journeys/runner/lost.transient.test.js",
     "apps/cli/journeys/runner/deadline.test.js",
     "apps/cli/journeys/fact/merge.test.js",
