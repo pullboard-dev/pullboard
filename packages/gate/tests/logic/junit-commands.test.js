@@ -2,8 +2,8 @@
 /** Each detected language has a JUnit-writing gate command and a known report path [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { JUNIT_LANGUAGES } from '../../src/logic/junit-commands.js';
-import { junitCommand } from '../../src/logic/junit-commands.js';
+import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
+import { junitCommand } from '../../src/logic/junit.js';
 
 const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'maven', 'node', 'php', 'python', 'ruby', 'rust', 'swift'];
 const TOOL_FOLDERS = { gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };

@@ -11,7 +11,7 @@ import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { detectGate } from '../../src/io/config.js';
-import { cargoTestCases } from '../../src/logic/cargo-cases.js';
+import { cargoTestCases } from '../../src/logic/junit.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 const FIXTURE = new URL('../fixtures/cargo-crate/', import.meta.url);
