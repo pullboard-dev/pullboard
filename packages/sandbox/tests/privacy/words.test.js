@@ -195,11 +195,11 @@ function planted(t, { file = 'clean text\n', filePath = 'notes.md', body = 'Pull
 
 const STAND_IN = { host: 'workbench-7.lan', addresses: ['10.11.12.13'], home: '/Users/fixture-owner' };
 
-test('tracked files and pushed commit bodies carry no owner quote or private infrastructure [C7]', () => {
+test('sandbox.privacy.words.tracked-files-and-commits-clean: tracked files and pushed commit bodies carry no owner quote or private infrastructure [C7]', () => {
   assert.deepEqual(privacyProblems(ROOT), [], 'every finding names the file and line, or the commit, to fix');
 });
 
-test('each privacy rule refuses a planted case in a tracked file and in a commit body [C7]', (t) => {
+test('sandbox.privacy.words.each-rule-refuses-planted-case: each privacy rule refuses a planted case in a tracked file and in a commit body [C7]', (t) => {
   const cases = [
     ['an owner quote', 'as decided (the person, 18 Oct), ship it'],
     ['a private machine name', `the gate ran on the ${MACHINES[0]} overnight`],
@@ -220,7 +220,7 @@ test('each privacy rule refuses a planted case in a tracked file and in a commit
   assert.deepEqual(privacyProblems(clean.root, { range: clean.range, machine: STAND_IN }), [], 'placeholders and addresses of no machine pass');
 });
 
-test('only the declared sandbox container home is exempted while a real source home is still caught [C7]', (t) => {
+test('sandbox.privacy.words.only-container-home-exempt: only the declared sandbox container home is exempted while a real source home is still caught [C7]', (t) => {
   const source = readFileSync(join(ROOT, 'packages/sandbox/src/io/verify.js'), 'utf8');
   const declarations = source.split('\n').filter(line => isContainerHomeDeclaration('packages/sandbox/src/io/verify.js', line));
   assert.equal(declarations.length, 1, 'the container home is declared exactly once');
@@ -229,7 +229,7 @@ test('only the declared sandbox container home is exempted while a real source h
     ['src/privacy-probe.js:1: a home folder'], 'the narrow sandbox allowance does not suppress a real home path in source');
 });
 
-test('added text that quotes the person or holds a home path is refused; synthetic text and untouched history pass [C7]', (t) => {
+test('sandbox.privacy.words.added-text-refused-history-passes: added text that quotes the person or holds a home path is refused; synthetic text and untouched history pass [C7]', (t) => {
   const quote = `${OWNER_NAME} said ship it`;
   const cases = [
     [quote, 'an attributed quote'],
