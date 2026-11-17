@@ -143,6 +143,7 @@ export const MACHINE_DEFAULTS = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'state.milestoneDelta': false,
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,

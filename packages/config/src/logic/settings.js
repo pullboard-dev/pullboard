@@ -327,6 +327,12 @@ export function loadMachineSettings() {
   if (value.api?.codeStampCache !== undefined && typeof value.api.codeStampCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `api.codeStampCache in ${file} must be true or false`);
   }
+  if (value.state !== undefined && (!value.state || typeof value.state !== 'object' || Array.isArray(value.state) || Object.keys(value.state).some(key => key !== 'milestoneDelta'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `state in ${file} holds only milestoneDelta; remove other keys`);
+  }
+  if (value.state?.milestoneDelta !== undefined && typeof value.state.milestoneDelta !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `state.milestoneDelta in ${file} must be true or false`);
+  }
   if (value.add !== undefined && (!value.add || typeof value.add !== 'object' || Array.isArray(value.add) || Object.keys(value.add).some(key => key !== 'warnUnnamedTest'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `add in ${file} holds only warnUnnamedTest; remove other keys`);
   }

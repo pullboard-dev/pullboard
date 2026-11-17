@@ -975,6 +975,11 @@ export function readCrossProcessWrites() {
   return loadMachineSettings().board?.crossProcessWrites === true;
 }
 
+/** Whether state.milestoneDelta is on (#9846, #9597): off by default; only an exact `true` turns it on. */
+export function milestoneDeltaEnabled() {
+  return loadMachineSettings().state?.milestoneDelta === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
