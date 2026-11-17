@@ -683,6 +683,9 @@
     "tempdir": 1,
     "raw-cli": 1
   },
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
+    "tempdir": 1
+  },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
     "tempdir": 2
   },
