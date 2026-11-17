@@ -64,7 +64,9 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
     const names = readdirSync(root);
     const contents = (name) => (names.includes(name) ? readFileSync(join(root, name), 'utf8') : null);
     for (const row of rows) {
-      if (rowMatches(row, names, contents)) add(row.language, typeof row.command === 'function' ? row.command(names) : row.command);
+      if (!rowMatches(row, names, contents)) continue;
+      const command = typeof row.command === 'function' ? row.command(names, contents) : row.command;
+      if (command) add(row.language, command);
     }
   }
   for (const name of ['GNUmakefile', 'makefile', 'Makefile']) {
