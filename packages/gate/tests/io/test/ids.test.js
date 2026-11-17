@@ -53,7 +53,7 @@ function moveAll(box) {
   box.sh('commit', '-q', '-m', 'move three tests');
 }
 
-test('test.ids.resolve: [C7,U148] rows keyed by stable ID resolve to the current path, and a missing ID refuses with a next step', t => {
+test('gate.io-test-ids.rows-keyed-by-stable-id-resolve: [C7,U148] rows keyed by stable ID resolve to the current path, and a missing ID refuses with a next step', t => {
   const box = repo(t);
   const census = Object.fromEntries(IDS.map((id, at) => [id, { runs: at + 1 }]));
   assert.deepEqual(resolveIdRows(testIdIndex(box.root), census).map(row => row.file), OLD);
@@ -64,7 +64,7 @@ test('test.ids.resolve: [C7,U148] rows keyed by stable ID resolve to the current
   assert.throws(() => resolveIdRows(testIdIndex(box.root), { 'cell.gone.claim': {} }), error => error.code === 'TEST_ID_UNKNOWN' && /next:|retire the row/u.test(`${error.message}${error.next ?? ''}`));
 });
 
-test('test.ids.move: [C7,U148] moving three registered test files leaves the tier and baseline rows following their IDs with no hand edit', t => {
+test('gate.io-test-ids.moving-three-registered-test-files-leaves: [C7,U148] moving three registered test files leaves the tier and baseline rows following their IDs with no hand edit', t => {
   const box = repo(t);
   const before = testIdIndex(box.root, 'HEAD');
   moveAll(box);
@@ -79,7 +79,7 @@ test('test.ids.move: [C7,U148] moving three registered test files leaves the tie
   assert.deepEqual(box.read(TIERS).files.map(row => row.file), NEW, 'tier rows follow with none left on an old path');
 });
 
-test('test.ids.split: [C7,U148] a file whose IDs now live in two files has no single new home and is not guessed', t => {
+test('gate.io-test-ids.a-file-whose-ids-now-live-in: [C7,U148] a file whose IDs now live in two files has no single new home and is not guessed', t => {
   const box = repo(t);
   const before = testIdIndex(box.root, 'HEAD');
   box.sh('rm', '-q', OLD[0]);
