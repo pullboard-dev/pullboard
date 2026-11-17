@@ -33,10 +33,10 @@ function setup(t, settings) {
   t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   board_ensureCoordinator(board, project.repo);
-  const seat = cellSeat(board, { lane: 'web', path: project.repo });
+  const seat = cellSeat(board, { lane: 'web', path: `${project.dir}/builder` });
   const reviewer = cellSeat(board, { lane: 'web', path: `${project.dir}/reviewer` });
   const claimed = cellItem(board, { lane: 'web', title: 'Release fixture', specIds: ['G1'], route: 'strong', criterion: 'the fixture works' }).item_id;
-  cellClaim(board, claimed, seat, { root: project.dir });
+  cellClaim(board, claimed, seat, { root: project.repo });
   const landed = cellItem(board, { lane: 'web', title: 'Verdict fixture', criterion: '1. It works [test]', specIds: ['G1'], route: 'mid', brief: BRIEF, check: 'node --test web/result.test.js' }).item_id;
   merged(board, landed, { agentId: 'coordinator', commit: COMMIT, forced: 'landed by hand', waiveProof: 'test fixture' });
   const count = (id, kind) => events(board, { itemId: id }).filter(e => e.event_kind === kind).length;
