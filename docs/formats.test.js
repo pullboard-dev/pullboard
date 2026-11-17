@@ -48,6 +48,15 @@ import { block, documentedEvents } from '../apps/lib/tests/fixtures/formats-guid
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
 /** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
 const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'utf8');
+/** The proposed-rulings section lives on its own page; its sentences are read there. */
+const rulingsPage = readFileSync(new URL('./formats/rulings.md', import.meta.url), 'utf8');
+
+test('clause 1: formats.md links the rulings page and the rulings sentences are read from it [I1]', () => {
+  assert.match(guide, /## Proposed rulings and resume doctrine notes\n\n[^\n]*\]\(formats\/rulings\.md\)/u);
+  assert.doesNotMatch(guide, /pullboard spec draft "<rule>" --doctrine/u);
+  assert.match(rulingsPage, /pullboard spec draft "<rule>" --doctrine --source/u);
+  assert.match(rulingsPage, /`resume --json` includes `doctrineNotes`/u);
+});
 
 test('formats guide documents resume release notes and checkout recording [N19]', () => {
   const section = block('<!-- resume-release-notes:start -->', '<!-- resume-release-notes:end -->');

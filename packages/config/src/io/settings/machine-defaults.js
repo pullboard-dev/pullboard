@@ -42,6 +42,7 @@ export const MACHINE_DEFAULTS = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.knownMainStatic': false,
   'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
