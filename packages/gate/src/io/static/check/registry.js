@@ -7,6 +7,7 @@ import { engineFolderViolations } from '../../../../../state/index.js';
 import { emptyCatchProblems } from '../../catch.js';
 import { fileSizeProblems } from '../../file/size.js';
 import { testInputProblems } from '../../test/inputs.js';
+import { requireDeclaredInputsEnabled } from '../../../../../config/index.js';
 import { testWaitSites } from '../../test/waits.js';
 import { testWaitGrowth } from '../../test/waits.js';
 import { relayBoundaryProblems } from '../../relay.js';
@@ -135,7 +136,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   // No new style= attribute or element .style write in apps/view; each file keeps main's count and never gains one (packages/gate/src/io/static/inline-style.js).
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
-  { name: 'test-inputs', run: growthCheck(testInputProblems) },
+  { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },
   { name: 'load-bearing', run: loadBearingCheck },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },

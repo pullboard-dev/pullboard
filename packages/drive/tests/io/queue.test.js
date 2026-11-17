@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { START_BOUND_MS } from '../../index.js';
