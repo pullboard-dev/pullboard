@@ -9,7 +9,7 @@ import { startupFailureLine } from '../../src/logic/relay-cause.js';
 /** The page's own loadTransport, cut from the script the page serves, so the test runs the production path. */
 function loadTransportWith(failure) {
   const script = pageScriptPart4({ startupFailureLine, relayCauseMessage });
-  const start = script.indexOf('async function loadTransport()');
+  const start = script.indexOf('let transportLoading = null;');
   const end = script.indexOf('\n}\n', start) + 2;
   const said = [];
   const module = `data:text/javascript,${encodeURIComponent('export function createTransport() { throw globalThis.__relayFailure; }')}`;
