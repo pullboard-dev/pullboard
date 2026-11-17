@@ -20,7 +20,7 @@ function plainRelease() {
 }
 const release = plainRelease();
 
-test('clause 1: --version --json prints the exact release document with a fresh machine home [C7]', () => {
+test('cli.io-commands-version-probe.version-json-prints-the-exact-release-document: clause 1: --version --json prints the exact release document with a fresh machine home [C7]', () => {
   const home = privateFixtureFiles('pullboard-version-probe-').root;
   try {
     const result = runVersionAt(home, ['--version', '--json']);
@@ -30,7 +30,7 @@ test('clause 1: --version --json prints the exact release document with a fresh 
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test('clause 2: --version --json leaves no compile-cache folder in the machine home [C7]', () => {
+test('cli.io-commands-version-probe.version-json-leaves-no-compile-cache-folder: clause 2: --version --json leaves no compile-cache folder in the machine home [C7]', () => {
   const home = privateFixtureFiles('pullboard-version-probe-').root;
   try {
     assert.equal(runVersionAt(home, ['--version', '--json']).status, 0);
@@ -38,7 +38,7 @@ test('clause 2: --version --json leaves no compile-cache folder in the machine h
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test('clause 3: plain --version answers before the compile cache and leaves no folder in the machine home [C7]', () => {
+test('cli.io-commands-version-probe.plain-version-still-enables-the-compile-cache: clause 3: plain --version answers before the compile cache and leaves no folder in the machine home [C7]', () => {
   const home = privateFixtureFiles('pullboard-version-probe-').root;
   try {
     const result = runVersionAt(home, ['--version']);
