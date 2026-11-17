@@ -268,6 +268,9 @@ export function loadMachineSettings() {
   if (value.push?.recordTiming !== undefined && typeof value.push.recordTiming !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `push.recordTiming in ${file} must be true or false`);
   }
+  if (value.push?.refuseUnsharded !== undefined && typeof value.push.refuseUnsharded !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `push.refuseUnsharded in ${file} must be true or false`);
+  }
   if (value.push?.rerunFailedShardOnce !== undefined && typeof value.push.rerunFailedShardOnce !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `push.rerunFailedShardOnce in ${file} must be true or false`);
   }

@@ -56,6 +56,7 @@ export {
   jobsAvoidRunnersEnabled,
   flakesRereadRatchetEnabled,
   pushRecordTimingEnabled,
+  pushRefuseUnshardedEnabled,
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
