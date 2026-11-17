@@ -14,7 +14,7 @@ import { wallLoadFactor } from '../index.js';
 
 const runner = fileURLToPath(new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
-test('the load factor is load per core, never below 1x and never above 4x [C7,V10]', () => {
+test('drive.scaled.the-load-factor-is-load: the load factor is load per core, never below 1x and never above 4x [C7,V10]', () => {
   assert.equal(wallLoadFactor(0.5, 14), 1);
   assert.equal(wallLoadFactor(14, 14), 1);
   assert.equal(wallLoadFactor(28, 14), 2);
@@ -22,7 +22,7 @@ test('the load factor is load per core, never below 1x and never above 4x [C7,V1
   assert.equal(wallLoadFactor(Number.NaN, 14), 1);
 });
 
-test('the default wall scales with the load sampled at file start and records the limit used [C7,V10]', () => {
+test('drive.scaled.the-default-wall-scales-with: the default wall scales with the load sampled at file start and records the limit used [C7,V10]', () => {
   const idle = fileWatchdogLimits('a.test.js', {}, { load: 1, cores: 14 });
   assert.deepEqual([idle.wallMs, idle.baseWallMs, idle.loadFactor], [DEFAULT_FILE_WALL_MS, DEFAULT_FILE_WALL_MS, 1]);
   const busy = fileWatchdogLimits('a.test.js', {}, { load: 42, cores: 14 });
@@ -32,7 +32,7 @@ test('the default wall scales with the load sampled at file start and records th
   assert.equal(saturated.wallMs, DEFAULT_FILE_WALL_MS * 4);
 });
 
-test('an explicit limit is used exactly as written, whatever the load [C7,V10]', () => {
+test('drive.scaled.an-explicit-limit-is-used: an explicit limit is used exactly as written, whatever the load [C7,V10]', () => {
   const written = { file: '1500', env: '2000' };
   const env = { PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'a.test.js': Number(written.file) }) };
   assert.equal(fileWatchdogLimits('a.test.js', env, { load: 400, cores: 14 }).wallMs, Number(written.file));
@@ -41,7 +41,7 @@ test('an explicit limit is used exactly as written, whatever the load [C7,V10]',
 
 // A case inside its own per-test budget keeps that budget past the file wall (f1a926606c, #2827), so the wall bounds a
 // file outside any case: a spin in file setup is a TIMEOUT that names setup, as test/run-tests-timeout.test.js asserts (2bf331e13e).
-test('a file past its wall is a TIMEOUT naming where it is stuck, not a plain failure [C7,V10]', t => {
+test('drive.scaled.a-file-past-its-wall: a file past its wall is a TIMEOUT naming where it is stuck, not a plain failure [C7,V10]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wall-timeout-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
