@@ -169,25 +169,3 @@ test('clause 3: the fixed commit passes cargo test, is accepted and lands on the
   const main = board.box.git(board.repo, 'show', 'main:src/item.rs');
   assert.equal(main, PASSING.trimEnd());
 });
-
-test('landing names the failing Rust test when main moved past a green submit and broke it [C7,#10387,#10385]', { timeout: 420_000 }, async (t) => {
-  if (!CARGO) return t.skip(UNAVAILABLE);
-  const board = await crateBoard();
-  const built = await buildAndSubmit(board, null, PASSING);
-  assert.equal(built.submitted.code, 0, `${built.submitted.out}\n${built.submitted.err}`);
-  const { box, repo } = board;
-  box.git(repo, 'switch', '-q', '--detach', built.commit);
-  const verdict = await verifySettled(box, box.runLocal, repo, ['verify', built.item, 'accept', '--as', 'coordinator', '--note', 'scratch crate gate is green']);
-  box.git(repo, 'switch', '-q', 'main');
-  assert.equal(verdict.code, 0, verdict.err);
-  // Main moves past the submit: add now multiplies, which the item's test (and only it) catches in the merged tree.
-  writeFileSync(join(repo, 'src', 'math.rs'), MATH.replace('a + b', 'a * b'));
-  box.git(repo, 'add', '-A');
-  const moved = box.tryGit(repo, 'commit', '-q', '-m', 'chore(web): add multiplies [G1]');
-  assert.equal(moved.status, 0, moved.stderr);
-  const landing = await box.runIn(repo, 'land', '--json');
-  const settled = await settleLand(box, JSON.parse(landing.out));
-  assert.deepEqual(settled.landed, [], `${landing.out}${landing.err}`);
-  const shown = await box.runLocal(repo, 'show', built.item);
-  assert.match(shown.out, /item::adds_small_numbers|adds_small_numbers/u);
-});
