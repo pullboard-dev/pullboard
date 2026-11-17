@@ -59,6 +59,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
+import { lapsedSweepEnabled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
 
@@ -88,15 +89,17 @@ const LAPSE_MAINTENANCE = new WeakSet();
 /**
  * Expire lapsed leases once before a requested write; nested bootstrap and maintenance never recurse.
  * Why lapsed only: it reads board rows and presence, no Git. Live-claim idle checks run in background maintenance (#2427).
+ * With health.lapsedSweep on the sentinel owns this pass, so a claim, submit or verify issues only its own board write [C7,#8924].
+ * @param {{ lapsedOn?: () => boolean, capture?: Function, recovered?: Function }} [ports] Test seams for the setting read, the relay check and the lapsed capture.
  */
-async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
-  if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
+export async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor, ports = {}) {
+  if (!actor || (ports.lapsedOn ?? lapsedSweepEnabled)() || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
     || operation === 'release' && args[3]?.staleClaim) return;
   // An interrupted relay move owes its caller the original outcome; a maintenance move first would hide it behind RELAY_RETRY_PENDING.
-  if (relayRecovered(ctx.info.root, { includePending: true }, ctx.io)) return;
+  if ((ports.recovered ?? relayRecovered)(ctx.info.root, { includePending: true }, ctx.io)) return;
   LAPSE_MAINTENANCE.add(board);
   try {
-    const { captureLapsedClaims } = requireModule('../../../../packages/health/src/io/stale/state/capture.js');
+    const captureLapsedClaims = ports.capture ?? requireModule('../../../../packages/health/src/io/stale/state/capture.js').captureLapsedClaims;
     const snapshot = captureLapsedClaims(ctx, board, actor, { lapsedOnly: true });
     if (!snapshot) return;
     const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
