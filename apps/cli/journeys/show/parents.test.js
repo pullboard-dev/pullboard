@@ -48,7 +48,7 @@ async function shown(box, ...flags) {
   return result.out;
 }
 
-test('clause 1: show prints the shared builder parent label once under the eligible reviewers [V1,B3,C7]', async () => {
+test('cli.journeys-show-parents.show-prints-the-shared-builder-parent: clause 1: show prints the shared builder parent label once under the eligible reviewers [V1,B3,C7]', async () => {
   const box = filed();
   const builder = await joinSeat(box, 'builder-one', 'coordinator:S');
   await joinSeat(box, 'sibling', 'coordinator:S');
@@ -65,7 +65,7 @@ test('clause 1: show prints the shared builder parent label once under the eligi
   assert.ok(parentLines[0].includes(builder.id), `the builder is named: ${parentLines[0]}`);
 });
 
-test('clause 2: a reviewer under a different parent is listed eligible without any coordinator fact [V1,B3,C7]', async () => {
+test('cli.journeys-show-parents.a-reviewer-under-a-different-parent: clause 2: a reviewer under a different parent is listed eligible without any coordinator fact [V1,B3,C7]', async () => {
   const box = filed();
   const builder = await joinSeat(box, 'builder', 'coordinator:S');
   const other = await joinSeat(box, 'other-parent', 'coordinator:T');
@@ -78,7 +78,7 @@ test('clause 2: a reviewer under a different parent is listed eligible without a
   assert.match(await shown(box), new RegExp(`eligible reviewers: .*${other.id}`, 'u'));
 });
 
-test('clause 3: a seat joined with no parent shows its parent as unknown and behaves as today [V1,B3,C7]', async () => {
+test('cli.journeys-show-parents.a-seat-joined-with-no-parent: clause 3: a seat joined with no parent shows its parent as unknown and behaves as today [V1,B3,C7]', async () => {
   const box = filed();
   const builder = await joinSeat(box, 'no-parent');
   const other = await joinSeat(box, 'other-parent', 'coordinator:T');

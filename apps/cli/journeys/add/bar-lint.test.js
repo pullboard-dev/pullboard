@@ -20,7 +20,7 @@ function project(t) {
   return { box, refusal, add, edit };
 }
 
-test('clause 1: add refuses four clauses, a clause with no tag and a measurement with no number, each naming the fix [C7]', async t => {
+test('cli.journeys-add-bar-lint.add-refuses-four-clauses-a-clause: clause 1: add refuses four clauses, a clause with no tag and a measurement with no number, each naming the fix [C7]', async t => {
   const { refusal, add } = project(t);
   const long = refusal((await add('Long', '1. a [test] 2. b [test] 3. c [command] 4. d [test]')));
   assert.equal(long.code, 'BAR_AMBIGUOUS');
@@ -35,7 +35,7 @@ test('clause 1: add refuses four clauses, a clause with no tag and a measurement
   assert.equal((await add('Fine', '1. the page loads in under 200 ms [measurement] 2. it prints OK [command] 3. the case passes [test]')).code, 0);
 });
 
-test('clause 2: add warns on "and" and on vague words, and a check green on main is refused unless the author says why [V2]', async t => {
+test('cli.journeys-add-bar-lint.add-warns-on-and-and-on: clause 2: add warns on "and" and on vague words, and a check green on main is refused unless the author says why [V2]', async t => {
   const { box, refusal, add, edit } = project(t);
   const warned = (await add('Warned', '1. the page works properly and prints OK [test]'));
   assert.equal(warned.code, 0, warned.out + warned.err);
@@ -59,7 +59,7 @@ test('clause 2: add warns on "and" and on vague words, and a check green on main
   assert.equal(refusal((await edit(other, '--check', check))).code, 'CRITERION_PROVES_NOTHING');
 });
 
-test('clause 3: edit refuses the same faults through the real CLI and leaves the bar as it was [C7]', async t => {
+test('cli.journeys-add-bar-lint.edit-refuses-the-same-faults-through: clause 3: edit refuses the same faults through the real CLI and leaves the bar as it was [C7]', async t => {
   const { box, refusal, add, edit } = project(t);
   const id = JSON.parse((await add('Editable', GOOD)).out).item.item_id;
   const bad = refusal((await edit(id, '--criterion', '1. a [test] 2. no tag here')));
