@@ -13,8 +13,8 @@ function detailOf(text) {
   } catch { return {}; }
 }
 
-/** As the board stores it, without the actor's model, which the event writer stamps on every event and no move decides. */
-const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
+/** As the board stores it, without the actor's model or the engine, which the event writer stamps on an event and no move decides; the engine rides in the snapshot instead [#9831]. */
+const stored = ({ model, engine, ...rest }) => JSON.parse(JSON.stringify(rest));
 
 /** The item's route and hold as they stood before an event, rebuilt from its own history. */
 function itemBefore(before) {
