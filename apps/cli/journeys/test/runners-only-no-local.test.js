@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/cli packages/gate packages/landing */
 /** With gate.runnersOnly on and no runner free, gate, comparison, smoke and cells-plan jobs wait for a runner and none runs locally [C7,#3011,#8929]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -10,7 +9,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { compareMainFailures } from '../../../../packages/landing/index.js';
-import { smokeCandidate } from '../../../../packages/landing/src/io/smoke.js';
+import { smokeCandidate } from '../../../../packages/landing/index.js';
 import { gateRunnerAdmission } from '../../../../packages/config/index.js';
 import { withEnvironment } from '../../../../packages/resources/index.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
