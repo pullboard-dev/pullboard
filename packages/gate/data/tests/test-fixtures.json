@@ -2032,7 +2032,10 @@
   },
   "apps/cli/journeys/spec/approval/baseline.test.js": {
     "hand-policy": 3,
-    "raw-board": 8
+    "raw-board": 1
+  },
+  "apps/cli/journeys/spec/approval/baseline-part2.test.js": {
+    "raw-board": 7
   },
   "apps/lib/tests/refreeze.test.js": {
     "raw-board": 4
