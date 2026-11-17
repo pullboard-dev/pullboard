@@ -758,6 +758,11 @@ export function browserFreeChecksEnabled() {
   return loadMachineSettings().gate?.browserFreeChecks === true;
 }
 
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
 export function reofferInfraEndEnabled() {
   return loadMachineSettings().gate?.reofferInfraEnd === true;
