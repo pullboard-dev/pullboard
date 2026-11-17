@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: bun test --reporter=junit --reporter-outfile=report.xml. Assumption: the testsuite name is the
+     test file and, for top-level tests, the testcase classname repeats it; bun writes no separate file attribute on the case.
+     No tool is needed to read it. -->
+<testsuites name="bun test" tests="3" failures="1" skipped="1" time="0.012">
+  <testsuite name="calc.test.ts" tests="3" failures="1" skipped="1" time="0.008">
+    <testcase name="adds two numbers" classname="calc.test.ts" time="0.001"/>
+    <testcase name="halves a number" classname="calc.test.ts" time="0.002">
+      <failure message="expected 2, received 1"/>
+    </testcase>
+    <testcase name="runs later" classname="calc.test.ts" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>
