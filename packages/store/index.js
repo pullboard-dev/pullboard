@@ -114,7 +114,7 @@ export { RIGOR_NOTICE_ENGINE } from "../state/light.js";
 export { KNOWN_MAIN_RECEIPT_ENGINE } from "../state/light.js";
 export { ENGINE_VERSION } from "../state/light.js";
 
-export { rejectionReturnEnabled } from './src/logic/rework.js';
+export { rejectionReturnEnabled, STUCK_RETURN_MS } from './src/logic/rework.js';
 
 export { createItemSlice } from "./src/io/board/item/slice.js";
 

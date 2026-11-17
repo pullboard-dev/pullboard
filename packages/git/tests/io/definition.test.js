@@ -96,6 +96,24 @@ test('git.definition.lookback-bounded: clause 2: the bounded look-back before ea
   }
 });
 
+test('git.definition.lookback-walk: clause 1: the bounded look-back scans a long file to the same result as the whole prefix and in less time [C7]', () => {
+  const lines = [];
+  for (let i = 0; i < 1500; i++) lines.push(`const v${i} = 'value-${i}'; import('./m${i}.js');`);
+  const source = `${lines.join('\n')}\n`;
+  const time = size => {
+    const start = process.hrtime.bigint();
+    const result = scanImports(source, true, size);
+    return { result, ms: Number(process.hrtime.bigint() - start) / 1e6 };
+  };
+  time(undefined);
+  const bounded = time(undefined);
+  const whole = time(Infinity);
+  assert.deepEqual(bounded.result, whole.result, 'same specifiers in the same order');
+  // Recorded for the item: a relative comparison in one process, so machine load moves both sides together.
+  console.log(`# lookback-walk: ${source.length} chars, bounded ${bounded.ms.toFixed(1)} ms, whole prefix ${whole.ms.toFixed(1)} ms`);
+  assert.ok(bounded.ms < whole.ms, `the bounded scan (${bounded.ms} ms) is faster than the whole-prefix scan (${whole.ms} ms)`);
+});
+
 test('git.definition.concatenated-load: a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
   const graph = fixture();
   graph.put('a.js', "import './b.js';\nexport const load = () => import('./late-' + 'sweep.js');\n");
