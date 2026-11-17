@@ -13,7 +13,7 @@ import { offerJob } from '../../index.js';
 const boardWith = t => cellBoard(t, ':memory:').db;
 const offerPush = (db, id, now) => offerJob(db, { id, kind: SHARD_JOB_KIND, priority: 'gate', now });
 
-test('clause 1: endJobs ends every unfinished shard at once, even one a runner holds, and no runner claims it again [C7,#7805]', t => {
+test('api.push-shards-end.endjobs-ends-every-unfinished-shard: clause 1: endJobs ends every unfinished shard at once, even one a runner holds, and no runner claims it again [C7,#7805]', t => {
   const db = boardWith(t);
   for (let at = 1; at <= 4; at += 1) offerPush(db, `push:abc:tag:shard:${at}`, 1_000);
   const held = claimJob(db, { runner: 'r1', now: 1_001 });
@@ -25,7 +25,7 @@ test('clause 1: endJobs ends every unfinished shard at once, even one a runner h
   assert.ok(held, 'the held shard had been claimed once');
 });
 
-test('clause 2: a push shard unrenewed past the alive window ends on its next claim attempt, not rerun, while a renewed one is claimed [C7,#7805]', t => {
+test('api.push-shards-end.push-shard-unrenewed-past-alive: clause 2: a push shard unrenewed past the alive window ends on its next claim attempt, not rerun, while a renewed one is claimed [C7,#7805]', t => {
   const db = boardWith(t);
   offerPush(db, 'push:dead:tag:shard:1', 1_000);
   offerPush(db, 'push:live:tag:shard:1', 1_000);
@@ -39,7 +39,7 @@ test('clause 2: a push shard unrenewed past the alive window ends on its next cl
   assert.equal(claimJob(db, { runner: 'r2', now: now + 1 }), null, 'nothing is left to rerun');
 });
 
-test('clause 2: a shard claimed again and again with its gate gone ends on the next claim, with no attempt cap needed [C7,#7805]', t => {
+test('api.push-shards-end.shard-claimed-again-again-gate: clause 2: a shard claimed again and again with its gate gone ends on the next claim, with no attempt cap needed [C7,#7805]', t => {
   const db = boardWith(t);
   offerPush(db, 'push:old:tag:shard:1', 1_000);
   const first = claimJob(db, { runner: 'r1', now: 1_001, leaseMs: 10 });
@@ -48,7 +48,7 @@ test('clause 2: a shard claimed again and again with its gate gone ends on the n
   assert.equal(jobViews(db, ['push:old:tag:shard:1'])[0].step, 'done');
 });
 
-test('clause 2: only push shards are ended for a missing gate; an old item gate shard and a test job stay claimable [C7,#7805]', t => {
+test('api.push-shards-end.only-push-shards-ended-missing: clause 2: only push shards are ended for a missing gate; an old item gate shard and a test job stay claimable [C7,#7805]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:item:shard:1', kind: SHARD_JOB_KIND, now: 1_000 });
   offerJob(db, { id: 'test:run-1', kind: 'test', now: 1_000 });
