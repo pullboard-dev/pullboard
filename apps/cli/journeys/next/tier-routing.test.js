@@ -56,7 +56,7 @@ async function offered(box) {
   return taken.document?.item?.item_id ?? null;
 }
 
-test('clause 1: with next.routeByTier on, an item bounced twice at a tier is next offered at the tier above [C7,#8800]', async t => {
+test('cli.journeys-next-tier-routing.with-next-routebytier-on-an-item: clause 1: with next.routeByTier on, an item bounced twice at a tier is next offered at the tier above [C7,#8800]', async t => {
   const box = await tiered(t);
   const id = bounced(box, 'Bounced twice');
   nextSettings({ routeByTier: true });
@@ -65,7 +65,7 @@ test('clause 1: with next.routeByTier on, an item bounced twice at a tier is nex
   assert.equal(await offered(box), id, 'an escalation seat is offered it');
 });
 
-test('clause 2: with next.routeByTier on, an item pinned to a tier is never offered at another [C7,#8800]', async t => {
+test('cli.journeys-next-tier-routing.with-next-routebytier-on-an-item-2: clause 2: with next.routeByTier on, an item pinned to a tier is never offered at another [C7,#8800]', async t => {
   const box = await tiered(t);
   const id = box.add('Pinned to escalation');
   pin(box, id, 'escalation');
@@ -81,7 +81,7 @@ test('clause 2: with next.routeByTier on, an item pinned to a tier is never offe
   assert.equal(await offered(other), null, 'a pin to routine holds the item there even after two bounces');
 });
 
-test('clause 3: with next.routeByTier off, next offers items as on main [C7,#8800]', async t => {
+test('cli.journeys-next-tier-routing.with-next-routebytier-off-next-offers: clause 3: with next.routeByTier off, next offers items as on main [C7,#8800]', async t => {
   const box = await tiered(t);
   const id = bounced(box, 'Bounced twice, setting off');
   assert.equal(nextRouteByTier(), false, 'the default is off');
