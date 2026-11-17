@@ -57,7 +57,7 @@ export const KNOWN_REQUEST_BLOCKERS = Object.freeze({
   'packages/activity/src/io/inbox.js#gitPaths': 'state read lists claim worktree files with synchronous git',
   'packages/activity/src/io/inbox.js#diffTreePaths': 'state read diffs a claim worktree tree with synchronous git',
   'packages/api/src/io/code.js#codeAt': 'code viewer request reads a blob with four synchronous git calls',
-  'apps/view/src/io/serve.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
+  'apps/view/src/io/state.js#computeRowAges': 'projectState, a view port, reads each spec row age through synchronous git',
   'packages/git/src/io/main.js#bareWorktreeFinding': 'state read lists a claim worktree folder with a synchronous directory read',
   'packages/git/src/io/main.js#readMainCheckout': 'merge-only submit reads the main checkout with synchronous git',
   'packages/git/src/io/main.js#gitCall': 'merge-only submit runs git through a synchronous helper',
@@ -99,16 +99,6 @@ const BASE_REQUEST_BLOCKERS = Object.freeze(Object.fromEntries(
 ));
 
 const REQUEST_FILE = 'packages/gate/src/io/board/request.js';
-/**
- * A function that moved between files while its known row is still listed under the old file: either spelling of the
- * owner reads as the same row, so the lane moving the function needs no core edit in the same commit. Remove an entry
- * once its key is renamed. Why: a view lane cannot edit this core-owned list [#10188].
- */
-export const MOVED_BLOCKER_OWNERS = Object.freeze({
-  'apps/view/src/io/state.js#computeRowAges': 'apps/view/src/io/serve.js#computeRowAges',
-});
-/** The one spelling of an owner that a moved row is compared under. */
-const canonOwner = owner => MOVED_BLOCKER_OWNERS[owner] ?? owner;
 const KNOWN_ROW = /^\s*'([\w./-]+\.js#[\w$]+)':\s*(?:'(.*)'|"(.*)"),?\s*$/gmu;
 
 /** Read one blocker list from the candidate source without executing candidate tooling. */
@@ -177,11 +167,10 @@ export function apiRequestIoProblems(sources, { known = BASE_REQUEST_BLOCKERS, e
     const at = root.indexOf('#'), file = at < 0 ? root : root.slice(0, at);
     for (const name of at < 0 ? modules.get(file)?.functions.keys() ?? [] : [root.slice(at + 1)]) walk(file, name, []);
   }
-  const listed = new Set(Object.keys(known).map(canonOwner));
-  const rows = [...lost, ...[...found.values()].filter(row => !listed.has(canonOwner(row.owner)))];
-  const owners = new Set([...found.values()].map(row => canonOwner(row.owner)));
+  const rows = [...lost, ...[...found.values()].filter(row => !(row.owner in known))];
+  const owners = new Set([...found.values()].map(row => row.owner));
   for (const owner of Object.keys(known)) {
-    if (!owners.has(canonOwner(owner))) rows.push({ file: owner.slice(0, owner.indexOf('#')), line: 1, call: 'stale known violation', owner, chain: [owner], stale: true });
+    if (!owners.has(owner)) rows.push({ file: owner.slice(0, owner.indexOf('#')), line: 1, call: 'stale known violation', owner, chain: [owner], stale: true });
   }
   return rows.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.call.localeCompare(b.call));
 }
