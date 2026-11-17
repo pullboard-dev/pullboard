@@ -288,7 +288,7 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
-    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
+    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline }), { affectedOnly: payload.staticAffectedOnly === true }) : null;
     const proveFiles = own => {
       const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline, reuseGate: payload.reuseGateReceipts === true });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline, reuseGate: payload.reuseGateReceipts === true }, here) : here;
@@ -466,15 +466,19 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   const giveBack = (id, reason, detail, guard = null) => { receipt.returned.push({ id, reason, detail, ...(guard ? { guard } : {}) }); receipt.detail ??= detail; };
   // Renew before each synchronous fetch: git blocks this process's event loop, so the runner's background renewal cannot fire
   // while one runs, and a fetch pair longer than the 2-minute lease let five runners in a row claim #9180's job and drop it [C7,#9250].
+  // 'fetch items' times the whole loop below (renews included), 'fetch trunk' each trunk fetch: the fetch loop is where a lease lapsed (land:9342) [C7,#9545].
+  const fetchStart = Date.now();
+  const fetchedAll = () => phases.push({ phase: 'fetch items', ms: Date.now() - fetchStart });
   for (const entry of items) {
-    if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner while it fetched the accepted items' });
+    if (!await renew()) { fetchedAll(); return done('lease-lost', { detail: 'the job\'s lease moved to another runner while it fetched the accepted items' }); }
     const fetched = await fetchOne(root, remote, entry);
-    if (fetched.moved) return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` });
+    if (fetched.moved) { fetchedAll(); return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` }); }
   }
+  fetchedAll();
   for (let attempt = 1; attempt <= attempts; attempt++) {
     receipt.attempts = attempt;
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before it fetched trunk' });
-    const base = await fetchTip(root, remote, trunk);
+    const base = await timed(phases, 'fetch trunk', async () => fetchTip(root, remote, trunk));
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
     const already = items.filter(entry => tryGit(root, ['merge-base', '--is-ancestor', entry.commit, base]).status === 0).map(entry => entry.id);

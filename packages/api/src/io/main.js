@@ -5,6 +5,8 @@ import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { readCostAnalytics } from './cost.js';
 import { costAnalyticsSliced } from '../../../stats/index.js';
+import { coordinatorUsage } from '../../../stats/index.js';
+import { publicUsage } from '../../../stats/index.js';
 import { costWindowStart } from '../../../stats/index.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
@@ -118,6 +120,7 @@ import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
+import { typedFieldsEnabled } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
 import { RELAY_HEALTH_FILE } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
@@ -500,7 +503,7 @@ const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** The sibling-cell functions an item detail reads, given to its reader on each thread. */
-const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector };
+const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled };
 /** How many recent builds of each board a server keeps as possible delta bases. */
 const DELTA_BASES = 24;
 
@@ -1301,7 +1304,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs` }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
-      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced });
+      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)) });
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
