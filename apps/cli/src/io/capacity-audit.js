@@ -89,7 +89,7 @@ export async function runAudit(io, values, gateRuns) {
   const fromMs = toMs - flowWindowMinutes(values.window ?? '14d') * 60_000;
   const from = new Date(fromMs).toISOString();
   const input = withBoardRead(ctx, board => {
-    const slots = reportedSlots(boardRunsReader(board, ctx.file).db ?? board.db, fromMs);
+    const slots = reportedSlots(boardRunsReader(board, ctx.file)?.db ?? board.db, fromMs);
     const rows = events(board, { since: from, kinds: ['claim', 'merged'] });
     const runs = gateRuns(board).map(run => ({ runner: run.runner?.id ?? (typeof run.runner === 'string' ? run.runner : null), ms: run.durationMs ?? null, at: Date.parse(run.finishedAt ?? run.at ?? '') }))
       .filter(run => Number.isNaN(run.at) || run.at >= fromMs);
