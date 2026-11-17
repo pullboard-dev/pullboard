@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell seats */
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../apps/cli/tests/fixtures/child.js';
