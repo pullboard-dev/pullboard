@@ -23,7 +23,7 @@ function repair(id, file) {
     item_frozen: JSON.stringify({ check: `node apps/cli/src/io/run/tests.js ${file}`, criterion: 'Repair the helper-defined move case.' }) };
 }
 
-test('a running-file-only owner matches a helper-defined failure on the new engine [V4,B3,H16]', () => {
+test('store.logic-known-main-autofile-running.a-running-file-only-owner-matches: a running-file-only owner matches a helper-defined failure on the new engine [V4,B3,H16]', () => {
   const owner = repair(7, failure.ran);
   assert.deepEqual(ownersOf(failure, [owner]).map(row => row.item_id), [], 'old engine matching keeps helper-file-only identity');
   assert.deepEqual(ownersOf(failure, [owner], undefined, true, true).map(row => row.item_id), [7]);
@@ -36,7 +36,7 @@ test('a running-file-only owner matches a helper-defined failure on the new engi
   assert.throws(() => submissionProof(proof, KNOWN_MAIN_OWNER_PATTERN_ENGINE), { code: 'SUBMISSION_PROOF' });
 });
 
-test('old known-main rows preserve their bytes under the earlier engine [V4,B3,H16]', () => {
+test('store.logic-known-main-autofile-running.old-known-main-rows-preserve-their: old known-main rows preserve their bytes under the earlier engine [V4,B3,H16]', () => {
   const owner = repair(8, failure.file);
   const oldFailure = { file: failure.file, name: failure.name, signature: failure.signature, item: owner.item_id };
   const oldKnown = { main: 'c'.repeat(40), failures: [oldFailure] };
@@ -46,7 +46,7 @@ test('old known-main rows preserve their bytes under the earlier engine [V4,B3,H
   assert.doesNotThrow(() => requireKnownMainReworks(linked, [owner], undefined, true, false));
 });
 
-test('the higher-engine submit replay records the running path and rejects old-engine downgrade [V4,B3,H16]', t => {
+test('store.logic-known-main-autofile-running.the-higher-engine-submit-replay-records: the higher-engine submit replay records the running path and rejects old-engine downgrade [V4,B3,H16]', t => {
   const at = '2026-11-04T00:00:00.000Z';
   const board = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   store.register(board, { lane: 'coordinator', path: '/fixture/coordinator' });
