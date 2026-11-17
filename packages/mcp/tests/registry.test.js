@@ -1,4 +1,5 @@
-/** Every mcp-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9924]. @pullboard-test-input source-cell packages/mcp */
+/** @pullboard-test-input source-cell packages/mcp */
+/** Every mcp-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9924]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
