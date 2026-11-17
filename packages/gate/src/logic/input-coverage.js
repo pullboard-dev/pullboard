@@ -7,8 +7,8 @@
  * when its leading header lines name its inputs, as the rigor reader judges.
  */
 import { lex } from '../../../kernel/index.js';
-import { declaresSource } from '../io/test/inputs.js';
-import { READ } from '../io/test/inputs.js';
+import { declaresSource } from './input-declaration.js';
+import { READ } from './input-declaration.js';
 
 const TEST_NAME = /\.(?:test|spec)\.[cm]?js$/u;
 const CELL = /^((?:packages|apps)\/[^/]+)\//u;

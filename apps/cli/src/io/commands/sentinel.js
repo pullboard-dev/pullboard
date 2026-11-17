@@ -13,6 +13,7 @@ import { personCommandContext } from '../context.js';
 import { recordTimeCheckpoint } from '../../../../../packages/stats/index.js';
 import { retainedReceipts } from '../../../../../packages/gate/index.js';
 import { events } from '../../../../../packages/store/index.js';
+import { landingSelfCheckPorts } from './sentinel-landing.js';
 
 /** Run `pullboard sentinel` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
@@ -21,7 +22,9 @@ export async function run(io, { first, second, rest, values }) {
   const stalledGateDrives = first === 'run' ? (await import('../../../../../packages/drive/index.js')).stalledGateDriveFindings : undefined;
   const result = await sentinelCommand({ ctx, words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus,
     // A gate drive that renews its lease with no step for 20 minutes is shouted Stuck, naming its item and job (#3661).
-    stalledGateDrives });
+    stalledGateDrives,
+    // The comparison cache and landing batches the health cell's landing self-check reads, behind sentinels.landingSelfCheck (#10125).
+    landingSelfCheck: landingSelfCheckPorts });
   if (first === 'run' && second === undefined && ctx.info.isMain) {
     withBoard(ctx, board => { if (whoAmI(ctx, board).id === 'coordinator') recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events }); });
   }
