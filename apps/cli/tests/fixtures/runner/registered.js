@@ -7,8 +7,10 @@
  */
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
@@ -37,8 +39,9 @@ export async function registerStandInAfterAdd(box, { requests, add }) {
   if (off.code !== 0) throw new Error(`settings gate.loadAwareDispatch off failed: ${off.err}`);
   const added = await add();
   // The add may have started the board host's local runner; the registered runner must be the one that serves the queue.
-  const local = box.run(box.repo, 'settings', 'gate.localRunner', 'off');
-  if (local.code !== 0) throw new Error(`settings gate.localRunner off failed: ${local.err}`);
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const previous = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+  writeFileSync(settingsFile, JSON.stringify({ ...previous, gate: { ...previous.gate, localRunner: false } }));
   const stopped = box.run(box.repo, 'runner', 'local', '--off');
   if (stopped.code !== 0) throw new Error(`runner local --off failed: ${stopped.err}`);
   const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
