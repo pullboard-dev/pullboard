@@ -4,6 +4,16 @@
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
 /**
+ * The gradle command: the wrapper when the root holds a gradlew entry, else the installed gradle.
+ *
+ * @param {string[]} names directory entry names of the repo root
+ * @returns {string}
+ */
+function gradleCommand(names) {
+  return names.includes('gradlew') ? './gradlew test' : 'gradle test';
+}
+
+/**
  * The bun command, or '' when a package.json already holds a real test script: the node row's 'npm test' runs that, so bun adds no second entry.
  *
  * @param {string[]} names directory entry names of the repo root
@@ -19,10 +29,15 @@ function bunCommand(names, contents) {
   return 'bun test';
 }
 
+/** The three JVM test-file globs, shared by the maven and gradle rows. */
+const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
+
 /** The extra ecosystem rows, in detection order; starts empty so behaviour is unchanged until a row is added. */
 export const LANGUAGE_ROWS = Object.freeze([
   { language: 'bun', markers: ['bun.lock', 'bun.lockb', 'bunfig.toml'], command: bunCommand, tests: ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts'] },
   { language: 'deno', markers: ['deno.json', 'deno.jsonc'], command: 'deno test', tests: ['**/*_test.ts', '**/*.test.ts', '**/*_test.js'] },
+  { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
+  { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
 ]);
 
 /**
