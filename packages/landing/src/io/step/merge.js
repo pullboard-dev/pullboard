@@ -22,6 +22,7 @@ import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
 import { amendLandingEngines } from '../derive.js';
 import { firstContainingCommit } from '../first.js';
+import { composeFollowingMain } from './compose.js';
 import { composeOnRunner } from './compose.js';
 import { deriveOnRunner } from './derive.js';
 import { commitDerived } from './derive.js';
@@ -88,7 +89,8 @@ export async function mergeGroup(state, items) {
   const squash = landingSquashEnabled();
   const onRunner = deriveRidesRunner(state);
   // A named batch's merges, gate repoints and derived files are built by one runner job; this checkout only takes its commit [C7,#5585].
-  const composed = onRunner && items.length ? await composeOnRunner(state, items.map(entry => {
+  const compose = runnerOnlyCompose() ? composeFollowingMain : composeOnRunner;
+  const composed = onRunner && items.length ? await compose(state, items.map(entry => {
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
     const message = messages.get(item.item_id);
     return { id: item.item_id, commit: landedCommit(item), header: message.header, trailers: message.trailers };
