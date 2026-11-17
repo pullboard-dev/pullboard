@@ -96,7 +96,7 @@ export async function assertStartupBudgets(t, sink = {}) {
         .filter(agent=>!authors.includes(agent)).sort(),
       ineligible:authors.map(agent=>({agent,code:'SELF_VERIFY',
         rule:'[SELF_VERIFY] the builder never verifies its own work; another agent must'})),
-      // Both seeded authors have no recorded parent session, so show groups them under 'unknown' (eligibility.js authorParents).
+      // show names the authors' parent sessions (#4485cb6b7c); seats that joined with no parent group under 'unknown' [C7].
       authorParents:[{parent:'unknown',seats:['core-4','core-204']}]};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
