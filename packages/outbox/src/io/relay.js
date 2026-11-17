@@ -33,6 +33,7 @@ import {
 import { readBoardKey } from '../../../keys/index.js';
 import { leaveConflictNotice } from './relay/conflicts.js';
 import { withOutboxGuard } from './relay/guard.js';
+import { behindDeviceOptions } from '../../../link/index.js';
 import { transientRelayFailure } from '../../../link/index.js';
 import {
   RECOVER_COMMAND,
@@ -464,8 +465,8 @@ export async function queueMove(link, { operation, args, command, move, error, a
   const outbox = await readOutbox(where, key, state.board)
     ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
   if (!move) {
-    const sent = withSeatName(root, operation, args, io);
-    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName, senderPolicy);
+    const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
+    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent, behind)), state.machine, state.computerName, senderPolicy);
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));

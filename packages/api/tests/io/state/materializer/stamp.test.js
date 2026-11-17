@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/api/src/io/state/materializer/worker.js */
 /** The state snapshot's code stamp covers the release's package.json, so a CLI copy with a new version rebuilds [A2,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

@@ -5,6 +5,7 @@ import {
   spawnSync,
 } from 'node:child_process';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   lstatSync,
@@ -31,7 +32,11 @@ import {
   fixtureSettledMachine,
   joinFixtureSeat,
 } from '../testkit.js';
-import { withoutPullboardEnv } from '../e2e.js';
+import {
+  parityRecord,
+  journeyCall,
+  withoutPullboardEnv,
+} from '../e2e.js';
 import { runCliInProcess } from '../process.js';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
@@ -66,6 +71,18 @@ const SPEC = `# Demo spec
 function fixtureAddDistinct(args) {
   if (args[0] === 'add' && !args.some(arg => arg === '--not-duplicate-of' || arg.startsWith('--not-duplicate-of='))) args.push('--not-duplicate-of', '1 each fixture item is a separate case');
   return args;
+}
+
+/**
+ * Append one parity record for a finished CLI call when PULLBOARD_PARITY_RECORD is set, and write nothing otherwise.
+ * Why: the real-process and in-process modes of the box must be comparable call by call, by the same record shape the other boxes write [C7,U149].
+ *
+ * @param {{ dir: string, env: object, cwd: string, args: string[], result: { status: number, stdout: string, stderr: string } }} call The finished call.
+ * @returns {void}
+ */
+function recordParity({ dir, env, cwd, args, result }) {
+  if (!process.env.PULLBOARD_PARITY_RECORD) return;
+  appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir, env, cwd, args, result: { code: result.status, out: result.stdout, stderr: result.stderr } }))}\n`);
 }
 
 /**
@@ -152,6 +169,7 @@ function machine() {
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd, env: commandEnv, encoding: 'utf8' });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     settleOfferedJobs(cwd, args, commandEnv);
+    recordParity({ dir, env: commandEnv, cwd, args, result });
     return result.stdout;
   };
   /** Await the same CLI call in this process, refusing a non-zero status like runWithEnv, without a launch [C7]. */
@@ -163,6 +181,7 @@ function machine() {
     const result = await runCliInProcess(args, { cwd, env: commandEnv });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     settleOfferedJobs(cwd, args, commandEnv);
+    recordParity({ dir, env: commandEnv, cwd, args, result });
     return result.stdout;
   };
   /**
@@ -174,6 +193,29 @@ function machine() {
     fixtureJoinRoute(args, MACHINE_MODEL);
     invocations.push({ args, hasModel: true, model: MACHINE_MODEL });
     const result = await runCliInProcess(args, { cwd, env: { ...env, PULLBOARD_MODEL: MACHINE_MODEL } });
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
+    recordParity({ dir, env: { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, cwd, args, result });
+    return result.stdout;
+  };
+  /**
+   * The journey's call, awaited: in this process by default, a real process under PULLBOARD_JOURNEY_MODE=process, and
+   * appended to PULLBOARD_PARITY_RECORD when the parity check asks. Refuses a non-zero status like run, returns stdout, and
+   * settles the jobs the call offered in both modes, so the record holds the settled board [C7,U149].
+   */
+  const runIn = async (cwd, ...args) => {
+    const commandEnv = { ...env, PULLBOARD_MODEL: MACHINE_MODEL };
+    const prepared = () => {
+      const call = [...args];
+      fixtureJoinRoute(call, MACHINE_MODEL);
+      fixtureAddRoute(call);
+      fixtureAddDistinct(call);
+      invocations.push({ args: call, hasModel: true, model: MACHINE_MODEL });
+      return call;
+    };
+    const answer = (result, call) => { settleOfferedJobs(cwd, call, commandEnv); return { status: result.status, stdout: result.stdout, stderr: result.stderr }; };
+    const result = await journeyCall({ dir, env: commandEnv, cwd, args: [...args], bin: BIN,
+      inProcess: async () => { const call = prepared(); return answer(await runCliInProcess(call, { cwd, env: commandEnv }), call); },
+      real: () => { const call = prepared(); return answer(spawnSync(process.execPath, [BIN, ...call], { cwd, env: commandEnv, encoding: 'utf8' }), call); } });
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
@@ -219,7 +261,7 @@ function machine() {
     }
     return Object.freeze({ root, readFile, files });
   }
-  return { dir, env, git, run, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
+  return { dir, env, git, run, runIn, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
 }
 
 /**

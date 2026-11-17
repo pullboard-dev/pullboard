@@ -41,7 +41,7 @@ const DEFERRED_CODES = Object.freeze({
   reworkRouting: ['REOPEN_HELD_FOR_BUILDER', 'NO_POLICY'],
 });
 /** Codes a criterion freeze can refuse with, in the order the freeze can meet them. */
-const FREEZE_CODES = Object.freeze(['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY']);
+const FREEZE_CODES = Object.freeze(['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_POLICY', 'BAD_CONFIG', 'AGENT_APPROVAL_REQUIRED', 'BAR_NOT_READY', 'BAR_EMPTY']);
 
 const leaseLive = (s, item) => item.status === 'claimed' && ((item.leaseUntil ?? '') > s.now || item.gateInFlight === true);
 const isRenewal = (s, m) => s.item.owner === m.actor && leaseLive(s, s.item);

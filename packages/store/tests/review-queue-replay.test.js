@@ -15,13 +15,12 @@ import {
 import { ENGINE_VERSION } from '../../state/index.js';
 import { AGENT_GRANT_ENGINE } from '../../state/index.js';
 import { appliedSequence } from '../../state/index.js';
-import { replayHistoricalSeatMove } from '../../../apps/cli/tests/fixtures/seats.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 import { submitFixture } from './fixtures/submit.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
@@ -37,13 +36,22 @@ const REVIEW_SKIPPED = {
   ageMs: 3_600_000,
 };
 
+/** Replay a seat registration through the real engine-1 move, keeping its receipts and cursor instead of a newer seat's grant marker [E21,H16]. */
+function replayHistoricalRegister(board, who) {
+  const sequence = appliedSequence(board) + 1;
+  const move = { version: 1, engine: 1, id: `historical-register-${sequence}`, operation: 'register', args: JSON.parse(JSON.stringify([who])) };
+  const outcome = applyEngineMove(board, move, { sequence, at: board.clock.now().toISOString() });
+  assert.equal(outcome.error, undefined, `historical register must reach its real operation: ${JSON.stringify(outcome.error)}`);
+  return outcome.result;
+}
+
 /** Create one seed board and two independent in-memory replicas with different ambient clocks. */
 function memoryCopies(t, historicalSeats = false, historicalSetup = false) {
   const source = openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
   if (historicalSetup) source.executionEngineVersion = 4;
   /** Engine-1 claim history starts with real engine-1 joins, not a newer seat's activated grant. */
   const register = who => historicalSeats
-    ? replayHistoricalSeatMove(source, 1, 'register', [who])
+    ? replayHistoricalRegister(source, who)
     : store.register(source, who);
   register({ lane: 'coordinator', path: '/fixture' });
   register({ lane: 'web', path: '/fixture/web-1' });

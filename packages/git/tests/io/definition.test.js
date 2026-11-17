@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 import { checkCommandDefinition } from '../../src/io/check/definition.js';
 import { definitionUnchanged } from '../../src/io/check/definition.js';

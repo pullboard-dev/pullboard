@@ -34,7 +34,7 @@ const ROWS = {
 const WHY = { changed: 'the claim changed after the stale observation; capture it again before releasing', evidence: 'complete activity evidence does not establish the configured stale interval',
   wait: 'the expired lease has not passed its configured stale interval; wait for that interval before releasing', lease: 'the claim lease changed after the stale observation; capture it again' };
 
-/** Earlier episodes on the item and what each adds to the release-twice count: a quality release chosen by its own claimer, unflagged and not caused by infrastructure, counts. */
+/** Earlier episodes on the item and what each adds to the release-twice count: a quality release chosen by its own claimer, unflagged, without a structured blocker (--on) and not caused by infrastructure, counts. */
 const FLAGS = ['review', 'staleClaim', 'goneSeat', 'idleClaim', 'expiredClaim', 'untouchedAutoClaim', 'exitHandoff'];
 const EPISODES = [
   [[['claim', 'a'], ['release', 'a', { reasonCode: 'BUDGET', reason: 'too big' }]], 1], [[['claim', 'a'], ['release', 'a', { reasonCode: 'BLOCKED' }]], 1],
@@ -179,7 +179,7 @@ function expected(s, m, x) {
   const escalate = (text) => { Object.assign(patch, { route: up, owner: null, leaseUntil: null, status: 'open' }); events.push({ kind: 'escalate', by: 'coordinator', detail: { from: route, to: up, note: text } }); };
   const calibrated = chosen && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.actor.route === route;
   if (calibrated) { via.push('route-calibration'); escalate(`${m.actor} released at the ${route} route: ${m.reason}${note ? ` (${note})` : ''}`); }
-  const twice = chosen && QUALITY.includes(m.reason), counted = [...x.counted, ...(x.lateInfra ? [] : [{ by: m.actor, code: m.reason, reason: note }])];
+  const twice = chosen && QUALITY.includes(m.reason) && !m.on?.length, counted = [...x.counted, ...(x.lateInfra ? [] : [{ by: m.actor, code: m.reason, reason: note }])];
   if (twice && counted.length >= 2 && !s.item.holdReason && !(calibrated && route !== 'strong')) {
     const reasons = counted.slice(-2).map(e => `${e.by}: ${e.code}${e.reason ? ` (${e.reason})` : ''}`).join('; ');
     via.push('released-twice');

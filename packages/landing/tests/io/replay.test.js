@@ -23,7 +23,7 @@ import {
   applyEngineMove,
   engineReceipt,
 } from '../../../state/index.js';
-import { unpackRelease } from '../../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../../gate/tests/fixtures/release/archive.js';
 
 /** Ignore only the current writer marker, never semantic history or ordered receipts. */
 function withoutWriterMarker(document) {

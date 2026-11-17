@@ -56,9 +56,27 @@ export function agentTreeLines(tree, indent = '', { detail = true } = {}) {
   });
 }
 
+/**
+ * The seats that hold nothing: no claimed or submitted item, whatever their helpers hold; the coordinator never builds, so it is not one.
+ *
+ * @param {any[]} tree
+ * @returns {{ id: string, address: string, path: string }[]}
+ */
+export function idleSeats(tree) {
+  return tree.flatMap((agent) => [
+    ...(agent.holds.length || agent.id === COORDINATOR ? [] : [{ id: agent.id, address: agent.address, path: agent.path }]),
+    ...idleSeats(agent.helpers),
+  ]);
+}
+
 /** Print the agents view, in text and as the stable agents:array JSON field. */
-export function agentsReport(io, tree, { detail = false } = {}) {
-  io.result?.({ agents: tree });
+export function agentsReport(io, tree, { detail = false, consumers } = {}) {
+  const idle = consumers ? idleSeats(tree) : undefined;
+  io.result?.(consumers ? { agents: tree, consumers, idleSeats: idle } : { agents: tree });
   for (const line of agentTreeLines(tree, '', { detail })) io.say(line);
+  if (consumers) {
+    io.say(consumers.length ? `top local consumers: ${consumers.map(entry => `${entry.kind} ${entry.cpu}% (${entry.processes})`).join(', ')}` : 'top local consumers: none read');
+    if (idle.length) io.say(`seats holding nothing: ${idle.map(seat => seat.id).join(', ')}`);
+  }
   return 0;
 }
