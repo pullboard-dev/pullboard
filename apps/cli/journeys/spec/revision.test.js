@@ -44,9 +44,13 @@ test('clause 1: a spec revision shows old and proposed rows side by side with pr
     assert.equal(await chrome.stable('document.querySelectorAll("#needs [data-spec-revision]").length'), 4,
       'Needs you renders each core-projected revision as its own actionable comparison');
     await openItemsNeeds(chrome);
-    await chrome.stable(`window.revisionMoves = []; window.revisionFetch = window.fetch; window.fetch = function(input, init) {
-      if (init?.body && String(input).includes('/moves')) { const move = JSON.parse(init.body); if (move.verb) window.revisionMoves.push(move); }
-      return window.revisionFetch.apply(this, arguments);
+    await chrome.stable(`window.revisionMoves = []; window.revisionSettled = []; window.revisionFetch = window.fetch; window.fetch = function(input, init) {
+      const answer = window.revisionFetch.apply(this, arguments);
+      if (init?.body && String(input).includes('/moves')) {
+        const move = JSON.parse(init.body);
+        if (move.verb) { window.revisionMoves.push(move); answer.finally(() => setTimeout(() => window.revisionSettled.push(move.args.ids), 0)); }
+      }
+      return answer;
     }; true`);
     for (const [index, width] of [375, 1280].entries()) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -68,7 +72,7 @@ test('clause 1: a spec revision shows old and proposed rows side by side with pr
       assert.ok(shown.right <= width, `${width}: the comparison stays in the viewport`);
       await press(chrome, `${row}.querySelector('[data-row-decision="approve"]')`);
       await chrome.waitFor(`window.revisionMoves.some(move => move.verb === 'spec-approve' && move.args.ids === '${approve}')`);
-      await chrome.waitFor(`!data.project.specRevisions.some(proposal => proposal.id === '${approve}') && !document.querySelector('#needs [data-spec-revision="${approve}"]')`);
+      await chrome.waitFor(`window.revisionSettled.includes('${approve}')`);
       const declinedRow = `document.querySelector('#needs [data-spec-revision="${decline}"]')`;
       await press(chrome, `${declinedRow}.querySelector('summary')`);
       await chrome.waitFor(`${declinedRow}.querySelector('details').open`);
