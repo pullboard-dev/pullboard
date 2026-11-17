@@ -16,7 +16,7 @@ function lines(job, item) {
   return queuedGateLines({ ...job, ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) }).join('\n');
 }
 
-test('clause 1: a stop by another seat, or under an older bar, prints no refusal or next step (#3325) [C7]', () => {
+test('cli.logic-show-gate.a-stop-by-another-seat-or-under: clause 1: a stop by another seat, or under an older bar, prints no refusal or next step (#3325) [C7]', () => {
   const cases = [
     ['another seat holds it', { item_status: 'claimed', item_owner: 'core-1869', item_frozen_digest: 'old' }],
     ['refrozen under the same seat', { item_status: 'claimed', item_owner: 'core-1324', item_frozen_digest: 'new' }],
@@ -29,7 +29,7 @@ test('clause 1: a stop by another seat, or under an older bar, prints no refusal
   }
 });
 
-test('clause 1: the stop still prints its refusal and next step for the claim and bar it was built for [C7]', () => {
+test('cli.logic-show-gate.the-stop-still-prints-its-refusal-and: clause 1: the stop still prints its refusal and next step for the claim and bar it was built for [C7]', () => {
   for (const item of [{ item_status: 'claimed', item_owner: 'core-1324', item_frozen_digest: 'old' },
     { item_status: 'open', item_owner: null, item_frozen_digest: 'old' }]) {
     const shown = lines(STOP, item);
@@ -37,13 +37,13 @@ test('clause 1: the stop still prints its refusal and next step for the claim an
   }
 });
 
-test('clause 1: only an infrastructure stop is ever superseded; a red gate keeps its refusal [C7]', () => {
+test('cli.logic-show-gate.only-an-infrastructure-stop-is-ever-superseded: clause 1: only an infrastructure stop is ever superseded; a red gate keeps its refusal [C7]', () => {
   const red = { ...STOP, state: 'red', error: { code: 'GATE_RED', message: 'red', next: 'fix it' } };
   assert.equal(supersededStop(red, { item_status: 'claimed', item_owner: 'core-1869', item_frozen_digest: 'new' }), false);
   assert.match(lines(red, { item_status: 'claimed', item_owner: 'core-1869', item_frozen_digest: 'new' }), /GATE_RED: red\nnext: fix it/u);
 });
 
-test('a red pulled gate prints GATE_RED, each case once, a bounded tail and its full log; a green or submitted one prints nothing [C7,V10]', () => {
+test('cli.logic-show-gate.a-red-pulled-gate-prints-gate-red: a red pulled gate prints GATE_RED, each case once, a bounded tail and its full log; a green or submitted one prints nothing [C7,V10]', () => {
   const errors = [{ file: 'test/a.test.js', name: 'first', error: 'first detail\nmore' }, { file: 'test/a.test.js', name: 'second', error: 'second detail' }];
   const gate = { green: false, counts: { passed: 400, failed: 4, skipped: 0 }, logPath: '/kept/check.log', logRunner: 'r1',
     phases: [{ role: 'check', status: 1, errors }, { role: 'proof', status: 1, errors }, { role: 'extra', status: 2, exit: Array.from({ length: 30 }, (_, n) => `line ${n}`).join('\n') }] };
@@ -59,11 +59,11 @@ test('a red pulled gate prints GATE_RED, each case once, a bounded tail and its 
 
 const DEFERRED = { green: false, deferred: true, phases: [{ role: 'proof', status: 1, exit: 'full suite deferred' }] };
 
-test('clause 1: a done gate whose receipt is deferred to shard jobs prints no GATE_RED line [C7]', () => {
+test('cli.logic-show-gate.a-done-gate-whose-receipt-is-deferred: clause 1: a done gate whose receipt is deferred to shard jobs prints no GATE_RED line [C7]', () => {
   assert.deepEqual(pulledRedLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'claimed' }), []);
 });
 
-test('clause 2: show names a deferred gate as passed its checks and waiting on its shard jobs [C7]', () => {
+test('cli.logic-show-gate.show-names-a-deferred-gate-as-passed: clause 2: show names a deferred gate as passed its checks and waiting on its shard jobs [C7]', () => {
   const [line, ...rest] = pulledWaitingLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'claimed' });
   assert.deepEqual(rest, []);
   assert.match(line, /^GATE_WAITING: gate job gate:2 passed its checks; its proof waits on its shard jobs/u);
