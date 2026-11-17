@@ -81,6 +81,7 @@ export {
   adapterLintClockEnabled,
   adapterLintFsEnabled,
   idiomSpreadEnabled,
+  literalPinsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
