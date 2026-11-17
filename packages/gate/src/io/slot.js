@@ -277,7 +277,7 @@ export function gateRunnerLoadPolicy(settings) {
   const measured = (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
   // One runner kept for timed checks (#2512): picked by measured headroom unless gate.timingRunner names one or is false.
   return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90,
-    timingRunner: settings?.gate?.timingRunner ?? 'auto' };
+    timingRunner: settings?.gate?.timingRunner ?? 'auto', requiredToolchains: settings?.['runners.requiredToolchains'] ?? null };
 }
 
 /**

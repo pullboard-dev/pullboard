@@ -50,6 +50,7 @@ export {
 } from './src/io/agent/session.js';
 export {
   agentTree,
+  idleSeats,
   agentTreeLines,
   agentsReport,
 } from './src/io/agent/tree.js';
@@ -127,6 +128,7 @@ export {
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/logic/route/escalation.js';
+export { lightShaped } from './src/logic/route/shaped.js';
 export {
   seatAddress,
   addressedSeat,

@@ -205,7 +205,7 @@ test('clause 1: a test file needs a browser only when its first line is // pullb
   const callers = ['packages/gate/src/io/run-tests.js', 'packages/gate/src/io/test/run.js', 'packages/gate/src/io/test/file/dispatch.js',
     'packages/gate/src/io/submit.js', 'packages/gate/src/io/static/check.js', 'packages/gate/src/io/admission/private/check.js',
     'packages/landing/src/io/main/red.js', 'packages/landing/src/io/deferred/run.js', 'packages/landing/src/io/doctrine.js',
-    'packages/landing/src/logic/land/guard.js', 'packages/items/src/io/outside/verify.js', 'packages/sandbox/src/io/smoke.js',
+    'packages/landing/src/io/land/guard.js', 'packages/items/src/io/outside/verify.js', 'packages/sandbox/src/io/smoke.js',
     'apps/cli/src/io/commands/check.js', 'apps/cli/src/io/commands/verify.js',
     'apps/cli/src/io/commands/push-receipts.js'];
   for (const caller of callers) {

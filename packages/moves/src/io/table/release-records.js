@@ -147,6 +147,8 @@ function releaseRecord(r, detail, before, routes, { push, skip, written }) {
   const lastClaim = before.filter(e => e.kind === 'claim').at(-1) ?? null;
   const escalated = written(r, detail).find(e => e.kind === 'escalate');
   if (escalated && escalated.detail.from !== it.route) return skip(r, 'release: the item route changed off the record');
+  // #2956 stopped a structured-blocker release counting toward release-twice; one recorded before then followed up on it.
+  if (detail.blockedOn?.length && written(r, detail).some(e => e.kind === 'escalate' || e.kind === 'hold_item')) return skip(r, 'release: counted a structured blocker, which no longer counts');
   const base = { item: { id: r.item_id, status: 'claimed', owner: r.event_by, route: it.route, after: [], leaseUntil: FAR, holdReason: it.hold, holdBy: it.hold ? 'coordinator' : null, reviewer: null },
     actor: { id: r.event_by, route: routes[r.event_by] ?? null, path: '/seat' }, owner: null, diagnosed: true, firstRefusalBuilder: null,
     items: { [r.item_id]: { status: 'claimed', after: [] }, ...Object.fromEntries((detail.blockedOn ?? []).map(id => [id, { status: 'open', after: [] }])) },

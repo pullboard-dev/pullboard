@@ -209,7 +209,7 @@ try {
   }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed'));
     if (staticKey) gate.writeAnalysisMemo(staticKey, { green: true }); }))) : null;
   if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
-  if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main)));
+  if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main, input.base ?? null)));
   let artifacts = input.inventory && typeof cellsCache.transferredCellsInventories === 'function' ? cellsCache.transferredCellsInventories(readFileSync(process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT), input.inventory) : null;
   // The controller holds no inventory for these accepted commits: produce each here, once per runner cache (#2535).
   if (selected('cells') && !artifacts && Array.isArray(input.produceInventory) && input.produceInventory.length) artifacts = await step('inventory', async () => {
