@@ -280,7 +280,7 @@ export async function publish(state, { batches, finish = finishLanding } = {}) {
   }
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
-    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip, ...exactTreeArgument(state) }]);
   await state.checkLease();
   const main = mainCheckout(state.root);
   await finish(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => { if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]); }, refreshMainReds: () => refreshPublishedMainReds(state, batch.base) } });
@@ -434,6 +434,14 @@ export async function moveTrunkRef(state) {
     : `finish: ${ref} moved from ${base} to ${tip}; the primary checkout's tracked files did not follow (${(tree.stderr || tree.stdout).trim().split('\n')[0]}); run git reset --keep ${tip} there; refreshing the code map`);
 }
 
+/** What a red Sprint proof says about the file it reran once: the file, the rerun and main's receipt for it, or that main has none [V37]. */
+function redFileDetail(proof) {
+  if (!proof.file) return '';
+  const receipt = proof.mainReceipt;
+  const main = receipt ? `main's receipt for it is ${receipt.result}${receipt.main ? ` at ${String(receipt.main).slice(0, 12)}` : ''}` : 'main has no receipt for it';
+  return ` (file ${proof.file} was ${proof.rerun === 'red' ? 'red again on its rerun' : 'green on its rerun'}; ${main})`;
+}
+
 /**
  * Prove the batch's exact tree at Sprint depth before main moves: static checks, then the tests of each cell the batch changes [V37].
  * The record lands on the batch as exactTree.pin, .cells and .result beside exactTree.tree. A red leaves main where it was, records
@@ -455,7 +463,7 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
     await save(state, { exactTree: proof });
     return state.batch.exactTree;
   }
-  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
+  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}${redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
   await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
   state.say?.(`finish: ${message}`);
   throw new Refused('LAND_EXACT_RED', message);
@@ -513,6 +521,9 @@ export async function settleOnMain(state, ports = state.restagePorts ?? restageP
   return settled;
 }
 
+/** The exact-tree check as an argument of the finish write: only an exact `true` setting adds it, so a move recorded with the setting off replays unchanged [V36]. */
+function exactTreeArgument(state) { return state.config.landing?.exactTreeCheck === true ? { exactTreeCheck: true } : {}; }
+
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export function finishTrunk(state) {
   return landingSpan('record', () => finishTrunkSteps(state));
@@ -530,7 +541,7 @@ async function finishTrunkSteps(state) {
   await settleOnMain(state);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
-    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
+    : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip, ...exactTreeArgument(state) }]);
   await state.checkLease();
   await finishLanding(state, { earlier: AUTOMATIC_EARLIER, steps: { moveMain: () => timedPhase(state.say, 'push', () => moveTrunkRef(state)) } });
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);

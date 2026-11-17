@@ -32,14 +32,54 @@ const LANGUAGE_TESTS = Object.freeze({
 });
 
 /**
+ * The unittest command for a root with test_*.py files at its top or in a tests folder, else empty.
+ * Why: discover skips a folder with no __init__.py, so a tests folder is named with -s [C7,#10366].
+ *
+ * @param {string} root
+ * @returns {string}
+ */
+function unittestCommand(root) {
+  const isTest = (name) => /^test_.*\.py$/u.test(name);
+  if (readdirSync(root).some(isTest)) return 'python3 -m unittest discover';
+  const tests = join(root, 'tests');
+  if (existsSync(tests) && readdirSync(tests).some(isTest)) return 'python3 -m unittest discover -s tests';
+  return '';
+}
+
+/** Folders a nested scan never enters: tooling, dependencies and build output hold no project of their own [C7,#10367]. */
+const NESTED_SKIPPED = new Set(['node_modules', 'vendor', 'target']);
+
+/**
  * Every ecosystem the project uses, each with its test command, in a fixed order, without running anything.
  * Why: a repo with several languages needs each one's tests in its gate, not only the first found [#3707].
+ * A root that detects nothing is read one folder down, each hit naming its folder, because a monorepo keeps
+ * each service in its own folder; a root that detects anything is never scanned below [C7,#10367].
  *
  * @param {string} root
  * @param {readonly object[]} [rows] extra ecosystem rows, in table order
- * @returns {{ language: string, command: string }[]}
+ * @returns {{ language: string, command: string, folder?: string }[]}
  */
 export function detectLanguages(root, rows = LANGUAGE_ROWS) {
+  const here = detectHere(root, rows);
+  if (here.length) return here;
+  const nested = [];
+  const folders = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && !NESTED_SKIPPED.has(entry.name))
+    .map((entry) => entry.name).sort();
+  for (const folder of folders) {
+    for (const entry of detectHere(join(root, folder), rows)) nested.push({ ...entry, folder });
+  }
+  return nested;
+}
+
+/**
+ * The ecosystems whose markers sit directly in one folder.
+ *
+ * @param {string} root
+ * @param {readonly object[]} rows
+ * @returns {{ language: string, command: string }[]}
+ */
+function detectHere(root, rows) {
   const found = [];
   const add = (language, command) => found.push({ language, command });
   const file = join(root, 'package.json');
@@ -58,13 +98,21 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   // A uv or poetry project keeps pytest in its own environment, so a lock file beside pyproject.toml fronts the command (uv wins over poetry) [C7,#10357].
   const front = !existsSync(join(root, 'pyproject.toml')) ? '' : existsSync(join(root, 'uv.lock')) ? 'uv run ' : existsSync(join(root, 'poetry.lock')) ? 'poetry run ' : '';
   if (python) add('python', `${front}pytest`);
+  else {
+    // A plain unittest repo has no marker file: a test_ file at the root or in tests/ is the whole signal [C7,#10366].
+    const unittest = unittestCommand(root);
+    if (unittest) add('python', unittest);
+  }
   if (existsSync(join(root, 'composer.json'))) add('php', 'composer test');
   if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
   if (existsSync(join(root, 'CMakeLists.txt'))) add('cmake', 'cmake -S . -B build && cmake --build build && ctest --test-dir build');
   if (rows.length) {
     const names = readdirSync(root);
-    const contents = (name) => (names.includes(name) ? readFileSync(join(root, name), 'utf8') : null);
+    // A name may reach into a folder (test/runtests.jl), so a missing or unreadable path is null rather than a throw.
+    const contents = (name) => {
+      try { return readFileSync(join(root, name), 'utf8'); } catch { return null; }
+    };
     for (const row of rows) {
       if (rowMatches(row, names, contents)) add(row.language, typeof row.command === 'function' ? row.command(names, contents) : row.command);
     }
@@ -79,13 +127,15 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
 
 /** Detect an existing ecosystem's test command without executing it during setup; several join with &&. */
 export function detectGate(root) {
-  return detectLanguages(root).map((entry) => entry.command).join(' && ');
+  // A nested hit runs in a subshell that changes into its folder, so the next command starts where the gate did [C7,#10367].
+  return detectLanguages(root).map((entry) => (entry.folder ? `(cd '${entry.folder.replaceAll("'", "'\\''")}' && ${entry.command})` : entry.command)).join(' && ');
 }
 
 /** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
 export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
   const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
-  return [...new Set(detectLanguages(root, rows).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []))];
+  const prefix = (entry) => (entry.folder ? `${entry.folder}/` : '');
+  return [...new Set(detectLanguages(root, rows).flatMap((entry) => (LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []).map((glob) => `${prefix(entry)}${glob}`)))];
 }
 
 /** Read literal rule target lists without executing Makefile parsing, includes or recipes. */
@@ -135,7 +185,9 @@ export const TOOLCHAIN_NAME = /^[a-z][a-z0-9+_-]{0,31}$/u;
 /** Each language's toolchains; a function reads the detected command when the front tool varies (uv, poetry, bundle, rake, gradle, flutter). */
 const ROWS = Object.freeze({
   bun: ['bun'],
+  clojure: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
   cmake: ['cmake', 'ctest'],
+  crystal: ['crystal'],
   csharp: ['dotnet'],
   dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
   deno: ['deno'],
@@ -143,9 +195,12 @@ const ROWS = Object.freeze({
   go: ['go'],
   gradle: command => (/^\s*gradle\s/u.test(command) ? ['gradle', 'java'] : ['java']),
   haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
+  julia: ['julia'],
   make: ['make'],
   maven: ['java', 'mvn'],
+  nim: ['nimble'],
   node: ['node'],
+  ocaml: ['dune'],
   perl: ['perl'],
   php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),
   python: command => [...(/^\s*uv\s/u.test(command) ? ['uv'] : /^\s*poetry\s/u.test(command) ? ['poetry'] : []), 'python3'],
@@ -153,6 +208,7 @@ const ROWS = Object.freeze({
   rust: ['cargo'],
   sbt: ['java', 'sbt'],
   swift: ['swift'],
+  zig: ['zig'],
 });
 
 /**

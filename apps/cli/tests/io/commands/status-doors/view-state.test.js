@@ -35,7 +35,7 @@ function reachable(entries) {
   return seen;
 }
 
-test('clause 1: the view needs reader and its relative imports under the view app reach no view server module [C7]', () => {
+test('cli.io-commands-status-doors-view-state.the-view-needs-reader-and-its-relative: clause 1: the view needs reader and its relative imports under the view app reach no view server module [C7]', () => {
   for (const entry of ENTRIES) assert.ok(SOURCES.has(entry), `${entry} is not in the source inventory`);
   const found = reachable(ENTRIES);
   assert.ok(found.size > ENTRIES.length, 'the walk followed no import');

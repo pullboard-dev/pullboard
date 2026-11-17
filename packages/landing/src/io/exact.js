@@ -10,22 +10,35 @@ export function changedCells(files) {
  * Why: a landing proved on another tree can stand for a tree it never ran on; the record names the tree, the code that ran and what ran.
  * Static checks run first, then each changed cell's tests in turn; the first red stops the proof and is named in `failed`
  * (`static` or the cell), so a red tree never has to run the rest.
+ * A cell whose red names files gets one rerun of each red file on the same tree: when every rerun is green and main holds a green
+ * receipt for that file, the red is a flake on this tree and the proof goes on, recording `flakes` as {file, tree}; a file that is red
+ * again, or that main has no green receipt for, ends the proof red naming the file, the rerun and main's receipt (or its absence) [V37].
+ * Why: a whole-tree proof meets timing flakes a single file never would, and a flake with no green main behind it is not proven one.
  *
  * @param {{ tree: string }} record The batch's exact-tree record, whose tree id this proof is keyed by.
- * @param {{ changedFiles: () => string[], pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string }> }} ports
+ * @param {{ changedFiles: () => string[], pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string, files?: string[] }>, rerunFile?: (file: string) => Promise<{ isGreen: boolean }>, mainReceipt?: (file: string) => { result: string, main?: string, receiptId?: string } | null }} ports
  *   What the proof reads and runs; the caller supplies them so this file imports nothing.
- * @returns {Promise<{ tree: string, pin: string, cells: string[], result: 'green'|'red', failed?: string, output?: string }>}
+ * @returns {Promise<{ tree: string, pin: string, cells: string[], result: 'green'|'red', failed?: string, output?: string, file?: string, rerun?: 'green'|'red', mainReceipt?: object|null, flakes?: { file: string, tree: string }[] }>}
  */
 export async function sprintProof(record, ports) {
   const cells = changedCells(ports.changedFiles());
   const proof = { ...record, pin: ports.pin(), cells };
+  const flakes = [];
   const staticRun = await ports.runStatic();
   if (!staticRun.isGreen) return { ...proof, result: 'red', failed: 'static', ...(staticRun.output ? { output: String(staticRun.output).slice(-2000) } : {}) };
   for (const cell of cells) {
     const run = await ports.runCell(cell);
-    if (!run.isGreen) return { ...proof, result: 'red', failed: cell, ...(run.output ? { output: String(run.output).slice(-2000) } : {}) };
+    if (run.isGreen) continue;
+    const output = run.output ? { output: String(run.output).slice(-2000) } : {};
+    if (!ports.rerunFile || !run.files?.length) return { ...proof, result: 'red', failed: cell, ...output };
+    for (const file of run.files) {
+      const again = await ports.rerunFile(file);
+      const receipt = ports.mainReceipt?.(file) ?? null;
+      if (!again.isGreen || receipt?.result !== 'green') return { ...proof, result: 'red', failed: cell, file, rerun: again.isGreen ? 'green' : 'red', mainReceipt: receipt, ...(flakes.length ? { flakes } : {}), ...output };
+      flakes.push({ file, tree: record.tree });
+    }
   }
-  return { ...proof, result: 'green' };
+  return { ...proof, result: 'green', ...(flakes.length ? { flakes } : {}) };
 }
 
 /** How many times a staged batch is restaged on a moved main before its items yield their turn (the RFC 0011 approval packet's answer, 17 Nov 2026) [V35]. */

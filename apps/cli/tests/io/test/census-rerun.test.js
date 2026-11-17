@@ -54,7 +54,7 @@ function rowsOf(out) {
   return Object.fromEntries(rows.map(row => [row.file, row]));
 }
 
-test('clause 1: with census.rerunNonGreen on, a file red in its job and green alone is reported green with a flaky mark in its row [C7,#9138]', async (t) => {
+test('cli.io-test-census-rerun.with-census-rerunnongreen-on-a-file-red: clause 1: with census.rerunNonGreen on, a file red in its job and green alone is reported green with a flaky mark in its row [C7,#9138]', async (t) => {
   const repo = fixture(t, { census: { rerunNonGreen: true } });
   const calls = [], out = join(repo, '..', 'census.jsonl');
   const code = await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher((file, call) => file === 'two.test.js' && call === 0, calls) });
@@ -68,7 +68,7 @@ test('clause 1: with census.rerunNonGreen on, a file red in its job and green al
   assert.equal(code, 0, 'every file reads green');
 });
 
-test('clause 2: with census.rerunNonGreen on, a file red twice is reported red with both outcomes in its row [C7,#9138]', async (t) => {
+test('cli.io-test-census-rerun.with-census-rerunnongreen-on-a-file-red-2: clause 2: with census.rerunNonGreen on, a file red twice is reported red with both outcomes in its row [C7,#9138]', async (t) => {
   const repo = fixture(t, { census: { rerunNonGreen: true } });
   const calls = [], out = join(repo, '..', 'census.jsonl');
   const code = await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(file => file === 'three.test.js', calls) });
@@ -82,13 +82,13 @@ test('clause 2: with census.rerunNonGreen on, a file red twice is reported red w
   assert.equal(code, 1);
 });
 
-test('clause 3: with census.rerunNonGreen off (the default), rows are exactly as on main, and census.rerunNonGreen is a described setting [C7,#9138]', async (t) => {
+test('cli.io-test-census-rerun.with-census-rerunnongreen-off-the-default-rows: clause 3: with census.rerunNonGreen off (the default), rows are exactly as on main, and census.rerunNonGreen is a described setting [C7,#9138]', async (t) => {
   const repo = fixture(t, null);
   const calls = [], out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(file => file === 'two.test.js', calls) });
   assert.equal(calls.length, 1, 'no file reruns');
   const rows = rowsOf(out);
-  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'claimedAt', 'endedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
+  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'claimedAt', 'endedAt', 'enqueuedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
   assert.equal(rows['two.test.js'].status, 'red');
   const described = describeSetting('census.rerunNonGreen');
   assert.ok(described, 'census.rerunNonGreen has a description');

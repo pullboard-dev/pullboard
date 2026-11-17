@@ -11,7 +11,7 @@ import { appDaemonProblems } from '../../../src/logic/runner/daemons.js';
 
 const app = { name: 'the resident board (resident-a)', pid: 41, appBundle: 'com.openai.chat', launchd: false };
 
-test('clause 2: an app-started daemon that is no launchd job is named when a runner off this machine is registered [C7]', () => {
+test('cli.io-resident-daemons.an-app-started-daemon-that-is-no: clause 2: an app-started daemon that is no launchd job is named when a runner off this machine is registered [C7]', () => {
   const [problem, ...rest] = appDaemonProblems({ daemons: [app, { ...app, pid: 42, launchd: true }, { ...app, pid: 43, appBundle: null }], runners: [{ host: 'studio.local' }] });
   assert.equal(rest.length, 0, 'a launchd job and a daemon with no app are left alone');
   assert.equal(problem.code, 'DAEMON_LOCAL_NETWORK');
@@ -19,13 +19,13 @@ test('clause 2: an app-started daemon that is no launchd job is named when a run
   assert.match(problem.next, /kill 41/u);
 });
 
-test('clause 2: with no runner or only loopback runners nothing is named [C7]', () => {
+test('cli.io-resident-daemons.with-no-runner-or-only-loopback-runners: clause 2: with no runner or only loopback runners nothing is named [C7]', () => {
   assert.deepEqual(appDaemonProblems({ daemons: [app], runners: [] }), []);
   assert.deepEqual(appDaemonProblems({ daemons: [app], runners: [{ host: '127.0.0.1' }, { host: 'me@localhost:2222' }] }), []);
   assert.equal(appDaemonProblems({ daemons: [app], runners: [{ host: 'me@10.0.0.5' }] }).length, 1);
 });
 
-test('clause 2: residentDaemons reads each live resident pid file, its app bundle and whether launchd runs it [C7]', t => {
+test('cli.io-resident-daemons.residentdaemons-reads-each-live-resident-pid-file: clause 2: residentDaemons reads each live resident pid file, its app bundle and whether launchd runs it [C7]', t => {
   const { root } = privateFixtureFiles('pullboard-daemons-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, '.git', 'pullboard'), { recursive: true });

@@ -71,7 +71,7 @@ for (const setting of ['rerunNonGreen', 'rerunOnSettle']) {
   });
 }
 
-test('clause 2: a file red in its job and green on its rerun is in neither list, and a hung file is in the slow list only [C7,#10348]', async (t) => {
+test('cli.io-test-census-reds.a-file-red-in-its-job-and: clause 2: a file red in its job and green on its rerun is in neither list, and a hung file is in the slow list only [C7,#10348]', async (t) => {
   const { out, calls } = await census(t, { census: { rerunNonGreen: true } });
   assert.ok(calls.some(call => call.length === 1 && call[0] === 'flaky.test.js'), 'the flaky file was rerun alone');
   const rows = Object.fromEntries(readFileSync(out, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).map(row => [row.file, row]));
@@ -82,12 +82,12 @@ test('clause 2: a file red in its job and green on its rerun is in neither list,
   assert.ok(slow.includes('hung.test.js') && !reds.includes('hung.test.js'), 'hung is slow, not red');
 });
 
-test('clause 3: with both rerun settings off, the census writes neither list and its rows are unchanged [C7,#10348]', async (t) => {
+test('cli.io-test-census-reds.with-both-rerun-settings-off-the-census: clause 3: with both rerun settings off, the census writes neither list and its rows are unchanged [C7,#10348]', async (t) => {
   const { out, calls } = await census(t, null);
   assert.equal(calls.length, 1, 'no file reruns');
   assert.equal(existsSync(`${out}.reds.txt`), false);
   assert.equal(existsSync(`${out}.slow.txt`), false);
   const rows = readFileSync(out, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   assert.equal(rows.length, FILES.length);
-  for (const row of rows) assert.deepEqual(Object.keys(row).sort(), ['cases', 'claimedAt', 'endedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
+  for (const row of rows) assert.deepEqual(Object.keys(row).sort(), ['cases', 'claimedAt', 'endedAt', 'enqueuedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
 });

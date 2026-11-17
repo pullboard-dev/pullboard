@@ -34,14 +34,14 @@ async function listening(t, handler) {
 
 const memory = () => new DatabaseSync(':memory:');
 
-test('clause 1: serve.pullRoute is off by default and serve builds no pull handler for /pull/ [C7,#8765]', t => {
+test('cli.io-serve-pull-route.serve-pullroute-is-off-by-default-and: clause 1: serve.pullRoute is off by default and serve builds no pull handler for /pull/ [C7,#8765]', t => {
   const folder = folders(t);
   assert.equal(pullRouteHandler({ folder, openDb: memory }), null, 'the setting unset mounts nothing');
   assert.equal(pullRouteHandler({ folder, openDb: memory, enabled: false }), null, 'the setting off mounts nothing');
   assert.equal(existsSync(join(folder, PULL_STORE_FILE)), false, 'with the route off no pull store is made');
 });
 
-test('clause 2: with serve.pullRoute on, POST /pull/register is answered by the board pull adapter over the board folder store [C7,#8765]', async t => {
+test('cli.io-serve-pull-route.with-serve-pullroute-on-post-pull-register: clause 2: with serve.pullRoute on, POST /pull/register is answered by the board pull adapter over the board folder store [C7,#8765]', async t => {
   const folder = folders(t);
   const key = issueRunnerKey(folder, 'r1');
   const handler = pullRouteHandler({ folder, openDb: memory, enabled: true });
