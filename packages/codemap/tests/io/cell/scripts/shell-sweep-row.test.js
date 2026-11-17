@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell codemap cli */
 /** @pullboard-world-pin reads the committed cells plan row, the cli sources and the front door to prove the sweep.js move. */
 /** The cli sweep.js core row sits in the shell cell, with its importers repointed [C7]. */
 import assert from 'node:assert/strict';
