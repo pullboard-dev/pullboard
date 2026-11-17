@@ -22,6 +22,7 @@ function fixture(t) {
 
 test('clause 2: with no provider set shipping is refused naming NO_MILESTONE_RELEASE, as the module has no stats import to fall back on [C7,H16]', t => {
   const box = fixture(t);
+  provideCoordinatorMilestoneRelease(null);
   assert.throws(() => box.ship(), error => error.code === 'NO_MILESTONE_RELEASE' || /NO_MILESTONE_RELEASE/u.test(String(error.message)));
 });
 
