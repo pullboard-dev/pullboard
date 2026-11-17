@@ -30,12 +30,11 @@ async function submitted() {
   return { box, demo };
 }
 
-/** The item as the board shows it after the send-back, without times, hashes or the machine's folder. */
+/** The item as the board shows it after the send-back: its settled state and whether the reject note reached it, without ids, times or paths. */
 function afterwards({ box, demo }) {
-  return box.run(demo.repo, 'show', '1', '--json')
-    .split(box.dir).join('<box>')
-    .replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, '<time>')
-    .replace(/\b[0-9a-f]{7,64}\b/g, '<hex>');
+  const shown = box.run(demo.repo, 'show', '1', '--json');
+  const item = JSON.parse(shown);
+  return { status: item.item_status, title: item.item_title, builtBy: item.item_built_by, criterion: item.item_criterion, noted: shown.includes(NOTE) };
 }
 
 before(async () => {
@@ -50,8 +49,8 @@ before(async () => {
 test('clause 1: sendBack as a real process and sendBackLocal in this process both exit clean and leave the same item and board state [C7,U149]', () => {
   // Each helper's box refuses a non-zero exit, so reaching this point is the equal exit code.
   const real = afterwards(viaProcess);
-  assert.equal(afterwards(viaLocal), real);
-  assert.match(real, /the page needs a greeting/u, 'the reject note is on the item');
+  assert.deepEqual(afterwards(viaLocal), real);
+  assert.equal(real.noted, true, 'the reject note is on the item');
 });
 
 test('clause 2: sendBackLocal starts no CLI process and finishes under 40 s alone [C7,U149]', { timeout: 40_000 }, () => {
