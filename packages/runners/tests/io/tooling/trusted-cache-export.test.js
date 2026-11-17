@@ -1,3 +1,4 @@
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js packages/runners/src/io/tooling/remote.js */
 /** A runner work dir without .git reuses or recaptures the saved trusted capture; split from trusted-cache.test.js for its file budget [C7,#8426,#8502]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

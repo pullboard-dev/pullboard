@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners */
+/** @pullboard-test-input packages/runners/src/io/pull/delegate.js packages/runners/src/io/health.js */
 /** @pullboard-world-pin: clauses 1 and 2 read the shipped runners sources to prove the async front and health.js no longer reach dispatch.js. */
 /** The async runner front always takes the pull path, so #7526 can delete the SSH transport [C7]. */
 import assert from 'node:assert/strict';
