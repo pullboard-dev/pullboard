@@ -27,7 +27,7 @@ function holder(overrides = {}) {
 
 const LATER = Date.parse('2026-01-01T00:03:00.000Z');
 
-test('clause 1: a landing lease whose holder token has no live process on this machine is released by the next lander within 2 minutes, with a release event naming the reason [C7]', () => {
+test('landing.resource.a-landing-lease-whose-holder-token: clause 1: a landing lease whose holder token has no live process on this machine is released by the next lander within 2 minutes, with a release event naming the reason [C7]', () => {
   const reason = reclaimReason(holder(), null, { now: LATER, machine: 'machine-a' });
   assert.match(reason, /holder process gone/u, 'a dead local holder with a stale heartbeat is reclaimed with a named reason');
   assert.equal(reclaimReason(holder(), null, { now: Date.parse('2026-01-01T00:01:00.000Z'), machine: 'machine-a' }), null, 'a heartbeat younger than 2 minutes is left alone');
@@ -35,7 +35,7 @@ test('clause 1: a landing lease whose holder token has no live process on this m
   assert.equal(reclaimReason(holder({ machine: 'machine-b' }), null, { now: LATER, machine: 'machine-a' }), null, 'a foreign machine holder is never judged by local pids');
 });
 
-test('clause 2: a waiting lander never logs foreign holders require explicit release for a holder on this machine whose process is dead [C7]', () => {
+test('landing.resource.a-waiting-lander-never-logs-foreign: clause 2: a waiting lander never logs foreign holders require explicit release for a holder on this machine whose process is dead [C7]', () => {
   // The waiting loop releases any holder with a reason before it reports a wait, so no wait message names a dead local holder.
   assert.ok(reclaimReason(holder({ machine: 'machine-a' }), null, { now: LATER, machine: 'machine-a' }));
   assert.ok(reclaimReason(holder({ lineage: null }), null, { now: LATER, machine: null }), 'an unlinked board releases a dead holder at once');
@@ -59,7 +59,7 @@ function boardWithMovingPolicy(t) {
   return { board, advance(ms) { at += ms; }, policyLanded, prepared: () => prepared };
 }
 
-test('clause 1 (#5672): a landing lease renewal while main lands a policy change renews the lease, never POLICY_SNAPSHOT_STALE [C7]', async t => {
+test('landing.resource.clause-1-5672-a-landing-lease: clause 1 (#5672): a landing lease renewal while main lands a policy change renews the lease, never POLICY_SNAPSHOT_STALE [C7]', async t => {
   const box = boardWithMovingPolicy(t);
   const { board } = box;
   const lost = [];
@@ -76,7 +76,7 @@ test('clause 1 (#5672): a landing lease renewal while main lands a policy change
   } finally { delete board.prepareWritePolicy; await lease.release(); }
 });
 
-test('clause 1 (#5672): a POLICY_SNAPSHOT_STALE that escapes a landing is a retried landing fault, so the automatic worker never rethrows it [C7]', () => {
+test('landing.resource.clause-1-5672-a-policy-snapshot: clause 1 (#5672): a POLICY_SNAPSHOT_STALE that escapes a landing is a retried landing fault, so the automatic worker never rethrows it [C7]', () => {
   // runLandingWake rethrows only a refusal retryableLandingRefusal rejects; the batch keeps a landing fault for adoption.
   const stale = new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main');
   assert.equal(retryableLandingRefusal(stale.code), true);
@@ -84,7 +84,7 @@ test('clause 1 (#5672): a POLICY_SNAPSHOT_STALE that escapes a landing is a retr
   assert.equal(retryableLandingRefusal('LAND_CONFLICT'), false, 'an item defect still parks');
 });
 
-test('clause 1 (#5672): a lease renewal refused POLICY_SNAPSHOT_STALE retries in a fresh write and succeeds [C7]', async () => {
+test('landing.resource.clause-1-5672-a-lease-renewal: clause 1 (#5672): a lease renewal refused POLICY_SNAPSHOT_STALE retries in a fresh write and succeeds [C7]', async () => {
   let calls = 0;
   const renew = () => {
     calls++;
@@ -114,7 +114,7 @@ async function lease(board, onLost) {
   return takeLandingResource({ board, branch: 'refs/heads/main', onLost, write: async (operation, args) => store[operation](board, ...args) });
 }
 
-test('clause 1 (#5770): the guardian renews a held lease heartbeat from its own process and never revives a lapsed or released one [C7]', async t => {
+test('landing.resource.clause-1-5770-the-guardian-renews: clause 1 (#5770): the guardian renews a held lease heartbeat from its own process and never revives a lapsed or released one [C7]', async t => {
   const { board, file } = fileBoard(t);
   const lost = [];
   const held = await lease(board, error => lost.push(error.code));
@@ -131,7 +131,7 @@ test('clause 1 (#5770): the guardian renews a held lease heartbeat from its own 
   assert.deepEqual(lost, []);
 });
 
-test('clause 1 (#5770): a lander whose event loop missed its renewals keeps the lease its guardian renewed; with no renewal the lease is lost through onLost, never thrown [C7]', async t => {
+test('landing.resource.clause-1-5770-a-lander-whose: clause 1 (#5770): a lander whose event loop missed its renewals keeps the lease its guardian renewed; with no renewal the lease is lost through onLost, never thrown [C7]', async t => {
   // The leases are due 1.5 s and 2 s from now, as if the lander's own 5 s heartbeat had been blocked for nearly 2 minutes.
   const renewed = fileBoard(t, 118_500);
   const kept = [];

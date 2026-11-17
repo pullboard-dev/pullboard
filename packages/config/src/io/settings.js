@@ -110,6 +110,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** Whether moves.judgeByRelease is on (U150): off by default; only an exact `true` turns it on, so replay judges by the last release only when asked. */
+export function judgeByReleaseEnabled() {
+  return loadMachineSettings().moves?.judgeByRelease === true;
+}
+
 /** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function recaptureHandoffEnabled() {
   return loadMachineSettings().gate?.recaptureHandoff === true;
@@ -118,6 +123,11 @@ export function recaptureHandoffEnabled() {
 /** End an item's older open gate jobs on a new candidate or a landing only when this machine opted in [C7,#8816]. */
 export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
+}
+
+/** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
+export function recordLapseEnabled() {
+  return loadMachineSettings()['jobs.recordLapse'] === true;
 }
 
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
@@ -135,10 +145,7 @@ export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
 }
 
-/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
-export function hunkFreshnessEnabled() {
-  return loadMachineSettings().verify?.hunkFreshness === true;
-}
+export { hunkFreshnessEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
@@ -452,6 +459,11 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
+export function requireFactQuoteEnabled() {
+  return loadMachineSettings().spec?.requireFactQuote === true;
+}
+
 /** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
 export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
@@ -477,9 +489,19 @@ export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
 }
 
+/** The cap landing.staticParallelMax sets on static-check child processes at once (#9078), or null when unset: they run one at a time. */
+export function staticParallelMax() {
+  return loadMachineSettings().landing?.staticParallelMax ?? null;
+}
+
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the sentinel checks landing's own comparisons and stops (#10125): off by default; only an exact `true` turns it on. */
+export function landingSelfCheckEnabled() {
+  return loadMachineSettings().sentinels?.landingSelfCheck === true;
 }
 
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
@@ -578,6 +600,20 @@ export function nextCapBuilders() {
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
 }
 
+/** Whether next offers an item only to a seat on the tier the project's tiers route it to (#8800): off by default; only an exact `true` turns it on. */
+export function nextRouteByTier() {
+  return loadMachineSettings().next?.routeByTier === true;
+}
+
+/**
+ * Whether heavy local commands (cells-plan --moved/--check, pullboard check, the run-tests local fallback) wait in the local
+ * resource line above machine.loadCeiling (#10139): off by default; only an exact `true` turns it on. Callers pass the settings
+ * to withHeavyLocalWork because packages/resources cannot import this cell.
+ */
+export function heavyLocalHoldEnabled() {
+  return loadMachineSettings().machine?.holdHeavyAboveLoad === true;
+}
+
 /**
  * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
  * claims as before; only an exact `true` turns it on.
@@ -592,6 +628,11 @@ export function nextHoldAboveLoad() {
  */
 export function nextReadinessCheck() {
   return loadMachineSettings().next?.readinessCheck === true;
+}
+
+/** Whether a claiming next reads the seat's index path from facts it already holds, not from a Git launch (#9853): off by default; only an exact `true` turns it on. */
+export function nextOneGitRead() {
+  return loadMachineSettings().next?.oneGitRead === true;
 }
 
 /**
@@ -1047,9 +1088,19 @@ export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
 }
 
+/** Whether gate.pulledProfilePaths is on (#9614): off by default; only an exact `true` turns it on. */
+export function pulledProfilePathsEnabled() {
+  return loadMachineSettings().gate?.pulledProfilePaths === true;
+}
+
 /** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
 export function relayQueueOnFailureEnabled() {
   return loadMachineSettings().relay?.queueOnFailure === true;
+}
+
+/** Whether relay.renewAfterSync is on (#9330): off by default; only an exact `true` turns it on. */
+export function renewAfterSyncEnabled() {
+  return loadMachineSettings().relay?.renewAfterSync === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */

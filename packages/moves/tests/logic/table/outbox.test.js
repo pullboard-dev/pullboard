@@ -17,7 +17,7 @@ const outbox = (over = {}) => ({ state: 'queued', baseSequence: 10, moves: 4, se
 const snap = (over = {}, board = 10) => ({ outbox: outbox(over), board: { sequence: board } });
 const run = (snapshot, move) => runTable(OUTBOX_TABLE, OUTBOX_RULES, snapshot, move);
 
-test('every outbox state is a row: each move from it is legal or refused with the legal moves named [C7,#6729]', () => {
+test('moves.outbox.every-outbox-state-is-a-row: every outbox state is a row: each move from it is legal or refused with the legal moves named [C7,#6729]', () => {
   for (const state of OUTBOX_STATES) {
     assert.ok(Array.isArray(OUTBOX_LEGAL[state]), `${state} has a row`);
     for (const name of OUTBOX_MOVES) {
@@ -32,7 +32,7 @@ test('every outbox state is a row: each move from it is legal or refused with th
   assert.equal(run(snap(), { name: 'nap' }).refused.code, 'OUTBOX_UNKNOWN_MOVE');
 });
 
-test('an acknowledged prefix applied with the outbox base behind it is a state with a recovery, not a refusal (GitHub #15) [C7,#6729,#6728]', () => {
+test('moves.outbox.an-acknowledged-prefix-applied-with-the: an acknowledged prefix applied with the outbox base behind it is a state with a recovery, not a refusal (GitHub #15) [C7,#6729,#6728]', () => {
   const stranded = snap({ state: 'sent', moves: 5, sent: 5, receipted: 3 }, 13);
   const retry = run(stranded, { name: 'takeBack' });
   assert.equal(retry.refused.code, 'OUTBOX_BEHIND');
@@ -44,13 +44,13 @@ test('an acknowledged prefix applied with the outbox base behind it is a state w
   assert.equal(run(snap(), { name: 'resume' }).refused.code, 'OUTBOX_NOT_STRANDED');
 });
 
-test('a checkpoint older than the outbox base is refused, never restored [C7,#6729]', () => {
+test('moves.outbox.a-checkpoint-older-than-the-outbox: a checkpoint older than the outbox base is refused, never restored [C7,#6729]', () => {
   assert.equal(run(snap({}, 10), { name: 'fallback', checkpoint: 6 }).refused.code, 'RELAY_OUTBOX');
   assert.equal(run(snap(), { name: 'fallback' }).refused.code, 'RELAY_OUTBOX');
   assert.equal(run(snap(), { name: 'fallback', checkpoint: 10 }).patch.outbox.state, 'applied');
 });
 
-test('acknowledge, send and park refuse a count the outbox does not hold [C7,#6729]', () => {
+test('moves.outbox.acknowledge-send-and-park-refuse-a: acknowledge, send and park refuse a count the outbox does not hold [C7,#6729]', () => {
   assert.equal(run(snap({ state: 'sent', sent: 1 }), { name: 'acknowledge', count: 2 }).refused.code, 'OUTBOX_ACK_UNSENT');
   assert.equal(run(snap({ state: 'sent', sent: 4 }), { name: 'send' }).refused.code, 'OUTBOX_NOTHING_TO_SEND');
   assert.equal(run(snap({ state: 'sent', parked: 4 }), { name: 'park' }).refused.code, 'OUTBOX_NOTHING_TO_PARK');
@@ -58,7 +58,7 @@ test('acknowledge, send and park refuse a count the outbox does not hold [C7,#67
   assert.equal(run(snap({ state: 'remade', remade: 2, receipted: 2 }), { name: 'remake' }).refused.code, 'OUTBOX_ILLEGAL_MOVE');
 });
 
-test('explain reads the outbox table in order from the rule words its guards run [C7,#6729]', () => {
+test('moves.outbox.explain-reads-the-outbox-table-in: explain reads the outbox table in order from the rule words its guards run [C7,#6729]', () => {
   const explained = explainTable(OUTBOX_TABLE, OUTBOX_RULES);
   assert.equal(explained.guards.find(guard => guard.code === 'OUTBOX_BEHIND').says, OUTBOX_RULES.takeable.says);
   assert.deepEqual(explained.outcomes.map(outcome => outcome.id), ['queue', 'send', 'acknowledge', 'park', 'recover', 'take', 'apply', 'remake', 'write', 'resume', 'fallback']);
@@ -83,7 +83,7 @@ function generate(g) {
   return { ...own, move: { name, checkpoint: 11 }, breaks: { fallbackable: (s, m) => ({ snapshot: s, move: { ...m, checkpoint: 3 } }) } };
 }
 
-test('generated cases reach every outbox row, never write while refusing, and fail each guard when its fact is broken [C7,#6729]', () => {
+test('moves.outbox.generated-cases-reach-every-outbox-row: generated cases reach every outbox row, never write while refusing, and fail each guard when its fact is broken [C7,#6729]', () => {
   const report = tableCases(OUTBOX_TABLE, OUTBOX_RULES, generate, { seed: 6729, count: 800 });
   assert.deepEqual(report.writingRefusals, []);
   assert.deepEqual(report.unbroken, []);
@@ -142,7 +142,7 @@ function simulate(seed) {
   };
 }
 
-test('a rebuild stopped after any step is finished by resume: acknowledged moves apply once and the unsent tail keeps its count [C7,#6728]', () => {
+test('moves.outbox.a-rebuild-stopped-after-any-step: a rebuild stopped after any step is finished by resume: acknowledged moves apply once and the unsent tail keeps its count [C7,#6728]', () => {
   const stops = new Set();
   for (let seed = 1; seed <= 300; seed++) {
     const g = seeded(seed);
@@ -164,7 +164,7 @@ test('a rebuild stopped after any step is finished by resume: acknowledged moves
   assert.deepEqual([...stops].sort(), [0, 1, 2, 3, 4]);
 });
 
-test('clause 1: a move queued onto an all-parked outbox leaves it queued, as the writer records it [C7,#8436]', () => {
+test('moves.outbox.a-move-queued-onto-an-all: clause 1: a move queued onto an all-parked outbox leaves it queued, as the writer records it [C7,#8436]', () => {
   // The writer (outboxCounts) reads an outbox as parked only when every move is parked; a new unparked move makes it queued, and parked means refused for good while later moves keep flowing (docs/api.md).
   const answer = run(snap({ state: 'parked', moves: 2, parked: 2 }), { name: 'queue' });
   assert.deepEqual([answer.patch.outbox.state, answer.patch.outbox.moves, answer.patch.outbox.parked], ['queued', 3, 2]);

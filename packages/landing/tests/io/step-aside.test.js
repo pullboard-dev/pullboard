@@ -27,7 +27,7 @@ function scratch(t, { accepted}) {
 const listed = (base, ids, extra = {}) => ids.map(id => ({ item_id: id, item_status: 'verified', item_merged_commit: null, item_commit: base, item_hold_at: null, ...(extra[id] ?? {}) }));
 const picked = (board, root, base, items, options = {}) => candidates(board, root, base, 8, { listItems: () => items, ...options });
 
-test('clause 1: after 2 infrastructure failures the head item moves behind the next accepted item [C7,#3118]', t => {
+test('landing.step-aside.after-2-infrastructure-failures-the-head: clause 1: after 2 infrastructure failures the head item moves behind the next accepted item [C7,#3118]', t => {
   const { root, board, base } = scratch(t, { accepted: [51, 52, 53] });
   const items = listed(base, [51, 52, 53]);
   store.countLeaseLapse(board, 51);
@@ -37,7 +37,7 @@ test('clause 1: after 2 infrastructure failures the head item moves behind the n
   assert.deepEqual(picked(board, root, base, items).ready.map(item => item.item_id), [51, 52, 53], 'the setting off keeps the accept order');
 });
 
-test('clause 2: the stepped-aside item keeps its accept and lands later [C7,#3118]', t => {
+test('landing.step-aside.the-stepped-aside-item-keeps-its: clause 2: the stepped-aside item keeps its accept and lands later [C7,#3118]', t => {
   const { root, board, base } = scratch(t, { accepted: [61, 62] });
   store.countLeaseLapse(board, 61);
   store.countLeaseLapse(board, 61);

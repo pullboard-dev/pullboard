@@ -53,3 +53,15 @@ test('clause 1: every search input header is a cell, the test tree, the source t
     }
   }
 });
+
+/** The only search test that reads a whole tree, and the tree headers it must declare; no other file may use a tree header. */
+const WHOLE_TREE = new Map([['packages/search/tests/io/index.test.js', ['source-tree']]]);
+const TREE = /^(?:source-tree|test-tree|docs-tree)$/u;
+
+test('clause 2: only the listed whole-tree reader uses a tree header, and it still declares it [C7,U149]', () => {
+  for (const file of searchTests()) {
+    const trees = headers(read(file)).filter(header => TREE.test(header));
+    assert.deepEqual(trees, WHOLE_TREE.get(file) ?? [], `${file} tree headers`);
+  }
+  for (const file of WHOLE_TREE.keys()) assert.ok(searchTests().includes(file), `${file} is still a search test`);
+});

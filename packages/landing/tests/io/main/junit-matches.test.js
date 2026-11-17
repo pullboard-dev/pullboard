@@ -16,12 +16,12 @@ const run = (...names) => ({ stages: [], isGreen: false, executionRoot: ROOT, ex
 const mainOutcome = rows => ({ file: FILE, result: 'red', failures: rows, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION });
 const comparison = rows => ({ main: 'abc', files: [mainOutcome(rows)] });
 
-test('clause 1: landing.junitSignatures is a described setting, off by default [C7]', () => {
+test('landing.junit-matches.landing-junitsignatures-is-a-described-setting: clause 1: landing.junitSignatures is a described setting, off by default [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.junitSignatures'], false);
   assert.ok(describeSetting('landing.junitSignatures'));
 });
 
-test('clause 2: with it on, a JUnit run returns signed rows and a case main also fails is matched [C7]', () => {
+test('landing.junit-matches.with-it-on-a-junit-run: clause 2: with it on, a JUnit run returns signed rows and a case main also fails is matched [C7]', () => {
   const main = failureSignatures(run('breaks'), ROOT, { junitSignatures: true });
   const candidate = failureSignatures(run('breaks'), '/other/checkout', { junitSignatures: true });
   assert.equal(main.length, 1);
@@ -31,7 +31,7 @@ test('clause 2: with it on, a JUnit run returns signed rows and a case main also
   assert.equal(matchingMainFailures(candidate, comparison(main), 'abc')?.failures.length, 1);
 });
 
-test('clause 3: a case main does not fail is not matched; with the setting off a JUnit-only run gives null [C7]', () => {
+test('landing.junit-matches.a-case-main-does-not-fail: clause 3: a case main does not fail is not matched; with the setting off a JUnit-only run gives null [C7]', () => {
   const main = failureSignatures(run('breaks'), ROOT, { junitSignatures: true });
   const candidate = failureSignatures(run('breaks', 'new break'), ROOT, { junitSignatures: true });
   assert.equal(candidate.length, 2);

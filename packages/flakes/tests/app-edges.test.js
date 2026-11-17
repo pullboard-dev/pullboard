@@ -1,9 +1,10 @@
+/** @pullboard-test-input source-cell packages/flakes */
 /** The packages named by #6452 no longer reach apps/*: the live report and the committed ceiling both have no row for them [C7,CD12]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellsEdgeReport } from '../../gate/src/io/edges.js';
+import { cellsEdgesCeiling } from '../../gate/src/io/edges.js';
 
 const REPO = join(import.meta.dirname, '../../..');
 const FILES = [
@@ -16,6 +17,6 @@ test('flakes.app-edges.live-report-no-row: clause 1: cellsEdgeReport(repo).packa
 });
 
 test('flakes.app-edges.committed-ceiling-no-row: clause 2: the committed cells-edges.json ceiling packageApps has no row for those files [C7]', () => {
-  const ceiling = JSON.parse(readFileSync(join(REPO, 'packages/gate/data/ceilings/cells-edges.json'), 'utf8')).packageApps;
+  const ceiling = cellsEdgesCeiling().packageApps;
   for (const file of FILES) assert.equal(ceiling[file], undefined, `${file} still has a ceiling row`);
 });
