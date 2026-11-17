@@ -191,8 +191,7 @@ function placeControls() {
 function pageControl(target) {
   const kind = target.dataset.pageCtl, value = target.tagName === 'SELECT' ? target.value : target.dataset.value ?? '';
   // The control answers at once: it shows its new state and the address takes it now; the page redraws on the next turn.
-  const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
-  if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
+  if (kind === 'new') { view.adding = true; afterPaint(() => { render(); $('add-title').focus(); }); return; }
   if (kind === 'state') view.state = value;
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
@@ -267,7 +266,7 @@ function switchTab(tab, detail = null) {
   openTab(tab, detail);
   render({ tab: true });
   if (started === undefined || typeof requestAnimationFrame !== 'function') return;
-  requestAnimationFrame(() => setTimeout(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } }, 0));
+  afterPaint(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } });
 }
 
 /**
@@ -1129,10 +1128,10 @@ document.addEventListener('click', (event) => {
     }
     t.setAttribute('aria-expanded', String(open));
     if (panel) panel.hidden = !open;
-    requestAnimationFrame(() => setTimeout(() => {
+    afterPaint(() => {
       render();
       [...$('roadmap').querySelectorAll('[data-roadmap-key]')].find((head) => head.dataset.roadmapKey === key)?.focus({ preventScroll: true });
-    }));
+    });
     return;
   }
   if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1, per: view.roadmapPage?.per ?? 25 }; address(); render(); return; }
@@ -1460,7 +1459,7 @@ async function loadTransport() {
     return transport;
   })();
   try { return await transportLoading; }
-  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say(error.message + ' Check your connection, then reload this page.'); throw error; }
+  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say((${scope.startupFailureLine})(error, ${scope.relayCauseMessage})); throw error; }
   finally { transportLoading = null; }
 }
 

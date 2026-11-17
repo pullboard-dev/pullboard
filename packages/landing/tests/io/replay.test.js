@@ -23,7 +23,7 @@ import {
   applyEngineMove,
   engineReceipt,
 } from '../../../state/index.js';
-import { unpackRelease } from '../../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../../gate/tests/fixtures/release/archive.js';
 
 /** Ignore only the current writer marker, never semantic history or ordered receipts. */
 function withoutWriterMarker(document) {
@@ -32,7 +32,7 @@ function withoutWriterMarker(document) {
   return copy;
 }
 
-test('an actual engine12 person waiver keeps its exact receipt and history on both replicas [B3,R3,H16]', async t => {
+test('landing.replay.an-actual-engine12-person-waiver-keeps: an actual engine12 person waiver keeps its exact receipt and history on both replicas [B3,R3,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-old-waiver-'));
   const archived = join(directory, 'engine12');
   const replicas = [];

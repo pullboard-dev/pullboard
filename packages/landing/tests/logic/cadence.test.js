@@ -29,7 +29,7 @@ function acceptedAt(board, title, at) {
   return id;
 }
 
-test('clause 1: landing cadence is opt-in and validates both compatible policy forms [E30,E29]', () => {
+test('landing.cadence.landing-cadence-is-opt-in-and: clause 1: landing cadence is opt-in and validates both compatible policy forms [E30,E29]', () => {
   assert.equal(configFromSource('{}').landing?.cadence, undefined);
   assert.equal(configFromSource('{"landing":{"cadence":"10m"}}').landing.cadenceMs, EVERY);
   assert.equal(configFromSource('{"landing":{"cadence":{"every":"10m","accepted":5}}}').landing.cadenceMs, EVERY);
@@ -41,7 +41,7 @@ test('clause 1: landing cadence is opt-in and validates both compatible policy f
   assert.equal(configFromSource('{"landing":{"cadence":{"every":"10m","accepted":5,"extra":true}}}').landing.cadenceMs, EVERY);
 });
 
-test('clause 2: cadence thresholds read native acceptance times at both exact clock boundaries [E30,E10,E29]', t => {
+test('landing.cadence.cadence-thresholds-read-native-acceptance-times: clause 2: cadence thresholds read native acceptance times at both exact clock boundaries [E30,E10,E29]', t => {
   const board = cellBoard(t, ':memory:');
   acceptedAt(board, 'first', FIRST);
   acceptedAt(board, 'second', LATEST);

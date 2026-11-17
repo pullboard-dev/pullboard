@@ -97,13 +97,14 @@ function landingItems(items) {
  *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file [B2,P7]; null writes the board's job rows as before.
  *   reuseContractResults: landing.reuseContractResults (default off), the contracts carry a hit list of the ledger's newest green files, so the runner reuses a contract file whose inputs are unchanged (#9301).
  *   stallStop: landing.stallStop (default off), rides the job as a flag so its runner stops a check with no progress for two minutes (#8749).
+ *   staticAffectedOnly: landing.staticAffectedOnly, on the job so its runner scopes the static guard to the classes that read a changed gate data file (#9077).
  *   reuseGateReceipts: landing.reuseGateReceipts (default off), the items' own green gate rows head the proof's hit list and ride the job as a flag (#9243).
  *   squash: landing.squash, on the job so its runner lands each item as one single-parent commit (#9219).
  *   reofferTrunkBusy: landing.reofferTrunkBusy, on the job so its runner carries a green static check to a tip whose new commits miss the batch's files (#9103).
  *   mainReds: the `[file, commit]` pairs the board's red-now ledger records red (landing.ledgerMainReds); they ride with the contracts, so the runner counts a red in such a file as main's [C7,U152].
  * @returns {ReturnType<typeof offerJob>}
  */
-export function offerLandingJob(db, { items, expect, config, squash = false, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, reuseGateReceipts = false, reuseContractResults = false, stallStop = false, now = Date.now() }) {
+export function offerLandingJob(db, { items, expect, config, squash = false, trunk = 'refs/heads/main', check = null, needs = [], checkout = false, upstream = null, forced = null, badges = [], deferred = null, flakes = null, hops = [], shardGate = null, mainReds = [], queue = null, reofferTrunkBusy = false, reuseGateReceipts = false, reuseContractResults = false, stallStop = false, staticAffectedOnly = false, now = Date.now() }) {
   // trunk.remote, else its old name landing.trunkRemote: config's configTrunkRemote order, kept here since the cell ratchet allows no new api->config import.
   const remote = config?.trunk?.remote || config?.landing?.trunkRemote;
   if (typeof remote !== 'string' || !remote || remote.startsWith('-')) throw new Refused('LANDING_TRUNK_REMOTE', 'a runner landing pushes the trunk remote of record; set trunk.remote in pullboard.json to its git URL');
@@ -151,7 +152,9 @@ export function offerLandingJob(db, { items, expect, config, squash = false, tru
     // landing.reuseGateReceipts rides on the job only when on, so its runner may count the hit list's files as reused [C7,#9243].
     ...(reuseGateReceipts === true && !forced && proof ? { reuseGateReceipts: true } : {}),
     // landing.stallStop rides on the job only when on, so its runner may stop a check that shows no progress for two minutes [C7,#8749].
-    ...(stallStop === true ? { stallStop: true } : {}) };
+    ...(stallStop === true ? { stallStop: true } : {}),
+    // landing.staticAffectedOnly rides on the job only when on, so its runner scopes the static guard past a changed gate data file [C7,#9077].
+    ...(staticAffectedOnly === true ? { staticAffectedOnly: true } : {}) };
   const spilled = spillLargeInputs(payload);
   return offerJob(db, { id: `land:${ids}:${key}`, kind: LANDING_JOB_KIND, priority: 'landing', needs, now, payload: spilled.payload, ...(spilled.request ? { request: spilled.request } : {}) }, queue);
 }

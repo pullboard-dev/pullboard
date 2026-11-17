@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A pinned main comparison may use only a registered runner with the candidate's observed environment [V4,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -41,7 +42,7 @@ function caseEnvironment(box, agent) {
 
 /** Concurrent: each real-gate case names its own runner hosts, so the gate's per-host unavailability and avoidance state is never shared [C7]. */
 describe('registered runner selection for a pinned main comparison [V4,C7]', { concurrency: true }, () => {
-test('clause 1: with the case\'s own env, main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
+test('landing.runner.with-the-case-s-own-env: clause 1: with the case\'s own env, main comparison selects a matching registered peer only when the preferred runner is busy [V4,C7]', { timeout: 60000 }, async t => {
   const box = fixture(t, 'peer');
   const { A, B, C } = box.hosts;
   const environment = executionEnvironment();
@@ -138,7 +139,7 @@ function selectWith(t, record) {
   });
 }
 
-test('clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
+test('landing.runner.the-real-compare-main-path-runs: clause 1: the real compare-main path runs main on the red host when no receipt matches, never BAD_RUNNER_POOL [C7]', { timeout: 60000 }, async t => {
   const box = fixture(t, 'red');
   const { A, B, C } = box.hosts;
   const environment = executionEnvironment();
@@ -162,7 +163,7 @@ test('clause 1: the real compare-main path runs main on the red host when no rec
   });
 });
 
-test('clause 1: registered runners with no matching receipts select the red host, never BAD_RUNNER_POOL [C7]', t => {
+test('landing.runner.registered-runners-with-no-matching-receipts: clause 1: registered runners with no matching receipts select the red host, never BAD_RUNNER_POOL [C7]', t => {
   const none = selectWith(t, () => {});
   assert.deepEqual(none, { requiredExecutor: { kind: 'ssh', host: A, hosts: [A] }, browser: null },
     'no receipts at all selects the red run host');
@@ -174,7 +175,7 @@ test('clause 1: registered runners with no matching receipts select the red host
     'receipts that do not match the red environment still select the red run host');
 });
 
-test('clause 2: a peer whose recorded environment differs from the red run is never chosen [C7]', t => {
+test('landing.runner.a-peer-whose-recorded-environment-differs: clause 2: a peer whose recorded environment differs from the red run is never chosen [C7]', t => {
   const picked = selectWith(t, (root, environment) => {
     recordReceipt(root, receipt(root, A, environment));
     recordReceipt(root, receipt(root, B, environment));
