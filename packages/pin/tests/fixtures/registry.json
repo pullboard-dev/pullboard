@@ -171,5 +171,21 @@
       "packages/pin/index.js",
       "packages/api/index.js"
     ]
+  },
+  "pin.receive-commits-root.submit-composition-in-folder": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "in the returned folder, accepted main is the host main and the composed submission still differs from it, so the next hop past the cwd is not the main-merge step."
+    },
+    "why": "Narrows where a URL-joined seat's submit head is lost after the cwd is proven right.",
+    "kind": "journey",
+    "inputs": [
+      "packages/pin/index.js",
+      "packages/api/index.js",
+      "packages/sandbox/index.js",
+      "packages/merge/index.js"
+    ]
   }
 }

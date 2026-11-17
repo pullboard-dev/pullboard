@@ -15,6 +15,8 @@ import { openBoardForRead } from '../../../store/index.js';
 import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/testkit.js';
 import { executeMove } from '../../../api/index.js';
 import { requireNonEmptySubmit } from '../../../../apps/cli/src/io/empty.js';
+import { mainPolicy } from '../../../sandbox/index.js';
+import { mergeSubmissionMain } from '../../../merge/index.js';
 import { bundleCommits } from '../../index.js';
 import { receiveCommits } from '../../index.js';
 
@@ -86,4 +88,15 @@ test('pin.receive-commits-root.submit-runs-in-returned-folder: clause 2: execute
   assert.match(call.cwd, /remote-items[\\/].*-item-\d+$/u, 'the remote-items folder');
   assert.equal(w.project.git(call.cwd, 'rev-parse', 'HEAD').trim(), w.commits.head, 'that folder holds the seat\'s head');
   assert.doesNotThrow(() => requireNonEmptySubmit(call.cwd, w.item, w.commits.head, w.main));
+});
+
+test('pin.receive-commits-root.submit-composition-in-folder: clause 3: in the returned folder, accepted main is the host main and the composed submission still differs from it, so the next hop past the cwd is not the main-merge step [C7,P7]', async (t) => {
+  const w = await world(t);
+  const moved = await executeMove(w.project.repo, { verb: 'submit', item: w.item, agent: w.agent, commits: w.commits }, w.runner.run, false, 'api', refusalDocument, OPENERS);
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+  const [{ cwd }] = w.runner.calls;
+  const accepted = mainPolicy(cwd).commit;
+  assert.equal(accepted, w.main, 'accepted main read from the folder is the host main');
+  const merged = mergeSubmissionMain(cwd, accepted, { checkout: false });
+  assert.notEqual(w.project.tryGit(cwd, 'diff', '--quiet', accepted, merged.commit).status, 0, 'the composed head differs from main');
 });
