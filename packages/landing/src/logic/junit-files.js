@@ -55,6 +55,8 @@ export const JUNIT_FILE_ROWS = {
   },
   // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
   perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
+  // A Zig JUnit reporter (zig build test has no built-in one) writes the test file path (src/calc.zig) in classname and no file attribute.
+  zig: row => (row.classname && /\.zig$/u.test(row.classname) ? row.classname : null),
 };
 
 /**
