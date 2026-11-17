@@ -64,6 +64,7 @@ import { parseMachineSettings } from '../../../queue/light.js';
 import { hasRequiredToolchains } from './runner/pick.js';
 import { pickTieredRunner } from './runner/pick.js';
 import { troubledRunners } from './runner/pick.js';
+import { unsuppliedToolchainsMessage } from './runner/pick.js';
 import { reservedTimingRunner } from './runner/reserve.js';
 import { timingReserveAllows } from './runner/reserve.js';
 import { duringWriteTurn } from './identities.js';
@@ -578,7 +579,7 @@ function validatedRunners(value) {
       throw new Refused('BAD_RUNNER_POOL', 'runners require unique nonempty hosts, positive slots, and browser capacity from zero through slots');
     }
     seen.add(runner.host);
-    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(Number.isSafeInteger(runner.cores) ? { cores: runner.cores } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
+    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(Number.isSafeInteger(runner.cores) ? { cores: runner.cores } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}), ...(runner.toolchains && typeof runner.toolchains === 'object' ? { toolchains: runner.toolchains } : {}),
       ...(typeof runner.node === 'string' ? { node: runner.node } : {}),
       ...(typeof runner.root === 'string' ? { root: runner.root } : {}) };
   });
@@ -680,8 +681,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       let selected = compatible[0], dispatch;
       if (loadPolicy.enabled === true) {
         // Live load: skip overloaded runners, prefer healthy ones, take the most headroom, or queue (#2509).
-        ({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now));
-        if (!selected) return null;
+        if (!({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now)).selected) return null;
       } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)
         && !(restriction?.kind === 'ssh' && restriction.hosts && compatible[0].host === restriction.host)) {
         // Flexible work preserves browser capacity whenever a compatible browser-free host is available,
@@ -1180,9 +1180,8 @@ async function takeResourceIn(options) {
             throw refused;
           }
         }
-        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
-          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
-        }
+        const noToolchain = !executor && runnerOnly ? unsuppliedToolchainsMessage(runners, options.runnerLoadPolicyProvider?.().requiredToolchains) : null; if (noToolchain) throw new Refused('RUNNER_TOOLCHAIN_MISSING', noToolchain);
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
             queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerStartupMs ?? LATE_STARTUP_MS,
