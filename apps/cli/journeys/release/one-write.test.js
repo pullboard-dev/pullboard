@@ -15,7 +15,7 @@ function look(box, fn) {
 const events = box => look(box, db => db.prepare('SELECT COUNT(*) AS n FROM event').get().n);
 const owner = (box, id) => look(box, db => db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id).item_owner);
 
-test('clause 1: a claim issues exactly one board write, with no inline lapsed-claim expiry, when health.lapsedSweep is on [C7,#8924]', t => {
+test('clause 1: a claim issues exactly one board write, with no inline lapsed-claim expiry, when health.lapsedSweep is on [C7,#8924]', async t => {
   const box = crossLaneFixture(t);
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { health: { lapsedSweep: true } });
   const first = box.seat('one-write-first', 'web', box.session);
@@ -23,12 +23,12 @@ test('clause 1: a claim issues exactly one board write, with no inline lapsed-cl
   const lapsing = box.add('web', 'Claim that will lapse');
   const next = box.add('web', 'Claim made beside a lapsed one');
   const before = events(box);
-  box.json(box.runAs(box.session, first.root, 'claim', String(lapsing), '--json'));
+  box.json(await box.runAsLocal(box.session, first.root, 'claim', String(lapsing), '--json'));
   const plain = events(box) - before;
   assert.ok(plain >= 1, 'a claim records at least its own write');
   look(box, db => db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run('2000-01-01T00:00:00.000Z', lapsing));
   const mark = events(box);
-  box.json(box.runAs('one-write-second-session', second.root, 'claim', String(next), '--json'));
+  box.json(await box.runAsLocal('one-write-second-session', second.root, 'claim', String(next), '--json'));
   assert.equal(events(box) - mark, plain, 'a claim beside a lapsed lease writes no more than a claim beside none');
   assert.equal(owner(box, lapsing), first.agent, 'the lapsed claim is left for the sentinel');
 });
