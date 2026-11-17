@@ -1089,7 +1089,7 @@ function returnLandedReds(board, job, named, receipt, separate) {
       // A static guard red is the item's own source, not a held landing: it goes back to its builder as the inline lander did [#7492].
       if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
       else {
-        store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: `${why}; merge current main, fix it, commit and resubmit` });
+        store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: row.reason === 'conflict' ? `${why}; merge current main, resolve the conflict, commit and resubmit` : `${why}; fix it, commit and resubmit (submit composes current main)` });
         if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
       }
       back.push(row.id);
