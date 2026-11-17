@@ -75,7 +75,7 @@ function reloaded(document, tables) {
   return { db };
 }
 
-test('clause 1: landing history exported through readLandingMoveRecords has one record per landing decision, each with its derived landing value [M1]', () => {
+test('moves.history-export.landing-history-exported-through-readlandingmoverecords-has-one: clause 1: landing history exported through readLandingMoveRecords has one record per landing decision, each with its derived landing value [M1]', () => {
   const records = readLandingMoveRecords(file, { since: SINCE });
   const tables = ['select', 'selection', 'record', 'merged', 'outcome'];
   assert.equal(exported.landing.decisions.length, tables.reduce((sum, table) => sum + records[table].length, 0), 'one decision per rebuilt record');
@@ -94,7 +94,7 @@ test('clause 1: landing history exported through readLandingMoveRecords has one 
   assert.equal(Buffer.compare(before, readFileSync(file)), 0, 'the board file is unchanged');
 });
 
-test('clause 2: verify history is exported through readVerifyRecords from the same board [M1]', () => {
+test('moves.history-export.verify-history-is-exported-through-readverifyrecords-from: clause 2: verify history is exported through readVerifyRecords from the same board [M1]', () => {
   const records = readVerifyRecords(file, { since: SINCE });
   assert.deepEqual(exported.verify.decisions.map(entry => entry.event), records.verify.map(record => record.event.id));
   assert.deepEqual(exported.verify.verdicts, [5, 12], 'both verdicts in the window');
@@ -105,7 +105,7 @@ test('clause 2: verify history is exported through readVerifyRecords from the sa
   assert.equal(Buffer.compare(before, readFileSync(file)), 0, 'the board file is unchanged');
 });
 
-test('clause 3: neither exported document holds a home-directory path [M1]', () => {
+test('moves.history-export.neither-exported-document-holds-a-home-directory: clause 3: neither exported document holds a home-directory path [M1]', () => {
   for (const [name, document] of Object.entries(exported)) {
     const text = JSON.stringify(document);
     assert.ok(!text.includes(HOME), `${name} names no person's home`);
@@ -115,7 +115,7 @@ test('clause 3: neither exported document holds a home-directory path [M1]', () 
   assert.match(JSON.stringify(exported.verify), /see ~\/log\.txt and ~\/x/u);
 });
 
-test('#9000: fixture mode keeps only the batch fields a decision reads, drops a repeated batch revision, and rebuilds the same decisions [M1]', () => {
+test('moves.history-export.item-9000-fixture-mode-keeps-only-the-batch: #9000: fixture mode keeps only the batch fields a decision reads, drops a repeated batch revision, and rebuilds the same decisions [M1]', () => {
   const trimmed = exportTableHistory(file, { since: SINCE, home: HOME, fixture: true });
   const batches = trimmed.landing.events.filter(row => row[3] === 'landing_batch').map(row => row[5].batch);
   assert.deepEqual(batches.map(batch => batch.state), ['selected', 'pushed'], 'the repeated pushed revision is dropped');
@@ -128,7 +128,7 @@ test('#9000: fixture mode keeps only the batch fields a decision reads, drops a 
   assert.deepEqual(tables.map(table => again[table].map(record => [record.event.id, record.recorded])), tables.map(table => full[table].map(record => [record.event.id, record.recorded])));
 });
 
-test('#9001: fixture mode cuts verify rows to what a verdict reads and rebuilds the same verdicts [M1]', () => {
+test('moves.history-export.item-9001-fixture-mode-cuts-verify-rows-to: #9001: fixture mode cuts verify rows to what a verdict reads and rebuilds the same verdicts [M1]', () => {
   const trimmed = exportTableHistory(file, { since: SINCE, home: HOME, fixture: true }).verify;
   const detail = (id) => trimmed.events.find(row => row[0] === id)?.[5];
   assert.equal(detail(3), '{}', 'an earlier claim keeps only the fields the fold reads');

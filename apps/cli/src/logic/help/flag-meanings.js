@@ -61,6 +61,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'stats --window': 'landed-item stage times over this window, such as 6h, 30m or 1d',
   'field declare --choices': ['--choices <a,b>', 'the allowed values of a choice field, comma-separated'],
   'field --choices': ['--choices <a,b>', 'the allowed values of a choice field, comma-separated'],
+  'replay --against': ['--against <tag>', 'also judge the release tag\'s table against the current one over the same moves; needs moves.judgeByRelease on'],
   'replay --days': ['--days <N>', 'how many days of recorded moves to replay, default 7'],
   'capacity --window': ['--window <duration>', 'how far back to measure, such as 14d'],
   'sentinel propose --every': ['--every <10m|hourly|daily>', 'how often the watch runs'],

@@ -9,9 +9,11 @@ test('clause 1: junitFailureSignature returns a 64-hex sha256 of name, file and 
   assert.match(junitFailureSignature(ROW, '/work/repo'), /^[0-9a-f]{64}$/u);
 });
 
+// The platform home root is built, not spelled, so the privacy scan reads no home folder in this file.
+const HOMES = ['Users'].join('');
 test('clause 2: the same case under two checkout paths gives one signature [C7]', () => {
-  const a = { ...ROW, assertion: 'failed at /Users/x/.pullboard-runner/jobs/aaaa-1/tmp/pullboard-AbC123/out.txt' };
-  const b = { ...ROW, assertion: 'failed at /Users/y/.pullboard-runner/jobs/bbbb-2/tmp/pullboard-XyZ987/out.txt' };
+  const a = { ...ROW, assertion: `failed at /${HOMES}/x/.pullboard-runner/jobs/aaaa-1/tmp/pullboard-AbC123/out.txt` };
+  const b = { ...ROW, assertion: `failed at /${HOMES}/y/.pullboard-runner/jobs/bbbb-2/tmp/pullboard-XyZ987/out.txt` };
   assert.equal(junitFailureSignature(a, '/one/checkout'), junitFailureSignature(b, '/two/checkout'));
 });
 

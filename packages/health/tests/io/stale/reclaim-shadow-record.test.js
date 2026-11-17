@@ -32,7 +32,7 @@ function quietSeat(t, shadow) {
   return { board, pass };
 }
 
-test('clause 1: with moves.shadow on, a pass that releases a quiet seat records one reclaim compare that agrees with the release it wrote [C7,#9367]', t => {
+test('health.reclaim-shadow.records-compare: clause 1: with moves.shadow on, a pass that releases a quiet seat records one reclaim compare that agrees with the release it wrote [C7,#9367]', t => {
   const { board, pass } = quietSeat(t, true);
   const result = pass();
   assert.deepEqual(result.claims, [7], 'maintenance released the quiet seat\'s item');
@@ -42,7 +42,7 @@ test('clause 1: with moves.shadow on, a pass that releases a quiet seat records 
   assert.equal(shadow.disagreed, 0, JSON.stringify(shadow.last));
 });
 
-test('clause 2: with moves.shadow off, a pass runs no reclaim table and records nothing [C7,#9367]', t => {
+test('health.reclaim-shadow.off-records-nothing: clause 2: with moves.shadow off, a pass runs no reclaim table and records nothing [C7,#9367]', t => {
   const { board, pass } = quietSeat(t, false);
   const result = pass();
   assert.deepEqual(result.claims, [7], 'maintenance still released the item');

@@ -16,15 +16,18 @@ export const LOCAL_PARITY_FIELDS = Object.freeze([
   { path: 'root', reason: 'Native routing uses a local repository directory; a relay reader routes by persistent board id.' },
   { path: 'relayHealthAlerts', relayAbsent: true, reason: 'Canary observations are private telemetry on this local client, never sealed board state.' },
   { path: 'capacityForecast', reason: 'The forecast reads a machine-local derived proof-counter index, which sealed exports omit; only the local host serves it.' },
+  { path: 'idleMinutes', anySuffix: true, reason: 'A sealed state carries lastActivity and the relay page derives idle minutes from it, so no sealed build holds a clock reading [C7].' },
   { path: 'needs', kind: 'relay-health', relayAbsent: true, reason: 'Only Needs derived from this local client canary stay on that client.' },
 ]);
 
 /** Report the first undeclared field difference with both actual values, including missing keys. */
 export function assertReaderParity(native, relay, localFields = LOCAL_PARITY_FIELDS) {
-  const ignored = new Set(localFields.filter(entry => !entry.kind).map(entry => entry.path));
+  const ignored = new Set(localFields.filter(entry => !entry.kind && !entry.anySuffix).map(entry => entry.path));
+  const suffixes = localFields.filter(entry => entry.anySuffix).map(entry => '.' + entry.path);
   assert.ok(localFields.every(entry => entry.path && entry.reason?.trim()), 'every local-only field has a reason');
   /** Compare structure as well as values; a missing field is never equivalent to an explicit null. */
   function compare(left, right, path) {
+    if (suffixes.some(suffix => path.endsWith(suffix))) return;
     if (ignored.has(path)) {
       const absent = localFields.some(entry => entry.path === path && entry.relayAbsent);
       if (absent) assert.ok(right === undefined || (Array.isArray(right) && right.length === 0), `reader parity ${path}: machine-only field leaked to the relay side: ${JSON.stringify(right)}`);
