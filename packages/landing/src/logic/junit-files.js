@@ -6,6 +6,8 @@ export const JUNIT_FILE_ROWS = {
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
+  // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
+  bun: row => row.classname || null,
   // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
   rust: row => {
     const crate = (row.classname ?? '').split('::')[0];
