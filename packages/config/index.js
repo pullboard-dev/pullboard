@@ -135,6 +135,7 @@ export {
   derivedStateEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
+  requireFactQuoteEnabled,
   typedFieldsEnabled,
   nameBehindDeviceEnabled,
   recordWriteHolderEnabled,
