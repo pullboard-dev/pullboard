@@ -1,5 +1,5 @@
 /** @pullboard-test-input packages/gate/src/io/affected/tests.js */
-/** @pullboard-world-pin: clause 4 reads the selection source to prove it holds no CommonJS loader. */
+/** @pullboard-world-pin: clause 1 reads the selection source to prove it holds no CommonJS loader. */
 /** With gate.selectionUnit set, selection picks units from the changed paths and the repo manifests, never from the JavaScript import graph [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -74,7 +74,7 @@ test('gate.units.file-unchanged: clause 3: with the setting file the repo own Ja
   assert.equal(plain.full, true, 'a repo with no Node tests still runs the full gate');
 });
 
-test('gate.units.no-opaque-loader: clause 4: affected/tests.js loads the unit module by a dynamic import, so the runner tooling closure check sees no CommonJS loader [C7]', () => {
+test('gate.units.no-opaque-loader: clause 1: affected/tests.js loads the unit module by a dynamic import, so the runner tooling closure check sees no CommonJS loader [C7]', () => {
   const source = readFileSync(new URL('../../../src/io/affected/tests.js', import.meta.url), 'utf8');
   assert.deepEqual(commonJsIn([source]), [false]);
   assert.doesNotMatch(source, /createRequire\(import\.meta\.url\)|from 'node:module'/u);
