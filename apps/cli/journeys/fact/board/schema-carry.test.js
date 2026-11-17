@@ -25,7 +25,9 @@ after(e2e.cleanup);
 
 /** Require a real private public command to succeed with its original diagnostics. */
 async function succeeds(box, cwd, ...args) {
+  const t0 = Date.now();
   const result = await box.runLocal(cwd, ...args);
+  console.log(`TIMING ${args[0]} ${Date.now() - t0} ms`);
   assert.equal(result.code, 0, `${args.join(' ')}\n${result.out}\n${result.err}`);
   return result;
 }
@@ -38,7 +40,9 @@ function choice(box, cwd, value) {
 }
 
 test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
+  const T0 = Date.now();
   const box = e2e.project();
+  console.log(`TIMING project ${Date.now() - T0} ms`);
   choice(box, box.repo, 'base');
   box.git(box.web, 'merge', '-q', '--no-edit', 'main');
   const added = await succeeds(box, box.repo, 'add', 'web', 'Carry after declaration upgrade', '--specs', 'G1',
@@ -66,8 +70,9 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   // repository's shared DDL. Copy the actual candidate into a genuine private main source checkout.
   const application = join(box.dir, 'main-application');
   mkdirSync(application);
-  privateMainSource(box, application);
+  const t1 = Date.now(); privateMainSource(box, application); console.log(`TIMING privateMainSource ${Date.now() - t1} ms`);
   // Process-level: this runs the copied candidate main checkout's own entry, which an in-process call cannot reach.
+  console.log(`TIMING pre-open ${Date.now() - T0} ms`);
   const opened = runFixtureChild(process.execPath, [join(application, 'apps/cli/pullboard.js'), 'inbox', '--json'],
     { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(opened.status, 0, opened.stderr + opened.stdout);
@@ -75,6 +80,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'submit', String(id));
   // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
   await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
+  console.log(`TIMING total ${Date.now() - T0} ms`);
   const db = openRawBoard(file, { readOnly: true });
   try {
     const item = db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
