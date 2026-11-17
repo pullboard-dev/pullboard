@@ -109,6 +109,7 @@ export const MACHINE_DEFAULTS = {
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
+  'moves.judgeByRelease': false,
   'moves.live.claim': false,
   'moves.live.handoff': false,
   'moves.live.job': false,

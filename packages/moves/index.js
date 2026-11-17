@@ -42,6 +42,7 @@ export { boardClaimEngine } from "./src/io/table/board-claim.js";
 export { boardSubmitEngine } from "./src/io/table/board-submit.js";
 export { readSubmitRecords } from "./src/io/table/submit-records.js";
 export { explainReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
+export { loadMoveTableAtTag } from "./src/io/table/at-tag.js";
 export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
 export { GATE_JOB_KINDS, JOB_QUEUE_MOVES, jobEngine, releaseBackoff } from "./src/logic/table/job.table.js";
 export { readLandingRecords, replayLandingMoves } from "./src/io/table/landing.js";

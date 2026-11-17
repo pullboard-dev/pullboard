@@ -110,6 +110,11 @@ export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
 }
 
+/** Whether moves.judgeByRelease is on (U150): off by default; only an exact `true` turns it on, so replay judges by the last release only when asked. */
+export function judgeByReleaseEnabled() {
+  return loadMachineSettings().moves?.judgeByRelease === true;
+}
+
 /** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
 export function recaptureHandoffEnabled() {
   return loadMachineSettings().gate?.recaptureHandoff === true;
