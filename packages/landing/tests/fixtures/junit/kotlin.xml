@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: gradle test (writes build/test-results/test/TEST-com.example.CalcTest.xml).
+     Assumption: the Kotlin test functions are backtick-named "clause N: ...", which Gradle writes with a trailing "()". No tool is needed to read it. -->
+<testsuite name="com.example.CalcTest" tests="3" skipped="1" failures="1" errors="0" timestamp="2026-11-17T12:00:00" hostname="runner" time="0.021">
+  <properties/>
+  <testcase name="clause 1: adds two numbers()" classname="com.example.CalcTest" time="0.002"/>
+  <testcase name="clause 2: halves a number()" classname="com.example.CalcTest" time="0.004">
+    <failure message="org.opentest4j.AssertionFailedError: expected: &lt;2&gt; but was: &lt;1&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected: &lt;2&gt; but was: &lt;1&gt;
+	at app//com.example.CalcTest.clause 2: halves a number(CalcTest.kt:14)</failure>
+  </testcase>
+  <testcase name="clause 3: later()" classname="com.example.CalcTest" time="0.000">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
