@@ -66,7 +66,7 @@ function shards(root) {
     readFileSync(join(root, `packages/codemap/data/baselines/lints/cells/${cell}.json`), 'utf8')]));
 }
 
-test('two cell moves in either order combine to the same baseline without a shared-file edit [C7,CD64]', t => {
+test('codemap.backlog.two-cell-moves-in-either: two cell moves in either order combine to the same baseline without a shared-file edit [C7,CD64]', t => {
   const first = fixture(t), second = fixture(t);
   const descriptor = readFileSync(join(first.root, 'packages/codemap/data/baselines/lints/index.json'));
   const initial = shards(first.root);
@@ -94,7 +94,7 @@ test('two cell moves in either order combine to the same baseline without a shar
   assert.throws(() => readCellLintBaseline(first.root), { code: 'CELL_BASELINE' }, 'a partial cell shard never lowers the ratchet');
 });
 
-test('a newly mapped cell has an empty delta until written, while an accepted missing shard refuses [C7,CD64]', t => {
+test('codemap.backlog.a-newly-mapped-cell-has: a newly mapped cell has an empty delta until written, while an accepted missing shard refuses [C7,CD64]', t => {
   const box = fixture(t);
   box.commit('alpha');
   box.commit('beta');

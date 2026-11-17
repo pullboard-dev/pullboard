@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell seats */
 /**
  * Board writes never queue behind a slow command or a dead holder [B3,C7]. On 9 Nov the coordinator's hold, add and
  * edit waited over ten minutes: each held the checkout's lease for its whole run, so all of them queued behind a
@@ -48,7 +49,7 @@ async function settlesWithin(promise, ms) {
   try { return (await Promise.race([promise.then(() => 'settled'), late])) === 'settled'; } finally { clearTimeout(timer); }
 }
 
-test('same-session writes in one checkout run side by side while a takeover still waits for them [B3,C7]', { timeout: 60_000 }, async t => {
+test('seats.checkout.same-session-writes: same-session writes in one checkout run side by side while a takeover still waits for them [B3,C7]', { timeout: 60_000 }, async t => {
   const box = cellProject(t, { real: true });
   const web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/one', web, 'main');

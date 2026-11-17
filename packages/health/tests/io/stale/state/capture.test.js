@@ -69,33 +69,33 @@ function fixture(t) {
   return { board, holders, job, seatGone, now: () => now };
 }
 
-test('clause 1: a quiet seat whose own test run has waited 5 minutes for a runner keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.waiting-test-run-keeps: clause 1: a quiet seat whose own test run has waited 5 minutes for a runner keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'test-run', item: quiet.id, step: 'queued', agent: quiet.holder });
   assert.deepEqual(f.seatGone(), [], 'a run queued 5 minutes ago with no heartbeat is in flight');
 });
 
-test('clause 1: a quiet seat whose runner check has run for 5 minutes under a live lease keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.runner-check-keeps: clause 1: a quiet seat whose runner check has run for 5 minutes under a live lease keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'test', item: quiet.id, step: 'claimed', owner: 'runner-1', leaseUntil: f.now() + 2 * MINUTE });
   assert.deepEqual(f.seatGone(), [], 'a check whose runner renews its lease is in flight');
 });
 
-test('clause 1: a quiet seat whose gate check is running on a runner keeps its claim [B4,#6128,clause 1]', t => {
+test('health.capture.gate-check-keeps: clause 1: a quiet seat whose gate check is running on a runner keeps its claim [B4,#6128,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   f.job({ kind: 'gate', item: quiet.id, step: 'claimed', owner: 'runner-1', leaseUntil: f.now() + 2 * MINUTE });
   assert.deepEqual(f.seatGone(), [], 'a gate check whose runner renews its lease is in flight');
 });
 
-test('clause 2: a quiet seat with no job in flight is still reclaimed at two minutes [B4,#6128,clause 2]', t => {
+test('health.capture.no-job-reclaimed: clause 2: a quiet seat with no job in flight is still reclaimed at two minutes [B4,#6128,clause 2]', t => {
   const f = fixture(t);
   assert.deepEqual(f.seatGone(), [f.holders[0].id]);
 });
 
-test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a quiet claim [B4,#6128,clause 2]', t => {
+test('health.capture.dead-jobs-dont-keep: clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a quiet claim [B4,#6128,clause 2]', t => {
   const f = fixture(t);
   const [quiet, alive] = f.holders;
   f.job({ kind: 'test-run', item: quiet.id, step: 'done', agent: quiet.holder });
@@ -106,7 +106,7 @@ test('clause 2: finished, lapsed, long-queued or other-seat jobs do not keep a q
   assert.deepEqual(f.seatGone(), [quiet.id]);
 });
 
-test('clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
+test('health.capture.item-folder-run-keeps: clause 1: a test run queued from an item folder records that item on its job, so the quiet holder keeps its claim [B4,#6130,clause 1]', t => {
   const f = fixture(t);
   const [quiet] = f.holders;
   // A seat may hold several claims (child items are free), so its sole-claim rule names no item; the folder names one.

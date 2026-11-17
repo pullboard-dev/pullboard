@@ -27,7 +27,7 @@ async function enrollmentFor(keys, overrides = {}) {
 }
 
 /** Exercise the actual owner-only machine file, one-use enrollment and trusted wrapping boundary. */
-test('device enrollment keeps its private P-256 key non-extractable and authenticates the exact key [H5,H15,H17]', async () => {
+test('keys.device.device-enrollment-keeps-its-private-p: device enrollment keeps its private P-256 key non-extractable and authenticates the exact key [H5,H15,H17]', async () => {
   const phone = await createDeviceKeys();
   const otherPhone = await createDeviceKeys();
   assert.equal(phone.privateKey.extractable, false);
@@ -60,7 +60,7 @@ test('device enrollment keeps its private P-256 key non-extractable and authenti
     { code: 'DEVICE_ENROLL_AUTH' }, 'tampered enrollment authentication is refused');
 });
 
-test('device wraps encrypt a board key to one device and authenticate board, device and engine [H5,H15,H17]', async () => {
+test('keys.device.device-wraps-encrypt-a-board-key: device wraps encrypt a board key to one device and authenticate board, device and engine [H5,H15,H17]', async () => {
   const phone = await createDeviceKeys();
   const stranger = await createDeviceKeys();
   const boardKey = crypto.getRandomValues(new Uint8Array(32));
