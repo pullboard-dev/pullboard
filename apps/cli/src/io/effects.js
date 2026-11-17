@@ -16,7 +16,7 @@ const CLAIMING = new Set(['claim', 'takeHandoff']);
  */
 export async function afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered }) {
   if (requested && ctx.io.recordedMove) heartbeatCommand(ctx.io, { ctx, board, overlaps: ctx.io.defaultLoop !== true });
-  if (requested && ctx.io.recordedMove && CLAIMING.has(operation) && !isSubmitHandoffWorker(ctx)) startClaimBeater(ctx.info.root, { seat: actor, board: ctx.file });
+  if (requested && ctx.io.recordedMove && CLAIMING.has(operation) && !isSubmitHandoffWorker(ctx)) await startClaimBeater(ctx.info.root, { seat: actor, board: ctx.file });
   if (['claim', 'submit', 'release', 'merged', 'withdraw'].includes(operation) && actor) {
     await checkpointAfterMove(ctx, board, { agent: actor, item: args[0], operation }, { ordered, worker: usageCheckpointWorkerEntrypoint(), recordCoordinatorUsage: statsRecordCoordinatorUsage() });
   }

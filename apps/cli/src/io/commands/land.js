@@ -111,7 +111,7 @@ function landOneByHand(ctx, board, me, values) {
   const trunk = mainCheckout(ctx.info.root);
   // The hold is read on the checked-out trunk, as the automatic landing reads it; a waived defect still counts here, so the record names it.
   const held = trunk ? heldTestDefects(ctx.info.root, board, { branch: trunk.branch, commit: trunk.commit }) : [];
-  const landed = landItemByHand(board, Number(id), { root: ctx.info.root, reason, held, agentId: me.id });
+  const landed = landItemByHand(board, Number(id), { root: ctx.info.root, reason, held, agentId: me.id, exactTreeCheck: ctx.config.landing?.exactTreeCheck === true });
   ctx.io.result?.(landed);
   ctx.io.say?.(`#${id} landed by hand as ${landed.commit.slice(0, 12)}: ${landed.reason}; bypassed hold: ${landed.hold}`);
   return 0;

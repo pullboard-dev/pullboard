@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
@@ -29,13 +28,21 @@ import { replayHistory } from '../../../../packages/stats/index.js';
 import { projectAgentActivity } from '../../../../packages/store/index.js';
 import { activityInterests } from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { privateFixtureFiles } from '../../tests/fixtures/child.js';
 import {
-  privateFixtureFiles,
-  runFixtureChild,
-} from '../../tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+  captureCommandInProcess,
+  runCliInProcess,
+} from '../../tests/fixtures/process.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { assertUsagePresentation } from '../../tests/fixtures/cockpit/usage.js';
+import {
+  cli$context as context,
+  cli$ordered as ordered,
+  whoAmI,
+  withBoard,
+} from '../../index.js';
+import { publishUsage } from '../../../../packages/stats/index.js';
+import * as nativeBoard from '../../../lib/src/logic/native.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../tests/fixtures/testkit.js';
@@ -58,20 +65,20 @@ async function seatRun(box, cwd, identity, args, input) {
   return args.includes('--json') ? JSON.parse(result.stdout) : result.stdout;
 }
 
-/** Exercise the real internal checkpoint in a joined fixture context; this is a contract control, not a public CLI command. */
-function seatUsage(box, cwd, identity) {
+/**
+ * Exercise the real internal checkpoint in a joined fixture context; this is a contract control, not a public CLI command.
+ * Why in process: the checkpoint is a library call, so a node -e child per call (seven per run) cost only its start-up; the seat environment is passed as publishUsage's environment option [C7,#10469].
+ */
+async function seatUsage(box, cwd, identity) {
   const env = { ...box.env, CODEX_HOME: join(box.dir, 'codex'), CLAUDE_CONFIG_DIR: join(box.dir, 'claude') };
   for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
   Object.assign(env, identity);
-  const cli = pathToFileURL(join(helpers.BIN, '../index.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../../packages/stats/src/io/cost/checkpoint.js')).href;
-  const code = `import {context,withBoard,whoAmI,cli\$ordered as ordered} from ${JSON.stringify(cli)};
-    import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../../../lib/src/logic/native.js', import.meta.url).href)};
-    const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
-    const ctx=context(io);
-    await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));`;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', code], { cwd, env, encoding: 'utf8' });
+  const result = await captureCommandInProcess(async (_args, processIo) => {
+    const io = { cwd: processIo.cwd, nativeBoard, say() {}, err(message) { processIo.stderr.write(message + '\n'); } };
+    const ctx = context(io);
+    await withBoard(ctx, board => publishUsage(ctx, board, { agent: whoAmI(ctx, board).id, operation: 'refresh' }, { ordered, environment: env }));
+    return 0;
+  }, [], { cwd, env });
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }
 
@@ -121,13 +128,13 @@ test('an item records the tokens and cost its seats spent [N2]', async () => {
   const claude = { CLAUDE_CODE_SESSION_ID: claudeId };
   const codex = { CODEX_THREAD_ID: codexId };
   record(claudeFile, { type: 'assistant', message: { id: 'before-claim', model: 'fixture-claude', usage: { input_tokens: 9, output_tokens: 1 } } });
-  seatUsage(box, box.web, claude);
+  await seatUsage(box, box.web, claude);
   await seatRun(box, box.web, claude, ['claim', String(id)]);
   const message = { id: 'native-message-one', model: 'fixture-claude', usage: { input_tokens: 100, output_tokens: 10 } };
   record(claudeFile, { type: 'assistant', message });
   record(claudeFile, { type: 'assistant', message }); // Stream repetition must not double charge.
-  seatUsage(box, box.web, claude);
-  seatUsage(box, box.web, claude);
+  await seatUsage(box, box.web, claude);
+  await seatUsage(box, box.web, claude);
   record(claudeFile, { type: 'system', subtype: 'tool-metadata', text: 'No provider usage changed' });
   await seatRun(box, box.web, claude, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   record(codexFile, { type: 'turn_context', payload: { model: 'fixture-codex' } });
@@ -136,7 +143,7 @@ test('an item records the tokens and cost its seats spent [N2]', async () => {
   const report = { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 700, output_tokens: 70 } } } };
   record(codexFile, report);
   record(codexFile, report);
-  seatUsage(box, second, codex);
+  await seatUsage(box, second, codex);
   await seatRun(box, second, codex, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const shown = JSON.parse((await box.runLocal(box.repo, 'show', String(id), '--json')).out);
   assert.equal(shown.usage.inputTokens, 300);
@@ -269,7 +276,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
     writeFileSync(file, '');
     const identity = provider === 'claude' ? { CLAUDE_CODE_SESSION_ID: session } : { CODEX_THREAD_ID: session };
     await seatRun(box, box.web, identity, ['claim', String(unknownId)]);
-    seatUsage(box, box.web, identity);
+    await seatUsage(box, box.web, identity);
     await seatRun(box, box.web, identity, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
     const unknown = JSON.parse((await box.runLocal(box.repo, 'show', String(unknownId), '--json')).out).usage;
     assert.equal(unknown.inputTokens, null, `${provider}: readable empty input usage is unknown`);
@@ -362,10 +369,10 @@ async function budgetFixture() {
   const claude = { CLAUDE_CODE_SESSION_ID: 'budget-fixture' };
   // A native baseline before the claim, so only the tokens spent after it are charged.
   record(claudeFile, { type: 'assistant', message: { id: 'budget-before-claim', model, usage: { input_tokens: 9, output_tokens: 1 } } });
-  seatUsage(box, box.web, claude);
+  await seatUsage(box, box.web, claude);
   await seatRun(box, box.web, claude, ['claim', String(ids[0])]);
   record(claudeFile, { type: 'assistant', message: { id: 'budget-message', model, usage: { input_tokens: 100, output_tokens: 10 } } });
-  seatUsage(box, box.web, claude);
+  await seatUsage(box, box.web, claude);
   const rate = 1_000_000;
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   const limit = totalUsd => fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME,

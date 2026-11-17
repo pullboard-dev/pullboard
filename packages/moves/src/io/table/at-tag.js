@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { scratchFolder } from '../../../../config/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/light.js';
+import { lastReleaseTag } from '../../logic/table/judge.js';
 import { loadDiscovered } from '../registry.js';
 
 /** A static relative import, export-from or bare import in module source: the only edges a table's load follows. */
@@ -27,6 +28,17 @@ function filesAt(root, tag) {
   return read.status === 0 ? new Set(read.stdout.split('\n').filter(Boolean)) : null;
 }
 
+/** True when the tag's tree holds a move table with this name. */
+function holdsTable(root, tag, name) {
+  const files = filesAt(root, tag);
+  return Boolean(files) && [...files].some(path => /^packages\/[^/]+\/src\/logic\/(?:.*\/)?[^/]+\.table\.js$/u.test(path) && basename(path) === `${name}.table.js`);
+}
+
+/** The newest release tag whose tree holds the table, or null when no release tag does. */
+function newestReleaseHolding(root, name) {
+  return lastReleaseTag(tagNames(root).filter(tag => lastReleaseTag([tag]) && holdsTable(root, tag, name)));
+}
+
 /** The relative files a module's source imports, resolved against its own folder as repository paths. */
 function edgesOf(path, source) {
   return [...source.matchAll(IMPORT_EDGE)].map(match => posix.normalize(posix.join(posix.dirname(path), match[2])));
@@ -39,10 +51,14 @@ function edgesOf(path, source) {
  *
  * @param {string} root - The repository root.
  * @param {string | undefined} name - The table's name, its file's name without `.table.js`.
- * @param {string | undefined} tag - A release tag the repository has.
+ * @param {string | undefined} tag - A release tag the repository has, or `last` for the newest vX.Y.Z release tag that holds the table.
  * @returns {Promise<{ name: string, tag: string, table: object, rules: object, dispose: () => void }>}
  */
 export async function loadMoveTableAtTag(root, name, tag) {
+  if (tag === 'last') {
+    tag = newestReleaseHolding(root, name);
+    if (!tag) throw new Refused('JUDGE_TAG', `no release tag holds move table ${name} yet`, 'name a tag that holds it, or run pullboard replay <table> without a release');
+  }
   const files = tag ? filesAt(root, tag) : null;
   if (!files) {
     const known = tagNames(root);

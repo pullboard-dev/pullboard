@@ -594,7 +594,10 @@
     "launch": 9
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/baseline/check-part2.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/receipts.test.js": {
     "launch": 3
@@ -1200,7 +1203,10 @@
     "launch": 4
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 8
+    "launch": 2
+  },
+  "apps/cli/journeys/resume/flow-upgrade.test.js": {
+    "launch": 6
   },
   "apps/cli/journeys/runner/reuse.test.js": {
     "launch": 1
