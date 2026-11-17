@@ -38,7 +38,7 @@ function drive(board, hook, run) {
 const queueOptions = (record) => { const { head, companionDigest } = record.snapshot.io; const { item } = record.snapshot;
   return { agentId: record.move.actor, job: record.move.job, ...head, digest: item.frozenDigest, companionDigest, leaseMs: record.snapshot.config.leaseMs }; };
 
-test('clause 1: the store submit writer applies the SUBMIT table and agrees on every replayed move [C7,#8280]', t => {
+test('board.submit-queue-table.the-store-submit-writer-applies-the: clause 1: the store submit writer applies the SUBMIT table and agrees on every replayed move [C7,#8280]', t => {
   assert.ok(queues.length >= 5, 'the replay holds the board\'s queued gates');
   for (const record of queues) {
     const board = boardFor(t, record.snapshot);
@@ -51,7 +51,7 @@ test('clause 1: the store submit writer applies the SUBMIT table and agrees on e
   }
 });
 
-test('clause 1: a queue by a seat that does not hold the claim is refused by both the SUBMIT table and the writer [C7,#8280]', t => {
+test('board.submit-queue-table.queue-seat-that-does-not-hold: clause 1: a queue by a seat that does not hold the claim is refused by both the SUBMIT table and the writer [C7,#8280]', t => {
   const [record] = queues;
   const lost = [{ owner: 'someone-else' }, { status: 'open' }, { leaseUntil: '2000-01-01T00:00:00.000Z' }];
   for (const over of lost) {
@@ -62,7 +62,7 @@ test('clause 1: a queue by a seat that does not hold the claim is refused by bot
   }
 });
 
-test('clause 1: a queue behind a pending gate keeps it for the same candidate and refuses another, in both [C7,#8280]', t => {
+test('board.submit-queue-table.queue-behind-pending-gate-keeps-for: clause 1: a queue behind a pending gate keeps it for the same candidate and refuses another, in both [C7,#8280]', t => {
   const [record] = queues;
   const pending = { ...record.snapshot.handoff, state: 'queued', agentId: record.snapshot.item.owner, digest: record.snapshot.item.frozenDigest, commit: record.snapshot.io.head.commit, tree: record.snapshot.io.head.tree, companionDigest: record.snapshot.io.companionDigest, synthetic: undefined };
   delete pending.synthetic;

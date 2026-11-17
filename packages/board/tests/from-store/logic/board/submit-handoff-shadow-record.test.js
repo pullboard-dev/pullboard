@@ -70,7 +70,7 @@ function completeGate(board) {
   return store.completeSubmitHandoff(board, id, { agentId: actor, job, result: { ...result, ...(windowSpent ? { windowSpent: true } : {}) }, ...(returnToBoard ? { returnToBoard: true } : {}), reopenFirstRefusalMinutes: 0 });
 }
 
-test('clause 1: with moves.shadow on, a hand-off start whose START table answer differs adds one disagreement to the recorded counts [C7,#8382]', t => {
+test('board.submit-handoff-shadow-record.with-moves-shadow-hand-off-start: clause 1: with moves.shadow on, a hand-off start whose START table answer differs adds one disagreement to the recorded counts [C7,#8382]', t => {
   const board = startBoard(t, startRecord.snapshot, true);
   assert.equal(startGate(board).started, true);
   const agreed = store.readShadow(board, 'start');
@@ -85,7 +85,7 @@ test('clause 1: with moves.shadow on, a hand-off start whose START table answer 
   assert.deepEqual(counts.last.map(({ id, differs }) => ({ id, differs })), [{ id: startRecord.move.id, differs: 'job.state' }]);
 });
 
-test('clause 2: with moves.shadow on, a hand-off completion whose COMPLETE table answer matches adds one compare and no disagreement [C7,#8382]', t => {
+test('board.submit-handoff-shadow-record.with-moves-shadow-hand-off-completion: clause 2: with moves.shadow on, a hand-off completion whose COMPLETE table answer matches adds one compare and no disagreement [C7,#8382]', t => {
   const board = completeBoard(t, completion.snapshot, true);
   completeGate(board);
   const counts = store.readShadow(board, 'complete');
@@ -93,7 +93,7 @@ test('clause 2: with moves.shadow on, a hand-off completion whose COMPLETE table
   assert.equal(counts.disagreed, 0, JSON.stringify(counts.last));
 });
 
-test('clause 3: with moves.shadow off neither the start writer nor the completion writer records a compare [C7,#8382]', t => {
+test('board.submit-handoff-shadow-record.with-moves-shadow-off-neither-the: clause 3: with moves.shadow off neither the start writer nor the completion writer records a compare [C7,#8382]', t => {
   const started = startBoard(t, startRecord.snapshot);
   startGate(started);
   assert.equal(store.readShadow(started, 'start'), null);

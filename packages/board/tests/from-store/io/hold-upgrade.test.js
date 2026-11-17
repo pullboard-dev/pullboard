@@ -22,7 +22,7 @@ function oldHolds(t) {
   return { board, held, free };
 }
 
-test('clause 1: the upgrade gives each existing hold without an owner the coordinator and a deadline one day after the upgrade [C7,#8542]', t => {
+test('board.hold-upgrade.the-upgrade-gives-each-existing-hold: clause 1: the upgrade gives each existing hold without an owner the coordinator and a deadline one day after the upgrade [C7,#8542]', t => {
   const { board, held, free } = oldHolds(t);
   assert.equal(store.itemHoldOwner(board, held), null);
   const upgraded = store.upgradeHoldOwners(board, { agentId: 'coordinator', requireOwner: true });
@@ -38,7 +38,7 @@ test('clause 1: the upgrade gives each existing hold without an owner the coordi
   assert.equal(store.itemHoldOwner(board, held).owner, 'lane:web');
 });
 
-test('clause 1: with holds.requireOwner off the upgrade changes nothing [C7,#8542]', t => {
+test('board.hold-upgrade.with-holds-requireowner-off-the-upgrade: clause 1: with holds.requireOwner off the upgrade changes nothing [C7,#8542]', t => {
   const { board, held } = oldHolds(t);
   assert.deepEqual(store.upgradeHoldOwners(board, { agentId: 'coordinator' }), []);
   assert.equal(store.itemHoldOwner(board, held), null);

@@ -28,7 +28,7 @@ function fixture(t) {
   return { board, first, second, id, claim, handoffEnded };
 }
 
-test('clause 1: a release with INFRA, or after an infrastructure-ended handoff, is not counted [C7,H16]', t => {
+test('board.release.release-with-infra-after-infrastructure-ended: clause 1: a release with INFRA, or after an infrastructure-ended handoff, is not counted [C7,H16]', t => {
   const f = fixture(t);
   f.claim(f.first); f.handoffEnded(f.first); store.release(f.board, f.id, f.first, '', 'BLOCKED');
   f.claim(f.second); store.release(f.board, f.id, f.second, '', 'INFRA');
@@ -36,7 +36,7 @@ test('clause 1: a release with INFRA, or after an infrastructure-ended handoff, 
   assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
 });
 
-test('clause 2: a release-twice hold of two infrastructure releases lifts itself on the next write [C7,H16]', t => {
+test('board.release.release-twice-hold-two-infrastructure-releases: clause 2: a release-twice hold of two infrastructure releases lifts itself on the next write [C7,H16]', t => {
   const f = fixture(t);
   f.board.executionEngineVersion = INFRA_RELEASE_ENGINE - 1;
   f.claim(f.first); f.handoffEnded(f.first); store.release(f.board, f.id, f.first, '', 'BLOCKED');
@@ -49,14 +49,14 @@ test('clause 2: a release-twice hold of two infrastructure releases lifts itself
   assert.ok(f.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%infrastructure%'").get(f.id));
 });
 
-test('clause 3: two BLOCKED releases with no infrastructure cause still hold the item [C7,H16]', t => {
+test('board.release.two-blocked-releases-with-infrastructure-cause: clause 3: two BLOCKED releases with no infrastructure cause still hold the item [C7,H16]', t => {
   const f = fixture(t);
   f.claim(f.first); store.release(f.board, f.id, f.first, '', 'BLOCKED');
   f.claim(f.second); store.release(f.board, f.id, f.second, '', 'BLOCKED');
   assert.match(store.getItem(f.board, f.id).item_hold_reason, /Released twice/u);
 });
 
-test('clause 1: two BLOCKED releases naming a structured blockedOn place no released-twice hold [C7]', t => {
+test('board.release.two-blocked-releases-naming-structured-blockedon: clause 1: two BLOCKED releases naming a structured blockedOn place no released-twice hold [C7]', t => {
   const f = fixture(t);
   const other = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'blocker', criterion: 'prove it', route: 'strong' }); // fixture-subject: addItem
   f.claim(f.first); store.release(f.board, f.id, f.first, '', { blockedOn: [other] }, 'BLOCKED');
@@ -67,7 +67,7 @@ test('clause 1: two BLOCKED releases naming a structured blockedOn place no rele
   assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
 });
 
-test('clause 1: two BLOCKED releases whose note carries an infrastructure code place no released-twice hold [C7]', t => {
+test('board.release.two-blocked-releases-whose-note-carries: clause 1: two BLOCKED releases whose note carries an infrastructure code place no released-twice hold [C7]', t => {
   const f = fixture(t);
   f.claim(f.first); store.release(f.board, f.id, f.first, 'GATE_INFRA_EXHAUSTED on the runner', 'BLOCKED');
   f.claim(f.second); store.release(f.board, f.id, f.second, 'DATABASE_LOCKED twice', 'BLOCKED');
