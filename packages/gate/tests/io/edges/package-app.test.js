@@ -38,7 +38,7 @@ const BASE = {
   'apps/view/page.js': 'export const page = 1;\n',
 };
 
-test('clause 1: a new package spawn, read or import of apps/* is refused while the file and cell edge totals stay under their ceilings [C7]', () => {
+test('gate.io-edges-package-app.a-new-package-spawn-read-or: clause 1: a new package spawn, read or import of apps/* is refused while the file and cell edge totals stay under their ceilings [C7]', () => {
   const root = fixture(BASE);
   const ceilings = ceilingsOf(cellsEdgeReport(root));
   assert.deepEqual(ceilings.packageApps, {});
@@ -61,7 +61,7 @@ test('clause 1: a new package spawn, read or import of apps/* is refused while t
   }
 });
 
-test('clause 1: the gate run shell names no apps/ path and carries no package app row [C7]', () => {
+test('gate.io-edges-package-app.the-gate-run-shell-names-no: clause 1: the gate run shell names no apps/ path and carries no package app row [C7]', () => {
   const ceiling = JSON.parse(readFileSync(join(REPO, 'packages/gate/data/ceilings/cells-edges.json'), 'utf8')).packageApps;
   const file = 'packages/gate/src/io/run/shell.js';
   assert.equal(ceiling[file], undefined);

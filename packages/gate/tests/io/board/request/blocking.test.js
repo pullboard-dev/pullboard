@@ -13,17 +13,17 @@ import { STATIC_TREE_CHECKS } from '../../../../src/io/static/registry.js';
 const root = fileURLToPath(new URL('../../../../../..', import.meta.url));
 const sources = styleSources(root);
 
-test('clause 1: the tree has no synchronous child process reachable from an API request beyond the listed known set [C7]', () => {
+test('gate.io-board-request-blocking.the-tree-has-no-synchronous-child: clause 1: the tree has no synchronous child process reachable from an API request beyond the listed known set [C7]', () => {
   assert.deepEqual(apiRequestIoProblems(sources).map(row => `${row.file}:${row.line} ${row.call} (${row.owner})`), []);
 });
 
-test('clause 1: every known violation names why, and the seeded set includes mainReceipts and the cached-candidate git log [C7]', () => {
+test('gate.io-board-request-blocking.every-known-violation-names-why-and: clause 1: every known violation names why, and the seeded set includes mainReceipts and the cached-candidate git log [C7]', () => {
   for (const [owner, why] of Object.entries(KNOWN_REQUEST_BLOCKERS)) assert.ok(why.length > 10, owner);
   assert.ok('packages/landing/src/io/main/red/receipt.js#treeOf' in KNOWN_REQUEST_BLOCKERS);
   assert.ok('packages/landing/src/io/main/red/receipt.js#unchangedDescendants' in KNOWN_REQUEST_BLOCKERS);
 });
 
-test('clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.wait call reached from a handler outside the list fails [C7]', () => {
+test('gate.io-board-request-blocking.a-new-spawnsync-execsync-gitspawnsync-readdirsync: clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.wait call reached from a handler outside the list fails [C7]', () => {
   const calls = { spawn: "import { spawnSync } from 'node:child_process';\nexport function helper() { return spawnSync('ls'); }",
     exec: "import { execSync } from 'node:child_process';\nexport function helper() { return execSync('ls'); }",
     git: "import { gitSpawnSync } from '../../../git/index.js';\nexport function helper() { return gitSpawnSync(['status']); }",
@@ -39,20 +39,20 @@ test('clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.
   }
 });
 
-test('clause 1: a known row that no longer fires fails so the set only shrinks [C7]', () => {
+test('gate.io-board-request-blocking.a-known-row-that-no-longer: clause 1: a known row that no longer fires fails so the set only shrinks [C7]', () => {
   const rows = apiRequestIoProblems(sources, { known: { ...candidateKnownBlockers(sources), 'packages/api/src/io/main.js#gone': 'already fixed' } });
   assert.deepEqual(rows.map(row => row.owner), ['packages/api/src/io/main.js#gone']);
   assert.equal(rows[0].stale, true);
 });
 
-test('clause 1: an unlisted call fails when its owner is missing from the known set [C7]', () => {
+test('gate.io-board-request-blocking.an-unlisted-call-fails-when-its: clause 1: an unlisted call fails when its owner is missing from the known set [C7]', () => {
   const { 'packages/landing/src/io/main/red/receipt.js#treeOf': removed, ...rest } = candidateKnownBlockers(sources);
   assert.ok(removed);
   const rows = apiRequestIoProblems(sources, { known: rest });
   assert.deepEqual(rows.map(row => row.owner), ['packages/landing/src/io/main/red/receipt.js#treeOf']);
 });
 
-test('clause 1: a blocker reached from the view, relay or transport pull server fails the check [C7]', () => {
+test('gate.io-board-request-blocking.a-blocker-reached-from-the-view: clause 1: a blocker reached from the view, relay or transport pull server fails the check [C7]', () => {
   const entries = { 'apps/view/src/io/serve.js': ['serveView', 'const server = createServer(async (req, res) => {'], 'apps/relay/src/io/service.js': ['createRelayHandler', null], 'packages/transport/src/io/pull/http.js': ['pullServer', null] };
   for (const [file, [name, anchor]] of Object.entries(entries)) {
     assert.ok(HTTP_SERVERS.includes(`${file}#${name}`), `${file}#${name} is an entry`);
@@ -74,14 +74,14 @@ function withCallback(file, rewrite) {
 /** The import of the added module, written relative to the rewritten file. */
 const importAdded = file => `import { addedBlocker } from '${'../'.repeat(file.split('/').length - 1)}packages/jobs/src/io/callback-added.js';\n`;
 
-test('#6756 clause 1: a spawnSync reached through a function in the viewPorts handed to the board API fails the check [C7]', () => {
+test('gate.io-board-request-blocking.t-6756-clause-1-a-spawnsync-reached: #6756 clause 1: a spawnSync reached through a function in the viewPorts handed to the board API fails the check [C7]', () => {
   const rows = apiRequestIoProblems(withCallback('apps/view/src/io/ports.js',
     source => importAdded('apps/view/src/io/ports.js') + source.replace('Object.freeze({ ', 'Object.freeze({ addedBlocker, '))).filter(row => row.owner === 'packages/jobs/src/io/callback-added.js#addedBlocker');
   assert.equal(rows.length, 1);
   assert.match(rows[0].chain[0], /viewPorts/u);
 });
 
-test('#6756 clause 2: a blocker reached through a settings provider or through runCommand fails the check [C7]', () => {
+test('gate.io-board-request-blocking.t-6756-clause-2-a-blocker-reached: #6756 clause 2: a blocker reached through a settings provider or through runCommand fails the check [C7]', () => {
   const owner = row => row.owner === 'packages/jobs/src/io/callback-added.js#addedBlocker';
   const provider = apiRequestIoProblems(withCallback('apps/cli/src/io/commands/serve.js',
     source => importAdded('apps/cli/src/io/commands/serve.js') + source.replace('settingsProviders: { ', 'settingsProviders: { addedBlocker, '))).filter(owner);
@@ -93,18 +93,18 @@ test('#6756 clause 2: a blocker reached through a settings provider or through r
   assert.equal(command[0].chain[0], 'apps/cli/src/io/main.js#main');
 });
 
-test('#6756 clause 2: a callback list the check cannot find fails instead of passing silently [C7]', () => {
+test('gate.io-board-request-blocking.t-6756-clause-2-a-callback-list: #6756 clause 2: a callback list the check cannot find fails instead of passing silently [C7]', () => {
   const rows = apiRequestIoProblems(sources.map(row => row.file === 'apps/view/src/io/ports.js' ? { ...row, source: row.source.replace('viewApiPorts', 'renamedPorts') } : row))
     .filter(row => row.stale && /viewPorts/u.test(row.call));
   assert.equal(rows.length, 1);
 });
 
-test('clause 2: every known violation is listed by file and function, and the check finds no blocker beyond them [C7]', () => {
+test('gate.io-board-request-blocking.every-known-violation-is-listed-by: clause 2: every known violation is listed by file and function, and the check finds no blocker beyond them [C7]', () => {
   for (const owner of Object.keys(KNOWN_REQUEST_BLOCKERS)) assert.match(owner, /^[\w./-]+\.js#[\w$]+$/u, owner);
   assert.deepEqual(apiRequestIoProblems(sources), []);
 });
 
-test('#6755 clause 1: a known-violation row is keyed by the file and function of the call site itself, whatever order the tree is walked in [C7]', () => {
+test('gate.io-board-request-blocking.t-6755-clause-1-a-known-violation: #6755 clause 1: a known-violation row is keyed by the file and function of the call site itself, whatever order the tree is walked in [C7]', () => {
   const owners = rows => rows.map(row => `${row.owner} ${row.call}`).sort();
   const shared = { file: 'packages/git/src/io/added-shared.js', source: "import { spawnSync } from 'node:child_process';\nexport function sharedGit() { return spawnSync('git'); }\n" };
   const callers = ['a', 'b'].map(name => ({ file: `packages/api/src/io/added-${name}.js`, source: `import { sharedGit } from '../../../git/src/io/added-shared.js';\nexport function ${name}Handler() { return sharedGit(); }\n` }));
@@ -116,7 +116,7 @@ test('#6755 clause 1: a known-violation row is keyed by the file and function of
   for (const row of forward) assert.equal(row.owner, `${row.file}#${row.chain.at(-1).split('#')[1]}`, 'owner is the call site');
 });
 
-test('clause 2: the known set holds the current Atomics.wait and readdirSync sites by file and function [C7]', () => {
+test('gate.io-board-request-blocking.the-known-set-holds-the-current: clause 2: the known set holds the current Atomics.wait and readdirSync sites by file and function [C7]', () => {
   assert.ok('packages/store/src/io/board/busy.js#beginImmediateQueued' in KNOWN_REQUEST_BLOCKERS);
   for (const owner of ['apps/relay/src/io/retention.js#backupFiles', 'packages/keys/src/io/relay.js#scrubLegacyPersonSessions', 'packages/link/src/io/relay/lock.js#locked', 'packages/link/src/io/relay/machine.js#readRelayMachine', 'packages/store/src/io/board/write/lock.js#boardWriteHolderText']) {
     assert.ok(owner in KNOWN_REQUEST_BLOCKERS, owner);
@@ -125,7 +125,7 @@ test('clause 2: the known set holds the current Atomics.wait and readdirSync sit
   assert.ok(rows.includes('global:Atomics#wait') && rows.includes('node:fs#readdirSync'));
 });
 
-test('clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a local Atomics binding is not the global one [C7]', () => {
+test('gate.io-board-request-blocking.atomics-wait-and-readdirsync-are-listed: clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a local Atomics binding is not the global one [C7]', () => {
   const entry = 'packages/api/src/io/main.js', row = sources.find(found => found.file === entry);
   const inject = text => [...sources.filter(found => found.file !== entry), { ...row, source: row.source + "\nimport { helper } from './added.js';\nexport function addedHandler() { return helper(); }\n" }, { file: 'packages/api/src/io/added.js', source: text }];
   const owners = text => apiRequestIoProblems(inject(text)).filter(found => found.owner === 'packages/api/src/io/added.js#helper').map(found => found.call);
@@ -134,7 +134,7 @@ test('clause 1: Atomics.wait and readdirSync are listed as blocking calls, and a
   assert.deepEqual(owners("import { Atomics } from './mine.js';\nexport function helper() { return Atomics.wait(1); }"), []);
 });
 
-test('#7340 clause 1: a candidate tree that removes a blocker together with its known row gates clean, and removing only the row still fails [C7]', () => {
+test('gate.io-board-request-blocking.t-7340-clause-1-a-candidate-tree: #7340 clause 1: a candidate tree that removes a blocker together with its known row gates clean, and removing only the row still fails [C7]', () => {
   const owner = 'packages/landing/src/io/main/red/receipt.js#treeOf';
   const check = STATIC_TREE_CHECKS.find(row => row.name === 'api-request-io');
   const requestFile = 'packages/gate/src/io/board/request.js';
@@ -155,7 +155,7 @@ test('#7340 clause 1: a candidate tree that removes a blocker together with its 
   assert.ok(mentions(check.run(root, edit({ [receipt]: fixedReceipt }))).length > 0, 'removing only the blocker leaves a stale row');
 });
 
-test('#7613 clause 1: a call on an object that spreads an imported namespace is followed into that namespace [C7]', () => {
+test('gate.io-board-request-blocking.t-7613-clause-1-a-call-on: #7613 clause 1: a call on an object that spreads an imported namespace is followed into that namespace [C7]', () => {
   const files = { wrapper: { file: 'packages/api/src/io/wrapped.js', source: "import * as inner from './inner.js';\nexport const wrapped = Object.freeze({ ...inner, other: 1 });\n" },
     inner: { file: 'packages/api/src/io/inner.js', source: "import { spawnSync } from 'node:child_process';\nexport function runIt() { return spawnSync('ls'); }\n" },
     caller: { file: 'packages/api/src/io/caller.js', source: "import { wrapped } from './wrapped.js';\nexport function entry() { return wrapped.runIt(); }\n" } };
@@ -163,7 +163,7 @@ test('#7613 clause 1: a call on an object that spreads an imported namespace is 
   assert.deepEqual(rows.map(row => row.owner), ['packages/api/src/io/inner.js#runIt']);
 });
 
-test('clause 1: extraRoots naming the materializer worker and the rule-proof append report a blocking call only they reach, and empty extraRoots leave the report unchanged [C7,#9677]', () => {
+test('gate.io-board-request-blocking.extraroots-naming-the-materializer-worker-and: clause 1: extraRoots naming the materializer worker and the rule-proof append report a blocking call only they reach, and empty extraRoots leave the report unchanged [C7,#9677]', () => {
   assert.deepEqual(EXTRA_REQUEST_ROOTS, ['packages/api/src/io/state/materializer/worker.js', 'packages/verify/src/io/rule/proof/append.js#appendRuleProof']);
   const added = { file: 'packages/jobs/src/io/extra-root-added.js', source: "import { spawnSync } from 'node:child_process';\nexport function addedBlocker() { return spawnSync('ls'); }\n" };
   const owner = 'packages/jobs/src/io/extra-root-added.js#addedBlocker';
@@ -183,7 +183,7 @@ test('clause 1: extraRoots naming the materializer worker and the rule-proof app
   }
 });
 
-test('clause 1: known blockers equal the owners reached from the requests, materializer worker and rule-proof append [C7,#9678]', () => {
+test('gate.io-board-request-blocking.known-blockers-equal-the-owners-reached: clause 1: known blockers equal the owners reached from the requests, materializer worker and rule-proof append [C7,#9678]', () => {
   const rows = apiRequestIoProblems(sources, { known: {}, extraRoots: EXTRA_REQUEST_ROOTS });
   const owners = [...new Set(rows.map(row => row.owner))].sort();
   assert.deepEqual(Object.keys(KNOWN_REQUEST_BLOCKERS).sort(), owners);

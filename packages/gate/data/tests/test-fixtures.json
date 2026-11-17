@@ -140,7 +140,7 @@
     "repo-read": 1,
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/item/baseline/offer.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/offer.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -245,7 +245,7 @@
   "packages/board/tests/from-store/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/store/tests/io/board/decision/answer.test.js": {
+  "packages/board/tests/from-store/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
@@ -260,7 +260,7 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/store/tests/io/queued/red/growth.test.js": {
+  "packages/board/tests/from-store/io/queued/red/growth.test.js": {
     "raw-board": 4
   },
   "packages/flakes/tests/io/main.test.js": {
@@ -278,7 +278,7 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/store/tests/relay-activation.test.js": {
+  "packages/board/tests/from-store/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
@@ -286,10 +286,10 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "packages/store/tests/review-grant-replay.test.js": {
+  "packages/board/tests/from-store/review-grant-replay.test.js": {
     "raw-board": 6
   },
-  "packages/store/tests/review-queue-replay.test.js": {
+  "packages/board/tests/from-store/review-queue-replay.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/engine/settings.test.js": {
@@ -302,7 +302,7 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "packages/store/tests/team-engine.test.js": {
+  "packages/board/tests/from-store/team-engine.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
@@ -341,7 +341,7 @@
     "tempdir": 1,
     "raw-board": 8
   },
-  "packages/store/tests/logic/board/release.test.js": {
+  "packages/board/tests/from-store/logic/board/release.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
@@ -361,7 +361,7 @@
   "packages/store/tests/io/relaxation.test.js": {
     "raw-board": 2
   },
-  "packages/store/tests/logic/board/item/baseline/shout.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/shout.test.js": {
     "raw-board": 3
   },
   "apps/cli/journeys/verify/check.test.js": {
@@ -854,7 +854,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/store/tests/logic/rework/once.test.js": {
+  "packages/board/tests/from-store/logic/rework/once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -1000,7 +1000,7 @@
   "apps/cli/tests/fixtures/style.js": {
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/inbox.test.js": {
+  "packages/board/tests/from-store/logic/board/inbox.test.js": {
     "raw-board": 3
   },
   "packages/gate/tests/io/requeue/retry.test.js": {

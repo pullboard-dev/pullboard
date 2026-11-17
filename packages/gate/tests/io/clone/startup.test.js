@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import { startChrome } from '../../../../../apps/cli/tests/fixtures/chrome.js';
 
 /** Prove a missing DevTools port is a single diagnostic failure, with stderr and elapsed time. */
-test('a missing DevTools port fails once with stderr and elapsed launch time [C7]', async (t) => {
+test('gate.io-clone-startup.a-missing-devtools-port-fails-once: a missing DevTools port fails once with stderr and elapsed launch time [C7]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-no-port-'));
   const launches = join(directory, 'launches');
   const wrapper = join(directory, 'chrome-no-port');
@@ -85,7 +85,7 @@ async function assertLiveTimeoutNamesState(directory, startupTimeoutMs, extraEnv
 }
 
 /** Prove startup timeout diagnostics preserve process and profile state before cleanup [C7]. */
-test("a DevTools port timeout names Chrome's state [C7]", async (t) => {
+test('gate.io-clone-startup.a-devtools-port-timeout-names-chrome: a DevTools port timeout names Chrome\'s state [C7]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-timeout-state-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const startupTimeoutMs = 2_000;
@@ -118,7 +118,7 @@ test("a DevTools port timeout names Chrome's state [C7]", async (t) => {
 });
 
 /** Prove the timeout still names a live, locked Chrome when node takes longer than the whole budget to start [C7]. */
-test('the DevTools timeout test holds when its stand-in starts slowly [C7]', async (t) => {
+test('gate.io-clone-startup.the-devtools-timeout-test-holds-when: the DevTools timeout test holds when its stand-in starts slowly [C7]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-chrome-slow-start-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const startupTimeoutMs = 2_000;
