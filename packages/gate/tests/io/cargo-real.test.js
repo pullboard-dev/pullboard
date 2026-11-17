@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell gate */
 /** A real cargo fixture crate runs cargo test on a runner that has cargo: green passes, a failing test exits red [#10382,C7]. */
 import assert from 'node:assert/strict';
+import { dirname } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -31,9 +32,10 @@ function tempCrate(t) {
   return root;
 }
 
-/** Run cargo test in the copy, offline, with the build folder inside the copy. */
+/** Run cargo test in the copy, offline, with the build folder inside the copy and cargo's own folder first on PATH so it finds rustc. */
 function cargoTest(cargo, root, args = []) {
-  const env = { ...process.env, CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
+  const path = cargo.startsWith('/') ? `${dirname(cargo)}:${process.env.PATH ?? ''}` : process.env.PATH;
+  const env = { ...process.env, PATH: path, CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
   return spawnSync(cargo, ['test', '--offline', ...args], { cwd: root, encoding: 'utf8', env, timeout: 120000 });
 }
 
