@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/runner */
+/** @pullboard-test-input apps/runner/src/io/controller.js apps/runner/tests/io/orphans.test.js */
 /** @pullboard-world-pin: clauses 1 and 2 read the shipped runner controller source to prove it serves only the pull transport. */
 /** The runner app no longer serves the SSH controller, so #7526 can delete it from packages/runners [C7]. */
 import assert from 'node:assert/strict';
