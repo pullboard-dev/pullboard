@@ -52,7 +52,7 @@ provideGateHopTable(leaseMs => ({ item, hop, now }, { name, actor, epoch }) => {
 const claim = (db, runner, now) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 const land = (db, held, now) => postReceipt(db, { job: held.job, runner: 'r1', token: held.token, receipt: { ok: true }, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 
-test('clause 1: with gate.fencedHop on, resubmitting an item ends its open hop in the fenced gate row [C7,#8353]', t => {
+test('api.jobs-resubmit-hop.gate-fencedhop-resubmitting-item-ends: clause 1: with gate.fencedHop on, resubmitting an item ends its open hop in the fenced gate row [C7,#8353]', t => {
   const db = board(t);
   claim(db, 'r1', 5000);
   assert.deepEqual([readGateHop(db, ITEM).state, readGateHop(db, ITEM).epoch], ['driven', 1]);
@@ -64,7 +64,7 @@ test('clause 1: with gate.fencedHop on, resubmitting an item ends its open hop i
   assert.deepEqual([readGateHop(db, ITEM).state, readGateHop(db, ITEM).owner, readGateHop(db, ITEM).commit, readGateHop(db, ITEM).epoch], ['driven', 'r2', NEW, 3]);
 });
 
-test('clause 1: a resubmit at the same candidate, or with gate.fencedHop off, leaves the hop as it is [C7,#8353]', t => {
+test('api.jobs-resubmit-hop.resubmit-same-candidate-gate-fencedhop: clause 1: a resubmit at the same candidate, or with gate.fencedHop off, leaves the hop as it is [C7,#8353]', t => {
   const db = board(t);
   claim(db, 'r1', 5000);
   assert.deepEqual(endGateHop(db, gateClaimHop(true), { item: ITEM, candidate: OLD, now: 6000, leaseMs: LEASE }), { ended: false });
@@ -72,7 +72,7 @@ test('clause 1: a resubmit at the same candidate, or with gate.fencedHop off, le
   assert.deepEqual([readGateHop(db, ITEM).state, readGateHop(db, ITEM).epoch], ['driven', 1]);
 });
 
-test('clause 2: after a resubmit the old gate job is refused HOP_FENCED when it tries to land, and records no receipt [C7,#8353]', t => {
+test('api.jobs-resubmit-hop.after-resubmit-old-gate-job: clause 2: after a resubmit the old gate job is refused HOP_FENCED when it tries to land, and records no receipt [C7,#8353]', t => {
   const db = board(t);
   const old = claim(db, 'r1', 5000);
   resubmit(db, 6000);
@@ -87,7 +87,7 @@ test('clause 2: after a resubmit the old gate job is refused HOP_FENCED when it 
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM job_step WHERE job_step_job = 'gate:7:old' AND job_step_name = 'receipt'").get()?.n ?? 0, 0);
 });
 
-test('clause 2: without a resubmit the gate job that owns the hop lands [C7,#8353]', t => {
+test('api.jobs-resubmit-hop.without-resubmit-gate-job-owns: clause 2: without a resubmit the gate job that owns the hop lands [C7,#8353]', t => {
   const db = board(t);
   const held = claim(db, 'r1', 5000);
   assert.equal(land(db, held, 6000).recorded, true);
