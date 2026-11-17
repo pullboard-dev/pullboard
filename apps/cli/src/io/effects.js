@@ -1,7 +1,7 @@
 /** Keep post-recording observations outside the bounded CLI dispatcher [B3,H16]. */
 import { heartbeatCommand } from './presence.js';
 import { statsRecordCoordinatorUsage } from '../../../../packages/config/index.js';
-import { checkpointAfterMove } from '../../../../packages/stats/index.js';
+import { checkpointAfterMove } from '../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from './checkpoint.js';
 import { isSubmitHandoffWorker } from '../../../../packages/sandbox/index.js';
 import { startClaimBeater } from './beater.js';
