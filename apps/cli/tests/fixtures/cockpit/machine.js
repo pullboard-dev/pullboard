@@ -34,6 +34,7 @@ import {
 } from '../testkit.js';
 import {
   parityRecord,
+  journeyCall,
   withoutPullboardEnv,
 } from '../e2e.js';
 import { runCliInProcess } from '../process.js';
@@ -196,6 +197,28 @@ function machine() {
     recordParity({ dir, env: { ...env, PULLBOARD_MODEL: MACHINE_MODEL }, cwd, args, result });
     return result.stdout;
   };
+  /**
+   * The journey's call, awaited: in this process by default, a real process under PULLBOARD_JOURNEY_MODE=process, and
+   * appended to PULLBOARD_PARITY_RECORD when the parity check asks. Refuses a non-zero status like run, returns stdout, and
+   * settles the jobs the call offered in both modes, so the record holds the settled board [C7,U149].
+   */
+  const runIn = async (cwd, ...args) => {
+    const commandEnv = { ...env, PULLBOARD_MODEL: MACHINE_MODEL };
+    const prepared = () => {
+      const call = [...args];
+      fixtureJoinRoute(call, MACHINE_MODEL);
+      fixtureAddRoute(call);
+      fixtureAddDistinct(call);
+      invocations.push({ args: call, hasModel: true, model: MACHINE_MODEL });
+      return call;
+    };
+    const answer = (result, call) => { settleOfferedJobs(cwd, call, commandEnv); return { status: result.status, stdout: result.stdout, stderr: result.stderr }; };
+    const result = await journeyCall({ dir, env: commandEnv, cwd, args: [...args], bin: BIN,
+      inProcess: async () => { const call = prepared(); return answer(await runCliInProcess(call, { cwd, env: commandEnv }), call); },
+      real: () => { const call = prepared(); return answer(spawnSync(process.execPath, [BIN, ...call], { cwd, env: commandEnv, encoding: 'utf8' }), call); } });
+    assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
+    return result.stdout;
+  };
   /** Wait until the board `cwd` belongs to has settled the gate of submitted item `id`, as a settled submit would. */
   const settled = (cwd, id) => settleOfferedJobs(cwd, ['submit', String(id)], { ...env, PULLBOARD_MODEL: MACHINE_MODEL });
   /** Run the CLI with the machine environment used by later agent commands. */
@@ -238,7 +261,7 @@ function machine() {
     }
     return Object.freeze({ root, readFile, files });
   }
-  return { dir, env, git, run, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
+  return { dir, env, git, run, runIn, inProcess, inProcessQueued, settled, runWithEnv, invocations, exportSnapshot };
 }
 
 /**

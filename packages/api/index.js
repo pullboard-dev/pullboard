@@ -88,6 +88,7 @@ export {
   provideLandingStart,
   provideMainComparison,
   provideRefusalTrials,
+  provideTimingExcuse,
   pulledGateReds,
   recordPhaseReceipts,
   reportRunaway,

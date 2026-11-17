@@ -8,7 +8,7 @@ function unescapeXml(text) {
 }
 
 /** The attributes of one tag's text as a name to value object. */
-function attributes(tag) {
+export function junitAttributes(tag) {
   const found = {};
   for (const match of tag.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gu)) found[match[1]] = unescapeXml(match[2] ?? match[3]);
   return found;
@@ -23,7 +23,7 @@ export function junitCases(xml) {
   if (suites > closes || opens === 0 && !/<testsuite\b/u.test(xml)) return { cases: [], reason: 'JUNIT_DAMAGED' };
   const cases = [];
   for (const match of xml.matchAll(/<testcase\b([^>]*?)(\/>|>([\s\S]*?)<\/testcase>)/gu)) {
-    const name = attributes(match[1]).name;
+    const name = junitAttributes(match[1]).name;
     if (name === undefined) return { cases: [], reason: 'JUNIT_DAMAGED' };
     const body = match[3] ?? '';
     const outcome = /<(?:failure|error)\b/u.test(body) ? 'fail' : /<skipped\b/u.test(body) ? 'skip' : 'pass';

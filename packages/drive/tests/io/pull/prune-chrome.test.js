@@ -1,20 +1,15 @@
-// pullboard: browser
-/** @pullboard-test-gui */
-/** A browser test leaves no Chrome temp folder in TMPDIR, and the runner prune removes stale ones after an hour [C7]. */
+/** The runner prune removes Chrome temp folders older than an hour [C7]; the launcher's private TMPDIR test sits with the launcher in apps/cli. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pruneChromeTemp } from '../../../index.js';
 import { pruneRunnerStores } from '../../../index.js';
-import { launchChromeProcess } from '../../../../../apps/cli/tests/fixtures/chrome.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const HOUR = 3_600_000;
 
@@ -27,23 +22,6 @@ function leaveChrome(dir, name, ageMs) {
   utimesSync(join(path, 'scoped'), at, at); utimesSync(path, at, at);
   return path;
 }
-
-/** The com.google.Chrome* names currently in the shared temp directory. */
-function chromeTemps() { return readdirSync(tmpdir()).filter(name => name.startsWith('com.google.Chrome')); }
-
-test('a browser-test run leaves no com.google.Chrome folder in its TMPDIR after it exits [C7]', async () => {
-  const before = new Set(chromeTemps());
-  const script = "const { mkdirSync } = require('node:fs'); const { join } = require('node:path'); mkdirSync(join(process.env.TMPDIR, 'com.google.Chrome.fixture'));"
-    + " process.on('SIGTERM', () => process.exit(0)); console.error(process.env.TMPDIR); setInterval(() => {}, 1000);";
-  const chrome = launchChromeProcess({ executable: process.execPath, args: ['-e', script], env: { ...process.env, TMPDIR: '' } });
-  await new Promise(resolve => chrome.child.stderr.once('data', resolve));
-  const privateTmp = chrome.stderr.trim();
-  assert.notEqual(privateTmp, tmpdir(), 'the launch gets its own TMPDIR');
-  assert.ok(existsSync(join(privateTmp, 'com.google.Chrome.fixture')), 'the stand-in made its Chrome temp folder there');
-  await chrome.close();
-  assert.equal(existsSync(privateTmp), false, 'the private TMPDIR goes with the launch');
-  assert.deepEqual(chromeTemps().filter(name => !before.has(name)), [], 'nothing new in the shared temp directory');
-});
 
 test('the runner prune removes Chrome temp folders older than 1 h and keeps newer ones [C7]', t => {
   const { root: dir } = privateFixtureFiles('pullboard-prune-chrome-');
