@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/blueprints */
+/** @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
