@@ -26,7 +26,6 @@ import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js'
 
 const MILESTONES = 50;
 const HOUR = 3_600_000;
-const OPENERS = Object.freeze({ openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb] });
 
 /**
  * A served board of 2 items in each of 50 milestones, one of them landed an hour ago so the pace moves as the clock does.
@@ -61,7 +60,7 @@ async function served(t, milestoneDelta) {
   verify(board, ids[0], { agentId: agents[1].id, decision: 'ACCEPT', head, digest: getItem(board, ids[0]).item_frozen_digest, policy: 'any', note: 'Delta fixture only; no gate execution is claimed.' });
   merged(board, ids[0], { agentId: 'coordinator', commit: 'b'.repeat(40) });
   at = now;
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: OPENERS, refusalDocument, runCommand: async () => 0,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard: (file, clock, options) => openCellBoard(file, clock ?? (() => new Date(now)), options), openBoardForRead, moveArgs: (body) => [body.verb] }, refusalDocument, runCommand: async () => 0,
     projects: () => [{ root: project.repo, name: 'Milestone delta fixture' }], now: () => now });
   t.after(() => api.close());
   const url = new URL(api.url);
