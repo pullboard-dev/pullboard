@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell store board stats */
+/** @pullboard-test-input source-cell store stats */
 /** The store milestones module imports nothing from the stats package, and the coordinator release still reads the same values through the board root [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 import { addMilestone } from '../../../index.js';
 import { board_ensureCoordinator } from '../../../index.js';
 import { shipMilestone } from '../../../index.js';
-import { openBoard } from '../../../../board/index.js';
 import { coordinatorMilestoneRelease } from '../../../../stats/light.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
@@ -24,10 +23,9 @@ test('clause 1: milestones.js has no import, export-from or dynamic import of th
   assert.deepEqual(specifiers.filter(specifier => /(^|\/)stats(\/|$)/u.test(specifier)), [], 'no specifier names the stats package');
 });
 
-test('clause 2: a ship through the board root records the same release values the stats function answers [C7]', t => {
+test('clause 2: a ship through the store door records the same release values the stats function answers [C7]', t => {
   const project = cellProject(t, { real: true });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
-  assert.equal(typeof openBoard, 'function', 'the board root is loaded, so it has provided the release');
   board_ensureCoordinator(board, project.repo);
   for (const name of ['A', 'B']) addMilestone(board, { agentId: 'coordinator', name, note: null, items: [] });
   const direct = coordinatorMilestoneRelease(board, { plannedMoves: ['milestone_ship'] });
