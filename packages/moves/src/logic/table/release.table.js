@@ -89,20 +89,23 @@ function countsToward(reason, wasUntouched, reroute) {
 }
 
 /** A release the holder chose for a quality reason, counted toward the release-twice rule. */
-function chosenQuality(history, release, reroute) {
+function chosenQuality(history, release, reroute, older = false) {
   const d = release.detail ?? {};
   if (!countsToward(d.reasonCode, Boolean(d.untouchedAutoClaim), reroute) || d.review || d.staleClaim || d.goneSeat || d.idleClaim || d.expiredClaim
-    || d.exitHandoff || d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? '') || infraCaused(history, release)) return false;
+    || d.exitHandoff || (!older && (d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? ''))) || infraCaused(history, release)) return false;
   const before = history.filter(e => e.id < release.id && LIFECYCLE.includes(e.kind)).at(-1);
   return before?.kind === 'claim' && before.by === release.by;
 }
 
+/** Is the snapshot a release recorded at an engine before `engine`? A record with no engine stamped (null) is older; a hand-built snapshot with none at all is current. */
+const olderEngine = (snapshot, engine) => Number.isInteger(engine) && (snapshot.engine === null || (Number.isInteger(snapshot.engine) && snapshot.engine < engine));
+
 /** The two newest chosen quality releases since the last unhold and the last route change, newest first. */
-function lastTwoChosen(s) {
+function lastTwoChosen(s, older = false) {
   const history = numbered(s.history ?? []);
   const unhold = Math.max(0, ...history.filter(e => e.kind === 'unhold_item').map(e => e.id));
   const routeChange = Math.max(0, ...history.filter(e => e.kind === 'escalate' && e.detail?.from !== e.detail?.to).map(e => e.id));
-  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e, s.io?.rerouteUntouched)).reverse().slice(0, 2);
+  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e, s.io?.rerouteUntouched, older)).reverse().slice(0, 2);
 }
 
 const listReasons = (releases) => [...releases].reverse().map(e => `${e.by}: ${e.detail.reasonCode}${e.detail.reason ? ` (${e.detail.reason})` : ''}`).join('; ');
@@ -119,7 +122,8 @@ const returnsClaim = (before, m) => !m.stale && before.item?.status !== 'submitt
  * Move: `{ id, actor, root, reason, note, on, now, worktreeSnapshot, stale }`; `stale` is the coordinator's captured observation.
  * Why: each guard below is one fact, so its refusal, its trace and `pullboard explain` never drift apart.
  */
-function releaseRules({ reasons, staleLimits }) {
+function releaseRules(board) {
+  const { reasons, staleLimits } = board;
   /** The first reason a coordinator's captured stale observation cannot release this claim, or null. */
   function staleProblem(s, m) {
     const c = m.stale, row = c.staleClaim, now = Date.parse(m.now);
@@ -177,8 +181,8 @@ function releaseRules({ reasons, staleLimits }) {
       calibrates: { says: 'a holder released BUDGET or INELIGIBLE at their own route',
         holds: (s, m) => returnsClaim(s.before, m) && chosenByHolder(s.before, m) && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.before.actor?.route === s.before.item.route },
       releasedTwice: { says: 'this is the second chosen quality release since the last unhold or route change',
-        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && !m.on?.length && !INFRA_NOTE.test(m.note ?? '')
-          && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s).length === 2 },
+        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && (olderEngine(s.before, board.releaseTwiceEngine) || (!m.on?.length && !INFRA_NOTE.test(m.note ?? '')))
+          && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s, olderEngine(s.before, board.releaseTwiceEngine)).length === 2 },
     }),
   };
 }
