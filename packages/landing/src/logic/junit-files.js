@@ -8,6 +8,8 @@ export const JUNIT_FILE_ROWS = {
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
+  // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
+  crystal: row => (row.classname && /\.cr$/u.test(row.classname) ? row.classname : null),
   // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
   bun: row => row.classname || null,
   // Surefire writes a dotted class in classname (com.example.CalcTest), no file attribute; Maven's source layout holds the test.
