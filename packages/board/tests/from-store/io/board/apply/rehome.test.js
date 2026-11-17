@@ -15,7 +15,7 @@ import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
-test('a rehome destination import obeys lane and claimed item grants on independent replicas [E15,E21,H16]', t => {
+test('board.rehome.rehome-destination-import-obeys-lane-and: a rehome destination import obeys lane and claimed item grants on independent replicas [E15,E21,H16]', t => {
   const sourceProject = cellProject(t);
   const destinationProject = cellProject(t);
   const source = cellBoard(t, sourceProject.boardFile);

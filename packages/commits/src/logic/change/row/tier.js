@@ -40,19 +40,41 @@ export function tierRowChange(path, { before, after, ownsFile }) {
 export const BASELINE_TABLES = ['packages/gate/data/tests/test-fixtures.json', 'packages/gate/data/baselines/test-waits-baseline.json'];
 
 /**
+ * Split a ceiling document into its per-file rows (every row as `{rule: n}`) and the rest of the document.
+ * A table whose shape says `files` keeps its rows under that key; `bare` rows are counts, read as `{ count: n }`;
+ * a `total` beside the rows may fall but never rise, so it is not part of the rest.
+ *
+ * @param {{ files?: boolean, bare?: boolean } | undefined} shape
+ * @param {any} doc
+ * @returns {{ rows: Record<string, Record<string, number>>, rest: string, total: number | null }}
+ */
+function ceilingParts(shape, doc) {
+  const nested = shape?.files ? shape : null;
+  if (!nested) return { rows: doc, rest: '', total: null };
+  const { files, total, ...rest } = doc;
+  const rows = Object.fromEntries(Object.entries(files).map(([file, row]) => [file, nested.bare ? { count: row } : row]));
+  return { rows, rest: JSON.stringify(rest), total: typeof total === 'number' ? total : null };
+}
+
+/**
  * Prove a staged change to a ceiling baseline only adds, renames or lowers rows of files this lane owns, and never
  * raises a ceiling: a file already listed may not raise any rule, and the rows of newly listed files (a split's new
  * files) may total no more, per rule, than this change removed or lowered. Why: every view-lane test split was refused
  * because the rows were core's, though a split only moves ceilings and never adds to them [L3,C7].
  *
  * @param {string} path
- * @param {{ before: (path: string) => any, after: (path: string) => any, ownsFile: (file: string) => boolean }} reads
+ * @param {{ before: (path: string) => any, after: (path: string) => any, ownsFile: (file: string) => boolean, tables?: Record<string, { files?: boolean, bare?: boolean }> }} reads
+ *   `tables` adds the source ceiling tables the gate cell owns and names (its CEILING_ROW_TABLES), with each one's row shape.
  * @returns {{ allowed: boolean, problem: string | null }}
  */
-export function baselineRowChange(path, { before, after, ownsFile }) {
-  if (!BASELINE_TABLES.includes(path)) return { allowed: false, problem: null };
+export function baselineRowChange(path, { before, after, ownsFile, tables = {} }) {
+  const shape = Object.hasOwn(tables, path) ? tables[path] : null;
+  if (!BASELINE_TABLES.includes(path) && !shape) return { allowed: false, problem: null };
   try {
-    const old = json(before(path)), next = json(after(path));
+    const oldParts = ceilingParts(shape, json(before(path))), newParts = ceilingParts(shape, json(after(path)));
+    if (oldParts.rest !== newParts.rest) return { allowed: false, problem: `${path} changed outside its file rows` };
+    if (newParts.total !== null && oldParts.total !== null && newParts.total > oldParts.total) return { allowed: false, problem: `${path} total would rise; a ceiling is never raised` };
+    const old = oldParts.rows, next = newParts.rows;
     const freed = {}, added = {};
     for (const file of new Set([...Object.keys(old), ...Object.keys(next)])) {
       if (JSON.stringify(old[file]) === JSON.stringify(next[file])) continue;

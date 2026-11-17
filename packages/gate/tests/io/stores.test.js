@@ -346,3 +346,24 @@ test('#7015 clause 1: no store-file site in any package or app builds its name f
 test('#7013 clause 1: no store-file site under packages/link builds its name from a stemless template [CD2]', () => {
   assert.deepEqual(stemlessIn('packages/link/'), [], 'name each file from the link registry const storeName(key)');
 });
+
+test('#8623 clause 1: stats-history.jsonl, timer.guard.sqlite, timer.json and vendors.json are off writeOwnerDebt, each owned by its writer or marked repo-data, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  const settled = ['stats-history.jsonl', 'timer.guard.sqlite', 'timer.json', 'vendors.json'];
+  assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['stats-history.jsonl'].owner, 'packages/stats/src/io/time/history.js', 'the module that appends the history owns it');
+  assert.equal(registry.stores['timer.json'].owner, 'packages/gate/src/io/main/audit/state.js', 'the module that writes the timer owns it');
+  assert.equal(registry.stores['timer.guard.sqlite'].owner, 'packages/gate/src/io/main/audit/state.js');
+  assert.equal(registry.stores['vendors.json'].kind, 'repo-data', 'vendors.json is only read');
+  assert.equal(Object.values(baseline).filter(row => row['stats-history.jsonl']).length, 0, 'no second home names the history file');
+});
+
+test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store passes the write-owner check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+});

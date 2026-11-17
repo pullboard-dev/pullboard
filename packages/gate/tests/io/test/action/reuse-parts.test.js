@@ -45,7 +45,7 @@ function receipt(file, { inputKey, key, context }, status, request) {
   return { ...base, tap: { lines: ['ok 1 - probe'], counts: { passed: 1, failed: 0, skipped: 0, tests: 1 }, observedTests: 1 } };
 }
 
-test('clause 3 closure: editing a reached module re-keys only its file, and the stored companion receipt is still selected [C7,V4]', async () => {
+test('gate.io-test-action-reuse-parts.clause-3-closure-editing-a-reached: clause 3 closure: editing a reached module re-keys only its file, and the stored companion receipt is still selected [C7,V4]', async () => {
   const fx = fixture();
   try {
     const before = await keysAt(fx, fx.commit());
@@ -62,7 +62,7 @@ test('clause 3 closure: editing a reached module re-keys only its file, and the 
   } finally { fx.done(); }
 });
 
-test('clause 3 harness: changed harness bytes re-key every file, and a caller-selected reporter keeps every file running [C7,V4]', async () => {
+test('gate.io-test-action-reuse-parts.clause-3-harness-changed-harness-bytes: clause 3 harness: changed harness bytes re-key every file, and a caller-selected reporter keeps every file running [C7,V4]', async () => {
   const fx = fixture();
   try {
     const before = await keysAt(fx, fx.commit());
@@ -77,7 +77,7 @@ test('clause 3 harness: changed harness bytes re-key every file, and a caller-se
   } finally { fx.done(); }
 });
 
-test('clause 3 red: a red receipt wins over a green, is never reusable, and a worker request alone is not completed proof [C7,V4]', async () => {
+test('gate.io-test-action-reuse-parts.clause-3-red-a-red-receipt: clause 3 red: a red receipt wins over a green, is never reusable, and a worker request alone is not completed proof [C7,V4]', async () => {
   const fx = fixture();
   try {
     const keys = await keysAt(fx, fx.commit());
@@ -99,7 +99,7 @@ test('clause 3 red: a red receipt wins over a green, is never reusable, and a wo
   } finally { fx.done(); }
 });
 
-test('clause 3 environment: a material language change re-keys a file under the same input key, so another environment never reuses a green [C7,V4]', async () => {
+test('gate.io-test-action-reuse-parts.clause-3-environment-a-material-language: clause 3 environment: a material language change re-keys a file under the same input key, so another environment never reuses a green [C7,V4]', async () => {
   const fx = fixture();
   try {
     const commit = fx.commit();
@@ -110,7 +110,7 @@ test('clause 3 environment: a material language change re-keys a file under the 
   } finally { fx.done(); }
 });
 
-test('clause 1 transfer: a packed result imports into a second store for the requested keys only, with no fleet trip [C7,V4]', async () => {
+test('gate.io-test-action-reuse-parts.clause-1-transfer-a-packed-result: clause 1 transfer: a packed result imports into a second store for the requested keys only, with no fleet trip [C7,V4]', async () => {
   const fx = fixture();
   try {
     const keys = await keysAt(fx, fx.commit());

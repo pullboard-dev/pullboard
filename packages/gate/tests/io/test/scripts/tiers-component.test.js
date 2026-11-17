@@ -28,7 +28,7 @@ const sources = {
 /** Read one generated row by its stable repository-relative identity. */
 function row(manifest, file) { return manifest.files.find(row => row.file === file); }
 
-test('clause 1: a test importing two cells only through their index.js is T2 with its doors listed [C7]', t => {
+test('gate.io-test-scripts-tiers-component.a-test-importing-two-cells-only: clause 1: a test importing two cells only through their index.js is T2 with its doors listed [C7]', t => {
   const report = generateTestTiers(fixture(t, sources), { componentTier: true });
   assert.equal(row(report, 'test/doors.test.js').tier, 'T2');
   assert.deepEqual(row(report, 'test/doors.test.js').doors, ['packages/math/index.js', 'packages/text/index.js']);
@@ -36,13 +36,13 @@ test('clause 1: a test importing two cells only through their index.js is T2 wit
   assert.equal(row(report, 'test/single.test.js').tier, 'T1');
 });
 
-test('clause 2: a test with a CLI witness stays T3 [C7]', t => {
+test('gate.io-test-scripts-tiers-component.a-test-with-a-cli-witness: clause 2: a test with a CLI witness stays T3 [C7]', t => {
   const report = generateTestTiers(fixture(t, sources), { componentTier: true });
   assert.equal(row(report, 'test/cli.test.js').tier, 'T3');
   assert.equal(row(report, 'test/cli.test.js').doors, undefined);
 });
 
-test('clause 3: with componentTier off the tiers output equals today\'s [C7]', t => {
+test('gate.io-test-scripts-tiers-component.with-componenttier-off-the-tiers-output: clause 3: with componentTier off the tiers output equals today\'s [C7]', t => {
   const root = fixture(t, sources);
   const off = generateTestTiers(root);
   assert.deepEqual(generateTestTiers(root, { componentTier: false }), off);

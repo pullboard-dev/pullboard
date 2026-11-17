@@ -27,6 +27,7 @@ import {
   Refused,
 } from '../../../kernel/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { pendingFromJobRow } from '../../../config/index.js';
 import { laneNames } from '../../../seats/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
@@ -38,7 +39,7 @@ function selected(ctx, board, values, services) {
   const withCover = found => found;
   // A seat already holding a claim never takes the mandatory first review, so it skips that offer (#2978).
   const holding = store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id
-    && !store.pendingSubmitHandoff(board, item));
+    && !store.pendingSubmitHandoff(board, item, { fromJobRow: pendingFromJobRow() }));
   const mandatory = holding ? null : takeSelection.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
@@ -46,7 +47,7 @@ function selected(ctx, board, values, services) {
   // Items this call already passed over (an unbuildable bar, #5786) are never selected again.
   const omitted = values.omitIds ?? [];
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omitted.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
     return { ...routing, review: false, held: false };
@@ -67,7 +68,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     const me = whoAmI(ctx, board);
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
       skipIds: agentSessionDigest ? ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) : [] })?.mandatory) return null;
-    return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
+    return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes, pendingFromJobRow: pendingFromJobRow(),
       workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
   });
 }

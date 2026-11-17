@@ -21,7 +21,7 @@ import { waitForCondition } from '../../../fixtures/runner/holders.js';
 
 const RUNNER = resolve(import.meta.dirname, '../../../../../../apps/cli/src/io/run/tests.js');
 
-test('a real run drains its late-writing child and removes the sandbox once [C7]', async t => {
+test('gate.io-run-tests-enotempty.a-real-run-drains-its-late: a real run drains its late-writing child and removes the sandbox once [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-run-'));
   const marker = join(directory, 'waiting.json');
   const release = join(directory, 'release');
@@ -66,7 +66,7 @@ const sandbox = process.env.TMPDIR;
 writeFileSync(${JSON.stringify(sandboxFile)}, sandbox);
 channel('pullboard:test-child-drain').subscribe(event => writeFileSync(${JSON.stringify(marker)}, JSON.stringify(event)));
 process.once('exit', () => writeFileSync(${JSON.stringify(exiting)}, JSON.stringify({ writerFinished: existsSync(${JSON.stringify(done)}) })));
-test('the owned child writes during runner cleanup [C7]', async () => {
+test('gate.io-run-tests-enotempty.the-owned-child-writes-during-runner: the owned child writes during runner cleanup [C7]', async () => {
   const env = { ...process.env };
   delete env.NODE_TEST_CONTEXT; // This finite writer is not another native test worker.
   const child = spawn(process.execPath, [${JSON.stringify(join(directory, 'writer.cjs'))}, sandbox, ${JSON.stringify(release)}, ${JSON.stringify(done)}],
@@ -101,7 +101,7 @@ test('the owned child writes during runner cleanup [C7]', async () => {
   assert.equal(existsSync(readFileSync(sandboxFile, 'utf8')), false, 'the real runner removed its sandbox without a second fixture cleanup');
 });
 
-test('an unverified child keeps cleanup a warning and preserves the sandbox for the sweep [C7]', t => {
+test('gate.io-run-tests-enotempty.an-unverified-child-keeps-cleanup-a: an unverified child keeps cleanup a warning and preserves the sandbox for the sweep [C7]', t => {
   const sandbox = mkdtempSync(join(tmpdir(), 'pullboard-cleanup-warning-'));
   t.after(() => rmSync(sandbox, { recursive: true, force: true }));
   writeFileSync(join(sandbox, TEST_CHILD_CLEANUP_FAILED), 'owned child close not observed\n');

@@ -565,7 +565,9 @@ function shadowed(db, move, now, write) {
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
       try { result = write(); } catch (error) {
-        seen = { move: move.name, job: move.job, decided, wrote: { refused: error.code } };
+        // A hop fence is the gate hop table's refusal, composed into the writer's move: the job table that patched has the hop's refusal to follow, so the compare reads it as the same refusal [C7,#9784].
+        const hopFence = error.code === 'HOP_FENCED' && !answer.threw && !answer.refused ? { refused: error.code } : decided;
+        seen = { move: move.name, job: move.job, decided: hopFence, wrote: { refused: error.code } };
         throw error;
       }
       shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });

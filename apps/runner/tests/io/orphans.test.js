@@ -56,7 +56,7 @@ const request = liveJobs => ({ nonce: randomUUID(), idle: true, ...(liveJobs ? {
 /** The idle reply as the runner's health entry serves it, with the real process observer. */
 const idleReply = (root, body) => runnerIdleReply(root, body, undefined, orphanObserver);
 
-test('a worker whose controller no longer holds its job is stopped, and the next probe proves the runner idle [C7]', async t => {
+test('runner.orphans.a-worker-whose-controller-no-longer-holds: a worker whose controller no longer holds its job is stopped, and the next probe proves the runner idle [C7]', async t => {
   const box = runner(t);
   const orphan = await box.worker('2828');
   const exited = new Promise(resolve => orphan.once('exit', (code, signal) => resolve({ code, signal })));
@@ -72,7 +72,7 @@ test('a worker whose controller no longer holds its job is stopped, and the next
   assert.equal(after.writable, true);
 });
 
-test('a live controller job costs only its own slot: the runner is proven idle for the free ones [C7]', async t => {
+test('runner.orphans.a-live-controller-job-costs-only-its: a live controller job costs only its own slot: the runner is proven idle for the free ones [C7]', async t => {
   const box = runner(t);
   const live = await box.worker('3001');
   const reply = idleReply(box.root, request(['3001']));
@@ -82,7 +82,7 @@ test('a live controller job costs only its own slot: the runner is proven idle f
   assert.equal(live.signalCode, null);
 });
 
-test('without a live job list, or for a young holder, the whole-host idle proof is unchanged and nothing is stopped [C7]', async t => {
+test('runner.orphans.without-a-live-job-list-or-for: without a live job list, or for a young holder, the whole-host idle proof is unchanged and nothing is stopped [C7]', async t => {
   const box = runner(t);
   const old = await box.worker('2828');
   const legacy = idleReply(box.root, request());

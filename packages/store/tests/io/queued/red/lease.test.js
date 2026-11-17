@@ -24,7 +24,7 @@ function redFixture(t, leaseMs) {
   return { board, builder, id };
 }
 
-test('clause 1: queuedReds reads the item through current(), and the notice says the claim lapsed when it did [SM13]', (t) => {
+test('store.io-queued-red-lease.queuedreds-reads-the-item-through-current: clause 1: queuedReds reads the item through current(), and the notice says the claim lapsed when it did [SM13]', (t) => {
   const lapsed = redFixture(t, -MINUTE);
   const [red] = queuedReds(lapsed.board, lapsed.builder);
   assert.equal(red.lapsed, true);

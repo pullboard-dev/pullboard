@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusSoloFileSeconds,
+  censusFileKillSeconds,
   censusJobsPerRunner,
   censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
@@ -62,8 +63,11 @@ export {
   tableReplayEnabled,
   overlapStaticProofEnabled,
   excuseMainTimingReds,
+  pendingFromJobRow,
   recoverFromJobRow,
+  residentChecks,
   gateComponentTier,
+  landingCargoFailures,
   landingJunitFailures,
   gateJunitReport,
   testNiceEnabled,
@@ -72,6 +76,7 @@ export {
   endStaleJobsEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
+  receiptMissingCauseEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
@@ -79,6 +84,7 @@ export {
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
   censusRerunOnSettleEnabled,
+  censusSkipUnchangedEnabled,
   registryStrictEnabled,
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
@@ -86,6 +92,7 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  adapterLintEnvEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
@@ -267,7 +274,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
+export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, reachableDispatcherOn, readThinCommands, relayPruneReceipts, runnerOnlyCompose, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';

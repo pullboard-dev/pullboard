@@ -42,7 +42,7 @@ function selected(box, base, commit, files) {
   return result;
 }
 
-test('quoted input markers in leading prose leave real static importer closures known [V4,C7]', t => {
+test('gate.io-test-selection.quoted-input-markers-in-leading-prose: quoted input markers in leading prose leave real static importer closures known [V4,C7]', t => {
   const box = graph(t);
   const prose = '/**\n * Example header: /** @pullboard-test-input fixtures/missing.json *\\/\n */\n';
   box.put('src/prose.js', prose + 'export const value = 1;\n');
@@ -62,7 +62,7 @@ test('quoted input markers in leading prose leave real static importer closures 
   assert.ok(testClosures(box.root, changed).closures.get('test/reader.test.js').files.includes('input.json'));
 });
 
-test('malformed, unmatched and unsafe real input annotations retain conservative fallback [V4,C7]', t => {
+test('gate.io-test-selection.malformed-unmatched-and-unsafe-real-input: malformed, unmatched and unsafe real input annotations retain conservative fallback [V4,C7]', t => {
   for (const header of [
     '/** @pullboard-test-input */',
     '/* @pullboard-test-input fixtures/existing.json */',
@@ -88,7 +88,7 @@ test('malformed, unmatched and unsafe real input annotations retain conservative
   }
 });
 
-test('declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
+test('gate.io-test-selection.declared-global-file-readers-and-ordinary: declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
   const box = graph(t);
   box.put('src/widget.js', 'export const gate = 1;\n');
   box.put('test/widget.test.js', "import '../src/widget.js';\n");
@@ -102,7 +102,7 @@ test('declared global-file readers and ordinary global module importers select t
   selected(box, gate, metadata, ['packages/gate/tests/logic/reach.test.js']);
 });
 
-test('declared non-JS inputs preserve old and new readers through deletion and glob expansion [V4,C7]', t => {
+test('gate.io-test-selection.declared-non-js-inputs-preserve-old: declared non-JS inputs preserve old and new readers through deletion and glob expansion [V4,C7]', t => {
   const box = graph(t);
   box.put('fixtures/first.json', '{"value":1}\n');
   box.put('fixtures/second.json', '{"value":2}\n');
@@ -116,7 +116,7 @@ test('declared non-JS inputs preserve old and new readers through deletion and g
   selected(box, deleted, added, ['test/data.test.js']);
 });
 
-test('declared computed and CommonJS loaders retain transitive dependencies in selections and closures [V4,C7]', t => {
+test('gate.io-test-selection.declared-computed-and-commonjs-loaders-retain: declared computed and CommonJS loaders retain transitive dependencies in selections and closures [V4,C7]', t => {
   const box = graph(t);
   box.put('src/loader.cjs', '/** @pullboard-module-loads src/value.js */\nmodule.exports = () => require(process.env.TARGET);\n');
   box.put('test/commonjs.test.js', "import '../src/loader.cjs';\n");
@@ -130,7 +130,7 @@ test('declared computed and CommonJS loaders retain transitive dependencies in s
   assert.ok(closure.files.includes('src/value.js'));
 });
 
-test('dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
+test('gate.io-test-selection.dependency-only-changes-retain-roots-with: dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
   rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.cjs', "module.exports = require('./value.js');\n");
@@ -145,7 +145,7 @@ test('dependency-only changes retain roots with an undeclared CommonJS reader wi
   selected(box, base, commit, ['test/reader.test.js']);
 });
 
-test('dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
+test('gate.io-test-selection.dependency-only-changes-retain-roots-with-2: dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
   rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.js', "const target = './value.js'; export const value = await import(target);\n");
@@ -160,7 +160,7 @@ test('dependency-only changes retain roots with an undeclared computed product l
   selected(box, base, commit, ['test/reader.test.js']);
 });
 
-test('unresolved data and executable loaders remain named full fallbacks without evaluating code [V4,C7]', t => {
+test('gate.io-test-selection.unresolved-data-and-executable-loaders-remain: unresolved data and executable loaders remain named full fallbacks without evaluating code [V4,C7]', t => {
   const box = graph(t);
   const base = box.commit();
   box.put('unknown.bin', 'opaque input\n');
@@ -181,7 +181,7 @@ test('unresolved data and executable loaders remain named full fallbacks without
   assert.match(loader.reason, /CommonJS.*src\/opaque\.js/u);
 });
 
-test('declaration text inside executable strings cannot hide an unknown non-JS input [V4,C7]', t => {
+test('gate.io-test-selection.declaration-text-inside-executable-strings-cannot: declaration text inside executable strings cannot hide an unknown non-JS input [V4,C7]', t => {
   const box = graph(t);
   box.put('test/fake.test.js', 'const banner = `/** @pullboard-test-input hidden.json */`;\n');
   const base = box.commit();
@@ -218,7 +218,7 @@ for (const path of ['pullboard.json', 'package-lock.json', '.githooks/pre-commit
   });
 }
 
-test('a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
+test('gate.io-test-selection.a-declared-data-symlink-cannot-supply: a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
   const box = graph(t);
   box.put('test/data.test.js', '/** @pullboard-test-input input.json */\n');
   box.put('input.json', '{}\n');
@@ -232,7 +232,7 @@ test('a declared data symlink cannot supply complete in-repository reader custod
 });
 
 
-test("an explicit data header preserves the same reader's leading source-tree declaration [V4,C7]", t => {
+test('gate.io-test-selection.an-explicit-data-header-preserves-the: an explicit data header preserves the same reader\'s leading source-tree declaration [V4,C7]', t => {
   const box = graph(t);
   box.put('input.json', '{}\n');
   box.put('test/tree.test.js', '/** @pullboard-test-input input.json */\n/** @pullboard-test-input source-tree */\n');
@@ -243,7 +243,7 @@ test("an explicit data header preserves the same reader's leading source-tree de
 });
 
 
-test('exact named TypeScript stripping supplies a non-loader import edge without executing it [V4,C7]', t => {
+test('gate.io-test-selection.exact-named-typescript-stripping-supplies-a: exact named TypeScript stripping supplies a non-loader import edge without executing it [V4,C7]', t => {
   const box = graph(t);
   box.put('src/utility.js', 'import { stripTypeScriptTypes } from "node:module"; export const parse = text => stripTypeScriptTypes(text);\n');
   box.put('test/utility.test.js', "import '../src/utility.js';\n");
@@ -254,7 +254,7 @@ test('exact named TypeScript stripping supplies a non-loader import edge without
   assert.equal(testClosures(box.root, after).closures.get('test/utility.test.js').reason, '');
 });
 
-test('non-loader utility recognition cannot hide mixed, namespace, default or executable loading [V4,C7]', t => {
+test('gate.io-test-selection.non-loader-utility-recognition-cannot-hide: non-loader utility recognition cannot hide mixed, namespace, default or executable loading [V4,C7]', t => {
   const box = graph(t);
   box.put('test/utility.test.js', "import '../src/utility.js';\n");
   const sources = [

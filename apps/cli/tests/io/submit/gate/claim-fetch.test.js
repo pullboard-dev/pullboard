@@ -48,7 +48,7 @@ function fixture(t, { claim = 'branch' } = {}) {
   put(trunk, 'packages/gate/index.js', 'export async function submitGatePlan() { return { proofFiles: [] }; }\n');
   put(trunk, 'packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put(trunk, 'bin/cells-submit-checks.js', 'export async function requireSubmitCells() { return {}; }\n');
-  put(trunk, 'packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put(trunk, 'apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put(trunk, 'packages/sandbox/index.js', `export { submissionPaths } from ${JSON.stringify(SANDBOX)};\n`);
   const main = commit(trunk, 'main');
   // Another item's commit, on its own branch only: the claim base #5660 met on #5658's branch.
