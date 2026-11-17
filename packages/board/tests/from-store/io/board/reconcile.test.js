@@ -1,24 +1,24 @@
 /** The reconciler tick ends every row of the design's disagreement table in the action that row names, reading the board read-only, at most every 5 s [B2,P7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { LOST_GRACE_MS } from '../../../index.js';
-import { RECONCILE_EVERY_MS } from '../../../index.js';
-import { RUN_APPLIED_EVENT } from '../../../index.js';
-import { RUN_QUEUED_EVENT } from '../../../index.js';
-import { applyRunReceipt } from '../../../index.js';
-import { boardRun } from '../../../index.js';
-import { disagreementAction } from '../../../index.js';
-import { openRunsStore } from '../../../index.js';
-import { pacedReconciler } from '../../../index.js';
-import { queueRun } from '../../../index.js';
-import { reconcileTick } from '../../../index.js';
-import { recordQueuedRun } from '../../../index.js';
-import { runRowsFromEvents } from '../../../index.js';
-import { runsPort } from '../../../index.js';
-import { finishJob } from '../../../../jobs/index.js';
-import { jobView } from '../../../../jobs/index.js';
-import { writeStep } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { LOST_GRACE_MS } from '../../../../../store/index.js';
+import { RECONCILE_EVERY_MS } from '../../../../../store/index.js';
+import { RUN_APPLIED_EVENT } from '../../../../../store/index.js';
+import { RUN_QUEUED_EVENT } from '../../../../../store/index.js';
+import { applyRunReceipt } from '../../../../../store/index.js';
+import { boardRun } from '../../../../../store/index.js';
+import { disagreementAction } from '../../../../../store/index.js';
+import { openRunsStore } from '../../../../../store/index.js';
+import { pacedReconciler } from '../../../../../store/index.js';
+import { queueRun } from '../../../../../store/index.js';
+import { reconcileTick } from '../../../../../store/index.js';
+import { recordQueuedRun } from '../../../../../store/index.js';
+import { runRowsFromEvents } from '../../../../../store/index.js';
+import { runsPort } from '../../../../../store/index.js';
+import { finishJob } from '../../../../../jobs/index.js';
+import { jobView } from '../../../../../jobs/index.js';
+import { writeStep } from '../../../../../jobs/index.js';
 
 const MINUTE = 60_000;
 
