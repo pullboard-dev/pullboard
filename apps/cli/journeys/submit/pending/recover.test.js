@@ -19,33 +19,27 @@ function gateJobs(fixture, item) {
   try { return runs.prepare("SELECT job_id FROM job WHERE job_item = ? AND job_kind = 'gate' ORDER BY job_id").all(item).map(row => row.job_id); } finally { runs.close(); }
 }
 
-/** Lose one gate offer, set submit.recoverFromJobRow, and submit the item again from the same seat. */
-async function submitAgain(t, timing, recoverFromJobRow) {
-  const fixture = await threeReplicaFixture(t, timing);
-  const { item, job } = await lostGateOffer(fixture, timing);
+/** Submit the item again from the seat that lost the offer, under the given submit.recoverFromJobRow. */
+async function submitAgain(fixture, timing, item, recoverFromJobRow) {
   fixtureMachineSettings(fixture.envs[0].PULLBOARD_MACHINE_HOME, { submit: { recoverFromJobRow } });
-  const again = await timing.wait('submit the item again', () => cliResult(fixture.worktrees[0], fixture.envs[0], 'submit', String(item), '--no-next'));
-  return { fixture, item, job, again, detail: JSON.stringify(again.document).slice(0, 1200) };
+  const again = await timing.wait(`submit the item again with recoverFromJobRow ${recoverFromJobRow ? 'on' : 'off'}`, () => cliResult(fixture.worktrees[0], fixture.envs[0], 'submit', String(item), '--no-next'));
+  return { again, detail: JSON.stringify(again.document).slice(0, 1200) };
 }
 
-test('clause 1: [C7,P7,#9740] with submit.recoverFromJobRow on, the next submit recovers the offered gate from the runner job row and posts no second offer', { timeout: 170_000 }, async (t) => { // budget: one three-replica setup, a lost offer and one recovering submit.
+test('clause 1 and clause 2: [C7,P7,#9740] a lost gate-offer reply is recovered from the runner job row with submit.recoverFromJobRow on, with no second offer, and not with it off', { timeout: 170_000 }, async (t) => { // budget: one three-replica setup, a lost offer and two submits.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
-    const { fixture, item, job, again, detail } = await submitAgain(t, timing, true);
-    assert.equal(again.status, 0, detail);
-    assert.equal(again.document.recovered, true, detail);
-    assert.equal(again.document.gateJob, job, 'the recovery names the gate job the lost offer made');
-    assert.deepEqual(gateJobs(fixture, item), [job], 'no second gate offer was posted');
-    timing.finish(['cloning three replicas', 'lost gate offer']);
-  });
-});
-
-test('clause 2: [C7,P7,#9740] with submit.recoverFromJobRow off, the job-row recovery does not run and the offered gate job is unchanged', { timeout: 170_000 }, async (t) => { // budget: one three-replica setup, a lost offer and one submit.
-  const timing = threeReplicaPhaseCapture(t);
-  return timing.run(async () => {
-    const { fixture, item, job, again, detail } = await submitAgain(t, timing, false);
-    assert.notEqual(again.document?.recovered, true, detail);
-    assert.ok(gateJobs(fixture, item).includes(job), 'the lost offer\'s job row is still there');
+    const fixture = await threeReplicaFixture(t, timing);
+    const { item, job } = await lostGateOffer(fixture, timing);
+    const off = await submitAgain(fixture, timing, item, false);
+    assert.notEqual(off.again.document?.recovered, true, off.detail);
+    const afterOff = gateJobs(fixture, item);
+    assert.ok(afterOff.includes(job), `with the setting off the lost offer's job row is still there: ${off.detail}`);
+    const on = await submitAgain(fixture, timing, item, true);
+    assert.equal(on.again.status, 0, on.detail);
+    assert.equal(on.again.document.recovered, true, on.detail);
+    assert.equal(on.again.document.gateJob, job, 'the recovery names the gate job the lost offer made');
+    assert.deepEqual(gateJobs(fixture, item), afterOff, 'recovery posted no second offer');
     timing.finish(['cloning three replicas', 'lost gate offer']);
   });
 });
