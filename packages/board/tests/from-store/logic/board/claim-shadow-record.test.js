@@ -2,10 +2,10 @@
 /** @pullboard-test-input packages/store/src/io/board/shadow-record.js packages/store/src/io/board/claim.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 const AT = Date.parse('2026-11-15T12:00:00.000Z');
 

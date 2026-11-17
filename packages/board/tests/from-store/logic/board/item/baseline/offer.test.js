@@ -12,9 +12,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from "../../../../../index.js";
-import * as items from "../../../../../../items/index.js";
-import { openCellBoard as openBoard } from "../../../../fixtures/cell.js";
+import * as store from "../../../../../../../store/index.js";
+import * as items from "../../../../../../../items/index.js";
+import { openCellBoard as openBoard } from "../../../../../fixtures/cell-board.js";
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
   assert.equal(typeof items.acceptItemOffer, 'function', 'the shared item-offer contract must exist');

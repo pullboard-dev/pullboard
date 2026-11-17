@@ -1,12 +1,12 @@
 /** With runs_store on, the submit hand-off record lives on the gate job's run row, written in the move and read from there [B2,M3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { writeBoardMeta } from '../../../../src/io/board/meta.js';
-import { handoffRecord } from '../../../../index.js';
-import { handoffRecords } from '../../../../index.js';
-import { saveSubmitHandoff as recordSubmitHandoff } from '../../../../index.js';
-import { jobView } from '../../../../../jobs/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { writeBoardMeta } from '../../../../../../store/index.js';
+import { handoffRecord } from '../../../../../../store/index.js';
+import { handoffRecords } from '../../../../../../store/index.js';
+import { saveSubmitHandoff as recordSubmitHandoff } from '../../../../../../store/index.js';
+import { jobView } from '../../../../../../jobs/index.js';
 
 const record = (id, state, extra = {}) => ({ version: 1, id, agentId: 'core-1', commit: 'c'.repeat(40), main: 'd'.repeat(40), digest: 'x', state, ...extra });
 const runRow = (board, job) => board.db.prepare('SELECT * FROM run WHERE run_job = ?').get(job);

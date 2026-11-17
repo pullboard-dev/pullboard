@@ -2,16 +2,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
-import * as store from '../../../../index.js';
-import { exportBoard } from '../../../../index.js';
-import { importBoard } from '../../../../index.js';
-import { appliedSequence } from '../../../../../state/index.js';
-import { applyEngineMove } from '../../../../../state/index.js';
-import { prepareEngineMove } from '../../../../../state/index.js';
-import { FILE_GROWTH_NOTICE_ENGINE } from '../../../../../state/light.js';
-import { submitFixture } from '../../../fixtures/submit.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
+import * as store from '../../../../../../store/index.js';
+import { exportBoard } from '../../../../../../store/index.js';
+import { importBoard } from '../../../../../../store/index.js';
+import { appliedSequence } from '../../../../../../state/index.js';
+import { applyEngineMove } from '../../../../../../state/index.js';
+import { prepareEngineMove } from '../../../../../../state/index.js';
+import { FILE_GROWTH_NOTICE_ENGINE } from '../../../../../../state/light.js';
+import { submitFixture } from '../../../../../../store/tests/fixtures/submit.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 
 const HOUR = 60 * 60 * 1000;
 /** Seed only private claim state, using a real project and its normal board file. */

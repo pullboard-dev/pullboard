@@ -1,13 +1,13 @@
 /** Rejected work comes before new work for every seat in its lane, as a preference, never a reservation [C7,N2,#5765]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../index.js';
-import { cellBoard } from '../fixtures/cell.js';
-import { addItem } from '../../index.js';
-import { register } from '../../index.js';
-import { submitFixture } from '../fixtures/submit.js';
-import { REJECTED_FIRST_ENGINE } from '../../../state/index.js';
-import { STUCK_RETURN_MS } from '../../src/logic/rework.js';
+import * as store from '../../../../store/index.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { addItem } from '../../../../store/index.js';
+import { register } from '../../../../store/index.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
+import { REJECTED_FIRST_ENGINE } from '../../../../state/index.js';
+import { STUCK_RETURN_MS } from '../../../../store/index.js';
 
 const COMMIT = 'a'.repeat(40);
 
