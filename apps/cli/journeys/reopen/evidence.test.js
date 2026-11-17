@@ -29,7 +29,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(e2e);
 
-test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
+test('cli.journeys-reopen-evidence.a-landing-reopen-carries-the-exact: a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
   // The default shape: no affectedTests, so the landing gate runs the whole suite and sees the red file, as in land/red-returns [C7].
   const configPath = join(box.repo, 'pullboard.json');
@@ -80,7 +80,7 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   } finally { store.closeBoard(replica); }
 });
 
-test('long assertion evidence is explicitly truncated [C7,B22]', () => {
+test('cli.journeys-reopen-evidence.long-assertion-evidence-is-explicitly-truncated: long assertion evidence is explicitly truncated [C7,B22]', () => {
   const output = `not ok 1 - long failure\n  location: /project/test/a.test.js:1:1\n  error: ${'x'.repeat(3000)}\n  ...\n`;
   const [failure] = landingFailures(output, '/project');
   assert.match(failure.assertion, /truncated at 2 KB/u);
@@ -89,7 +89,7 @@ test('long assertion evidence is explicitly truncated [C7,B22]', () => {
   assert.doesNotMatch(unicode.assertion, /\uFFFD/u, 'truncation never splits a UTF-8 character');
 });
 
-test('the spec reporter preserves the assertion with its source case [C7,B22]', () => {
+test('cli.journeys-reopen-evidence.the-spec-reporter-preserves-the-assertion: the spec reporter preserves the assertion with its source case [C7,B22]', () => {
   const output = 'test at test/a.test.js:4:1\n✖ nested case (2ms)\n  error: expected 7, got 9\n';
   const [failure] = landingFailures(output, '/project');
   assert.equal(failure.file, 'test/a.test.js');
@@ -97,7 +97,7 @@ test('the spec reporter preserves the assertion with its source case [C7,B22]', 
   assert.equal(failure.assertion, 'error: expected 7, got 9');
 });
 
-test('nested TAP failures retain their parent and subtest names [C7,B22]', () => {
+test('cli.journeys-reopen-evidence.nested-tap-failures-retain-their-parent: nested TAP failures retain their parent and subtest names [C7,B22]', () => {
   const output = '# Subtest: parent case\n    # Subtest: child case\n    not ok 1 - child case\n      location: /project/test/a.test.js:1:1\n      error: wrong result\n      expected: 7\n      actual: 9\n      ...\n';
   const [failure] = landingFailures(output, '/project');
   assert.deepEqual(failure.caseNames, ['parent case', 'child case']);
@@ -105,7 +105,7 @@ test('nested TAP failures retain their parent and subtest names [C7,B22]', () =>
   assert.match(failure.assertion, /actual: 9/u);
 });
 
-test('equally named failures in different parent cases remain distinct [C7,B22]', () => {
+test('cli.journeys-reopen-evidence.equally-named-failures-in-different-parent: equally named failures in different parent cases remain distinct [C7,B22]', () => {
   const output = ['first', 'second'].map(parent => `# Subtest: ${parent}\n    # Subtest: child\n    not ok 1 - child\n      location: /project/test/a.test.js:1:1\n      error: ${parent} failure\n      ...\n`).join('');
   const failures = landingFailures(output, '/project');
   assert.deepEqual(failures.map(row => row.caseNames), [['first', 'child'], ['second', 'child']]);
