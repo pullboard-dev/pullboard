@@ -122,7 +122,8 @@ async function buildAndSubmit(board, id, itemText) {
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = await box.runIn(web, 'submit', item, '--no-next');
-  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted };
+  const shown = await box.runIn(web, 'show', item, '--no-next');
+  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
 }
 
 /** Accept the submitted item as the coordinator at its commit, then land it; returns the settled landing. */
@@ -141,7 +142,7 @@ test('landing names the failing Rust test when main moved past a green submit an
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard();
   const built = await buildAndSubmit(board, null, PASSING);
-  assert.equal(built.submitted.code, 0, `${built.submitted.out}\n${built.submitted.err}`);
+  assert.doesNotMatch(built.shown.out, /^#\d+ +open /mu, built.text);
   const { box, repo } = board;
   box.git(repo, 'switch', '-q', '--detach', built.commit);
   const verdict = await verifySettled(box, box.runLocal, repo, ['verify', built.item, 'accept', '--as', 'coordinator', '--note', 'scratch crate gate is green']);

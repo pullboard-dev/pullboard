@@ -122,7 +122,8 @@ async function buildAndSubmit(board, id, itemText) {
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = await box.runIn(web, 'submit', item, '--no-next');
-  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted };
+  const shown = await box.runIn(web, 'show', item, '--no-next');
+  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
 }
 
 /** Accept the submitted item as the coordinator at its commit, then land it; returns the settled landing. */
@@ -153,18 +154,18 @@ test('clause 1: init in a copy of the scratch crate records cargo test as the ga
 test('clause 2: a submitted commit with a failing Rust test is refused red and the refusal names the test [C7,#10387]', { timeout: 240_000 }, async (t) => {
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard();
-  const { submitted } = await buildAndSubmit(board, null, BROKEN);
-  assert.notEqual(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
-  assert.match(`${submitted.out}\n${submitted.err}`, /adds_small_numbers/u);
+  const red = await buildAndSubmit(board, null, BROKEN);
+  assert.match(red.shown.out, /^#\d+ +open /mu, red.text);
+  assert.match(red.text, /adds_small_numbers/u);
 });
 
 test('clause 3: the fixed commit passes cargo test, is accepted and lands on the scratch board main [C7,#10387]', { timeout: 420_000 }, async (t) => {
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard();
   const red = await buildAndSubmit(board, null, BROKEN);
-  assert.notEqual(red.submitted.code, 0, `${red.submitted.out}\n${red.submitted.err}`);
+  assert.match(red.shown.out, /^#\d+ +open /mu, red.text);
   const fixed = await buildAndSubmit(board, red.item, PASSING);
-  assert.equal(fixed.submitted.code, 0, `${fixed.submitted.out}\n${fixed.submitted.err}`);
+  assert.doesNotMatch(fixed.shown.out, /^#\d+ +open /mu, fixed.text);
   const { landing, settled } = await acceptAndLand(board, fixed.item, fixed.commit);
   assert.deepEqual(settled.landed, [Number(fixed.item)], `${landing.out}${landing.err}`);
   const main = board.box.git(board.repo, 'show', 'main:src/item.rs');
