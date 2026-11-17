@@ -30,7 +30,7 @@ test('clause 1: read.thinCommands defaults to false, is listed with a descriptio
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
   assert.ok(unset.label, 'the row carries a plain label');
-  assert.match(unset.description ?? JSON.stringify(unset), /thin doors/u);
+  assert.match(unset.description ?? JSON.stringify(unset), /thin read doors/u);
   assert.equal(withSettings({}, readThinCommands), false);
   assert.equal(withSettings({ read: { thinCommands: true } }, readThinCommands), true);
   assert.equal(withSettings({ read: { thinCommands: false } }, readThinCommands), false);
