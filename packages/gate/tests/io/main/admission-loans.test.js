@@ -98,7 +98,7 @@ test('sequential children share one group', { timeout: 45000 }, async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
+test('clause 1: an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
@@ -111,7 +111,7 @@ import { awaitNestedRun } from ${JSON.stringify(poolModule)};
 // slots to the home these nested runs inherit, or two seat tests share two slots and one waits 30 s for the reserve [C7].
 mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
 writeFileSync(process.env.PULLBOARD_MACHINE_HOME + '/settings.json', JSON.stringify({ gateSlots: 4, browserSlots: 1 }));
-test('clause 1: explicit wait contracts finish within the 10 s budget [C7]', { timeout: 10_000 }, async (t) => {
+test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
   const start = () => {
     const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(root)}, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.resume(); child.stderr.resume();
