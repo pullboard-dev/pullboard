@@ -19,7 +19,7 @@ function evidenceBox(t) {
   return { root, counter, readData: evidenceReader({ scratch, root, counter }) };
 }
 
-test('private flake evidence keeps real bytes and refuses source paths and symlinks [C7,H16]', t => {
+test('git.flakes.private-evidence: private flake evidence keeps real bytes and refuses source paths and symlinks [C7,H16]', t => {
   const box = evidenceBox(t);
   writeFileSync(box.counter, 'actual counter bytes\n');
   assert.equal(box.readData(box.counter, 'utf8'), 'actual counter bytes\n');

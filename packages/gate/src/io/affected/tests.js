@@ -34,6 +34,8 @@ import {
 } from '../../../../codemap/index.js';
 import { newPackageCliReach } from '../../logic/reach.js';
 import { newKeylessImports } from '../../logic/reach.js';
+import { changedUnitManifest } from '../../logic/selection-unit.js';
+import { selectionUnits } from '../../logic/selection-unit.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -669,16 +671,33 @@ export function selectDeclaredSuites(changed, suites) {
 }
 
 /**
+ * Pick selection units (Go package, Rust crate, C# or Elixir project) from the changed paths, reading the manifests from the repo file list.
+ * A changed manifest or a path under no unit returns the full gate with its reason; nothing is guessed [C7].
+ *
+ * @param {string} root
+ * @param {string} unit - The gate.selectionUnit value.
+ * @param {string[]} changed - Repo-relative changed paths.
+ * @returns {{full:boolean, reason:string, files:string[]}} `files` holds the units.
+ */
+function selectUnits(root, unit, changed) {
+  if (!changed.length) return { full: true, reason: 'no changed path to select units for', files: [] };
+  const manifest = changedUnitManifest(changed);
+  if (manifest) return { full: true, reason: `SELECTION_UNIT_MANIFEST: ${manifest} changes how every unit builds`, files: [] };
+  const picked = selectionUnits(unit, changed, selectionGit(root, ['ls-files', '-z']).split('\0').filter(Boolean));
+  return { full: picked.full, reason: picked.reason ?? '', files: picked.units };
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean}} options - namedImports defaults to gate.namedImportSelection.
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean, unit?:string}} options - namedImports defaults to gate.namedImportSelection; unit is gate.selectionUnit, and any value but file returns units from the changed paths instead of test files [C7].
  * @returns {{full:boolean, reason:string, files:string[]}}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports, unit = 'file' }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -691,6 +710,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+    // A selection unit other than file picks units from the changed paths and the repo's manifests, never from the JavaScript import graph [C7].
+    if (unit !== 'file') return selectUnits(root, unit, changed);
     // A repo that declares affectedSuites selects by folder, never by import graph; without the key nothing changes.
     if (suites && typeof suites === 'object' && Object.keys(suites).length) return selectDeclaredSuites(changed, suites);
     const changedDocs = changed.filter(path => DOC.test(path));

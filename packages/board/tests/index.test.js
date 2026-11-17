@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** The board composition root lives in a package: it opens a real board with every port composed and imports no app [C7]. */
 /** @pullboard-world-pin: the last clause-1 test reads the cell's own three source files to prove none reaches an app. */
 import assert from 'node:assert/strict';

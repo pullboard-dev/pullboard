@@ -49,7 +49,7 @@ async function landing(t, collectAll) {
   return { result, log: log.join(''), commands };
 }
 
-test('clause 1: with collect-all on, a red file leaves the run red but collected, every file accounted and the suite collection complete [B3,C7]', async t => {
+test('landing.collect.with-collect-all-on-a-red: clause 1: with collect-all on, a red file leaves the run red but collected, every file accounted and the suite collection complete [B3,C7]', async t => {
   const { result, log, commands } = await landing(t, true);
   assert.equal(result.isGreen, false);
   assert.match(commands[0], /PULLBOARD_LANDING_COLLECT_ALL=1/u, 'the shard is told to collect every failure');
@@ -62,7 +62,7 @@ test('clause 1: with collect-all on, a red file leaves the run red but collected
   assert.deepEqual(result.shards.map(shard => shard.status), ['red']);
 });
 
-test('clause 1: with collect-all off, the same red file ends the run at its first failure and prints no collection report [B3,C7]', async t => {
+test('landing.collect.with-collect-all-off-the-same: clause 1: with collect-all off, the same red file ends the run at its first failure and prints no collection report [B3,C7]', async t => {
   const { result, log, commands } = await landing(t, false);
   assert.equal(result.isGreen, false);
   assert.match(commands[0], /PULLBOARD_LANDING_COLLECT_ALL=0/u);

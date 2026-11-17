@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runnerPackage } from '../../index.js';
 
-test('runnerPackage resolves and the worker closure does not reach the sandbox front door or engine bodies [C7,CD60]', () => {
+test('runners.sandbox.runnerpackage-resolves-and-the-worker-closure: runnerPackage resolves and the worker closure does not reach the sandbox front door or engine bodies [C7,CD60]', () => {
   const root = dirname(fileURLToPath(new URL('../../../../package.json', import.meta.url)));
   const capsule = runnerPackage(root);
   assert.equal(capsule.entry, 'apps/runner/src/io/scripts/worker.js');
