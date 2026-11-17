@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/api packages/store packages/config */
+/** @pullboard-test-input source-cell packages/api packages/store */
 /** The item API sends an item's typed fields and related links when items.typedFields is on, and leaves both out when it is off (#9835, #1321) [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
