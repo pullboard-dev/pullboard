@@ -46,6 +46,18 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
   }
 });
 
+test('gate.config.zig-detected: #10509 clause 1: a root holding build.zig detects zig with zig build test [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': 'const std = @import("std");\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'zig', command: 'zig build test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.zig': '' })), []);
+});
+
+test('gate.config.zig-globs: #10509 clause 2: detectTestGlobs for a build.zig root returns the Zig test globs of the zig row, and the zig toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['zig'], unknown: [] });
+});
+
 test('gate.config.crystal-detected: #10512 clause 1: a root holding shard.yml detects crystal with crystal spec [C7]', (t) => {
   const root = rootWith(t, { 'shard.yml': 'name: app\nversion: 0.1.0\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'crystal', command: 'crystal spec' }]);
