@@ -22,6 +22,7 @@ import { FIXTURE_MODEL } from './e2e.js';
 import { fixtureSettledMachine } from './testkit.js';
 import { fixtureRunnerFolder } from './runner/local-start.js';
 import { startFixtureLocalRunner } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 
 export const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -92,7 +93,7 @@ export async function useLocalRunner(box) {
  */
 export function registerRunner(box) {
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
-  startFixtureLocalRunner(box.env, box.repo);
+  startFixtureLocalRunner(box.env, box.repo, { entry: CLI_ENTRY });
   return fixtureRunnerFolder(box.env);
 }
 

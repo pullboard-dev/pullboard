@@ -58,7 +58,7 @@ import {
 import { MILESTONE_PLACEMENT_ENGINE } from '../../../../packages/state/light.js';
 import { ROUTE_CALIBRATION_ENGINE } from '../../../../packages/state/light.js';
 import { pathToFileURL } from 'node:url';
-import { unpackRelease } from '../../tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../../../packages/gate/tests/fixtures/release/archive.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../packages/state/light.js';
 import {
   verifyLegacyUnknownFamily,
