@@ -26,7 +26,7 @@ import { createParityReader } from './parity/reader.js';
 import { relayClientFixture } from './client.js';
 
 /** The parts of the operation inventory; operations.js names the phases each one runs. */
-const OPERATION_PARTS = Object.freeze(['study', 'restA', 'restB']);
+const OPERATION_PARTS = Object.freeze(['studyA', 'studyB', 'restA', 'restB']);
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
