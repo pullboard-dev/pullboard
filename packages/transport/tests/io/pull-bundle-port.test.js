@@ -32,7 +32,7 @@ async function fixtureTree() {
   return git('rev-parse', 'HEAD^{tree}');
 }
 
-test('clause 1: the port returns the same tar bytes for one tree twice and null for an unknown tree [C7]', async () => {
+test('transport.pull-bundle-port.the-port-returns-the-same-tar: clause 1: the port returns the same tar bytes for one tree twice and null for an unknown tree [C7]', async () => {
   const tree = await fixtureTree();
   const port = makeTreeBundlePort(join(root, 'repo'), { dir: join(root, 'tars') });
   const [first, concurrent] = await Promise.all([port(tree), port(tree)]);
@@ -45,7 +45,7 @@ test('clause 1: the port returns the same tar bytes for one tree twice and null 
   assert.equal(await port('not-a-tree'), null);
 });
 
-test('clause 2: bundle-port.js reads the repository through async git and imports no synchronous child [C7]', () => {
+test('transport.pull-bundle-port.bundle-port-js-reads-the-repository: clause 2: bundle-port.js reads the repository through async git and imports no synchronous child [C7]', () => {
   const source = readFileSync(new URL('../../src/io/pull/bundle-port.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /execFileSync|spawnSync|execSync/u);
   assert.match(source, /\bspawn\b/u);
