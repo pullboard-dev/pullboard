@@ -142,6 +142,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     const served = await serveRunner({ board: second, key: values.key ?? process.env.PULLBOARD_BOARD_KEY, runner: values.as,
       ...(values.directory ? { cache: values.directory } : {}), ...(values.jobs !== undefined ? { jobs: values.jobs } : {}), once: values.once === true, handlers: { land: landJobHandler }, git: pullGit, signal: stop.signal, say: line => io.say(line),
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
+      fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
       postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
