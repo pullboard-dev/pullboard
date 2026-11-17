@@ -5,9 +5,9 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { openCellBoard as openBoard } from '../../fixtures/cell.js';
-import { INFRA_RELEASE_ENGINE } from '../../../../state/index.js';
+import * as store from '../../../../../store/index.js';
+import { openCellBoard as openBoard } from '../../../fixtures/cell-board.js';
+import { INFRA_RELEASE_ENGINE } from '../../../../../state/index.js';
 
 const commit = 'a'.repeat(40);
 

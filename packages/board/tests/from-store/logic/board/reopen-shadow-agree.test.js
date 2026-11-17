@@ -2,8 +2,8 @@
 /** @pullboard-test-input packages/store/src/io/board/reopen-table.js packages/moves/src/logic/table/reopen.table.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const COMMIT = '5108337ee32cb03255cf0517a606664959b053d5';
 const TRUNK = 'f7eff113370187b2aa443c6a9dbeb02b93125ceb';

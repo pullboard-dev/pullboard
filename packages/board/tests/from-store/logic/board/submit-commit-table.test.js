@@ -2,9 +2,9 @@
 /** @pullboard-test-input packages/moves/tests/fixtures/table/submit-history.json packages/store/src/io/submission.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordSubmissionEvent } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { recorded } from '../../fixtures/submit-history.js';
+import { recordSubmissionEvent } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { recorded } from '../../../fixtures/submit-history.js';
 
 const STAMP = '2026-01-01T00:00:00.000Z';
 
