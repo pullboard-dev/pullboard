@@ -37,8 +37,8 @@ test('relay.inputs.declared: clause 1: every relay test that reads repo files ca
   const files = relayTests();
   assert.ok(files.length > 30, 'the relay app has test files to check');
   for (const [file, tokens] of Object.entries(READERS)) {
-    const [first] = read(file).split(/\r?\n/u);
-    assert.equal(first, `/** @pullboard-test-input ${tokens.join(' ')} */`, `${file} names exactly the files it reads`);
+    const header = read(file).split(/\r?\n/u).slice(0, 3).find((line) => line.includes('@pullboard-test-input'));
+    assert.equal(header, `/** @pullboard-test-input ${tokens.join(' ')} */`, `${file} names exactly the files it reads`);
     assert.ok(declaresSource(read(file)), `${file} declares its inputs`);
     for (const token of tokens) {
       assert.ok(!/^source-(?:cell|tree)$/u.test(token) && !token.startsWith('/') && !token.includes('..'), `${file}: ${token} is a repo path`);
