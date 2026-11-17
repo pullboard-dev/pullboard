@@ -17,7 +17,7 @@ function nextSettings(next) {
 
 /** An open strong item with one clause, one existing test file and one brief file: light-shaped. */
 function shapedStrong(box) {
-  return box.add('Light-shaped strong item', { route: 'strong', criterion: '1. The shaped fixture succeeds.',
+  return box.add('Light-shaped strong item', { route: 'strong', criterion: '1. The shaped fixture succeeds [test].',
     check: 'node --test web/shaped.test.js', brief: 'Files: web/dispatch.js' });
 }
 
