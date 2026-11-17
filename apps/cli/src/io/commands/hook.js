@@ -43,6 +43,7 @@ import { fixStagedImportBindings } from '../../../../../packages/commits/index.j
 import { landingRows } from '../../../../../packages/commits/index.js';
 import { hookReader } from '../hook/read.js';
 import { stagedStaticProblems } from '../hook/static.js';
+import { stagedCeilingTables } from '../hook/static.js';
 import { readStdin } from '../hook/stdin.js';
 import { checkedLandingCommit } from '../../../../../packages/verify/index.js';
 import {
@@ -171,7 +172,8 @@ export async function hookCommand(io, { first, second }) {
     const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     const staticProblems = await stagedStaticProblems(info.root, process.env);
-    problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
+    const ceilingTables = await stagedCeilingTables(process.env);
+    problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, ceilingTables, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
