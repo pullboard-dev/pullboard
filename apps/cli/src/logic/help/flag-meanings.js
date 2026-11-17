@@ -63,6 +63,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'field --choices': ['--choices <a,b>', 'the allowed values of a choice field, comma-separated'],
   'replay --against': ['--against <tag>', 'also judge the release tag\'s table against the current one over the same moves; needs moves.judgeByRelease on'],
   'replay --days': ['--days <N>', 'how many days of recorded moves to replay, default 7'],
+  'capacity --audit': ['--audit', 'prints the agents, runners and jobs per runner the board data supports, with the binding constraint; reads only'],
   'capacity --window': ['--window <duration>', 'how far back to measure, such as 14d'],
   'sentinel propose --every': ['--every <10m|hourly|daily>', 'how often the watch runs'],
   'loop declare --every': ['--every <cadence>', 'how often the job runs, such as 10m'],
