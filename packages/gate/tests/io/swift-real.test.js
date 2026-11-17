@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { junitCases } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit-commands.js';
@@ -24,12 +25,12 @@ function swiftAnswers() {
 
 /** One run of the swift row in a private copy, shared by the cases that read it; the copy goes when the last case ends. */
 let shared = null;
+after(() => { if (shared) rmSync(shared.root, { recursive: true, force: true }); });
 
 /** Copy the fixture to a private temporary folder, so the .build folder and the report never land in the repo. */
-function sharedRun(t) {
+function sharedRun() {
   if (shared) return shared;
   const { root, write } = privateFixtureFiles('swift-pkg-');
-  t.after(() => { rmSync(root, { recursive: true, force: true }); shared = null; });
   for (const name of FILES) write(name, readFileSync(new URL(name, FIXTURE)));
   mkdirSync(join(root, '.pullboard', 'junit'), { recursive: true });
   const row = junitCommand('swift');
@@ -46,7 +47,7 @@ function buildReason(run) {
 
 test('gate.swift-real.report-names-one-pass-one-fail: clause 1: the swift row runs on a one-pass one-fail fixture and junitCases reads one pass and one fail from its report [C7]', (t) => {
   if (!swiftAnswers()) return t.skip('swift unavailable on this machine: swift --version did not answer');
-  const { run, reportFile } = sharedRun(t);
+  const { run, reportFile } = sharedRun();
   if (!existsSync(reportFile)) return t.skip(`swift unavailable: it could not build the fixture, ${buildReason(run)}`);
   const { cases, reason } = junitCases(readFileSync(reportFile, 'utf8'));
   assert.equal(reason, null);
@@ -64,7 +65,7 @@ test('gate.swift-real.skips-unavailable: clause 2: a missing swift is named as u
 
 test('gate.swift-real.build-folder-stays-in-the-copy: clause 3: the .build folder lives in the temporary copy, never in the repo [C7]', (t) => {
   if (!swiftAnswers()) return t.skip('swift unavailable on this machine: swift --version did not answer');
-  const { root, run } = sharedRun(t);
+  const { root, run } = sharedRun();
   if (!existsSync(join(root, '.build'))) return t.skip(`swift unavailable: it left no build folder, ${buildReason(run)}`);
   assert.equal(existsSync(new URL('.build', FIXTURE)), false);
 });
