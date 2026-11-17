@@ -30,3 +30,15 @@ export function staticFindings(output) {
   }
   return [...seen.values()].sort((a, b) => a.rule.localeCompare(b.rule) || a.file.localeCompare(b.file));
 }
+
+/**
+ * The item's findings that main does not also have at the same rule and file, in the parser's order.
+ * Why: a static red main already holds is main's own, so only the remainder may refuse an item's gate [#3854,#10448].
+ * @param {{ rule: string, file: string }[]} item The findings of the item's run.
+ * @param {{ rule: string, file: string }[]} main The findings of main's run.
+ * @returns {{ rule: string, file: string }[]} The item's findings main does not hold.
+ */
+export function remainingFindings(item, main) {
+  const held = new Set(main.map(finding => `${finding.rule}\u0000${finding.file}`));
+  return item.filter(finding => !held.has(`${finding.rule}\u0000${finding.file}`));
+}
