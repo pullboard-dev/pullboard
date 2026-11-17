@@ -8,6 +8,7 @@ import { trimGateCheckouts } from './src/io/gate-checkout-pool.js';
 import { GATE_CHECKOUT_IDLE_MS } from './src/io/gate-checkout-pool.js';
 import { changedStaticFailures } from './src/io/changed/static.js';
 import { stagedHookFailures } from './src/io/changed/static.js';
+import { CEILING_ROW_TABLES } from './src/io/changed/scripts/static.js';
 import { STATIC_CHECKS } from './src/io/static/check/registry.js';
 import { runStaticRegistry } from './src/io/static/check/registry.js';
 import { acceptRelease } from './src/io/release/accept.js';
@@ -15,4 +16,4 @@ import { runAccept } from './src/io/release/accept.js';
 
 export { gateCheckoutPool, exactGateCheckout, discardGateCheckout, borrowGateCheckout, returnGateCheckout, trimGateCheckouts, GATE_CHECKOUT_IDLE_MS };
 export { acceptRelease, runAccept };
-export { changedStaticFailures, stagedHookFailures, STATIC_CHECKS, runStaticRegistry };
+export { changedStaticFailures, stagedHookFailures, STATIC_CHECKS, runStaticRegistry, CEILING_ROW_TABLES };
