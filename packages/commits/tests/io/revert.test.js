@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/commits */
 /** The guard mutation uses only its caller's trusted check operation [C7,V4]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

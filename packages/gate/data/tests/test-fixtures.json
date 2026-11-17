@@ -12,9 +12,13 @@
   },
   "docs/formats.test.js": {
     "repo-read": 1,
-    "tempdir": 6,
+    "tempdir": 5,
     "hand-policy": 3,
-    "raw-board": 8,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/formats/live.test.js": {
+    "tempdir": 1,
+    "raw-board": 5,
     "model": 4
   },
   "docs/readme-badges.test.js": {
@@ -683,9 +687,8 @@
   "apps/cli/journeys/spec/revision.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
-    "repo-read": 2,
-    "tempdir": 4
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/cockpit/boards.test.js": {
     "tempdir": 2

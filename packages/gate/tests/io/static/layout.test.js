@@ -32,7 +32,7 @@ function fixture(t) {
 /** Stage everything in a fixture repository. */
 const addAll = root => runFixtureGit(['add', '-A'], { cwd: root });
 
-test('clause 1: a tracked file that raises a layout rule count is a path:line finding naming the rule and the next step, and none once removed [C7,#5420]', t => {
+test('gate.io-static-layout.a-tracked-file-that-raises-a: clause 1: a tracked file that raises a layout rule count is a path:line finding naming the rule and the next step, and none once removed [C7,#5420]', t => {
   const { root, tree } = fixture(t);
   tree.write(OFFENDER, '{}\n');
   addAll(root);
@@ -44,7 +44,7 @@ test('clause 1: a tracked file that raises a layout rule count is a path:line fi
   assert.deepEqual(layoutProblems(root), []);
 });
 
-test('clause 1: the class is registered for both pre-commit and submit and landing, and both report the same finding [C7,#5420]', t => {
+test('gate.io-static-layout.the-class-is-registered-for-both: clause 1: the class is registered for both pre-commit and submit and landing, and both report the same finding [C7,#5420]', t => {
   const { root, tree } = fixture(t);
   tree.write(OFFENDER, '{}\n');
   addAll(root);
@@ -57,7 +57,7 @@ test('clause 1: the class is registered for both pre-commit and submit and landi
   assert.deepEqual(staged.run({ root, files: [] }), expected, 'pre-commit judges the whole tree whatever files it was given');
 });
 
-test('clause 2: the class judges the checked tree\'s own baseline file, not the tools copy\'s, and runs in under 2 s on this repository [C7,#5420]', t => {
+test('gate.io-static-layout.the-class-judges-the-checked-tree: clause 2: the class judges the checked tree\'s own baseline file, not the tools copy\'s, and runs in under 2 s on this repository [C7,#5420]', t => {
   const { root, tree } = fixture(t);
   tree.write(OFFENDER, '{}\n');
   addAll(root);
@@ -70,7 +70,7 @@ test('clause 2: the class judges the checked tree\'s own baseline file, not the 
   assert.ok(Date.now() - started < 2000, `ran in ${Date.now() - started} ms`); // budget: declared by clause 2 of #5420 as under 2 s
 });
 
-test('a plain project with no layout baseline, holding .claude, web and .mcp.json at its root, has no layout finding [C7,#6544]', t => {
+test('gate.io-static-layout.a-plain-project-with-no-layout: a plain project with no layout baseline, holding .claude, web and .mcp.json at its root, has no layout finding [C7,#6544]', t => {
   const tree = privateFixtureFiles('pb-layout-plain-');
   t.after(() => rmSync(tree.root, { recursive: true, force: true }));
   runFixtureGit(['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: tree.root });
@@ -82,7 +82,7 @@ test('a plain project with no layout baseline, holding .claude, web and .mcp.jso
   assert.deepEqual(waits.run({ root: tree.root, files: ['web/app.test.js'], read: () => ({ source: "import { test } from 'node:test';\n" }) }), [], 'test-waits has no baseline to judge');
 });
 
-test('.pullboard is an allowed root entry in a tree that keeps a layout baseline [C7,#6544]', t => {
+test('gate.io-static-layout.pullboard-is-an-allowed-root-entry: .pullboard is an allowed root entry in a tree that keeps a layout baseline [C7,#6544]', t => {
   const { root, tree } = fixture(t);
   tree.write(BASELINE, `${JSON.stringify({ version: 1, rules: { 'root-entry': 0 } })}\n`);
   tree.write('.pullboard/test-file-budgets/audit.json', '{}\n');

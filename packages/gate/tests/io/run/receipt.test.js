@@ -44,7 +44,7 @@ const batchRun = bad => files => {
     executionSource: { commit: COMMIT, tree: TREE }, output: red.length ? `not ok ${red.join(' ')}` : `ok ${files.join(' ')}` };
 };
 
-test('clause 1: shards of one run merge into one result and receipt identical in content to a single-slot run [test] [C7]', async t => {
+test('gate.io-run-receipt.shards-of-one-run-merge-into: clause 1: shards of one run merge into one result and receipt identical in content to a single-slot run [test] [C7]', async t => {
   machine(t);
   const takeSlot = slotFor(batchRun([]));
   const run = size => proveBatches('/controller', execution(batchRun([])), { files: FILES, filesCommand, takeSlot, freeSlots: 2, batchFiles: size, passes: null });
@@ -56,7 +56,7 @@ test('clause 1: shards of one run merge into one result and receipt identical in
   assert.deepEqual(split.shards.flatMap(shard => shard.files).sort(), FILES, 'the one receipt names every file once');
 });
 
-test('clause 2: a failing file in any shard fails the run with that file named [test] [C7]', async t => {
+test('gate.io-run-receipt.a-failing-file-in-any-shard: clause 2: a failing file in any shard fails the run with that file named [test] [C7]', async t => {
   machine(t);
   const bad = batchRun(['test/d.test.js']);
   const takeSlot = slotFor(bad);
