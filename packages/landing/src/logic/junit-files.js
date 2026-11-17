@@ -24,6 +24,8 @@ export const JUNIT_FILE_ROWS = {
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
+  // vitest --reporter=junit writes the test file path as classname and no file attribute (src/math.test.ts).
+  typescript: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null),
   // node --test --test-reporter=junit writes file (absolute, inside the checkout) on every case, which junitFile already prefers; the row only answers a case the reporter left without one.
   node: row => row.file || null,
   // swift test --xunit-output writes classname Module.Class and no file attribute; SwiftPM keeps tests in Tests/<Module>/<Class>.swift.
@@ -39,6 +41,11 @@ export const JUNIT_FILE_ROWS = {
   },
   // gradle test writes a dotted class in classname (com.example.CalcTest) and no file attribute; Kotlin sources sit under src/test/kotlin.
   kotlin: row => (row.classname ? `src/test/kotlin/${row.classname.replace(/\./gu, '/')}.kt` : null),
+  // dotnet test (JunitXml.TestLogger) writes namespace.Class in classname and no file attribute; the first segment names the test project directory.
+  csharp: row => {
+    const project = (row.classname ?? '').split('.')[0];
+    return project ? `${project}/` : null;
+  },
 };
 
 /**
