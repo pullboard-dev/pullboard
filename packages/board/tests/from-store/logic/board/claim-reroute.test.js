@@ -1,9 +1,8 @@
-/** @pullboard-test-input source-cell packages/store */
 /** release.rerouteUntouched: untouched INELIGIBLE and ROUTED_ELSEWHERE releases count toward the release-twice reroute only when it is on [C7,#2970]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { openCellBoard as openBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { openCellBoard as openBoard } from '../../../fixtures/cell-board.js';
 
 // fixture-subject: addItem (a store unit test of the release-twice reroute over a seat's untouched hand-backs; the board is opened through the cell fixture)
 

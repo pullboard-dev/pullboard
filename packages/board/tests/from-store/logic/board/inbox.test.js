@@ -1,8 +1,8 @@
 /** A seat's inbox starts at its join, never at the board's first shout [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 test('clause 1: a seat that joins now reports 0 unread until a later shout reaches it [C7]', t => {
   const board = cellBoard(t, ':memory:');

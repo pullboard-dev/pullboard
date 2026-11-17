@@ -1,9 +1,9 @@
 /** Queued inbox delivery marks flush in one batched write that only ever raises a seat's mark [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import * as store from '../../../index.js';
-import { register } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { register } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const mark = (board, agentId) => board.db.prepare('SELECT agent_last_shout_id AS m FROM agent WHERE agent_id=?').get(agentId).m;
 

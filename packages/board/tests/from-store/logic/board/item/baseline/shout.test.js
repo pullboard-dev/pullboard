@@ -1,8 +1,8 @@
 /** Real SQLite item-message decision and validation controls [B7,B21,B27]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from "../../../../../src/io/board.js";
-import { openCellBoard as openBoard } from "../../../../fixtures/cell.js";
+import * as store from "../../../../../../../store/index.js";
+import { openCellBoard as openBoard } from "../../../../../fixtures/cell-board.js";
 
 
 test('item decisions authorize participants, retain their thread and can pass to the person [B7,B21,B27]', (t) => {

@@ -5,16 +5,16 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { jobView } from '../../../../jobs/index.js';
-import { completeSubmitHandoff } from '../../../index.js';
-import { getItem } from '../../../index.js';
-import { startSubmitHandoff } from '../../../index.js';
-import { writeBoardCommand } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellClaim } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import { jobView } from '../../../../../jobs/index.js';
+import { completeSubmitHandoff } from '../../../../../store/index.js';
+import { getItem } from '../../../../../store/index.js';
+import { startSubmitHandoff } from '../../../../../store/index.js';
+import { writeBoardCommand } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 /** Build a project with a claimed item and one committed candidate, ready to queue. */
 function queued(t) {
