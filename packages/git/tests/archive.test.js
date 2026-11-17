@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/git */
 /** The released-source extraction helper tolerates tar stopping its stdin early [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

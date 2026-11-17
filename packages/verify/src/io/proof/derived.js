@@ -87,3 +87,9 @@ export function derivedTextRows(board, prefix) {
   const id = row => Number(row.meta_key.slice(prefix.length));
   return rows.sort((a, b) => (id(a) - id(b)) || (a.meta_key < b.meta_key ? -1 : 1)).map(row => row.meta_value);
 }
+
+/** The text of every derived row whose key is at least `low` and below `high`, in key order; empty when off. */
+export function derivedTextRange(board, low, high) {
+  const schema = attached(board);
+  return schema ? board.db.prepare(`SELECT meta_value FROM ${schema}.proof_counter WHERE meta_key>=? AND meta_key<? ORDER BY meta_key`).all(low, high).map(row => row.meta_value) : [];
+}

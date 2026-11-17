@@ -18,7 +18,7 @@ export { admitGateDrive, renewGateDriveHop, recordGateDriveSpawn, endGateDriveUn
 export { GATE_DRIVE_KIND, gateDriveJobId, gateDriveRecord, gateDriverEnded, gateDriverGone, gateDriveStall, GATE_DRIVE_STUCK_MS } from './src/logic/gate.js';
 export { TEST_RUN_KIND, MACHINE_CONTEXT_ENV, machineContext, queuesTestRun, queueTestRun, testRunItem, workTestRun, testRunState, readFinalLine, START_BOUND_MS, readTestRun, ownTestRuns, deliverTestRun, deliverOwnTestRuns, deliverTestRunsWhenReady, testRunLines, endLostTestRuns, pulledJobState, LOST, PULLED, CANCELLED, cancelTestRun } from './src/io/queue.js';
 export * from './light.js';
-export { localLoadAdmits, boardEndpoint, boardTrunkPack, checkoutCandidate, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
+export { localLoadAdmits, boardEndpoint, boardTrunkPack, checkoutCandidate, countingTurns, hostCapabilities, keptOutputFolder, runJob, serveRunner, GATE_RECEIPT, RUNNER_OUTPUT_ENV } from "./src/io/pull.js";
 export { pruneRunnerStores } from "./src/io/prune.js";
 export { pruneRunnerStoresYielding } from "./src/io/prune.js";
 export { pruneStaleSlots } from "./src/io/prune.js";
