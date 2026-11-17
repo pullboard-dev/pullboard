@@ -6,11 +6,11 @@ import { checkShape } from '../../src/logic/contracts/shape.js';
 
 const declared = { name: 'seal', params: ['key', 'text'], returns: 'string' };
 
-test('clause 1: a matching export gives no finding [C7]', () => {
+test('codemap.shape-check.a-matching-export-gives-no: clause 1: a matching export gives no finding [C7]', () => {
   assert.equal(checkShape(declared, { ...declared }), null);
 });
 
-test('clause 1: a differing name, parameter or return shape names the export and the difference [C7]', () => {
+test('codemap.shape-check.a-differing-name-parameter-or: clause 1: a differing name, parameter or return shape names the export and the difference [C7]', () => {
   const name = checkShape(declared, { ...declared, name: 'unseal' });
   assert.equal(name.kind, 'mismatch');
   assert.match(name.difference, /unseal/u);
@@ -21,7 +21,7 @@ test('clause 1: a differing name, parameter or return shape names the export and
   assert.match(returns.difference, /returns: declared string, actual Buffer/u);
 });
 
-test('clause 2: an export with no declared shape is a gap, not a mismatch [C7]', () => {
+test('codemap.shape-check.an-export-with-no-declared: clause 2: an export with no declared shape is a gap, not a mismatch [C7]', () => {
   const finding = checkShape(undefined, declared);
   assert.equal(finding.kind, 'gap');
   assert.equal(finding.export, 'seal');
