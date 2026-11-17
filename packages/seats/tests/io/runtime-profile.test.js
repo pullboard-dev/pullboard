@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runtimeProfile } from '../../index.js';
 
-test('clause 1: the shipped profiles load, giving a known runtime its cache setting and an unknown one a safe default [C7]', () => {
+test('seats.runtime-profile.shipped-profiles-load: clause 1: the shipped profiles load, giving a known runtime its cache setting and an unknown one a safe default [C7]', () => {
   assert.equal(runtimeProfile('claude').cache, '1h');
   assert.deepEqual(runtimeProfile('claude').cachedPrefix, ['instructions', 'skills', 'brief']);
   for (const unknown of ['self-hosted-llm', 'toString', '__proto__', '', undefined]) {

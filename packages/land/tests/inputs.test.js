@@ -36,10 +36,21 @@ test('land.inputs.declared: clause 1: every land test file that reads files carr
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/land'], 'this file names only the land cell');
 });
 
-test('land.inputs.rule-clean: clause 2: every land test header is a non-empty declaration [C7,U149]', () => {
-  for (const file of landTests()) {
+/** The header shapes the gate's reader rule accepts without the whole tree: `source-cell` with cells, or exact repo paths. */
+const NAMES_CELLS_OR_PATHS = /^(?:source-cell (?:packages|apps)\/[a-z]+(?: (?:packages|apps)\/[a-z]+)*|(?:packages|apps)\/\S+(?: (?:packages|apps)\/\S+)*)$/u;
+
+test('land.inputs.rule-clean: clause 2: every land test header names cells or files by path and none declares the whole source tree [C7,U149]', () => {
+  const files = landTests();
+  assert.ok(files.some(file => headers(read(file)).length > 0), 'the scan sees headers');
+  for (const file of files) {
     for (const header of headers(read(file))) {
-      assert.ok(header.trim().length > 0, `${file} has a header`);
+      assert.notEqual(header.trim(), 'source-tree', `${file} declares the whole tree`);
+      assert.match(header, NAMES_CELLS_OR_PATHS, `${file} names cells or files by path`);
     }
   }
+  for (const bad of ['source-tree', 'x', 'source-cell', 'source-cell land', 'source-cell packages/land, apps/cli', '   ']) {
+    assert.doesNotMatch(bad, NAMES_CELLS_OR_PATHS, `the rule rejects "${bad}"`);
+  }
+  assert.match('source-cell packages/land apps/cli', NAMES_CELLS_OR_PATHS);
+  assert.equal(headers('/** @pullboard-test-input source-tree */\n')[0], 'source-tree', 'the scan reads a tree declaration so the rule can refuse it');
 });

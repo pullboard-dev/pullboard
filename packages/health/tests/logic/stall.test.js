@@ -19,7 +19,7 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { machineStalled } from '../../src/logic/stall.js';
 
-test('clause 1: most claimed seats quiet together is a machine stall, a single quiet seat is not [B4,N2]', () => {
+test('health.stall.machine-vs-single: clause 1: most claimed seats quiet together is a machine stall, a single quiet seat is not [B4,N2]', () => {
   assert.deepEqual(machineStalled({ claimed: 7, quiet: 5 }), { claimed: 7, quiet: 5 });
   assert.deepEqual(machineStalled({ claimed: 2, quiet: 2 }), { claimed: 2, quiet: 2 });
   assert.equal(machineStalled({ claimed: 1, quiet: 1 }), null, 'one laptop with one builder cannot show a majority');
@@ -64,7 +64,7 @@ function fixture(t, count) {
   return { board, holders, helper, ctx, capture: () => captureLapsedClaims(ctx, board, helper) };
 }
 
-test('clause 1: the real capture releases nothing when every claimed seat goes quiet together, and says so once [B4,N2]', t => {
+test('health.stall.capture-releases-nothing: clause 1: the real capture releases nothing when every claimed seat goes quiet together, and says so once [B4,N2]', t => {
   const f = fixture(t, 2);
   const snapshot = f.capture();
   assert.equal(snapshot?.claims.some(row => row.idle === 'seat-gone') ?? false, false, 'no seat is reclaimed for the stalled window');
@@ -73,7 +73,7 @@ test('clause 1: the real capture releases nothing when every claimed seat goes q
   for (const { holder, id } of f.holders) assert.equal(getItem(f.board, id).item_owner, holder);
 });
 
-test('clause 1: a single seat that misses alone is still released [B4,N2]', t => {
+test('health.stall.lone-seat-released: clause 1: a single seat that misses alone is still released [B4,N2]', t => {
   const f = fixture(t, 2);
   logEvent(f.board, f.holders[1].holder, 'fact', f.holders[1].id, { id: 'alive', kind: 'note', text: 'running the tests', ref: null, supersedes: null });
   const snapshot = f.capture();
@@ -81,14 +81,14 @@ test('clause 1: a single seat that misses alone is still released [B4,N2]', t =>
   assert.deepEqual(snapshot.claims.filter(row => row.idle === 'seat-gone').map(row => row.id), [f.holders[0].id]);
 });
 
-test('clause 1: a sentinel tick that runs late is a machine stall even when one seat alone is quiet [B4,N2]', () => {
+test('health.stall.late-tick-is-stall: clause 1: a sentinel tick that runs late is a machine stall even when one seat alone is quiet [B4,N2]', () => {
   const minute = 60_000;
   assert.equal(machineStalled({ claimed: 7, quiet: 1, gapMs: 10 * minute }), null, 'an on-time tick with one quiet seat is a dead seat');
   assert.equal(machineStalled({ claimed: 7, quiet: 0, gapMs: 40 * minute }), null, 'a late tick with every seat alive holds nothing');
   assert.deepEqual(machineStalled({ claimed: 7, quiet: 1, gapMs: 40 * minute }), { claimed: 7, quiet: 1, lateByMs: 30 * minute });
 });
 
-test('clause 1: the real sweep releases a lone silent seat on time and holds it, with one machine-stall shout, when its own tick ran late [B4,N2]', async t => {
+test('health.stall.sweep-lone-seat-on-time: clause 1: the real sweep releases a lone silent seat on time and holds it, with one machine-stall shout, when its own tick ran late [B4,N2]', async t => {
   const minute = 60_000;
   /** Run the real sweep as if the previous sweep started `previousMinutesAgo` minutes earlier. */
   const sweep = async previousMinutesAgo => {

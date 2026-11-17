@@ -8,7 +8,7 @@ import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 const T0 = Date.parse('2026-11-04T12:00:00.000Z');
 const minutes = count => new Date(T0 + count * 60_000).toISOString();
 
-test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes and observes the 10-minute release plan [B4,C7,#2856,clause 1,clause 2]', () => {
+test('health.sweep.nudge-after-idle: the scheduled sentinel sweep sends one durable nudge after 30 idle minutes and observes the 10-minute release plan [B4,C7,#2856,clause 1,clause 2]', () => {
   const history = [{ event_id: 1, event_at: minutes(0), event_by: 'core-1', event_kind: 'claim', event_detail: '{}' }];
   const sent = [];
   const ports = {
@@ -32,7 +32,7 @@ test('the scheduled sentinel sweep sends one durable nudge after 30 idle minutes
   assert.deepEqual(runScheduledClaimWatchdog(ctx, {}, snapshot, ports).release, [{ item: 7, owner: 'core-1', idleMs: 40 * 60_000 }]);
 });
 
-test('the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856,clause 2]', async t => {
+test('health.sweep.release-before-nudge: the scheduled sentinel path runs stale-claim release before the watchdog nudge pass [B4,C7,#2856,clause 2]', async t => {
   const order = [];
   const snapshot = { claims: [] };
   const ctx = { clock: { now: () => new Date(T0) }, config: { health: {} }, io: {} };
@@ -48,7 +48,7 @@ test('the scheduled sentinel path runs stale-claim release before the watchdog n
   assert.equal(result, snapshot);
 });
 
-test('a claim already marked stalled still reaches the watchdog when stale-state has no new action [B4,C7,#2856]', async t => {
+test('health.sweep.stalled-reaches-watchdog: a claim already marked stalled still reaches the watchdog when stale-state has no new action [B4,C7,#2856]', async t => {
   const order = [];
   const ctx = { clock: { now: () => new Date(T0 + 30 * 60_000) }, config: { health: {} }, io: {} };
   const board = cellBoard(t, ':memory:', ctx.clock);
