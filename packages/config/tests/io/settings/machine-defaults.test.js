@@ -163,6 +163,7 @@ const BEFORE = {
   'relay.queueOnFailure': false,
   'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
+  'release.staleItemRevision': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,

@@ -595,6 +595,11 @@ export function releaseRerouteUntouched() {
   return loadMachineSettings().release?.rerouteUntouched === true;
 }
 
+/** Whether a stale release compares only the released item's own events (#10598): off by default; only an exact `true` turns it on. */
+export function releaseStaleItemRevision() {
+  return loadMachineSettings().release?.staleItemRevision === true;
+}
+
 /** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
 export function holdsLiftSettled() {
   return loadMachineSettings().holds?.liftSettled === true;

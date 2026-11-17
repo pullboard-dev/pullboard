@@ -126,6 +126,7 @@ export {
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
+  releaseStaleItemRevision,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
