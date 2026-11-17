@@ -167,6 +167,7 @@ export async function parityRoundtrip(t, { foreign = false, localHealth = false 
         return runOperationPart(t, other, linked.link, linked.session, part);
       }),
     ]);
+    console.log('TIMINGS ' + JSON.stringify(results.map(r => r.timings)));
     const declared = results[0].declared;
     const covered = [...new Set(results.flatMap(result => result.covered))].sort();
     const missing = declared.filter(operation => !covered.includes(operation));
