@@ -1,4 +1,5 @@
-/** Every store-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9948]. @pullboard-test-input source-cell packages/store */
+/** @pullboard-test-input source-cell packages/store */
+/** Every store-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9948]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
