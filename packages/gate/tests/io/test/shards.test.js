@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { runFixtureChild } from '../../fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 
 const HOSTS = [HOST, `${HOST}-second`];

@@ -32,14 +32,14 @@ function fixture() {
   return { root, base, put, rename: sh(root, 'rev-parse', 'HEAD') };
 }
 
-test('a rename of a tracked file with no path-map entry is refused, naming the file and the shard to add [C7]', () => {
+test('landing.recorded.a-rename-of-a-tracked-file: a rename of a tracked file with no path-map entry is refused, naming the file and the shard to add [C7]', () => {
   const box = fixture();
   assert.throws(() => requireRecordedMoves(box.root, box.base, box.rename),
     error => error.code === 'LAND_MOVE_UNRECORDED' && error.message.includes('src/old-name.js -> packages/config/src/new-name.js')
       && error.message.includes('packages/codemap/data/plan/path-map/config.json'));
 });
 
-test('the same rename lands once a path-map shard records old to new [C7]', () => {
+test('landing.recorded.the-same-rename-lands-once-a: the same rename lands once a path-map shard records old to new [C7]', () => {
   const box = fixture();
   box.put('packages/codemap/data/plan/path-map/config.json', JSON.stringify({ 'src/old-name.js': 'packages/config/src/new-name.js' }) + '\n');
   sh(box.root, 'add', '.');
@@ -47,7 +47,7 @@ test('the same rename lands once a path-map shard records old to new [C7]', () =
   assert.doesNotThrow(() => requireRecordedMoves(box.root, box.base, sh(box.root, 'rev-parse', 'HEAD')));
 });
 
-test('a candidate with no rename, or whose rename main already made, is not refused [C7]', () => {
+test('landing.recorded.a-candidate-with-no-rename-or: a candidate with no rename, or whose rename main already made, is not refused [C7]', () => {
   const box = fixture();
   assert.doesNotThrow(() => requireRecordedMoves(box.root, box.base, box.base));
   assert.doesNotThrow(() => requireRecordedMoves(box.root, box.rename, box.rename));

@@ -3,6 +3,7 @@ import { Refused } from '../../../kernel/index.js';
 import { jobView } from '../../../jobs/index.js';
 import { reclaimLapsed } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
+import { createJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { phaseOf } from '../logic/phase.js';
 import { GATE_DRIVE_KIND } from '../logic/gate.js';
@@ -45,13 +46,14 @@ export const GATE_JOB_NO_PROGRESS_MS = 20 * 60_000;
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ id: string }[]} lapsed - The lapsed gate jobs this pass read.
- * @param {{ owner: string, now: number, runs?: { db: import('node:sqlite').DatabaseSync } | null, active?: (view: { item: number|null, candidate: string|null }) => boolean | null }} options
+ * @param {{ owner: string, now: number, runs?: { db: import('node:sqlite').DatabaseSync } | null, active?: (view: { item: number|null, candidate: string|null }) => boolean | null, reofferInfraEnd?: boolean }} options
+ *   reofferInfraEnd: gate.reofferInfraEnd, offers a gate job that ended as infrastructure once more (default off) [C7,#9633].
  *   runs: the board's runs holder while runs_store is on; the job rows are read and ended there [P7,#9080].
  *   active answers whether the job's item is still submitted at its candidate (null when unknown); without it only
  *   the no-progress rule applies.
  * @returns {{ id: string, ended: 'stale' | 'infrastructure', lastStep: string | null }[]}
  */
-export function endDeadGateJobs(db, lapsed, { owner, now, active, runs = null }) {
+export function endDeadGateJobs(db, lapsed, { owner, now, active, runs = null, reofferInfraEnd = false }) {
   const jobs = runs?.db ?? db;
   const ended = [];
   for (const { id } of lapsed) {
@@ -71,11 +73,42 @@ export function endDeadGateJobs(db, lapsed, { owner, now, active, runs = null })
       // A gate-drive job is resumed by its hand-off's recovery (#3995), so only a stale one is ended here.
       writeStep(jobs, id, 'ended', { infrastructure: true, code: 'GATE_JOB_NO_PROGRESS', lastStep,
         reason: `no step for ${Math.round((now - (last?.at ?? now)) / 60_000)} min after ${lastStep ?? 'its creation'}` }, { now });
+      if (reofferInfraEnd && still !== false) reofferGateJob(jobs, view, { now });
       finishJob(jobs, id, owner, { now });
       ended.push({ id, ended: 'infrastructure', lastStep });
     }
   }
   return ended;
+}
+
+/** The id suffix of a re-offered gate job; a job carrying it is never re-offered again. */
+const REOFFER_SUFFIX = ':reoffer';
+
+/**
+ * Offer a gate job that ended as infrastructure once more for the same item, candidate and base, with the ended job's
+ * own request, and record a `reoffered` step on the ended job. At most one per candidate: a candidate that already
+ * has a re-offered job, or a job that is itself a re-offer, is left alone.
+ * Why: a gate job whose runner went quiet ended GATE_JOB_NO_PROGRESS with no verdict, and nothing offered it again,
+ * so the item's claim lapsed with no gate pending (#9497) [C7,#9633].
+ *
+ * @param {import('node:sqlite').DatabaseSync} jobs
+ * @param {NonNullable<ReturnType<typeof jobView>>} view - The ended job.
+ * @param {{ now: number }} options
+ * @returns {string | null} The new job's id, or null when none was offered.
+ */
+function reofferGateJob(jobs, view, { now }) {
+  if (!view.candidate || view.id.endsWith(REOFFER_SUFFIX)) return null;
+  const taken = jobs.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item IS ? AND job_candidate = ? AND job_id LIKE ?").get(view.item, view.candidate, `%${REOFFER_SUFFIX}`);
+  if (taken) return null;
+  const request = view.steps.find(step => step.name === 'request');
+  const offered = view.steps.find(step => step.name === 'offered');
+  if (!offered) return null;
+  const next = `${view.id}${REOFFER_SUFFIX}`;
+  createJob(jobs, { id: next, kind: 'gate', item: view.item, candidate: view.candidate, base: view.base, now });
+  if (request) writeStep(jobs, next, 'request', request.payload, { now });
+  writeStep(jobs, next, 'offered', offered.payload, { now });
+  writeStep(jobs, view.id, 'reoffered', { job: next }, { now });
+  return next;
 }
 
 /**
@@ -110,9 +143,9 @@ function withinBudget(drive, budgetMs) {
  * @returns {Promise<{ lapsed: number, driven: string | null, transition?: string | null, phase?: string,
  *   pending?: boolean, code?: string }>}
  */
-export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, active, runs = null, ...options } = /** @type {any} */ ({})) {
+export async function reclaimPass(db, { owner, now = Date.now, budgetMs = FALLBACK_BUDGET_MS, drive = driveOnce, lapsed: known, active, runs = null, reofferInfraEnd = false, ...options } = /** @type {any} */ ({})) {
   if (!owner) throw new Refused('DRIVE_OWNER', 'reclaimPass needs a driver id to hold the lease: pass { owner }.');
-  const ended = new Set(endDeadGateJobs(db, known ?? lapsedGateJobs(db, { now: now(), runs }), { owner, now: now(), active, runs }).map(row => row.id));
+  const ended = new Set(endDeadGateJobs(db, known ?? lapsedGateJobs(db, { now: now(), runs }), { owner, now: now(), active, runs, reofferInfraEnd }).map(row => row.id));
   // A gate-drive job runs a whole submit gate that only its hand-off worker can drive; the fallback ends a stale one
   // above and leaves a live one to the worker and its recovery.
   const lapsed = (known ?? lapsedGateJobs(db, { now: now(), runs })).filter(row => !ended.has(row.id) && row.kind !== GATE_DRIVE_KIND);

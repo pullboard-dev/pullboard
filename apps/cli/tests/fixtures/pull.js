@@ -193,18 +193,40 @@ export async function pullQueue(t, box, { queue } = {}) {
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
 /**
+ * The environment a served runner starts with: the box's own, with every PULLBOARD_ variable removed so it sees a clean
+ * machine, plus `env`. Only when `machineSettings` is given does it also get a machine home of its own holding exactly
+ * those settings, so a journey can switch one machine setting on in the runner process and nothing else [P7,#7301].
+ *
+ * @param {object} box - The fixture box.
+ * @param {string} runner - The runner name; its settings home is `<name>-machine` in the box's runner home.
+ * @param {Record<string, string>} [env] - Extra variables.
+ * @param {object} [machineSettings] - Machine settings for the runner process, such as `{ gate: { pulledProfilePaths: true } }`.
+ * @returns {Record<string, string>}
+ */
+export function runnerEnv(box, runner, env = {}, machineSettings) {
+  const clean = { ...box.env };
+  for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
+  const extra = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
+  if (machineSettings) {
+    const home = join(box.runnerHome, `${runner}-machine`);
+    mkdirSync(home, { recursive: true });
+    fixtureMachineSettings(home, machineSettings);
+    extra.PULLBOARD_MACHINE_HOME = home;
+  }
+  return { ...clean, ...extra };
+}
+
+/**
  * Run `pullboard runner serve <url> --once` as its own process, with no board environment, and resolve its exit and output.
  * The stand-in tooling records its steps beside the runner's cache, since a runner's checkout is a worktree whose .git is a file.
  * Why it serves again: --once exits on an empty queue, and a test's seat may offer its job only after the serve starts.
  */
-export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_000 } = {}) {
-  env = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
-  const clean = { ...box.env };
-  for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
+export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_000, machineSettings } = {}) {
+  const clean = runnerEnv(box, runner, env, machineSettings);
   const until = Date.now() + deadlineMs;
   for (;;) {
     const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--once', '--as', runner, '--directory', join(box.runnerHome, runner)],
-      { cwd: box.runnerHome, env: { ...clean, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+      { cwd: box.runnerHome, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', chunk => { output += chunk; });
     child.stderr.on('data', chunk => { output += chunk; });

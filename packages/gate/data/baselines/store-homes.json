@@ -49,10 +49,6 @@
   "apps/cli/src/io/submit/wait.js": {
     "submission.json": 1
   },
-  "apps/cli/src/io/tool/build.js": {
-    "timer.guard.sqlite": 1,
-    "timer.json": 1
-  },
   "apps/cli/src/io/tour.js": {
     "pullboard.json": 1
   },
@@ -136,9 +132,6 @@
   },
   "packages/codemap/src/io/cells-plan-model.js": {
     "cells.json": 1
-  },
-  "packages/codemap/src/io/cells/backlog.js": {
-    "cells.json": 2
   },
   "packages/codemap/src/io/cells/cache.js": {
     "pullboard.json": 1

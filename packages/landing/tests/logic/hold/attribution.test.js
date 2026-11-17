@@ -20,7 +20,7 @@ function redFrom(runnerRoot) {
   ].join('\n');
 }
 
-test('a red reported from any runner root, dotted or not, keeps its repo file, so the red path can compare and charge it [C7]', () => {
+test('landing.attribution.a-red-reported-from-any-runner: a red reported from any runner root, dotted or not, keeps its repo file, so the red path can compare and charge it [C7]', () => {
   for (const root of ['/Users/example/.pullboard-runner', '/Users/person/pullboard-runner']) {
     const failures = landingFailures(redFrom(root), '/elsewhere');
     assert.equal(failures.length, 1, root);

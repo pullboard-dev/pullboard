@@ -22,7 +22,7 @@ function settingsDir(value) {
   return { dir, file };
 }
 
-test('[O5,O6] readGateQueueSettings reads the named file, not the machine home', () => {
+test('queue.settings.reads-named-file: [O5,O6] readGateQueueSettings reads the named file, not the machine home', () => {
   const { dir, file } = settingsDir({ gate: { queue: { reviewsFirst: true, currentReleaseFirst: true, agingMinutes: 7 } } });
   try {
     assert.deepEqual(readGateQueueSettings(file), { reviewsFirst: true, currentReleaseFirst: true, agingMinutes: 7 });

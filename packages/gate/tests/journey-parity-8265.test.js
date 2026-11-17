@@ -13,7 +13,7 @@ const SAMPLES = [
   { journey: 'apps/cli/journeys/fact/board/busy.test.js', cases: ['a standalone native attempt and nested rollback each observe only their actual outer write'] },
 ];
 
-test('clause 1: the busy journey sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.parity-8265.busy-journey-sample-gives-exit: clause 1: the busy journey sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

@@ -2,6 +2,7 @@
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { listMoveTables } from '../../../../../packages/moves/index.js';
 import { readShadows } from '../../../../../packages/store/index.js';
+import { windowReport } from '../../logic/moves-window.js';
 import { context } from '../context.js';
 import { withBoardRead } from '../context.js';
 
@@ -20,7 +21,7 @@ const tableName = path => path.slice(path.lastIndexOf('/') + 1).replace(/\.table
  */
 export const LIVE_SWITCH = Object.freeze({
   claim: 'moves.live.claim', commit: 'moves.live.submit', submit: 'moves.live.submit', start: 'moves.live.handoff', complete: 'moves.live.handoff',
-  outcome: 'moves.live.outcome', job: 'moves.live.job', reopen: 'moves.live.reopen', outbox: 'moves.live.outbox', hop: 'gate.fencedHop',
+  outcome: 'moves.live.outcome', job: 'moves.live.job', reopen: 'moves.live.reopen', reclaim: 'moves.live.reclaim', outbox: 'moves.live.outbox', hop: 'gate.fencedHop',
 });
 
 /** Whether a switch is on: a moves.live switch only when set true; gate.fencedHop unless set false, its default being on [C7,#8327]. */
@@ -48,12 +49,14 @@ function stateOf(table, counts, settings, noWriter) {
  * @param {string[]} tables - Every table name found in the moves cell.
  * @param {object} settings - The machine settings.
  * @param {string[]} [noWriter] - Tables with no writer by design; a table that also has a switch is not one.
+ * @param {Date} [now] - The time the clean window is measured to.
  */
-export function movesReport(shadows, tables, settings, noWriter = NO_WRITER) {
+export function movesReport(shadows, tables, settings, noWriter = NO_WRITER, now = new Date()) {
   return [...new Set([...tables, ...Object.keys(shadows)])].sort().map(table => {
     const counts = shadows[table] ?? null;
-    return { table, state: stateOf(table, counts, settings, noWriter), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
+    const base = { table, state: stateOf(table, counts, settings, noWriter), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
       firstCompareAt: counts?.since ?? null, lastDisagreedAt: counts?.lastDisagreedAt ?? null, lastDisagreements: counts?.last ?? [] };
+    return { ...base, ...windowReport(base, now) };
   });
 }
 
@@ -63,9 +66,9 @@ export function run(io) {
   const shadows = withBoardRead(ctx, board => readShadows(board));
   const tables = movesReport(shadows, listMoveTables().map(tableName), loadMachineSettings());
   io.result?.({ tables });
-  io.say('table      state   compared  disagreed  first compare');
+  io.say('table      state   compared  disagreed  first compare             clean window');
   for (const row of tables) {
-    io.say(`${row.table.padEnd(10)} ${row.state.padEnd(7)} ${String(row.compared).padStart(8)}  ${String(row.disagreed).padStart(9)}  ${row.firstCompareAt ?? 'never'}`);
+    io.say(`${row.table.padEnd(10)} ${row.state.padEnd(7)} ${String(row.compared).padStart(8)}  ${String(row.disagreed).padStart(9)}  ${(row.firstCompareAt ?? 'never').padEnd(24)}  ${row.ready ? 'ready' : row.windowStart ? `${row.windowHours.toFixed(1)} h` : 'none'}`);
     for (const miss of row.lastDisagreements.slice(-5)) io.say(`  disagreed on #${miss.id} at ${miss.at}: ${miss.differs}`);
   }
   return 0;

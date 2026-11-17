@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/api */
 /** A runner job's log and artifacts are readable from the board after the runner's folder is deleted [P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -8,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { jobView } from '../../../jobs/index.js';
 import { jobQueueCall } from '../../index.js';
 import { jobArtifacts } from '../../index.js';
@@ -16,7 +17,7 @@ import { offerJob } from '../../index.js';
 
 const refusal = call => { try { call(); } catch (error) { return error.code; } return null; };
 
-test('clause 1: a log and a binary artifact posted by the runner outlive its deleted folder, and only the holder may post [P7]', t => {
+test('api.artifacts.log-binary-artifact-posted-runner: clause 1: a log and a binary artifact posted by the runner outlive its deleted folder, and only the holder may post [P7]', t => {
   const { root } = privateFixtureFiles('pullboard-jobs-artifacts-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   const call = body => jobQueueCall(db, body, { mode: 'pull' });

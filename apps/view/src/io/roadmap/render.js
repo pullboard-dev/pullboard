@@ -1,5 +1,6 @@
 /** Roadmap read models and HTML receive explicit snapshots, display fields and disclosure choices [N26,N38,C7]. */
 import { heldChip } from "../held.js";
+import { filterByField } from "../../logic/selection.js";
 
 /** Render one prepared milestone item and its in-place detail. */
 export function milestoneRowHtml(row, presentation = {}) {
@@ -34,8 +35,8 @@ export function milestoneRowHtml(row, presentation = {}) {
 }
 
 /** Rank explicit rows and preserve modern or legacy shipment counts without a live board. */
-export function readMilestoneModel(milestone, inputRows) {
-  const visible = inputRows.filter((row) => row.state !== 'withdrawn');
+export function readMilestoneModel(milestone, inputRows, fieldFilter = null) {
+  const visible = filterByField(inputRows, fieldFilter).filter((row) => row.state !== 'withdrawn');
   const verified = visible.filter((row) => row.state === 'verified');
   /** Group work in the legend's shipping order; stable sorting preserves milestone order within each group. */
   const rank = (row) => row.stage === 'merged' ? 6

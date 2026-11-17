@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { storedCompilations } from '../../src/io/parsed.js';
 
-test('8242 clause 1: 1,200 sources look up in batches and only the unseen source compiles [C7]', t => {
+test('codemap.parsed-batch.c-1-200-sources-look-up: 8242 clause 1: 1,200 sources look up in batches and only the unseen source compiles [C7]', t => {
   const shared = privateFixtureFiles('pullboard-parsed-batch-').root;
   const before = process.env.PULLBOARD_RUNNER_SHARED_CACHE;
   process.env.PULLBOARD_RUNNER_SHARED_CACHE = shared;
