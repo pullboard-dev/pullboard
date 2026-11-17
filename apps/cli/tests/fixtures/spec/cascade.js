@@ -9,7 +9,7 @@ const AUTHOR = 'cascade-author-session';
 const VERIFIER = 'cascade-verifier-session';
 
 /**
- * Draft three rows as the author session, approve and apply them as the coordinator, then make the second serve
+ * Draft three rows as the author session and have the coordinator write them into SPEC.md (spec apply), then make the second serve
  * the first and the third serve the second. Returns the box with a verifier seat from an outside parent session.
  * Why serves is written by hand: spec draft has no serves flag, and the cascade follows the file's serves links.
  */
@@ -25,8 +25,6 @@ export async function cascadeBox(t) {
     const drafted = await box.runAsLocal(AUTHOR, author.root, 'spec', 'draft', text, '--gate', 'review', '--json');
     assert.equal(drafted.code ?? drafted.status, 0, `${drafted.out ?? drafted.stdout}${drafted.err ?? drafted.stderr}`);
     ids.push(JSON.parse(drafted.out ?? drafted.stdout).id);
-    const approved = await box.runLocal(box.repo, 'spec', 'approve', ids.at(-1));
-    assert.equal(approved.code ?? approved.status, 0, `${approved.out ?? approved.stdout}${approved.err ?? approved.stderr}`);
   }
   const applied = await box.runLocal(box.repo, 'spec', 'apply');
   assert.equal(applied.code ?? applied.status, 0, `${applied.out ?? applied.stdout}${applied.err ?? applied.stderr}`);
