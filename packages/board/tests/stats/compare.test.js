@@ -1,12 +1,13 @@
+/** @pullboard-test-input source-cell board store stats state */
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../index.js';
-import { compareFlowWindows } from '../../../../../stats/index.js';
-import { BASE } from '../../../fixtures/stats/compare.js';
-import { entries } from '../../../fixtures/stats/compare.js';
-import { fixture } from '../../../fixtures/stats/compare.js';
-import { idle } from '../../../fixtures/stats/compare.js';
+import * as store from '../../../store/index.js';
+import { compareFlowWindows } from '../../../stats/index.js';
+import { BASE } from '../fixtures/stats/compare.js';
+import { entries } from '../fixtures/stats/compare.js';
+import { fixture } from '../fixtures/stats/compare.js';
+import { idle } from '../fixtures/stats/compare.js';
 
 test('absent historical reasons stay unknown and incomplete windows never pretend measured zero [R2]', t => {
   const box = fixture(t, entries().filter(row => row[2] !== 'next-idle'));

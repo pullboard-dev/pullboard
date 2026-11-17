@@ -2271,7 +2271,7 @@
     "hand-policy": 1,
     "raw-board": 4
   },
-  "packages/store/tests/fixtures/stats/compare.js": {
+  "packages/board/tests/fixtures/stats/compare.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 6
