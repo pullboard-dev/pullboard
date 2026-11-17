@@ -20,7 +20,7 @@ function coldBoard(t) {
   return board;
 }
 
-test('clause 1: a state build on a board with no counters takes proof stats from the counters without reading every event [C7]', (t) => {
+test('store.state-proof-stats.a-state-build-on-a-board: clause 1: a state build on a board with no counters takes proof stats from the counters without reading every event [C7]', (t) => {
   const board = coldBoard(t);
   {
     assert.equal(currentProofCounters(board), null, 'the board starts with no current counters');

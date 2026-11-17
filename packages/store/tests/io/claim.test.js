@@ -17,7 +17,7 @@ function assertSameSelection(board, seat) {
   assert.equal(dispatched.item?.item_id ?? null, planned.item?.item_id ?? null);
 }
 
-test('interactive and automatic selection agree with no claim or a live claim [C7,#2899]', t => {
+test('store.io-claim.interactive-and-automatic-selection-agree-with: interactive and automatic selection agree with no claim or a live claim [C7,#2899]', t => {
   const box = fixture(t);
   const seat = box.seats.builder;
   const open = box.add('One eligible item');
@@ -26,7 +26,7 @@ test('interactive and automatic selection agree with no claim or a live claim [C
   assertSameSelection(box.board, seat);
 });
 
-test('interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', t => {
+test('store.io-claim.interactive-and-automatic-selection-ignore-a: interactive and automatic selection ignore a claim with a queued submit handoff [C7,#2899]', t => {
   const box = fixture(t);
   const seat = box.seats.builder;
   const queued = box.add('Claim with a queued gate');
@@ -44,7 +44,7 @@ test('interactive and automatic selection ignore a claim with a queued submit ha
   assert.ok(available > queued);
 });
 
-test('interactive and automatic selection agree on an own rejected item [C7,#2899]', t => {
+test('store.io-claim.interactive-and-automatic-selection-agree-on: interactive and automatic selection agree on an own rejected item [C7,#2899]', t => {
   const box = fixture(t);
   const seat = box.seats.builder;
   const rejected = box.add('Own rejected item');
@@ -55,7 +55,7 @@ test('interactive and automatic selection agree on an own rejected item [C7,#289
   assertSameSelection(box.board, seat);
 });
 
-test('nextFor and dispatchWork read held claims from the one heldClaim function, with no second claim filter [C7,#2899]', async () => {
+test('store.io-claim.nextfor-and-dispatchwork-read-held-claims: nextFor and dispatchWork read held claims from the one heldClaim function, with no second claim filter [C7,#2899]', async () => {
   const { readFileSync } = await import('node:fs');
   for (const file of ['board/next.js', 'eligibility.js']) {
     const source = readFileSync(new URL(`../../src/io/${file}`, import.meta.url), 'utf8');

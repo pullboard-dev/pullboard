@@ -17,7 +17,7 @@ function redAt(board, head) {
   return id;
 }
 
-test('clause 1: returnedRecord shows a red gate only when its commit matches the item head [SM14]', (t) => {
+test('store.io-board-next-returned-red-head.returnedrecord-shows-a-red-gate-only: clause 1: returnedRecord shows a red gate only when its commit matches the item head [SM14]', (t) => {
   const board = fixtureBoard(t);
   const current = redAt(board, OLD);
   assert.equal(returnedRecord(board, current)?.gate?.commit, OLD, 'a red at the current head shows');
