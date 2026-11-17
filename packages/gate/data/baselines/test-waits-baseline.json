@@ -26,7 +26,7 @@
   "apps/relay/tests/relay-client-fixture.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/fact/board/busy.test.js": {
+  "apps/cli/journeys/fact/board/busy-labels.test.js": {
     "sleep": 1
   },
   "packages/gate/tests/parser.test.js": {

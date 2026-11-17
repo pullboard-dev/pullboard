@@ -7,7 +7,7 @@ import { sendCanaryPush } from '../../../src/io/relay/canary-push.js';
 const SUBSCRIPTIONS = ['https://push.example/a', 'https://push.example/b', 'https://push.example/c']
   .map(endpoint => ({ endpoint, keys: { p256dh: `p-${endpoint}`, auth: 'a' } }));
 
-test('clause 1: with the relay unreachable, sendCanaryPush posts one sealed payload to each stored endpoint [C7]', async () => {
+test('link.canary-push.one-post-per-endpoint: clause 1: with the relay unreachable, sendCanaryPush posts one sealed payload to each stored endpoint [C7]', async () => {
   const posts = [];
   const result = await sendCanaryPush({
     subscriptions: SUBSCRIPTIONS, payload: 'canary',
@@ -25,7 +25,7 @@ test('clause 1: with the relay unreachable, sendCanaryPush posts one sealed payl
   }
 });
 
-test('clause 2: a failing endpoint is reported and the other endpoints still get their post [C7]', async () => {
+test('link.canary-push.failure-does-not-block-others: clause 2: a failing endpoint is reported and the other endpoints still get their post [C7]', async () => {
   const posted = [];
   const result = await sendCanaryPush({
     subscriptions: SUBSCRIPTIONS, payload: 'canary',
