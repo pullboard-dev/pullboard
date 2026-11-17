@@ -9,10 +9,8 @@ export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 const SCHEMA = 'proof_derived';
 /** Boards whose derived file is attached, by connection. */
 const ATTACHED = new WeakMap();
-/** The prepared multi-row upsert, by connection and pair count: preparing it per call made a 100,000-event replay on a file board ~30x slower [C7]. */
+/** The prepared upsert, by connection: preparing it per call made a replay on a file board far slower than reusing one [C7,#9020]. */
 const PUT = new WeakMap();
-/** Pairs a single multi-row upsert carries. */
-const CHUNK = 100;
 
 /** The derived file's path beside a board file: `<board file>.proof-derived.sqlite`, the way the presence database sits beside it. */
 export function derivedPath(boardFile) {
@@ -40,18 +38,9 @@ function attached(board) {
 export function writeDerived(board, pairs) {
   const schema = attached(board);
   if (!schema) return;
-  let byCount = PUT.get(board.db);
-  if (!byCount) PUT.set(board.db, byCount = new Map());
-  // Budget: at most CHUNK pairs a statement keeps the cache to CHUNK shapes and stays far under SQLite's variable limit.
-  for (let at = 0; at < pairs.length; at += CHUNK * 2) {
-    const slice = pairs.slice(at, at + CHUNK * 2), count = slice.length / 2;
-    let put = byCount.get(count);
-    if (!put) {
-      put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES ${Array(count).fill('(?,?)').join(',')} ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
-      byCount.set(count, put);
-    }
-    put.run(...slice);
-  }
+  let put = PUT.get(board.db);
+  if (!put) PUT.set(board.db, put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`));
+  for (let at = 0; at < pairs.length; at += 2) put.run(pairs[at], pairs[at + 1]);
 }
 
 /** Delete the derived rows a board_meta delete just removed: keys matching `glob` and, when given, not matching `except`. */

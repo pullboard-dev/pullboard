@@ -407,20 +407,6 @@ function ensureCapacityCounters(board, until) {
   }
 }
 
-/**
- * Run one replay batch inside a single transaction, unless the caller already holds one [C7,#9020].
- * Why: with the derived-database dual write on, every store committed on its own, and a commit per write (not the prepare)
- * made a 100,000-event replay on a file board ~30x slower; one commit per batch lets both stores commit once.
- */
-function inBatch(board, work) {
-  let begun = false;
-  if (!(board.db.isTransaction ?? false)) {
-    try { board.db.exec('BEGIN'); begun = true; } catch (error) { if (!/within a transaction/.test(String(error?.message))) throw error; }
-  }
-  if (!begun) return work();
-  try { const result = work(); board.db.exec('COMMIT'); return result; } catch (error) { try { board.db.exec('ROLLBACK'); } catch { /* the failure below is the one to report */ } throw error; }
-}
-
 /** Fully consume bounded read batches before writing shards, including on Node22.13's SQLite API. */
 function replayProofTail(board, cursor) {
   const nested = REPLAYING.has(board);
@@ -431,7 +417,7 @@ function replayProofTail(board, cursor) {
       while (true) {
         const batch = read.all(cursor);
         if (!batch.length) break;
-        inBatch(board, () => { for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; } });
+        for (const event of batch) { appendProofCounter(board, event); cursor = event.event_id; }
       }
     });
   } finally { if (!nested) REPLAYING.delete(board); }
@@ -464,22 +450,18 @@ function ensureReportCounters(board, until) {
     while (true) {
       const batch = read.all(cursor, until);
       if (!batch.length) return true;
-      const stop = inBatch(board, () => {
-        for (const event of batch) {
-          let detail;
-          try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
-          const at = Date.parse(event.event_at);
-          if (detail === null || !Number.isFinite(at)) {
-            put(board, 'report-summary', { ...summary, invalid: true });
-            return true;
-          }
-          board.onFlowReportEvent?.(event);
-          appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
-          cursor = event.event_id;
+      for (const event of batch) {
+        let detail;
+        try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
+        const at = Date.parse(event.event_at);
+        if (detail === null || !Number.isFinite(at)) {
+          put(board, 'report-summary', { ...summary, invalid: true });
+          return true;
         }
-        return false;
-      });
-      if (stop) return true;
+        board.onFlowReportEvent?.(event);
+        appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
+        cursor = event.event_id;
+      }
     }
   });
 }
