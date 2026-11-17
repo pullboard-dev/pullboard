@@ -114,7 +114,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     /** The phases of each part: together they are the original single sequence, on separate boards. */
     const phases = {
       study: [() => seedStudyState(context)],
-      rest: [seedSeats,
+      restA: [seedSeats,
         () => seedItemPatches(context),
         async () => {
           process.stderr.write('parity phase seedSourceAdvance begin\n');
@@ -128,7 +128,8 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
         () => seedAdministrative(context),
         () => seedTypedRequests(context),
         () => seedStaleState(context),
-        () => seedBatch(context),
+        () => seedBatch(context)],
+      restB: [seedSeats,
         async () => {
           process.stderr.write('parity phase seedNativeTrain begin\n');
           await seedNativeTrain(context, { cli: CLI_ENTRY });
