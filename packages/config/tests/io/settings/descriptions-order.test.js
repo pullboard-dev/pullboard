@@ -10,3 +10,11 @@ test('clause 2: gate.adapterLintTimers has a description row that says what it r
   assert.match(row.description, /timer/u);
   assert.match(row.description, /off, it reports nothing/u);
 });
+
+test('clause 2: gate.idiomSpread has a description row that says what it refuses and that off reports nothing [C7]', () => {
+  const row = describeSetting('gate.idiomSpread');
+  assert.ok(row, 'description row exists');
+  assert.match(row.description, /refuses/u);
+  assert.match(row.description, /idiom/u);
+  assert.match(row.description, /off, it reports nothing/u);
+});

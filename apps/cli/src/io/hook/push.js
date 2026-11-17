@@ -348,7 +348,8 @@ export function redShardFiles(shard, receipt) {
 
 /**
  * The refusal a not-green set of shards makes: red shards name their failing files, and a shard that posted no
- * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046].
+ * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046]. It also
+ * names that shard's own files as not run (the first 20 and a count), apart from the failing ones [C7,#9370].
  *
  * @param {{ gate: { shards: { job: string, green: boolean }[] } }} combined - combinedReceipt's result.
  * @param {{ posted?: { receipt?: object } }[]} settled - Each shard's awaited result, in plan order.
@@ -363,7 +364,9 @@ export function shardProblem(combined, settled, plan, jobs, failingParts) {
   const reds = notGreen.filter(part => settled[part.at].posted?.receipt);
   const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
   const redText = reds.length ? `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` : '';
-  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green. push again to rerun them.` : '';
+  const unrun = [...new Set(unknown.flatMap(part => plan.shards[part.at].files))].sort();
+  const unrunText = unrun.length ? ` files not run: ${unrun.slice(0, 20).join(', ')}${unrun.length > 20 ? ` and ${unrun.length - 20} more` : ''}.` : '';
+  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green.${unrunText} push again to rerun them.` : '';
   return [redText, unknownText].filter(Boolean).join('\n');
 }
 
