@@ -327,6 +327,12 @@ export function loadMachineSettings() {
   if (value.api?.codeStampCache !== undefined && typeof value.api.codeStampCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `api.codeStampCache in ${file} must be true or false`);
   }
+  if (value.watch !== undefined && (!value.watch || typeof value.watch !== 'object' || Array.isArray(value.watch) || Object.keys(value.watch).some(key => key !== 'quietReads'))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `watch in ${file} holds only quietReads; remove other keys`);
+  }
+  if (value.watch?.quietReads !== undefined && typeof value.watch.quietReads !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `watch.quietReads in ${file} must be true or false`);
+  }
   if (value.add !== undefined && (!value.add || typeof value.add !== 'object' || Array.isArray(value.add) || Object.keys(value.add).some(key => key !== 'warnUnnamedTest'))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `add in ${file} holds only warnUnnamedTest; remove other keys`);
   }
@@ -715,4 +721,14 @@ export function validRunnerCpuLoad(value) {
 export function boardRemote() {
   const board = loadMachineSettings().board;
   return board?.url ? { url: board.url, token: board.token ?? '', ...(board.commits ? { commits: board.commits } : {}) } : null;
+}
+
+/** Browser-free check admission is deliberately opt-in per machine; it lives here, not in the io settings file, so the light door reaches no resources module. */
+export function browserFreeChecksEnabled() {
+  return loadMachineSettings().gate?.browserFreeChecks === true;
+}
+
+/** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
+export function reofferInfraEndEnabled() {
+  return loadMachineSettings().gate?.reofferInfraEnd === true;
 }
