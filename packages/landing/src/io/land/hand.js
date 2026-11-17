@@ -2,8 +2,8 @@
 import * as store from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { tryGit } from '../../../../git/index.js';
-import { landingEntry } from '../step/selection.js';
-import { testDefectHoldMessage } from '../step/selection.js';
+import { landingEntry } from '../../logic/land/entry.js';
+import { testDefectHoldMessage } from '../../logic/land/entry.js';
 import { landingMergeArgs } from './merge-args.js';
 
 /**
