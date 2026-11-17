@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-test-loads apps/cli/src/io/entry.js */
 /** The runner-only uncountable and final green doctrine submits against a registered fixture runner, split from doctrine.test.js to stay under its time budget [Q1,C7,D1,D3]. */
 import { installRunnerOnlyUncountedCase } from '../../../../packages/gate/tests/fixtures/resources/runner.js';
