@@ -1,6 +1,5 @@
 /** Shared scratch-project board for the pytest journeys: pytest lookup, a pytest project board with one seat, build-and-submit and accept-and-land [C7,#10616]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -20,24 +19,36 @@ import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtur
 const REAL_HOME = userInfo().homedir || homedir();
 
 /**
- * The environment a gate needs to run pytest, or null when this machine's python3 has no pytest.
- * Why: pip --user installs pytest under the account's user base, which a runner job's fresh HOME hides, and its script folder is on no job PATH;
- * PYTHONUSERBASE points python3 back at it and the script folder joins PATH, the way the Rust journeys point at the account's rustup [#10616].
+ * The python3 binary and the user base holding pytest, or null when this machine's python3 has no pytest.
+ * Why: pip --user installs pytest under the account's user base, which a runner job's fresh HOME hides, so a pytest wrapper on PATH points python3 back at it [#10616].
  */
 function pytestEnvironment() {
   const base = spawnSync('python3', ['-c', 'import site; print(site.getuserbase())'], { env: { ...process.env, HOME: REAL_HOME }, encoding: 'utf8', timeout: 10_000 });
   const userBase = String(base.stdout ?? '').trim();
-  const env = userBase.startsWith('/') ? { ...process.env, PYTHONUSERBASE: userBase } : process.env;
-  const probe = spawnSync('python3', ['-m', 'pytest', '--version'], { env, encoding: 'utf8', timeout: 30_000 });
+  if (!userBase.startsWith('/')) return null;
+  const probe = spawnSync('python3', ['-m', 'pytest', '--version'], { env: { ...process.env, PYTHONUSERBASE: userBase }, encoding: 'utf8', timeout: 30_000 });
   if (probe.error || probe.status !== 0) return null;
-  const scripts = spawnSync('python3', ['-c', "import sysconfig; print(sysconfig.get_path('scripts')); print(sysconfig.get_path('scripts', 'posix_user'))"], { env, encoding: 'utf8', timeout: 10_000 });
-  const folders = String(scripts.stdout).split('\n').map((line) => line.trim()).filter((folder) => folder.startsWith('/') && existsSync(join(folder, 'pytest')));
-  if (!folders.length) return null;
-  return { folders: [folders[0]], ...(env.PYTHONUSERBASE ? { PYTHONUSERBASE: env.PYTHONUSERBASE } : {}) };
+  const python = String(spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8', timeout: 5000 }).stdout).trim();
+  return python.startsWith('/') ? { python, userBase } : null;
+}
+
+/** Single-quote one shell word. */
+const quoted = (text) => `'${String(text).replaceAll("'", "'\\''")}'`;
+
+/**
+ * Write an executable wrapper named after the tool into the sandbox and return its folder.
+ * Why: a gate job keeps only PATH from the sandbox's variables, so the wrapper carries the variables the tool needs [#10616].
+ */
+function wrapperFolder(box, name, variables, target, args = '') {
+  const folder = join(box.dir, 'toolchain-bin');
+  mkdirSync(folder, { recursive: true });
+  const assignments = Object.entries(variables).map(([key, value]) => `${key}=${quoted(value)}`).join(' ');
+  writeFileSync(join(folder, name), `#!/bin/sh\n${assignments} exec ${quoted(target)}${args} "$@"\n`, { mode: 0o755 });
+  return folder;
 }
 
 export const PYTEST = pytestEnvironment();
-export const UNAVAILABLE = 'python3 with a pytest script unavailable on this machine';
+export const UNAVAILABLE = 'python3 with pytest unavailable on this machine';
 export const GATE = 'pytest';
 
 const BRIEF = 'Files:\n- test_item.py\nChange:\n- Add the item test.\nTest:\n- pytest passes.';
@@ -49,11 +60,10 @@ export const PASSING = `${HEADER}def test_adds_small_numbers():\n    assert add(
 export const BROKEN = `${HEADER}def test_adds_small_numbers():\n    assert add(1, 2) == 4\n`;
 const BASE_ITEM = `${HEADER}def test_adds_nothing():\n    assert add(0, 0) == 0\n`;
 
-/** A sandbox whose gate and runner see pytest and its user site-packages and write no bytecode: the variables are set before the first command starts the runner. */
+/** A sandbox whose gate and runner find pytest through a wrapper that sees the user site-packages: the variables are set before the first command starts the runner. */
 export function pytestSandbox(helpers, settings = {}) {
   const box = helpers.sandbox();
-  box.env.PATH = [...(PYTEST?.folders ?? []), box.env.PATH].join(':');
-  if (PYTEST?.PYTHONUSERBASE) box.env.PYTHONUSERBASE = PYTEST.PYTHONUSERBASE;
+  if (PYTEST) box.env.PATH = [wrapperFolder(box, 'pytest', { PYTHONUSERBASE: PYTEST.userBase, PYTHONDONTWRITEBYTECODE: '1' }, PYTEST.python, ' -m pytest'), box.env.PATH].join(':');
   box.env.PYTHONDONTWRITEBYTECODE = '1';
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   return box;
