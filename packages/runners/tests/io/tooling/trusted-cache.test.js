@@ -15,7 +15,7 @@ const WORKER = 'apps/runner/src/io/scripts/worker.js';
 const shared = () => sharedCommittedTooling(() => fixtureCommittedGraph('pullboard-trusted-cache-'));
 after(async () => (await shared()).remove());
 
-test('#8133 clause 1: a second capture of the same tooling tree reuses the first, without rescanning the worker files [C7]', async () => {
+test('runners.trusted-cache.n8133-clause-1-a-second-capture: #8133 clause 1: a second capture of the same tooling tree reuses the first, without rescanning the worker files [C7]', async () => {
   const { graph, trustedTooling } = await shared();
   const first = trustedTooling();
   assert.equal(first.tooling.kind, 'git-checkout', 'the copy is captured from its committed export');
@@ -27,7 +27,7 @@ test('#8133 clause 1: a second capture of the same tooling tree reuses the first
   assert.equal(second, first, 'the same tree answers from the held capture, not a new scan');
 });
 
-test('#8133 clause 2: a changed tooling tree is captured afresh [C7]', async () => {
+test('runners.trusted-cache.n8133-clause-2-a-changed-tooling: #8133 clause 2: a changed tooling tree is captured afresh [C7]', async () => {
   const { graph, trustedTooling } = await shared();
   const first = trustedTooling();
   appendFileSync(join(graph.root, WORKER), '// changed tooling\n');

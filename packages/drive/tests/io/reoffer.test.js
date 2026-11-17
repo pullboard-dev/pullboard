@@ -28,7 +28,7 @@ function pass(t, { reofferInfraEnd, active } = {}, setup = quietGate) {
   return { board, later, run, gates };
 }
 
-test('clause 1: with gate.reofferInfraEnd on, a gate job that ends GATE_JOB_NO_PROGRESS is offered once more for the same item and commit [C7,#9633]', t => {
+test('drive.reoffer.with-gate-reofferinfraend-on-a: clause 1: with gate.reofferInfraEnd on, a gate job that ends GATE_JOB_NO_PROGRESS is offered once more for the same item and commit [C7,#9633]', t => {
   const f = pass(t, { reofferInfraEnd: true });
   assert.deepEqual(f.run(f.later).map(row => row.ended), ['infrastructure']);
   const again = jobView(f.board.db, 'gate:7:abc:one:reoffer');
@@ -40,7 +40,7 @@ test('clause 1: with gate.reofferInfraEnd on, a gate job that ends GATE_JOB_NO_P
   assert.deepEqual(old.steps.find(step => step.name === 'reoffered').payload, { job: 'gate:7:abc:one:reoffer' });
 });
 
-test('clause 2: a gate job whose item left the commit, a gate job that ended red, and a run with the setting off are not offered again [C7,#9633]', t => {
+test('drive.reoffer.a-gate-job-whose-item: clause 2: a gate job whose item left the commit, a gate job that ended red, and a run with the setting off are not offered again [C7,#9633]', t => {
   const stale = pass(t, { reofferInfraEnd: true, active: () => false });
   assert.deepEqual(stale.run(stale.later).map(row => row.ended), ['stale']);
   assert.deepEqual(stale.gates().map(row => row.id), ['gate:7:abc:one'], 'a stale job is not re-offered');
@@ -56,7 +56,7 @@ test('clause 2: a gate job whose item left the commit, a gate job that ended red
   assert.deepEqual(off.gates().map(row => row.id), ['gate:7:abc:one'], 'with the setting off nothing is re-offered');
 });
 
-test('clause 3: a re-offered gate job that ends GATE_JOB_NO_PROGRESS too is not offered a second time for the commit [C7,#9633]', t => {
+test('drive.reoffer.a-re-offered-gate-job: clause 3: a re-offered gate job that ends GATE_JOB_NO_PROGRESS too is not offered a second time for the commit [C7,#9633]', t => {
   const f = pass(t, { reofferInfraEnd: true });
   f.run(f.later);
   const second = f.later + GATE_JOB_NO_PROGRESS_MS + LEASE_MS + 1;

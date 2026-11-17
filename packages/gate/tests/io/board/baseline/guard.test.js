@@ -50,9 +50,9 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
 /** Moving a test relocates its existing debt; neither spelling gains another allowance. */
 test('moved store tests retain exact board-file ceilings and refuse one extra open [C7]', () => {
   const moved = {
-    'api-identity': ['packages/store/tests/io/board.test.js', 8],
+    'api-identity': ['packages/board/tests/from-store/io/board.test.js', 8],
     badge: ['apps/cli/journeys/badge/main.test.js', 1],
-    'board-capture': ['packages/store/tests/io/board/capture.test.js', 4],
+    'board-capture': ['packages/board/tests/from-store/io/board/capture.test.js', 4],
     'claim-reopen-clock': ['packages/moves/tests/logic/moves/claim.test.js', 1],
     'commit-metadata': ['apps/cli/journeys/release/metadata.test.js', 1],
     'landing-noop': ['apps/cli/journeys/land/landing/noop.test.js', 1],

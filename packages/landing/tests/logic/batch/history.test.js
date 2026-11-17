@@ -10,7 +10,7 @@ import { landingMaximum } from '../../../index.js';
 const landed = { state: 'trunk' };
 const blocked = { state: 'blocked' };
 
-test('clause 1: the adaptive size starts at 4, halves after a blocked or bisected batch and doubles after three landed in a row, within 1-16 [C7,H24]', () => {
+test('landing.history.the-adaptive-size-starts-at-4: clause 1: the adaptive size starts at 4, halves after a blocked or bisected batch and doubles after three landed in a row, within 1-16 [C7,H24]', () => {
   assert.equal(landingBatchSize([]), 4);
   assert.equal(landingBatchSize([blocked]), 2);
   assert.equal(landingBatchSize([blocked, blocked]), 1);
@@ -28,7 +28,7 @@ test('clause 1: the adaptive size starts at 4, halves after a blocked or bisecte
     { state: 'blocked', supersededByMain: 'a'.repeat(40) }, { state: 'gating' }]), 2, 'drops, superseded batches and unfinished ones say nothing about redness');
 });
 
-test('clause 2: line.landingBatchSize overrides the adaptive size for real landing, and per-item landing takes every item [C7,H24,#5815]', t => {
+test('landing.history.line-landingbatchsize-overrides-the-adaptive-size: clause 2: line.landingBatchSize overrides the adaptive size for real landing, and per-item landing takes every item [C7,H24,#5815]', t => {
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/adaptive/main' });
@@ -44,12 +44,12 @@ test('clause 2: line.landingBatchSize overrides the adaptive size for real landi
   assert.equal(landingMaximum(board, batched), 6, 'and applies to a hand landing too');
 });
 
-test('clause 1: the size folds every recorded batch, so a long run of red/green pairs never resets it [C7]', () => {
+test('landing.history.the-size-folds-every-recorded-batch: clause 1: the size folds every recorded batch, so a long run of red/green pairs never resets it [C7]', () => {
   const pairs = Array.from({ length: 8 }, () => [blocked, landed]).flat();
   assert.equal(landingBatchSize([...Array(6).fill(landed), ...pairs]), 1, 'six greens reach 16; eight red/green pairs then halve it to 1, since a single green never grows it');
 });
 
-test('clause 1: at a cap of 1, items that stay red take turns, a third still lands, and one that turns green lands [C7]', () => {
+test('landing.history.at-a-cap-of-1-items: clause 1: at a cap of 1, items that stay red take turns, a third still lands, and one that turns green lands [C7]', () => {
   const red = (id, n) => ({ id: `r${n}`, state: 'blocked', items: [{ id }] });
   // Selection at cap 1: untried items first in accept order, then failures least recently failed first.
   const pick = (batches, waiting) => {
@@ -73,7 +73,7 @@ test('clause 1: at a cap of 1, items that stay red take turns, a third still lan
   assert.deepEqual(waiting, [1], 'only the item still red is left');
 });
 
-test('clause 1: a repeated selection folds only new batches and matches a full fold [C7]', () => {
+test('landing.history.a-repeated-selection-folds-only-new: clause 1: a repeated selection folds only new batches and matches a full fold [C7]', () => {
   const history = Array.from({ length: 40 }, (_, index) => ({ id: `b${index}`, state: index % 3 ? 'landed' : 'blocked' }));
   const full = landingBatchSize(history);
   assert.equal(landingBatchSize([...history, { id: 'live', state: 'gating' }]), full, 'an unfinished batch says nothing');
@@ -81,7 +81,7 @@ test('clause 1: a repeated selection folds only new batches and matches a full f
   assert.equal(landingBatchSize([{ id: 'other', state: 'blocked' }]), 2, 'a different history folds afresh');
 });
 
-test('clause 1: a revised earlier batch refolds the size and the failure turns, never a stale cached result [C7]', () => {
+test('landing.history.a-revised-earlier-batch-refolds-the: clause 1: a revised earlier batch refolds the size and the failure turns, never a stale cached result [C7]', () => {
   const history = Array.from({ length: 10 }, (_, index) => ({ id: `b${index}`, state: index === 2 ? 'blocked' : 'landed', items: [{ id: index + 1 }] }));
   assert.equal(landingBatchSize(history), 8, 'two greens, a red to 2, then seven greens: 4 at the third, 8 at the sixth');
   assert.deepEqual([...roundFailures(history)], [[3, 1]]);
@@ -99,14 +99,14 @@ test('clause 1: a revised earlier batch refolds the size and the failure turns, 
   assert.deepEqual([...roundFailures(items)], [[30, 1]], 'a changed item list moves the failure to the new item');
 });
 
-test('clause 1: a batch stopped by a refusal that names no failing test never shrinks the next batch [C7]', () => {
+test('landing.history.a-batch-stopped-by-a-refusal: clause 1: a batch stopped by a refusal that names no failing test never shrinks the next batch [C7]', () => {
   const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
     refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
   assert.equal(landingBatchSize([locked, locked, locked]), 4, 'infrastructure refusals keep the starting size');
   assert.equal(landingBatchSize([landed, landed, landed, locked]), 8, 'and keep a grown size');
 });
 
-test('clause 2: a blocked batch with a named failing test or a culprit still halves the next batch [C7]', () => {
+test('landing.history.a-blocked-batch-with-a-named: clause 2: a blocked batch with a named failing test or a culprit still halves the next batch [C7]', () => {
   const locked = { state: 'blocked', failures: [{ file: null, name: 'never ran: the resource queue database stayed locked' }],
     refusal: { code: 'SLOT_DB_LOCKED', message: 'never ran', at: '2026-11-05T16:27:14.000Z' } };
   const testRed = { state: 'blocked', failures: [{ file: 'test/a.test.js', name: 'case' }], refusal: { code: 'LAND_DIAGNOSTIC', message: 'red', at: '2026-11-05T16:00:00.000Z' } };
@@ -114,7 +114,7 @@ test('clause 2: a blocked batch with a named failing test or a culprit still hal
   assert.equal(landingBatchSize([{ ...locked, culprits: [{ id: 3 }] }]), 2, 'a culprit still halves it');
 });
 
-test('clause 3: revising a blocked batch from an infrastructure refusal to a named red refolds the size [C7]', () => {
+test('landing.history.revising-a-blocked-batch-from-an: clause 3: revising a blocked batch from an infrastructure refusal to a named red refolds the size [C7]', () => {
   const id = 'b-1';
   const first = [{ id, state: 'blocked', failures: [{ file: null, name: 'locked' }], refusal: { code: 'SLOT_DB_LOCKED', message: 'x', at: 'a' } }];
   assert.equal(landingBatchSize(first), 4);

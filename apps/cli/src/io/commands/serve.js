@@ -46,8 +46,10 @@ import { serveListen } from '../../../../../packages/config/index.js';
 import { movesShadowEnabled } from '../../../../../packages/config/index.js';
 import { movesLiveEnabled } from '../../../../../packages/config/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { excuseMainTimingReds } from '../../../../../packages/config/index.js';
 import { criterionMainReceipts } from '../submit/receipt.js';
 import { provideMainComparison } from '../../../../../packages/api/index.js';
+import { provideTimingExcuse } from '../../../../../packages/api/index.js';
 import { provideGateHopTable } from '../../../../../packages/api/index.js';
 import { provideJobTable } from '../../../../../packages/api/index.js';
 import { JOB_MAX_ATTEMPTS } from '../../../../../packages/api/index.js';
@@ -142,6 +144,7 @@ export async function serveHere(io, values) {
   const networked = address !== LOOPBACK;
   // A pulled gate's red cases are read against main's receipts like a submit gate's, unless gate.mainComparison is off [P7].
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideTimingExcuse(() => excuseMainTimingReds());
   provideGateHopTable(gateHopTable);
   provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
@@ -242,6 +245,7 @@ const MAIN_RED_NOTES = { message: (root, board, comparison) => mainRedMessage(ro
 export async function loopbackBoardApi(io, { projects, secret }) {
   const ctx = context(io), openers = { ...nativeBoardOpeners(io), launchRelaySender: io.launchRelaySender, trunkPack: servedTrunkPack }, ids = new Map();
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideTimingExcuse(() => excuseMainTimingReds());
   provideGateHopTable(gateHopTable);
   provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);
@@ -284,6 +288,7 @@ function jobShadowTable() {
  */
 export async function boardHandlerPorts({ isMain } = {}) {
   provideMainComparison(request => mainComparisonMode() === 'off' ? null : criterionMainReceipts(request));
+  provideTimingExcuse(() => excuseMainTimingReds());
   provideGateHopTable(gateHopTable);
   provideJobTable(jobShadowTable(), movesShadowEnabled, () => movesLiveEnabled('job'));
   provideCompanionInheritance(companionMainFailuresUntouched);

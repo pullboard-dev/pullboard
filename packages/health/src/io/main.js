@@ -67,11 +67,13 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../store/index.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../landing/index.js';
+import { localReleaseRank } from '../../../landing/light.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
+import { relayMachineContext } from '../../../link/index.js';
+import { credentialExpiryFindings } from './credential.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
@@ -142,6 +144,9 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
     }));
   }
+  let machineLink = null;
+  try { machineLink = relayMachineContext(root); } catch { /* no readable link: no credential to warn about */ }
+  report.stuck.push(...credentialExpiryFindings(machineLink, now.getTime(), finding));
   const settings = machineSettings;
   if (settings?.gate?.loadAwareDispatch === true) {
     const fresh = (settings.runners ?? []).filter(runner => {
@@ -546,6 +551,18 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
       why: `${agent.id} has held no claim or review and pulled nothing for 30 minutes, while #${work.id} waits in ${agent.lane} and it could take it`,
       next: `run pullboard next in ${agent.path}`, command: 'pullboard next',
       owner: { role: 'builder', who: agent.id }, detail: { lane: agent.lane, route: agent.route, item: work.id },
+    }));
+  }
+
+  // A seat that joined without a model (no record, or the word unknown) cannot be routed by model or family: name each active one by seat id [C7,#9696].
+  const models = new Map(board.db.prepare("SELECT meta_key AS key, meta_value AS value FROM board_meta WHERE meta_key LIKE 'agent_model:%'").all().map(row => [row.key.slice('agent_model:'.length), String(row.value ?? '').trim().toLowerCase()]));
+  for (const agent of active.filter(candidate => !models.get(candidate.id) || models.get(candidate.id) === 'unknown')) {
+    findings.push(finding('SEAT_NO_MODEL', null, {
+      subject: agent.id, key: `SEAT_NO_MODEL:agent:${agent.id}`, since: new Date(agent.created ? Date.parse(agent.created) : agent.last).toISOString(), now,
+      title: 'joined without a model',
+      why: `${agent.id} in ${agent.lane} has no recorded model, so its work cannot be routed by model`,
+      next: `rejoin ${agent.path} with the model named: in a shell with PULLBOARD_MODEL set, run pullboard join ${agent.lane}`,
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: { lane: agent.lane, route: agent.route },
     }));
   }
 

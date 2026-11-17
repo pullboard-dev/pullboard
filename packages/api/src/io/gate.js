@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { store } from './gate/moves.js';
 import { redLocationLine } from './gate/where.js';
 import { orderedReceiptMoves } from './gate/moves.js';
+import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { releaseBackoffMs } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
@@ -409,11 +410,12 @@ export function failingParts(receipt) {
  * @param {string} main - The accepted main the gate job was offered against.
  * @param {((request: { root: string, db: import('node:sqlite').DatabaseSync, main: string, cases: { file: string, name: string }[], inputKeys: Record<string, string> }) =>
  *   { classes: { file: string, owner: string, own: string[], receipt: unknown, job: string | null }[] } | null) | null} lookup
+ * @param {{ excuseTiming?: boolean }} [options] - excuseTiming: a timing-table case that fails on both sides under one name reads onMain even when its signature differs, since its message carries measured milliseconds (#9755); a host may also turn it on for every comparison through provideTimingExcuse. Default off: nothing changes.
  * @returns {{ cases: { phase: string, file: string, name: string, signature: string | null, onMain: boolean | null, receipt: string | null }[], jobs: string[] } | null}
  *   null when the red is not only test cases (a job error, infrastructure, a refusal, a phase with no case account),
  *   when no lookup is given (gate.mainComparison off) or when main's receipts cannot be keyed.
  */
-export function compareGateWithMain(board, receipt, main, lookup) {
+export function compareGateWithMain(board, receipt, main, lookup, options = {}) {
   const gate = receipt?.gate ?? {};
   if (typeof lookup !== 'function' || !board.gitRoot || !SHA.test(String(main)) || gate.error || gate.analysis?.infra || gate.analysis?.refusals?.length || gate.analysis?.ownership) return null;
   const red = (gate.phases ?? []).filter(phase => phase.status !== 0);
@@ -428,6 +430,7 @@ export function compareGateWithMain(board, receipt, main, lookup) {
   const classes = new Map((found?.classes ?? []).map(row => [row.file, row]));
   if (cases.some(row => !classes.has(row.file))) return null;
   const receiptId = value => typeof value === 'string' ? value : typeof value?.id === 'string' ? value.id : null;
+  const excuse = options?.excuseTiming === true || (typeof timingExcuse === 'function' && timingExcuse() === true);
   return {
     cases: cases.map(row => {
       const one = classes.get(row.file);
@@ -436,9 +439,11 @@ export function compareGateWithMain(board, receipt, main, lookup) {
       // unsigned case on either side differs, so a changed assertion is never excused by main's red of that name [V4,B3].
       // A main-test receipt keeps each name clipped, so a longer case is matched by that clip; the signature still has to agree (#7495).
       const clipped = row.name.slice(0, MAIN_CASE_NAME_UNITS);
-      const same = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
+      const signedSame = named ? named.some(main => main.name === clipped && main.signature !== null && main.signature === row.signature)
         : row.signature !== null && !one.own.includes(row.name);
       const byName = named ? named.some(main => main.name === clipped) : !one.own.includes(row.name);
+      // With excuseTiming on, main's red of a timing-table case under the same name is the gate's red, whatever the measured milliseconds say (#9755).
+      const same = signedSame || (excuse && byName && sameTimingRed(row, row));
       return { ...row, onMain: one.owner === 'unknown' ? null : same, ...(one.owner !== 'unknown' && byName && !same ? { differs: true } : {}), receipt: receiptId(one.receipt) };
     }),
     jobs: [...new Set([...classes.values()].map(row => row.job).filter(Boolean))],
@@ -670,7 +675,7 @@ function pulledProfilePaths(receipt) {
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
-function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false } = {}) {
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false, queue = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -688,7 +693,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
     if (sharded) return sharded;
   }
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
-  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
@@ -920,6 +925,18 @@ function countGate(board, receiptIds, job) {
 
 /** The main-receipt lookup this process's board API applies red gate receipts with; null until a host provides one. */
 let mainComparison = null;
+
+/** Whether a timing red on main excuses the same red on a gate, asked on each comparison; null until a host provides one (#9755). */
+let timingExcuse = null;
+
+/**
+ * Provide the question compareGateWithMain asks to excuse timing reds, for every board this process serves; null removes
+ * it. Why a provider: the setting belongs to the host, and the board API's routes read no settings themselves.
+ * @param {(() => boolean) | null} fn - Answers true to excuse a timing red that main also has.
+ */
+export function provideTimingExcuse(fn) {
+  timingExcuse = typeof fn === 'function' ? fn : null;
+}
 
 /**
  * Provide the main-receipt lookup red gate receipts are compared with, for every board this process serves; null

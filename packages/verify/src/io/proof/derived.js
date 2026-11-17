@@ -9,6 +9,8 @@ export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 const SCHEMA = 'proof_derived';
 /** Boards whose derived file is attached, by connection. */
 const ATTACHED = new WeakMap();
+/** The prepared upsert, by connection: preparing it per call made a replay on a file board far slower than reusing one [C7,#9020]. */
+const PUT = new WeakMap();
 
 /** The derived file's path beside a board file: `<board file>.proof-derived.sqlite`, the way the presence database sits beside it. */
 export function derivedPath(boardFile) {
@@ -36,7 +38,8 @@ function attached(board) {
 export function writeDerived(board, pairs) {
   const schema = attached(board);
   if (!schema) return;
-  const put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
+  let put = PUT.get(board.db);
+  if (!put) PUT.set(board.db, put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`));
   for (let at = 0; at < pairs.length; at += 2) put.run(pairs[at], pairs[at + 1]);
 }
 
@@ -58,4 +61,24 @@ export function derivedText(board, storedKey) {
 export function derivedRows(board) {
   const schema = attached(board);
   return schema ? board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter ORDER BY meta_key`).all() : [];
+}
+
+/** Whether this board reads and writes the derived database: the setting is on and the board is a file. */
+export function derivedOn(board) {
+  return attached(board) !== null;
+}
+
+/** The text of every derived row under a key prefix, in numeric id order (the order board_meta rows arrived in); empty when off. */
+export function derivedTextRows(board, prefix) {
+  const schema = attached(board);
+  if (!schema) return [];
+  const rows = board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter WHERE meta_key GLOB ?`).all(`${prefix}*`);
+  const id = row => Number(row.meta_key.slice(prefix.length));
+  return rows.sort((a, b) => (id(a) - id(b)) || (a.meta_key < b.meta_key ? -1 : 1)).map(row => row.meta_value);
+}
+
+/** The text of every derived row whose key is at least `low` and below `high`, in key order; empty when off. */
+export function derivedTextRange(board, low, high) {
+  const schema = attached(board);
+  return schema ? board.db.prepare(`SELECT meta_value FROM ${schema}.proof_counter WHERE meta_key>=? AND meta_key<? ORDER BY meta_key`).all(low, high).map(row => row.meta_value) : [];
 }
