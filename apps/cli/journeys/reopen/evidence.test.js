@@ -48,7 +48,7 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
   moveMainPastSubmit(box);
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const landing = box.run(box.repo, 'land', '--json');
+  const landing = await box.runIn(box.repo, 'land', '--json');
   // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
   const settled = await settleLand(box, JSON.parse(landing.out));
   assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}${JSON.stringify(settled.landJob ?? {})}`);

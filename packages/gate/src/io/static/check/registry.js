@@ -7,6 +7,7 @@ import { engineFolderViolations } from '../../../../../state/index.js';
 import { emptyCatchProblems } from '../../catch.js';
 import { fileSizeProblems } from '../../file/size.js';
 import { testInputProblems } from '../../test/inputs.js';
+import { requireDeclaredInputsEnabled } from '../../../../../config/index.js';
 import { testWaitSites } from '../../test/waits.js';
 import { testWaitGrowth } from '../../test/waits.js';
 import { relayBoundaryProblems } from '../../relay.js';
@@ -27,6 +28,10 @@ import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { boardFileOpens } from '../../board/files.js';
+import { boardFileGrowth } from '../../board/files.js';
+import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
+import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
@@ -131,7 +136,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   // No new style= attribute or element .style write in apps/view; each file keeps main's count and never gains one (packages/gate/src/io/static/inline-style.js).
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
-  { name: 'test-inputs', run: growthCheck(testInputProblems) },
+  { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },
   { name: 'load-bearing', run: loadBearingCheck },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
@@ -143,6 +148,12 @@ export const STATIC_CHECKS = Object.freeze([
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
+  // A changed test that adds an unclassified file-board open past its file's ceiling; silent unless the gate.boardOpensCheck machine setting is on, and it reads only changed test files.
+  { name: 'board-file-opens', run: ({ root, files, read }) => {
+    const tests = files.filter(isTestSource);
+    if (!tests.length || !boardOpensCheckOn()) return [];
+    return tests.flatMap(file => boardFileGrowth(boardFileOpens(read(file).source, file), BOARD_FILE_BASELINE).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;

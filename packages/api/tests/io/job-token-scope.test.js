@@ -26,7 +26,7 @@ function refusal(run) {
   try { run(); return null; } catch (error) { return error.code ?? String(error); }
 }
 
-test('clause 1: a claim\'s token renews and posts a receipt for that job only, and a later claim ends it [P7]', t => {
+test('api.job-token-scope.claim-token-renews-posts-receipt: clause 1: a claim\'s token renews and posts a receipt for that job only, and a later claim ends it [P7]', t => {
   const db = cellBoard(t, ':memory:').db;
   offerJob(db, { id: 'gate:one', kind: 'gate', now: T0 });
   offerJob(db, { id: 'gate:two', kind: 'gate', now: T0 });
@@ -51,7 +51,7 @@ test('clause 1: a claim\'s token renews and posts a receipt for that job only, a
   assert.equal(call(db, { action: 'receipt', job: lost, runner: 'r-b', token: taken.token, receipt: { status: 0 } }, later + 2).recorded, true, 'the new holder posts');
 });
 
-test('clause 2: only a landing job\'s claim carries a permit the trunk guard accepts [P7,B3]', async t => {
+test('api.job-token-scope.only-landing-job-claim-carries: clause 2: only a landing job\'s claim carries a permit the trunk guard accepts [P7,B3]', async t => {
   const db = cellBoard(t, ':memory:').db;
   offerJob(db, { id: 'gate:plain', kind: 'gate', now: T0 });
   offerLandingJob(db, { items: [{ id: 5723, commit: 'c'.repeat(40), ref: 'refs/pullboard/land/5723' }], expect: OLD, config: { trunk: { remote: '/trunk.git' } }, now: T0 });

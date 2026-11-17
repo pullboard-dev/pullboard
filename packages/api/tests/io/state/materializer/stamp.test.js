@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input packages/api/src/io/state/materializer/worker.js */
 /** The state snapshot's code stamp covers the release's package.json, so a CLI copy with a new version rebuilds [A2,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -50,7 +50,7 @@ async function savedKey(tree) {
   return deserialize(readFileSync(out)).key;
 }
 
-test('clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async (t) => {
+test('api.state-materializer-stamp.saved-snapshot-key-changes-when: clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async (t) => {
   const tree = codeTree(t);
   tree.write('package.json', '{"version":"0.9.4"}\n');
   const before = await savedKey(tree);

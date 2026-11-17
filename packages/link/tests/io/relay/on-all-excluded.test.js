@@ -36,7 +36,7 @@ function setup(t) {
   return { projects, io, said, calls, link };
 }
 
-test('clause 1: pullboard relay on --all prints, for each excluded board, a line naming it and the exact command that relinks it [C7,#9416]', async t => {
+test('link.relay-on-all.names-excluded-boards: clause 1: pullboard relay on --all prints, for each excluded board, a line naming it and the exact command that relinks it [C7,#9416]', async t => {
   const { projects, io, said, calls, link } = setup(t);
   const result = await linkProjects(SESSION, io, { projects, link });
   assert.deepEqual(calls, [], 'an excluded board is not linked without --only');
@@ -49,7 +49,7 @@ test('clause 1: pullboard relay on --all prints, for each excluded board, a line
   for (const { root } of projects) assert.ok(relayExclusion(root), 'the exclusion is untouched');
 });
 
-test('clause 2: relay on --all --only <name> clears that one board\'s exclusion and links only that board, with the way out in the message [C7,#9416]', async t => {
+test('link.relay-on-all.only-relinks-one: clause 2: relay on --all --only <name> clears that one board\'s exclusion and links only that board, with the way out in the message [C7,#9416]', async t => {
   const { projects, io, said, calls, link } = setup(t);
   const [alpha, beta] = projects;
   const result = await linkProjects(SESSION, io, { projects, link, only: 'alpha' });

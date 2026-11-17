@@ -32,7 +32,7 @@ function makeIdentityFixture(t) {
   return { root, runner: fixtureRunner, workerTest: join(root, 'test/worker-start.test.js') };
 }
 
-test('a landing worker gets its identity without the oversized process census [C7,V4]', t => {
+test('runners.identity.a-landing-worker-gets-its-identity: a landing worker gets its identity without the oversized process census [C7,V4]', t => {
   const fixture = makeIdentityFixture(t);
   const preload = join(fixture.root, 'worker-snapshot-overflow.mjs');
   const calls = join(fixture.root, 'worker-snapshot-calls.jsonl');

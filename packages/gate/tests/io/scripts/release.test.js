@@ -1,7 +1,8 @@
 /**
  * A packed release works on a machine that has only it (P2, I1): the tarball npm would publish,
- * installed into an empty prefix with no network, runs the whole loop from a fresh git repo. Every
- * command, and every git hook, runs the installed pullboard, never this repo's bin.
+ * installed into an empty prefix with no network, sets up a fresh git repo and claims an item. Every
+ * command, and every git hook, runs the installed pullboard, never this repo's bin. The loop from the
+ * builder's commit to the merge is release-loop.test.js.
  */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync } from '../../fixtures/child.js';
@@ -29,17 +30,28 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-test('a packed release installs with no network and runs the whole loop from a fresh repo [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async () => {
+test('clause 1: a packed release installs with no network, sets up a fresh repo and claims an item [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async (t) => {
+  // Each step's milliseconds are printed as a diagnostic so a slow run names its slow step (#9540).
+  const sums = { pack: 0, install: 0, launch: 0 };
+  /** Time one step of the release run, print it, and add it to its kind's sum. */
+  const timed = (kind, name, run) => {
+    const start = performance.now();
+    try { return run(); } finally {
+      const ms = Math.round(performance.now() - start);
+      sums[kind] += ms;
+      t.diagnostic(`step ${name} ${ms} ms`);
+    }
+  };
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-release-')));
   dirs.push(dir);
   const npmEnv = { ...process.env, npm_config_cache: join(dir, 'npm-cache'), npm_config_update_notifier: 'false', npm_config_loglevel: 'error' };
 
-  const [packed] = JSON.parse(execFileSync('npm', ['pack', '--json', '--pack-destination', dir], { cwd: ROOT, env: npmEnv, encoding: 'utf8' }));
+  const [packed] = JSON.parse(timed('pack', 'pack', () => execFileSync('npm', ['pack', '--json', '--pack-destination', dir], { cwd: ROOT, env: npmEnv, encoding: 'utf8' })));
   const tops = [...new Set(packed.files.map((file) => file.path.split('/')[0]))].sort();
   assert.deepEqual(tops, PUBLISHED, 'the tarball holds the package and nothing else: no tests, no board');
 
   const prefix = join(dir, 'prefix');
-  const install = runFixtureChild('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' });
+  const install = timed('install', 'install', () => runFixtureChild('npm', ['install', '--global', '--prefix', prefix, '--offline', '--no-audit', '--no-fund', join(dir, packed.filename)], { env: npmEnv, encoding: 'utf8' }));
   assert.equal(install.status, 0, `installs with no network: ${install.stderr}`);
   const installed = join(prefix, 'lib', 'node_modules', 'pullboard');
   assert.equal(JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')).dependencies, undefined, 'no dependencies');
@@ -62,7 +74,7 @@ test('a packed release installs with no network and runs the whole loop from a f
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
   /** Run the installed pullboard and require it to succeed. */
   const pullboard = (cwd, ...args) => {
-    const result = runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' });
+    const result = timed('launch', `launch ${args.join(' ')}`, () => runFixtureChild(bin, args, { cwd, env, encoding: 'utf8' }));
     assert.equal(result.status, 0, `pullboard ${args.join(' ')}: ${result.stderr}${result.stdout}`);
     return result.stdout;
   };
@@ -86,35 +98,5 @@ test('a packed release installs with no network and runs the whole loop from a f
   assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-1/);
   const builder = join(dir, 'repo-web-1');
   assert.match(pullboard(builder, 'claim', '1'), /claimed #1/);
-  mkdirSync(join(builder, 'web'));
-  writeFileSync(join(builder, 'web', 'greet.txt'), 'hello\n');
-  git(builder, 'add', '-A');
-  git(builder, 'commit', '-q', '-m', 'feat(web): greet [G1]');
-  const commit = git(builder, 'rev-parse', 'HEAD');
-  const submitted = pullboard(builder, 'submit', '1');
-  assert.match(submitted, new RegExp(`#1 is in the gate as job gate:1:${commit.slice(0, 12)}:[a-z0-9]+: a runner pulls the whole gate and posts one receipt`));
-  // The verifier's worktree is made while the pulled gate settles, so its Node launches overlap the runner's wait.
-  assert.match(pullboard(repo, 'worktree', 'web'), /joined as web-2/);
-  const verifier = join(dir, 'repo-web-2');
-  git(verifier, 'switch', '-q', '--detach', commit);
-  // The pulled gate settles on the machine's local runner; verify needs its receipt applied (#6249, #7283, #7867): read the
-  // item through the installed bin until the receipt has moved it off claimed.
-  const deadline = Date.now() + 180_000;
-  while (!/#1 {2}submitted/.test(pullboard(builder, 'show', '1'))) {
-    assert.ok(Date.now() < deadline, 'the pulled gate settled within 180 s');
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
-  }
-
-  assert.match(pullboard(verifier, 'verify', '1', 'accept', '--note', 'checked out the commit; web/greet.txt says hello'), /verified #1/);
-
-  git(repo, 'merge', '-q', '--no-edit', commit);
-  const merge = git(repo, 'rev-parse', 'HEAD');
-  // Accepted work lands into the checked-out trunk on its own (b76853abf0, #7951), so the board may already hold the merge when
-  // the hand command runs; the deferred-checks wording is proved in apps/cli/journeys/merged/fast.test.js. Here the commit
-  // is recorded exactly once either way, and the replay names it.
-  const merged = pullboard(repo, 'merged', '1', merge);
-  assert.match(merged, new RegExp(`#1 (merged as|is already merged as) ${merge.slice(0, 12)}`), 'merged records the commit or names the landing that already did');
-  const shown = pullboard(repo, 'show', '1');
-  assert.match(shown, /#1 {2}verified/);
-  assert.match(shown, /merged as [0-9a-f]{12}/);
+  t.diagnostic(`step sums pack ${sums.pack} ms, install ${sums.install} ms, launch ${sums.launch} ms`);
 });
