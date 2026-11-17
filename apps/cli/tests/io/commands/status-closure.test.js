@@ -65,7 +65,7 @@ const heavyInClosure = () => {
   return [...staticClosure(entry)].map((file) => relative(root, file)).filter((file) => heavy.has(file)).sort();
 };
 
-test('clause 1: the allow-list matches the 11 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
+test('cli.io-commands-status-closure.the-allow-list-matches-the-11-recorded: clause 1: the allow-list matches the 11 recorded status heavy modules and every closure member is on it [C7,#6480]', () => {
   const recorded = JSON.parse(readFileSync(heavyPath, 'utf8')).status;
   assert.equal(ALLOWED.length, 11, 'the allow-list holds today\'s 11');
   assert.deepEqual([...ALLOWED].sort(), [...recorded].sort(), 'the allow-list names the same modules as startup-heavy.json');
@@ -73,7 +73,7 @@ test('clause 1: the allow-list matches the 11 recorded status heavy modules and 
   assert.deepEqual(extra, [], `status now loads heavy modules beyond the allow-list: ${extra.join(', ')}`);
 });
 
-test('clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
+test('cli.io-commands-status-closure.a-twelfth-heavy-module-in-the-closure: clause 1: a twelfth heavy module in the closure would be caught [C7,#6480]', () => {
   const inClosure = heavyInClosure();
   assert.ok(inClosure.length > 0, 'the walker finds at least one heavy module, so an empty result cannot pass the check');
   assert.ok(inClosure.length <= ALLOWED.length, `closure holds ${inClosure.length} heavy modules, over ${ALLOWED.length}`);
