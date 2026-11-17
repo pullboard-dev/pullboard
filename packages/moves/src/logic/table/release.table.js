@@ -177,7 +177,7 @@ function releaseRules({ reasons, staleLimits }) {
       calibrates: { says: 'a holder released BUDGET or INELIGIBLE at their own route',
         holds: (s, m) => returnsClaim(s.before, m) && chosenByHolder(s.before, m) && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.before.actor?.route === s.before.item.route },
       releasedTwice: { says: 'this is the second chosen quality release since the last unhold or route change',
-        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m)
+        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && !m.on?.length && !INFRA_NOTE.test(m.note ?? '')
           && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s).length === 2 },
     }),
   };
