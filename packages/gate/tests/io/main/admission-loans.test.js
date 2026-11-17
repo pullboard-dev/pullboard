@@ -111,7 +111,7 @@ import { awaitNestedRun } from ${JSON.stringify(poolModule)};
 // slots to the home these nested runs inherit, or two seat tests share two slots and one waits 30 s for the reserve [C7].
 mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
 writeFileSync(process.env.PULLBOARD_MACHINE_HOME + '/settings.json', JSON.stringify({ gateSlots: 4, browserSlots: 1 }));
-test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
+test('clause 1: explicit wait contracts finish within the 10 s budget [C7]', { timeout: 10_000 }, async (t) => {
   const start = () => {
     const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(root)}, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.resume(); child.stderr.resume();
