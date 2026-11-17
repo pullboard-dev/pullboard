@@ -28,7 +28,7 @@ function deliver(board, move) {
     at: '2026-10-25T00:00:00Z', kind: 'move', sender: { kind: 'agent', agent: 'web-1', userId: 'fixture' } });
 }
 
-test('typed conversation notes keep exact replica identity and an explicit historical engine floor [B29,B31,H16]', t => {
+test('lib.engine-notes.typed-conversation-notes-keep-exact-replica: typed conversation notes keep exact replica identity and an explicit historical engine floor [B29,B31,H16]', t => {
   const { boards, id } = replicas(t);
   const [primary, peer] = boards;
   const legacy = { ...prepareEngineMove(primary, 'appendFact', [id,
@@ -58,7 +58,7 @@ test('typed conversation notes keep exact replica identity and an explicit histo
   'an acknowledged historical note remains replayable after the new floor');
 });
 
-test('conversation answers do not acquire judgment or person authority [B29,B30,H16]', t => {
+test('lib.engine-notes.conversation-answers-do-not-acquire-judgment: conversation answers do not acquire judgment or person authority [B29,B30,H16]', t => {
   const { boards, id } = replicas(t);
   const board = boards[0];
   const old = board.executionEngineVersion;

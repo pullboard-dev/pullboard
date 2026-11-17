@@ -23,7 +23,7 @@ function register(adapter, issued, at) {
   return adapter.register({ runner: issued.runner, publicKey: issued.publicKey, at, signature });
 }
 
-test('clause 2: a board command issues a key to a named runner; clause 3: another revokes it and the runner stays refused after a board restart [C7]', async t => {
+test('cli.io-commands-runner-key.a-board-command-issues-a-key-to: clause 2: a board command issues a key to a named runner; clause 3: another revokes it and the runner stays refused after a board restart [C7]', async t => {
   const box = apiHttpFixture(t);
   const root = box.root;
   const run = (...args) => runCliInProcess(['runner', 'key', ...args], { cwd: root, env: box.env });

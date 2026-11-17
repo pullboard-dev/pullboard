@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-cell store */
-/** An archived item's whole thread still reads, identical to before archiving, through the event reader and the item thread [C7,#9335]. */
+/** An archived item's whole thread still reads, identical to before archiving, through the event reader (what show and log read), the state build's thread and an export [C7,#9335]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +7,9 @@ import { test } from 'node:test';
 import { archiveOldEvents } from '../../../index.js';
 import { closeBoard } from '../../../index.js';
 import { events } from '../../../index.js';
+import { exportBoard } from '../../../index.js';
+import { importBoard } from '../../../index.js';
+import { itemThreads } from '../../../src/io/board.js';
 import { itemThread } from '../../../index.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 import { temporaryDirectory } from '../../fixtures/tmp.js';
@@ -65,4 +68,42 @@ test('store.io-board-event-archive-read.show-log-and-export-read-the: clause 2: 
   archiveOldEvents(board, NOW, { enabled: true });
   assert.deepEqual(itemThread(board, ids.old), before);
   assert.deepEqual(itemThread(board, ids.open), untouched, 'an item that did not archive reads as before');
+});
+
+test('clause 3: the log reader returns an archived item\'s events with its kind, since and last filters, as before archiving [C7,#9335]', t => {
+  const { board, ids } = seededBoard(t);
+  const before = events(board, { itemId: ids.old });
+  const filters = [{ kinds: ['add', 'accept'] }, { last: 1 }, { since: before[2].event_at }, { kinds: ['note'], last: 1 }];
+  const expected = filters.map(filter => events(board, { itemId: ids.old, ...filter }));
+  archiveOldEvents(board, NOW, { enabled: true });
+  filters.forEach((filter, index) => assert.deepEqual(events(board, { itemId: ids.old, ...filter }), expected[index], JSON.stringify(filter)));
+  assert.deepEqual(events(board, { itemId: ids.open }).map(row => row.event_kind), ['add', 'note', 'accept'], 'the open item still reads from the hot table');
+});
+
+test('clause 4: a state build\'s threads (itemThreads, cut from the hot history) match itemThread for an archived item [C7,#9335]', t => {
+  const { board, ids } = seededBoard(t);
+  const before = itemThread(board, ids.old);
+  archiveOldEvents(board, NOW, { enabled: true });
+  const hot = board.db.prepare('SELECT * FROM event ORDER BY event_id').all();
+  assert.equal(hot.some(row => row.item_id === ids.old), false, 'the history a state build holds no longer has the archived events');
+  const threads = itemThreads(board, [ids.old, ids.open], hot);
+  assert.deepEqual(threads.get(ids.old), before);
+  assert.deepEqual(threads.get(ids.open), itemThread(board, ids.open));
+  assert.deepEqual(itemThreads(board, [ids.old], [...hot, ...events(board, { itemId: ids.old })]).get(ids.old), before, 'a history that still holds the events does not list them twice');
+});
+
+test('clause 5: an export of an archived board imports as a board whose archived item reads the same thread and events [C7,#9335]', t => {
+  const { board, ids } = seededBoard(t);
+  const eventsBefore = events(board, { itemId: ids.old });
+  const threadBefore = itemThread(board, ids.old);
+  archiveOldEvents(board, NOW, { enabled: true });
+  const document = exportBoard(board);
+  assert.equal(document.tables.event.some(row => row.item_id === ids.old), false, 'the event table of the export lacks the archived rows');
+  assert.equal(document.tables.event_archive.filter(row => row.item_id === ids.old).length, 3, 'the archived rows travel in event_archive');
+  const directory = temporaryDirectory('pullboard-event-archive-import-');
+  const replica = openKitBoard(join(directory, 'replica.sqlite'));
+  t.after(() => { closeBoard(replica); rmSync(directory, { recursive: true, force: true }); });
+  importBoard(replica, document);
+  assert.deepEqual(events(replica, { itemId: ids.old }), eventsBefore);
+  assert.deepEqual(itemThread(replica, ids.old), threadBefore);
 });

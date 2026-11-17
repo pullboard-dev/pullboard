@@ -23,7 +23,7 @@ function fixture(t) {
   return board;
 }
 
-test('statistics explicit native counter and fallback ports preserve complete results [R1,R2,CD64]', (t) => {
+test('lib.stats-ports.statistics-explicit-native-counter-and-fallback: statistics explicit native counter and fallback ports preserve complete results [R1,R2,CD64]', (t) => {
   const board = fixture(t);
   const options = { now: Date.parse('2026-01-02T00:00:00.000Z') };
   const expected = legacyProofStats(board, options);
@@ -58,7 +58,7 @@ test('statistics explicit native counter and fallback ports preserve complete re
   assert.equal(historyReads, 2);
 });
 
-test('statistics missing ports fail explicitly while malformed dates retain BAD_SINCE [R1,R2,C7]', (t) => {
+test('lib.stats-ports.statistics-missing-ports-fail-explicitly-while: statistics missing ports fail explicitly while malformed dates retain BAD_SINCE [R1,R2,C7]', (t) => {
   const board = fixture(t);
   assert.throws(() => proofStats(board), /explicit events and counterProofStats read ports/u);
   assert.throws(() => proofStats(board, {}, { events }), /explicit events and counterProofStats read ports/u);

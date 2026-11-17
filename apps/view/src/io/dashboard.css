@@ -391,3 +391,16 @@ i.dash-seg-held { background: none; border: var(--border-held-thin); }
   .pw-gl { padding: 0 var(--space-4) var(--space-2); } .pw-ir { grid-template-columns: 48px minmax(0, 1fr) 40px; } .pw-ir .dt { display: none; }
   .pw-page .pw-sg .s { white-space: normal; }
 }
+
+/* The gate trace panel under an In the gate row: one line per phase, its bar drawn as SVG geometry (no inline style). */
+.dash-live .dash-gt { padding: var(--space-2) 0 var(--space-3); border-bottom: var(--border-row); }
+.dash-live .dash-gs { margin: 0 0 var(--space-2); font-size: var(--text-xs); color: var(--ink-muted); }
+.dash-live .dash-gl { list-style: none; margin: 0; padding: 0; }
+.dash-live .dash-gp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, 1fr) auto; gap: var(--space-3); align-items: center; padding: 2px 0; font-size: var(--text-xs); }
+.dash-live .dash-gn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-live .dash-gn small { color: var(--ink-faint); }
+.dash-live .dash-gm { font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+.dash-live .dash-gp.gap { color: var(--ink-faint); }
+.dash-gbar { display: block; width: 100%; height: 6px; border-radius: var(--radius-hair); }
+.dash-gbar .bg { fill: var(--idle); } .dash-gbar .section, .dash-gbar .step { fill: var(--stage-building); } .dash-gbar .shard { fill: var(--stage-review); } .dash-gbar .ready, .dash-gbar .dispatch { fill: var(--stage-merged); } .dash-gbar .requeue, .dash-gbar .gap { fill: var(--ink-faint); }
+.dash-live .dash-gf { display: flex; gap: var(--space-4); margin: var(--space-2) 0 0; }

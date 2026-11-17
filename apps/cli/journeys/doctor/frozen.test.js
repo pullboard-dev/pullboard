@@ -198,7 +198,7 @@ function boardBytes(box) {
   return readFileSync(join(common, 'pullboard', 'board.sqlite'));
 }
 
-test('[S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-doctor-frozen.s19-v3-doctor-and-resume-list: [S19,V3] doctor and resume list stale frozen items in every lifecycle state without rewriting evidence', { timeout: 120_000 }, async (t) => {
   const box = await project(t);
   const ids = {};
 
@@ -301,12 +301,12 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
 });
 
-test('[V2,V3,S19] native row approval refreezes every unlanded citation', { timeout: 120_000 }, (t) => { // budget: hang ceiling for the real-Git citation fixture across open, claimed, submitted and verified states.
+test('cli.journeys-doctor-frozen.v2-v3-s19-native-row-approval: [V2,V3,S19] native row approval refreezes every unlanded citation', { timeout: 120_000 }, (t) => { // budget: hang ceiling for the real-Git citation fixture across open, claimed, submitted and verified states.
   assertSpecCorrectionRefreezesCitations(t);
 });
 
 
-test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', async (t) => {
+test('cli.journeys-doctor-frozen.a5-s19-v3-doctor-and-resume: [A5,S19,V3] doctor and resume distinguish unchanged doctrine citations from changed doctrine text', async (t) => {
   const box = await project(t);
   const doctrineItem = await addItem(box, 'Doctrine citation', 'doctrine:PB1');
   await claim(box, doctrineItem);
@@ -330,7 +330,7 @@ test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations fro
   assert.deepEqual(receiptSnapshot(box), baseline, 'diagnostics preserve frozen evidence and unrelated SPEC citations');
 });
 
-test('[S19] a killed fixture child names its signal and elapsed time', () => {
+test('cli.journeys-doctor-frozen.s19-a-killed-fixture-child-names: [S19] a killed fixture child names its signal and elapsed time', () => {
   const killed = runFixtureChild('sh', ['-c', 'kill -KILL $$'], { encoding: 'utf8' });
   const named = (error) => /status: null\nsignal: SIGKILL\nelapsed: \d+ms/u.test(error.message);
   assert.throws(() => requireSuccess(killed), named, 'an expected success');
