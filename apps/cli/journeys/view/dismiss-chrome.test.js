@@ -19,9 +19,11 @@ test('clause 1: scroll, page height and the result panel box are unchanged acros
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to measure the result panel.');
   const box = machine();
+  /** The cockpit machine's in-process runner answers with output text and throws on a refusal; the fixture kit wants a result. */
+  const run = async (root, ...args) => { const answer = await box.inProcess(root, ...args); return typeof answer === 'string' ? { code: 0, out: answer, err: '' } : answer; };
   const demo = project(box, 'dismiss-stable', '# Dismiss stability\n\n## G · Goals\n- G1 [approved, must] First goal. | gate: review\n');
-  await fileFixtureItem(box, demo.repo, { run: box.inProcess, lane: 'web', title: 'First item', criterion: 'It exists.', args: ['--specs', 'G1'] });
-  await fileFixtureItem(box, demo.repo, { run: box.inProcess, lane: 'web', title: 'Second item', criterion: 'It exists too.', args: ['--specs', 'G1'] });
+  await fileFixtureItem(box, demo.repo, { run, lane: 'web', title: 'First item', criterion: 'It exists.', args: ['--specs', 'G1'] });
+  await fileFixtureItem(box, demo.repo, { run, lane: 'web', title: 'Second item', criterion: 'It exists too.', args: ['--specs', 'G1'] });
   const view = await startView(box);
   const profile = privateFixtureFiles('pullboard-dismiss-chrome-').root;
   let chrome;
