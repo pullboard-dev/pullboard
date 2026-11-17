@@ -153,6 +153,7 @@ export {
   stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
+  relayQueueOnFailureEnabled,
   setRelayCanary,
   setLandingPool,
   setGateSlots,
