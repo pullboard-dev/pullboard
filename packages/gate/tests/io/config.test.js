@@ -70,6 +70,18 @@ test('gate.config.julia-no-tests: #10513 clause 2: a root holding Project.toml w
   assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': '', 'test/other.jl': '' })), []);
 });
 
+test('gate.config.ocaml-detected: #10510 clause 1: a root holding dune-project detects ocaml with dune test [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '(lang dune 3.0)\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'ocaml', command: 'dune test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.ml': '' })), []);
+});
+
+test('gate.config.ocaml-globs: #10510 clause 2: detectTestGlobs for a dune-project root returns the OCaml test globs of the ocaml row, and the dune toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['dune'], unknown: [] });
+});
+
 test('gate.config.clojure-lein: #10511 clause 1: a root holding project.clj detects clojure with lein test [C7]', (t) => {
   const root = rootWith(t, { 'project.clj': '(defproject app "0.1.0")\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'clojure', command: 'lein test' }]);
