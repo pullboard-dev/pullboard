@@ -7,14 +7,14 @@ import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { atomic } from '../../../../index.js';
-import { getItem } from '../../../../index.js';
-import { writeBoardCommand } from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellClaim } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
+import { atomic } from '../../../../../../store/index.js';
+import { getItem } from '../../../../../../store/index.js';
+import { writeBoardCommand } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
 /** Block this thread, as a slow source read during preparation does. */
 const pause = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);

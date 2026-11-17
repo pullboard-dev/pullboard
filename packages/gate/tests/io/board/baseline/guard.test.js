@@ -9,7 +9,7 @@ import { boardFileOpens } from '../../../../src/io/board/files.js';
 import { boardFileProblems } from '../../../../src/io/board/files.js';
 import { boardFileReport } from '../../../../src/io/board/files.js';
 
-test('the board-file lint names direct, namespaced and aliased logic file opens [C7]', () => {
+test('gate.io-board-baseline-guard.the-board-file-lint-names-direct: the board-file lint names direct, namespaced and aliased logic file opens [C7]', () => {
   const source = [
     "import { openBoard as open } from '../../../../../../apps/lib/index.js';",
     "const a = store.openBoard(':memory:');",
@@ -29,7 +29,7 @@ test('the board-file lint names direct, namespaced and aliased logic file opens 
   assert.equal(boardFileOpens('// @pullboard-board-file logic: not a boundary\nopenBoard(file)', 'test/logic.test.js').length, 1);
 });
 
-test('the board-file debt ratchet names outstanding tests and prevents new logic file opens [C7]', () => {
+test('gate.io-board-baseline-guard.the-board-file-debt-ratchet-names: the board-file debt ratchet names outstanding tests and prevents new logic file opens [C7]', () => {
   const root = join(import.meta.dirname, '../../../../../..');
   const baseline = BOARD_FILE_BASELINE;
   assert.deepEqual(boardFileProblems(root, baseline), []);
@@ -48,7 +48,7 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
 });
 
 /** Moving a test relocates its existing debt; neither spelling gains another allowance. */
-test('moved store tests retain exact board-file ceilings and refuse one extra open [C7]', () => {
+test('gate.io-board-baseline-guard.moved-store-tests-retain-exact-board: moved store tests retain exact board-file ceilings and refuse one extra open [C7]', () => {
   const moved = {
     'api-identity': ['packages/board/tests/from-store/io/board.test.js', 8],
     badge: ['apps/cli/journeys/badge/main.test.js', 1],

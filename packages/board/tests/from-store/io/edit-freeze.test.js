@@ -4,12 +4,12 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { editItem } from '../../index.js';
-import { getItem } from '../../index.js';
-import { writeBoardCommand } from '../../index.js';
-import { cellBoard } from '../fixtures/cell.js';
-import { cellItem } from '../fixtures/cell.js';
-import { cellSandbox } from '../fixtures/cell.js';
+import { editItem } from '../../../../store/index.js';
+import { getItem } from '../../../../store/index.js';
+import { writeBoardCommand } from '../../../../store/index.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { cellSandbox } from '../../../../store/tests/fixtures/cell.js';
 
 /** A real board file, so a second connection can see whether the board's write lock is held. */
 function fixture(t) {
