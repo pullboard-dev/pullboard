@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'gate.pulledProfilePaths'));
 }
 
-test('clause 1: gate.pulledProfilePaths is in the settings inventory with default false [C7,#7301]', () => {
+test('config.io-pulled-profile-paths-setting.clause-1-gate-pulledprofilepaths-is-in: clause 1: gate.pulledProfilePaths is in the settings inventory with default false [C7,#7301]', () => {
   const unset = row({});
   assert.ok(unset, 'the inventory lists gate.pulledProfilePaths');
   assert.equal(unset.default, false);
@@ -33,7 +33,7 @@ test('clause 1: gate.pulledProfilePaths is in the settings inventory with defaul
   assert.equal(unset.origin, 'default');
 });
 
-test('clause 2: gate.pulledProfilePaths has a described row that pullboard settings prints [C7,#7301]', () => {
+test('config.io-pulled-profile-paths-setting.clause-2-gate-pulledprofilepaths-has-a: clause 2: gate.pulledProfilePaths has a described row that pullboard settings prints [C7,#7301]', () => {
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /phase timing profile/u);
