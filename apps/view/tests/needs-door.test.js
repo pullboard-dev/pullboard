@@ -1,8 +1,9 @@
 /** @pullboard-test-input source-cell apps/view */
 /** The needs door exports one name and loads no view shell [C7]. */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { register } from 'node:module';
 import { join } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
@@ -15,30 +16,19 @@ const viewDir = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const doorUrl = pathToFileURL(join(viewDir, 'needs.js')).href;
 
-test('clause 1: apps/view/needs.js exports only personNeedsSummary, the same one index.js exports [C7]', async () => {
-  const door = await import(doorUrl);
-  const index = await import(pathToFileURL(join(viewDir, 'index.js')).href);
-  assert.deepEqual(Object.keys(door), ['personNeedsSummary']);
-  assert.equal(door.personNeedsSummary, index.personNeedsSummary);
-});
-
-test('clause 3: loading apps/view/needs.js loads no io file but needs.js, state.js and its readers, and no logic file outside needs, resume and four pure files [C7]', () => {
+test('clause 3: loading apps/view/needs.js loads no io file but needs.js, state.js and its readers, and no logic file outside needs, resume and four pure files [C7]', async () => {
+  // Declared first: the hook sees only modules this process has not loaded yet, so nothing may import the door before it.
   const logFile = join(privateFixtureFiles('needs-door-').root, 'loaded.txt');
+  writeFileSync(logFile, '');
   const hook = `
 import { appendFileSync } from 'node:fs';
 export async function load(url, context, next) {
-  appendFileSync(process.env.NEEDS_DOOR_LOG, url + '\\n');
+  appendFileSync(${JSON.stringify(logFile)}, url + '\\n');
   return next(url, context);
 }`;
-  const boot = `
-import { register } from 'node:module';
-register('data:text/javascript,' + encodeURIComponent(${JSON.stringify(hook)}));
-await import(${JSON.stringify(doorUrl)});`;
+  register('data:text/javascript,' + encodeURIComponent(hook));
+  await import(doorUrl);
   {
-    execFileSync(process.execPath, ['--input-type=module', '-e', boot], {
-      env: { ...process.env, NEEDS_DOOR_LOG: logFile },
-      stdio: 'pipe',
-    });
     const loaded = readFileSync(logFile, 'utf8').split('\n').filter((u) => u.startsWith('file:'));
     const logic = ['apps', 'view', 'src', 'logic'].join(sep) + sep;
     const rels = loaded.map((u) => relative(repoRoot, fileURLToPath(u)));
@@ -54,4 +44,11 @@ await import(${JSON.stringify(doorUrl)});`;
       || (r.startsWith(io) && !stateReaders.includes(r)));
     assert.deepEqual(stray, []);
   }
+});
+
+test('clause 1: apps/view/needs.js exports only personNeedsSummary, the same one index.js exports [C7]', async () => {
+  const door = await import(doorUrl);
+  const index = await import(pathToFileURL(join(viewDir, 'index.js')).href);
+  assert.deepEqual(Object.keys(door), ['personNeedsSummary']);
+  assert.equal(door.personNeedsSummary, index.personNeedsSummary);
 });
