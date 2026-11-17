@@ -496,6 +496,9 @@ export function loadMachineSettings() {
   if (value.gate?.withdrawCancelsJob !== undefined && typeof value.gate.withdrawCancelsJob !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.withdrawCancelsJob in ${file} must be true or false`);
   }
+  if (value.landing?.runnerOnlyCompose !== undefined && typeof value.landing.runnerOnlyCompose !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.runnerOnlyCompose in ${file} must be true or false`);
+  }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
   }
@@ -623,6 +626,11 @@ export function relayPruneReceipts() {
 /** Whether withdrawing an item also cancels its live gate job (#3860): off by default; only an exact `true` turns it on. */
 export function withdrawCancelsJob() {
   return loadMachineSettings().gate?.withdrawCancelsJob === true;
+}
+
+/** Whether a landing batch must be composed on a runner (#10245): off by default; only an exact `true` turns it on. */
+export function runnerOnlyCompose() {
+  return loadMachineSettings().landing?.runnerOnlyCompose === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
