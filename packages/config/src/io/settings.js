@@ -1088,6 +1088,11 @@ export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
 }
 
+/** Whether gate.pulledProfilePaths is on (#9614): off by default; only an exact `true` turns it on. */
+export function pulledProfilePathsEnabled() {
+  return loadMachineSettings().gate?.pulledProfilePaths === true;
+}
+
 /** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
 export function relayQueueOnFailureEnabled() {
   return loadMachineSettings().relay?.queueOnFailure === true;

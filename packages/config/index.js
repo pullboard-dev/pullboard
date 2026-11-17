@@ -169,6 +169,7 @@ export {
   memoryFloorMB,
   relayOfferEnabled,
   relayQueueOnFailureEnabled,
+  pulledProfilePathsEnabled,
   renewAfterSyncEnabled,
   setRelayCanary,
   setLandingPool,
