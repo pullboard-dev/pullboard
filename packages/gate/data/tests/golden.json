@@ -7,7 +7,6 @@
       "file": "apps/cli/journeys/init/gate.test.js",
       "specs": [
         "B26",
-        "C3",
         "C7",
         "H5",
         "I1",
