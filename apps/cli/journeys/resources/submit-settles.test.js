@@ -76,7 +76,7 @@ function succeeded(result) {
   return result;
 }
 
-test('clause 1: a runner-only submit --wait with the ssh stand-in registered returns and its pulled gate settles green in under 60 s each [C7,V4]', async t => {
+test('cli.journeys-resources-submit-settles.a-runner-only-submit-wait-with: clause 1: a runner-only submit --wait with the ssh stand-in registered returns and its pulled gate settles green in under 60 s each [C7,V4]', async t => {
   const t0 = Date.now(), tick = label => process.stderr.write(`TIMING ${((Date.now() - t0) / 1000).toFixed(1)}s ${label}\n`);
   const box = helpers.project('true');
   const requests = join(box.dir, 'runner-only-requests.jsonl');
