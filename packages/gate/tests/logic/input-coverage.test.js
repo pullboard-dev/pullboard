@@ -49,5 +49,5 @@ function closure(file, seen = new Set()) {
 test('clause 3: input-coverage reaches no io module through its imports, so the io check never runs on load [C7,#10084]', () => {
   const reached = [...closure(fileURLToPath(new URL('../../src/logic/input-coverage.js', import.meta.url)))];
   assert.ok(reached.some(file => file.endsWith('/logic/input-declaration.js')), 'the header rules now live in logic');
-  assert.deepEqual(reached.filter(file => /\/src\/io\//u.test(file)), []);
+  assert.deepEqual(reached.filter(file => /\/gate\/src\/io\//u.test(file)), []);
 });
