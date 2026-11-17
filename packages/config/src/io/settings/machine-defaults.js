@@ -139,6 +139,7 @@ export const MACHINE_DEFAULTS = {
   runnerRates: {},
   runners: [],
   'runners.drainOnFetchFailure': false,
+  'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
   'runners.requiredToolchains': null,
