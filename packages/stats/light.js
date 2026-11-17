@@ -10,6 +10,14 @@ export function agentSessionDigest(environment = process.env) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
+/**
+ * Record that a board move's usage checkpoint is due. The cost cell loads at the call, not with this door, so a command that never moves the board
+ * (show, whoami) pays nothing for it, and a move pays for the checkpoint file alone, not the stats barrel [C7].
+ */
+export async function checkpointAfterMove(...call) {
+  return (await import('./src/io/cost/checkpoint.js')).checkpointAfterMove(...call);
+}
+
 export {
   hasInputSplit,
 } from './src/logic/split.js';
@@ -37,6 +45,5 @@ export { emptyReportCounter, appendReportCounter } from './src/logic/flow/report
 export { FLOW_REPORT_VERSION, reportEvent, newReportPolicy } from './src/logic/flow/report.js';
 export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows } from './src/logic/flow.js';
 export { barStats } from './src/logic/bar.js';
-export { checkpointAfterMove } from './src/io/cost/checkpoint.js';
 /** The capacity lines a status read prints [C7,#8646]. */
 export { capacityLines } from './src/logic/capacity/model.js';
