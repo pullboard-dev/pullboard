@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** Machine-storage and board permission refusals name the blocked folder and the step that grants it [I1,C7,Q4]. */
 import assert from 'node:assert/strict';
 import {

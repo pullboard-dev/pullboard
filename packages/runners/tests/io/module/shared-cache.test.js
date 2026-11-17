@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** @pullboard-test-loads packages/runners/src/io/module/parser.js packages/runners/src/io/module/parser/worker.js packages/runners/src/io/keyed.js */
 /** Runner jobs on one runner share keyed cache entries, so a later job's cold trip reuses what an earlier job derived [C7]. */
 import assert from 'node:assert/strict';

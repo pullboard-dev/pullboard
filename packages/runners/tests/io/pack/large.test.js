@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** A runner history pack streams history whose object list passes 8 MiB, and still scans every object in it [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

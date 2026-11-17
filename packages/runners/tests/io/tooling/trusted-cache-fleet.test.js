@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** The trusted tooling capture saved for a second fleet trip is reused when intact and ignored when tampered [C7,#8291]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

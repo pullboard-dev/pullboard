@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli packages/runners */
 /** The production test runner keeps a landing run going through process snapshot failures [C7,V4]. */
 import { copyRunnerPackage } from '../../../fixtures/package.js';
 import { awaitNestedPhase } from '../../../../../gate/index.js';

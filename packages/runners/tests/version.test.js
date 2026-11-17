@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/cli apps/lib packages/items packages/pages packages/roadmap packages/runners packages/seats packages/store */
 /** Unmerged source protects both shared formats, including indirect openers and real hooks [A5,A6]. */
 import { copyPackageFiles } from '../index.js';
 import { packageFiles } from '../index.js';

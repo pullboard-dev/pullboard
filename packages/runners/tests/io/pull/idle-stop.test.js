@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** An idle local runner exits within 1 s of SIGTERM, and a write it holds finishes first [C7,#8250]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

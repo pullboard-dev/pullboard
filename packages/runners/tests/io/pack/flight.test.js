@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/config packages/runners */
 /** Runner jobs started together for one new commit share one history scan through protectHistory [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

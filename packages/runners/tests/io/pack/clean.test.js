@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/runners */
 /** A runner history pack reads again only the history no earlier clean scan covered, and still packs everything the runner lacks [C7,#5544]. */
 import { copyPackageFiles } from '../../../index.js';
 import assert from 'node:assert/strict';

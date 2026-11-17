@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/runner packages/runners packages/sandbox */
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { mkdtempSync } from 'node:fs';

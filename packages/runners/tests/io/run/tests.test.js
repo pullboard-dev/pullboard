@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli packages/runners */
 /** Exercise native test-file sharding and discovery through the production test runner [C7]. */
 import { copyRunnerPackage } from '../../fixtures/package.js';
 import assert from 'node:assert/strict';

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/cli packages/runners */
 /** Runner-hosted item folders: the folder, git and hooks run on the runner over SSH; the coordinator repository gets no worktree [C7]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';

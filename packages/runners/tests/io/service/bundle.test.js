@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/cli packages/drive packages/runners packages/state */
 /** The runner service bundle carries every folder the runner lists at run time, and a runner runs from it alone [P7,#8734]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

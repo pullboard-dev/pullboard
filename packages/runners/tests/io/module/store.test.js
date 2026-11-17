@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** @pullboard-test-loads packages/runners/src/io/module/parser.js packages/runners/src/io/module/parser/worker.js packages/runners/src/io/package/files.js */
 /** Short runner controllers keep compiler results across processes, and one capture walks the package once [C7]. */
 import assert from 'node:assert/strict';

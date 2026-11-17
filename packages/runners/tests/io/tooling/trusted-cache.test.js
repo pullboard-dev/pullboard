@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/runner packages/runners */
 /** The trusted tooling capture is cached by the tooling's tree id: unchanged tooling is not recaptured, changed tooling is [C7,#8133]. */
 import { after } from 'node:test';
 import { test } from 'node:test';

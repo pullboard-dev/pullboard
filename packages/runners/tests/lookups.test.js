@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/gate packages/resources packages/runners packages/sentinels */
 /** Nonblocking process diagnostics preserve their target and safe failure information [C7,N26]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli packages/runners packages/state */
 /** @pullboard-world-pin: clauses 1 read the real commands and engines folders to copy their file names into the merge fixture. */
 /** @pullboard-test-loads packages/state/src/io/machine.js */
 /** Two items adding different commands, or different engines, merge without conflict even at the same sorted spot [C7,V4]. */

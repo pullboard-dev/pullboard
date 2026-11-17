@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** Real subset copies distinguish bounded shim DAGs from cycles [C7,P3]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

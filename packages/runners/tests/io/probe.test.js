@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** Waiting gate processes share one runner probe: single flight, a 15 s shared result and a 60 s failure backoff [C7]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

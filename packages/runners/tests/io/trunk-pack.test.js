@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/runners */
 /** Concurrent runner fetches of the trunk reuse one cached pack per trunk commit [E28]. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
