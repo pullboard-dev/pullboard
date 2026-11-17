@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Hand-written in the shape of: mix test, with the junit_formatter hex package (report written to _build/test/lib/<app>/test-junit-report.xml)
      classname is the module (Elixir.MathTest), name is the test name, and the failure message holds the assertion.
-     Names read "clause N: ..." as a naming hook would write them. No tool is needed to read it. -->
+     Case names read "clause N: ..." as a naming hook that strips the "test " prefix would write them. No tool is needed to read it. -->
 <testsuites>
   <testsuite errors="0" failures="1" skipped="1" tests="3" time="0.021" name="Elixir.MathTest">
     <properties>
       <property name="date" value="2026-11-17T12:00:00"/>
       <property name="seed" value="0"/>
     </properties>
-    <testcase classname="Elixir.MathTest" name="test clause 1: adds two numbers" time="0.001"/>
-    <testcase classname="Elixir.MathTest" name="test clause 2: halves a number" time="0.002">
+    <testcase classname="Elixir.MathTest" name="clause 1: adds two numbers" time="0.001"/>
+    <testcase classname="Elixir.MathTest" name="clause 2: halves a number" time="0.002">
       <failure message="Assertion with == failed&#10;code:  assert half(4) == 2&#10;left:  1&#10;right: 2">test/math_test.exs:9</failure>
     </testcase>
-    <testcase classname="Elixir.MathTest" name="test clause 3: later" time="0.000">
+    <testcase classname="Elixir.MathTest" name="clause 3: later" time="0.000">
       <skipped/>
     </testcase>
   </testsuite>
