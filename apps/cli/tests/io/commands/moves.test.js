@@ -135,7 +135,7 @@ test('cli.io-commands-moves.backbone-row-counts-the-live-jobs-it-compared: claus
   assert.equal(row.compared, 2);
   assert.equal(row.disagreed, 1);
   assert.deepEqual(row.lastDisagreements.map(entry => entry.id), [8]);
-  assert.match(row.lastDisagreements[0].differs, /^gate:8 \(.*claimed.*\)$/u);
+  assert.match(row.lastDisagreements[0].differs, /^gate:8 \(serves\.gate\)$/u);
 });
 
 test('cli.io-commands-moves.backbone-row-reads-shadow-once-compared: clause 2: the backbone row reads state shadow once compared is 1 or more, and map with none [C7,#10584]', async t => {
