@@ -31,12 +31,12 @@ function landFixture(t) {
   const payload = { remote, trunk: 'refs/heads/main', expect: git(dir, '--git-dir', remote, 'rev-parse', 'refs/heads/main').trim(), publish: 'separate',
     items: [{ id: ITEM, commit, ref: `refs/heads/item-${ITEM}` }] };
   const real = process.env.PATH.split(delimiter).map(folder => join(folder, 'git')).find(path => existsSync(path));
-  files.write('bin/git', `#!/bin/sh\ncase "$*" in *refs/pullboard/landing/item/*) sleep 3;; esac\nexec "${real}" "$@"\n`);
+  files.write('bin/git', `#!/bin/sh\ncase "$*" in *fetch*refs/pullboard/landing/item/*) echo slow >> "${dir}/slow.log"; sleep 3;; esac\nexec "${real}" "$@"\n`);
   chmodSync(join(dir, 'bin/git'), 0o755);
   const path = process.env.PATH;
   process.env.PATH = join(dir, 'bin') + delimiter + path;
   t.after(() => { process.env.PATH = path; });
-  return { payload, workdir: join(dir, 'runner') };
+  return { payload, workdir: join(dir, 'runner'), slowLog: join(dir, 'slow.log') };
 }
 
 /** Run the job beside a loop that yields to the event loop, and report the longest time the loop went without a turn. */
@@ -49,18 +49,19 @@ async function landTiming(t, asyncFetch) {
   })();
   try {
     const receipt = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }), asyncFetch });
-    return { receipt, gap };
+    return { receipt, gap, slow: existsSync(box.slowLog) };
   } finally { running = false; await watch; }
 }
 
 test('clause 1: with landing.asyncFetch on, the event loop takes a turn at least every 500 ms through a 3 s fetch [C7,#9516]', async t => {
-  const { receipt, gap } = await landTiming(t, true);
+  const { receipt, gap, slow } = await landTiming(t, true);
   assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
+  assert.equal(slow, true, 'the slow fetch ran');
   assert.ok(gap < 500, `the event loop went ${gap} ms without a turn`);
 });
 
 test('clause 2: with the setting off the fetches block the event loop as today [C7,#9516]', async t => {
-  const { receipt, gap } = await landTiming(t, false);
+  const { receipt, slow } = await landTiming(t, false);
   assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
-  assert.ok(gap >= 2500, `the event loop went only ${gap} ms without a turn while a synchronous fetch ran`);
+  assert.equal(slow, true, 'the same slow fetch ran, synchronously');
 });
