@@ -51,3 +51,8 @@ export function startRelayCanaryWatch({ config = () => loadMachineSettings().rel
     },
   };
 }
+
+/** Whether relay.excludeByBoard is on (#9414): kept here because this file already reads the machine settings, so link adds no new cell import. */
+export function relayExcludeByBoard() {
+  return loadMachineSettings().relay?.excludeByBoard === true;
+}

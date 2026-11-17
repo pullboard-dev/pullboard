@@ -20,6 +20,9 @@ const failures = changedStaticFailures(root, JSON.parse(files), { only: [name] }
 if (failures.length) process.stderr.write(failures.join('\\n') + '\\n');
 process.exitCode = failures.length ? 1 : 0;`;
 
+/** Checks that judge the whole tree whatever files changed. */
+const TREE_CHECKS = new Set(['sync-spawn-in-leases', 'no-runtime-assumptions', 'store-registry', 'layout', 'compat-toggles', 'engine-folder']);
+
 /**
  * Run one registered check in a child process.
  *
@@ -62,9 +65,13 @@ function registeredNames(root) {
  * @param {string[]} files - Root-relative changed files.
  * @returns {Promise<{ ok: boolean, results: { name: string, failures: string[], ms: number }[], ms: number }>}
  */
-export async function runPreflight(root, files) {
+export async function runPreflight(root, files, { lean = false } = {}) {
   const started = performance.now();
-  const results = await Promise.all((await registeredNames(root)).map(name => runOne(root, name, files)));
+  // A lean (submit) run skips the whole-tree checks when no changed file is code or config: the tree is then main's accepted tree,
+  // which the gate already judged, and each skipped scan costs a process and 0.4-0.7 s of a loaded runner's submit [C7].
+  const codeChanged = !lean || files.some(file => /^(?:src|packages|apps)\//u.test(file) || !file.includes('/'));
+  const names = (await registeredNames(root)).filter(name => codeChanged || !TREE_CHECKS.has(name));
+  const results = await Promise.all(names.map(name => runOne(root, name, files)));
   return { ok: results.every(row => !row.failures.length), results, ms: performance.now() - started };
 }
 
@@ -121,10 +128,10 @@ function runConfigured(root, command, timeoutMs) {
  * @param {{ timeoutMs?: number }} [options] - timeoutMs: the configured check timeout; unset runs up to 10 minutes.
  * @returns {Promise<{ ok: boolean, results: { name: string, failures: string[], ms: number }[], ms: number, receipt?: object | null, reused?: boolean }>}
  */
-export async function runStaticPreflight(root, command, files, { timeoutMs } = {}) {
+export async function runStaticPreflight(root, command, files, { timeoutMs, lean = false } = {}) {
   const started = performance.now();
   if (!command?.trim()) return { ok: true, results: [], ms: 0 };
-  if (OWN_CHECKER.test(command)) return runPreflight(root, files);
+  if (OWN_CHECKER.test(command)) return runPreflight(root, files, { lean });
   // A green run on this exact tree, command, config and runner code is cited, not repeated: an unchanged resubmit, and a
   // review's check of the same tree, reuse it as runStaticChecks would (#2230). Pullboard's own checker above judges only
   // the changed files, so it never records a whole-tree receipt.
@@ -144,7 +151,7 @@ export async function runStaticPreflight(root, command, files, { timeoutMs } = {
  * Why: 80 of 233 red gates in 72 h waited in the queue and took a runner trip to fail a check that takes seconds (#5730).
  */
 export async function requireStaticPreflight(root, command, files, options) {
-  const report = await runStaticPreflight(root, command, files, options);
+  const report = await runStaticPreflight(root, command, files, { ...options, lean: true });
   if (report.ok) return report;
   const lines = [];
   reportPreflight(report, line => lines.push(line));

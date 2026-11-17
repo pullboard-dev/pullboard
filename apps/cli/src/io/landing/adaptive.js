@@ -43,3 +43,19 @@ export function batchCap(board, { adaptive = false } = {}) {
   const ceiling = Number.isSafeInteger(size) && size >= 1 ? size : Infinity;
   return adaptive ? adaptiveBatchSize(landingHistory(board.db), ceiling) : ceiling;
 }
+
+/**
+ * The status line for the adaptive landing batch, or null when landing.adaptiveBatch is off. Names the size the next offer
+ * takes and the clean batches in a row behind it, so a person sees why the size is what it is.
+ *
+ * @param {object} board - The board read; `board.db` holds the run table.
+ * @param {boolean} adaptive - landing.adaptiveBatch.
+ * @returns {string|null}
+ */
+export function adaptiveBatchLine(board, adaptive) {
+  if (!adaptive) return null;
+  const history = landingHistory(board.db);
+  let clean = 0;
+  while (clean < history.length && history[history.length - 1 - clean]) clean += 1;
+  return `landing batch size: ${batchCap(board, { adaptive: true })} (${clean} clean ${clean === 1 ? 'batch' : 'batches'} in a row)`;
+}
