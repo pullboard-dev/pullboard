@@ -1,7 +1,9 @@
+/** @pullboard-module-loads packages/gate/src/logic/selection-unit.js */
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -34,8 +36,6 @@ import {
 } from '../../../../codemap/index.js';
 import { newPackageCliReach } from '../../logic/reach.js';
 import { newKeylessImports } from '../../logic/reach.js';
-import { changedUnitManifest } from '../../logic/selection-unit.js';
-import { selectionUnits } from '../../logic/selection-unit.js';
 
 const MODULE = /\.[cm]?js$/u;
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
@@ -680,6 +680,8 @@ export function selectDeclaredSuites(changed, suites) {
  * @returns {{full:boolean, reason:string, files:string[]}} `files` holds the units.
  */
 function selectUnits(root, unit, changed) {
+  // Loaded here, never at import: only a non-file selection unit needs it, so a cold read command skips the module [C7].
+  const { changedUnitManifest, selectionUnits } = createRequire(import.meta.url)('../../logic/selection-unit.js');
   if (!changed.length) return { full: true, reason: 'no changed path to select units for', files: [] };
   const manifest = changedUnitManifest(changed);
   if (manifest) return { full: true, reason: `SELECTION_UNIT_MANIFEST: ${manifest} changes how every unit builds`, files: [] };
