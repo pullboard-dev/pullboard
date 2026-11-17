@@ -78,7 +78,7 @@ function withoutWriterMarker(document) {
   return copy;
 }
 
-test('engine 12 acceptance receipts stay exact and sealed re-review needs a newer engine [E8,H16,V8]', async t => {
+test('board.team-engine.engine-12-acceptance-receipts-stay-exact: engine 12 acceptance receipts stay exact and sealed re-review needs a newer engine [E8,H16,V8]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-engines-'));
   const archived = join(directory, 'engine12');
   mkdirSync(archived);
@@ -123,7 +123,7 @@ test('engine 12 acceptance receipts stay exact and sealed re-review needs a newe
   assert.deepEqual(exportBoard(one), exportBoard(two));
 });
 
-test('a rejection carrying both cause and checked review keeps the newer review minimum [E8,H16,D1]', t => {
+test('board.team-engine.rejection-carrying-both-cause-and-checked: a rejection carrying both cause and checked review keeps the newer review minimum [E8,H16,D1]', t => {
   const board = submitted(t);
   const move = prepareEngineMove(board, 'verify', [1, {
     ...verdict({ commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: ['web/feature.js'] }),
@@ -143,7 +143,7 @@ test('a rejection carrying both cause and checked review keeps the newer review 
   assert.deepEqual(JSON.parse(event.event_detail).review, move.args[1].review);
 });
 
-test('malformed sealed reviews cannot append proof or bind a different submission [E8,H16,V8]', t => {
+test('board.team-engine.malformed-sealed-reviews-cannot-append-proof: malformed sealed reviews cannot append proof or bind a different submission [E8,H16,V8]', t => {
   const one = submitted(t);
   const two = replica(t, one);
   const valid = { commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: ['web/feature.js'] };
@@ -165,7 +165,7 @@ test('malformed sealed reviews cannot append proof or bind a different submissio
 });
 
 
-test('a landing snapshot binds the checked composition through replay and final receipts [E8,H16,R3]', t => {
+test('board.team-engine.landing-snapshot-binds-the-checked-composition: a landing snapshot binds the checked composition through replay and final receipts [E8,H16,R3]', t => {
   const one = submitted(t);
   const two = replica(t, one);
   const reviewed = { commit: COMMIT, head: TRUNK, trunk: BASE, paths: ['web/feature.js'] };
@@ -215,7 +215,7 @@ test('a landing snapshot binds the checked composition through replay and final 
   assert.deepEqual(exportBoard(one), exportBoard(two));
 });
 
-test('an older landing refusal remains exact after its snapshot acquires checked-head binding [E8,H16,R3]', t => {
+test('board.team-engine.older-landing-refusal-remains-exact-after: an older landing refusal remains exact after its snapshot acquires checked-head binding [E8,H16,R3]', t => {
   const board = submitted(t);
   store.verify(board, 1, verdict({ commit: COMMIT, head: COMMIT, trunk: BASE, paths: ['web/feature.js'] }));
   const batch = { version: 1, id: 'upgraded-snapshot', state: 'gating', base: BASE, tip: COMMIT,
@@ -237,7 +237,7 @@ test('an older landing refusal remains exact after its snapshot acquires checked
   assert.deepEqual(exportBoard(board), before);
 });
 
-test('an actual engine 12 finish records its landing without borrowing a newer checked review [E8,H16,R3]', async t => {
+test('board.team-engine.actual-engine-12-finish-records-its: an actual engine 12 finish records its landing without borrowing a newer checked review [E8,H16,R3]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-legacy-review-landing-'));
   const archived = join(directory, 'engine12');
   mkdirSync(archived);

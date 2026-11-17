@@ -34,7 +34,7 @@ ${body}`;
   return result;
 }
 
-test('timing admission drains ordinary work and excludes ordinary and short slots [C7,Q1]', async t => {
+test('gate.io-run-timing.timing-admission-drains-ordinary-work-and: timing admission drains ordinary work and excludes ordinary and short slots [C7,Q1]', async t => {
   const box = fixture(t);
   await runFixture(box, `
 const leases = [];
@@ -70,7 +70,7 @@ try {
 `);
 });
 
-test('timing cannot escalate an inherited ordinary lease and its receipt records actual load [C7,Q1]', async t => {
+test('gate.io-run-timing.timing-cannot-escalate-an-inherited-ordinary: timing cannot escalate an inherited ordinary lease and its receipt records actual load [C7,Q1]', async t => {
   const box = fixture(t);
   await runFixture(box, `
 const ordinary = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', root });
@@ -104,7 +104,7 @@ assert.ok(Date.parse(receipt.finishedAt) >= Date.parse(receipt.admittedAt));
 `);
 });
 
-test('a legacy queue client makes the timing receipt explicitly unfenced even after it exits [C7,Q1]', async t => {
+test('gate.io-run-timing.a-legacy-queue-client-makes-the: a legacy queue client makes the timing receipt explicitly unfenced even after it exits [C7,Q1]', async t => {
   const box = fixture(t);
   await runFixture(box, `
 const { takeResource: legacyTakeResource } = await import(${JSON.stringify(new URL('../../../../../apps/cli/tests/fixtures/runners.js', import.meta.url).href)});

@@ -38,7 +38,7 @@ function capturedRows(file, changes) {
   } finally { db.close(); }
 }
 
-test('interleaved asynchronous captures keep each real board transaction in its own operation [H21]', async t => {
+test('board.capture.interleaved-asynchronous-captures-keep-each-real: interleaved asynchronous captures keep each real board transaction in its own operation [H21]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-capture-'));
   const a = openBoard(join(directory, 'a.sqlite'));
   const b = openBoard(join(directory, 'b.sqlite'));
@@ -71,7 +71,7 @@ test('interleaved asynchronous captures keep each real board transaction in its 
 });
 
 
-test('a native changeset serialization failure rolls back and preserves its error before the next capture [H21]', async t => {
+test('board.capture.native-changeset-serialization-failure-rolls-back: a native changeset serialization failure rolls back and preserves its error before the next capture [H21]', async t => {
   t.diagnostic(JSON.stringify({ node: process.version, host: hostname(), execPath: process.execPath,
     binarySha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-capture-failure-'));
@@ -113,7 +113,7 @@ function fixture(t, name) {
   return { directory, board };
 }
 
-test('a detached descendant cannot extend a capture after its result has returned [H21]', async t => {
+test('board.capture.detached-descendant-cannot-extend-capture-after: a detached descendant cannot extend a capture after its result has returned [H21]', async t => {
   const { directory, board } = fixture(t, 'lifetime');
   const later = barrier();
   let descendant;
@@ -131,7 +131,7 @@ test('a detached descendant cannot extend a capture after its result has returne
   assert.equal(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='capture:late'").get().meta_value, 'outside the completed capture');
 });
 
-test('a failed real SQLite COMMIT publishes no prepared changes and restores the next outer capture [H21]', async t => {
+test('board.capture.failed-real-sqlite-commit-publishes-prepared: a failed real SQLite COMMIT publishes no prepared changes and restores the next outer capture [H21]', async t => {
   const { directory, board } = fixture(t, 'commit');
   board.db.exec('PRAGMA foreign_keys=ON; CREATE TABLE capture_parent(id INTEGER PRIMARY KEY); CREATE TABLE capture_child(id INTEGER PRIMARY KEY, parent INTEGER REFERENCES capture_parent(id) DEFERRABLE INITIALLY DEFERRED)');
   const captured = await captureBoardChanges(() => {
@@ -143,7 +143,7 @@ test('a failed real SQLite COMMIT publishes no prepared changes and restores the
   assert.deepEqual(capturedRows(join(directory, 'copy.sqlite'), captured.changes), [{ meta_key: 'capture:after-rollback', meta_value: 'committed' }]);
 });
 
-test('a native capture close failure cannot skip outer depth or write-observation cleanup [H21]', async t => {
+test('board.capture.native-capture-close-failure-cannot-skip: a native capture close failure cannot skip outer depth or write-observation cleanup [H21]', async t => {
   const { directory, board } = fixture(t, 'close');
   const original = board.db.createSession;
   board.writeContext = { command: 'capture-close-fixture', seat: 'capture-fixture' };

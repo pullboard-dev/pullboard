@@ -15,7 +15,7 @@ const CEILINGS = 'packages/gate/data/ceilings/adapter-lint-timers.json';
 /** A repo file's lines. */
 const lines = path => readFileSync(join(ROOT, path), 'utf8').split('\n');
 
-test('clause 1: every POLL_MS wait in pool.js and the 25 ms pollAcks interval in run-tests.js carry a // budget: line [C7,#9522]', () => {
+test('gate.io-test-file-pool-waits.every-poll-ms-wait-in-pool: clause 1: every POLL_MS wait in pool.js and the 25 ms pollAcks interval in run-tests.js carry a // budget: line [C7,#9522]', () => {
   const waits = lines(POOL).map((text, index) => ({ text, index })).filter(({ text }) => /(?:setTimeout\([^)]*POLL_MS\)|pauseSync\(POLL_MS\))/u.test(text));
   assert.ok(waits.length >= 7, 'the scan finds the pool waits');
   for (const { text, index } of waits) assert.match(`${lines(POOL)[index - 1] ?? ''}\n${text}`, /\/\/\s*budget:/u, `${POOL}:${index + 1} carries a budget line`);
@@ -24,7 +24,7 @@ test('clause 1: every POLL_MS wait in pool.js and the 25 ms pollAcks interval in
   for (const { text, index } of intervals) assert.match(`${lines(RUN_TESTS)[index - 1] ?? ''}\n${text}`, /\/\/\s*budget:/u, `${RUN_TESTS}:${index + 1} carries a budget line`);
 });
 
-test('clause 2: the timer lint counts no poll in pool.js or run-tests.js, and the ceiling file holds none for them and sums to its total [C7,#9522]', () => {
+test('gate.io-test-file-pool-waits.the-timer-lint-counts-no-poll: clause 2: the timer lint counts no poll in pool.js or run-tests.js, and the ceiling file holds none for them and sums to its total [C7,#9522]', () => {
   for (const path of [POOL, RUN_TESTS]) assert.deepEqual(timerUses(lines(path).join('\n')).filter(row => row.kind === 'poll'), [], `${path} has no unannotated poll`);
   const ceiling = JSON.parse(readFileSync(join(ROOT, CEILINGS), 'utf8'));
   assert.equal(ceiling.files[POOL]?.poll ?? 0, 0);

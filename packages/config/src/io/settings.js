@@ -89,6 +89,16 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
+/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+export function residentChecks() {
+  return loadMachineSettings().submit?.residentChecks === true;
+}
+
+/** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
+export function pendingFromJobRow() {
+  return loadMachineSettings().submit?.pendingFromJobRow === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;

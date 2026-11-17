@@ -30,7 +30,7 @@ const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.j
 // Keep generated launch code as data: this classifier test never launches the browser it describes.
 const browserFixtureSource = ["// pullboard: browser\nimport { spawn } from 'node:child_process';\nspawn('Google", " Chrome');\n"].join('');
 
-test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t) => {
+test('gate.io-main-admission.a-shell-check-is-admitted-by: a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
   mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
@@ -78,7 +78,7 @@ process.stdout.write(JSON.stringify(decisions));`;
   assert.deepEqual(decisions[2].fallbacks, [], 'understood core selection needs no browser fallback');
 });
 
-test('shell admission preserves opaque suffixes and the existing short-slot boundary [C7,Q1,Q3]', async (t) => {
+test('gate.io-main-admission.shell-admission-preserves-opaque-suffixes-and: shell admission preserves opaque suffixes and the existing short-slot boundary [C7,Q1,Q3]', async (t) => {
   const { root, env } = fixture(t, 2);
   mkdirSync(join(root, 'apps/cli/src/io/run'), { recursive: true });
   mkdirSync(join(root, 'test'));
@@ -113,7 +113,7 @@ process.stdout.write(JSON.stringify({ decisions, short }));`;
   assert.equal(actual.short, null, 'new browser classification does not grant a short slot');
 });
 
-test('four runs never hold more test files than cores, and the longest-recorded file starts first [C7]', async (t) => {
+test('gate.io-main-admission.four-runs-never-hold-more-test: four runs never hold more test files than cores, and the longest-recorded file starts first [C7]', async (t) => {
   const { root, env, log } = fixture(t, 4);
   const files = ['a.test.js', 'b.test.js', 'c.test.js', 'd.test.js', 'e.test.js', 'z-slow.test.js'];
   for (const file of files) writeFileSync(join(root, file), timedFile(file, 300));
@@ -136,7 +136,7 @@ test('four runs never hold more test files than cores, and the longest-recorded 
     ['z-slow.test.js', 'c.test.js', 'a.test.js', 'b.test.js', 'd.test.js', 'e.test.js'], 'timed files longest first, then the rest in order');
 });
 
-test('a file waiting on a nested run lends its place, so saturated parents still run at most cores files [C7]', async (t) => {
+test('gate.io-main-admission.a-file-waiting-on-a-nested: a file waiting on a nested run lends its place, so saturated parents still run at most cores files [C7]', async (t) => {
   const { root, env, log } = fixture(t, 2);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 300));
   // Each outer file runs both inner files through run-tests and waits; its own body does no work meanwhile.
@@ -153,7 +153,7 @@ test('a file waiting on a nested run lends its place, so saturated parents still
   assert.ok(peak(events) <= 2, `two saturated outer files with nested runs still run at most 2 files, saw ${peak(events)}`);
 });
 
-test('a caller keeps its place while its synchronous call is open, so no other file takes it [C7]', async (t) => {
+test('gate.io-main-admission.a-caller-keeps-its-place-while: a caller keeps its place while its synchronous call is open, so no other file takes it [C7]', async (t) => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-file-pool-race-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   /** A live process to stand in for one pool row; the pool prunes rows of processes that have gone. */
@@ -181,13 +181,13 @@ test('a caller keeps its place while its synchronous call is open, so no other f
   assert.equal(await occupiedPlaces(home), 2, 'the call returned, the caller runs in its own place');
 });
 
-test('a parent that starts its nested run asynchronously keeps its own token, so its nested files take separate ones [C7]', { cpuLoad: true }, async (t) => {
+test('gate.io-main-admission.a-parent-that-starts-its-nested: a parent that starts its nested run asynchronously keeps its own token, so its nested files take separate ones [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 2);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 400));
   // The parent starts its nested run without blocking on it and spins the CPU until the run ends.
   writeFileSync(join(root, 'busy.test.js'), `import { spawn } from 'node:child_process';
 import { test } from 'node:test';
-test('busy parent', async () => {
+test('gate.io-main-admission.busy-parent: busy parent', async () => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner-a.test.js', 'inner-b.test.js'], { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner' }, stdio: 'ignore' });
   let done = false;
   child.on('exit', () => { done = true; });
@@ -205,7 +205,7 @@ test('busy parent', async () => {
   assert.equal(peak(events), 1, 'with the busy parent holding one of 2 places, its nested files share the one left');
 });
 
-test('an async parent lends its token through awaitNestedRun [C7]', async (t) => {
+test('gate.io-main-admission.an-async-parent-lends-its-token: an async parent lends its token through awaitNestedRun [C7]', async (t) => {
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   const api = await import('../../../index.js');
   assert.equal(typeof api.awaitNestedRun, 'function', 'an explicit yielding-wait helper is available');
@@ -215,7 +215,7 @@ test('an async parent lends its token through awaitNestedRun [C7]', async (t) =>
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
-test('yielding parent', async () => {
+test('gate.io-main-admission.yielding-parent: yielding parent', async () => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'inner' }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.resume();
   child.stderr.resume();
@@ -239,7 +239,7 @@ import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { test } from 'node:test';
-test('parent without the explicit wait', { timeout: 10_000 }, async (t) => {
+test('gate.io-main-admission.parent-without-the-explicit-wait: parent without the explicit wait', { timeout: 10_000 }, async (t) => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(blocked.root)}, env: process.env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let live = true;
   t.after(() => { if (live) { try { process.kill(-child.pid, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; } } });

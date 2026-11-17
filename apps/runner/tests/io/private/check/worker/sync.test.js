@@ -28,7 +28,7 @@ function releaseAll(leases) {
   for (const lease of leases.reverse()) lease.release();
 }
 
-test('a live old pool resizes to registered limits with queued work and admits within the new count [C7]', { timeout: 15_000 }, async t => {
+test('runner.sync.a-live-old-pool-resizes-to-registered: a live old pool resizes to registered limits with queued work and admits within the new count [C7]', { timeout: 15_000 }, async t => {
   const root = privateMachine(t), leases = [];
   let allowRemote = false;
   let queuedResolve;
@@ -93,7 +93,7 @@ test('a live old pool resizes to registered limits with queued work and admits w
   }
 });
 
-test('a browser registration below browser-marked holders is refused without changing the gate or browser pool [C7]', async t => {
+test('runner.sync.a-browser-registration-below-browser-marked-holders: a browser registration below browser-marked holders is refused without changing the gate or browser pool [C7]', async t => {
   const root = privateMachine(t), leases = [];
   try {
     for (const [index, browser] of [true, true, false, false].entries()) {
@@ -115,7 +115,7 @@ test('a browser registration below browser-marked holders is refused without cha
   } finally { releaseAll(leases); }
 });
 
-test('a registered limit below active holders is refused with both capacities [C7]', async t => {
+test('runner.sync.a-registered-limit-below-active-holders-is: a registered limit below active holders is refused with both capacities [C7]', async t => {
   const root = privateMachine(t), leases = [];
   try {
     for (const agent of ['over-limit-one', 'over-limit-two', 'over-limit-three', 'over-limit-four']) {

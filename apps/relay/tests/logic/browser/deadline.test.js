@@ -6,7 +6,7 @@ import { BROWSER_IO_TIMEOUT_MS } from '../../../index.js';
 import { browserJSON } from '../../../index.js';
 import { withBrowserDeadline } from '../../../index.js';
 
-test('a browser operation that ignores cancellation still ends at its deadline [H5,H16]', async t => {
+test('relay.logic-browser-deadline.a-browser-operation-that-ignores-cancellation: a browser operation that ignores cancellation still ends at its deadline [H5,H16]', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let owned;
   const read = withBrowserDeadline(signal => { owned = signal; return new Promise(() => {}); });
@@ -18,7 +18,7 @@ test('a browser operation that ignores cancellation still ends at its deadline [
   assert.equal(owned.aborted, true, 'cooperative APIs receive cancellation too');
 });
 
-test('a browser response whose JSON body never arrives keeps the same read deadline [H5,H16]', async t => {
+test('relay.logic-browser-deadline.a-browser-response-whose-json-body: a browser response whose JSON body never arrives keeps the same read deadline [H5,H16]', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let bodyStarted = false;
   let owned;
@@ -35,7 +35,7 @@ test('a browser response whose JSON body never arrives keeps the same read deadl
   assert.equal(owned.aborted, true);
 });
 
-test('completed browser reads remove their deadline and parent cancellation listener [H5,H16]', async t => {
+test('relay.logic-browser-deadline.completed-browser-reads-remove-their-deadline: completed browser reads remove their deadline and parent cancellation listener [H5,H16]', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const parent = new AbortController();
   let owned;
@@ -45,7 +45,7 @@ test('completed browser reads remove their deadline and parent cancellation list
   assert.equal(owned.aborted, false, 'neither a stale timer nor a detached parent can cancel completed work');
 });
 
-test('a browser read preserves an earlier parent cancellation reason [H5,H16]', async t => {
+test('relay.logic-browser-deadline.a-browser-read-preserves-an-earlier: a browser read preserves an earlier parent cancellation reason [H5,H16]', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const parent = new AbortController();
   const reason = new Error('fixture parent stopped');

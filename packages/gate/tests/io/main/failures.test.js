@@ -44,7 +44,7 @@ function fixture(t) {
   return { root, output };
 }
 
-test('a gate whose item check fails one case while the unit tier passes reports exactly that case and its first error line [C7]', (t) => {
+test('gate.io-main-failures.a-gate-whose-item-check-fails: a gate whose item check fails one case while the unit tier passes reports exactly that case and its first error line [C7]', (t) => {
   const { root, output } = fixture(t);
   const log = tap(root, ['test/check.test.js']) + tap(root, ['test/unit-one.test.js', 'test/unit-two.test.js']);
   const summary = retainTestOutput(root, log, { root, directory: output });
@@ -61,7 +61,7 @@ test('a gate whose item check fails one case while the unit tier passes reports 
   assert.match(report, /full log: /u);
 });
 
-test('a red affected run names only its failing file, and keeps a runner error the cases do not show [C7]', (t) => {
+test('gate.io-main-failures.a-red-affected-run-names-only: a red affected run names only its failing file, and keeps a runner error the cases do not show [C7]', (t) => {
   const { root, output } = fixture(t);
   const log = tap(root, ['test/check.test.js', 'test/unit-one.test.js', 'test/unit-two.test.js'])
     + '# run-tests: could not remove the job tmp folder: ENOTEMPTY: directory not empty, rmdir \'/tmp/job\'\n';
