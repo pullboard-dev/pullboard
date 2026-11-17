@@ -18,22 +18,19 @@ const CELL_HEADER = /^\/\*\* @pullboard-test-input source-cell((?:\s+[\w.-]+(?:\
 const ALLOWED = new Set(['mcp', 'packages/mcp']);
 
 /** Every test file under the mcp cell's tests folder, as repo-relative paths. */
-function blueprintTests(dir = DIR) {
+function mcpTests(dir = DIR) {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) return blueprintTests(path);
+    if (entry.isDirectory()) return mcpTests(path);
     return /\.test\.js$/u.test(entry.name) ? [relative(ROOT, path)] : [];
   });
 }
 
 const read = path => readFileSync(join(ROOT, path), 'utf8');
 
-/** The source with comments and string literals blanked, so a quoted name is not a call. */
+/** The source with comments blanked, so a commented call is not a read; strings stay, which only over-reports. */
 function code(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//gu, ' ')
-    .replace(/(^|[^:])\/\/[^\n]*/gu, '$1')
-    .replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\[\s\S])*`/gu, '""');
+  return source.replace(/\/\*[\s\S]*?\*\//gu, ' ').replace(/(^|[^:])\/\/[^\n]*/gu, '$1');
 }
 
 /** The cells named by the leading source-cell header, or null when the file has none. */
@@ -47,7 +44,7 @@ function declaredCells(source) {
 }
 
 test('clause 1: every mcp test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
-  const files = blueprintTests();
+  const files = mcpTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the mcp cell has test files to check');
   const readers = files.filter(file => READ.test(code(read(file))));
   const undeclared = readers.filter(file => declaredCells(read(file)) === null);
@@ -55,16 +52,16 @@ test('clause 1: every mcp test file that reads files carries an input header nam
 });
 
 test('clause 1: a declared header names only the mcp cell, never the whole source tree [C7,U149]', () => {
-  for (const file of blueprintTests()) {
+  for (const file of mcpTests()) {
     const source = read(file);
-    assert.ok(!/@pullboard-test-input source-tree/u.test(source), `${file} must not declare source-tree`);
+    assert.ok(!/^\/\*\* @pullboard-test-input source-tree/mu.test(source), `${file} must not declare source-tree`);
     const cells = declaredCells(source);
     if (cells) assert.ok(cells.every(cell => ALLOWED.has(cell)), `${file} names only cells it reads: ${cells.join(' ')}`);
   }
 });
 
 test('clause 1: with the outside-src rule on, no mcp test reads data or fixtures undeclared [C7,U149]', () => {
-  const problems = blueprintTests().filter(file => {
+  const problems = mcpTests().filter(file => {
     const source = read(file);
     return READ.test(code(source)) && /(?:^|\/)(?:tests\/fixtures|data|docs|src)\//u.test(source) && declaredCells(source) === null;
   });
