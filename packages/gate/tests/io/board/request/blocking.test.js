@@ -7,6 +7,7 @@ import { apiRequestIoProblems } from '../../../../src/io/board/request.js';
 import { EXTRA_REQUEST_ROOTS } from '../../../../src/io/board/request.js';
 import { HTTP_SERVERS } from '../../../../src/io/board/request.js';
 import { KNOWN_REQUEST_BLOCKERS } from '../../../../src/io/board/request.js';
+import { MOVED_BLOCKER_OWNERS } from '../../../../src/io/board/request.js';
 import { candidateKnownBlockers } from '../../../../src/io/board/request.js';
 import { STATIC_TREE_CHECKS } from '../../../../src/io/static/registry.js';
 
@@ -186,7 +187,7 @@ test('gate.io-board-request-blocking.extraroots-naming-the-materializer-worker-a
 test('gate.io-board-request-blocking.known-blockers-equal-the-owners-reached: clause 1: known blockers equal the owners reached from the requests, materializer worker and rule-proof append [C7,#9678]', () => {
   const rows = apiRequestIoProblems(sources, { known: {}, extraRoots: EXTRA_REQUEST_ROOTS });
   const owners = [...new Set(rows.map(row => row.owner))].sort();
-  assert.deepEqual(Object.keys(KNOWN_REQUEST_BLOCKERS).sort(), owners);
+  assert.deepEqual(Object.keys(KNOWN_REQUEST_BLOCKERS).sort(), owners.map(owner => MOVED_BLOCKER_OWNERS[owner] ?? owner).sort());
   assert.ok(owners.every(owner => !/#(?:verdictTrunk|sourceRoot)$/u.test(owner)));
 
   const check = STATIC_TREE_CHECKS.find(row => row.name === 'api-request-io');
@@ -198,4 +199,36 @@ test('gate.io-board-request-blocking.known-blockers-equal-the-owners-reached: cl
   } : row);
   assert.deepEqual(check.run(root, tree, { requestIoExtraRoots: false }), []);
   assert.equal(check.run(root, tree, { requestIoExtraRoots: true }).filter(row => row.includes('global:Atomics#wait')).length, 1);
+});
+
+const SERVE_OWNER = 'apps/view/src/io/serve.js#computeRowAges', STATE_OWNER = 'apps/view/src/io/state.js#computeRowAges';
+/** A tree where the call site of the moved row-age function sits in `file`, reached from a listed request root. */
+function rowAgeTree(file) {
+  const other = file === 'apps/view/src/io/state.js' ? 'apps/view/src/io/serve.js' : 'apps/view/src/io/state.js';
+  const caller = { file: 'packages/api/src/io/row-age-caller.js', source: `import { computeRowAges } from '../../../../${file}';\nexport function rowAgeHandler() { return computeRowAges(); }\n` };
+  const site = { file, source: "import { spawnSync } from 'node:child_process';\nexport function computeRowAges() { return spawnSync('git'); }\n" };
+  return [caller, site, { file: other, source: 'export const unrelated = 1;\n' }];
+}
+const why = 'projectState reads each spec row age through synchronous git';
+
+test('gate.io-board-request-blocking.a-moved-row-age-key-is-accepted: clause 1: the computeRowAges known row is accepted under the serve.js or the state.js spelling for a call site at either file, never stale or unlisted [C7,#10188]', () => {
+  assert.equal(MOVED_BLOCKER_OWNERS[STATE_OWNER], SERVE_OWNER);
+  for (const file of ['apps/view/src/io/serve.js', 'apps/view/src/io/state.js']) {
+    for (const key of [SERVE_OWNER, STATE_OWNER]) {
+      const rows = apiRequestIoProblems(rowAgeTree(file), { known: { [key]: why } }).filter(row => row.owner.endsWith('#computeRowAges'));
+      assert.deepEqual(rows, [], `${file} site with the ${key} key`);
+    }
+  }
+});
+
+test('gate.io-board-request-blocking.a-moved-row-still-goes-stale-or-unlisted: clause 2: the computeRowAges row still goes stale when the call site is gone from both files, and unlisted when neither key is listed [C7,#10188]', () => {
+  const gone = rowAgeTree('apps/view/src/io/state.js').map(row => row.file === 'apps/view/src/io/state.js' ? { ...row, source: 'export function computeRowAges() { return []; }\n' } : row);
+  for (const key of [SERVE_OWNER, STATE_OWNER]) {
+    const stale = apiRequestIoProblems(gone, { known: { [key]: why } }).filter(row => row.stale && row.owner.endsWith('#computeRowAges'));
+    assert.deepEqual(stale.map(row => row.owner), [key], `${key} is stale with no call site`);
+  }
+  for (const file of ['apps/view/src/io/serve.js', 'apps/view/src/io/state.js']) {
+    const unlisted = apiRequestIoProblems(rowAgeTree(file), { known: {} }).filter(row => row.owner.endsWith('#computeRowAges'));
+    assert.deepEqual(unlisted.map(row => row.owner), [`${file}#computeRowAges`], `${file} site with no key`);
+  }
 });
