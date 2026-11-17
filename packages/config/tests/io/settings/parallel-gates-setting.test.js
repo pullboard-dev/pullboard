@@ -31,7 +31,7 @@ test('clause 1: landing.parallelGates is a described machine setting whose defau
   assert.equal(unset.value, false);
   assert.equal(unset.origin, 'default');
   assert.ok(unset.label, 'the row carries a plain label');
-  assert.match(unset.description ?? JSON.stringify(unset), /parallel/u);
+  assert.match(unset.description ?? JSON.stringify(unset), /second batch/u);
 });
 
 test('clause 2: reading landing.parallelGates through the settings reader returns false when unset, true only for an exact true [C7,#9747]', () => {
