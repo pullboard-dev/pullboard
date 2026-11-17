@@ -52,6 +52,14 @@ const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'ut
 const rulingsPage = readFileSync(new URL('./formats/rulings.md', import.meta.url), 'utf8');
 /** The resume-release-notes section lives on its own page; its marked block is read there. */
 const resumeNotesPage = readFileSync(new URL('./formats/resume-notes.md', import.meta.url), 'utf8');
+/** The static-view-export section lives on its own page; its snapshot table and sentences are read there. */
+const staticViewPage = readFileSync(new URL('./formats/static-view.md', import.meta.url), 'utf8');
+
+test('clause 1: formats.md links the static view page and its snapshot table is read from it [I1]', () => {
+  assert.match(guide, /## Static view export\n\n[^\n]*\]\(formats\/static-view\.md\)/u);
+  assert.doesNotMatch(guide, /snapshot-files:start/u);
+  assert.match(staticViewPage, /<!-- snapshot-files:start -->/u);
+});
 
 test('clause 1: formats.md links the rulings page and the rulings sentences are read from it [I1]', () => {
   assert.match(guide, /## Proposed rulings and resume doctrine notes\n\n[^\n]*\]\(formats\/rulings\.md\)/u);
@@ -108,7 +116,8 @@ function filesUnder(root, directory = root) {
 
 /** Read the documented static snapshot file paths. */
 function documentedSnapshotFiles() {
-  return block('<!-- snapshot-files:start -->', '<!-- snapshot-files:end -->').split(/\r?\n/).flatMap((line) => {
+  const begin = staticViewPage.indexOf('<!-- snapshot-files:start -->') + '<!-- snapshot-files:start -->'.length;
+  return staticViewPage.slice(begin, staticViewPage.indexOf('<!-- snapshot-files:end -->', begin)).split(/\r?\n/).flatMap((line) => {
     const row = /^\| `([^`]+)` \|/.exec(line);
     return row ? [row[1]] : [];
   });
@@ -393,7 +402,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     assert.match(page, /href="view\.css"/);
     assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
     assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
-    assert.match(guide, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
+    assert.match(staticViewPage, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
