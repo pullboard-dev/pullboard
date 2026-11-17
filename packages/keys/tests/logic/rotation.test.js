@@ -18,7 +18,7 @@ async function rotated() {
   return { devices, roster, old, removed, ...result };
 }
 
-test('clause 1: rotateBoardKeyForRoster returns a new 32-byte key with one envelope per remaining device and none for the removed one [E16]', async () => {
+test('keys.rotation.rotateboardkeyforroster-returns-a-new-32-byte: clause 1: rotateBoardKeyForRoster returns a new 32-byte key with one envelope per remaining device and none for the removed one [E16]', async () => {
   const { devices, old, removed, key, envelopes } = await rotated();
   assert.equal(key.length, 32);
   assert.notDeepEqual(key, old);
@@ -26,7 +26,7 @@ test('clause 1: rotateBoardKeyForRoster returns a new 32-byte key with one envel
   assert.equal(envelopes[removed.deviceId], undefined);
 });
 
-test('clause 2: every remaining envelope unwraps to the new key with its own private key and the removed device key unwraps none [E16]', async () => {
+test('keys.rotation.every-remaining-envelope-unwraps-to-the: clause 2: every remaining envelope unwraps to the new key with its own private key and the removed device key unwraps none [E16]', async () => {
   const { devices, removed, key, envelopes } = await rotated();
   for (const device of devices.filter(d => d !== removed)) {
     const expected = { board: BOARD, device: device.deviceId, engine: ENGINE };

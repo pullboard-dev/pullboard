@@ -60,7 +60,7 @@ function inSnapshots(repo, work) {
   return withCellSourceSnapshots(snapshots, () => work(roots));
 }
 
-test('gitChildEnv asks Git for its local variable names once per adapter and still strips them [C7]', () => {
+test('codemap.spawns.gitchildenv-asks-git-for-its: gitChildEnv asks Git for its local variable names once per adapter and still strips them [C7]', () => {
   const { adapter, calls } = countingGit();
   const files = privateFixtureFiles('cells-git-env-');
   try {
@@ -76,7 +76,7 @@ test('gitChildEnv asks Git for its local variable names once per adapter and sti
   } finally { rmSync(files.root, { recursive: true, force: true }); }
 });
 
-test('a cells snapshot answers rev-parse HEAD and a one-path ls-tree exactly as Git, with no Git process [C7]', t => {
+test('codemap.spawns.a-cells-snapshot-answers-rev: a cells snapshot answers rev-parse HEAD and a one-path ls-tree exactly as Git, with no Git process [C7]', t => {
   const repo = repository(t);
   const real = path => runFixtureGit(['ls-tree', '-z', repo.commit, '--', path], { cwd: repo.root });
   const { adapter, calls } = countingGit();
@@ -92,7 +92,7 @@ test('a cells snapshot answers rev-parse HEAD and a one-path ls-tree exactly as 
   }));
 });
 
-test('readBlobs reads several blobs in one Git batch and leaves out an object Git lacks [C7]', t => {
+test('codemap.spawns.readblobs-reads-several-blobs-in: readBlobs reads several blobs in one Git batch and leaves out an object Git lacks [C7]', t => {
   const repo = repository(t);
   const { adapter, calls } = countingGit();
   const a = repo.entries.get('a.txt').object, b = repo.entries.get('dir/b.txt').object;
@@ -101,7 +101,7 @@ test('readBlobs reads several blobs in one Git batch and leaves out an object Gi
   assert.equal(calls.filter(args => args.includes('cat-file')).length, 1);
 });
 
-test('historyShimReferences reads one base once in one batch for every snapshot root [C7]', t => {
+test('codemap.spawns.historyshimreferences-reads-one-base-once: historyShimReferences reads one base once in one batch for every snapshot root [C7]', t => {
   const repo = repository(t);
   const { adapter, calls } = countingGit();
   withGitContractAdapter(adapter, () => inSnapshots(repo, ([first, second]) => {
@@ -114,7 +114,7 @@ test('historyShimReferences reads one base once in one batch for every snapshot 
   assert.equal(calls.filter(args => args.includes('ls-tree')).length, 1);
 });
 
-test('baseUnsupported reads each base blob from Git once across touched cells [C7]', t => {
+test('codemap.spawns.baseunsupported-reads-each-base-blob: baseUnsupported reads each base blob from Git once across touched cells [C7]', t => {
   const repo = repository(t);
   const { adapter, calls } = countingGit();
   const memo = createFixtureMemo({

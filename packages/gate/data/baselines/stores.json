@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
@@ -1580,6 +1582,10 @@
     "view-reuse.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
     },
     "view.json": {
       "kind": "json",

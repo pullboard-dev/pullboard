@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'read.thinCommands'));
 }
 
-test('clause 1: read.thinCommands defaults to false, is listed with a description, and readThinCommands() is true only on an exact true [C7,#9810]', () => {
+test('config.io-read-thin-commands-setting.clause-1-read-thincommands-defaults-to: clause 1: read.thinCommands defaults to false, is listed with a description, and readThinCommands() is true only on an exact true [C7,#9810]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -36,7 +36,7 @@ test('clause 1: read.thinCommands defaults to false, is listed with a descriptio
   assert.equal(withSettings({ read: { thinCommands: false } }, readThinCommands), false);
 });
 
-test('clause 2: a non-boolean read.thinCommands refuses with BAD_MACHINE_SETTINGS [C7,#9810]', () => {
+test('config.io-read-thin-commands-setting.clause-2-a-non-boolean-read-thincommands: clause 2: a non-boolean read.thinCommands refuses with BAD_MACHINE_SETTINGS [C7,#9810]', () => {
   for (const bad of ['yes', 1, 'true', null]) {
     assert.throws(() => withSettings({ read: { thinCommands: bad } }, readThinCommands), error => error.code === 'BAD_MACHINE_SETTINGS' && /read\.thinCommands/u.test(error.message));
   }
