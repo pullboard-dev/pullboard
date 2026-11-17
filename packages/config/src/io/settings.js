@@ -407,6 +407,11 @@ export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
 }
 
+/** Whether engine.nameBehindDevice is on (#9418): off by default; a caller reads it and passes it to prepareEngineMove, since a move never reads a setting. */
+export function nameBehindDeviceEnabled() {
+  return loadMachineSettings().engine?.nameBehindDevice === true;
+}
+
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;
@@ -455,6 +460,11 @@ export function strictFullSuiteEnabled() {
 /** Whether the sentinel expires lapsed claims every minute (#8923): off by default; only an exact `true` turns it on. */
 export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
+}
+
+/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
+export function docsRegenerateOnCommit() {
+  return loadMachineSettings().docs?.regenerateOnCommit === true;
 }
 
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
@@ -917,6 +927,11 @@ export function codeStampCacheEnabled() {
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
 export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
+}
+
+/** Whether landing.stallStop is on (#8749): off by default; only an exact `true` turns it on. */
+export function stallStopEnabled() {
+  return loadMachineSettings().landing?.stallStop === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
