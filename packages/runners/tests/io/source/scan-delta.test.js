@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners packages/config */
+/** @pullboard-test-input source-cell packages/runners */
 /** A child commit's history scan reads only the commits after its nearest scanned ancestor, and a cold one reads all [C7,#9858]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
