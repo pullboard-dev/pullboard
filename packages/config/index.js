@@ -138,6 +138,7 @@ export {
   hotStateEnabled,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
+  parallelGatesEnabled,
   reuseGateReceiptsEnabled,
   stallStopEnabled,
   memoryFloorMB,

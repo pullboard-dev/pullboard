@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { MACHINE } from '../../../../state/light.js';
 import { BACKBONE_RULES } from '../../../index.js';
 import { BACKBONE_TABLE } from '../../../index.js';
