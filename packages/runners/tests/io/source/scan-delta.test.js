@@ -35,6 +35,7 @@ function fixture(t) {
   /**
    * Append single-file commits to main with one `git fast-import` child, returning their ids in order.
    * Why: a commit through add, commit and rev-parse cost three git processes each, and the file builds 100 commits per case.
+   * The unpack limit keeps the objects loose, because poison drops one object file.
    */
   const importCommits = entries => {
     const marks = join(home.root, 'marks');
@@ -45,7 +46,7 @@ function fixture(t) {
       if (started || index > 0) chunks.push(index > 0 ? `from :${index}\n` : 'from refs/heads/main^0\n');
       chunks.push(`M 100644 inline ${path}\ndata ${Buffer.byteLength(body)}\n${body}\n`);
     });
-    git('fast-import', '--quiet', `--export-marks=${marks}`, { input: chunks.join('') });
+    git('-c', 'fastimport.unpackLimit=1000000', 'fast-import', '--quiet', `--export-marks=${marks}`, { input: chunks.join('') });
     started = true;
     const ids = new Map(readFileSync(marks, 'utf8').trim().split('\n').map(line => line.split(' ').slice(0, 2)));
     return entries.map((_, index) => ids.get(`:${index + 1}`));
