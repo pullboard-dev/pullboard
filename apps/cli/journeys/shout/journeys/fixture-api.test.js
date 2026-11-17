@@ -17,7 +17,7 @@ import {
   boardOf,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
+test('clause 1: the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
