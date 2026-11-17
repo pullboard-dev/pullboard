@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { unpackRelease } from '../../tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../../../packages/gate/tests/fixtures/release/archive.js';
 import * as store from '../../../../packages/store/index.js';
 import {
   openBoard,

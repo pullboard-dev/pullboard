@@ -6,3 +6,7 @@ export * from './src/io/main.js';
 export * from './src/io/fast.js';
 export * from './src/io/history.js';
 export * from './src/io/main-criterion-facts.js';
+export * from './src/io/bundle/import.js';
+export { encodeBundle } from './src/logic/bundle/encode.js';
+export { signBundle, verifyBundle } from './src/io/bundle/verify.js';
+export { signWaiver, waiverPermits } from './src/io/bundle/waiver.js';

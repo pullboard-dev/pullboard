@@ -33,13 +33,21 @@ const SAVE_EVERY_MS = 60_000;
 const SNAPSHOT_VERSION = 1;
 const CODE_ROOT = fileURLToPath(new URL('../../../../../../', import.meta.url));
 
+/** The stat of one path, or null when it is absent. */
+function statOf(path) {
+  try { return statSync(path); } catch { return null; }
+}
+
 /**
- * Name the code this worker runs: a digest of every source file's path, size and modification time. Why not
- * Git: an installed package has no repository, and a worktree's uncommitted edits change what a build means.
+ * Walk the source folders once: every stamped file's line and every folder's modification time, in the stamp's fixed order.
+ * Each folder is kept, including one that does not exist yet (null), so a cached stamp can tell a new or removed file from none.
  */
-function codeStamp(formats) {
-  const hash = createHash('sha256').update(`${SNAPSHOT_VERSION}:${formats}`);
+function scanCode() {
+  const lines = [];
+  const files = [];
+  const dirs = [];
   const walk = (dir) => {
+    dirs.push([dir.slice(CODE_ROOT.length), statOf(dir)?.mtimeMs ?? null]);
     let names;
     try { names = readdirSync(dir, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name)); } catch { return; }
     for (const entry of names) {
@@ -48,16 +56,61 @@ function codeStamp(formats) {
       if (entry.isDirectory()) walk(path);
       else if (/\.(?:[cm]?js|json|md)$/u.test(entry.name)) {
         const stat = statSync(path);
-        hash.update(`${path.slice(CODE_ROOT.length)}:${stat.size}:${stat.mtimeMs}\n`);
+        const rel = path.slice(CODE_ROOT.length);
+        lines.push(`${rel}:${stat.size}:${stat.mtimeMs}\n`);
+        files.push([rel, stat.size, stat.mtimeMs]);
       }
     }
   };
   for (const top of ['apps', 'packages', 'src']) walk(join(CODE_ROOT, top));
   // The release version and notes come from these two files and sit in every built state, so a new release must miss.
-  for (const name of ['package.json', 'CHANGELOG.md']) {
-    try { const stat = statSync(join(CODE_ROOT, name)); hash.update(`${name}:${stat.size}:${stat.mtimeMs}\n`); } catch { /* An install without the file has nothing to stamp. */ }
+  const extras = ['package.json', 'CHANGELOG.md'].map((name) => {
+    const stat = statOf(join(CODE_ROOT, name));
+    // An install without the file has nothing to stamp.
+    if (stat) lines.push(`${name}:${stat.size}:${stat.mtimeMs}\n`);
+    return [name, stat?.size ?? null, stat?.mtimeMs ?? null];
+  });
+  return { lines, files, dirs, extras };
+}
+
+/** Where the cached stamp is kept: the pin cell's keyed results in the first project's state-cache folder, none when no project is known. */
+function stampPlace() {
+  const root = (workerData.projects ?? [])[0]?.root;
+  try { return { folder: process.env.PULLBOARD_STATE_CACHE_DIR || (root ? snapshots.snapshotPlace({ id: '', root }).folder : null), id: `code-stamp\0${CODE_ROOT}` }; } catch { return { folder: null }; }
+}
+
+/** Whether every folder, file and extra a cached stamp was built from still has the size and modification time it recorded. */
+function cacheHolds(cached) {
+  const same = (path, size, mtimeMs) => { const stat = statOf(path); return (stat?.size ?? null) === size && (stat?.mtimeMs ?? null) === mtimeMs; };
+  const dirsHold = cached.dirs.every(([rel, mtimeMs]) => (statOf(join(CODE_ROOT, rel))?.mtimeMs ?? null) === mtimeMs);
+  return dirsHold && cached.files.every(([rel, size, mtimeMs]) => same(join(CODE_ROOT, rel), size, mtimeMs))
+    && cached.extras.every(([name, size, mtimeMs]) => same(join(CODE_ROOT, name), size, mtimeMs));
+}
+
+/**
+ * Name the code this worker runs: a digest of every source file's path, size and modification time. Why not
+ * Git: an installed package has no repository, and a worktree's uncommitted edits change what a build means.
+ * With the cache on (api.codeStampCache), a restart over an unchanged tree reads the stamp it saved, after checking each
+ * recorded folder, file and extra by stat alone, so it never lists the source folders; any difference walks again.
+ */
+function codeStamp(formats, useCache) {
+  const key = `${SNAPSHOT_VERSION}:${formats}`;
+  const place = useCache && store ? stampPlace() : { folder: null };
+  if (place.folder) {
+    try {
+      const bytes = store.load(place.folder, place.id);
+      const cached = bytes ? deserialize(bytes) : null;
+      if (cached?.key === key && typeof cached.stamp === 'string' && cacheHolds(cached)) return cached.stamp;
+    } catch { /* No usable cache: walk the tree. */ }
   }
-  return hash.digest('hex');
+  const scan = scanCode();
+  const hash = createHash('sha256').update(key);
+  for (const line of scan.lines) hash.update(line);
+  const stamp = hash.digest('hex');
+  if (place.folder) {
+    try { store.save(place.folder, place.id, serialize({ key, stamp, files: scan.files, dirs: scan.dirs, extras: scan.extras })); } catch { /* A cache only speeds the next start; failing to save one never fails a start. */ }
+  }
+  return stamp;
 }
 
 const { boardStatePorts } = await import(workerData.portsModule);
@@ -69,7 +122,7 @@ const snapshots = createStateSnapshots({
   boardOpeners: ports.boardOpeners, viewPorts: ports.viewPorts,
   onStateBuild: (build) => parentPort.postMessage({ type: 'build', ...build }),
 });
-const code = codeStamp(snapshots.formats);
+const code = codeStamp(snapshots.formats, workerData.codeStampCache === true);
 /** The boards whose saved snapshot was already looked for, and when each was last saved. */
 const restored = new Set();
 const saved = new Map();

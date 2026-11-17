@@ -9,6 +9,12 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CONFIG_FILE } from '../../../../config/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { nameBehindDeviceEnabled } from '../../../../config/index.js';
+
+/** Whether engine.nameBehindDevice is on (#9828): the one place the relay cell reads it, so a caller passes the answer in before a move is prepared. */
+export function behindDeviceSetting() {
+  return nameBehindDeviceEnabled();
+}
 
 /** The board id this checkout's pullboard.json names, or null. */
 export function namedBoard(root) {

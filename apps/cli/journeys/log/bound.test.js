@@ -1,6 +1,6 @@
 /** @pullboard-test-input apps/cli/src/io/commands/log.js packages/store/src/io/board/query.js */
 /** @pullboard-world-pin: reads the log command source to learn the bound it applies, so the test follows the command instead of repeating the number [C7]. */
-/** pullboard log keeps to the newest 200 events unless asked for all of them, and filtered reads are unchanged [C7]. */
+/** pullboard log keeps to the newest 50 events unless asked for all of them, and filtered reads are unchanged [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,7 +17,7 @@ const PLAIN_LOG_EVENTS = Number(/PLAIN_LOG_EVENTS = (\d+)/u.exec(readFileSync(ne
 const stamp = n => new Date((START + n) * 1000).toISOString().slice(0, 19);
 const EVENT_LINE = /^20\d\d-\d\d-\d\dT/u;
 
-/** A project whose board holds more than 200 events: SEEDED extra ones, every fifth a merge, one per second. */
+/** A project whose board holds more than 50 events: SEEDED extra ones, every fifth a merge, one per second. */
 function bigBoard(t) {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
@@ -32,7 +32,7 @@ function bigBoard(t) {
   return { run: (...args) => box.runIn(box.repo, ...args) };
 }
 
-test('clause 1: plain pullboard log prints the last 200 events of a board holding more [C7]', async (t) => {
+test('clause 1: plain pullboard log prints the last 50 events of a board holding more, within 8192 bytes [C7]', async (t) => {
   const { run } = bigBoard(t);
   const answer = await run('log');
   assert.equal(answer.status, 0, answer.stderr);
@@ -40,6 +40,7 @@ test('clause 1: plain pullboard log prints the last 200 events of a board holdin
   assert.ok(SEEDED > PLAIN_LOG_EVENTS, 'the board holds more events than the bound');
   assert.equal(lines.length, PLAIN_LOG_EVENTS);
   assert.ok(lines.at(-1).startsWith(stamp(SEEDED)), 'the newest event is the last line');
+  assert.ok(Buffer.byteLength(answer.stdout) < 8192, `the plain log is ${Buffer.byteLength(answer.stdout)} bytes, under the 8192-byte inbox budget`);
   assert.ok(lines[0].startsWith(stamp(SEEDED - PLAIN_LOG_EVENTS + 1)), 'the oldest kept event is the first line');
 });
 
