@@ -17,7 +17,7 @@ function refusalCodes() {
   return codes;
 }
 
-test('[CR5] every refusal code of the parser and the clause runner maps to a rule, a fix line and a skill command', () => {
+test('commits.logic-contribution-fixes.every-refusal-code-of-the-parser-and-the: [CR5] every refusal code of the parser and the clause runner maps to a rule, a fix line and a skill command', () => {
   const codes = refusalCodes();
   assert.ok(codes.size >= 30, `found ${codes.size} codes`);
   for (const code of codes) {
@@ -28,7 +28,7 @@ test('[CR5] every refusal code of the parser and the clause runner maps to a rul
   }
 });
 
-test('[CR5] a failure with no mapping is not found, and a row for a code nothing raises fails the test', () => {
+test('commits.logic-contribution-fixes.a-failure-with-no-mapping-is-not-found: [CR5] a failure with no mapping is not found, and a row for a code nothing raises fails the test', () => {
   assert.equal(contributionFix('CONTRIB_NEW_RULE'), null);
   assert.equal(contributionFix('toString'), null);
   const codes = refusalCodes();

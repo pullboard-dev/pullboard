@@ -50,7 +50,7 @@ async function savedKey(tree) {
   return deserialize(readFileSync(out)).key;
 }
 
-test('clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async (t) => {
+test('api.state-materializer-stamp.saved-snapshot-key-changes-when: clause 1: the saved snapshot key changes when the root package.json changes [A2,C7]', async (t) => {
   const tree = codeTree(t);
   tree.write('package.json', '{"version":"0.9.4"}\n');
   const before = await savedKey(tree);

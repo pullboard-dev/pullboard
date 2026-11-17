@@ -24,12 +24,12 @@ function contractsOf(db, extra = {}) {
   return job.steps.find(step => step.name === 'offered').payload.payload.contracts;
 }
 
-test('clause 1: setting on, the contracts carry reuse and a hit list for the ledger\'s green files [C7,#9301]', t => {
+test('api.landing-contracts-reuse.setting-contracts-carry-reuse-hit: clause 1: setting on, the contracts carry reuse and a hit list for the ledger\'s green files [C7,#9301]', t => {
   const contracts = contractsOf(board(t), { reuseContractResults: true });
   assert.equal(contracts.reuse, true);
   assert.deepEqual(contracts.ledger.files.map(row => row[0]), [FILE]);
 });
 
-test('clause 2: setting off, the contracts are exactly the runner command [C7,#9301]', t => {
+test('api.landing-contracts-reuse.setting-off-contracts-exactly-runner: clause 2: setting off, the contracts are exactly the runner command [C7,#9301]', t => {
   assert.deepEqual(contractsOf(board(t)), { runner: 'node bin/proof.mjs' });
 });
