@@ -31,7 +31,7 @@ function freeze(item) {
   return { text: JSON.stringify({ title: item.item_title, criterion: 'fixture work', check: 'true', rows: [] }), digest: 'fixture' };
 }
 
-test('next stays under 200 ms with forty claimed worktrees [H24]', (t) => {
+test('cli.journeys-next-claims.next-stays-under-200-ms-with: next stays under 200 ms with forty claimed worktrees [H24]', (t) => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -103,7 +103,7 @@ console.log(JSON.stringify(result));`;
   return result;
 }
 
-test('next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', async t => {
+test('cli.journeys-next-claims.next-inbox-and-show-stay-under: next, inbox and show stay under 200 ms with forty recorded claims and scan no other seat [H24]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

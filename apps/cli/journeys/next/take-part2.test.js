@@ -82,7 +82,7 @@ async function mainMoveWarningFixture(t, { queued = false } = {}) {
   return { box, id, folder, itemHead, seatHead, trunk, warnings, shouts, lines };
 }
 
-test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
+test('cli.journeys-next-take-part2.an-expired-claim-is-reclaimed-through: an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
   const box = await fixture(t);
   const id = box.add('Expired work remains dispatchable');
   box.claim(id, box.seats.actor);
@@ -94,7 +94,7 @@ test('an expired claim is reclaimed through board eligibility on the next take [
   assert.ok(current.item_lease_until > box.clock.now().toISOString(), 'a raw stale claim cannot strand a free seat');
 });
 
-test('a capped dispatch warning is delivered once by the next ordinary sentinel pass [A6,N2]', () => {
+test('cli.journeys-next-take-part2.a-capped-dispatch-warning-is-delivered: a capped dispatch warning is delivered once by the next ordinary sentinel pass [A6,N2]', () => {
   const warning = { key: 'UNPAIRED_WORK:web-1:1', cause: 'UNPAIRED_WORK', item: 1, subject: 'web-1 beside #1',
     title: 'unpaired work', since: '2026-10-25T10:00:00Z', why: 'the seat is free', next: 'run pullboard next --take', owner: 'coordinator' };
   const other = Array.from({ length: 10 }, (_, index) => ({ ...warning, key: `OTHER:${index}`, cause: 'OTHER' }));
@@ -108,7 +108,7 @@ test('a capped dispatch warning is delivered once by the next ordinary sentinel 
   assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 1);
 });
 
-test('a legacy pending correction is adopted atomically when its holder renews [V2,H16]', async t => {
+test('cli.journeys-next-take-part2.a-legacy-pending-correction-is-adopted: a legacy pending correction is adopted atomically when its holder renews [V2,H16]', async t => {
   const box = await fixture(t);
   const id = box.add('A legacy correction must not strand current claims');
   box.claim(id, box.seats.actor);
@@ -127,7 +127,7 @@ test('a legacy pending correction is adopted atomically when its holder renews [
   assert.deepEqual(store.pendingRefreeze(box.board, id), []);
 });
 
-test('a held review still returns a newly conflicting submission before offering more work [V1,R3]', async t => {
+test('cli.journeys-next-take-part2.a-held-review-still-returns-a: a held review still returns a newly conflicting submission before offering more work [V1,R3]', async t => {
   const box = await fixture(t);
   const id = box.add('A review that will conflict with trunk');
   box.claim(id);
@@ -155,7 +155,7 @@ test('a held review still returns a newly conflicting submission before offering
   assert.deepEqual(store.verdictsFor(box.board, id), [], 'a conflict return is not a fabricated verification verdict');
 });
 
-test('automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
+test('cli.journeys-next-take-part2.automatic-review-reservation-retains-coordinator-only: automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
   const box = await fixture(t, { policy: 'coordinator' });
   const blocked = box.add('Higher-ranked lane review');
   box.submit(blocked);
@@ -180,7 +180,7 @@ test('automatic review reservation retains coordinator-only policy when a higher
     && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
 });
 
-test('an empty next observation counts as light-seat activity, but a manual claim does not [N2,B13]', async t => {
+test('cli.journeys-next-take-part2.an-empty-next-observation-counts-as: an empty next observation counts as light-seat activity, but a manual claim does not [N2,B13]', async t => {
   const box = await fixture(t, { route: 'light' });
   await lightSeatRunsIdleNext(box);
   const strong = box.add('Strong work', { route: 'strong', brief: lightBrief('idle-strong') });
@@ -198,7 +198,7 @@ test('an empty next observation counts as light-seat activity, but a manual clai
   assert.equal(store.getItem(manualBox.board, manualStrong).item_status, 'open');
 });
 
-test('clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
+test('cli.journeys-next-take-part2.list-status-data-and-the-health: clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
   const box = await fixture(t);
   const id = box.add('Item excluded for re-scope');
   box.claim(id, box.seats.actor);
@@ -218,7 +218,7 @@ test('clause 2: list, status data and the health report name each excluded item 
   assert.match(finding.why, /released 7 min ago/u);
 });
 
-test("submit merges main from the item's own folder when the seat checkout has another source [B5,V4]", async t => {
+test('cli.journeys-next-take-part2.submit-merges-main-from-the-item: submit merges main from the item\'s own folder when the seat checkout has another source [B5,V4]', async t => {
   const result = await mainMoveWarningFixture(t);
   assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
     { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
@@ -245,14 +245,14 @@ test("submit merges main from the item's own folder when the seat checkout has a
   assertShoutNamesHead(shouts[0].args[0], id, itemHead, result.seatHead);
 });
 
-test('a queued merge-repair shout keeps the captured submit source ahead of a newer item-folder head [B5,V4]', async t => {
+test('cli.journeys-next-take-part2.a-queued-merge-repair-shout-keeps: a queued merge-repair shout keeps the captured submit source ahead of a newer item-folder head [B5,V4]', async t => {
   const result = await mainMoveWarningFixture(t, { queued: true });
   assert.deepEqual(result.warnings.find(warning => warning.item === result.id),
     { item: result.id, head: result.itemHead, trunk: result.trunk, files: ['web/shared.txt'] });
   assertShoutNamesHead(result.shouts[0].args[0], result.id, result.itemHead, result.seatHead);
 });
 
-test('clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {
+test('cli.journeys-next-take-part2.next-after-a-release-from-an: clause 1: next after a release from an item folder that cleanup removed runs from the seat checkout and hands out work [B5,N2]', async t => {
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   const id = box.add('Released from its own item folder');
   const claimed = await cli(box, box.seats.actor.path, ['claim', String(id), '--no-next']);
