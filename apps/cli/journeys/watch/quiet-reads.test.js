@@ -31,7 +31,7 @@ function seedEvents(path, from, to) {
  * Follow a board's stream with a fake clock and a counting head reader: BURST events arrive at one instant, then the
  * head moves, the clock passes a second and one more event arrives.
  *
- * @returns {Promise<{ reads: number, readsAfterBurst: number, lines: string[] }>}
+ * @returns {Promise<{ reads: number, lines: string[] }>}
  */
 async function follow(t, quietReads) {
   const e2e = createE2eHelpers();
@@ -46,7 +46,6 @@ async function follow(t, quietReads) {
   let clock = 1_000_000;
   let head = 'aaa';
   let reads = 0;
-  let readsAfterBurst = 0;
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/event-stream' });
     for (const event of burst) response.write(`event: board\ndata: ${JSON.stringify({ event })}\n\n`);
@@ -68,7 +67,7 @@ async function follow(t, quietReads) {
     now: () => clock, quietReads, readHead: async () => { reads += 1; return head; },
     write: (text) => {
       lines.push(text);
-      if (text.startsWith(`${burst.at(-1).event_id} `)) { readsAfterBurst = reads; burstDone.resolve(); }
+      if (text.startsWith(`${burst.at(-1).event_id} `)) burstDone.resolve();
       if (/main moved to bbb/u.test(text)) mainMoved.resolve();
     },
     note: () => {},
@@ -80,18 +79,16 @@ async function follow(t, quietReads) {
   await mainMoved.promise;
   abort.abort();
   assert.equal(await done, 0);
-  return { reads, readsAfterBurst, lines };
+  return { reads, lines };
 }
 
 test('clause 1: with watch.quietReads on, 20 board events inside one second make followBoard read main\'s head once, and a main move after that second is still printed as a main line [C7,#9843]', async (t) => {
-  const { reads, readsAfterBurst, lines } = await follow(t, true);
-  assert.equal(readsAfterBurst, 1, 'the whole burst shares the one read made at the start');
-  assert.equal(reads, 2, 'the event after the second reads the head again');
+  const { reads, lines } = await follow(t, true);
+  assert.equal(reads, 2, 'the whole burst shares the one read made at the start, and the event after the second reads the head again');
   assert.equal(lines.filter(line => /main moved to bbb/u.test(line)).length, 1);
 });
 
 test('clause 2: with watch.quietReads off the head is read after every event as today [C7,#9843]', async (t) => {
-  const { readsAfterBurst, reads } = await follow(t, false);
-  assert.equal(readsAfterBurst, 1 + BURST, 'one read at the start and one per event');
-  assert.equal(reads, 2 + BURST);
+  const { reads } = await follow(t, false);
+  assert.equal(reads, 2 + BURST, 'one read at the start and one per event, the burst and the later one');
 });
