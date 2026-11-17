@@ -245,7 +245,7 @@
   "packages/board/tests/from-store/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/store/tests/io/board/decision/answer.test.js": {
+  "packages/board/tests/from-store/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },

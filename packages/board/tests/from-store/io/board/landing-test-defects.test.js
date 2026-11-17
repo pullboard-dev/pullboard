@@ -1,9 +1,9 @@
 /** One test file is one landing test defect while its item lives: a changed hash adds a fact, a closed item files anew [C7,E29]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellRepo } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellRepo } from '../../../../../store/tests/fixtures/cell.js';
 
 /** A real SQLite board in a scratch git repo, plus a filer for one test file's defect. */
 function fixture(t) {

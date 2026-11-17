@@ -7,17 +7,17 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../../index.js';
-import { exportBoard } from '../../../../index.js';
-import { importBoard } from '../../../../index.js';
-import { applyEngineMove } from '../../../../../state/index.js';
-import { prepareEngineMove } from '../../../../../state/index.js';
-import { DECISION_QUEUE_ENGINE } from '../../../../../state/light.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
-import { openCellBoard } from '../../../fixtures/cell.js';
-import { closeCellBoard } from '../../../fixtures/cell.js';
+import * as store from '../../../../../../store/index.js';
+import { exportBoard } from '../../../../../../store/index.js';
+import { importBoard } from '../../../../../../store/index.js';
+import { applyEngineMove } from '../../../../../../state/index.js';
+import { prepareEngineMove } from '../../../../../../state/index.js';
+import { DECISION_QUEUE_ENGINE } from '../../../../../../state/light.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../fixtures/cell-board.js';
+import { closeCellBoard } from '../../../../fixtures/cell-board.js';
 
 const LANES = ['coordinator', 'web'];
 

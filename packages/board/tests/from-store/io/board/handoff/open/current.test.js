@@ -5,20 +5,20 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { completeSubmitHandoff } from '../../../../../index.js';
-import { getItem } from '../../../../../index.js';
-import { handoffGateCurrent } from '../../../../../index.js';
-import { handoffServes } from '../../../../../index.js';
-import { release } from '../../../../../index.js';
-import { startSubmitHandoff } from '../../../../../index.js';
-import { submitHandoff } from '../../../../../index.js';
-import { writeBoardCommand } from '../../../../../index.js';
-import { submitFixture } from '../../../../fixtures/submit.js';
-import { cellBoard } from '../../../../fixtures/cell.js';
-import { cellClaim } from '../../../../fixtures/cell.js';
-import { cellItem } from '../../../../fixtures/cell.js';
-import { cellProject } from '../../../../fixtures/cell.js';
-import { cellSeat } from '../../../../fixtures/cell.js';
+import { completeSubmitHandoff } from '../../../../../../../store/index.js';
+import { getItem } from '../../../../../../../store/index.js';
+import { handoffGateCurrent } from '../../../../../../../store/index.js';
+import { handoffServes } from '../../../../../../../store/index.js';
+import { release } from '../../../../../../../store/index.js';
+import { startSubmitHandoff } from '../../../../../../../store/index.js';
+import { submitHandoff } from '../../../../../../../store/index.js';
+import { writeBoardCommand } from '../../../../../../../store/index.js';
+import { submitFixture } from '../../../../../../../store/tests/fixtures/submit.js';
+import { cellBoard } from '../../../../../fixtures/cell-board.js';
+import { cellClaim } from '../../../../../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../../store/tests/fixtures/cell.js';
 
 /**
  * A board with one item claimed by its seat, one candidate committed, and that candidate's gate queued then running.
