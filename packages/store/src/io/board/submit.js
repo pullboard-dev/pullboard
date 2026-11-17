@@ -362,6 +362,29 @@ export function acceptPulledMachine(board, run, summary) {
   return Boolean(acceptMachineSubmission(board, item, options, { getItem, moveItem, logEvent }));
 }
 
+/**
+ * The first failing clause of a pulled gate's machine receipts, by clause number (0 is the frozen check), or null when none
+ * failed or the item is not machine-eligible. A receipt fails when it is not green or its command exited non-zero [C7,#10254].
+ *
+ * @returns {{ clause: number, command: string, receipt: string } | null}
+ */
+export function failedMachineClause(board, run, summary) {
+  const ids = summary?.machineReceipts;
+  if (run.run_item == null || !Array.isArray(ids) || !ids.length) return null;
+  const item = getItem(board, run.run_item);
+  if (item?.item_status !== 'submitted') return null;
+  const files = (item.item_files ?? '').split('\n').filter(Boolean);
+  const authorization = machineVerificationEligible(board, item, files);
+  if (!authorization) return null;
+  const commands = [{ clause: 0, command: JSON.parse(item.item_frozen).check }, ...authorization.commands];
+  for (const [index, entry] of commands.entries()) {
+    if (ids[index] === undefined) return null;
+    const receipt = boundProofReceipt(board, { receiptId: ids[index] });
+    if (receipt.green !== true || (receipt.proof?.exitCode ?? 0) !== 0) return { clause: entry.clause, command: entry.command, receipt: receipt.id };
+  }
+  return null;
+}
+
 /** Whether a green pulled gate may record the machine accept (#10253): off by default; only an exact `true` turns it on. */
 export function machineVerifyPulledOn() {
   return loadMachineSettings().gate?.machineVerifyPulled === true;
