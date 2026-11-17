@@ -1,5 +1,5 @@
 /** A runner keeps one packed tarball per tree id, so the same tree is packed once [C7]. */
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -16,12 +16,15 @@ const DEFAULT_MAX_BYTES = 512 * 1024 * 1024;
  *
  * @param {string} tree folder to pack
  * @param {string} destination folder that receives the tarball
- * @returns {string}
+ * @returns {Promise<string>} why async: a synchronous child would block a leased worker's timer
  */
 export function npmPack(tree, destination) {
-  const packed = spawnSync('npm', ['pack', '--silent', '--pack-destination', destination], { cwd: tree, encoding: 'utf8' });
-  if (packed.error || packed.status !== 0) throw new Error(`npm pack failed: ${packed.error?.message ?? packed.stderr}`);
-  return join(destination, packed.stdout.trim().split('\n').at(-1));
+  return new Promise((resolve, reject) => {
+    execFile('npm', ['pack', '--silent', '--pack-destination', destination], { cwd: tree, encoding: 'utf8' }, (error, stdout, stderr) => {
+      if (error) reject(new Error(`npm pack failed: ${error.message}${stderr ? ` ${stderr}` : ''}`));
+      else resolve(join(destination, stdout.trim().split('\n').at(-1)));
+    });
+  });
 }
 
 /**
@@ -48,20 +51,20 @@ function prune(folder, maxBytes) {
  * @param {boolean} [options.enabled] the runner.packCache setting; off packs on every call
  * @param {string} options.folder per-runner cache folder under the runner home
  * @param {number} [options.maxBytes] size cap the folder is pruned to
- * @param {(tree: string, destination: string) => string} [options.pack] packer, npm pack by default
- * @returns {(treeId: string, tree: string, destination: string) => string} the tarball path in destination
+ * @param {(tree: string, destination: string) => string | Promise<string>} [options.pack] packer, npm pack by default
+ * @returns {(treeId: string, tree: string, destination: string) => Promise<string>} the tarball path in destination
  */
 export function createPackCache({ enabled = false, folder, maxBytes = DEFAULT_MAX_BYTES, pack = npmPack }) {
-  return (treeId, tree, destination) => {
+  return async (treeId, tree, destination) => {
     mkdirSync(destination, { recursive: true });
-    if (!enabled) return pack(tree, destination);
+    if (!enabled) return await pack(tree, destination);
     mkdirSync(folder, { recursive: true });
     const key = `${String(treeId).replace(/[^\w.-]/gu, '_')}.tgz`, cached = join(folder, key);
     if (!existsSync(cached)) {
       const scratch = join(folder, `.pack-${process.pid}-${Date.now()}`);
       mkdirSync(scratch, { recursive: true });
       try {
-        renameSync(pack(tree, scratch), cached);
+        renameSync(await pack(tree, scratch), cached);
       } finally { rmSync(scratch, { recursive: true, force: true }); }
       prune(folder, maxBytes);
     }

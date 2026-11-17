@@ -2,6 +2,7 @@
 export * from "./light.js";
 export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
+export { createPackCache } from "./src/io/scripts/pack-cache.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
