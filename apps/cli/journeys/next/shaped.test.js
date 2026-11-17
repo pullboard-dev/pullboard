@@ -19,10 +19,9 @@ function nextSettings(next) {
 /** An open strong item with one clause, one existing test file and one brief file: light-shaped. */
 function shapedStrong(box) {
   const id = box.add('Light-shaped strong item', { route: 'strong', criterion: '1. The shaped fixture succeeds [test].',
-    check: 'node --test web/shaped.test.js', brief: 'Files: web/dispatch.js' });
-  // A light seat builds only from a recorded diagnosis, as for any light item.
-  store.appendFact(box.board, id, { agentId: box.seats.builder.id, kind: 'diagnosis',
-    text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next offers the item to the light seat.' });
+    check: 'node --test web/shaped.test.js',
+    // Written as Files, Change and Test case, the brief is its own diagnosis, so a light seat may build from it.
+    brief: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next offers the item to the light seat.' });
   return id;
 }
 
