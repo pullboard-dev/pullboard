@@ -528,6 +528,9 @@ export function loadMachineSettings() {
     || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
   }
+  if (value.machine?.holdHeavyAboveLoad !== undefined && typeof value.machine.holdHeavyAboveLoad !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `machine.holdHeavyAboveLoad in ${file} must be true or false`);
+  }
   if (value.machine?.loadCeiling !== undefined && value.machine.loadCeiling !== null && (!Number.isFinite(value.machine.loadCeiling) || value.machine.loadCeiling <= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `machine.loadCeiling in ${file} must be a 1-minute load above 0; remove it for the default of 1.5 times the logical cores`);
   }

@@ -125,6 +125,7 @@ export {
   nextLabelBounds,
   nextCapBuilders,
   nextHoldAboveLoad,
+  heavyLocalHoldEnabled,
   nextReadinessCheck,
   nextReadinessCache,
   refuseTempWorktree,
