@@ -4,6 +4,8 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
+  cpp: row => row.classname || null,
 };
 
 /**
