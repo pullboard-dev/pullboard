@@ -404,9 +404,13 @@
     "hand-policy": 2
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "tempdir": 4,
-    "hand-policy": 3,
+    "tempdir": 2,
+    "hand-policy": 2,
     "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "tempdir": 2,
+    "hand-policy": 1
   },
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
@@ -677,11 +681,17 @@
   },
   "apps/cli/journeys/spec/cockpit.test.js": {
     "repo-read": 2,
-    "tempdir": 6
+    "tempdir": 4
+  },
+  "apps/cli/journeys/spec/cockpit/boards.test.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/spec/cockpit/shared.test.js": {
     "tempdir": 1,
     "raw-cli": 1
+  },
+  "apps/cli/journeys/spec/cockpit/list.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
     "tempdir": 2
