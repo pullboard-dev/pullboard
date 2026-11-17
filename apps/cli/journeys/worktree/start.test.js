@@ -18,7 +18,10 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import {
+  JOURNEY_MODE,
+  createE2eHelpers,
+} from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   configProblems,
@@ -37,13 +40,15 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project } = e2e;
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** Setup joins run in this process through the warm worker; a real process under PULLBOARD_JOURNEY_MODE=process (U149). */
+const setupRun = (box) => (JOURNEY_MODE === 'process' ? box.run : box.runSync);
 
 test("the README's worktree command works in a fresh repo [I1,I2]", async () => {
   const box = sandbox();
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Coordinator Session Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Session Model');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator', '--model', 'Coordinator Session Model');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
 
   box.env.PULLBOARD_MODEL = 'Session Worktree Model';
@@ -60,6 +65,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
 
   delete box.env.PULLBOARD_MODEL;
   const before = box.git(repo, 'worktree', 'list', '--porcelain');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingWorktreeModel = runFixtureChild(process.execPath, [BIN, 'worktree', 'api'],
     { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(missingWorktreeModel.status, 1);
@@ -78,7 +84,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   box.env.PULLBOARD_MODEL = 'Session Join Model';
   const envJoin = join(box.dir, 'env-join');
   box.git(repo, 'worktree', 'add', '-q', '--detach', envJoin, 'HEAD');
-  const joined = fixtureJoin(box.run, envJoin, 'api');
+  const joined = fixtureJoin(setupRun(box), envJoin, 'api');
   assert.equal(joined.code, 0, joined.err || joined.out);
   assert.match(joined.out, /joined as api-1 \(Session Join Model\)/,
     'join takes the model from PULLBOARD_MODEL');
@@ -86,6 +92,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   delete box.env.PULLBOARD_MODEL;
   const missingJoin = join(box.dir, 'join-without-model');
   box.git(repo, 'worktree', 'add', '-q', '--detach', missingJoin, 'HEAD');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingJoinModel = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'api'],
     { cwd: missingJoin, env: box.env, encoding: 'utf8' });
   assert.equal(missingJoinModel.status, 1);
@@ -229,7 +236,7 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', async
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Install Step Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
   /** Commit files on main as the coordinator, then make a web worktree and return its output. */
   const worktreeAfter = async (files) => {

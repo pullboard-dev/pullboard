@@ -40,7 +40,7 @@ function put(store, folder, name, value, days = 0) {
   return path;
 }
 
-test('clause 1: a part for an unchanged tree adds under 2 KB because it names the shared file list, and lookups resolve the same inputs [C7]', () => {
+test('gate.io-test-action-prune.a-part-for-an-unchanged-tree: clause 1: a part for an unchanged tree adds under 2 KB because it names the shared file list, and lookups resolve the same inputs [C7]', () => {
   const store = temporaryDirectory('parts-shared-');
   const runner = fileList(300);
   const first = { test: 'src/file-0.js', files: fileList(4000), runner, inputs: [], tracked: null, options: [] };
@@ -76,7 +76,7 @@ function populated() {
 /** The part names left in a store. */
 const left = (store) => readdirSync(join(store, 'parts-ref')).map(name => name.slice(0, 1)).sort();
 
-test('clause 2: a prune removes unnamed parts and lists, oldest first, only until the folder is under the cap, and never a named record [C7]', () => {
+test('gate.io-test-action-prune.a-prune-removes-unnamed-parts-and: clause 2: a prune removes unnamed parts and lists, oldest first, only until the folder is under the cap, and never a named record [C7]', () => {
   const store = populated();
   const size = (name) => statSync(join(store, 'parts-ref', `${hash(name)}.json`)).size;
   const total = [...readdirSync(join(store, 'parts-ref')).map(name => statSync(join(store, 'parts-ref', name)).size),
@@ -91,7 +91,7 @@ test('clause 2: a prune removes unnamed parts and lists, oldest first, only unti
   assert.ok(existsSync(join(store, 'lists', `${hash('a')}.json`)));
 });
 
-test('clause 2: a list no remaining part names is removed once the parts are gone, and maintenance prunes at most once per interval under the configured cap [C7]', () => {
+test('gate.io-test-action-prune.a-list-no-remaining-part-names: clause 2: a list no remaining part names is removed once the parts are gone, and maintenance prunes at most once per interval under the configured cap [C7]', () => {
   const store = populated();
   put(store, 'parts-ref', `${hash('f')}.json`, { files: hash('b'), runner: hash('b'), pad: 'x' }, 3);
   const result = maintainPartsStore(store, { PULLBOARD_TEST_PARTS_CAP_BYTES: '1' });
@@ -102,7 +102,7 @@ test('clause 2: a list no remaining part names is removed once the parts are gon
   assert.equal(maintainPartsStore(store, { PULLBOARD_TEST_PARTS_CAP_BYTES: '1' }), null, 'a second call inside the interval does nothing');
 });
 
-test('clause 2: a part named only by a retained runner completion survives the prune [C7]', () => {
+test('gate.io-test-action-prune.a-part-named-only-by-a: clause 2: a part named only by a retained runner completion survives the prune [C7]', () => {
   const store = populated();
   const packet = packTestResults([{ inputKey: hash('c'), status: 'pass', key: hash('7') }]);
   assert.ok(packet, 'the completion packet packs');
@@ -112,7 +112,7 @@ test('clause 2: a part named only by a retained runner completion survives the p
   assert.equal(result.removedParts, 2);
 });
 
-test('clause 2: an unnamed part or list older than the age cap is removed even under the size cap, and a named or newer one stays [C7]', () => {
+test('gate.io-test-action-prune.an-unnamed-part-or-list-older: clause 2: an unnamed part or list older than the age cap is removed even under the size cap, and a named or newer one stays [C7]', () => {
   const store = populated();
   put(store, 'lists', `${hash('c')}.json`, [['c.js', 'c'.repeat(40)]], 4);
   const result = prunePartsStore(store, { capBytes: 1024 ** 4, maxAgeMs: 2.5 * DAY });
@@ -126,7 +126,7 @@ test('clause 2: an unnamed part or list older than the age cap is removed even u
   assert.deepEqual(left(later), ['1', '2', 'e', 'f'], 'maintenance reads the configured age cap');
 });
 
-test('clause 1: the test-actions lists folder stays under its cap under continuous writes, pruned on write and oldest first [C7]', () => {
+test('gate.io-test-action-prune.the-test-actions-lists-folder-stays: clause 1: the test-actions lists folder stays under its cap under continuous writes, pruned on write and oldest first [C7]', () => {
   const store = temporaryDirectory('parts-cap-');
   const cap = 200_000;
   let now = Date.now();
