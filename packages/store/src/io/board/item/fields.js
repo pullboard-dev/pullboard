@@ -97,6 +97,26 @@ export function setItemField(board, { by, id, name, value, enabled = false }) {
 }
 
 /**
+ * Every declared field and every item's values in one read, for list filters.
+ * Empty when the setting is off or the tables were never made, like itemFields.
+ *
+ * @param {{ db: any }} board
+ * @param {{ enabled?: boolean }} [options]
+ * @returns {{ types: Map<string, string>, values: Map<number, Map<string, string | number>> }}
+ */
+export function fieldIndex(board, { enabled = false } = {}) {
+  const types = new Map();
+  const values = new Map();
+  if (enabled !== true || !hasTables(board.db)) return { types, values };
+  for (const row of board.db.prepare('SELECT field_name AS name, field_type AS type FROM field_decl').all()) types.set(row.name, row.type);
+  for (const row of board.db.prepare('SELECT item_id AS id, field_name AS name, field_value AS value FROM item_field').all()) {
+    if (!values.has(row.id)) values.set(row.id, new Map());
+    values.get(row.id).set(row.name, types.get(row.name) === 'number' ? Number(row.value) : row.value);
+  }
+  return { types, values };
+}
+
+/**
  * An item's field values, each with its declared type: numbers read back as numbers.
  * Empty when the setting is off or the tables were never made, so a reader needs no guard.
  *

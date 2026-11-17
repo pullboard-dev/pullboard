@@ -500,7 +500,7 @@ function shadowOf(db) {
   const decide = jobTable;
   return { recorder: true,
     decide: (snapshot, move) => { try { return decide(snapshot, move); } catch (error) { return { threw: error?.code ?? String(error?.message ?? error) }; } },
-    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare)) };
+    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
 /**
@@ -623,10 +623,10 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request - ref: the landing ref holding the merged commit, which a shard's runner fetches.
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
-export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, queue = null, now = Date.now() }) {
+export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, reuseCommits = null, queue = null, now = Date.now() }) {
   // With runs_store on the land job and its shards live in the runs file; the ledger stays on the board's `db` [B2,P7].
   const jobs = queue ? queue.runs.db : db;
   const held = jobRequest(jobs, { job, runner, token });
@@ -649,7 +649,7 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
     return buckets.map((part, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
-      const ledger = ledgerHits(db, part, { budget: 16_000 });
+      const ledger = ledgerHits(db, part, { budget: 16_000, ...(Array.isArray(reuseCommits) ? { commits: reuseCommits.slice(0, 64) } : {}) });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
         request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
           shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
@@ -832,7 +832,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
-  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, queue, now });
+  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, reuseCommits: body.reuseCommits, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });

@@ -2568,7 +2568,7 @@
       "cells": 1,
       "deep": 0
     },
-    "packages/landing/src/logic/land/guard.js": {
+    "packages/landing/src/io/land/guard.js": {
       "cells": 4,
       "deep": 0
     },
@@ -5983,10 +5983,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/lease.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
     ],

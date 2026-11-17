@@ -25,7 +25,7 @@ function fatten(board) {
   return ROWS;
 }
 
-test('clause 1: export streams a board whose events exceed one string, and its digest is read the same way [C7]', t => {
+test('sync.large.export-streams-oversized-board: clause 1: export streams a board whose events exceed one string, and its digest is read the same way [C7]', t => {
   const board = fixtureBoard(t);
   const added = fatten(board);
   const document = exportBoard(board);
@@ -37,7 +37,7 @@ test('clause 1: export streams a board whose events exceed one string, and its d
   assert.match(semanticBoardDigest(document), /^[0-9a-f]{64}$/u);
 });
 
-test('clause 1: sync publishes a board whose events exceed one string [C7]', async t => {
+test('sync.large.publish-oversized-board: clause 1: sync publishes a board whose events exceed one string [C7]', async t => {
   const { root: folder } = privateFixtureFiles('pullboard-large-sync-');
   const sh = (cwd, ...args) => runFixtureGit(args, { cwd, encoding: 'utf8' });
   sh(folder, 'init', '-q', '--bare', 'origin.git');
@@ -56,7 +56,7 @@ test('clause 1: sync publishes a board whose events exceed one string [C7]', asy
   assert.ok(size > constants.MAX_STRING_LENGTH, 'the published baseline is larger than one string');
 });
 
-test('clause 1: the events API honours its limit query and refuses a bad one [C7]', async t => {
+test('sync.large.events-api-limit: clause 1: the events API honours its limit query and refuses a bad one [C7]', async t => {
   const log = Array.from({ length: 25 }, (_, index) => ({ event_id: index + 1 }));
   const asked = [];
   const handler = createApiHandler({ refusalDocument: error => ({ error: { code: error.code ?? 'INTERNAL', message: String(error.message) } }),
