@@ -27,7 +27,7 @@ function fixture() {
 }
 
 /** The statement a take signs includes its nonce [C7]. */
-test('a pull take request includes a single-use nonce [C7]', () => {
+test('transport.pull-nonce.a-pull-take-request-includes-a: a pull take request includes a single-use nonce [C7]', () => {
   assert.equal(pullStatement('take', 'r1', 5, 'abc'), 'PBTAKE 1 r1 5 abc');
   const { take, leases } = fixture();
   const job = take('nonce-aaaaaaaaaaaa');
@@ -36,14 +36,14 @@ test('a pull take request includes a single-use nonce [C7]', () => {
 });
 
 /** A take without a well-formed nonce is refused before any lease [C7]. */
-test('a take with no nonce is refused and takes no lease [C7]', () => {
+test('transport.pull-nonce.a-take-with-no-nonce-is: a take with no nonce is refused and takes no lease [C7]', () => {
   const { adapter, clock, leases, sign64 } = fixture();
   assert.throws(() => adapter.take({ runner: 'r1', at: clock.at, signature: sign64(pullStatement('take', 'r1', clock.at)) }), { code: 'PULL_NONCE' });
   assert.equal(leases.length, 0);
 });
 
 /** Replaying an accepted take in its window is refused and takes no lease [C7]. */
-test('a replayed take is refused and takes no lease [C7]', () => {
+test('transport.pull-nonce.a-replayed-take-is-refused-and: a replayed take is refused and takes no lease [C7]', () => {
   const { take, leases, clock } = fixture();
   const at = clock.at;
   take('nonce-bbbbbbbbbbbb');
@@ -56,7 +56,7 @@ test('a replayed take is refused and takes no lease [C7]', () => {
 });
 
 /** A forged nonce does not use up the real one: the signature is checked first [C7]. */
-test('a take whose signature does not cover the nonce is refused [C7]', () => {
+test('transport.pull-nonce.a-take-whose-signature-does-not: a take whose signature does not cover the nonce is refused [C7]', () => {
   const { adapter, clock, sign64 } = fixture();
   const signature = sign64(pullStatement('take', 'r1', clock.at, 'nonce-dddddddddddd'));
   assert.throws(() => adapter.take({ runner: 'r1', at: clock.at, nonce: 'nonce-eeeeeeeeeeee', signature }), { code: 'PULL_SIGNATURE' });

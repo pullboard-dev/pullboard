@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "Test files that may keep a pinned literal because its bytes are a contract: person-approved text pinned by hash, or data shipped to users. Each entry names the kinds it may keep and why. Only the person approves an entry; with gate.literalPins on, every other pinned engine number, exact count, file hash or frozen JSON snapshot in a test is refused.",
+  "files": {}
+}

@@ -53,7 +53,7 @@ test('clause 1: imports, comments, tests and short or closing-only windows are n
   assert.equal(shapesOf('a();\nb();\nc();\n').size, 0, 'a window under the length floor is not a shape');
 });
 
-test('clause 2: the requestAnimationFrame plus setTimeout idiom is seeded at 6 sites in 3 files; a 7th site fails and the ceiling file only holds a falling number [C7,#9521]', () => {
+test('clause 1: the requestAnimationFrame plus setTimeout idiom ceiling equals the 0 sites left on main, so any higher value fails; a 7th site still fails against a ceiling of 6 [C7,#9521,#9530]', () => {
   const ceilings = JSON.stringify({ version: 1, idioms: { frame: { pattern: 'requestAnimationFrame\\(\\(\\) => setTimeout\\(', sites: 6 } } });
   const site = n => `  requestAnimationFrame(() => setTimeout(() => { later${n}(); }, 0));\n`;
   const files = {
@@ -68,7 +68,7 @@ test('clause 2: the requestAnimationFrame plus setTimeout idiom is seeded at 6 s
   assert.ok(found.every(row => /idiom frame has 7 sites, ceiling 6/u.test(row)));
   assert.equal(IDIOM_CEILING_FILE, 'packages/gate/data/ceilings/idiom-spread.json');
   const seeded = JSON.parse(readFileSync(join(import.meta.dirname, '../../../data/ceilings/idiom-spread.json'), 'utf8')).idioms['request-animation-frame-set-timeout'];
-  assert.ok(seeded.sites <= 6, 'a ceiling may only fall from the 6 sites seeded');
+  assert.equal(seeded.sites, 0, 'afterPaint (#9528) left no site on main; the committed ceiling equals it, and a higher value fails');
   const real = new RegExp(seeded.pattern, 'u');
   assert.ok(real.test('requestAnimationFrame(() => setTimeout(then, 0));'));
   assert.ok(real.test('(typeof requestAnimationFrame === "function" ? requestAnimationFrame : (next) => next())(() => setTimeout(() => {'));

@@ -17,6 +17,8 @@ const SOURCE = /^(?:apps|packages)\/[^/]+\/(?:src|bin)\/(?:.*\/)?[^/]+\.[cm]?js$
 const CHILD = /(?<![\w$.])(?:spawnSync|execFileSync|execFile|execSync|spawn|fork)\s*\(/u;
 /** An update-ref of a trunk ref (a name holding trunk, or refs/heads/main), or a push whose destination is a trunk or ref name. */
 const TRUNK_MOVE = /['"`]update-ref['"`]\s*,\s*(?:['"`]refs\/heads\/main['"`]|(?:[\w$]+\.)*\w*[Tt]runk\w*(?:\.ref)?\s*[,\]])|['"`]push['"`][^\n]*:\$\{\s*(?:[\w$]+\.)*(?:\w*[Tt]runk\w*|ref)\s*\}/u;
+/** A write followed within a few lines by a rename: a private copy of the atomic state-file writer [#6740]. */
+const WRITE_THEN_RENAME = /\bwriteFile(?:Sync)?\s*\([\s\S]{0,400}?\brename(?:Sync)?\s*\(/u;
 const TEST_RUNNER = /run-tests\.js|['"`]--test['"`]/u;
 
 /**
@@ -35,6 +37,8 @@ export const OPERATIONS = Object.freeze([
   { name: 'execute-gate', entry: 'packages/gate/src/io/execution.js', why: 'defines a gate runner', from: 'dispatch-gates',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+run\w*Gate\w*\s*\(/u) },
   { name: 'landing', entry: 'packages/api/src/io/landing.js', why: 'defines a landing',
+    // The one named adapter: landing one accepted item by hand runs the landing job's own merge step and records the bypassed hold (#3775).
+    adapters: ['packages/landing/src/io/land/hand.js'],
     marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:land|land[A-Z]\w*|offerLanding\w*|runLanding\w*)\s*\(/u) },
   { name: 'record-proof', entry: 'packages/store/src/io/receipts.js', why: 'defines a proof or clause-tick writer',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+record\w*(?:Ticks?|Proof|ProofRun)\s*\(/u) },
@@ -50,6 +54,8 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/\bAtomics\s*\.\s*wait\s*\(/u) },
   { name: 'move-trunk', entry: 'packages/landing/src/io/step/publish.js', why: 'moves the trunk ref or pushes to main',
     marks: code => code.search(TRUNK_MOVE) },
+  { name: 'write-state-file', entry: 'packages/kernel/src/logic/atomic.js', why: 'writes a file, then renames it into place',
+    marks: code => code.search(WRITE_THEN_RENAME) },
 ]);
 
 /** A comment inside a template-string script: a line comment that starts its line, or a block comment. */
@@ -129,7 +135,8 @@ export function operationEntryGrowth(sites, baseline) {
 export function operationRatchetGrowth(baseline, accepted) {
   if (!accepted) return [];
   const allowed = name => [...(accepted[name] ?? []), ...(accepted[OPERATIONS.find(row => row.name === name)?.from] ?? [])];
-  return Object.entries(baseline).filter(([name]) => name !== FORWARDS_KEY).flatMap(([name, files]) => files.filter(file => !allowed(name).includes(file))
+  // An operation main's baseline does not list yet is a first record, not growth; once main lists it, its rows may only go.
+  return Object.entries(baseline).filter(([name]) => name !== FORWARDS_KEY && Object.hasOwn(accepted, name)).flatMap(([name, files]) => files.filter(file => !allowed(name).includes(file))
     .map(file => ({ path: OPERATION_ENTRIES_BASELINE, line: 1, text: `${name} gains a second entry point ${file}; the entry-point count may only fall [C7]` })));
 }
 

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** Landing receipts use the earliest first-parent commit, with logarithmic ancestry probes [B3,R3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

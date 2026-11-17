@@ -1511,7 +1511,7 @@
   "packages/landing/src/core/automatic-landing-retry.js": "packages/landing/src/logic/retry.js",
   "packages/landing/src/core/item-refusal.js": "packages/landing/src/logic/refusal.js",
   "packages/landing/src/core/land-collisions.js": "packages/landing/src/logic/land/collisions.js",
-  "packages/landing/src/core/land-local-guard.js": "packages/landing/src/logic/land/guard.js",
+  "packages/landing/src/core/land-local-guard.js": "packages/landing/src/io/land/guard.js",
   "packages/landing/src/core/land-why.js": "packages/landing/src/logic/land/why.js",
   "packages/landing/src/core/landing-batch-history.js": "packages/landing/src/logic/batch/history.js",
   "packages/landing/src/core/landing-batch-size.js": "packages/landing/src/logic/batch/size.js",

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A main-moved notice that fails during a landing is kept and replayed on the next lander wake until it succeeds [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

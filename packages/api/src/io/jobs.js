@@ -253,7 +253,7 @@ export function offeredRequest(db, job, { runs = null } = {}) {
 export function openJob(db, { kind, item, candidate }, { runs = null } = {}) {
   if (runs) db = runs.db;
   const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
+    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step NOT IN ('done', 'cancelled') ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
   return row ? jobView(db, row.job_id) : null;
 }
 
@@ -500,7 +500,7 @@ function shadowOf(db) {
   const decide = jobTable;
   return { recorder: true,
     decide: (snapshot, move) => { try { return decide(snapshot, move); } catch (error) { return { threw: error?.code ?? String(error?.message ?? error) }; } },
-    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare)) };
+    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
 /**
@@ -623,10 +623,10 @@ const LAND_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
  * shard id an earlier merged commit used is not reused: a retried land job never reads the old tree's receipts as its own [C7,#7818].
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, now?: number }} request - ref: the landing ref holding the merged commit, which a shard's runner fetches.
+ * @param {{ job: string, runner: string, token: string, merged: string, ref?: string | null, plan: { runner: string, files: string[], cores: number }, gate: { run: string[], entry: string, commits?: string[] }, reuseCommits?: string[] | null, now?: number }} request - reuseCommits (landing.reuseGateReceipts): the items' commits whose green gate rows head each shard's hit list (#9515). ref: the landing ref holding the merged commit, which a shard's runner fetches.
  * @returns {{ sharded: boolean, shards: string[] }} Not sharded (no ids) when the plan is not one to split.
  */
-export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, queue = null, now = Date.now() }) {
+export function offerLandShards(db, { job, runner, token, merged, ref = null, plan, gate, reuseCommits = null, queue = null, now = Date.now() }) {
   // With runs_store on the land job and its shards live in the runs file; the ledger stays on the board's `db` [B2,P7].
   const jobs = queue ? queue.runs.db : db;
   const held = jobRequest(jobs, { job, runner, token });
@@ -649,7 +649,7 @@ export function offerLandShards(db, { job, runner, token, merged, ref = null, pl
     return buckets.map((part, index) => {
       const named = `${prefix}${index + 1}`, taken = prior.find(row => row.job_id === named);
       const command = `${plan.runner.trim()} ${part.map(file => `'./${file.replaceAll("'", "'\\''")}'`).join(' ')}`;
-      const ledger = ledgerHits(db, part, { budget: 16_000 });
+      const ledger = ledgerHits(db, part, { budget: 16_000, ...(Array.isArray(reuseCommits) ? { commits: reuseCommits.slice(0, 64) } : {}) });
       return offerJob(db, { id: taken && taken.job_candidate !== merged ? `${prefix}${merged.slice(0, 12)}-${index + 1}` : named, kind: SHARD_JOB_KIND, priority: 'gate', needs: held.request?.needs ?? [], candidate: merged, base: held.base, now,
         request: { run: gate.run, gate: job, commits: gate.commits ?? [], ...(ref ? { ref } : {}), input: { main: held.base, entry: gate.entry, data: { main: held.base, source: merged,
           shard: { index: index + 1, of: count, files: part, command, ...(ledger ? { ledger } : {}) } } } } }, queue).id;
@@ -733,6 +733,8 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
   if (Buffer.byteLength(JSON.stringify(receipt)) > RECEIPT_BYTES) throw new Refused('JOB_RECEIPT', `a receipt is at most ${RECEIPT_BYTES} bytes; keep output in a report file and post its digest`);
   return shadowed(db, { name: 'receipt', job, runner, token }, now, () => atomically(db, () => {
     const held = heldBy(db, job, runner, token);
+    // A cancelled job (its gate was withdrawn) takes no receipt and stays cancelled, as a receipt after done stores nothing [C7,#3860].
+    if (held.step === 'cancelled') return { job, attempt: held.attempt, receipt, recorded: false };
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
@@ -832,7 +834,7 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
   if (action === 'shardReceipts') return readLandShardReceipts(db, { job, runner, token, shards: body.shards });
-  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, queue, now });
+  if (action === 'shards') return offerLandShards(db, { job, runner, token, merged: body.merged, ref: body.ref, plan: body.plan, gate: body.gate, reuseCommits: body.reuseCommits, queue, now });
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
