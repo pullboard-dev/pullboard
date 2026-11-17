@@ -4,6 +4,11 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // swift test --xunit-output writes classname Module.Class and no file attribute; SwiftPM keeps tests in Tests/<Module>/<Class>.swift.
+  swift: row => {
+    const [module, cls] = (row.classname || '').split('.');
+    return module && cls ? `Tests/${module}/${cls}.swift` : null;
+  },
 };
 
 /**
