@@ -2,6 +2,10 @@
 /** A real cargo fixture crate runs cargo test on a runner that has cargo: green passes, a failing test exits red [#10382,C7]. */
 import assert from 'node:assert/strict';
 import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { userInfo } from 'node:os';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -12,14 +16,18 @@ import { privateFixtureFiles } from '../fixtures/child.js';
 
 const FIXTURE = new URL('../fixtures/cargo-crate/', import.meta.url);
 
+/** The account's own rustup home: a runner job gets a fresh HOME whose .rustup holds a half toolchain with no rustc. */
+const REAL_RUSTUP = join(userInfo().homedir || homedir(), '.rustup');
+const RUSTUP_ENV = existsSync(REAL_RUSTUP) ? { ...process.env, RUSTUP_HOME: REAL_RUSTUP } : process.env;
+
 /** The cargo to run: the PATH one, else the one rustup names (Homebrew's rustup is keg-only), else null. */
 function findCargo() {
-  const probe = spawnSync('cargo', ['--version'], { encoding: 'utf8', timeout: 5000 });
+  const probe = spawnSync('cargo', ['--version'], { env: RUSTUP_ENV, encoding: 'utf8', timeout: 5000 });
   if (!probe.error && probe.status === 0) return 'cargo';
-  const which = spawnSync('rustup', ['which', 'cargo'], { encoding: 'utf8', timeout: 5000 });
+  const which = spawnSync('rustup', ['which', 'cargo'], { env: RUSTUP_ENV, encoding: 'utf8', timeout: 5000 });
   const path = which.error || which.status !== 0 ? '' : String(which.stdout).trim();
   if (!path.startsWith('/')) return null;
-  const answer = spawnSync(path, ['--version'], { encoding: 'utf8', timeout: 5000 });
+  const answer = spawnSync(path, ['--version'], { env: RUSTUP_ENV, encoding: 'utf8', timeout: 5000 });
   return !answer.error && answer.status === 0 ? path : null;
 }
 
@@ -35,9 +43,9 @@ function tempCrate(t) {
 /** Run cargo test in the copy, offline, with the build folder inside the copy and cargo's own folder first on PATH so it finds rustc. */
 function cargoTest(cargo, root, args = []) {
   const path = cargo.startsWith('/') ? `${dirname(cargo)}:${process.env.PATH ?? ''}` : process.env.PATH;
-  const rustc = spawnSync('rustup', ['which', 'rustc'], { encoding: 'utf8', timeout: 5000 });
+  const rustc = spawnSync('rustup', ['which', 'rustc'], { env: RUSTUP_ENV, encoding: 'utf8', timeout: 5000 });
   const named = rustc.error || rustc.status !== 0 ? '' : String(rustc.stdout).trim();
-  const env = { ...process.env, PATH: named.startsWith('/') ? `${dirname(named)}:${path}` : path, ...(named.startsWith('/') ? { RUSTC: named } : {}), CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
+  const env = { ...RUSTUP_ENV, PATH: named.startsWith('/') ? `${dirname(named)}:${path}` : path, ...(named.startsWith('/') ? { RUSTC: named } : {}), CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
   return spawnSync(cargo, ['test', '--offline', ...args], { cwd: root, encoding: 'utf8', env, timeout: 120000 });
 }
 
@@ -57,7 +65,8 @@ test('gate.cargo-real.fails: clause 2: the failing test enabled by a feature exi
   const run = cargoTest(cargo, root, ['--features', 'fails']);
   assert.notEqual(run.status, 0);
   const { cases, reason } = cargoTestCases(run.stdout);
-  assert.equal(reason, null, `${cargo} ${process.env.PATH} ${spawnSync('sh', ['-c', 'command -v cargo rustc rustup; ls /opt/homebrew/opt/rustup/bin; rustup which rustc 2>&1'], { encoding: 'utf8' }).stdout} ${run.stdout}\n${run.stderr}`.slice(-1500));
+  assert.equal(reason, null, `${run.stdout}
+${run.stderr}`.slice(-1500));
   assert.deepEqual(cases.filter((found) => found.outcome === 'fail').map((found) => found.name), ['tests::broken']);
 });
 
