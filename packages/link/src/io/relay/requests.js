@@ -4,6 +4,7 @@ import { answerQuestion } from '../../../../spec/index.js';
 import * as store from '../../../../store/index.js';
 import { recordedRefusal } from '../../../../state/index.js';
 import { Refused } from '../../../../kernel/light.js';
+import { relayPruneReceipts } from '../../../../config/index.js';
 
 import { personSigning } from '../../../../person/index.js';
 import { signedRowDecisionsMatch } from '../../../../person/index.js';
@@ -45,6 +46,23 @@ export function requestPerson(board, move) {
   if (!move?.personRequest || requestMoveProblem(board, move, { checkExecutorLease: false })) return null;
   const record = personRequestRecords(board).find((entry) => entry.id === move.personRequest.id && !entry.duplicateOf);
   try { return relayPerson(JSON.parse(record.received).sender); } catch { return null; }
+}
+
+/** How long a request receipt is kept when relay.pruneReceipts is on. */
+const RECEIPT_KEEP_MS = 7 * 86_400_000;
+
+/**
+ * The receipts to keep: with relay.pruneReceipts on, those recorded within 7 days of now, plus any with no readable
+ * recorded time (a legacy receipt stays); with it off, all of them [C7,#9337].
+ *
+ * @param {any} board
+ * @param {any[]} records
+ * @returns {any[]}
+ */
+export function keptReceipts(board, records) {
+  if (!relayPruneReceipts()) return records;
+  const cutoff = board.clock.now().getTime() - RECEIPT_KEEP_MS;
+  return records.filter((record) => { const at = Date.parse(record.at); return Number.isNaN(at) || at >= cutoff; });
 }
 
 /** Persist request receipts inside the caller's existing board transaction. */
@@ -97,7 +115,7 @@ export function receivePersonRequest(board, document, { sequence, at, sender }) 
         finally { board.clock = clock; }
       }
     }
-    save(board, [...records, record]);
+    save(board, [...keptReceipts(board, records), record]);
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run('relay_applied_sequence', String(sequence));
     return record;
   });

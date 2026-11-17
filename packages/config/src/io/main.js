@@ -16,6 +16,7 @@ import {
 import * as maintenanceSettings from '../logic/maintenance.js';
 import { knownConfigKeys } from './compat.js';
 import { trunkProblems } from '../logic/trunk.js';
+import { tiersProblems } from '../logic/tiers.js';
 import { generatedProblems } from '../logic/generated.js';
 
 import { CONFIG_FILE } from '../../../kernel/browser.js';
@@ -52,8 +53,9 @@ export function defaults() {
     spec: 'SPEC.md',
     practice: DOCTRINE_FILE,
     gate: '',
+    // regenerateDeclared is off by default: on, submit regenerates a stale declared generated file in the composed tree [C7].
     // edgeFollowUps is off by default: on, a submit whose diff adds import edges files one follow-up listing them [C7].
-    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false },
+    submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps: false, regenerateDeclared: false },
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
@@ -82,6 +84,8 @@ export function defaults() {
     map: { slice: false },
     // Off by default: slices.enforcePaths makes submit refuse a slice that changes a path outside its declared set [C7].
     slices: { enforcePaths: false },
+    // Off by default: next.wholeItemsFirst makes next offer a whole item of the focused release before an open slice [C7].
+    next: { wholeItemsFirst: false },
     // Off by default: cells checks replay a saved answer for an unchanged tree [#2076].
     cells: { cache: false, shimMaxAgeDays: 7 },
     agents: { names: 'suffix' },
@@ -258,6 +262,7 @@ export function configProblems(config) {
       problems.push('"name" cannot contain "#" or ","');
     }
   }
+  problems.push(...tiersProblems(config.tiers));
   problems.push(...generatedProblems(config.generated));
   if (typeof config.spec !== 'string' || !config.spec) problems.push('"spec" names a file');
   if (config.specAgentApproval !== undefined && !['flag', 'allow', 'refuse'].includes(config.specAgentApproval)) problems.push('"spec.agentApproval" is flag, allow or refuse');
@@ -306,7 +311,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'priorityOrder', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -318,7 +323,9 @@ export function configProblems(config) {
   if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
   if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.ledgerMainReds !== undefined && typeof config.landing.ledgerMainReds !== 'boolean') problems.push('"landing.ledgerMainReds" is a boolean, off by default: on, a land job counts a red in a file the test ledger records red on main at its base as main\'s own');
+  if (config.landing?.priorityOrder !== undefined && typeof config.landing.priorityOrder !== 'boolean') problems.push('"landing.priorityOrder" is a boolean, off by default: on, the lander takes accepted items in the order next uses (person-urgent or pinned, milestone position, then accept order)');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
+  if (config.landing?.pipeline !== undefined && typeof config.landing.pipeline !== 'boolean') problems.push('"landing.pipeline" is a boolean, off by default; true lets a second batch start gating while one is in flight');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
   if (config.landing?.parallel !== undefined && typeof config.landing.parallel !== 'boolean') problems.push('"landing.parallel" is a boolean; omit it or use false to keep serial landing');
   if (config.landing?.first !== undefined && (!Array.isArray(config.landing.first) || config.landing.first.some(id => !Number.isSafeInteger(id) || id < 1))) {
@@ -394,12 +401,15 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (notPlain(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff', 'edgeFollowUps', 'regenerateDeclared'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
   }
   if (typeof config.submit?.edgeFollowUps !== 'boolean') {
     problems.push('"submit.edgeFollowUps" is true or false: on, a submit whose diff adds import edges files one follow-up listing them');
+  }
+  if (typeof config.submit?.regenerateDeclared !== 'boolean') {
+    problems.push('"submit.regenerateDeclared" is true or false: on, submit runs the generator of a declared generated file whose input the diff changed');
   }
   if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
     problems.push('"submit.handoff" is a boolean; deprecated, no effect');
@@ -408,6 +418,9 @@ export function configProblems(config) {
   if (config.checks !== undefined && (notPlain(config.checks)
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
+  }
+  if (config.release !== undefined && (notPlain(config.release) || Object.keys(config.release).some(key => key !== 'liftTwiceHold') || typeof config.release.liftTwiceHold !== 'boolean')) {
+    problems.push('"release" is { "liftTwiceHold": true or false }, false by default: true lifts an automatic released-twice hold when main moves or its named blocker lands');
   }
   if (config.withdraw !== undefined && (notPlain(config.withdraw)
     || Object.keys(config.withdraw).some(key => !['review', 'refuseLanded'].includes(key))
@@ -463,6 +476,9 @@ export function configProblems(config) {
   }
   if (config.map?.slice !== undefined && typeof config.map.slice !== 'boolean') {
     problems.push('"map.slice" is true or false');
+  }
+  if (config.next?.wholeItemsFirst !== undefined && typeof config.next.wholeItemsFirst !== 'boolean') {
+    problems.push('"next.wholeItemsFirst" is true or false');
   }
   if (config.slices?.enforcePaths !== undefined && typeof config.slices.enforcePaths !== 'boolean') {
     problems.push('"slices.enforcePaths" is true or false');

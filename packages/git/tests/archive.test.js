@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 

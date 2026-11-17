@@ -1,12 +1,10 @@
 /** Dispatch a runner job by pulling: submit, wait on the shared mirror, finish; the controller path stays untouched [C7,#5465]. */
 import { waitRunnerJob as defaultWait } from './wait.js';
-import { runnerDispatchMode } from '../../../../config/index.js';
 import { controllerDeadline } from '../../../../resources/index.js';
 import { recordRunnerTime } from '../../../../resources/index.js';
 import { recordRunnerDispatch } from '../../../../resources/index.js';
-import { runOnRunnerAsync as controllerRunOnRunnerAsync } from '../dispatch.js';
-import { bridgeResult } from '../dispatch.js';
-import { MAX_OUTPUT_BYTES } from '../dispatch.js';
+import { bridgeResult } from '../bridge.js';
+import { MAX_OUTPUT_BYTES } from '../bridge.js';
 import { RunnerDropped } from '../main.js';
 import { forgetRuntimeHeld } from '../runtime.js';
 import { recordRuntimeHeld } from '../runtime.js';
@@ -205,8 +203,7 @@ function keepExport(held) {
   previous?.cleanup();
 }
 
-/** Isolate asynchronous execution: the controller path by default, the pull path under the machine setting gate.runnerDispatch. */
+/** Isolate asynchronous execution: always the pull path, the only live transport [C7,#7526]. */
 export async function runOnRunnerAsync(root, command, options, ports = {}) {
-  if ((ports.mode ?? runnerDispatchMode)() !== 'pull') return controllerRunOnRunnerAsync(root, command, options);
   return runPulled(root, command, options, ports);
 }

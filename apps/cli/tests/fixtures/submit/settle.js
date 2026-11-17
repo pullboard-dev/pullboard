@@ -11,11 +11,23 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { watch } from 'node:fs';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 
 /** The tail of the machine's local runner log, so a gate that never settles shows what the runner saw. */
 function runnerLog(machineHome) {
   const log = join(machineHome ?? '', 'local-runner', 'runner.log');
   return machineHome && existsSync(log) ? readFileSync(log, 'utf8').slice(-3000) : '(no local runner log)';
+}
+
+/**
+ * Read one item with `show --json` in this process: the caller's run offers `read` (runIn.read) or the box its `inProcess`; a caller with neither keeps its own run.
+ * Why: the wait reads show on every runner log line and 5 s heartbeat, so a real process per read cost a Node start-up each time, and a caller's
+ * runIn appended each read to the parity record, so the record's call count followed timing (U149). `read` and `inProcess` record no parity line and, unlike
+ * importing the dispatcher here, adds nothing to the import closure of the pure helpers that import this file [C7].
+ */
+async function readShown(box, item) {
+  const read = box.run.read ?? box.inProcess ?? box.run;
+  return read(box.repo, 'show', String(item), '--json', '--no-next');
 }
 
 /** The thread lines a gate receipt wrote, so a verify that never settles shows why the board kept the item claimed. */
@@ -64,7 +76,7 @@ export function settledGateJob(box, item, { deadlineMs = 180_000, until = () => 
       reading = true;
       let job = null, doc = null, applied = false;
       try {
-        const shown = await box.run(box.repo, 'show', String(item), '--json', '--no-next');
+        const shown = await readShown(box, item);
         last = shown.out || shown.err || '';
         doc = shown.code === 0 ? JSON.parse(shown.out) : null;
         job = doc?.gateJob ?? null;
@@ -97,7 +109,7 @@ export async function settleSubmit(t, box, submitted, options) {
   const pid = submitted.localRunner?.pid;
   if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   // A relay-linked checkout or a stopped runner (a gate switch, runnerSwitchedEnv) starts none of its own [P7,#5821].
-  reviveFixtureLocalRunner(box.repo, box.env);
+  reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
   const gateJob = await settledGateJob(box, submitted.item ?? submitted.id, options);
   return { ...submitted, gate: gateJob.gate, gateJob };
 }
@@ -122,7 +134,7 @@ export function verifySettledSync(box, cwd, args) {
     const answer = box.run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
     if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(box.run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
-    reviveFixtureLocalRunner(box.repo, box.env);
+    reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
 }
@@ -134,7 +146,7 @@ export async function verifySettled(box, run, cwd, args) {
     const answer = await run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
     if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(await run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
-    reviveFixtureLocalRunner(box.repo, box.env);
+    reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
     // Read again on the next change in the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s).
     await new Promise(resolve => {
       let watcher = null;

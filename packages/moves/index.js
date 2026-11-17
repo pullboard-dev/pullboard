@@ -12,7 +12,7 @@ export { replayTable } from "./src/logic/table/replay.js";
 export { HOP_ATTEMPT_CAP, HOP_MOVES, hopEngine } from "./src/logic/table/hop.table.js";
 export { LANDING_NEXT, batchOutcome, itemRefusal, landingEngine, landingOrder, repeatedReds, selectBatch } from "./src/logic/table/landing.table.js";
 export { releaseEngine } from "./src/logic/table/release.table.js";
-export { RECLAIM_LIMITS, RECLAIM_RULES, RECLAIM_TABLE, handoffText } from "./src/logic/table/reclaim.table.js";
+export { RECLAIM_LIMITS, RECLAIM_RULES, RECLAIM_TABLE, handoffText, reclaimEngine } from "./src/logic/table/reclaim.table.js";
 export { CLAIM_IO, CLAIM_NEXT, claimEngine } from "./src/logic/table/claim.table.js";
 export { DEFERRED_FIELDS, IO_FIELDS, SHELL_INPUTS, SUBMIT_COMMAND_NEXT, SUBMIT_NEXT, pendingRefreeze, pipelineCause, submitEngine } from "./src/logic/table/submit.table.js";
 export { BACKBONE_RULES, BACKBONE_STATES, BACKBONE_TABLE, CREATED_JOB_KINDS, JOB_KINDS, LEGAL_LANDING, legalLanding, receiptCounts, servesRule } from "./src/logic/table/backbone.table.js";
