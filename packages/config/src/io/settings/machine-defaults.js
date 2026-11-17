@@ -134,6 +134,7 @@ export const MACHINE_DEFAULTS = {
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'next.routeByTier': false,
+  'push.pinTooling': false,
   'push.recordTiming': false,
   'push.refuseUnsharded': false,
   'push.rerunFailedShardOnce': false,

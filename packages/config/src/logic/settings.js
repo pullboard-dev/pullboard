@@ -262,6 +262,9 @@ export function loadMachineSettings() {
   if (value.jobs?.avoidRunners !== undefined && typeof value.jobs.avoidRunners !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `jobs.avoidRunners in ${file} must be true or false`);
   }
+  if (value.push?.pinTooling !== undefined && typeof value.push.pinTooling !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `push.pinTooling in ${file} must be true or false`);
+  }
   if (value.flakes?.rereadRatchet !== undefined && typeof value.flakes.rereadRatchet !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `flakes.rereadRatchet in ${file} must be true or false`);
   }
