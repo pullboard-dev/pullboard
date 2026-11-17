@@ -64,7 +64,7 @@ const lints = async () => ({
 /** The tier classifier's rows for the split files. */
 const tiers = () => ({ files: [{ file: OLD, tier: 'T3' }, { file: NEW, tier: 'T2' }] });
 
-test('a split moves every per-file registry row to its new files in one command [C7]', async () => {
+test('gate.io-test-split.a-split-moves-every-per-file: a split moves every per-file registry row to its new files in one command [C7]', async () => {
   const fixture = tree(), { root, write, read } = fixture;
   try {
     write(OLD, [LAUNCH, ''].join('\n'));
@@ -94,7 +94,7 @@ test('a split moves every per-file registry row to its new files in one command 
   }
 });
 
-test('a split that raises any budget writes nothing [C7]', async () => {
+test('gate.io-test-split.a-split-that-raises-any-budget: a split that raises any budget writes nothing [C7]', async () => {
   const fixture = tree(), { root, write, read } = fixture;
   try {
     write(OLD, [LAUNCH, ''].join('\n'));
@@ -109,7 +109,7 @@ test('a split that raises any budget writes nothing [C7]', async () => {
   }
 });
 
-test('a split that deletes a path-map target refuses with the next step [C7]', async () => {
+test('gate.io-test-split.a-split-that-deletes-a-path: a split that deletes a path-map target refuses with the next step [C7]', async () => {
   const fixture = tree(), { root, write } = fixture;
   try {
     rmSync(`${root}/${OLD}`);
@@ -120,7 +120,7 @@ test('a split that deletes a path-map target refuses with the next step [C7]', a
   }
 });
 
-test('a split changes only the moved rows of tiers.json and keeps one row per line [C7]', async () => {
+test('gate.io-test-split.a-split-changes-only-the-moved: a split changes only the moved rows of tiers.json and keeps one row per line [C7]', async () => {
   const fixture = tree(), { root, write, read } = fixture;
   try {
     const others = Array.from({ length: 40 }, (_, index) => ({ file: `apps/m${String(index).padStart(2, '0')}.test.js`, tier: 'T1', packages: ['.', 'apps/cli'] }));
