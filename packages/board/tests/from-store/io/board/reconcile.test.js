@@ -41,7 +41,7 @@ function post(runs, job, attempt, now) {
 const appliedMark = (runs, job) => runs.db.prepare('SELECT job_applied FROM job WHERE job_id = ?').get(job).job_applied;
 const boardWrites = board => board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
 
-test('clause 2: a seeded board and runs pair holding every row of the disagreement table ends in the action that row names [B2,P7]', t => {
+test('board.reconcile.seeded-board-and-runs-pair-holding: clause 2: a seeded board and runs pair holding every row of the disagreement table ends in the action that row names [B2,P7]', t => {
   const { clock, board, runs, port } = world(t);
   const at = () => clock.at;
   // Rows 1 and 2: no board run, a pending job young and old.
@@ -98,7 +98,7 @@ test('clause 2: a seeded board and runs pair holding every row of the disagreeme
     'the moves the tick made replay from the event log');
 });
 
-test('clause 2: a queued run whose job is gone waits out the grace before the board marks it lost [B2,P7]', t => {
+test('board.reconcile.queued-run-whose-job-gone-waits: clause 2: a queued run whose job is gone waits out the grace before the board marks it lost [B2,P7]', t => {
   const { clock, board, runs, port } = world(t);
   recordQueuedRun(board, { by: 'coordinator', id: 'gate:lost', kind: 'gate' });
   clock.at += LOST_GRACE_MS - MINUTE;
@@ -108,7 +108,7 @@ test('clause 2: a queued run whose job is gone waits out the grace before the bo
   assert.deepEqual(reconcileTick(board, runs, port).map(row => row.action), ['lost']);
 });
 
-test('clause 1: a tick that changes nothing writes nothing to the board, and the table is a pure function of what it reads [B2,P7]', t => {
+test('board.reconcile.tick-that-changes-nothing-writes-nothing: clause 1: a tick that changes nothing writes nothing to the board, and the table is a pure function of what it reads [B2,P7]', t => {
   const { board, runs, port } = world(t);
   queueRun(board, port, { by: 'coordinator', id: 'gate:ok', kind: 'gate' });
   port.intend({ id: 'gate:young', kind: 'gate', now: board.clock.now().getTime() });
@@ -119,7 +119,7 @@ test('clause 1: a tick that changes nothing writes nothing to the board, and the
   assert.equal(disagreementAction({ run: null, job: null, applied: false, receipt: null, now: 0 }), 'settled');
 });
 
-test('clause 1: the paced tick runs at most every 5 s, and on its first call [B2,P7]', () => {
+test('board.reconcile.the-paced-tick-runs-most-every: clause 1: the paced tick runs at most every 5 s, and on its first call [B2,P7]', () => {
   let now = 1_000, ticks = 0;
   const paced = pacedReconciler(() => ++ticks, { clock: () => now });
   assert.equal(paced(), 1);

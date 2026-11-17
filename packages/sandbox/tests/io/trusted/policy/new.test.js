@@ -45,7 +45,7 @@ function repo() {
   return root;
 }
 
-test('an item that created a file before a reclaim may place it while main lacks the file [L3,C7]', () => {
+test('sandbox.policy.new.created-file-may-be-placed: an item that created a file before a reclaim may place it while main lacks the file [L3,C7]', () => {
   const root = repo();
   const main = git(root, 'rev-parse', 'main');
   git(root, 'switch', '-q', '-c', 'item');
@@ -54,7 +54,7 @@ test('an item that created a file before a reclaim may place it while main lacks
   assert.equal(ownsNewFile(root, { item_id: 7 }, own, main, 'src/view/stage.css'), true);
 });
 
-test('a row for a file present on main is refused even when the item also created it [L3,C7]', () => {
+test('sandbox.policy.new.file-on-main-refused: a row for a file present on main is refused even when the item also created it [L3,C7]', () => {
   const root = repo();
   git(root, 'switch', '-q', '-c', 'item');
   const own = commitFile(root, 'src/view/shared.css', 'feat(view): shared [C7]\n\nPullboard-Item: #7');
@@ -64,7 +64,7 @@ test('a row for a file present on main is refused even when the item also create
   assert.equal(ownsNewFile(root, { item_id: 7 }, own, main, 'src/view/shared.css'), false);
 });
 
-test('a file added by a commit that does not name this item is refused [L3,C7]', () => {
+test('sandbox.policy.new.foreign-commit-refused: a file added by a commit that does not name this item is refused [L3,C7]', () => {
   const root = repo();
   const main = git(root, 'rev-parse', 'main');
   git(root, 'switch', '-q', '-c', 'foreign');

@@ -23,13 +23,13 @@ function claimable(t, shadow) {
   return { board, id, claim };
 }
 
-test('clause 1: with moves.shadow off (the default) a claim records no shadow compare [C7,#8376]', t => {
+test('board.claim-shadow-record.with-moves-shadow-off-the-default: clause 1: with moves.shadow off (the default) a claim records no shadow compare [C7,#8376]', t => {
   const { board, claim } = claimable(t);
   claim();
   assert.equal(store.readShadow(board, 'claim'), null);
 });
 
-test('clause 2: with moves.shadow on, a matching claim adds one compare and no disagreement to the claim table\'s counts [C7,#8376]', t => {
+test('board.claim-shadow-record.with-moves-shadow-matching-claim-adds: clause 2: with moves.shadow on, a matching claim adds one compare and no disagreement to the claim table\'s counts [C7,#8376]', t => {
   const { board, claim } = claimable(t, true);
   claim();
   const counts = store.readShadow(board, 'claim');
@@ -38,7 +38,7 @@ test('clause 2: with moves.shadow on, a matching claim adds one compare and no d
   assert.equal(counts.since, new Date(AT).toISOString());
 });
 
-test('clause 3: with moves.shadow on, a claim whose table answer differs adds one disagreement with the item id and the differing field [C7,#8376]', t => {
+test('board.claim-shadow-record.with-moves-shadow-claim-whose-table: clause 3: with moves.shadow on, a claim whose table answer differs adds one disagreement with the item id and the differing field [C7,#8376]', t => {
   const { board, id } = claimable(t, true);
   const hook = store.shadowHook(board, 'claimShadow', 'claim', store.claimDiffers, () => false);
   const event = { kind: 'claim', by: 'core-1', detail: JSON.stringify({ leaseUntil: 1, digest: 'd' }) };

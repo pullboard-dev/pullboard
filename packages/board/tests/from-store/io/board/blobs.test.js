@@ -38,7 +38,7 @@ function boardOf(t) {
   return { board, db: board.db, dir: blobDirOf(board.db) };
 }
 
-test('clause 1: a result over 64 KB is one blob file and the row keeps its hash and size; reading returns the same bytes [C7]', (t) => {
+test('board.blobs.result-over-64-one-blob-file: clause 1: a result over 64 KB is one blob file and the row keeps its hash and size; reading returns the same bytes [C7]', (t) => {
   const { db, dir } = boardOf(t);
   createJob(db, { id: 'cells-inventory:t1', kind: 'cells-inventory', candidate: 't1' });
   const big = { result: body('t1', 80), owner: 'a' };
@@ -57,7 +57,7 @@ test('clause 1: a result over 64 KB is one blob file and the row keeps its hash 
   assert.deepEqual(writeStep(db, 'cells-inventory:t1', 'result', { other: 1 }), { written: false, payload: big });
 });
 
-test('clause 1: identical results share one blob, small payloads stay in the row and no temp file is left [C7]', (t) => {
+test('board.blobs.identical-results-share-one-blob-small: clause 1: identical results share one blob, small payloads stay in the row and no temp file is left [C7]', (t) => {
   const { db, dir } = boardOf(t);
   for (const id of ['cells-inventory:a', 'cells-inventory:b']) {
     createJob(db, { id, kind: 'cells-inventory', candidate: id });
@@ -71,7 +71,7 @@ test('clause 1: identical results share one blob, small payloads stay in the row
   assert.equal(rows[2].p, '{"small":"yes"}');
 });
 
-test('clause 1: a gate hand-off record stays in the row whatever its size [C7]', (t) => {
+test('board.blobs.gate-hand-off-record-stays-the: clause 1: a gate hand-off record stays in the row whatever its size [C7]', (t) => {
   const { db, dir } = boardOf(t);
   createJob(db, { id: 'gate:2', kind: 'gate', item: null, candidate: '2' });
   const payload = { agent: 'a', record: { id: 'gate:2', state: 'red', error: { message: 'x'.repeat(90_000) } } };
@@ -81,7 +81,7 @@ test('clause 1: a gate hand-off record stays in the row whatever its size [C7]',
   assert.deepEqual(jobView(db, 'gate:2').steps[0].payload, payload);
 });
 
-test('clause 2: the upgrade moves oversized payloads, keeps only the newest cells-inventory body and compacts the file [C7]', (t) => {
+test('board.blobs.the-upgrade-moves-oversized-payloads-keeps: clause 2: the upgrade moves oversized payloads, keeps only the newest cells-inventory body and compacts the file [C7]', (t) => {
   const project = cellProject(t, { real: true });
   // Only code run from the main checkout upgrades a repository board, and a runner's worktree is not it; a plain board file is upgraded by whoever opens it.
   const file = join(project.dir, 'upgrade', 'board.sqlite');
@@ -117,7 +117,7 @@ test('clause 2: the upgrade moves oversized payloads, keeps only the newest cell
   assert.ok(board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key = 'job_blobs:1'").get(), 'the move leaves its mark');
 });
 
-test('clause 2: a pruned inventory is produced again and the new result replaces the stub [C7]', async (t) => {
+test('board.blobs.pruned-inventory-produced-again-and-the: clause 2: a pruned inventory is produced again and the new result replaces the stub [C7]', async (t) => {
   const { db } = boardOf(t);
   createJob(db, { id: 'cells-inventory:old', kind: 'cells-inventory', candidate: 'old' });
   const hash = createHash('sha256').update('gone').digest('hex');
@@ -129,18 +129,18 @@ test('clause 2: a pruned inventory is produced again and the new result replaces
   assert.deepEqual(storedResult(jobView(db, 'cells-inventory:old')).result, { fresh: true });
 });
 
-test('clause 2: a board with nothing to move takes no mark, so it stays importable [C7]', (t) => {
+test('board.blobs.board-with-nothing-move-takes-mark: clause 2: a board with nothing to move takes no mark, so it stays importable [C7]', (t) => {
   const { db } = boardOf(t);
   assert.deepEqual(migrateJobBlobs(db), { moved: 0, pruned: 0, bytes: 0 });
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key = 'job_blobs:1'").get().n, 0);
 });
 
-test('clause 2: compaction waits for room and for the write lock, and changes nothing otherwise [C7]', (t) => {
+test('board.blobs.compaction-waits-for-room-and-for: clause 2: compaction waits for room and for the write lock, and changes nothing otherwise [C7]', (t) => {
   const { db } = boardOf(t);
   assert.deepEqual(compactBoard(db, { minFreeBytes: 1e12 }), { compacted: false, reason: 'little free space' });
 });
 
-test('clause 3: an export carries the payload a blob stands for and leaves the local move mark out [C7]', (t) => {
+test('board.blobs.export-carries-the-payload-blob-stands: clause 3: an export carries the payload a blob stands for and leaves the local move mark out [C7]', (t) => {
   const { board, db } = boardOf(t);
   createJob(db, { id: 'cells-inventory:e', kind: 'cells-inventory', candidate: 'e' });
   const payload = { result: body('e', 90), owner: 'a' };

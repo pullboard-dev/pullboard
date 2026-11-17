@@ -63,6 +63,8 @@ import {
 import { recordSigningEvents } from '../apps/cli/tests/fixtures/person/passkey.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
+/** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
+const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'utf8');
 
 test('formats guide documents resume release notes and checkout recording [N19]', () => {
   const section = block('<!-- resume-release-notes:start -->', '<!-- resume-release-notes:end -->');
@@ -82,20 +84,21 @@ test('formats guide documents resume release notes and checkout recording [N19]'
   assert.match(section, /outside the shared board/u);
 });
 
-test('formats guide documents collision grandfathering and doctrine citations [A5]', () => {
-  assert.match(guide, /A bare id names a row in `SPEC\.md`/u);
-  assert.match(guide, /`doctrine:<id>` in item spec ids and commit headers/u);
-  assert.match(guide, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
-  assert.match(guide, /adding a colliding row is an error that names both file paths and line numbers/u);
+test('clause 1: the formats guide documents collision grandfathering and doctrine citations on the spec page [A5]', () => {
+  assert.match(specPage, /A bare id names a row in `SPEC\.md`/u);
+  assert.match(specPage, /`doctrine:<id>` in item spec ids and commit headers/u);
+  assert.match(specPage, /Collisions already present in the primary checkout's attached branch are reported as known warnings/u);
+  assert.match(specPage, /adding a colliding row is an error that names both file paths and line numbers/u);
 });
 
 /** Return the text inside a named marked documentation block. */
 function block(start, end) {
-  const begin = guide.indexOf(start);
-  const finish = guide.indexOf(end, begin + start.length);
+  const text = guide.includes(start) ? guide : specPage;
+  const begin = text.indexOf(start);
+  const finish = text.indexOf(end, begin + start.length);
   assert.notEqual(begin, -1, `guide has block start ${start}`);
   assert.notEqual(finish, -1, `guide has block end ${end}`);
-  return guide.slice(begin + start.length, finish);
+  return text.slice(begin + start.length, finish);
 }
 
 /** Read names from the first code-formatted cell of each row in a marked table. */
@@ -606,7 +609,7 @@ test('[A5] the generated event table names exactly the documented event kinds', 
   assert.deepEqual(generated.sort(), Object.keys(documentedEvents()).sort());
 });
 
-test('[A5] the grammar table describes values the parser actually reads', () => {
+test('clause 1: [A5] the grammar table on the spec page describes values the parser actually reads', () => {
   assert.equal(ID_RE.source, '^[A-Za-z]+\\d+(?:\\.\\d+)*$');
   assert.deepEqual(listedValues('<!-- statuses:start -->', '<!-- statuses:end -->'), STATUSES);
   assert.deepEqual(listedValues('<!-- tiers:start -->', '<!-- tiers:end -->'), TIERS);
@@ -624,7 +627,7 @@ test('[A5] the grammar table describes values the parser actually reads', () => 
     serves: ['B2', 'C3'], signers: ['co@example.invalid', 'AB'], unknown: ['custom: preserved'], section: 'Sample section', line: 4,
   });
   assert.deepEqual(listedValues('<!-- parser-fields:start -->', '<!-- parser-fields:end -->'), Object.keys(parsed.rows[0]));
-  assert.match(guide, /\| gate: <command> \| serves: <ID, ID> \| signers: <principal, principal>/);
+  assert.match(specPage, /\| gate: <command> \| serves: <ID, ID> \| signers: <principal, principal>/);
 
   const validSigner = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with a signer. | signers: build@example.invalid\n'));
   assert.equal(validSigner.some((finding) => finding.message.startsWith('signer ')), false);
@@ -634,8 +637,8 @@ test('[A5] the grammar table describes values the parser actually reads', () => 
   assert.ok(spacedSigner.some((finding) => finding.message.includes('must be one SSH principal')));
   const duplicateSigners = lintSpec(parseSpec('## Signers\n- A1 [draft] Row with duplicates. | signers: build@example.invalid, build@example.invalid\n'));
   assert.ok(duplicateSigners.some((finding) => finding.message === 'signers are unique on a row'));
-  assert.match(guide, /Each signer is one unique principal with no spaces, commas or leading `#`/);
-  assert.match(guide, /every listed principal has a verified SSH receipt for its current text/);
+  assert.match(specPage, /Each signer is one unique principal with no spaces, commas or leading `#`/);
+  assert.match(specPage, /every listed principal has a verified SSH receipt for its current text/);
 
   const noTier = parseSpec('## Plain\n- A1 [draft] Row without a tier.\n');
   assert.equal(noTier.rows[0].tier, '');

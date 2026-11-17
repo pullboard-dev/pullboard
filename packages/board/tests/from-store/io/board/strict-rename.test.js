@@ -37,13 +37,13 @@ function renamed(t, from, to) {
   return { board, id, commit, active };
 }
 
-test('clause 1: a submit renaming a gate-judgment source file under active review defaults records no strict rename and stays standard [C7,#8575]', t => {
+test('board.strict-rename.submit-renaming-gate-judgment-source-file: clause 1: a submit renaming a gate-judgment source file under active review defaults records no strict rename and stays standard [C7,#8575]', t => {
   const { board, id, commit, active } = renamed(t, GATE_FILE, 'packages/gate/src/io/preload.js');
   assert.equal(active, true, 'the fixture board has review defaults active');
   assert.deepEqual(store.sealStrictRenames(board, id, { commit }).strictRenames, []);
 });
 
-test('clause 2: a rename of an intake.sensitivePaths file still records the strict rename [C7,#8575]', t => {
+test('board.strict-rename.rename-intake-sensitivepaths-file-still-records: clause 2: a rename of an intake.sensitivePaths file still records the strict rename [C7,#8575]', t => {
   const { board, id, commit, active } = renamed(t, SECRET_FILE, 'secret/moved.js');
   assert.equal(active, true, 'the fixture board has review defaults active');
   assert.deepEqual(store.sealStrictRenames(board, id, { commit }).strictRenames, [[SECRET_FILE, 'secret/moved.js']]);

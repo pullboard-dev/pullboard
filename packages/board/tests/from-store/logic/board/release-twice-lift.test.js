@@ -36,7 +36,7 @@ function write(board, kind, item, detail = {}) {
 /** Whether the item still carries the release-twice hold. */
 const holding = (board, id) => /Released twice/u.test(store.getItem(board, id).item_hold_reason ?? '');
 
-test('clause 1: with release.liftTwiceHold off, a released-twice hold stays after main moves [C7,H16]', t => {
+test('board.release-twice-lift.with-release-lifttwicehold-off-released-twice: clause 1: with release.liftTwiceHold off, a released-twice hold stays after main moves [C7,H16]', t => {
   const f = held(t, { lift: false });
   assert.ok(holding(f.board, f.id), 'two releases held the item');
   write(f.board, 'main-moved', null, { sha: 'b'.repeat(40), batch: 'b1', items: [] });
@@ -44,7 +44,7 @@ test('clause 1: with release.liftTwiceHold off, a released-twice hold stays afte
   assert.ok(holding(f.board, f.id), 'the hold stays');
 });
 
-test('clause 2: with release.liftTwiceHold on, an automatic released-twice hold lifts when main moves [C7,H16]', t => {
+test('board.release-twice-lift.with-release-lifttwicehold-automatic-released-twice: clause 2: with release.liftTwiceHold on, an automatic released-twice hold lifts when main moves [C7,H16]', t => {
   const f = held(t, { lift: true });
   assert.ok(holding(f.board, f.id));
   write(f.board, 'shout', f.id);
@@ -54,7 +54,7 @@ test('clause 2: with release.liftTwiceHold on, an automatic released-twice hold 
   assert.ok(f.board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='unhold_item' AND event_detail LIKE '%main-moved%'").get(f.id));
 });
 
-test('clause 2: a hold the coordinator placed by hand is not lifted when main moves [C7,H16]', t => {
+test('board.release-twice-lift.hold-the-coordinator-placed-hand-not: clause 2: a hold the coordinator placed by hand is not lifted when main moves [C7,H16]', t => {
   const f = held(t, { lift: true });
   store.releaseItemHold(f.board, f.id, { agentId: 'coordinator', reason: 'lifted by hand' });
   assert.equal(store.getItem(f.board, f.id).item_hold_reason, null);
@@ -63,7 +63,7 @@ test('clause 2: a hold the coordinator placed by hand is not lifted when main mo
   assert.match(store.getItem(f.board, f.id).item_hold_reason, /own decision/u);
 });
 
-test('clause 3: with release.liftTwiceHold on, a hold whose release names a blocker lifts when that item lands [C7,H16]', t => {
+test('board.release-twice-lift.with-release-lifttwicehold-hold-whose-release: clause 3: with release.liftTwiceHold on, a hold whose release names a blocker lifts when that item lands [C7,H16]', t => {
   const f = held(t, { lift: true, named: true });
   write(f.board, 'merged', f.id + 1000);
   assert.ok(holding(f.board, f.id), 'an unrelated landing does not lift it');

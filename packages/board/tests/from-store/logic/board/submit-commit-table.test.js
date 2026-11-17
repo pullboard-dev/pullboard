@@ -36,7 +36,7 @@ function drive(board, record) {
 const { records } = recorded();
 const commits = records.filter(record => record.table === 'COMMIT');
 
-test('clause 1: the store submit commit writer applies the COMMIT table and agrees on every replayed move [C7,#8281]', t => {
+test('board.submit-commit-table.the-store-submit-commit-writer-applies: clause 1: the store submit commit writer applies the COMMIT table and agrees on every replayed move [C7,#8281]', t => {
   assert.equal(commits.length, 6, 'the replay holds the board\'s six submits');
   for (const record of commits) {
     const seen = drive(boardFor(t, record.snapshot), record);
@@ -45,7 +45,7 @@ test('clause 1: the store submit commit writer applies the COMMIT table and agre
   }
 });
 
-test('clause 1: a board without the hook logs the same submit and runs no table [C7,#8281]', t => {
+test('board.submit-commit-table.board-without-the-hook-logs-the: clause 1: a board without the hook logs the same submit and runs no table [C7,#8281]', t => {
   const [record] = commits;
   const board = boardFor(t, record.snapshot);
   const { gate, deferred } = record.snapshot;
