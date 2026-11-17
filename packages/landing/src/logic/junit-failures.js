@@ -1,8 +1,8 @@
 /** Name each failing case of a JUnit report with its file and message, for landing [C7]. */
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
-import { junitAttributes } from '../../../gate/index.js';
-import { junitCases } from '../../../gate/index.js';
+import { junitAttributes } from '../../../gate/light.js';
+import { junitCases } from '../../../gate/light.js';
 
 const LIMIT = 2048;
 
