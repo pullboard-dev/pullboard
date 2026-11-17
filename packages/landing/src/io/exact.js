@@ -27,3 +27,33 @@ export async function sprintProof(record, ports) {
   }
   return { ...proof, result: 'green' };
 }
+
+/** How many times a staged batch is restaged on a moved main before its items yield their turn (the RFC 0011 approval packet's answer, 17 Nov 2026) [V35]. */
+export const RESTAGE_LIMIT = 3;
+
+/**
+ * Hold a staged batch to compare-and-set: check that main is still at the base the batch was staged on, and when it is not,
+ * restage on the new main and prove the new exact tree again, up to `limit` times; then the batch yields.
+ * Why: a proof is keyed by the tree main will point to, so a batch staged on an old main must be rebuilt and proved again, never moved as it is.
+ *
+ * @param {{ verify: () => Promise<void>, restage: () => Promise<void>, prove: () => Promise<void>, yieldTurn: (restages: number) => Promise<void> }} ports
+ *   `verify` throws an error with code LAND_MAIN_MOVED when main left the staged base; any other error ends the loop.
+ * @param {number} [limit] The restages allowed before the yield.
+ * @returns {Promise<{ restages: number, yielded: boolean }>}
+ */
+export async function stageUntilCurrent(ports, limit = RESTAGE_LIMIT) {
+  for (let restages = 0; ; restages++) {
+    try {
+      await ports.verify();
+      return { restages, yielded: false };
+    } catch (error) {
+      if (error?.code !== 'LAND_MAIN_MOVED') throw error;
+    }
+    if (restages >= limit) {
+      await ports.yieldTurn(restages);
+      return { restages, yielded: true };
+    }
+    await ports.restage();
+    await ports.prove();
+  }
+}
