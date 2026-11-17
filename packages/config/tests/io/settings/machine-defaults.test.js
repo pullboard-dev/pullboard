@@ -13,10 +13,12 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
   'budget.totalUsd': null,
+  'canary.directPush': false,
   'census.balanceByTime': false,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,
@@ -36,15 +38,18 @@ const BEFORE = {
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.componentTier': false,
   'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
   'gate.endStaleJobs': false,
+  'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -81,6 +86,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
@@ -123,6 +129,7 @@ const BEFORE = {
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
+  'read.thinCommands': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
@@ -138,6 +145,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
+  'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   'scratch': null,
   'sentinels.recordWriteHolder': false,
@@ -150,13 +158,17 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'submit.recoverFromJobRow': false,
+  'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireDeclaredInputs': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
 
 test('clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {
@@ -235,4 +247,37 @@ test('clause 1: gate.overlapStaticProof is a machine setting, false by default, 
 test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
   assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
   assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
+});
+
+test('clause 1: runners.requiredToolchains is a machine setting, blank by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['runners.requiredToolchains'], null);
+  assert.ok(SETTING_DESCRIPTIONS['runners.requiredToolchains']);
+});
+
+/** Read tests.requireDeclaredInputs through a private machine home holding the given settings. */
+async function declaredInputsWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { requireDeclaredInputsEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-declared-inputs-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return requireDeclaredInputsEnabled();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('clause 1: tests.requireDeclaredInputs is listed with a description and defaults to false [C7,#9799]', async () => {
+  assert.equal(MACHINE_DEFAULTS['tests.requireDeclaredInputs'], false);
+  assert.ok(SETTING_DESCRIPTIONS['tests.requireDeclaredInputs']);
+  assert.equal(await declaredInputsWith({}), false);
+});
+
+test('clause 2: only the exact value true turns tests.requireDeclaredInputs on [C7,#9799]', async () => {
+  assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: true } }), true);
+  assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: false } }), false);
 });

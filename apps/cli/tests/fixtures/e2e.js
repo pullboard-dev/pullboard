@@ -44,6 +44,8 @@ import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
+import { commitInProcess } from './hook/commit.js';
+import { inProcessHooksOn } from './hook/mode.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
@@ -319,7 +321,8 @@ function sandbox({ declareFamilies = false } = {}) {
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
-  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise; every other call is git as before [C7,#9215].
+  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
   const declareFamily = (cwd, family) => {

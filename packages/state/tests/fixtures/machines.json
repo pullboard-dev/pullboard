@@ -69,7 +69,7 @@
       "id": "<hand-off id>",
       "created": "packages/jobs/src/io/shadow.js:shadowSubmitHandoff",
       "serves": "item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit",
-      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "withdrawn", "done"],
+      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
       "terminal": ["green", "submitted", "red", "incomplete", "ownership-wait", "ended", "withdrawn", "done"],
       "lease": "none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS)",
       "transitions": [
@@ -85,7 +85,8 @@
         { "from": "queued", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator; the running driver is not told", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "legacy leased row only: the fallback finds its item no longer submitted at its commit", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
-        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" }
+        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
+        { "from": "ended", "to": "reoffered", "trigger": "gate.reofferInfraEnd is on and the job ended as infrastructure: one more gate job is offered for the same candidate, then this one is done", "at": "packages/drive/src/io/reclaim.js:reofferGateJob" }
       ],
       "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
       "harness": "apps/cli/journeys/submit/handoff.test.js"
