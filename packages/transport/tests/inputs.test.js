@@ -36,7 +36,7 @@ function headers(source) {
   return found;
 }
 
-test('clause 1: every transport test file that reads files carries an input header naming what it reads [C7,U149]', () => {
+test('transport.inputs.readers-declare-headers: clause 1: every transport test file that reads files carries an input header naming what it reads [C7,U149]', () => {
   const files = transportTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the transport cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && headers(read(file)).length === 0);
@@ -45,7 +45,7 @@ test('clause 1: every transport test file that reads files carries an input head
   assert.deepEqual(headers(read('packages/transport/tests/io/ssh.test.js')), ['source-cell packages/transport packages/runners'], 'the ssh test reads both cells it scans');
 });
 
-test('clause 1: no transport test declares the whole source tree, and a cell header names cells by path [C7,U149]', () => {
+test('transport.inputs.no-whole-tree-header: clause 1: no transport test declares the whole source tree, and a cell header names cells by path [C7,U149]', () => {
   for (const file of transportTests()) {
     for (const header of headers(read(file))) {
       assert.notEqual(header.trim(), 'source-tree', `${file} declares source-tree`);

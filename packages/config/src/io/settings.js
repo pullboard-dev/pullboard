@@ -452,6 +452,11 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
+export function requireFactQuoteEnabled() {
+  return loadMachineSettings().spec?.requireFactQuote === true;
+}
+
 /** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
 export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
@@ -480,6 +485,11 @@ export function reofferTrunkBusyEnabled() {
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the sentinel checks landing's own comparisons and stops (#10125): off by default; only an exact `true` turns it on. */
+export function landingSelfCheckEnabled() {
+  return loadMachineSettings().sentinels?.landingSelfCheck === true;
 }
 
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
@@ -576,6 +586,15 @@ export function nextIdleBlockers() {
 export function nextCapBuilders() {
   const cap = loadMachineSettings().next?.capBuilders;
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
+ * Whether heavy local commands (cells-plan --moved/--check, pullboard check, the run-tests local fallback) wait in the local
+ * resource line above machine.loadCeiling (#10139): off by default; only an exact `true` turns it on. Callers pass the settings
+ * to withHeavyLocalWork because packages/resources cannot import this cell.
+ */
+export function heavyLocalHoldEnabled() {
+  return loadMachineSettings().machine?.holdHeavyAboveLoad === true;
 }
 
 /**
