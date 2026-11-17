@@ -618,6 +618,11 @@ export function nextReadinessCheck() {
   return loadMachineSettings().next?.readinessCheck === true;
 }
 
+/** Whether a claiming next reads the seat's index path from facts it already holds, not from a Git launch (#9853): off by default; only an exact `true` turns it on. */
+export function nextOneGitRead() {
+  return loadMachineSettings().next?.oneGitRead === true;
+}
+
 /**
  * Whether next keeps each readiness result for the main commit it ran on (#8794): off by default, so next reruns the
  * command on every call; only an exact `true` turns it on.
