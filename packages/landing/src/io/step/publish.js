@@ -27,8 +27,6 @@ import { save } from './merge.js';
 import { exactTreeRecord } from './merge.js';
 import { landingRunObserver } from './gate.js';
 import { sprintPorts } from './gate.js';
-import { sprintProof } from '../exact.js';
-import { stageUntilCurrent } from '../exact.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from '../main/red.js';
 import { fileURLToPath } from 'node:url';
@@ -458,6 +456,8 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   if (recorded?.result === 'green') return recorded; // An adopted batch keeps the green proof it already holds for this tree.
   if (!tree) throw new Refused('LAND_EXACT_TREE', `the batch tip ${state.batch.tip} has no readable tree id, so no proof can name the tree main will point to; rebuild the batch`);
   state.say?.(`finish: proving tree ${tree} at Sprint depth before main moves`);
+  // exact.js loads only when a landing proves its tree, so commands that never land skip it (closure-budget) [C7].
+  const { sprintProof } = await import('../exact.js');
   const proof = await sprintProof({ tree }, ports);
   if (proof.result === 'green') {
     await save(state, { exactTree: proof });
@@ -516,6 +516,7 @@ function restagePorts(state) {
  * Why before the receipts: the store records the landing before the ref moves, so a restage after that would leave receipts naming a tip that never lands.
  */
 export async function settleOnMain(state, ports = state.restagePorts ?? restagePorts(state)) {
+  const { stageUntilCurrent } = await import('../exact.js');
   const settled = await stageUntilCurrent(ports);
   if (settled.yielded) throw new Refused('LAND_YIELDED', state.batch.refusal.message);
   return settled;
