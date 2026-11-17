@@ -32,6 +32,7 @@ import {
 } from '../../../../../packages/items/index.js';
 import {
   COORDINATOR,
+  hunkFreshnessEnabled,
   loadConfig,
 } from '../../../../../packages/config/index.js';
 import {
@@ -196,7 +197,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       worktreeConfig = mainRoot ? (isMain ? ctx.config : loadConfig(mainRoot)) : null;
     }
     const me = whoAmI(ctx, board);
-    const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }) : null;
+    const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }) : null;
     const all = store.listItems(board, { all: true }).map(item => projector ? projector.project(item) : item);
     foreignBlocked = new Set(all.filter(item => store.foreignBlockers(board, item).length).map(item => item.item_id));
     const pendingMerges = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit)

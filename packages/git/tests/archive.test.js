@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/git */
 /** The released-source extraction helper tolerates tar stopping its stdin early [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -16,7 +17,7 @@ import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 
-test('an old release unpacks even when tar stops reading early [C7]', t => {
+test('git.archive.early-tar-stop: an old release unpacks even when tar stops reading early [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-release-archive-'));
   const stub = join(directory, 'bin');
   const extracted = join(directory, 'actual');

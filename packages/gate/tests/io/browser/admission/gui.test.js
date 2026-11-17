@@ -29,12 +29,12 @@ async function pool() {
   } };
 }
 
-test('clause 1: a GUI browser plan counts only runners observed with a GUI session, so no shard queues for a runner that cannot take it [C7]', async () => {
+test('gate.io-browser-admission-gui.a-gui-browser-plan-counts-only: clause 1: a GUI browser plan counts only runners observed with a GUI session, so no shard queues for a runner that cannot take it [C7]', async () => {
   const box = await pool();
   try { assert.equal(freeRunnerSlots(box.file, { browser: true, gui: true, runners: RUNNERS }), 2, 'only gui-yes counts'); } finally { box.done(); }
 });
 
-test('clause 2: the hold reproduced: the unobserved four-slot runner is not planned for GUI work, and a plan with no GUI need still counts all three [C7]', async () => {
+test('gate.io-browser-admission-gui.the-hold-reproduced-the-unobserved-four: clause 2: the hold reproduced: the unobserved four-slot runner is not planned for GUI work, and a plan with no GUI need still counts all three [C7]', async () => {
   const box = await pool();
   try {
     assert.equal(freeRunnerSlots(box.file, { browser: true, gui: true, runners: [RUNNERS[2]] }), 0, 'an unobserved runner alone offers no GUI slot');

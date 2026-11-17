@@ -36,7 +36,7 @@ async function settlesWithin(promise, ms) {
   try { return (await Promise.race([promise.then(() => 'settled'), late])) === 'settled'; } finally { clearTimeout(timer); }
 }
 
-test('a refresh launched while one runs gets no lock and leaves the one process holding it [C7]', async (t) => {
+test('landing.single.a-refresh-launched-while-one-runs: a refresh launched while one runs gets no lock and leaves the one process holding it [C7]', async (t) => {
   const dir = folder(t, 'pullboard-refresh-single-');
   const files = refreshFlightFiles(join(dir, 'machine-home'));
   const letGo = holdRefreshFlight(files);
@@ -48,7 +48,7 @@ test('a refresh launched while one runs gets no lock and leaves the one process 
   assert.equal(readFileSync(files.lock, 'utf8'), holder, 'the running refresh still holds the lock, and no other process took it');
 });
 
-test('a running refresh comparison holds no checkout lease, so a board write in that checkout finishes in under 1 s [C7]', async (t) => {
+test('landing.single.a-running-refresh-comparison-holds-no: a running refresh comparison holds no checkout lease, so a board write in that checkout finishes in under 1 s [C7]', async (t) => {
   const box = cellProject(t, { real: true });
   const saved = { ...process.env };
   Object.assign(process.env, { PULLBOARD_MACHINE_HOME: box.env.PULLBOARD_MACHINE_HOME, PULLBOARD_HOME: box.env.PULLBOARD_HOME });

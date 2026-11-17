@@ -45,7 +45,7 @@ async function runContracts(fx, ledger, reuse) {
   return { result, contracts: { files: FILES, count: FILES.length, ...(reuse ? contractAccount(FILES, result.proof) : {}) } };
 }
 
-test('clause 1: with landing.reuseContractResults on, a contract file green at unchanged inputs is reused and only the other files run [C7,#9301]', { timeout: 300_000 }, async t => {
+test('landing.contracts-reuse.with-landing-reusecontractresults-on-a-contract: clause 1: with landing.reuseContractResults on, a contract file green at unchanged inputs is reused and only the other files run [C7,#9301]', { timeout: 300_000 }, async t => {
   const fx = fixture(t), ledger = await hitList(fx, FILES.slice(0, 2));
   const { result } = await runContracts(fx, ledger, true);
   assert.equal(result.ok, true, result.detail);
@@ -53,7 +53,7 @@ test('clause 1: with landing.reuseContractResults on, a contract file green at u
   assert.deepEqual(result.proof.reusedFiles, FILES.slice(0, 2));
 });
 
-test('clause 2: with the setting off every contract file runs and the receipt account is exactly as before [C7,#9301]', { timeout: 300_000 }, async t => {
+test('landing.contracts-reuse.with-the-setting-off-every-contract: clause 2: with the setting off every contract file runs and the receipt account is exactly as before [C7,#9301]', { timeout: 300_000 }, async t => {
   const fx = fixture(t), ledger = await hitList(fx, FILES);
   const { result, contracts } = await runContracts(fx, ledger, false);
   assert.equal(result.ok, true, result.detail);
@@ -61,7 +61,7 @@ test('clause 2: with the setting off every contract file runs and the receipt ac
   assert.deepEqual(contracts, { files: FILES, count: 3 }, 'no reused or run lists when off');
 });
 
-test('clause 3: the contracts account lists reused and run files separately when the setting is on [C7,#9301]', { timeout: 300_000 }, async t => {
+test('landing.contracts-reuse.the-contracts-account-lists-reused-and: clause 3: the contracts account lists reused and run files separately when the setting is on [C7,#9301]', { timeout: 300_000 }, async t => {
   const fx = fixture(t), ledger = await hitList(fx, FILES);
   fx.repo.put(FILES[2], `${PASSING}// changed after the gate\n`);
   fx.repo.commit();

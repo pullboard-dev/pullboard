@@ -13,33 +13,33 @@ const XML = `<?xml version="1.0"?>
 <testcase name="outside" classname="a.D" file="/etc/passwd"><failure message="x"/></testcase>
 </testsuite></testsuite></testsuites>`;
 
-test('clause 1: one row per failed or errored case with name, classname, file and assertion [C7]', () => {
+test('landing.junit-failures.one-row-per-failed-or-errored: clause 1: one row per failed or errored case with name, classname, file and assertion [C7]', () => {
   const { rows, code } = junitFailures(XML, ROOT);
   assert.equal(code, null);
   assert.deepEqual(rows[0], { name: 'breaks & burns', classname: 'a.B', file: 'tests/a.py', assertion: 'assert 1 == 2\ntrace' });
   assert.deepEqual(rows[1], { name: 'errs', classname: 'a.C', file: 'tests/c.py', assertion: 'boom' });
 });
 
-test('clause 1: the assertion is cut at 2 KB with the landing marker [C7]', () => {
+test('landing.junit-failures.the-assertion-is-cut-at-2: clause 1: the assertion is cut at 2 KB with the landing marker [C7]', () => {
   const xml = `<testsuite name="s"><testcase name="big" classname="c"><failure message="${'x'.repeat(3000)}"/></testcase></testsuite>`;
   const [row] = junitFailures(xml, ROOT).rows;
   assert.ok(row.assertion.endsWith('\n[assertion truncated at 2 KB]'));
   assert.equal(row.assertion.length, 2048 + '\n[assertion truncated at 2 KB]'.length);
 });
 
-test('clause 2: passing and skipped cases give no row and nested suites are read [C7]', () => {
+test('landing.junit-failures.passing-and-skipped-cases-give-no: clause 2: passing and skipped cases give no row and nested suites are read [C7]', () => {
   const names = junitFailures(XML, ROOT).rows.map(row => row.name);
   assert.deepEqual(names, ['breaks & burns', 'errs', 'outside']);
 });
 
-test('clause 2: a file attribute outside root gives file null, and a case without one too [C7]', () => {
+test('landing.junit-failures.a-file-attribute-outside-root-gives: clause 2: a file attribute outside root gives file null, and a case without one too [C7]', () => {
   const rows = junitFailures(XML, ROOT).rows;
   assert.equal(rows.find(row => row.name === 'outside').file, null);
   const bare = junitFailures('<testsuite name="s"><testcase name="n"><failure message="m"/></testcase></testsuite>', ROOT).rows;
   assert.equal(bare[0].file, null);
 });
 
-test('clause 3: damaged XML gives no rows and JUNIT_DAMAGED, never a throw [C7]', () => {
+test('landing.junit-failures.damaged-xml-gives-no-rows-and: clause 3: damaged XML gives no rows and JUNIT_DAMAGED, never a throw [C7]', () => {
   assert.deepEqual(junitFailures('<testsuite name="s"><testcase name="n"><failure/></testcase>', ROOT), { rows: [], code: 'JUNIT_DAMAGED' });
   assert.deepEqual(junitFailures(undefined, ROOT), { rows: [], code: 'JUNIT_UNREADABLE' });
 });

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { stopScript } from '../../../src/io/leaked.js';
 
-test('clause 2: the stop script excludes a live job id and a fake ps listing keeps only the non-live job pid [C7]', () => {
+test('runners.jobs.the-stop-script-excludes-a-live: clause 2: the stop script excludes a live job id and a fake ps listing keeps only the non-live job pid [C7]', () => {
   const dir = temporaryDirectory('pullboard-leak-ps-');
   try {
     const root = join(dir, 'runner');

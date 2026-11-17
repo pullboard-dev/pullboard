@@ -13,16 +13,16 @@ import { privateFixtureFiles } from './fixtures/child.js';
 const FILE = 'packages/gate/src/io/run/tests.js';
 const shim = fileURLToPath(new URL(`../../../${FILE}`, import.meta.url));
 
-test('clause 1: the shim names no apps/ path [C7]', () => {
+test('gate.app-edges-run.shim-names-apps-path: clause 1: the shim names no apps/ path [C7]', () => {
   assert.doesNotMatch(readFileSync(shim, 'utf8'), /apps\//u);
 });
 
-test('clause 1: the ceiling holds no packageApps row for the shim [C7]', () => {
+test('gate.app-edges-run.ceiling-holds-packageapps-row-shim: clause 1: the ceiling holds no packageApps row for the shim [C7]', () => {
   const ceilings = JSON.parse(readFileSync(new URL('../data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   assert.equal(ceilings.packageApps[FILE], undefined);
 });
 
-test('clause 1: a check frozen on node packages/gate/src/io/run/tests.js <file> still runs the file [C7]', t => {
+test('gate.app-edges-run.check-frozen-node-packages-gate: clause 1: a check frozen on node packages/gate/src/io/run/tests.js <file> still runs the file [C7]', t => {
   const tree = privateFixtureFiles('pb-run-shim-');
   const root = tree.root;
   t.after(() => rmSync(root, { recursive: true, force: true }));

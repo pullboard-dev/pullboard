@@ -84,7 +84,7 @@ function submitsAndGates(board, item) {
   };
 }
 
-test('clause 1: with gate.settleOnMainReceipt on, main\'s receipt recording green settles the unknown sharded gate red from its recorded run [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
+test('gate.io-main-settle-on-main-receipt.with-gate-settleonmainreceipt-on-main-s: clause 1: with gate.settleOnMainReceipt on, main\'s receipt recording green settles the unknown sharded gate red from its recorded run [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
 t => {
   const { board, item, job, recordMain } = unknownShardedGate(t, true);
   const { claim, posted } = recordMain('green');
@@ -96,7 +96,7 @@ t => {
   assert.equal(store.getItem(board, item).item_status, 'claimed', 'a red stays with its builder');
 });
 
-test('clause 1: with gate.settleOnMainReceipt on, main\'s receipt recording the same red settles the unknown sharded gate green over main-owned cases [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
+test('gate.io-main-settle-on-main-receipt.with-gate-settleonmainreceipt-on-main-s-2: clause 1: with gate.settleOnMainReceipt on, main\'s receipt recording the same red settles the unknown sharded gate green over main-owned cases [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
 t => {
   const { board, item, job, main, recordMain } = unknownShardedGate(t, true);
   const { claim } = recordMain('red');
@@ -107,7 +107,7 @@ t => {
   assert.equal(after.item_commit, main);
 });
 
-test('clause 2: show names the settled result and no new submit event is written: a red settle writes none, a green one only the gate\'s own at its candidate [C7,#9057]', { timeout: 120_000 }, // budget: two fixture repos and boards, no runner process.
+test('gate.io-main-settle-on-main-receipt.show-names-the-settled-result-and: clause 2: show names the settled result and no new submit event is written: a red settle writes none, a green one only the gate\'s own at its candidate [C7,#9057]', { timeout: 120_000 }, // budget: two fixture repos and boards, no runner process.
 t => {
   const red = unknownShardedGate(t, true);
   const before = submitsAndGates(red.board, red.item);
@@ -125,7 +125,7 @@ t => {
   assert.equal(JSON.parse(after.submits[0].detail).commit, green.main, 'at the gate\'s own candidate');
 });
 
-test('clause 3: with gate.settleOnMainReceipt off (the default), the sharded gate stays unknown when main\'s receipt records, as today [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
+test('gate.io-main-settle-on-main-receipt.with-gate-settleonmainreceipt-off-the-default: clause 3: with gate.settleOnMainReceipt off (the default), the sharded gate stays unknown when main\'s receipt records, as today [C7,#9057]', { timeout: 60_000 }, // budget: one fixture repo and board, no runner process.
 t => {
   const { root } = privateFixtureFiles('pullboard-settle-main-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;

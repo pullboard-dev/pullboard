@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/decisions/project.test.js', cases: ['two repos of a project that share a name are addressed by folder, never guessed [N34]'] }];
 
-test('clause 1: a team-fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-team.a-team-fixture-sample-gives-the-same: clause 1: a team-fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the team fixture run() starts no CLI process for a quick command when the journey runs in-process [C7]', () => {
+test('gate.journey-parity-team.the-team-fixture-run-starts-no-cli: clause 2: the team fixture run() starts no CLI process for a quick command when the journey runs in-process [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/scenarios/team.js', import.meta.url), 'utf8');
   const quick = source.slice(source.indexOf('function quick('), source.indexOf('/** Run a fixture CLI command'));
   assert.match(quick, /box\.runSync\(root, \.\.\.args\)/u, 'a quick command is answered on the worker thread');

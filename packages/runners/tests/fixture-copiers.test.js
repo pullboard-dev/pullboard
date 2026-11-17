@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/runners/tests/** */
 /** Manifest copies retain moved runtime files and reject executable hand copiers [C7]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -23,13 +24,13 @@ function fixture(t) {
   return { source, target };
 }
 
-test('whole package copies automatically include a new package runtime home [C7]', t => {
+test('runners.fixture-copiers.whole-package-copies-automatically-include-a: whole package copies automatically include a new package runtime home [C7]', t => {
   const { source, target } = fixture(t);
   assert.deepEqual(copyPackageFiles(source, target), ['package.json', 'packages/spec/value.js']);
   assert.equal(readFileSync(join(target, 'packages/spec/value.js'), 'utf8'), 'export const value = 17;\n');
 });
 
-test('selective copies resolve moved identities while retaining explicit synthetic layout [C7]', t => {
+test('runners.fixture-copiers.selective-copies-resolve-moved-identities-while: selective copies resolve moved identities while retaining explicit synthetic layout [C7]', t => {
   const { source, target } = fixture(t);
   const pathMap = new Map([['src/value.js', 'packages/spec/value.js']]);
   assert.deepEqual(copyPackageFiles(source, target, { files: [{ path: 'src/value.js', as: 'src/value.js' }], pathMap }), ['src/value.js']);
@@ -37,7 +38,7 @@ test('selective copies resolve moved identities while retaining explicit synthet
   assert.deepEqual(readdirSync(target), ['src'], 'a partial fixture stays partial');
 });
 
-test('invalid subsets fail before copying any selected file [C7]', t => {
+test('runners.fixture-copiers.invalid-subsets-fail-before-copying-any: invalid subsets fail before copying any selected file [C7]', t => {
   const { source, target } = fixture(t);
   for (const files of [['../../../secret'], ['unshipped.js'], ['packages/spec/value.js', 'packages/spec/value.js'], [{ path: 'packages/spec/value.js', as: '../../../escape' }]]) {
     assert.throws(() => copyPackageFiles(source, target, { files }));
@@ -46,7 +47,7 @@ test('invalid subsets fail before copying any selected file [C7]', t => {
   assert.throws(() => readdirSync(target), { code: 'ENOENT' });
 });
 
-test('manifest exclusions never become subset destination or path-map instructions [C7]', t => {
+test('runners.fixture-copiers.manifest-exclusions-never-become-subset-destination: manifest exclusions never become subset destination or path-map instructions [C7]', t => {
   const { source, target } = fixture(t);
   writeFileSync(join(source, 'packages/spec/private.js'), 'private fixture bytes\n');
   writeFileSync(join(source, 'package.json'), JSON.stringify({ type: 'module',
@@ -61,7 +62,7 @@ test('manifest exclusions never become subset destination or path-map instructio
     'ordinary manifest exclusions retain their accepted behavior');
 });
 
-test('the guard names hand copies including imported aliases, finite lists and read-write copies [C7]', () => {
+test('runners.fixture-copiers.the-guard-names-hand-copies-including: the guard names hand copies including imported aliases, finite lists and read-write copies [C7]', () => {
   for (const source of [
     "import { cpSync } from 'node:fs'; cpSync(new URL('../../../src', import.meta.url), target);",
     "import { copyFileSync as duplicate } from 'node:fs'; const input = new URL('../../../apps/cli/src/io/run/tests.js', import.meta.url); duplicate(input, target);",
@@ -78,7 +79,7 @@ test('the guard names hand copies including imported aliases, finite lists and r
   assert.match(fixtureCopierProblems("const fs = require('node:fs'); fs.cpSync('../../../src', target);", 'opaque.js').join('\n'), /opaque filesystem binding/u);
 });
 
-test('the guard ignores fixture strings, comments and private board or test-helper copies [C7]', () => {
+test('runners.fixture-copiers.the-guard-ignores-fixture-strings-comments: the guard ignores fixture strings, comments and private board or test-helper copies [C7]', () => {
   const source = "import { cpSync, copyFileSync } from 'node:fs';\n// cpSync('../../../src', target);\nconst fixture = \"cpSync('../../../bin', target)\";\ncpSync(join(root, '.git/pullboard'), target);\ncopyFileSync(new URL('../../../apps/cli/tests/fixtures/child.js', import.meta.url), target);";
   assert.deepEqual(fixtureCopierProblems(source), []);
   assert.deepEqual(fixtureCopierProblems("import {writeFileSync} from 'node:fs'; const BIN=new URL('../../../apps/cli/pullboard.js',import.meta.url); writeFileSync(target, `exec ${BIN}`);"), [], 'a launcher refers to tooling without copying its bytes');
@@ -88,7 +89,7 @@ test('the guard ignores fixture strings, comments and private board or test-help
   assert.deepEqual(fixtureCopierProblems("import { cpSync, mkdtempSync } from 'node:fs'; import {join} from 'node:path'; function fixture(){const scratch=mkdtempSync('/tmp/x');return scratch;} const root=fixture(); cpSync(join(root,'src/sample-engine.js'),target);"), []);
 });
 
-test('every test fixture uses the manifest helper for shipped tool copies [C7]', () => {
+test('runners.fixture-copiers.every-test-fixture-uses-the-manifest: every test fixture uses the manifest helper for shipped tool copies [C7]', () => {
   const problems = [];
   /** Inspect source without following symlinks or executing a fixture program. */
   function visit(directory, prefix = 'test') {

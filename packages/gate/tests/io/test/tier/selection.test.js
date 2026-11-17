@@ -12,19 +12,19 @@ import { OTHER_TEST } from './frozen.js';
 import { SIZE_TEST } from './frozen.js';
 import { WEB_TEST } from './frozen.js';
 
-test('a global change keeps the tooling tier with every other test [C7,#4015]', t => {
+test('gate.io-test-tier-selection.a-global-change-keeps-the-tooling: a global change keeps the tooling tier with every other test [C7,#4015]', t => {
   const plan = change(frozen(t), { 'package.json': '{"type":"module","private":true}\n' });
   for (const file of [SIZE_TEST, OTHER_TEST, WEB_TEST]) assert.ok(plan.units.includes(file), `${file} runs: ${plan.units}`);
 });
 
-test('a tooling test the change itself adds runs at submit though no former bin file changed [C7,#4015]', t => {
+test('gate.io-test-tier-selection.a-tooling-test-the-change-itself: a tooling test the change itself adds runs at submit though no former bin file changed [C7,#4015]', t => {
   const added = 'packages/gate/tests/io/size-new.test.js';
   const plan = change(frozen(t), { [added]: "import { size } from '../../src/io/size.js';\nvoid size;\n" });
   assert.ok(plan.units.includes(added), `the builder's own new test runs: ${plan.units}`);
   assert.ok(!plan.units.includes(SIZE_TEST), 'the unchanged tooling test stays out');
 });
 
-test('a project without a layout path map has no tooling tier and selects as before [C7,#4015]', t => {
+test('gate.io-test-tier-selection.a-project-without-a-layout-path: a project without a layout path map has no tooling tier and selects as before [C7,#4015]', t => {
   const { root, put } = repository(t);
   put('packages/gate/src/io/size.js', 'export const size = 1;\n');
   put(SIZE_TEST, "import { size } from '../../src/io/size.js';\nvoid size;\n");
