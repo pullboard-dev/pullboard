@@ -9,7 +9,7 @@ import { closeBoard } from '../../../index.js';
 import { events } from '../../../index.js';
 import { exportBoard } from '../../../index.js';
 import { importBoard } from '../../../index.js';
-import { itemThreads } from '../../../index.js';
+import { itemThreads } from '../../../src/io/board.js';
 import { itemThread } from '../../../index.js';
 import { openKitBoard } from '../../fixtures/cell.js';
 import { temporaryDirectory } from '../../fixtures/tmp.js';
