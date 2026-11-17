@@ -35,7 +35,9 @@ function tempCrate(t) {
 /** Run cargo test in the copy, offline, with the build folder inside the copy and cargo's own folder first on PATH so it finds rustc. */
 function cargoTest(cargo, root, args = []) {
   const path = cargo.startsWith('/') ? `${dirname(cargo)}:${process.env.PATH ?? ''}` : process.env.PATH;
-  const env = { ...process.env, PATH: path, CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
+  const rustc = spawnSync('rustup', ['which', 'rustc'], { encoding: 'utf8', timeout: 5000 });
+  const named = rustc.error || rustc.status !== 0 ? '' : String(rustc.stdout).trim();
+  const env = { ...process.env, PATH: named.startsWith('/') ? `${dirname(named)}:${path}` : path, ...(named.startsWith('/') ? { RUSTC: named } : {}), CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: `${root}/target`, CARGO_TERM_COLOR: 'never' };
   return spawnSync(cargo, ['test', '--offline', ...args], { cwd: root, encoding: 'utf8', env, timeout: 120000 });
 }
 
