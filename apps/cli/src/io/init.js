@@ -57,6 +57,7 @@ import { reviewerStartup } from './next/steps.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
 import { declaredAgentTools } from './skills.js';
+import { installCodexAutomation } from './skills.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,
@@ -840,6 +841,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
     ...writeAgentDocs(root, onWrite),
     ...installHooks(root, onWrite),
     ...installSkills(root, onWrite, agentTools),
+    ...installCodexAutomation(root, onWrite, agentTools),
     ...(agentHooks ? configureAgentHooks(root, { legacyResume: RESUME_HOOK, onWrite }) : ['skipped agent nudges (--no-hooks)']),
     ...writeMcpConfig(root, onWrite),
   ];

@@ -169,6 +169,7 @@ import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
+import { gateComponentTier } from '../../../../../packages/config/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
@@ -382,7 +383,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         knownMain = null;
         if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
-        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
+        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests, componentTier: gateComponentTier() });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;

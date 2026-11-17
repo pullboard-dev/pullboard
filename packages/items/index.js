@@ -19,6 +19,7 @@ export { setItem } from './src/logic/fields.js';
 export { contentionScores, orderByContention, conflictRates } from './src/logic/contention.js';
 export { itemFiles, itemFileCollisions, addedFileCollisions, notifyFileGrowth } from './src/logic/files.js';
 export { applyItemHold, applyItemHoldRelease } from './src/logic/holds.js';
+export { splitRecent } from './src/logic/hot-split.js';
 export { milestoneNamesByItem, SUMMARY_KEYS, withdrawnFrom, withListFields, itemSummary, filterByField, parseFieldFilter } from './src/logic/list.js';
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/logic/notes.js';
 export { exactOfferFields, offerReference, offerItemId, offerBytes, resolveOfferBoard } from './src/logic/offer.js';
