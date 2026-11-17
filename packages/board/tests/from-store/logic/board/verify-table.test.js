@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { verify } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { verify } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const STAMP = '2026-01-01T00:00:00.000Z';
 
@@ -83,7 +83,7 @@ function differences(wrote, expected) {
   return out;
 }
 
-const records = JSON.parse(readFileSync(new URL('../../fixtures/verify-records.json', import.meta.url), 'utf8'));
+const records = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/verify-records.json', import.meta.url), 'utf8'));
 
 test('clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
   assert.ok(records.length >= 10, 'the replay holds accepts and rejects');

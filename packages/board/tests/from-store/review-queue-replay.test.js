@@ -2,26 +2,26 @@
 /** In-memory engine replay coverage for sealed review-skipped snapshots [Q1,V15,H3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openCellBoard as openBoard } from './fixtures/cell.js';
+import * as store from '../../../store/index.js';
+import { openCellBoard as openBoard } from '../fixtures/cell-board.js';
 import {
   exportBoard,
   importBoard,
-} from '../index.js';
+} from '../../../store/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../../state/index.js';
-import { ENGINE_VERSION } from '../../state/index.js';
-import { AGENT_GRANT_ENGINE } from '../../state/index.js';
-import { appliedSequence } from '../../state/index.js';
+} from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import { AGENT_GRANT_ENGINE } from '../../../state/index.js';
+import { appliedSequence } from '../../../state/index.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
-import { submitFixture } from './fixtures/submit.js';
+import { unpackRelease } from '../../../gate/tests/fixtures/release/archive.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 
 const CLAIM_AT = '2026-10-08T12:00:00.000Z';
 const RENEW_AT = '2026-10-08T12:00:30.000Z';

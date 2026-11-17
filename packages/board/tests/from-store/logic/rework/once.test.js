@@ -12,20 +12,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { openCellBoard as openBoard } from '../../fixtures/cell.js';
-import { closeCellBoard as closeBoard } from '../../fixtures/cell.js';
+import { openCellBoard as openBoard } from '../../../fixtures/cell-board.js';
+import { closeCellBoard as closeBoard } from '../../../fixtures/cell-board.js';
 import {
   derivedFamily,
   FAMILY_RECORD_PREFIX,
   seatFamily,
   withDerivedFamilies,
-} from '../../../../items/index.js';
+} from '../../../../../items/index.js';
 import {
   listAgents,
   exportBoard,
   importBoard,
   register,
-} from '../../../index.js';
+} from '../../../../../store/index.js';
 
 const BUDGET_MS = 20;
 
