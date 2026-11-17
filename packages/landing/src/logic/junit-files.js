@@ -13,6 +13,8 @@ export const JUNIT_FILE_ROWS = {
   },
   // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
   cpp: row => row.classname || null,
+  // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
+  sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
 };
 
 /**
