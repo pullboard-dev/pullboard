@@ -1,13 +1,15 @@
 {
-  "whoami": 249,
-  "runner-home whoami": 249,
+  "whoami": 227,
+  "runner-home whoami": 227,
   "show 1": 569,
   "list": 265,
   "status": 1396,
   "next": 1520,
   "test --status x": 928,
   "hook commit-msg": 39,
+  "git-hook --version": 5,
   "hook post-commit": 1,
   "claim 1": 1140,
-  "release 1 --reason OTHER --note x": 1092
+  "release 1 --reason OTHER --note x": 1092,
+  "add web Measure-again --criterion x": 1574
 }
