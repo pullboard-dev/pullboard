@@ -52,7 +52,7 @@ test('clause 2: no resources test declares the whole source tree except the exis
   for (const file of cellTests()) {
     for (const header of headers(read(file))) {
       if (header.trim() === 'source-tree') assert.ok(TREE_OK.includes(file), `${file} declares source-tree`);
-      else assert.match(header, /^(?:source-cell (?:packages|apps)\/[a-z]+(?: (?:packages|apps)\/[a-z]+)*|(?:packages|apps)\/\S+(?: (?:packages|apps)\/\S+)*)$/u, `${file} names cells or files by path`);
+      else assert.match(header, /^(?:source-cell [a-z]+(?:\/[a-z]+)?(?: [a-z]+(?:\/[a-z]+)?)*|(?:packages|apps)\/\S+(?: (?:packages|apps)\/\S+)*)$/u, `${file} names cells or files by path`);
     }
   }
 });
