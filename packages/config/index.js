@@ -58,6 +58,9 @@ export {
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
+  excuseMainTimingReds,
+  recoverFromJobRow,
+  gateComponentTier,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
@@ -73,10 +76,12 @@ export {
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
   requireDeclaredInputsEnabled,
+  canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintFsEnabled,
   idiomSpreadEnabled,
+  literalPinsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -103,6 +108,7 @@ export {
   addWarnUnnamedTest,
   docsRegenerateOnCommit,
   holdsLiftSettled,
+  releaseRerouteUntouched,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
@@ -137,10 +143,13 @@ export {
   reofferTrunkBusyEnabled,
   archiveEventsEnabled,
   hotStateEnabled,
+  watchQuietReadsEnabled,
+  readCrossProcessWrites,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   parallelGatesEnabled,
   reuseGateReceiptsEnabled,
+  asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
@@ -170,6 +179,8 @@ export {
   SEAT_LOOP,
   SEAT_LOOP_WORD_BUDGET,
   renderWorkerSkill,
+  renderCodexAutomation,
+  CODEX_AUTOMATION_FILE,
   renderCoordinatorGuide,
   COORDINATOR_GUIDE_FILE,
   PULLBOARD_LOOP_GIT_COMMANDS,
@@ -234,7 +245,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
+export { listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
