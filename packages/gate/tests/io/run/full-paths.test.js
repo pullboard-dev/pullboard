@@ -20,6 +20,8 @@ test('gate.full-paths.run-names-file-by-full-path: clause 1: node packages/gate/
   writeFileSync(join(work, 'package.json'), '{"type":"module"}\n');
   mkdirSync(join(work, 'packages/alpha/tests'), { recursive: true });
   writeFileSync(join(work, FILE), "import { test } from 'node:test'; test('works', () => {});\n");
+  box.git(work, 'add', '-A');
+  box.git(work, 'commit', '-q', '-m', 'fixture');
   const progress = join(box.dir, 'progress.jsonl');
   const env = { ...box.env, PULLBOARD_TEST_PROGRESS: progress };
   delete env.PULLBOARD_TEST_STAGE;
