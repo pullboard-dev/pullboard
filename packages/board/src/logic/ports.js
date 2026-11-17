@@ -28,11 +28,6 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
-import { shadowSubmitHandoff } from '../../../jobs/index.js';
-import { reserveReview as reserveReviewLease } from '../../../jobs/index.js';
-import { renewReview } from '../../../jobs/index.js';
-import { reclaimLapsedReviews } from '../../../jobs/index.js';
-import { releaseReview } from '../../../jobs/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,
@@ -213,7 +208,7 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds, landingFlakeRatchet }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
-    atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
+    atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, shout: store.shout, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
     reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
@@ -229,8 +224,8 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    shadowJob: shadowSubmitHandoff,
-    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
+    shadowJob: store.saveSubmitHandoff,
+    reviewLease: store.reviewLeases,
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge, submitImportEdges }),

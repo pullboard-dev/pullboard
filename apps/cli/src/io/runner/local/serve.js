@@ -12,6 +12,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { hostCapabilities } from '../../../../../../packages/drive/index.js';
 import { localLoadAdmits } from '../../../../../../packages/drive/index.js';
 import { localLoadShare } from '../../../../../../packages/config/index.js';
+import { asyncFetchEnabled } from '../../../../../../packages/config/index.js';
 import { localBoards } from '../../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../../packages/drive/index.js';
 import { processAlive } from '../../../../../../packages/drive/index.js';
@@ -32,7 +33,7 @@ const STOP_WAIT_MS = 30_000;
  * Why a static import: this process outlives the checkout that started it, which may be an item folder removed later.
  */
 function land(claim, { cache, renew, env }) {
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed, asyncFetch: asyncFetchEnabled() });
 }
 
 /** Run the local runner until SIGINT or SIGTERM; exit 0 at once when another already runs on this machine. */

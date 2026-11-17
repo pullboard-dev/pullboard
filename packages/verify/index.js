@@ -4,7 +4,7 @@ export { laneCheckFiles, requireOwnLaneCheck, coordinatorCheck } from './src/io/
 export { normalizeReviewDefaults } from './src/io/review/default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/io/bar/actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/logic/bar/check.js';
-export { dryRunReviewChecklist, dryRunReviewEnabled } from './src/logic/bar/dryRun.js';
+export { dryRunReviewArm, dryRunReviewChecklist, dryRunReviewMode } from './src/logic/bar/dryRun.js';
 export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPath, normalizeBarCoverage, prepareBarCoverage, previewBarCoverage } from './src/io/bar/coverage.js';
 export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/io/bar/readiness.js';
 export { PROVES_NOTHING_HOLD, PROVES_NOTHING_HOLD_REASON, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/io/check/accept.js';
@@ -61,7 +61,7 @@ export { machineVerification, validateMachineVerification, saveMachineVerificati
 export { submitReusePlanDigest } from './src/logic/plan.js';
 
 export { kernelGateChange, kernelApprovalText, requireKernelApproval } from './src/io/kernel.js';
-export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
+export { buildReviewPacket, recordReviewPacket, reviewPacketLines, reviewPacketReadNote, reviewPacketRerun, showReviewPacket } from './src/io/review/packet.js';
 
 export { reusableSubmitProof, submittedPolicyCommit } from './src/io/reuse.js';
 export { sealedMoveOverlap } from './src/io/verdict/trunk.js';
