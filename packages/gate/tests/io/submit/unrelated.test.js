@@ -60,7 +60,7 @@ function project(t) {
   return { main, work, git, land, proof, claimHead, proofCommit };
 }
 
-test('a main move touching only unrelated files keeps the proof: submit merges the new main and records the evidence [C7]', async t => {
+test('gate.io-submit-unrelated.a-main-move-touching-only-unrelated: a main move touching only unrelated files keeps the proof: submit merges the new main and records the evidence [C7]', async t => {
   const p = project(t);
   const landed = p.land({ 'docs/notes.md': 'moved main notes\n', 'docs/extra.md': 'a new unrelated page\n' });
   const composed = await composeAfterProof(p.work, p.proof(), SERVICES);
@@ -75,7 +75,7 @@ test('a main move touching only unrelated files keeps the proof: submit merges t
   assert.match(fact, /stands without a rerun/u);
 });
 
-test('a main move touching a checked file refuses and names it [C7]', async t => {
+test('gate.io-submit-unrelated.a-main-move-touching-a-checked: a main move touching a checked file refuses and names it [C7]', async t => {
   const p = project(t);
   p.land({ 'test/feature.test.js': "import { test } from 'node:test';\nimport { feature } from '../web/feature.js';\ntest('feature changed on main', () => feature);\n" });
   const head = p.git(p.work, 'rev-parse', 'HEAD');
@@ -84,7 +84,7 @@ test('a main move touching a checked file refuses and names it [C7]', async t =>
   assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), head, 'a refused move merges nothing');
 });
 
-test('every overlapping file is named: an item file, a file a checked test imports, beside an unrelated one [C7]', async t => {
+test('gate.io-submit-unrelated.every-overlapping-file-is-named-an: every overlapping file is named: an item file, a file a checked test imports, beside an unrelated one [C7]', async t => {
   const p = project(t);
   p.land({ 'web/feature.js': "import { shared } from './shared.js';\nexport const feature = shared + 'main';\n", 'web/shared.js': "export const shared = 'changed-';\n", 'web/other.js': "export const other = 'moved';\n" });
   await assert.rejects(composeAfterProof(p.work, p.proof(), SERVICES), error => {
@@ -96,7 +96,7 @@ test('every overlapping file is named: an item file, a file a checked test impor
   });
 });
 
-test('a checked dependency changed and reverted by main still refuses the proof [C7]', async t => {
+test('gate.io-submit-unrelated.a-checked-dependency-changed-and-reverted: a checked dependency changed and reverted by main still refuses the proof [C7]', async t => {
   const p = project(t);
   p.land({ 'web/shared.js': "export const shared = 'changed-';\n" }, 'feat: change a checked dependency');
   p.land({ 'web/shared.js': "export const shared = 'shared-';\n" }, 'fix: restore the checked dependency');
@@ -107,21 +107,21 @@ test('a checked dependency changed and reverted by main still refuses the proof 
   assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), head, 'the refused range is not merged');
 });
 
-test('an unrelated source file read only by an unselected test keeps the proof [C7]', async t => {
+test('gate.io-submit-unrelated.an-unrelated-source-file-read-only: an unrelated source file read only by an unselected test keeps the proof [C7]', async t => {
   const p = project(t);
   p.land({ 'web/other.js': "export const other = 'moved';\n" });
   const composed = await composeAfterProof(p.work, p.proof(), SERVICES);
   assert.ok(composed.evidence, 'test/other.test.js is not this item\'s check or affected test, so web/other.js is unrelated');
 });
 
-test('a check that is not an explicit test selection cannot be bounded and refuses [C7]', async t => {
+test('gate.io-submit-unrelated.a-check-that-is-not-an: a check that is not an explicit test selection cannot be bounded and refuses [C7]', async t => {
   const p = project(t);
   p.land({ 'docs/notes.md': 'moved\n' });
   await assert.rejects(composeAfterProof(p.work, p.proof({ check: 'npm test' }), SERVICES),
     error => error.code === 'MAIN_NOT_COMPOSED' && /cannot be bounded/u.test(error.message));
 });
 
-test('main moving again during the merge is judged again, and an overlapping second move refuses [C7]', async t => {
+test('gate.io-submit-unrelated.main-moving-again-during-the-merge: main moving again during the merge is judged again, and an overlapping second move refuses [C7]', async t => {
   const p = project(t);
   const first = p.land({ 'docs/notes.md': 'first\n' });
   let reads = 0;
@@ -147,7 +147,7 @@ test('main moving again during the merge is judged again, and an overlapping sec
     error => error.code === 'MAIN_NOT_COMPOSED' && /web\/shared\.js/u.test(error.message), 'the late overlap is still caught and named');
 });
 
-test('a main that does not descend from the proved main refuses, and an unmoved main submits the proof commit [C7]', async t => {
+test('gate.io-submit-unrelated.a-main-that-does-not-descend: a main that does not descend from the proved main refuses, and an unmoved main submits the proof commit [C7]', async t => {
   const p = project(t);
   assert.deepEqual(await composeAfterProof(p.work, p.proof(), SERVICES), { commit: p.proofCommit, evidence: null }, 'no move, no merge');
   p.git(p.main, 'checkout', '-q', '--orphan', 'rewritten');
