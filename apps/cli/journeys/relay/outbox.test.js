@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
 import test from 'node:test';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../../../../packages/moves/index.js';
-import { ITEM_SLOTS } from '../../../../packages/outbox/index.js';
-import { bindRefs } from '../../../../packages/outbox/index.js';
-import { resolveMove } from '../../../../packages/outbox/index.js';
-import { strayItemRefs } from '../../../../packages/outbox/index.js';
+import {
+  ITEM_SLOTS,
+  bindRefs,
+  resolveMove,
+  strayItemRefs,
+} from '../../../../packages/outbox/index.js';
 import { twoMachines } from '../../tests/fixtures/relay/outbox.js';
 import { Refused } from '../../../../packages/kernel/light.js';
 import { outboxQueueable } from '../../../../packages/outbox/index.js';
