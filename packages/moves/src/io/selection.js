@@ -58,7 +58,7 @@ const requireModule = createRequire(import.meta.url);
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
  *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
- *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function }} NextPorts
+ *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function }} NextPorts
  */
 
 /**
@@ -365,9 +365,10 @@ const LABEL_PICK_DEPTH = 40;
  * @param {any} selection - The options the queue top was chosen with.
  * @param {{ item: any }} queueTop - The queue's own answer.
  * @param {Function} pickForLabelMinimum - The queue cell's pure pick, handed in by the command line.
+ * @param {Function} firstUnderLabelMax - The queue cell's pure skip of items whose label is at its max, handed in the same way.
  * @returns {any} The answer to use: the queue's, or one for the label's top item.
  */
-function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMinimum) {
+function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMinimum, firstUnderLabelMax) {
   const declared = ctx.config.labels;
   if (!declared || !Object.keys(declared).length) return queueTop;
   const focus = milestoneFocus(board, { milestones: store.milestones });
@@ -381,7 +382,11 @@ function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMi
     answer = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   }
   const pick = pickForLabelMinimum(declared, items, candidates);
-  return pick ? answers.get(pick.item_id) : queueTop;
+  if (pick) return answers.get(pick.item_id);
+  // A label at its max beats a pin: the first candidate under every max is offered, and when none is the queue offers nothing [#9165].
+  const free = firstUnderLabelMax(declared, items, candidates);
+  if (free) return answers.get(free.item_id);
+  return candidates.length ? { item: null, reasons: ['every item next could offer carries a label already at its maximum (next.labelBounds)'] } : queueTop;
 }
 
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
@@ -428,7 +433,7 @@ function nextPick(ctx, board, values, ports) {
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
-  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum) : queueTop;
+  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
   const reworks = own.item ? [] : builderRework(board, items, agents, me);
