@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** Generated affected phases retain real shell boundaries without guessing opaque commands [C7,V4]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

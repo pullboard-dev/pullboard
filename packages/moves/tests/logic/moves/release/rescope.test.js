@@ -75,7 +75,7 @@ for (const reset of ['refreeze', 'reroute']) {
   });
 }
 
-test('clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
+test('moves.release-rescope.a-named-blocker-must-land-before-its: clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
   const box = fixture(t, { reviewers: true });
   const blocker = box.add('Named blocker');
   const id = box.add('Waits for the blocker');
@@ -97,7 +97,7 @@ test('clause 1: a named blocker must land before its blocked scope is offered ag
   assert.equal(selected.item.item_id, id);
 });
 
-test('clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
+test('moves.release-rescope.scope-health-bounds-long-release-text-while: clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
   const box = fixture(t);
   const id = box.add('Long scope explanation');
   box.claim(id, box.seats.actor);
