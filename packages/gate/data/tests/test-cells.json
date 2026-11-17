@@ -28,6 +28,7 @@
     "packages/gate/src/io/edges.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/gate/src/io/test/inputs.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/store/tests/fixtures/cell.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
+    "packages/store/tests/fixtures/submit-history.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/store/tests/fixtures/submit.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/store/tests/fixtures/tmp.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
     "packages/board/tests/fixtures/board.js": "checked on every run: its import closure reaches no CLI entry, and no test-side file in it launches the CLI or installs hooks",
