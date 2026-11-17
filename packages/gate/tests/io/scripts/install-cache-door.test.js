@@ -28,7 +28,7 @@ function setup(t) {
     mkdirSync(join(prefix, 'lib', 'node_modules', 'pullboard'), { recursive: true });
     mkdirSync(join(prefix, 'bin'), { recursive: true });
     writeFileSync(join(prefix, 'lib', 'node_modules', 'pullboard', 'cli.js'), `installed ${tarball} #${state.calls}`);
-    symlinkSync('../lib/node_modules/pullboard/cli.js', join(prefix, 'bin', 'pullboard'));
+    symlinkSync('../lib/node_modules/pullboard/cli.js', join(prefix, 'bin/pullboard'));
   };
   return { root, state, install, folder: join(root, 'cache') };
 }
@@ -41,9 +41,9 @@ test('gate.io-scripts-install-cache-door.with-the-cache-on-one-tree: clause 1: w
   await cached('tree-a', '/work/a.tgz', first);
   await cached('tree-a', '/work/a.tgz', second);
   assert.equal(state.calls, 1);
-  assert.equal(readFileSync(join(first, 'bin', 'pullboard'), 'utf8'), readFileSync(join(second, 'bin', 'pullboard'), 'utf8'));
-  assert.ok(lstatSync(join(second, 'bin', 'pullboard')).isSymbolicLink(), 'the copied bin is still a link');
-  assert.ok(existsSync(join(second, 'bin', 'pullboard')), 'the copied bin link still resolves inside the copy');
+  assert.equal(readFileSync(join(first, 'bin/pullboard'), 'utf8'), readFileSync(join(second, 'bin/pullboard'), 'utf8'));
+  assert.ok(lstatSync(join(second, 'bin/pullboard')).isSymbolicLink(), 'the copied bin is still a link');
+  assert.ok(existsSync(join(second, 'bin/pullboard')), 'the copied bin link still resolves inside the copy');
   assert.deepEqual(readdirSync(folder), ['tree-a.prefix']);
 });
 
@@ -53,7 +53,7 @@ test('gate.io-scripts-install-cache-door.a-different-tree-id-installs-again: cla
   await cached('tree-a', '/work/a.tgz', join(root, 'p1'));
   await cached('tree-b', '/work/b.tgz', join(root, 'p2'));
   assert.equal(state.calls, 2);
-  assert.match(readFileSync(join(root, 'p2', 'bin', 'pullboard'), 'utf8'), /b\.tgz/u);
+  assert.match(readFileSync(join(root, 'p2', 'bin/pullboard'), 'utf8'), /b\.tgz/u);
 });
 
 test('gate.io-scripts-install-cache-door.the-cache-folder-is-pruned-by: clause 2: the cache folder is pruned by size, oldest first [C7]', async t => {
