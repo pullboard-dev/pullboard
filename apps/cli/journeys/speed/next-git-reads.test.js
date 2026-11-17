@@ -1,8 +1,4 @@
-/**
- * With next.oneGitRead on, the git status, rev-parse and rev-list reads of next's selection each run once per command,
- * and next picks and prints exactly what it does with the setting off [C7,#9853,#5329].
- * @pullboard-test-input source-cell apps/cli packages/store packages/config
- */
+/** With next.oneGitRead on, the git status, rev-parse and rev-list reads of next's selection each run once per command and next picks and prints what it does with the setting off [C7,#9853,#5329]. @pullboard-test-input source-cell apps/cli packages/store packages/config */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -23,14 +19,21 @@ function setting(box, value) {
   writeFileSync(file, JSON.stringify(known));
 }
 
-/** The git children a spawn log holds whose subcommand is one of the three reads, as `subcommand args <- callers`. */
+/** The three reads among the git children a spawn log holds, as `subcommand args <- callers`; git's -C path pair is skipped. */
 function readLines(log) {
-  return readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.split(' ')).filter(part => part[2] && part[2].endsWith('git') && READS.has(part[3])).map(part => part.slice(3).join(' '));
+  const lines = [];
+  for (const part of readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.split(' '))) {
+    if (!part[2] || !part[2].endsWith('git')) continue;
+    const args = part.slice(3);
+    while (args[0] === '-C') args.splice(0, 2);
+    if (READS.has(args[0])) lines.push(args.join(' '));
+  }
+  return lines;
 }
 
 /** One `next --build` on a fresh large board with the setting at `value`: the item it handed out, what it printed and its git reads. */
 async function measured(t, value) {
-  const box = largeBoard(t);
+  const box = largeBoard(t, { scale: { items: 2_500, events: 5_000, shouts: 1_000, seats: 100 } });
   const log = join(box.dir, 'spawns.log');
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Git reads sample', diagnose: false, args: ['--specs', 'G1'] });
   setting(box, value);
@@ -40,6 +43,8 @@ async function measured(t, value) {
   assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
   const answer = JSON.parse(result.out);
   const printed = (result.out + result.err).replaceAll(box.dir, '<box>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/gu, '<time>');
+  const spawned = readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
+  console.log(`# next children spawned: ${spawned}`);
   return { item: answer?.item?.item_id ?? answer?.item_id, printed, reads: readLines(log) };
 }
 
