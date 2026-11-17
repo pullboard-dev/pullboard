@@ -537,4 +537,4 @@ export async function mainHeld(argv) {
   return withHeavyLocalWork(`cells-plan ${mode}`, () => main(argv), { settings: loadMachineSettings, root: resolve('.') });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await mainHeld(process.argv.slice(2));
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) mainHeld(process.argv.slice(2)).then(code => { process.exitCode = code; });
