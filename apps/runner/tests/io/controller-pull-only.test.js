@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const controller = readFileSync(new URL('../../src/io/controller.js', import.meta.url), 'utf8');
 
-test('clause 1: controller.js no longer imports or calls serveRunnerController, and the pull worker still starts [C7]', () => {
+test('runner.controller-pull-only.controller-js-no-longer-imports-or-calls: clause 1: controller.js no longer imports or calls serveRunnerController, and the pull worker still starts [C7]', () => {
   assert.doesNotMatch(controller, /\bserveRunnerController\b/u, 'the SSH controller is not served');
   assert.match(controller, /import \{ servePullController \} from/u, 'the pull controller is imported');
   assert.match(controller, /servePullController\(pullMode,/u, 'a pull mode starts the pull controller');
@@ -15,7 +15,7 @@ test('clause 1: controller.js no longer imports or calls serveRunnerController, 
   assert.match(controller, /RUNNER_CONTROLLER_PULL_ONLY/u, 'a start without a pull mode is refused with its next step');
 });
 
-test('clause 2: no apps/runner test targets the retired SSH controller entry [C7]', () => {
+test('runner.controller-pull-only.no-apps-runner-test-targets-the-retired: clause 2: no apps/runner test targets the retired SSH controller entry [C7]', () => {
   const orphans = readFileSync(new URL('./orphans.test.js', import.meta.url), 'utf8');
   assert.doesNotMatch(orphans, /serveRunnerController/u, 'orphans.test.js never exercised the SSH controller entry');
 });
