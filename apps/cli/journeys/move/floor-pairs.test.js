@@ -101,7 +101,7 @@ const ALLOW_LIST = new Map([
   ['holdItem', []],
 ]);
 
-test('clause 1: floorPairProblems reports a toy move whose combined options yield less than the larger floor and none for a correct one [C7,V4]', () => {
+test('cli.journeys-move-floor-pairs.floorpairproblems-reports-a-toy-move-whose: clause 1: floorPairProblems reports a toy move whose combined options yield less than the larger floor and none for a correct one [C7,V4]', () => {
   const first = { name: 'a', args: [1, { a: true }], floor: 10 };
   const second = { name: 'b', args: [1, { b: true }], floor: 20 };
   // The toy answers like a first-match chain (the first option wins): the pair yields 10, below 20.
@@ -114,7 +114,7 @@ test('clause 1: floorPairProblems reports a toy move whose combined options yiel
   assert.deepEqual(floorPairProblems({ move: 'toy', options: [{ ...first, group: 'g' }, { ...second, group: 'g' }] }, registry(toy)), [], 'options of one group never combine');
 });
 
-test('clause 2: every option of claim, editItem, finishLandingBatch and holdItem is listed with its floor, and each pair that fails today is on the allow-list [C7,V4,H16]', () => {
+test('cli.journeys-move-floor-pairs.every-option-of-claim-edititem-finishlandingbatch: clause 2: every option of claim, editItem, finishLandingBatch and holdItem is listed with its floor, and each pair that fails today is on the allow-list [C7,V4,H16]', () => {
   assert.deepEqual(TABLES.map(table => table.move), ['claim', 'editItem', 'finishLandingBatch', 'holdItem']);
   for (const table of TABLES) {
     assert.ok(table.options.length >= 3, `${table.move} lists its options`);

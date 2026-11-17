@@ -79,3 +79,16 @@ test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the j
     }
   }
 });
+
+test('cli.stable.journeys-registered-10547: clause 1: [C7,U148] every test under the journeys merged, milestone, move, next, publish and queue folders has a registered cli.<area>.<slug> title ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10547.json'), 'utf8'));
+  const journeys = join(DIR, '..', 'journeys');
+  for (const area of ['merged', 'milestone', 'move', 'next', 'publish', 'queue']) {
+    for (const file of testFiles(join(journeys, area))) {
+      const source = readFileSync(file, 'utf8');
+      const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
+      assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10547.json`);
+    }
+  }
+});
