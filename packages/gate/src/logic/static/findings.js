@@ -42,3 +42,17 @@ export function remainingFindings(item, main) {
   const held = new Set(main.map(finding => `${finding.rule}\u0000${finding.file}`));
   return item.filter(finding => !held.has(`${finding.rule}\u0000${finding.file}`));
 }
+
+/**
+ * Split a red static output by main's findings: every finding the item has, those main also has, and the output rows of the rest.
+ * Why: with gate.knownMainStatic on, only the rows main does not hold may refuse the item, and the refusal names just those [C7,#10450].
+ * @param {string} output The static guard's output on the item.
+ * @param {{ rule: string, file: string }[]} main The findings of main's run.
+ * @returns {{ item: { rule: string, file: string }[], known: { rule: string, file: string }[], rows: string[] }} `rows` are the item's output rows main does not hold.
+ */
+export function splitByMain(output, main) {
+  const item = staticFindings(output);
+  const rest = new Set(remainingFindings(item, main).map(finding => `${finding.rule}\u0000${finding.file}`));
+  const rows = String(output ?? '').split('\n').filter(row => staticFindings(row).some(finding => rest.has(`${finding.rule}\u0000${finding.file}`)));
+  return { item, known: item.filter(finding => !rest.has(`${finding.rule}\u0000${finding.file}`)), rows };
+}
