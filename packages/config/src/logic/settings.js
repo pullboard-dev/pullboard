@@ -151,7 +151,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -389,6 +389,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.parallelGates !== undefined && typeof value.landing.parallelGates !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.parallelGates in ${file} must be true or false`);
+  }
+  if (value.landing?.staticAffectedOnly !== undefined && typeof value.landing.staticAffectedOnly !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.staticAffectedOnly in ${file} must be true or false`);
   }
   if (value.landing?.stallStop !== undefined && typeof value.landing.stallStop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.stallStop in ${file} must be true or false`);

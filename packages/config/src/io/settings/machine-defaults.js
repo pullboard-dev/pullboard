@@ -97,6 +97,7 @@ export const MACHINE_DEFAULTS = {
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
   'landing.stallStop': false,
+  'landing.staticAffectedOnly': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
   'machine.loadCeiling': null,
