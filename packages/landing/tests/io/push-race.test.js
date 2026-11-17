@@ -12,7 +12,7 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { pushTrunk } from '../../src/io/runner/job.js';
 
-const TRUNK_BRANCH = 'refs/heads/main';
+const TRUNK = 'refs/heads/main';
 const IDENT = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
 
 /** A non-bare trunk with main checked out and updateInstead set, plus a clone that builds one landing commit on its own file. */
