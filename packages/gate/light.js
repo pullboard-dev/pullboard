@@ -163,3 +163,4 @@ export { readStages } from './src/io/stages.js';
 export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
 export { junitAttributes, junitCases } from './src/logic/junit.js';
+export { evaluate as evaluateCla, appendSignatures as appendClaSignatures, readSignatures as readClaSignatures } from './src/io/check/cla.js';
