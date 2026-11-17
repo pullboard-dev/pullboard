@@ -27,6 +27,7 @@ import { RELEASE_TWICE_ROUTE_ENGINE } from "../../../../state/light.js";
 import { TWO_TIER_DIAGNOSIS_ENGINE } from "../../../../state/light.js";
 import { TAKEN_OVER_RELEASE_ENGINE } from "../../../../state/light.js";
 import { INFRA_RELEASE_ENGINE } from "../../../../state/light.js";
+import { RELEASE_UNTOUCHED_REROUTE_ENGINE } from "../../../../state/light.js";
 import { releaseDecision } from "./release-table.js";
 
 /**
@@ -65,9 +66,14 @@ function goneRelease(board, item, actor, observation) {
   return { seat: observation.seat, lastSeen: at };
 }
 
+/** Whether untouched releases count toward the reroute: the setting is on and the board replays at or above the untouched-reroute engine, so older boards keep their decisions [C7,#2970]. */
+function reroutesUntouched(board) {
+  return board.rerouteUntouched === true && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_UNTOUCHED_REROUTE_ENGINE;
+}
+
 /** Whether a release with this reason counts toward release-twice; an untouched hand-back counts only for INELIGIBLE or ROUTED_ELSEWHERE with `board.rerouteUntouched` on, as in release.table.js. */
 function countsToward(board, reasonCode, untouched) {
-  if (untouched) return board.rerouteUntouched === true && ['INELIGIBLE', 'ROUTED_ELSEWHERE'].includes(reasonCode);
+  if (untouched) return reroutesUntouched(board) && ['INELIGIBLE', 'ROUTED_ELSEWHERE'].includes(reasonCode);
   return ['BLOCKED', 'BUDGET', 'INELIGIBLE'].includes(reasonCode);
 }
 
@@ -84,7 +90,7 @@ function chosenQualityRelease(board, id, row, detail) {
 /** The engine from which the release table decides an ordinary or review release; older boards replay on the rules they were written under. */
 const RELEASE_TABLE_FROM = Math.max(RELEASE_REASONS_ENGINE, UNTOUCHED_CLAIM_ENGINE, RELEASE_QUALITY_HOLD_ENGINE, ROUTE_CALIBRATION_ENGINE,
   RELEASE_TWICE_HOLD_ENGINE, RELEASE_TWICE_ROUTE_ENGINE, REOPEN_FIRST_REFUSAL_ENGINE, BLOCKED_DEPENDENCIES_ENGINE, TWO_TIER_DIAGNOSIS_ENGINE,
-  TAKEN_OVER_RELEASE_ENGINE, INFRA_RELEASE_ENGINE);
+  TAKEN_OVER_RELEASE_ENGINE, INFRA_RELEASE_ENGINE, RELEASE_UNTOUCHED_REROUTE_ENGINE);
 
 /** Write the automatic escalation or hold the table decided after a release. */
 function applyAutomatic(board, id, events, { escalate, setItem, logEvent, insertShout }) {
@@ -136,7 +142,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     const viaTable = !stale && !gone && reasonCode !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TABLE_FROM;
     if (item.item_status === 'submitted') {
       if (viaTable) {
-        const decided = releaseDecision(board, item, { agentId, note, reasonCode, reviewer: reviewHolder(board, item), diagnosed: false });
+        const decided = releaseDecision(board, item, { agentId, rerouteUntouched: reroutesUntouched(board), note, reasonCode, reviewer: reviewHolder(board, item), diagnosed: false });
         if (decided.refused) throw new Refused(decided.refused.code, decided.refused.message);
         setItem(board, id, { item_review_by: null, item_review_until: null });
         logEvent(board, agentId, 'release', id, decided.events[0].detail);
@@ -156,7 +162,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     }
     const window = (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusal(board, id) : null;
     const exitHandoff = releaseExitClaim(board, id, agentId, note);
-    const decided = viaTable && !exitHandoff ? releaseDecision(board, item, { agentId, note, reasonCode, blockedOn, worktreeSnapshot,
+    const decided = viaTable && !exitHandoff ? releaseDecision(board, item, { agentId, rerouteUntouched: reroutesUntouched(board), note, reasonCode, blockedOn, worktreeSnapshot,
       diagnosed: Boolean(wrongDiagnosis), firstRefusalBuilder: window?.builder ?? null }) : null;
     if (decided?.refused) throw new Refused(decided.refused.code, decided.refused.message);
     moveItem(board, id, 'release', {

@@ -218,3 +218,4 @@ export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HA
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
+export const RELEASE_UNTOUCHED_REROUTE_ENGINE = engineNumber('RELEASE_UNTOUCHED_REROUTE_ENGINE');

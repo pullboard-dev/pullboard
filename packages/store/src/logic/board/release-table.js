@@ -36,7 +36,7 @@ function reachable(db, start) {
  *
  * @param {object} board
  * @param {object} item - The item row before the move.
- * @param {{ agentId: string, note?: string, reasonCode: string, blockedOn?: number[], worktreeSnapshot?: object, reviewer?: string|null, diagnosed: boolean, firstRefusalBuilder?: string|null }} call
+ * @param {{ agentId: string, rerouteUntouched?: boolean, note?: string, reasonCode: string, blockedOn?: number[], worktreeSnapshot?: object, reviewer?: string|null, diagnosed: boolean, firstRefusalBuilder?: string|null }} call
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] }}
  */
 export function releaseDecision(board, item, call) {
@@ -53,7 +53,7 @@ export function releaseDecision(board, item, call) {
       holdReason: item.item_hold_reason ?? null, holdBy: item.item_hold_by ?? null, reviewer: call.reviewer ?? null },
     actor: { id: call.agentId, route: seat?.agent_route ?? null, path: seat?.agent_path, joined: true }, owner: null, diagnosed: call.diagnosed,
     firstRefusalBuilder: call.firstRefusalBuilder ?? null, items: { [id]: { status: item.item_status, after }, ...reachable(db, [...after, ...on]) },
-    ...(board.rerouteUntouched === true ? { io: { rerouteUntouched: true } } : {}),
+    ...(call.rerouteUntouched === true ? { io: { rerouteUntouched: true } } : {}),
     history, lastClaim, ownerLastClaimId: lastClaim?.id ?? null, ownerLastLease: null, ownerRegisteredPath: seat?.agent_path };
   const move = { id, actor: call.agentId, root: seat?.agent_path ?? '/seat', reason: call.reasonCode, note: call.note, now: board.clock.now().toISOString(),
     ...(call.blockedOn ? { on: call.blockedOn } : {}), ...(call.worktreeSnapshot ? { worktreeSnapshot: call.worktreeSnapshot } : {}) };
