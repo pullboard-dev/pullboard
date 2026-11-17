@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import {
   existsSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -198,6 +199,6 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 });
 
 test('clause 2: cockpit.test.js no longer holds the Spec row decisions case, which lives only in this file [B26,N26,C7]', () => {
-  assert.equal(existsSync(new URL('../cockpit.test.js', import.meta.url)), false, 'the emptied cockpit.test.js is gone');
+  assert.equal(readdirSync(new URL('../', import.meta.url)).includes('cockpit.test.js'), false, 'the emptied cockpit.test.js is gone');
   assert.equal(existsSync(new URL('./decisions.test.js', import.meta.url)), true, 'the case lives here');
 });
