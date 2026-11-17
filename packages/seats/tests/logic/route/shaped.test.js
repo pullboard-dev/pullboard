@@ -10,7 +10,7 @@ const base = {
   item_brief: 'New pure file packages/seats/src/logic/route/shaped.js beside escalation.js.',
 };
 
-test('clause 1: lightShaped is true for one clause, one test file and at most two brief files, and false when any limit is exceeded [C7]', () => {
+test('seats.route.light-shaped-limits: clause 1: lightShaped is true for one clause, one test file and at most two brief files, and false when any limit is exceeded [C7]', () => {
   assert.equal(lightShaped(base), true);
   assert.equal(lightShaped({ ...base, item_check: 'tests.js packages/seats/tests/logic/route/shaped.test.js' }), true);
   assert.equal(lightShaped({ ...base, item_brief: 'Edit a.js and b.json only.' }), true);

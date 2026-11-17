@@ -44,7 +44,7 @@ function localRunner(name) {
   return { transport, runner: { host: name, root } };
 }
 
-test('clause 1: a gate on a runner that holds the tooling pin sends zero tooling bytes and reads the pinned copy [C7]', async () => {
+test('drive.reuse.a-gate-on-a-runner: clause 1: a gate on a runner that holds the tooling pin sends zero tooling bytes and reads the pinned copy [C7]', async () => {
   const { tooling, bundle } = pinnedRepo();
   const { transport, runner } = localRunner('runner-a');
   const log = [];
@@ -64,12 +64,12 @@ test('clause 1: a gate on a runner that holds the tooling pin sends zero tooling
   transport.close();
 });
 
-test('clause 1: the tooling folder is named by tree id and refuses an id that is not a full tree id [C7]', () => {
+test('drive.reuse.the-tooling-folder-is-named: clause 1: the tooling folder is named by tree id and refuses an id that is not a full tree id [C7]', () => {
   assert.throws(() => toolingFolder('/r', '../x'), { code: 'TRANSPORT_TOOLING_TREE' });
   assert.equal(toolingFolder('/r', 'a'.repeat(40)), `'/r'/tooling/${'a'.repeat(40)}`);
 });
 
-test('clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async t => {
+test('drive.reuse.the-production-driver-driveonce-sends: clause 1: the production driver driveOnce sends a runner that holds the tooling pin zero tooling bytes and plans the shard on the pinned copy [C7]', async t => {
   const { repo, tooling, bundle } = pinnedRepo('repo-b');
   const { transport, runner } = localRunner('runner-b');
   await ensureTooling(transport.connect(runner), { tree: tooling, bundle });

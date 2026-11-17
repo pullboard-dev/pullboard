@@ -28,7 +28,7 @@ const rowFor = (db, host) => db.prepare('SELECT * FROM runner_unavailable WHERE 
 /** Whether admission keeps the host out, with four slots and one charge per unverified cleanup. */
 const excluded = (db, host, now) => runnerExcluded(db, rowFor(db, host), { charges: new Map([[host, 1]]), slots: new Map([[host, 4]]), now });
 
-test('clause 1: a runner whose probe passes leaves CLEANUP_UNVERIFIED and TRANSPORT_UNVERIFIED quarantine [C7,P7]', async () => {
+test('resources.probe.a-runner-whose-probe-passes-leaves: clause 1: a runner whose probe passes leaves CLEANUP_UNVERIFIED and TRANSPORT_UNVERIFIED quarantine [C7,P7]', async () => {
   const db = slotDatabase();
   try {
     const start = Date.now();
@@ -61,7 +61,7 @@ test('clause 1: a runner whose probe passes leaves CLEANUP_UNVERIFIED and TRANSP
   } finally { db.close(); }
 });
 
-test('clause 1: a failed transport probe leaves the doubt to the existing recovery and records the failure [C7,P7]', async () => {
+test('resources.probe.a-failed-transport-probe-leaves-the: clause 1: a failed transport probe leaves the doubt to the existing recovery and records the failure [C7,P7]', async () => {
   const db = slotDatabase();
   try {
     recordRunnerFailure(db, 'runner-a', 'transport-lost', { reason: 'channel ended' });
@@ -78,7 +78,7 @@ test('clause 1: a failed transport probe leaves the doubt to the existing recove
   } finally { db.close(); }
 });
 
-test('clause 2: only two failed probes at least 30 s apart quarantine a runner [C7,P7]', () => {
+test('resources.probe.only-two-failed-probes-at-least: clause 2: only two failed probes at least 30 s apart quarantine a runner [C7,P7]', () => {
   const db = slotDatabase();
   try {
     const start = Date.now();
