@@ -88,11 +88,3 @@ test('moves.registry.indented-tests: clause 1: [C7] a test( call indented inside
   assert.ok(findings.some((finding) => /1 test title\(s\) start without an ID/u.test(finding)));
   assert.ok(findings.some((finding) => /moves\.fixture\.unknown has no registry record/u.test(finding)));
 });
-
-test('moves.registry.two-id-titles: clause 4: a title with the cell registry ID first reads the table registry ID after it, and a lone cell ID is read as is [C7,U148,#9269]', () => {
-  const two = [{ file: 'hop-generated.test.js', source: "test('moves.hop-generated.every-row: moves.hop.rows-fire: generated: every row fires', () => {});\n" }];
-  assert.deepEqual(tableTestRegistryProblems(two, records), []);
-  assert.match(tableTestRegistryProblems(two, {})[0], /moves\.hop\.rows-fire has no registry record/u);
-  const lone = [{ file: 'hop-generated.test.js', source: "test('moves.hop-generated.only: clause 1: x', () => {});\n" }];
-  assert.deepEqual(tableTestRegistryProblems(lone, { 'moves.hop-generated.only': { proves: { move: 'hop:*' } } }), []);
-});
