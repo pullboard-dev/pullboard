@@ -20,13 +20,13 @@ function withSettings(settings, work) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: the runner dispatch mode is pull with no setting and with pull set [C7,P7,#5465]', () => {
+test('config.logic-settings-dispatch.clause-1-the-runner-dispatch-mode-is: clause 1: the runner dispatch mode is pull with no setting and with pull set [C7,P7,#5465]', () => {
   assert.equal(withSettings(null, runnerDispatchMode), 'pull');
   assert.equal(withSettings({ gate: {} }, runnerDispatchMode), 'pull');
   assert.equal(withSettings({ gate: { runnerDispatch: 'pull' } }, runnerDispatchMode), 'pull');
 });
 
-test('clause 1: controller and any other runner dispatch value is refused with the step to pull, and the schema holds no controller value [C7,#5465,#8181]', () => {
+test('config.logic-settings-dispatch.clause-1-controller-and-any-other-runner: clause 1: controller and any other runner dispatch value is refused with the step to pull, and the schema holds no controller value [C7,#5465,#8181]', () => {
   for (const bad of ['controller', 'Pull', 'poll', true, 1, null]) {
     assert.throws(() => withSettings({ gate: { runnerDispatch: bad } }, loadMachineSettings),
       error => error.code === 'BAD_MACHINE_SETTINGS' && /must be "pull"/u.test(error.message) && /next: run pullboard settings gate\.runnerDispatch pull/u.test(error.message), `${JSON.stringify(bad)} is refused`);

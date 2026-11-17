@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/moves packages/state */
 /** @pullboard-test-loads packages/state/src/io/engine.js packages/state/src/io/machine.js */
 /** In-memory SQLite tests for the deterministic, sequence-ordered move engine [H3,H16]. */
 import assert from 'node:assert/strict';
@@ -34,7 +34,7 @@ import { ENGINE_VERSION } from '../../state/index.js';
 import { REJECT_OPEN_ENGINE } from '../../state/index.js';
 import { discoverEngines } from '../../state/index.js';
 import { Refused } from '../../kernel/light.js';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 const HOUR = 3_600_000;
 const CLAIM_AT = '2026-10-07T18:00:00.000Z';

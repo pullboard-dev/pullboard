@@ -8,7 +8,7 @@ import { refreshLandedCodeMap as writeCodeMap } from '../../../../codemap/index.
 import { startCodeMapRefresh } from '../../../src/logic/main/notices.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 
-test('clause 1: refreshLandedCodeMap returns while the refresh is still running [C7,#5829]', async () => {
+test('landing.refresh.refreshlandedcodemap-returns-while-the-refresh-is: clause 1: refreshLandedCodeMap returns while the refresh is still running [C7,#5829]', async () => {
   let release;
   let finished = false;
   const running = new Promise(resolve => { release = resolve; }).then(() => { finished = true; });
@@ -26,13 +26,13 @@ test('clause 1: refreshLandedCodeMap returns while the refresh is still running 
   assert.equal(finished, true);
 });
 
-test('clause 1: the refresh the detached process runs still writes the code map [C7,#5829]', async t => {
+test('landing.refresh.the-refresh-the-detached-process-runs: clause 1: the refresh the detached process runs still writes the code map [C7,#5829]', async t => {
   const { root } = cellRepo(t, { real: true });
   await writeCodeMap(root);
   assert.ok(existsSync(join(root, '.git', 'pullboard', 'code-map.json')));
 });
 
-test('clause 1: startCodeMapRefresh returns a started process at once [C7,#5829]', async t => {
+test('landing.refresh.startcodemaprefresh-returns-a-started-process-at: clause 1: startCodeMapRefresh returns a started process at once [C7,#5829]', async t => {
   const { root } = cellRepo(t, { real: true });
   const { pid } = await startCodeMapRefresh(root);
   assert.ok(pid > 0);

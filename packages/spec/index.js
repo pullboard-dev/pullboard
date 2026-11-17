@@ -27,7 +27,7 @@ export { needsSpecRefreezes, specRefreezeSkips, assertNoCitedSpecDecline, prepar
 export { planSpecRevision, revisionReference, validSpecRevision, validRevisionApproval, prepareSpecRevisionDecisions, decideSpecRevisions, markAppliedRevisions, projectSpecRevisions } from "./src/io/revisions.js";
 export { SPEC_REFREEZE, applySpecRowDecisions } from "./src/io/row/apply.js";
 export { parseRowVerification, rowVerificationFormatProblems, rowVerificationSource, verifiedRowSource } from "./src/logic/format.js";
-export { rowVerifications, recordRowVerification, rowVerificationFindings, planRowVerificationApply } from "./src/io/verdicts.js";
+export { rowVerifications, recordRowVerification, rowVerificationFindings, needsReviewFindings, planRowVerificationApply } from "./src/io/verdicts.js";
 export { parseSpec, STATUSES, TIERS, SPEC_GRAMMAR_VERSION, ID_RE } from "./light.js";
 export { SIGNOFFS_FILE, replaceRowGate, loadSpec, legacyDoctrineRenameBase, checkFieldFindings, gateFiles, missingGateFindings, lintSpec, nextRowId, insertSectionRows, idProblems, frozenCriterion, readSignoffs, standings, unmetRows, signOff, citedIds, permanenceProblems, deletedIds, headerRows, CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText } from "./src/io/main.js";
 export { specGateMoveOnly } from "./src/io/gate/move.js";

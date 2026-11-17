@@ -9,8 +9,8 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { cellSandbox } from '../../store/tests/fixtures/cell.js';
 import { copyPackageFiles } from '../index.js';
-import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../gate/tests/fixtures/runner/ssh.js';
 import { runFixtureChildAsync } from '../../gate/tests/fixtures/child.js';
 
 /** Simulate an older worker's pre-execution reply, then let the real pinned capsule execute after refresh. */
@@ -39,7 +39,7 @@ if (!remoteCommand.includes(' --health ') && !remoteCommand.includes('registrati
   return calls;
 }
 
-test('a mismatched runner refreshes once, a second mismatch names both versions, and malformed specs never retry [C7,#2855]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
+test('runners.refresh.a-mismatched-runner-refreshes-once-a: a mismatched runner refreshes once, a second mismatch names both versions, and malformed specs never retry [C7,#2855]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   const box = cellSandbox(t);
   const project = join(box.dir, 'project');
   mkdirSync(project);

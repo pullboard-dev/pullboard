@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { createGitMemo } from '../../src/io/memo.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** A repository with trunk at one commit and a branch two commits ahead, plus a counting memo. */
 function fixture() {
@@ -29,14 +29,14 @@ function fixture() {
   return { root, memo, spawned, rev };
 }
 
-test('resolveRevs spawns git once for HEAD, HEAD^, trunk and the merge base [C7]', () => {
+test('git.memo-revs.single-spawn: resolveRevs spawns git once for HEAD, HEAD^, trunk and the merge base [C7]', () => {
   const { root, memo, spawned, rev } = fixture();
   const got = memo.resolveRevs(root, 'trunk');
   assert.equal(spawned.length, 1);
   assert.deepEqual(got, { ok: true, head: rev('HEAD'), parent: rev('HEAD^'), trunk: rev('trunk'), mergeBase: rev('trunk') });
 });
 
-test('a repeated resolveRevs call and a repeated first-parent log read each spawn at most once [C7]', () => {
+test('git.memo-revs.repeat-reads: a repeated resolveRevs call and a repeated first-parent log read each spawn at most once [C7]', () => {
   const { root, memo, spawned } = fixture();
   memo.resolveRevs(root, 'trunk');
   memo.resolveRevs(root, 'trunk');

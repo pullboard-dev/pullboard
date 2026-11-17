@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'list.thinRead'));
 }
 
-test('clause 3: list.thinRead is off by default, on only for an exact true, and a non-boolean is refused [C7,#9089]', () => {
+test('config.io-list-thin-read-setting.clause-3-list-thinread-is-off-by-default: clause 3: list.thinRead is off by default, on only for an exact true, and a non-boolean is refused [C7,#9089]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,7 +34,7 @@ test('clause 3: list.thinRead is off by default, on only for an exact true, and 
   assert.throws(() => withSettings({ list: { thinRead: 'yes' } }, listThinRead), /list\.thinRead/u);
 });
 
-test('clause 3: list.thinRead is a described setting that pullboard settings prints [C7,#9089]', () => {
+test('config.io-list-thin-read-setting.clause-3-list-thinread-is-a-described: clause 3: list.thinRead is a described setting that pullboard settings prints [C7,#9089]', () => {
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /thin read door/u);

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { resultFrom } from '../../index.js';
 import { signRunnerReceipt } from '../../index.js';
 
-test('the controller refuses a tampered receipt and a signed result for different source [C7]', () => {
+test('runners.result.the-controller-refuses-a-tampered-receipt: the controller refuses a tampered receipt and a signed result for different source [C7]', () => {
   const { privateKey, publicKey } = generateKeyPairSync('ed25519');
   const pinned = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
   const spec = { id: 'fixture', commit: 'a'.repeat(40), tree: 'b'.repeat(40) };
