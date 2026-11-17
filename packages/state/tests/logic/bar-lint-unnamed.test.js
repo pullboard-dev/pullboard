@@ -7,7 +7,7 @@ const UNNAMED = '1. a test shows the handler returns the canonical result [test]
 const NAMED = '1. packages/web/tests/handler.test.js shows the handler returns the canonical result [test]';
 const codes = (bar, options) => lintBar(bar, options).warnings.map(warning => warning.code);
 
-test('clause 1: setting on, a [test] clause naming no file with no Test: line gets BAR_TEST_UNNAMED, a warning and no refusal [C7]', () => {
+test('state.logic-bar-lint-unnamed.clause-1-setting-on-a-clause-naming-no: clause 1: setting on, a [test] clause naming no file with no Test: line gets BAR_TEST_UNNAMED, a warning and no refusal [C7]', () => {
   const result = lintBar(UNNAMED, { warnUnnamedTest: true, brief: 'Build the handler.' });
   assert.deepEqual(result.warnings.map(warning => warning.code), ['BAR_TEST_UNNAMED']);
   assert.equal(result.warnings[0].clause, 1);
@@ -16,7 +16,7 @@ test('clause 1: setting on, a [test] clause naming no file with no Test: line ge
   assert.deepEqual(result.fix, []);
 });
 
-test('clause 2: no warning when the clause names a file, the brief ends with a Test: line, or the setting is off [C7]', () => {
+test('state.logic-bar-lint-unnamed.clause-2-no-warning-when-the-clause: clause 2: no warning when the clause names a file, the brief ends with a Test: line, or the setting is off [C7]', () => {
   assert.deepEqual(codes(NAMED, { warnUnnamedTest: true, brief: 'Build the handler.' }), []);
   assert.deepEqual(codes(UNNAMED, { warnUnnamedTest: true, brief: 'Build the handler.\n\nTest: packages/web/tests/handler.test.js.' }), []);
   assert.deepEqual(codes(UNNAMED, { warnUnnamedTest: false, brief: 'Build the handler.' }), []);
