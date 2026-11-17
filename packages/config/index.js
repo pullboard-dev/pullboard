@@ -80,6 +80,7 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  viewTimerLayoutEnabled,
   adapterLintFsEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,

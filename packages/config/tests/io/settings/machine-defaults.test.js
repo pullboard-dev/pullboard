@@ -87,6 +87,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.viewTimerLayout': false,
   'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
