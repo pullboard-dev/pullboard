@@ -3,18 +3,18 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellSandbox } from '../../fixtures/cell.js';
-import { writeBoardMeta } from '../../../src/io/board/meta.js';
-import { RUNS_PORT_CALLS } from '../../../index.js';
-import { boardRunsPort } from '../../../index.js';
-import { openRunsStore } from '../../../index.js';
-import { runsFilePath } from '../../../index.js';
-import { runsPort } from '../../../index.js';
-import { runsStoreOn } from '../../../index.js';
-import { createJob } from '../../../../jobs/index.js';
-import { jobView } from '../../../../jobs/index.js';
-import { writeStep } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
+import { writeBoardMeta } from '../../../../../store/src/io/board/meta.js';
+import { RUNS_PORT_CALLS } from '../../../../../store/index.js';
+import { boardRunsPort } from '../../../../../store/index.js';
+import { openRunsStore } from '../../../../../store/index.js';
+import { runsFilePath } from '../../../../../store/index.js';
+import { runsPort } from '../../../../../store/index.js';
+import { runsStoreOn } from '../../../../../store/index.js';
+import { createJob } from '../../../../../jobs/index.js';
+import { jobView } from '../../../../../jobs/index.js';
+import { writeStep } from '../../../../../jobs/index.js';
 
 /** A board file path in a private scratch folder the sandbox removes after the test. */
 function boardFile(t) {

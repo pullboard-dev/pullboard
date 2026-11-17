@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { fixtureMachineSettings } from '../../../../../gate/tests/fixtures/testkit.js';
 
 const AT = Date.parse('2026-11-16T12:00:00.000Z');
 const STAMP = new Date(AT).toISOString();

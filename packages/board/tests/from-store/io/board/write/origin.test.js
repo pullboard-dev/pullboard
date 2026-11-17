@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** A recorded write hold names the caller whose body held the lock, never this module's own line [#2282,#6825]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -5,12 +6,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { appendFact } from '../../../../index.js';
-import { writeOrigin } from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
+import { appendFact } from '../../../../../../store/index.js';
+import { writeOrigin } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
 test('clause 1 and clause 2: a hold row names the calling file and line, not the event log that runs the transaction [C7,#2282,#6825]', t => {
   const saved = process.env.PULLBOARD_MACHINE_HOME;

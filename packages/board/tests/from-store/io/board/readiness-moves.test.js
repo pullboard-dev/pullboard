@@ -1,11 +1,11 @@
 /** The add and edit moves record and replace an item readiness command, and replay gives the same one, over a real SQLite board [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { applyEngineMove } from '../../../../state/index.js';
-import { prepareEngineMove } from '../../../../state/index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { applyEngineMove } from '../../../../../state/index.js';
+import { prepareEngineMove } from '../../../../../state/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 
 /** A real project and board with a coordinator. */
 function fixture(t) {
