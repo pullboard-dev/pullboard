@@ -28,7 +28,7 @@ const read = path => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines in a file's leading comment lines, as the text after the tag. */
 const headers = source => source.split(/\r?\n/u).slice(0, 5).map(line => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every git test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('git.inputs.every-reader-declares-its-inputs: clause 1: every git test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = gitTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the git cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && headers(read(file)).length === 0);
@@ -36,7 +36,7 @@ test('clause 1: every git test file that reads files carries an input header nam
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/git'], 'this file names only the git cell');
 });
 
-test('clause 2: every git test header is a non-empty declaration [C7,U149]', () => {
+test('git.inputs.every-header-is-a-non-empty-declaration: clause 2: every git test header is a non-empty declaration [C7,U149]', () => {
   for (const file of gitTests()) {
     for (const header of headers(read(file))) {
       assert.ok(header.trim().length > 0, `${file} has a header`);
