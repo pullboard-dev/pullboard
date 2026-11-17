@@ -1,53 +1,52 @@
 /**
  * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
-import assert from 'node:assert/strict';
-import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { chmodSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { after } from 'node:test';
-import { test } from 'node:test';
-import { addedLines } from '../../../../packages/commits/index.js';
-import { blockedPaths } from '../../../../packages/commits/index.js';
-import { commitCitationWarnings } from '../../../../packages/commits/index.js';
-import { commitMsgProblems } from '../../../../packages/commits/index.js';
-import { hookScript } from '../../../../packages/commits/index.js';
-import { matchesPattern } from '../../../../packages/commits/index.js';
-import { secretsIn } from '../../../../packages/commits/index.js';
-import { unwiredHookProblems } from '../../../../packages/commits/index.js';
-import { Refused } from '../../../../packages/kernel/light.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { parseSpec } from '../../../../packages/spec/index.js';
 import { boardBusyError } from '../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../packages/store/index.js';
 import { rowDecisions } from '../../../../packages/spec/index.js';
 import { checkLoosening } from '../../../../packages/doctrine/index.js';
+import assert from 'node:assert/strict';
+import { runFixtureChild } from '../../tests/fixtures/child.js';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
 import { defaults } from '../../../../packages/config/index.js';
-import { preCommitProblems } from '../../../../packages/commits/index.js';
-import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
+import {
+  addedLines,
+  blockedPaths,
+  commitCitationWarnings,
+  commitMsgProblems,
+  hookScript,
+  matchesPattern,
+  preCommitProblems,
+  secretsIn,
+  unwiredHookProblems,
+} from '../../../../packages/commits/index.js';
+import { parseSpec } from '../../../../packages/spec/index.js';
+import { Refused } from '../../../../packages/kernel/light.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
-const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
-const RULES = defaults().commits;
-
-/** Run the same staged protections called by the installed pre-commit hook. */
-function stagedProblems(root) {
-  return preCommitProblems({ approvedRowPorts, root, isMain: true, config: defaults(), agent: null });
-}
-
-/**
- * Problems with a message under the default rules, or the given ones.
- */
-const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
+
+const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
+const RULES = defaults().commits;
 
 test("a hook nudges and never blocks, fails open on error or timeout, and init merges with the user's hooks [I6]", async () => {
   const box = e2e.project('true');
@@ -143,6 +142,15 @@ test("a hook nudges and never blocks, fails open on error or timeout, and init m
   assert.equal(existsSync(join(disabled, '.claude/settings.json')), false);
 });
 
+/** Run the same staged protections called by the installed pre-commit hook. */
+function stagedProblems(root) {
+  return preCommitProblems({ approvedRowPorts, root, isMain: true, config: defaults(), agent: null });
+}
+
+/**
+ * Problems with a message under the default rules, or the given ones.
+ */
+const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
 
 test('hook wiring checks the configured path and accepts pullboard delegation [L3]', (t) => {
   const box = stagedRepo(t);

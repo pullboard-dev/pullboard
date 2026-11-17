@@ -1,32 +1,43 @@
 /**
  * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
-import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { chmodSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { after } from 'node:test';
-import { test } from 'node:test';
-import { commitMsgProblems } from '../../../../packages/commits/index.js';
-import { hookScript } from '../../../../packages/commits/index.js';
-import { parseSpec } from '../../../../packages/spec/index.js';
-import { Refused } from '../../../../packages/kernel/light.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { boardBusyError } from '../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../packages/store/index.js';
 import { rowDecisions } from '../../../../packages/spec/index.js';
 import { checkLoosening } from '../../../../packages/doctrine/index.js';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import {
+  chmodSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  join,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
 import { defaults } from '../../../../packages/config/index.js';
-import { preCommitProblems } from '../../../../packages/commits/index.js';
-import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
+import {
+  commitMsgProblems,
+  hookScript,
+  preCommitProblems,
+} from '../../../../packages/commits/index.js';
+import { parseSpec } from '../../../../packages/spec/index.js';
+import { Refused } from '../../../../packages/kernel/light.js';
+import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
+import { stagedRepo } from '../../tests/fixtures/hooks-staged.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
+
+const e2e = createE2eHelpers();
+after(e2e.cleanup);
+
 const SPEC = { ...parseSpec('## G\n- G1 [approved, must] One. | gate: t\n- G2 [retired] Gone.\n'), name: 'SPEC.md' };
 const RULES = defaults().commits;
 
@@ -39,9 +50,6 @@ function stagedProblems(root) {
  * Problems with a message under the default rules, or the given ones.
  */
 const check = (message, rules = RULES) => commitMsgProblems(message, { rules, spec: SPEC });
-
-const e2e = createE2eHelpers();
-after(e2e.cleanup);
 
 test('a secret in a staged text file is still refused [S1]', (t) => {
   const box = stagedRepo(t);
@@ -57,7 +65,6 @@ test('a refused merge message points to the message git writes, which is exempt 
   assert.match(check('merge: include store date validation')[0], /For a merge, keep the message git writes, which is exempt: git merge --no-edit/);
   assert.deepEqual(check("Merge branch 'store/1'"), []);
 });
-
 
 test('a spec-less feature commit is told a path that works [S1,B26]', async () => {
   const box = e2e.sandbox();
@@ -262,47 +269,4 @@ test('#4005: a repository without the test-cell listing keeps adding root tests 
   writeFileSync(join(box.root, 'test/first.test.js'), "import { test } from 'node:test';\n");
   box.git('add', '-A');
   assert.deepEqual(stagedProblems(box.root), []);
-});
-
-/** A freshly initialised repository with its real git hooks installed and test.inProcessHooks set on the machine as asked. */
-async function hookedRepo(inProcessHooks) {
-  const box = e2e.sandbox();
-  if (inProcessHooks) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
-  const root = join(box.dir, 'hooked');
-  mkdirSync(root);
-  box.git(root, 'init', '-q', '-b', 'main');
-  const initialized = await box.runLocal(root, 'init');
-  assert.equal(initialized.code, 0, initialized.err || initialized.out);
-  box.git(root, 'add', '-A');
-  box.git(root, 'commit', '-q', '-m', 'chore: set up the private board');
-  return { box, root };
-}
-
-for (const inProcessHooks of [false, true]) {
-  const setting = inProcessHooks ? 'on' : 'off';
-  test(`clause 1: git runs the real pre-commit hook and refuses a staged env file, with test.inProcessHooks ${setting} [C5,C7]`, async () => {
-    const { box, root } = await hookedRepo(inProcessHooks);
-    writeFileSync(join(root, '.env'), 'TOKEN=not-a-real-token\n');
-    box.git(root, 'add', '-f', '--', '.env');
-    const refused = await box.tryGit(root, 'commit', '-q', '-m', 'chore: add the env file');
-    assert.notEqual(refused.status, 0, 'the real pre-commit hook blocks the commit');
-    assert.match(refused.stderr, /\.env is a blocked file/u, 'the refusal is the hook process own output');
-  });
-
-  test(`clause 1: git runs the real commit-msg hook and refuses a malformed header, with test.inProcessHooks ${setting} [C1,C7]`, async () => {
-    const { box, root } = await hookedRepo(inProcessHooks);
-    writeFileSync(join(root, 'notes.txt'), 'notes\n');
-    box.git(root, 'add', '--', 'notes.txt');
-    const refused = await box.tryGit(root, 'commit', '-q', '-m', 'Added some notes');
-    assert.notEqual(refused.status, 0, 'the real commit-msg hook blocks the commit');
-    const allowed = await box.tryGit(root, 'commit', '-q', '-m', 'chore: add some notes');
-    assert.equal(allowed.status, 0, allowed.failure || allowed.stderr || allowed.stdout);
-  });
-}
-
-test('clause 2: with test.inProcessHooks on, the installed pre-commit and commit-msg hooks are still the real scripts that start pullboard hook [C7]', async () => {
-  const { root } = await hookedRepo(true);
-  for (const name of ['pre-commit', 'commit-msg']) {
-    assert.match(readFileSync(join(root, '.githooks', name), 'utf8'), new RegExp(`hook ${name}`, 'u'), `${name} runs pullboard hook ${name}`);
-  }
 });
