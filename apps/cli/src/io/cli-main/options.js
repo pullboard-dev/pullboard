@@ -27,6 +27,7 @@ const OPTIONS = {
   'review-limit': { type: 'string' },
   reason: { type: 'string' },
   revises: { type: 'string' },
+  row: { type: 'string' },
   status: { type: 'string' },
   cancel: { type: 'string' },
   off: { type: 'boolean' },
@@ -37,6 +38,7 @@ const OPTIONS = {
   slots: { type: 'string' },
   browser: { type: 'string' },
   'new-browser': { type: 'boolean' },
+  only: { type: 'string' },
   node: { type: 'string' },
   root: { type: 'string' },
   toolchain: { type: 'string' },
@@ -82,6 +84,7 @@ const OPTIONS = {
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
   route: { type: 'string' },
+  field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
   as: { type: 'string' },
@@ -122,6 +125,7 @@ const OPTIONS = {
   'test-run': { type: 'string' },
   waive: { type: 'string' },
   until: { type: 'string' },
+  choices: { type: 'string' },
   deadline: { type: 'string' },
   take: { type: 'string' },
   agent: { type: 'string' },
@@ -170,6 +174,7 @@ const OPTIONS = {
   since: { type: 'string' },
   window: { type: 'string' },
   days: { type: 'string' },
+  against: { type: 'string' },
   compare: { type: 'boolean' },
   policy: { type: 'string' },
   decision: { type: 'boolean' },
@@ -212,7 +217,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -222,6 +227,7 @@ export function parseCommandArgs(argv) {
     }
   }
   const options = { ...OPTIONS,
+    ...(command === 'spec' ? { commit: { type: 'boolean' } } : {}),
     ...(['add', 'edit', 'submit', 'done', 'test'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
   };

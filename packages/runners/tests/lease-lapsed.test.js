@@ -11,7 +11,7 @@ import { renewJob } from '../../api/index.js';
 
 const boardWith = t => cellBoard(t, ':memory:').db;
 
-test('clause 1: a gate job whose runner lease lapsed is claimed by another capable runner [C7,P7]', t => {
+test('runners.lease-lapsed.a-gate-job-whose-runner-lease: clause 1: a gate job whose runner lease lapsed is claimed by another capable runner [C7,P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:8919', kind: 'gate', needs: ['node22', 'browser'], now: 1 });
   const first = claimJob(db, { runner: 'r-first', capabilities: ['node22', 'browser'], now: 100 });
@@ -24,7 +24,7 @@ test('clause 1: a gate job whose runner lease lapsed is claimed by another capab
   assert.deepEqual([jobView(db, 'gate:8919').leaseOwner, jobView(db, 'gate:8919').attempt], ['r-second', 2]);
 });
 
-test('clause 2: the first runner, if it returns, cannot renew or record a result for the job another runner took [C7,P7]', t => {
+test('runners.lease-lapsed.the-first-runner-if-it-returns: clause 2: the first runner, if it returns, cannot renew or record a result for the job another runner took [C7,P7]', t => {
   const db = boardWith(t);
   offerJob(db, { id: 'gate:8919', kind: 'gate', now: 1 });
   const first = claimJob(db, { runner: 'r-first', capabilities: [], now: 100 });

@@ -4,6 +4,7 @@ import { orderedMoveCommand } from '../logic/relay/order.js';
 import { withRelayExclusion } from './relay/exclusion.js';
 import { relinkReplacement } from './relay/relink.js';
 import { relayExclusion } from './relay/exclusion.js';
+import { renewAfterSync } from './relay/credentials.js';
 import { excludeRelayByPerson } from './relay/exclusion.js';
 import { clearRelayExclusion } from './relay/exclusion.js';
 import { reportClearedExclusion } from './relay/exclusion.js';
@@ -62,6 +63,7 @@ import { ensurePersonCoordinator } from './relay/seats.js';
 import { seatReceipt } from './relay/seats.js';
 import { withSeatName } from './relay/seats.js';
 import { syncApprovers } from './relay/approvers.js';
+import { behindDeviceOptions } from './relay/behind.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { presentationDigest } from '../../../pages/index.js';
 import { relayPresentation } from '../../../pages/index.js';
@@ -884,9 +886,9 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       requestedMove = move;
       try {
         if (!move) {
-          const sent = withSeatName(root, operation, args, io);
+          const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
           move = stampCoordinatorHolder(localRecords(io.openBoard, root, (board) => prepareEngineMove(board, operation, sent,
-            io.personRequestMoveId ? { id: io.personRequestMoveId } : operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {})), state.machine, state.computerName, senderPolicy);
+            { ...(io.personRequestMoveId ? { id: io.personRequestMoveId } : operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {}), ...behind })), state.machine, state.computerName, senderPolicy);
           requestedMove = move;
           if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
           const problem = move.personRequest && localRecords(io.openBoard, root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
@@ -994,6 +996,7 @@ export async function syncRelay(root, io) {
       if (await io.checkpointInBackground()) { if (state.checkpoint) await io.scheduleCheckpoint(root, file, io.checkpointWorker); else await io.requestCheckpointCheck(root, file, io.checkpointWorker); }
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
+      await renewAfterSync(file, state, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay/handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
       return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });
     }

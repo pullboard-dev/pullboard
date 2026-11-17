@@ -46,7 +46,7 @@ async function remoteJoin(project, runner) {
   return joined.body.result.agent;
 }
 
-test('clause 1: a join over the API registers an agent on the served board with no board-host path [P7]', async (t) => {
+test('api.remote-join.join-over-api-registers-agent: clause 1: a join over the API registers an agent on the served board with no board-host path [P7]', async (t) => {
   const project = cellProject(t, { real: true });
   const runner = recordingRunner();
   const agent = await remoteJoin(project, runner);
@@ -59,7 +59,7 @@ test('clause 1: a join over the API registers an agent on the served board with 
   assert.equal(existsSync(row.agent_path), false, 'the agent has no path on the board host');
 });
 
-test('clause 2: a move posted as the remote agent runs at the board root as that agent instead of refusing WRONG_BOARD [P7]', async (t) => {
+test('api.remote-join.move-posted-remote-agent-runs: clause 2: a move posted as the remote agent runs at the board root as that agent instead of refusing WRONG_BOARD [P7]', async (t) => {
   const project = cellProject(t, { real: true });
   const runner = recordingRunner();
   const agent = await remoteJoin(project, runner);
@@ -69,7 +69,7 @@ test('clause 2: a move posted as the remote agent runs at the board root as that
   assert.equal(moved.body.event.event_by, agent, 'the move acts as the remote agent, not the coordinator');
 });
 
-test('clause 3: a local agent whose worktree belongs to another board still refuses WRONG_BOARD [P7]', async (t) => {
+test('api.remote-join.local-agent-whose-worktree-belongs: clause 3: a local agent whose worktree belongs to another board still refuses WRONG_BOARD [P7]', async (t) => {
   const project = cellProject(t, { real: true });
   const other = cellRepo(t, { real: true });
   const board = openCellBoard(project.boardFile);

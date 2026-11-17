@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/landing/src/io/shards.js packages/landing/src/logic/land/guard.js */
+/** @pullboard-test-input packages/landing/src/io/shards.js packages/landing/src/io/land/guard.js */
 /** A sharded landing gate runs its controller on the coordinator, so its shards fan out to the runners [C7,#3158]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -43,7 +43,7 @@ test('a required executor keeps its placement; each shard reads runners-only its
 test('only the two gate controllers ask for local placement; shard acquisition never does [C7,#3158]', async () => {
   const { readFileSync } = await import('node:fs');
   const read = file => readFileSync(new URL(`../../../../../../${file}`, import.meta.url), 'utf8');
-  assert.match(read('packages/landing/src/logic/land/guard.js'), /landingControllerPlacement\(root/u);
+  assert.match(read('packages/landing/src/io/land/guard.js'), /landingControllerPlacement\(root/u);
   assert.match(read('packages/gate/src/io/execution.js'), /landing && !runnerOnly \? landingControllerPlacement\(root/u);
   assert.doesNotMatch(read('packages/landing/src/io/shards.js'), /landingControllerPlacement/u, 'shards keep runner placement');
   const slot = /export async function withLandingGateSlot[\s\S]*?\n\}/u.exec(read('packages/gate/src/io/execution.js'))[0];

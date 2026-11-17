@@ -20,16 +20,16 @@ function readWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: gate.testNice is off when unset and on only when set true [C7,#8509]', () => {
+test('config.io-settings-test-nice.clause-1-gate-testnice-is-off-when-unset: clause 1: gate.testNice is off when unset and on only when set true [C7,#8509]', () => {
   assert.equal(readWith({}), false);
   assert.equal(readWith({ gate: { testNice: false } }), false);
   assert.equal(readWith({ gate: { testNice: true } }), true);
 });
 
-test('clause 2: a non-boolean gate.testNice is refused naming the setting [C7,#8509]', () => {
+test('config.io-settings-test-nice.clause-2-a-non-boolean-gate-testnice-is: clause 2: a non-boolean gate.testNice is refused naming the setting [C7,#8509]', () => {
   assert.throws(() => readWith({ gate: { testNice: 'yes' } }), /gate\.testNice/u);
 });
 
-test('clause 3: gate.testNice has a settings description row [C7,#8509]', () => {
+test('config.io-settings-test-nice.clause-3-gate-testnice-has-a-settings: clause 3: gate.testNice has a settings description row [C7,#8509]', () => {
   assert.match(JSON.stringify(describeSetting('gate.testNice')), /scheduling priority/u);
 });

@@ -27,7 +27,7 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   const box = project();
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await box.runLocal(box.web, 'claim', '1')).out, /claimed #1/);
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   writeFileSync(join(box.web, 'web', 'a.html'), 'edited');
   assert.match((await box.runLocal(box.web, 'submit', '1')).err, /DIRTY/);
   box.git(box.web, 'checkout', '--', 'web/a.html');
@@ -50,7 +50,7 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
   fixtureAdd(projectBox.run, projectBox.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await projectBox.runIn(projectBox.web, 'claim', '1')).out, /claimed #1/);
-  assert.equal(commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]').status, 0);
+  assert.equal((await commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]')).status, 0);
   writeFileSync(gate.mode, 'armed');
   const children = [];
   try {

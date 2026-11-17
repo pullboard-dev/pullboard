@@ -16,6 +16,7 @@ import {
   activityEventDetail,
   activityInterests,
   isActivityNews,
+  archivedItemEvents,
   itemActivity,
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
@@ -49,7 +50,7 @@ import { now } from "./read/light.js";
 import { listItems } from "./read/light.js";
 export { now, boardId, listItems, listItemsSql } from "./read/light.js";
 
-const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
+export const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
@@ -94,7 +95,7 @@ export function reviewReleasesSinceSubmit(board, itemId, agentId = null) {
     try {
       const detail = JSON.parse(event.event_detail);
       if (detail.review === true || detail.review === undefined) releases.push({ ...event, legacy: detail.review === undefined,
-        reason: detail.reason ?? 'reason not recorded' });
+        reason: detail.reason ?? 'reason not recorded', code: detail.reasonCode ?? null });
     } catch { /* Ignore malformed legacy details rather than treating them as review releases. */ }
   }
   return releases;
@@ -253,25 +254,42 @@ export function events(board, { itemId, since, kinds, last } = {}) {
   if (since) { where.push('event_at >= ?'); bindings.push(since); }
   if (kinds?.length) { where.push(`event_kind IN (${kinds.map(() => '?').join(', ')})`); bindings.push(...kinds); }
   const filtered = `FROM event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
-  if (Number.isInteger(last) && last > 0) return board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
-  return board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings);
+  // An item's archived events (#9334) read as if they never moved: hot then archive, merged in event order [#9335].
+  const archived = itemId !== undefined && itemId !== null
+    ? archivedItemEvents(board, itemId).filter(event => (!since || event.event_at >= since) && (!kinds?.length || kinds.includes(event.event_kind))) : [];
+  const withArchive = rows => archived.length ? [...archived, ...rows].sort((a, b) => a.event_id - b.event_id) : rows;
+  if (Number.isInteger(last) && last > 0) {
+    const rows = board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
+    return withArchive(rows).slice(-last);
+  }
+  return withArchive(board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings));
+}
+
+/**
+ * A shout event written under board.compactShouts holds the shout id and no text; give the text back from the shout table so the
+ * thread reads the same as for an older event that kept it inline (#9336). Any other detail passes through untouched.
+ */
+function shoutTextBack(board, detail) {
+  if (!board || detail?.text !== undefined || !Number.isInteger(detail?.shout)) return detail;
+  const row = board.db.prepare('SELECT shout_text FROM shout WHERE shout_id = ?').get(detail.shout);
+  return row ? { ...detail, text: row.shout_text } : detail;
 }
 
 /** One event of an item's thread, as itemThread lists it; `withdrawals` maps an accept event to the withdrawal that undid it. */
-function threadEntry(event, withdrawals) {
+function threadEntry(event, withdrawals, board) {
   if (event.event_kind === 'fact') return { type: 'fact', ...factFromEvent(event) };
   const correction = reopenCauseCorrection(event);
   return { type: 'move', eventId: event.event_id, kind: event.event_kind, by: event.event_by,
     ...(correction ? { causeCorrection: correction } : {}),
     ...(withdrawals.has(event.event_id) ? { withdrawn: true, withdrawal: withdrawals.get(event.event_id) } : {}),
-    at: event.event_at, detail: JSON.parse(event.event_detail) };
+    at: event.event_at, detail: shoutTextBack(board, JSON.parse(event.event_detail)) };
 }
 
 /** Read every move and fact in append order, including superseded facts and full original text [B31,B32]. */
 export function itemThread(board, id) {
   itemById(board, id);
   const withdrawals = new Map([...verdictWithdrawals(board, id).values()].map(row => [row.acceptEventId, row]));
-  return itemActivity(board, id).map((event) => threadEntry(event, withdrawals));
+  return itemActivity(board, id).map((event) => threadEntry(event, withdrawals, board));
 }
 
 /** The items a board-wide `main-moved` event names, as the item's own activity read matches them: integers of its `items`. */
@@ -307,7 +325,7 @@ export function itemThreads(board, ids, history) {
   for (const [id, own] of events) {
     const withdrawals = own.some(event => event.event_kind === 'reopen' && String(event.event_detail).includes('withdrawnVerdict'))
       ? new Map([...verdictWithdrawals(board, id).values()].map(row => [row.acceptEventId, row])) : new Map();
-    threads.set(id, own.map(event => threadEntry(event, withdrawals)));
+    threads.set(id, own.map(event => threadEntry(event, withdrawals, board)));
   }
   return threads;
 }

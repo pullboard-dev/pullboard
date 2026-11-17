@@ -120,7 +120,7 @@ async function approvedLinkScenario(t) {
   };
 }
 
-test('an approved link opens on the phone without another command [H17,E16]', {
+test('relay.approval-link.an-approved-link-opens-on-the: an approved link opens on the phone without another command [H17,E16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const run = await approvedLinkScenario(t);

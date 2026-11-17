@@ -13,7 +13,7 @@ const SAMPLES = [
   { journey: 'apps/cli/journeys/resume/presence/heartbeat.test.js', cases: ['plain status counts large seat history and hides gone seats behind --all'] },
 ];
 
-test('clause 1: the spec/main and heartbeat journeys give the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-spec-presence.the-spec-main-and-heartbeat-journeys-give: clause 1: the spec/main and heartbeat journeys give the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

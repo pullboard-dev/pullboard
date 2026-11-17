@@ -72,7 +72,7 @@ function privateDirectory(t) {
   };
 }
 
-test('[H7,H15] format-2 opaque history migrates to machine attribution without changing its records', (t) => {
+test('relay.io-journal-machine.format-2-opaque-history-migrates-to: [H7,H15] format-2 opaque history migrates to machine attribution without changing its records', (t) => {
   const box = privateDirectory(t);
   const path = createLegacyJournal(box.directory);
   const legacy = databaseContents(path);
@@ -120,7 +120,7 @@ test('[H7,H15] format-2 opaque history migrates to machine attribution without c
   assert.equal(restarted.latest(), 4);
 });
 
-test('[H7] unsupported journal formats refuse without rewriting legacy tables or bytes', (t) => {
+test('relay.io-journal-machine.unsupported-journal-formats-refuse-without-rewriting: [H7] unsupported journal formats refuse without rewriting legacy tables or bytes', (t) => {
   const box = privateDirectory(t);
   const path = createLegacyJournal(box.directory, '99');
   const before = databaseContents(path);

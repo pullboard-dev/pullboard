@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { waitForCondition } from '../../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from '../../../gate/tests/fixtures/runner/holders.js';
 import { PINNED_HEARTBEAT } from '../../src/io/liveness.js';
 
 const REPO = resolve(import.meta.dirname, '../../../..');
@@ -44,7 +44,7 @@ function legacyReclaim(db, now = Date.now()) {
   return signalled;
 }
 
-test('clause 2: a stale CLI\'s reclaimer never signals or frees a live holder whose beat is long past its window [C7,#3164]', async t => {
+test('resources.liveness.a-stale-cli-s-reclaimer-never: clause 2: a stale CLI\'s reclaimer never signals or frees a live holder whose beat is long past its window [C7,#3164]', async t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-stale-cli-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const home = join(dir, 'home');

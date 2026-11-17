@@ -31,7 +31,7 @@ function largeTooling() {
   return { entry, worker, tooling: { sha256 }, runtime: { entry, files: runtimeFiles } };
 }
 
-test('clause 1: the worker command stays far below the SSH packet bound however large the capsule is [C7]', () => {
+test('runners.remote.the-worker-command-stays-far-below: clause 1: the worker command stays far below the SSH packet bound however large the capsule is [C7]', () => {
   const { worker, tooling, runtime } = largeTooling();
   const { command, input } = remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, tooling, runtime, '', null);
   assert.ok(input.length > SSH_PACKET_LIMIT, 'the fixture capsule must be larger than the SSH bound');
@@ -45,7 +45,7 @@ function withRoot(work) {
   try { return work(root); } finally { rmSync(root, { recursive: true, force: true }); }
 }
 
-test('clause 2: a capsule larger than the SSH bound installs from stdin and the worker reads exactly the bytes after it [C7]', () => withRoot(root => {
+test('runners.remote.a-capsule-larger-than-the-ssh: clause 2: a capsule larger than the SSH bound installs from stdin and the worker reads exactly the bytes after it [C7]', () => withRoot(root => {
   {
     const { entry, worker, tooling, runtime } = largeTooling();
     const { command, input } = remoteWorkerLaunch({ host: 'runner', node: process.execPath, root }, worker, tooling, runtime, '', null);
@@ -57,7 +57,7 @@ test('clause 2: a capsule larger than the SSH bound installs from stdin and the 
   }
 }));
 
-test('clause 3: the file passes, including a truncated capsule fails before the worker starts [C7]', () => withRoot(root => {
+test('runners.remote.the-file-passes-including-a-truncated: clause 3: the file passes, including a truncated capsule fails before the worker starts [C7]', () => withRoot(root => {
   {
     const { worker, tooling, runtime } = largeTooling();
     const { command, input } = remoteWorkerLaunch({ host: 'runner', node: process.execPath, root }, worker, tooling, runtime, '', null);
@@ -74,7 +74,7 @@ function launch(root, tooling, runtime, worker, reuse) {
   return { input, result: spawnSync('/bin/sh', ['-c', command], { input: Buffer.concat([input, Buffer.from('12\n{"job":"x"}')]), maxBuffer: 1024 ** 2 }) };
 }
 
-test('#4140 clause 1: a runner holding the runtime by digest gets a reuse capsule and starts from its installed copy [C7]', () => withRoot(root => {
+test('runners.remote.n4140-clause-1-a-runner-holding: #4140 clause 1: a runner holding the runtime by digest gets a reuse capsule and starts from its installed copy [C7]', () => withRoot(root => {
   const { worker, tooling, runtime } = largeTooling();
   assert.equal(launch(root, tooling, runtime, worker, false).result.status, 0, 'the first launch installs the runtime');
   const { input, result } = launch(root, tooling, runtime, worker, true);
@@ -83,7 +83,7 @@ test('#4140 clause 1: a runner holding the runtime by digest gets a reuse capsul
   assert.equal(result.stdout.toString(), '12\n{"job":"x"}', 'the worker reads exactly the frame after the reuse capsule');
 }));
 
-test('#4140 clause 1: a reuse launch refuses a runtime that is missing or changed, so the next launch sends it whole [C7]', () => withRoot(root => {
+test('runners.remote.n4140-clause-1-a-reuse-launch: #4140 clause 1: a reuse launch refuses a runtime that is missing or changed, so the next launch sends it whole [C7]', () => withRoot(root => {
   const { entry, worker, tooling, runtime } = largeTooling();
   assert.match(String(launch(root, tooling, runtime, worker, true).result.stderr), /PULLBOARD_RUNNER_RUNTIME_MISSING/u, 'nothing installed yet');
   launch(root, tooling, runtime, worker, false);
@@ -93,7 +93,7 @@ test('#4140 clause 1: a reuse launch refuses a runtime that is missing or change
   assert.match(String(result.stderr), /PULLBOARD_RUNNER_RUNTIME_MISSING/u);
 }));
 
-test('#4140 clause 1: the transfer bound applies to the gzipped capsule, not the raw bundle [C7]', () => {
+test('runners.remote.n4140-clause-1-the-transfer-bound: #4140 clause 1: the transfer bound applies to the gzipped capsule, not the raw bundle [C7]', () => {
   const entry = 'apps/runner/src/io/scripts/worker.js', worker = 'process.stdin.pipe(process.stdout);\n';
   /** A tooling of one runtime file and the worker, named by its digest. */
   const tooling = body => {
@@ -108,7 +108,7 @@ test('#4140 clause 1: the transfer bound applies to the gzipped capsule, not the
   assert.throws(() => remoteWorkerLaunch({ host: 'runner', node: process.execPath }, worker, dense.tooling, dense.runtime, '', null), { code: 'RUNNER_REQUEST_LIMIT' }, 'a capsule that would cross the wire past its bound refuses');
 });
 
-test('#4140 clause 1: READY records that a runner holds a runtime, and a failed reuse forgets it [C7]', () => withRoot(root => {
+test('runners.remote.n4140-clause-1-ready-records-that: #4140 clause 1: READY records that a runner holds a runtime, and a failed reuse forgets it [C7]', () => withRoot(root => {
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = root;
   try {
