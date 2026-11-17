@@ -4,9 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { main } from '../../tests/fixtures/native.js';
-import { fixture } from '../../tests/fixtures/next/take.js';
+import { machineSettingsFile } from '../../../../../packages/config/index.js';
+import { main } from '../../fixtures/native.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 /** Turn next.readinessCheck on or off for this fixture's machine, keeping the settings the fixture wrote. */
 function readinessCheck(on) {
@@ -33,7 +33,7 @@ async function notReadyThenPlain(t, on) {
   return { box, blocked, plain };
 }
 
-test('clause 1: next does not offer an item whose readiness command exits non-zero and prints that command output [C7,#8793]', async t => {
+test('cli.next.readiness.next-does-not-offer-an-item: clause 1: next does not offer an item whose readiness command exits non-zero and prints that command output [C7,#8793]', async t => {
   const { box, blocked, plain } = await notReadyThenPlain(t, true);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`skipped #${blocked}: .*echo database is down; exit 3.*exited 3: database is down`, 'u'), 'the skip names the command, its exit code and its output');
@@ -41,7 +41,7 @@ test('clause 1: next does not offer an item whose readiness command exits non-ze
   assert.doesNotMatch(text, new RegExp(`claimed #${blocked}:`, 'u'));
 });
 
-test('clause 1: with next.readinessCheck off next offers the item as before [C7,#8793]', async t => {
+test('cli.next.readiness.with-next-readinesscheck-off-next-offers: clause 1: with next.readinessCheck off next offers the item as before [C7,#8793]', async t => {
   const { box, blocked } = await notReadyThenPlain(t, false);
   const text = await printed(box, box.seats.actor.path);
   assert.match(text, new RegExp(`claimed #${blocked}: Waits on a service`, 'u'));

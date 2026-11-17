@@ -4,11 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { nextCapBuilders } from '../../../../packages/config/index.js';
-import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { cli } from '../../tests/fixtures/next/take.js';
-import { fixture } from '../../tests/fixtures/next/take.js';
+import * as store from '../../../../../packages/store/index.js';
+import { nextCapBuilders } from '../../../../../packages/config/index.js';
+import { machineSettingsFile } from '../../../../../packages/config/index.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 /** Write this fixture machine's next settings, keeping the settings the fixture wrote. */
 function nextSettings(next) {
@@ -27,7 +27,7 @@ function crowded(box) {
   return { review, held, open };
 }
 
-test('clause 1: with next.capBuilders on and builders past the cap, next offers a review instead of a build [C7,#8545]', async t => {
+test('cli.next.cap-builders.with-next-capbuilders-on-and-builders: clause 1: with next.capBuilders on and builders past the cap, next offers a review instead of a build [C7,#8545]', async t => {
   const box = await fixture(t);
   const { review, open } = crowded(box);
   nextSettings({ capBuilders: 1 });
@@ -38,7 +38,7 @@ test('clause 1: with next.capBuilders on and builders past the cap, next offers 
   assert.equal(store.getItem(box.board, open).item_status, 'open', 'the open build stays unclaimed');
 });
 
-test('clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
+test('cli.next.cap-builders.next-capbuilders-is-off-by-default: clause 2: next.capBuilders is off by default and next answers as before [C7,#8545]', async t => {
   const box = await fixture(t);
   crowded(box);
   assert.equal(nextCapBuilders(), 0, 'the default is off');

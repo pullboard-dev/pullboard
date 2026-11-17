@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { main } from '../../tests/fixtures/native.js';
-import { fixture } from '../../tests/fixtures/next/take.js';
+import { main } from '../../fixtures/native.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 /** Run the real command parser in plain text mode, since the lag line is a text line that --json mode does not print. */
 async function cli(box, cwd, args) {
@@ -22,7 +22,7 @@ function landOnMain(box, count) {
   }
 }
 
-test('clause 1: next, claim and inbox print one line naming the commits behind and the base age when the seat is behind main [N2,B3]', async t => {
+test('cli.next.lag.next-claim-and-inbox-print-one: clause 1: next, claim and inbox print one line naming the commits behind and the base age when the seat is behind main [N2,B3]', async t => {
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   const id = box.add('Work a lagging seat claims');
   const seat = box.seats.actor.path;
@@ -37,7 +37,7 @@ test('clause 1: next, claim and inbox print one line naming the commits behind a
   }
 });
 
-test('clause 2: a seat level with main prints no lag line [N2,B3]', async t => {
+test('cli.next.lag.a-seat-level-with-main-prints: clause 2: a seat level with main prints no lag line [N2,B3]', async t => {
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   box.add('Work a level seat claims');
   const seat = box.seats.actor.path;

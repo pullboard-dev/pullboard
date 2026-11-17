@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** The relay image copies only paths that exist after the layout freeze, each once [C7]. */
+/** @pullboard-test-input apps/relay/src/io/deploy/Dockerfile package.json CHANGELOG.md apps/relay/src/io/deploy/server.mjs packages/kernel/index.js */
+/** The relay image copies only paths that exist after the layout freeze, each once [C7]. The Dockerfile copies the apps/ and packages/ folders whole and this test only checks they exist, so the header names the Dockerfile, the two root files, the image's CMD file under apps/ and the kernel front door under packages/. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';

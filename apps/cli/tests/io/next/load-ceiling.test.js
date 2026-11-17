@@ -4,11 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../../packages/store/index.js';
-import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { setMachineLoadPort } from '../../../../packages/resources/index.js';
-import { cli } from '../../tests/fixtures/next/take.js';
-import { fixture } from '../../tests/fixtures/next/take.js';
+import * as store from '../../../../../packages/store/index.js';
+import { machineSettingsFile } from '../../../../../packages/config/index.js';
+import { setMachineLoadPort } from '../../../../../packages/resources/index.js';
+import { cli } from '../../fixtures/next/take.js';
+import { fixture } from '../../fixtures/next/take.js';
 
 /** Write this fixture machine's settings, keeping the settings the fixture wrote. */
 function machineSettings(next, machine = {}) {
@@ -28,7 +28,7 @@ function injectLoad(t, load) {
   });
 }
 
-test('clause 1: above machine.loadCeiling next hands no new build or review claim and names the load [C7,#9703]', async t => {
+test('cli.next.load-ceiling.above-machine-loadceiling-next-hands-no: clause 1: above machine.loadCeiling next hands no new build or review claim and names the load [C7,#9703]', async t => {
   const box = await fixture(t);
   const review = box.add('Review waiting');
   box.submit(review);
@@ -44,7 +44,7 @@ test('clause 1: above machine.loadCeiling next hands no new build or review clai
   assert.equal(store.getItem(box.board, review).item_review_by ?? null, null, 'the waiting review stays unreserved');
 });
 
-test('clause 2: above the ceiling a seat that holds a claim still resumes it [C7,#9703]', async t => {
+test('cli.next.load-ceiling.above-the-ceiling-a-seat-that: clause 2: above the ceiling a seat that holds a claim still resumes it [C7,#9703]', async t => {
   const box = await fixture(t);
   const mine = box.add('Held by the actor');
   box.claim(mine, box.seats.actor);
@@ -57,7 +57,7 @@ test('clause 2: above the ceiling a seat that holds a claim still resumes it [C7
   assert.equal(resumed.document.held, true);
 });
 
-test('clause 3: below the ceiling next hands claims as before, and the hold is off by default [C7,#9703]', async t => {
+test('cli.next.load-ceiling.below-the-ceiling-next-hands-claims: clause 3: below the ceiling next hands claims as before, and the hold is off by default [C7,#9703]', async t => {
   const box = await fixture(t);
   const open = box.add('Open build');
   machineSettings({ holdAboveLoad: true });
@@ -67,7 +67,7 @@ test('clause 3: below the ceiling next hands claims as before, and the hold is o
   assert.equal(below.document.item.item_id, open, 'below the ceiling the build is handed over');
 });
 
-test('clause 3: with next.holdAboveLoad off, a load above the ceiling changes nothing [C7,#9703]', async t => {
+test('cli.next.load-ceiling.with-next-holdaboveload-off-a-load: clause 3: with next.holdAboveLoad off, a load above the ceiling changes nothing [C7,#9703]', async t => {
   const box = await fixture(t);
   const open = box.add('Open build');
   machineSettings({});

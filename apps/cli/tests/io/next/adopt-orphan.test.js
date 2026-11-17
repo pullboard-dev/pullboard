@@ -6,10 +6,10 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { FIXTURE_MODEL } from '../../tests/fixtures/e2e.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
-import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
+import { FIXTURE_MODEL } from '../../fixtures/e2e.js';
+import { createE2eHelpers } from '../../fixtures/e2e.js';
+import { fixtureAdd } from '../../fixtures/testkit.js';
+import { joinFixtureSeat } from '../../fixtures/testkit.js';
 
 /** A project whose first seat built and returned an item with its work pinned, and a fresh seat that takes the next claim. */
 async function returned(t, { setting }) {
@@ -43,7 +43,7 @@ async function returned(t, { setting }) {
   return { box, id, head, pin, fresh, file };
 }
 
-test('clause 1: with next.adoptPreserved on, next --take of a returned item checks the new folder out at its pinned commit [C7,#9689]', async t => {
+test('cli.next.adopt-orphan.with-next-adoptpreserved-on-next-take: clause 1: with next.adoptPreserved on, next --take of a returned item checks the new folder out at its pinned commit [C7,#9689]', async t => {
   const f = await returned(t, { setting: true });
   const taken = await f.box.runLocal(f.fresh, 'next', '--take');
   assert.equal(taken.code, 0, taken.err + taken.out);
@@ -56,7 +56,7 @@ test('clause 1: with next.adoptPreserved on, next --take of a returned item chec
   assert.match(shown.out, /Adopted the orphaned claim of web-1 .*credit to web-1/u);
 });
 
-test('clause 2: with next.adoptPreserved off, the default, next --take claims the returned item exactly as before [C7,#9689]', async t => {
+test('cli.next.adopt-orphan.with-next-adoptpreserved-off-the-default: clause 2: with next.adoptPreserved off, the default, next --take claims the returned item exactly as before [C7,#9689]', async t => {
   const f = await returned(t, { setting: false });
   const taken = await f.box.runLocal(f.fresh, 'next', '--take');
   assert.equal(taken.code, 0, taken.err + taken.out);
