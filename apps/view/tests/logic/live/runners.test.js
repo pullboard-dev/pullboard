@@ -101,3 +101,15 @@ test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy pe
   assert.deepEqual(loadPercents({ average: [40], cpus: 8, freeMB: 9, memoryMB: 4 }), { cpu: 100, ram: 0 }, 'percents clamp to 0..100');
   assert.deepEqual(loadPercents(null), { cpu: null, ram: null });
 });
+
+test('clause 1: a run listing such a file and a short one passes publicSnapshot and lists only the short one [N26]', () => {
+  const digest = 'a1b2c3d4'.repeat(8);
+  const long = 'packages/gate/tests/journey-parity-export-team-board.test.js';
+  const hexed = `apps/view/tests/${digest}.test.js`;
+  const { live } = publicSnapshot({ live: sources({ job: { files: ['apps/a.test.js', long, hexed], progress: { latest: [long, hexed, 'apps/a.test.js'], files: { 'apps/a.test.js': 'green' } } } }) });
+  const gate = live.runs.find(run => run.kind === 'gate');
+  assert.deepEqual(gate.files, [{ file: 'apps/a.test.js', state: 'green' }], 'the 40-character segment and the 64-hex name leave the list');
+  assert.deepEqual(gate.latest, [{ file: 'apps/a.test.js', state: 'green' }]);
+  const text = JSON.stringify(live);
+  assert.equal(text.includes('journey-parity') || text.includes(digest), false);
+});
