@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { join } from 'node:path';
 
-test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', async (t) => {
+test('cli.journeys-next-order-part3.an-agent-exhausts-ready-own-lane: an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const web = box.json((await box.runAsLocal(box.session, box.web, 'join', 'web', '--model', 'fixture-model', '--lock-lane', '--json')));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
@@ -44,7 +44,7 @@ test('an agent exhausts ready own-lane work, then names another lane\'s item wit
   assert.notEqual(web.agent, api.agent);
 });
 
-test('a seat that holds nothing is never told it holds another seat\'s claim [N2,B13]', async (t) => {
+test('cli.journeys-next-order-part3.a-seat-that-holds-nothing-is: a seat that holds nothing is never told it holds another seat\'s claim [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const holder = box.seat('claim-holder', 'web', box.session);
   const idle = box.seat('claim-idle', 'web', box.session);
@@ -63,7 +63,7 @@ test('a seat that holds nothing is never told it holds another seat\'s claim [N2
   assert.equal(own.held, true);
 });
 
-test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', async (t) => {
+test('cli.journeys-next-order-part3.next-names-the-lane-to-open: next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', async (t) => {
   const box = crossLaneFixture(t);
   const web = box.seat('owned-mid-web', 'web', box.session, 'mid', true);
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
