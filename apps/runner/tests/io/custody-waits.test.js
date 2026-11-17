@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/runner */
+/** @pullboard-test-input apps/runner/src/io/custody.js apps/runner/src/io/worker/process.js */
 /** @pullboard-world-pin reads the custody and worker process sources to prove each polling wait carries a budget line [C7,#9525]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
