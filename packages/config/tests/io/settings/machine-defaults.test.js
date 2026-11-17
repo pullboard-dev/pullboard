@@ -13,6 +13,7 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.compactShouts': false,
   'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
@@ -51,10 +52,12 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.knownMainStatic': false,
   'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
+  'gate.machineVerifyPulled': false,
   'gate.mainCaseFilter': false,
   'gate.mainComparison': 'on-red',
   'gate.measuredSlots': false,
@@ -78,6 +81,7 @@ const BEFORE = {
   'gate.runnersFirst': false,
   'gate.runnersOnly': false,
   'gate.sampleDiskIo': false,
+  'gate.selectionUnit': 'file',
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
   'gate.staticLoadAdmission': false,
@@ -114,7 +118,9 @@ const BEFORE = {
   'landing.squash': false,
   'landing.stallStop': false,
   'landing.staticAffectedOnly': false,
+  'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
+  'launch.reachableDispatcher': false,
   'list.thinRead': false,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
@@ -173,11 +179,14 @@ const BEFORE = {
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,
+  'state.milestoneDelta': false,
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
+  'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
+  'submit.residentChecks': false,
   'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
@@ -261,6 +270,11 @@ test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: c
 test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.knownMainStatic'], false);
+  assert.ok(SETTING_DESCRIPTIONS['gate.knownMainStatic']);
 });
 
 test('config.io-settings-machine-defaults.clause-1-next-lightshapedstrong-is-a: clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {

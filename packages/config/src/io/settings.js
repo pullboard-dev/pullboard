@@ -89,6 +89,16 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
+/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+export function residentChecks() {
+  return loadMachineSettings().submit?.residentChecks === true;
+}
+
+/** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
+export function pendingFromJobRow() {
+  return loadMachineSettings().submit?.pendingFromJobRow === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
@@ -261,9 +271,19 @@ export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
 }
 
+/** Whether push.pinTooling is on: off by default; only an exact `true` makes a pre-push shard job carry the item gate's tooling pin [C7,#9373]. */
+export function pushPinToolingEnabled() {
+  return loadMachineSettings().push?.pinTooling === true;
+}
+
 /** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
 export function pushRecordTimingEnabled() {
   return loadMachineSettings().push?.recordTiming === true;
+}
+
+/** Whether push.refuseUnsharded is on: off by default; only an exact `true` makes the pre-push hook refuse a push it cannot shard instead of running the one-command gate [C7,#9369]. */
+export function pushRefuseUnshardedEnabled() {
+  return loadMachineSettings().push?.refuseUnsharded === true;
 }
 
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
@@ -487,6 +507,11 @@ export function derivedStateEnabled() {
 /** Whether landing.reofferTrunkBusy is on (#9102): off by default; only an exact `true` turns it on. */
 export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
+}
+
+/** The cap landing.staticParallelMax sets on static-check child processes at once (#9078), or null when unset: they run one at a time. */
+export function staticParallelMax() {
+  return loadMachineSettings().landing?.staticParallelMax ?? null;
 }
 
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
@@ -1053,6 +1078,11 @@ export function readCrossProcessWrites() {
   return loadMachineSettings().board?.crossProcessWrites === true;
 }
 
+/** Whether state.milestoneDelta is on (#9846, #9597): off by default; only an exact `true` turns it on. */
+export function milestoneDeltaEnabled() {
+  return loadMachineSettings().state?.milestoneDelta === true;
+}
+
 /** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
 export function watchQuietReadsEnabled() {
   return loadMachineSettings().watch?.quietReads === true;
@@ -1081,6 +1111,11 @@ export function parallelGatesEnabled() {
 /** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
 export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
+}
+
+/** Whether gate.pulledProfilePaths is on (#9614): off by default; only an exact `true` turns it on. */
+export function pulledProfilePathsEnabled() {
+  return loadMachineSettings().gate?.pulledProfilePaths === true;
 }
 
 /** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */

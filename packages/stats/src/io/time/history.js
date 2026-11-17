@@ -4,6 +4,9 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+/** The time checkpoint log's file name under the board's private folder; this module appends to it, so it owns the store [R1,C7]. */
+export const STATS_HISTORY_FILE = 'stats-history.jsonl';
+
 /**
  * Read the history text, empty when nothing has been recorded yet.
  *

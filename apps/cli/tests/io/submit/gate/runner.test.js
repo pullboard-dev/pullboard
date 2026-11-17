@@ -45,7 +45,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
 `);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
-  put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put('apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('bin/static-checks.js', '');
   // Main's doctrine module records where it ran, so the test can tell the runner checkout from the controller.
   put('packages/doctrine/index.js', `import { writeFileSync } from 'node:fs';

@@ -71,3 +71,14 @@ test('gate.registry.first-28: clause 2: the first 28 test files through journey-
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
   assert.ok(ids.length > 0);
 });
+
+test('gate.registry.io-admission-to-main: clause 1: [C7,U148] the io folders admission through main each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const folders = ['admission', 'affected', 'board', 'browser', 'changed', 'check', 'clone', 'edges', 'gui', 'journal', 'main'];
+  const files = folders.flatMap((folder) => testFiles(join(DIR, 'io', folder))).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  assert.ok(files.length >= 60, 'the io folders are present');
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those folders is titled with a registered ID');
+  assert.ok(ids.length > 250);
+});
