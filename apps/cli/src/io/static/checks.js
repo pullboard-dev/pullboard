@@ -8,6 +8,7 @@ import { recentReceipts } from '../../../../../packages/gate/index.js';
 import { staticScopeFromEnv } from '../../../../../packages/gate/index.js';
 import { tripOverheadReport } from '../../../../../packages/gate/index.js';
 import { gateTripOverheadBudgetMs } from '../../../../../packages/config/index.js';
+import { staticParallelMax as machineStaticParallelMax } from '../../../../../packages/config/index.js';
 import { viewPureGate } from './view.js';
 
 /**
@@ -51,10 +52,15 @@ export function registryFindings(status, stdout, stderr) {
   return JSON.parse(stdout);
 }
 
+/** The cap landing.staticParallelMax sets, or null when it is unset (or the machine settings cannot be read): the serial run [C7]. */
+function staticParallelMax() {
+  try { return machineStaticParallelMax(); } catch { return null; }
+}
+
 /** The static tree registry run as its own process; a crash is one failure line naming its cause [C7]. */
 function treeRegistryFailures(program, root) {
   return new Promise(resolveRun => {
-    const child = spawn(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS)], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [...process.execArgv, '--input-type=module', '-e', program, root, JSON.stringify(staticScopeFromEnv()), JSON.stringify(STATIC_APPS), JSON.stringify(staticParallelMax())], { stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [];
     const err = [];
     child.stdout.on('data', chunk => out.push(chunk));
@@ -103,7 +109,8 @@ if (process.argv[2] === '--changed-files') {
 // Gate's tree registry runs as its own process, so this preflight imports nothing past gate's front doors [C7].
 const registry = fileURLToPath(new URL('../../../../../packages/gate/src/io/static/registry.js', import.meta.url));
 // A gate that found no whole-repo input in the change hands over the changed paths; the registry then judges only those [5814].
-const program = `const { runStaticTreeRegistry } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nprocess.stdout.write(JSON.stringify(runStaticTreeRegistry(process.argv[1], { changed: JSON.parse(process.argv[2]), apps: JSON.parse(process.argv[3]) })));`;
+// landing.staticParallelMax (unset: serial) starts the registry's child-process checks together, at most that many at once [C7].
+const program = `const { runStaticTreeRegistry, runStaticTreeRegistryParallel } = await import(${JSON.stringify(pathToFileURL(registry).href)});\nconst scope = { changed: JSON.parse(process.argv[2]), apps: JSON.parse(process.argv[3]) }, max = JSON.parse(process.argv[4]);\nprocess.stdout.write(JSON.stringify(max === null ? runStaticTreeRegistry(process.argv[1], scope) : await runStaticTreeRegistryParallel(process.argv[1], { ...scope, max })));`;
 const failures = await staticFailures([
   () => treeRegistryFailures(program, root),
   async () => viewPureGate(root).failures.map(row => `${row.path}:${row.line}: ${row.text}`),

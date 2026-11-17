@@ -45,7 +45,7 @@ function crowdCache(root, mains) {
   }
 }
 
-test('clause 1: a file unchanged on later mains answers from the nearest receipt with one Git process for 100 cached keys [C7,#6717]', { timeout: 60_000 }, // budget: one fixture repo with 40 commits, no runner.
+test('landing.nearby.a-file-unchanged-on-later-mains: clause 1: a file unchanged on later mains answers from the nearest receipt with one Git process for 100 cached keys [C7,#6717]', { timeout: 60_000 }, // budget: one fixture repo with 40 commits, no runner.
 t => {
   const { root, gate, later } = movingMain(t, 40);
   crowdCache(root, later);
@@ -56,7 +56,7 @@ t => {
   assert.equal(value.receipt, 'job-0', 'the nearest later main answers');
 });
 
-test('clause 1: a file changed on a later main answers only from mains before the change, still with one Git process [C7,#6717]', { timeout: 60_000 }, // budget: one fixture repo with 40 commits, no runner.
+test('landing.nearby.a-file-changed-on-a-later: clause 1: a file changed on a later main answers only from mains before the change, still with one Git process [C7,#6717]', { timeout: 60_000 }, // budget: one fixture repo with 40 commits, no runner.
 t => {
   const { root, gate, later } = movingMain(t, 40, 5);
   crowdCache(root, later.slice(5));

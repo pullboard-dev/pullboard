@@ -50,7 +50,7 @@ function fixture(t) {
   return { main, candidate, git, path, run };
 }
 
-test('a dirty seat snapshot carries accepted main into its detached runner checkout [C7]', async t => {
+test('landing.budget.a-dirty-seat-snapshot-carries-accepted: a dirty seat snapshot carries accepted main into its detached runner checkout [C7]', async t => {
   const box = fixture(t);
   writeFileSync(join(box.candidate, 'later.test.js'), "import {test} from 'node:test'; test('changed',()=>{});\n");
   await inCleanCheckout(box.candidate, async snapshot => {
@@ -60,7 +60,7 @@ test('a dirty seat snapshot carries accepted main into its detached runner check
   }, withMainCheckout);
 });
 
-test('a linked item worktree uses its runner primary admitted trunk [C7]', async t => {
+test('landing.budget.a-linked-item-worktree-uses-its: a linked item worktree uses its runner primary admitted trunk [C7]', async t => {
   const box = fixture(t);
   const commit = box.git(box.main, 'rev-parse', 'HEAD^{commit}');
   const tree = box.git(box.main, 'rev-parse', 'HEAD^{tree}');
@@ -83,14 +83,14 @@ test('a linked item worktree uses its runner primary admitted trunk [C7]', async
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
 });
 
-test('a detached repository without trusted trunk fails closed with guidance [C7]', t => {
+test('landing.budget.a-detached-repository-without-trusted-trunk: a detached repository without trusted trunk fails closed with guidance [C7]', t => {
   const box = fixture(t);
   box.git(box.main, 'checkout', '--quiet', '--detach');
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']),
     error => error.code === 'NO_POLICY' && /detached for review; ask it to return to its main branch/u.test(error.message));
 });
 
-test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {
+test('landing.budget.an-over-budget-file-fails-with: an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {
   const box = fixture(t);
   const red = box.run(), output = `${red.stdout ?? ''}${red.stderr ?? ''}`;
   assert.equal(red.status, 1, output);
@@ -116,7 +116,7 @@ test('an over-budget file fails with its observed runtime, while audit placement
   assert.equal(green.status, 0, `${green.stdout ?? ''}${green.stderr ?? ''}`);
 });
 
-test('a candidate cannot loosen or remove an accepted file limit [C7]', t => {
+test('landing.budget.a-candidate-cannot-loosen-or-remove: a candidate cannot loosen or remove an accepted file limit [C7]', t => {
   const box = fixture(t);
   writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 2 }));
   box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'loosen');
@@ -130,11 +130,11 @@ test('a candidate cannot loosen or remove an accepted file limit [C7]', t => {
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /invalid test file budget row/u);
 });
 
-test('the default test file budget is 120 s [C7]', () => {
+test('landing.budget.the-default-test-file-budget-is: the default test file budget is 120 s [C7]', () => {
   assert.equal(DEFAULT_TEST_FILE_BUDGET_MS, 120000);
 });
 
-test('a file with no recorded row that runs 121 s fails its gate naming the file and the split [C7]', t => {
+test('landing.budget.a-file-with-no-recorded-row: a file with no recorded row that runs 121 s fails its gate naming the file and the split [C7]', t => {
   const box = fixture(t);
   assert.equal(readTestFileBudgets(box.candidate, ['later.test.js']).get('later.test.js').ms, 120000, 'an unrecorded file gets the default');
   const message = testFileBudgetFailure('later.test.js', 121000, DEFAULT_TEST_FILE_BUDGET_MS);
@@ -142,7 +142,7 @@ test('a file with no recorded row that runs 121 s fails its gate naming the file
   assert.equal(testFileBudgetFailure('later.test.js', 120000, DEFAULT_TEST_FILE_BUDGET_MS), null, 'exactly the budget passes');
 });
 
-test('a recorded row stays the limit and can only go down [C7]', () => {
+test('landing.budget.a-recorded-row-stays-the-limit: a recorded row stays the limit and can only go down [C7]', () => {
   assert.equal(testFileBudgetFailure('slow.test.js', 5000, 1000)?.includes('over its 1000ms'), true, 'the row, not the default, is the limit');
   assert.equal(requireTestFileRatchet('slow.test.js', 500000, 400000), 400000);
   assert.throws(() => requireTestFileRatchet('slow.test.js', 400000, 500000), /may not increase from 400000ms to 500000ms/u);

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell codemap runners gate drive cli store */
 /** @pullboard-world-pin reads the real command modules to walk their static import graph. */
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
@@ -22,7 +22,7 @@ function staticEdges(file, source) {
     .map(edge => edge.from.startsWith('.') ? posix.normalize(posix.join(posix.dirname(file), edge.from)) : edge.from);
 }
 
-test('clause 1: the moved src/run.js implementation and test-run have no static gate, execution or policy-load edge [C7,#3054]', () => {
+test('codemap.run-tests-lazy-graph.the-moved-src-run-js: clause 1: the moved src/run.js implementation and test-run have no static gate, execution or policy-load edge [C7,#3054]', () => {
   for (const file of ENTRIES) {
     const source = readFileSync(new URL('../../../' + file, import.meta.url), 'utf8');
     assert.deepEqual(staticEdges(file, source).filter(edge => HEAVY.has(edge)), [], file);
@@ -34,7 +34,7 @@ test('clause 1: the moved src/run.js implementation and test-run have no static 
   }
 });
 
-test('the static graph guard detects named and side-effect gate imports while distinguishing deferred imports [C7,#3054]', () => {
+test('codemap.run-tests-lazy-graph.the-static-graph-guard-detects: the static graph guard detects named and side-effect gate imports while distinguishing deferred imports [C7,#3054]', () => {
   const file = 'packages/gate/src/io/test/run.js';
   const source = `import {runGate} from '../main.js';
 import '../execution.js';
@@ -71,7 +71,7 @@ function staticGraph(entry) {
   return visited;
 }
 
-test('runner static graph avoids landing and legacy selection routes into the gate [C7]', () => {
+test('codemap.run-tests-lazy-graph.runner-static-graph-avoids-landing: runner static graph avoids landing and legacy selection routes into the gate [C7]', () => {
   const graph = staticGraph('../../gate/src/io/run-tests.js');
   const root = fileURLToPath(new URL('../../..', import.meta.url));
   const paths = new Set([...graph].map(file => relative(root, file).split(sep).join('/')));
@@ -85,7 +85,7 @@ test('runner static graph avoids landing and legacy selection routes into the ga
   assert.ok(!staticGraph('../../gate/src/io/test/selection.js').has(gate), 'clause 1: the selection entry stays gate-free');
 });
 
-test('clause 2: the runner reads the worker process identity from the drive light door it already imports [C7]', () => {
+test('codemap.run-tests-lazy-graph.the-runner-reads-the-worker: clause 2: the runner reads the worker process identity from the drive light door it already imports [C7]', () => {
   const root = fileURLToPath(new URL('../../..', import.meta.url));
   const door = new Set([...staticGraph('../../drive/light.js')].map(file => relative(root, file).split(sep).join('/')));
   assert.ok(door.has('packages/drive/src/logic/identity.js'), 'the drive light door carries the identity helpers');
@@ -113,7 +113,7 @@ function importParents(entry) {
   return parent;
 }
 
-test('clause 1: apps/cli/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
+test('codemap.run-tests-lazy-graph.apps-cli-src-io-run: clause 1: apps/cli/src/io/run/tests.js static graph does not reach the store door, board.js, machine.js or check-baseline-worker.js through verify or seats [C7,#3056]', () => {
   const runner = importParents('packages/gate/src/io/run-tests.js');
   for (const barrel of BARRELS) assert.ok(!runner.has(barrel), `apps/cli/src/io/run/tests.js statically imports ${barrel}`);
   for (const barrel of BARRELS) {

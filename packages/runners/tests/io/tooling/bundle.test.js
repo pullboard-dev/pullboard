@@ -44,7 +44,7 @@ function markBundle(file) {
   writeFileSync(file, JSON.stringify({ sha256: sha256(body), body }), { mode: 0o600 });
 }
 
-test('#8462 clause 1: a second trip on a new commit with the same tooling digest starts the cached bundle without rebuilding it [C7]', async t => {
+test('runners.bundle.n8462-clause-1-a-second-trip: #8462 clause 1: a second trip on a new commit with the same tooling digest starts the cached bundle without rebuilding it [C7]', async t => {
   const { graph, trip } = committedCopy(t);
   const first = await trip('trip1');
   const file = bundleFile(t, graph.root, first.tooling.sha256);
@@ -60,7 +60,7 @@ test('#8462 clause 1: a second trip on a new commit with the same tooling digest
   assert.deepEqual(second.runtime, first.runtime, 'the same worker runtime bytes');
 });
 
-test('#8462 clause 2: a cached bundle whose hash no longer matches is rebuilt [C7]', async t => {
+test('runners.bundle.n8462-clause-2-a-cached-bundle: #8462 clause 2: a cached bundle whose hash no longer matches is rebuilt [C7]', async t => {
   const { graph, trip } = committedCopy(t);
   const first = await trip('trip1');
   const file = bundleFile(t, graph.root, first.tooling.sha256);

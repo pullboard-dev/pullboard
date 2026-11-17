@@ -26,7 +26,7 @@ function landing(t, { kind = 'land' } = {}) {
   return { board, call, held };
 }
 
-test('#8196 clause 1: the shards action offers the proof as gate-shard jobs land:<job>:shard:N, split round-robin by the gate\'s count rule [C7,#7818]', t => {
+test('api.land-shards.shards-action-offers-proof-gate: #8196 clause 1: the shards action offers the proof as gate-shard jobs land:<job>:shard:N, split round-robin by the gate\'s count rule [C7,#7818]', t => {
   const { board, call } = landing(t);
   const answer = call();
   // Seven files on two cores is ceil(7 / 2) = 4 shards, dealt round-robin.
@@ -37,7 +37,7 @@ test('#8196 clause 1: the shards action offers the proof as gate-shard jobs land
   assert.deepEqual(parts, [[FILES[0], FILES[4]], [FILES[1], FILES[5]], [FILES[2], FILES[6]], [FILES[3]]]);
 });
 
-test('#8196 clause 2: each shard carries the ledger hits for its own files, with the merged commit as its source [C7,#7818]', t => {
+test('api.land-shards.each-shard-carries-ledger-hits: #8196 clause 2: each shard carries the ledger hits for its own files, with the merged commit as its source [C7,#7818]', t => {
   const { board, call } = landing(t);
   const { shards } = call();
   const requests = shards.map(() => { const held = claimJob(board.db, { runner: 'r-shard', capabilities: [], now: 8 }); return jobRequest(board.db, { job: held.job, runner: 'r-shard', token: held.token }); });
@@ -48,7 +48,7 @@ test('#8196 clause 2: each shard carries the ledger hits for its own files, with
   assert.ok(withHits[0].request.input.data.shard.files.includes(FILES[0]));
 });
 
-test('#8196 clause 1: a plan within one runner\'s cores is not sharded, and a job that is not a land job or not held is refused [C7,#7818]', t => {
+test('api.land-shards.plan-within-runner-cores-sharded: #8196 clause 1: a plan within one runner\'s cores is not sharded, and a job that is not a land job or not held is refused [C7,#7818]', t => {
   const { call, board } = landing(t);
   assert.deepEqual(call({ plan: { runner: 'node --test', files: FILES.slice(0, 2), cores: 2 } }), { sharded: false, shards: [] });
   assert.throws(() => call({ token: 'wrong' }), error => error.code === 'JOB_LEASE_MOVED');
@@ -58,7 +58,7 @@ test('#8196 clause 1: a plan within one runner\'s cores is not sharded, and a jo
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = 'gate-shard'").get().n, 0);
 });
 
-test('#8197: the land job\'s holder reads its shards\' receipts back, and nobody else, and only its own shards [C7,#7818]', t => {
+test('api.land-shards.x8197-land-job-holder-reads: #8197: the land job\'s holder reads its shards\' receipts back, and nobody else, and only its own shards [C7,#7818]', t => {
   const { board, call, held } = landing(t);
   const { shards } = call();
   const read = (extra = {}) => boardJobQueueCall(board, { action: 'shardReceipts', job: 'land:1:k', runner: 'r-land', token: held.token, shards, ...extra }, { mode: 'pull', now: 7 });

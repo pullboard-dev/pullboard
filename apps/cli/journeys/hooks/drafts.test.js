@@ -33,7 +33,7 @@ test('clause 1: a lane agent drafts a row and cites it without leaving its lane 
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'list.html'), '<ul></ul>\n');
   box.git(box.web, 'add', 'web/list.html');
-  const commit = box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): show the list [${id}]`);
+  const commit = await box.tryGit(box.web, 'commit', '-q', '-m', `feat(web): show the list [${id}]`);
   assert.equal(commit.status, 0, `the lane cites its drafted row in a feature commit: ${commit.stderr}`);
   const submitted = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(submitted.code, 0, `the lane submits with the gate pullboard spec check: ${submitted.out}${submitted.err}`);
@@ -63,7 +63,7 @@ test('clause 2: a lane draft and a coordinator draft never share an id, in eithe
   // Coordinator first, committed through the installed hooks: the lane's older files lack it, and its next id still skips it.
   const coordinatorFirst = (await draft(box.repo, 'A coordinator row drafted first'));
   box.git(box.repo, 'add', 'SPEC.md');
-  const committed = box.tryGit(box.repo, 'commit', '-q', '-m', `docs(spec): draft two rows [${coordinatorAfter},${coordinatorFirst}]`);
+  const committed = await box.tryGit(box.repo, 'commit', '-q', '-m', `docs(spec): draft two rows [${coordinatorAfter},${coordinatorFirst}]`);
   assert.equal(committed.status, 0, committed.stderr);
   const laneAfter = (await draft(box.web, 'A lane row drafted after'));
   const ids = [laneFirst, coordinatorAfter, coordinatorFirst, laneAfter];
