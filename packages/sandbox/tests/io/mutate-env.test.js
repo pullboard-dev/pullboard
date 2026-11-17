@@ -16,18 +16,18 @@ import {
 
 const GUARD = '--import=file:///work/packages/gate/src/io/browser/guard.js';
 
-test('an undeclared parent job passes no browser marker, guard or file name to a child [C7]', () => {
+test('sandbox.mutate-env.undeclared-job-passes-no-marker: an undeclared parent job passes no browser marker, guard or file name to a child [C7]', () => {
   const env = childEnv({ NODE_TEST_CONTEXT: 'child-v8', PULLBOARD_TEST_BROWSER_SLOT: 'none', PULLBOARD_TEST_FILE: 'a.test.js', NODE_OPTIONS: `--max-old-space-size=512 ${GUARD}`, KEPT: '1' });
   assert.deepEqual(env, { NODE_OPTIONS: '--max-old-space-size=512', KEPT: '1' });
   assert.equal(childEnv({ PULLBOARD_TEST_BROWSER_SLOT: 'none', NODE_OPTIONS: GUARD }).NODE_OPTIONS, undefined);
 });
 
-test('a parent job that holds a browser lease keeps it for its children [C7]', () => {
+test('sandbox.mutate-env.lease-holder-keeps-lease: a parent job that holds a browser lease keeps it for its children [C7]', () => {
   const held = { PULLBOARD_TEST_BROWSER_SLOT: 'held', PULLBOARD_TEST_FILE: 'a.test.js', NODE_OPTIONS: '--max-old-space-size=512' };
   assert.deepEqual(childEnv(held), held);
 });
 
-test('a journey that launches Chrome passes before any fault is seeded when the parent job is undeclared [C7]', async (t) => {
+test('sandbox.mutate-env.chrome-journey-before-fault: a journey that launches Chrome passes before any fault is seeded when the parent job is undeclared [C7]', async (t) => {
   const box = privateFixtureFiles('mutate-env-');
   mkdirSync(join(box.root, 'cell'));
   writeFileSync(join(box.root, 'cell', 'a.js'), 'export const a = 1;\n');
