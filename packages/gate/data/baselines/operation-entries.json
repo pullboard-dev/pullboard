@@ -159,7 +159,6 @@
     "packages/codemap/src/io/cell/parser/worker.js",
     "packages/codemap/src/io/cells/cache-files.js",
     "packages/codemap/src/io/cells/cache.js",
-    "packages/codemap/src/io/cells/scripts/cache.js",
     "packages/codemap/src/io/map.js",
     "packages/config/src/io/settings.js",
     "packages/doctrine/src/io/checks.js",
