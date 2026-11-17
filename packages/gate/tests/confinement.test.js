@@ -79,7 +79,7 @@ function alphaChange(root, extra = {}) {
   });
 }
 
-test('#4633 clause 1: a change inside a sealed apps/<name> cell confines to that cell [C7]', t => {
+test('gate.confinement.change-inside-sealed-apps-name: #4633 clause 1: a change inside a sealed apps/<name> cell confines to that cell [C7]', t => {
   const { root, base } = fixture(t);
   const head = commit(root, { 'apps/gamma/src/shell/g.js': 'export const g = 2;\n' });
   const plan = selectTestTiers(root, { base, commit: head });
@@ -88,14 +88,14 @@ test('#4633 clause 1: a change inside a sealed apps/<name> cell confines to that
   assert.deepEqual(plan.sealedCells, ['alpha', 'apps/gamma']);
 });
 
-test('#4633 clause 1: an apps cell the listing does not seal is not confined [C7]', t => {
+test('gate.confinement.apps-cell-listing-does-not: #4633 clause 1: an apps cell the listing does not seal is not confined [C7]', t => {
   const { root, base } = fixture(t, ['alpha', 'gamma']);
   const head = commit(root, { 'apps/gamma/src/shell/g.js': 'export const g = 2;\n' });
   const plan = selectTestTiers(root, { base, commit: head });
   assert.ok(plan.journeys.includes('test/journey.test.js'), 'the bare name does not seal an apps cell, so the journeys stay');
 });
 
-test('#4633 clause 2: a sealed-cell change with only its own listing rows stays confined [C7]', t => {
+test('gate.confinement.sealed-cell-change-only-own: #4633 clause 2: a sealed-cell change with only its own listing rows stays confined [C7]', t => {
   const { root, base } = fixture(t);
   const head = alphaChange(root);
   const plan = selectTestTiers(root, { base, commit: head });
@@ -106,7 +106,7 @@ test('#4633 clause 2: a sealed-cell change with only its own listing rows stays 
   assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the plan passes the completeness guard');
 });
 
-test('#4633 clause 2: the cell lints and any test that reads a changed listing still run [C7]', t => {
+test('gate.confinement.cell-lints-any-test-reads: #4633 clause 2: the cell lints and any test that reads a changed listing still run [C7]', t => {
   const { root, base } = fixture(t);
   const head = alphaChange(root);
   const plan = selectTestTiers(root, { base, commit: head });
@@ -116,7 +116,7 @@ test('#4633 clause 2: the cell lints and any test that reads a changed listing s
   assert.deepEqual(submit.proofFiles, [ALPHA_TEST, 'packages/alpha/tests/a2.test.js'], 'submit proves the cell\'s units; static checks stay in their own phase and are never trimmed by selection');
 });
 
-test('#4633 clause 2: regenerated sections, even rows of other cells, are part of the change [C7]', t => {
+test('gate.confinement.regenerated-sections-even-rows-other: #4633 clause 2: regenerated sections, even rows of other cells, are part of the change [C7]', t => {
   const { root, base } = fixture(t);
   const head = alphaChange(root, {
     'packages/gate/data/ceilings/cells-edges.json': edges({ 'packages/alpha/src/core/a.js': { cells: 0, deep: 1 }, 'packages/beta/src/core/b.js': { cells: 1, deep: 0 } }, { alpha: { imports: [], deepImporters: 0 }, beta: { imports: [], deepImporters: 0 } }),
@@ -126,7 +126,7 @@ test('#4633 clause 2: regenerated sections, even rows of other cells, are part o
   assert.ok(!plan.journeys.includes('test/journey.test.js'), 'the ceilings and the ratchet are written by a tool and checked by the static checks');
 });
 
-test('#4633 clause 3: a policy row of another cell, another cell\'s shard or a plan file no cell owns breaks confinement [C7]', t => {
+test('gate.confinement.policy-row-another-cell-another: #4633 clause 3: a policy row of another cell, another cell\'s shard or a plan file no cell owns breaks confinement [C7]', t => {
   const policy = fixture(t);
   const helper = alphaChange(policy.root, { 'packages/gate/data/tests/test-cells.json': listing(['alpha', 'apps/gamma'], { pureHelpers: { 'test/shared-fixture.js': 'audited' } }) });
   assert.ok(selectTestTiers(policy.root, { base: policy.base, commit: helper }).journeys.includes('test/journey.test.js'), 'a pure helper is policy outside the changed cells');
@@ -138,7 +138,7 @@ test('#4633 clause 3: a policy row of another cell, another cell\'s shard or a p
   assert.ok(selectTestTiers(global.root, { base: global.base, commit: transition }).journeys.includes('test/journey.test.js'), 'the transition file is global');
 });
 
-test('#4633 clause 3: a change touching an unsealed cell or shared code is not confined [C7]', t => {
+test('gate.confinement.change-touching-unsealed-cell-shared: #4633 clause 3: a change touching an unsealed cell or shared code is not confined [C7]', t => {
   const { root, base } = fixture(t);
   const open = commit(root, { 'packages/alpha/src/core/a.js': 'export const a = 2;\n', 'packages/beta/src/core/b.js': 'export const b = 2;\n' });
   assert.ok(selectTestTiers(root, { base, commit: open }).journeys.includes('test/journey.test.js'), 'beta is not sealed');
@@ -146,7 +146,7 @@ test('#4633 clause 3: a change touching an unsealed cell or shared code is not c
   assert.ok(selectTestTiers(root, { base: open, commit: shared }).journeys.includes('test/journey.test.js'), 'shared code is not a cell');
 });
 
-test('#4638 clause 1: a sealed-cell change plus only its own test-fixtures.json rows confines [C7]', t => {
+test('gate.confinement.sealed-cell-change-plus-only: #4638 clause 1: a sealed-cell change plus only its own test-fixtures.json rows confines [C7]', t => {
   const { root, base } = fixture(t);
   const head = alphaChange(root, { 'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 2 }, 'packages/alpha/tests/a2.test.js': { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 1 } } });
   const plan = selectTestTiers(root, { base, commit: head });
@@ -154,14 +154,14 @@ test('#4638 clause 1: a sealed-cell change plus only its own test-fixtures.json 
   assert.ok(!plan.journeys.includes('test/journey.test.js'), 'rows for the cell\'s own tests keep the change confined');
 });
 
-test('#4638 clause 2: a test-fixtures.json row for an unchanged cell breaks confinement [C7]', t => {
+test('gate.confinement.test-fixtures-json-row-unchanged: #4638 clause 2: a test-fixtures.json row for an unchanged cell breaks confinement [C7]', t => {
   const { root, base } = fixture(t);
   const head = alphaChange(root, { 'packages/gate/data/tests/test-fixtures.json': { [ALPHA_TEST]: { tempdir: 1 }, 'packages/beta/tests/b.test.js': { tempdir: 2 } } });
   const plan = selectTestTiers(root, { base, commit: head });
   assert.ok(plan.journeys.includes('test/journey.test.js'), 'beta is not a changed cell');
 });
 
-test('#5671 clause 1: a unit narrowed to a sealed cell passes the guard [C7]', t => {
+test('gate.confinement.unit-narrowed-sealed-cell-passes: #5671 clause 1: a unit narrowed to a sealed cell passes the guard [C7]', t => {
   const { root, base } = fixture(t);
   const moved = 'apps/gamma/tests/moved.test.js';
   const head = commit(root, { [moved]: 'import { g } from "../index.js";\nvoid g;\n', 'apps/gamma/src/shell/g.js': 'export const g = 2;\n' });
@@ -170,7 +170,7 @@ test('#5671 clause 1: a unit narrowed to a sealed cell passes the guard [C7]', t
   assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the narrowing to the sealed cell is accepted');
 });
 
-test('#5671 clause 1: an unsealed package still has to select its unit tests [C7]', t => {
+test('gate.confinement.unsealed-package-still-has-select: #5671 clause 1: an unsealed package still has to select its unit tests [C7]', t => {
   const { root, base } = fixture(t, ['alpha']);
   const head = commit(root, { 'packages/beta/src/core/b.js': 'export const b = 2;\n' });
   const plan = selectTestTiers(root, { base, commit: head });
