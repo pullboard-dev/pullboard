@@ -379,6 +379,6 @@ export function archiveOrRefuse(root, common, options) {
     try { broken = lstatSync(base).isSymbolicLink() && !existsSync(base); } catch { broken = false; }
     if (!broken) throw error;
     throw new Refused('ITEM_FOLDER_ARCHIVE_UNREACHABLE', `worktree archive folder ${base} is unreachable (a link to a missing volume); ${root} is retained untouched`,
-      `reconnect the volume or repoint ${base}, then pullboard claim again`);
+      'reconnect the volume or repoint the worktree-archives link, then pullboard claim again');
   }
 }
