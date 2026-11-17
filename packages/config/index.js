@@ -64,6 +64,7 @@ export {
   excuseMainTimingReds,
   pendingFromJobRow,
   recoverFromJobRow,
+  residentChecks,
   gateComponentTier,
   landingJunitFailures,
   gateJunitReport,
