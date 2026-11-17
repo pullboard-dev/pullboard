@@ -519,6 +519,14 @@ export function nextCapBuilders() {
 }
 
 /**
+ * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
+ * claims as before; only an exact `true` turns it on.
+ */
+export function nextHoldAboveLoad() {
+  return loadMachineSettings().next?.holdAboveLoad === true;
+}
+
+/**
  * Whether next passes over an item whose readiness command exits non-zero (#8793): off by default, so next offers items as
  * before; only an exact `true` turns it on.
  */
