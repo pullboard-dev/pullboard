@@ -12,6 +12,10 @@ import {
 } from '../../../config/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
+import {
+  LANGUAGE_ROWS,
+  rowMatches,
+} from '../logic/language-rows.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -31,9 +35,11 @@ const LANGUAGE_TESTS = Object.freeze({
  * Every ecosystem the project uses, each with its test command, in a fixed order, without running anything.
  * Why: a repo with several languages needs each one's tests in its gate, not only the first found [#3707].
  *
+ * @param {string} root
+ * @param {readonly object[]} [rows] extra ecosystem rows, in table order
  * @returns {{ language: string, command: string }[]}
  */
-export function detectLanguages(root) {
+export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   const found = [];
   const add = (language, command) => found.push({ language, command });
   const file = join(root, 'package.json');
@@ -54,6 +60,13 @@ export function detectLanguages(root) {
   if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');
   if (existsSync(join(root, 'CMakeLists.txt'))) add('cmake', 'cmake -S . -B build && cmake --build build && ctest --test-dir build');
+  if (rows.length) {
+    const names = readdirSync(root);
+    const contents = (name) => (names.includes(name) ? readFileSync(join(root, name), 'utf8') : null);
+    for (const row of rows) {
+      if (rowMatches(row, names, contents)) add(row.language, typeof row.command === 'function' ? row.command(names) : row.command);
+    }
+  }
   for (const name of ['GNUmakefile', 'makefile', 'Makefile']) {
     if (!existsSync(join(root, name))) continue;
     if (makeHasTest(readFileSync(join(root, name), 'utf8'))) add('make', 'make test');
@@ -68,8 +81,9 @@ export function detectGate(root) {
 }
 
 /** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
-export function detectTestGlobs(root) {
-  return [...new Set(detectLanguages(root).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? []))];
+export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
+  const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
+  return [...new Set(detectLanguages(root, rows).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []))];
 }
 
 /** Read literal rule target lists without executing Makefile parsing, includes or recipes. */
