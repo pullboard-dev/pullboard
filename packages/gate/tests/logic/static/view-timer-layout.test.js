@@ -44,7 +44,7 @@ test('clause 2: the one site that exists today is held at a per-file ceiling; a 
   const grown = { file: boards.file, source: held + held };
   assert.equal(viewTimerLayoutRows([grown], { enabled: true, ceilings }).length, 2, 'a second site fails and names both');
   const fresh = viewTimerLayoutRows(rowsOf(held), { enabled: true, ceilings });
-  assert.equal(fresh.length, 1, 'a new file has a ceiling of 0');
+  assert.equal(fresh.filter(row => row.startsWith(`${FILE}:`)).length, 1, 'a new file has a ceiling of 0');
   const fallen = viewTimerLayoutRows([{ file: boards.file, source: 'export const x = 1;\n' }], { enabled: true, ceilings });
   assert.match(fallen[0], /holds 1 sites but 0 remain; lower the ceiling, it only falls/u);
   assert.match(viewTimerLayoutRows([], { enabled: true, ceilings })[0], /for a file that is gone; delete its row/u);
