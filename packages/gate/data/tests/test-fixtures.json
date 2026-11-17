@@ -404,12 +404,16 @@
     "hand-policy": 2
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "tempdir": 2,
-    "hand-policy": 2,
+    "tempdir": 1,
+    "hand-policy": 1,
     "raw-board": 3
   },
   "apps/cli/journeys/shout/http-cache-miss.test.js": {
     "tempdir": 2,
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/shout/http-repeated-read.test.js": {
+    "tempdir": 1,
     "hand-policy": 1
   },
   "apps/cli/tests/fixtures/cadence.js": {
