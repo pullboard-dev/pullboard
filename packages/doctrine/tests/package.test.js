@@ -324,6 +324,7 @@ const LOADERS = {
   'apps/cli/src/io/commands/index.js': ['import(new URL(file, FOLDER).href)'],
   'apps/cli/src/io/hook/static.js': ['import(pathToFileURL(file).href)'],
   'apps/cli/src/io/hook/static.js': ['import(pathToFileURL(file).href)'],
+  'apps/cli/src/io/resident/calls.js': ['import(CHANGED_STATIC)', 'import(REGISTRY)'],
   'apps/cli/src/io/submit/remote.js': ["import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')"],
   'apps/cli/src/io/submit/gate.js': ["import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js')", 'import(input.module)'],
   'apps/view/src/io/page/actions.js': ['import(configuredTransportModule)'],
