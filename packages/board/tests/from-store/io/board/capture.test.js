@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** Real SQLite transaction capture stays with the asynchronous operation that requested it [H21]. */
 import assert from 'node:assert/strict';
 import {
