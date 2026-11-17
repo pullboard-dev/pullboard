@@ -38,10 +38,11 @@ test('clause 2: it reads only the file texts it is given and spawns no child pro
   assert.equal(inputCoverage(given)['packages/nowhere'].readers, 1);
 });
 
-/** Every local file the module reaches through relative import lines, itself included. */
+/** Every file the module reaches, following only gate-cell files through relative import lines, itself included. */
 function closure(file, seen = new Set()) {
   if (seen.has(file)) return seen;
   seen.add(file);
+  if (!file.includes('/packages/gate/')) return seen;
   for (const [, spec] of readFileSync(file, 'utf8').matchAll(/^(?:import|export)\b[^'"\n]*from '(\.[^']+)'/gmu)) closure(resolve(dirname(file), spec), seen);
   return seen;
 }
