@@ -206,6 +206,9 @@ export function loadMachineSettings() {
   if (value.spec?.cascadeReject !== undefined && typeof value.spec.cascadeReject !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.cascadeReject in ${file} must be true or false`);
   }
+  if (value.spec?.requireFactQuote !== undefined && typeof value.spec.requireFactQuote !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.requireFactQuote in ${file} must be true or false`);
+  }
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }

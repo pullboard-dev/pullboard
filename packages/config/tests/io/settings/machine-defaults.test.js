@@ -166,6 +166,7 @@ const BEFORE = {
   'serve.pullRoute': false,
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
+  'spec.requireFactQuote': false,
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
