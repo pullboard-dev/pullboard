@@ -17,7 +17,7 @@ after(e2e.cleanup);
 
 /** A claimed item with one committed change in its seat. */
 async function claimedItem(box) {
-  const { item } = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Seam receipt', run: box.runLocal });
+  const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Seam receipt', run: box.runLocal });
   const claim = await box.runLocal(box.web, 'claim', String(item.item_id));
   assert.equal(claim.code, 0, claim.out + claim.err);
   const commit = e2e.commitFile(box, box.web, 'web/seam.js', 'export const seam = 1;\n', 'feat(web): seam change [G1]');
