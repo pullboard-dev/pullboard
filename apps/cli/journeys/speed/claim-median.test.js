@@ -16,8 +16,8 @@ const RUNS = 5;
  * (run aeb950fc-00c0-43b3-a9c9-a78426194033), so the bar keeps headroom over a loaded runner; the next cut is a new item (#5331).
  */
 const BAR_MS = 2000;
-/** The median measured on a runner, in ms, written in the case title. */
-const MEASURED_MS = 1092;
+/** The median measured on a runner at low load (run f8482834-2334-4d6a-8bc3-41072978eb56), in ms, written in the case title. */
+const MEASURED_MS = 230;
 
 /** The middle of the samples. */
 function median(samples) {
