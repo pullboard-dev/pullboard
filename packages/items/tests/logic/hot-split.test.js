@@ -12,13 +12,13 @@ const ITEMS = [
   { id: 5, status: 'withdrawn', updatedAt: '2026-10-10T00:00:00Z' },
 ];
 
-test('clause 1: splitRecent keeps open and recent items whole and counts older finished ones by status [C7]', () => {
+test('items.hot-split.keeps-recent: clause 1: splitRecent keeps open and recent items whole and counts older finished ones by status [C7]', () => {
   const { kept, counts } = splitRecent(ITEMS, NOW, 24 * HOUR);
   assert.deepEqual(kept.map(item => item.id), [1, 2, 3]);
   assert.deepEqual(counts, { withdrawn: 2 });
 });
 
-test('clause 2: the counts plus the kept items equal the full item list size [C7]', () => {
+test('items.hot-split.counts-add-up: clause 2: the counts plus the kept items equal the full item list size [C7]', () => {
   for (const recentMs of [0, HOUR, 24 * HOUR, 1e12]) {
     const { kept, counts } = splitRecent(ITEMS, NOW, recentMs);
     const counted = Object.values(counts).reduce((sum, n) => sum + n, 0);
