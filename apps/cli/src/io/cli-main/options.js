@@ -140,6 +140,7 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  'fail-on-drift': { type: 'boolean' },
   prune: { type: 'boolean' },
   utilization: { type: 'boolean' },
   why: { type: 'boolean' },
