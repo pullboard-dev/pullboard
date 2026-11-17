@@ -22,6 +22,11 @@ export const JUNIT_FILE_ROWS = {
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
   // node --test --test-reporter=junit writes file (absolute, inside the checkout) on every case, which junitFile already prefers; the row only answers a case the reporter left without one.
   node: row => row.file || null,
+  // swift test --xunit-output writes classname Module.Class and no file attribute; SwiftPM keeps tests in Tests/<Module>/<Class>.swift.
+  swift: row => {
+    const [module, cls] = (row.classname || '').split('.');
+    return module && cls ? `Tests/${module}/${cls}.swift` : null;
+  },
 };
 
 /**
