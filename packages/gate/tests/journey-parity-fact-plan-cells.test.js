@@ -18,8 +18,8 @@ test('gate.journey-parity-fact-plan-cells.a-sample-of-the-fact-plan-cells: claus
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('gate.journey-parity-fact-plan-cells.the-fact-plan-cells-journey-keeps-all: clause 2: the fact/plan/cells journey keeps all 23 of its cases [C7]', () => {
+test('gate.journey-parity-fact-plan-cells.the-fact-plan-cells-journey-keeps-all: clause 2: the fact/plan/cells journey keeps all 24 of its cases [C7]', () => {
   const source = readFileSync(resolve(import.meta.dirname, '../../../apps/cli/journeys/fact/plan/cells.test.js'), 'utf8');
-  assert.equal((source.match(/^test\(/gmu) ?? []).length, 23, 'no case is dropped, skipped or merged');
+  assert.equal((source.match(/^test\(/gmu) ?? []).length, 24, 'no case is dropped, skipped or merged');
   assert.doesNotMatch(source, /^test\.(?:skip|todo)\(/mu);
 });
