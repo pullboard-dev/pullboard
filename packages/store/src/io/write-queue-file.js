@@ -14,7 +14,7 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { writeFileAtomic } from '../../../kernel/light.js';
+import { writeFileAtomic } from './atomic.js';
 
 const LOCK_STALE_MS = 5_000;
 const LOCK_RETRY_MS = 5;
