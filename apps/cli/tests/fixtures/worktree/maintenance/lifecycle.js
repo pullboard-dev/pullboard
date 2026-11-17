@@ -22,6 +22,7 @@ import { startFixtureChild } from '../../child.js';
 import { createE2eHelpers } from '../../e2e.js';
 import { fixtureAdd } from '../../testkit.js';
 import { fixtureJoin } from '../../testkit.js';
+import { fixtureSettledMachine } from '../../testkit.js';
 
 /** Keep an exact native timer owner registered so lifecycle cases never launch a scheduler. */
 function retainFixtureTimer(box) {
@@ -36,18 +37,23 @@ function retainFixtureTimer(box) {
   return common;
 }
 
-/** Commit opt-in only in this disposable project's main checkout. */
-function enable(box) {
+/**
+ * Commit opt-in only in this disposable project's main checkout.
+ * Why in process: the commit runs its hooks in this process (test.inProcessHooks on) instead of two node children [C7,#10462].
+ */
+async function enable(box) {
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const file = join(box.repo, 'pullboard.json'), config = JSON.parse(fs.readFileSync(file, 'utf8'));
   config.worktreeMaintenance = { enabled: true, every: '1h', grace: '1d', exclude: [] };
   fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-qm', 'chore: enable private lifecycle maintenance fixture');
+  const committed = await box.tryGit(box.repo, 'commit', '-qm', 'chore: enable private lifecycle maintenance fixture');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
 /** Add one ordinary native item for a private builder checkout. */
-function addFixtureItem(box, title) {
-  const added = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--route', 'mid',
+async function addFixtureItem(box, title) {
+  const added = await fixtureAdd(box.runIn, box.repo, 'web', title, '--specs', 'G1', '--route', 'mid',
     '--criterion', 'The private lifecycle fixture retains the builder source.', '--check', 'true',
     '--brief', 'Files: web/page.js\nChange: exercise private lifecycle cleanup\nTest: native cleanup archives source first', '--json');
   assert.equal(added.code, 0, added.err);
@@ -73,9 +79,9 @@ function assertArchivedBytes(archive, name, expected) {
 }
 
 /** Join a temporary agent checkout and return its native seat identity. */
-function joinAgent(box, path) {
+async function joinAgent(box, path) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
-  const joined = fixtureJoin(box.run, path, 'web', '--json');
+  const joined = await fixtureJoin(box.runIn, path, 'web', '--json');
   assert.equal(joined.code, 0, joined.err);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.listAgents(board).find(row => resolve(row.agent_path) === resolve(path)).agent_id; }
@@ -84,18 +90,18 @@ function joinAgent(box, path) {
 
 /** Register actual CLI lifecycle checks; importing this fixture does not run them. */
 export function registerMaintenanceCliLifecycleTests() {
-  test('coordinator withdrawal archives the claimed builder checkout before cleaning it [B3,C7,N26]', t => {
+  test('coordinator withdrawal archives the claimed builder checkout before cleaning it [B3,C7,N26]', async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'withdraw-owner');
-    const ownerId = joinAgent(box, owner), item = addFixtureItem(box, 'Private withdraw lifecycle archive');
-    const claimed = box.run(owner, 'claim', String(item), '--json');
+    const ownerId = await joinAgent(box, owner), item = await addFixtureItem(box, 'Private withdraw lifecycle archive');
+    const claimed = await box.runIn(owner, 'claim', String(item), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 19, 20, 255]);
     fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
 
-    const withdrawn = box.run(box.repo, 'withdraw', String(item), 'private lifecycle fixture completed', '--json');
+    const withdrawn = await box.runIn(box.repo, 'withdraw', String(item), 'private lifecycle fixture completed', '--json');
     assert.equal(withdrawn.code, 0, withdrawn.err);
     assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, 'withdrawal cleans the original builder path');
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');
@@ -105,7 +111,7 @@ export function registerMaintenanceCliLifecycleTests() {
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try { assert.equal(store.listAgents(board).find(row => row.agent_id === ownerId)?.agent_path, owner); }
     finally { closeBoard(board); }
-    const log = box.run(box.repo, 'log', String(item), '--json');
+    const log = await box.runIn(box.repo, 'log', String(item), '--json');
     assert.equal(log.code, 0, log.err);
     assert.match(log.out, /Worktree work archived before maintenance cleanup/u);
   });
@@ -113,11 +119,11 @@ export function registerMaintenanceCliLifecycleTests() {
   test('coordinator withdrawal defers dirty cleanup for a live cwd and health reports it [B3,C7,N26]', { timeout: 20_000 }, async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'withdraw-busy-owner');
-    joinAgent(box, owner);
-    const item = addFixtureItem(box, 'Private deferred withdrawal cleanup');
-    const claimed = box.run(owner, 'claim', String(item), '--json');
+    await joinAgent(box, owner);
+    const item = await addFixtureItem(box, 'Private deferred withdrawal cleanup');
+    const claimed = await box.runIn(owner, 'claim', String(item), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 25, 26, 255]);
     const dirtyPath = join(owner, 'unfinished.bin');
@@ -140,13 +146,13 @@ export function registerMaintenanceCliLifecycleTests() {
     assert.ok(census?.some(row => row.pid === worker.pid && resolve(row.path) === resolve(owner)),
       'the real process census observes another process in the builder checkout');
 
-    const withdrawn = box.run(box.repo, 'withdraw', String(item), 'retain while the private worker is active', '--json');
+    const withdrawn = await box.runIn(box.repo, 'withdraw', String(item), 'retain while the private worker is active', '--json');
     assert.equal(withdrawn.code, 0, withdrawn.err);
     assert.deepEqual(fs.readFileSync(dirtyPath), bytes);
     assert.notEqual(box.git(owner, 'status', '--porcelain').trim(), '', 'withdrawal leaves dirty source untouched');
     assert.equal(archiveFor(common, owner), null, 'deferred cleanup does not create a misleading recovery archive');
 
-    const health = box.run(box.repo, 'health', '--json');
+    const health = await box.runIn(box.repo, 'health', '--json');
     assert.equal(health.code, 1, health.err);
     const deferred = JSON.parse(health.out).dirtyWorktrees.find(row => row.kind === 'withdrawal-retained'
       && row.item === item && resolve(row.path) === resolve(owner));
@@ -156,18 +162,18 @@ export function registerMaintenanceCliLifecycleTests() {
     assert.ok(deferred.reason.length > 0);
   });
 
-  test('completed handoff cleans the outgoing checkout only after a clear native cwd census [B3,C7,N26]', t => {
+  test('completed handoff cleans the outgoing checkout only after a clear native cwd census [B3,C7,N26]', async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), outgoing = join(box.dir, 'handoff-outgoing'), incoming = join(box.dir, 'handoff-incoming');
-    const outgoingId = joinAgent(box, outgoing), incomingId = joinAgent(box, incoming);
+    const outgoingId = await joinAgent(box, outgoing), incomingId = await joinAgent(box, incoming);
     const bytes = Buffer.from([0, 21, 22, 255]);
     fs.writeFileSync(join(outgoing, 'unfinished.bin'), bytes);
-    const opened = box.run(outgoing, 'handoff', '--json');
+    const opened = await box.runIn(outgoing, 'handoff', '--json');
     assert.equal(opened.code, 0, opened.err);
     const handoffItem = JSON.parse(opened.out).handoff.item;
-    const taken = box.run(incoming, 'handoff', '--take', String(handoffItem), '--json');
+    const taken = await box.runIn(incoming, 'handoff', '--take', String(handoffItem), '--json');
     assert.equal(taken.code, 0, taken.err);
     const receipt = JSON.parse(taken.out).handoff;
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
@@ -179,7 +185,7 @@ export function registerMaintenanceCliLifecycleTests() {
     const archive = archiveFor(common, outgoing);
     assert.ok(archive, 'handoff cleanup keeps a private recovery archive');
     assertArchivedBytes(archive, 'unfinished.bin', bytes);
-    const log = box.run(box.repo, 'log', String(handoffItem), '--json');
+    const log = await box.runIn(box.repo, 'log', String(handoffItem), '--json');
     assert.equal(log.code, 0, log.err);
     assert.match(log.out, /Worktree work archived before maintenance cleanup/u);
   });
@@ -187,13 +193,13 @@ export function registerMaintenanceCliLifecycleTests() {
   test('completed handoff retains dirty source when another native process still works there [B3,C7,N26]', { timeout: 20_000 }, async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), outgoing = join(box.dir, 'busy-outgoing'), incoming = join(box.dir, 'busy-incoming');
-    const outgoingId = joinAgent(box, outgoing);
-    joinAgent(box, incoming);
+    const outgoingId = await joinAgent(box, outgoing);
+    await joinAgent(box, incoming);
     const bytes = Buffer.from([0, 23, 24, 255]);
     fs.writeFileSync(join(outgoing, 'unfinished.bin'), bytes);
-    const opened = box.run(outgoing, 'handoff', '--json');
+    const opened = await box.runIn(outgoing, 'handoff', '--json');
     assert.equal(opened.code, 0, opened.err);
     const handoffItem = JSON.parse(opened.out).handoff.item;
 
@@ -214,7 +220,7 @@ export function registerMaintenanceCliLifecycleTests() {
     assert.ok(census?.some(row => row.pid === worker.pid && resolve(row.path) === resolve(outgoing)),
       'the real process census observes the other process in the outgoing checkout');
 
-    const taken = box.run(incoming, 'handoff', '--take', String(handoffItem), '--json');
+    const taken = await box.runIn(incoming, 'handoff', '--take', String(handoffItem), '--json');
     assert.equal(taken.code, 0, taken.err);
     const receipt = JSON.parse(taken.out).handoff;
     const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
@@ -223,7 +229,7 @@ export function registerMaintenanceCliLifecycleTests() {
     assert.deepEqual(fs.readFileSync(join(outgoing, 'unfinished.bin')), bytes);
     assert.notEqual(box.git(outgoing, 'status', '--porcelain').trim(), '');
     assert.equal(archiveFor(common, outgoing), null, 'an occupied checkout is retained without an archive/reset');
-    const log = box.run(box.repo, 'log', String(handoffItem), '--json');
+    const log = await box.runIn(box.repo, 'log', String(handoffItem), '--json');
     assert.equal(log.code, 0, log.err);
     assert.doesNotMatch(log.out, /Worktree work archived before maintenance cleanup/u);
   });
