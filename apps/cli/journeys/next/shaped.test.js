@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { test } from 'node:test';
+import * as store from '../../../../packages/store/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
@@ -17,8 +18,12 @@ function nextSettings(next) {
 
 /** An open strong item with one clause, one existing test file and one brief file: light-shaped. */
 function shapedStrong(box) {
-  return box.add('Light-shaped strong item', { route: 'strong', criterion: '1. The shaped fixture succeeds [test].',
+  const id = box.add('Light-shaped strong item', { route: 'strong', criterion: '1. The shaped fixture succeeds [test].',
     check: 'node --test web/shaped.test.js', brief: 'Files: web/dispatch.js' });
+  // A light seat builds only from a recorded diagnosis, as for any light item.
+  store.appendFact(box.board, id, { agentId: box.seats.builder.id, kind: 'diagnosis',
+    text: 'Files: web/dispatch.js\nChange: prepare a small dispatch fixture\nTest case: native next offers the item to the light seat.' });
+  return id;
 }
 
 /** The item the real next offers the light actor seat, or null. */
