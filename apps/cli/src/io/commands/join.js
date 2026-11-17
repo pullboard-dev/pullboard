@@ -12,6 +12,7 @@ import { registerSeatWake } from '../../../../../packages/seats/index.js';
 import {
   COORDINATOR,
   COORDINATOR_GUIDE_FILE,
+  reviewCanonicalFamilies,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -26,6 +27,7 @@ import {
 import * as store from '../../../../../packages/store/index.js';
 import { gitExecFileSync } from '../../../../../packages/git/light.js';
 import { itemFolderSeat } from '../item/folder/identity.js';
+import { canonicalVendorFamily } from '../../../../../packages/items/index.js';
 import { seatFamily } from '../../../../../packages/items/index.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
@@ -42,6 +44,14 @@ import {
 } from '../entry.js';
 
 /**
+ * The family label a joining seat registers: canonical under review.canonicalFamilies, as typed otherwise. Read here in the
+ * command layer, never inside a move, so a replayed register stays what it recorded (#9681).
+ */
+function registeredFamily(label) {
+  return reviewCanonicalFamilies() ? canonicalVendorFamily(label) : label;
+}
+
+/**
  * Join a lane on the board host board.url names [P7]. The served board registers the seat with a remote marker in
  * place of a path here, and this worktree's git config pullboard.agent keeps its name for later board calls.
  * @param {any} io
@@ -55,7 +65,7 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
   const model = requiredModel(values.model, process.env, `join ${shellWord(lane)}`);
   const ctx = context(io);
   const route = values.route ?? process.env.PULLBOARD_ROUTE ?? modelTierRoute(model, ctx.config.modelTiers);
-  const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: values.family }) } });
+  const { result } = await postMove({ verb: 'join', args: { lane, model, route, ...(values.family === undefined ? {} : { family: registeredFamily(values.family) }) } });
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
   gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
   gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
@@ -85,7 +95,7 @@ export async function run(io, { first: named, values }) {
     if (relayLinked(ctx.info.root)) refuseRemoteCoordinatorModel(ctx, 'join coordinator');
     const joined = await withBoard(ctx, async (board) => {
       const id = await ordered(ctx, board, 'register', [
-        { lane: COORDINATOR, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest },
+        { lane: COORDINATOR, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest },
       ]);
       return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
     });
@@ -125,7 +135,7 @@ export async function run(io, { first: named, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: values.family, model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));

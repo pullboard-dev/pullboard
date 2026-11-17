@@ -22,7 +22,7 @@ export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, com
 export { installRunnerPackage } from "./src/io/package/install.js";
 export { transportText, runnerFailure, resultFrom } from "./src/io/result.js";
 export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProbeRunnerHealth, runnerExecutionServices as healthRunnerExecutionServices } from "./src/io/health.js";
-export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, objectRecord } from "./src/io/source/scan.js";
+export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, lastHistoryWalk, objectRecord } from "./src/io/source/scan.js";
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/io/pack.js";
 export { requestFor, queuedSource } from "./src/io/request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/io/dispatch.js";
@@ -53,3 +53,5 @@ export { roundTripProfile, roundTripLine, ROUND_TRIP_PHASES } from './src/logic/
 
 /** The board's runner key book, reached through this cell so the CLI adds no edge to transport [C7]. */
 export { issueRunnerKey, revokeRunnerKey } from "../transport/index.js";
+/** The board's pull adapter and its HTTP face, reached through this cell so the CLI adds no edge to transport [C7,#8765]. */
+export { boardPullAdapter, pullHandler } from "../transport/index.js";
