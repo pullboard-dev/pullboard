@@ -210,6 +210,7 @@ const ROWS = [
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['submit.edgeFollowUps', 'List new import edges', 'On, a submit whose diff adds import edges files one follow-up item listing them; off, it does not look.', 'Checks', 'on/off'],
   ['submit.handoff', 'Return while checks run', 'Deprecated no-op: submit always settles through the pull gate.', 'Checks', 'on/off'],
+  ['submit.recoverFromJobRow', 'Recover a submit from its job row', 'When enabled, a submit that lost its result recovers it from the gate job row; off (default), the submit is not recovered. Only an exact true turns it on.', 'Checks', 'on/off'],
   ['submit.regenerateDeclared', 'Regenerate declared files', 'On, submit runs the generator of a declared generated file whose input the diff changed and commits the result; off, the composed tree is left as committed.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
