@@ -152,6 +152,11 @@ export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
 }
 
+/** Whether the static check refuses view timers outside the view timer layout: off by default; only an exact `true` turns it on [C7]. */
+export function viewTimerLayoutEnabled() {
+  return loadMachineSettings().gate?.viewTimerLayout === true;
+}
+
 /** Whether the static check refuses new direct node:fs imports outside the kernel: off by default; only an exact `true` turns it on [C7,#9449]. */
 export function adapterLintFsEnabled() {
   return loadMachineSettings().gate?.adapterLintFs === true;
@@ -416,6 +421,11 @@ export function reviewStarveShout() {
 /** Whether a review release must name why it was dropped (#8920): off by default; only an exact `true` turns it on. */
 export function reviewReleaseReasonsRequired() {
   return loadMachineSettings().review?.releaseReasons === true;
+}
+
+/** Whether flakes.rereadRatchet is on (#9436): off by default; only an exact `true` lets a batch record re-read the flake ratchet in its write transaction. */
+export function flakesRereadRatchetEnabled() {
+  return loadMachineSettings().flakes?.rereadRatchet === true;
 }
 
 /** Whether test.statusOutcomes is on (#9085): off by default; only an exact `true` turns it on. */
@@ -1000,6 +1010,11 @@ export function parallelGatesEnabled() {
 /** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
 export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
+}
+
+/** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
+export function relayQueueOnFailureEnabled() {
+  return loadMachineSettings().relay?.queueOnFailure === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */

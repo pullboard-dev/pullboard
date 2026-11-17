@@ -338,6 +338,9 @@ export function runsJobs(db, boardFile) {
   return { jobs: runs, close() { try { runs.close(); } catch { /* Already closed. */ } } };
 }
 
+/** The job-table count behind finishedRuns, kept as one string so a test can read its query plan [C7]. */
+export const FINISHED_JOBS_SQL = "SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind";
+
 /**
  * How many pulled jobs finished on this board in the last four hours, by what the Dashboard's runner card names them:
  * gates, landings and tests. Why: the card lists runs in flight, so an idle runner that just ran nine jobs read "No runs" (#7945).
@@ -357,7 +360,7 @@ export function finishedRuns(commonDir, now) {
     const split = (() => { try { return store.runsStoreOn(db); } catch { return false; } })();
     const rows = split
       ? db.prepare("SELECT run_kind AS kind, COUNT(*) AS n FROM run WHERE run_state = 'done' AND run_updated > ? GROUP BY run_kind").all(now - 4 * 3_600_000)
-      : db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+      : db.prepare(FINISHED_JOBS_SQL).all(now - 4 * 3_600_000);
     for (const { kind, n } of rows) {
       const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
       if (key) count[key] += Number(n);
