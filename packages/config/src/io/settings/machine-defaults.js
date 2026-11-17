@@ -128,6 +128,7 @@ export const MACHINE_DEFAULTS = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
+  'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   scratch: null,
   'sentinels.recordWriteHolder': false,

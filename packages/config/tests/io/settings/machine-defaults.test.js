@@ -137,6 +137,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
+  'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   'scratch': null,
   'sentinels.recordWriteHolder': false,
@@ -235,6 +236,11 @@ test('clause 1: gate.overlapStaticProof is a machine setting, false by default, 
 test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
   assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
   assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
+});
+
+test('clause 1: runners.requiredToolchains is a machine setting, blank by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['runners.requiredToolchains'], null);
+  assert.ok(SETTING_DESCRIPTIONS['runners.requiredToolchains']);
 });
 
 /** Read tests.requireDeclaredInputs through a private machine home holding the given settings. */
