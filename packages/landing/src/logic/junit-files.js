@@ -4,6 +4,12 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // gotestsum writes the import path (example.com/m/pkg) in classname and no file attribute; the first two segments are
+  // the module (host and name), the rest is the package directory.
+  go: row => {
+    const dir = (row.classname ?? '').split('/').slice(2).join('/');
+    return dir ? `${dir}/` : null;
+  },
 };
 
 /**
