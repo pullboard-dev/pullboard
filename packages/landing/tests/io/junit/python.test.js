@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/landing packages/gate */
+/** @pullboard-test-input source-cell packages/landing */
 /** @pullboard-world-pin: reads the one checked-in pytest report fixture, never a tool run. */
 /** A pytest JUnit report lands: the failing case is named with its file and the passing one ticked, with no toolchain [C7]. */
 import assert from 'node:assert/strict';
