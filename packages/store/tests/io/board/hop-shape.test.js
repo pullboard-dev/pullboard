@@ -46,7 +46,7 @@ function openMain(file) {
   return lines;
 }
 
-test('clause 1: a current board that gains the gate_hop table through the fenced hop stays current, with no shape-drift line [C7]', t => {
+test('store.io-board-hop-shape.a-current-board-that-gains-the: clause 1: a current board that gains the gate_hop table through the fenced hop stays current, with no shape-drift line [C7]', t => {
   const file = currentBoard(t);
   assert.equal(inspect(file).standing, 'current');
   const db = new DatabaseSync(file);
@@ -58,7 +58,7 @@ test('clause 1: a current board that gains the gate_hop table through the fenced
   assert.equal(inspect(file).standing, 'current');
 });
 
-test('clause 2: a board stamped before gate_hop was created without a restamp reopens current from the main path and keeps every row [C7]', t => {
+test('store.io-board-hop-shape.a-board-stamped-before-gate-hop: clause 2: a board stamped before gate_hop was created without a restamp reopens current from the main path and keeps every row [C7]', t => {
   const file = currentBoard(t);
   const before = inspect(file);
   // The live board's state: the hop table made by code that did not restamp, so the stored stamp predates it.

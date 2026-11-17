@@ -22,7 +22,7 @@ function submitting(box, title) {
   return id;
 }
 
-test('clause 2: a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
+test('moves.record-next-idle-seat.a-pending-handoff-counts-as-free-for: clause 2: a pending handoff counts as free for the two-minute oldest-review offer [C7,#3077]', async t => {
   const box = fixture(t);
   submitting(box, 'Submit handoff frees the seat for review');
   const waiting = box.add('Review waiting two minutes');
@@ -35,7 +35,7 @@ test('clause 2: a pending handoff counts as free for the two-minute oldest-revie
   assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
-test('next --take reserves the two-minute review while its only claim is a pending handoff (clauses 1 and 2) [C7,#3077]', async t => {
+test('moves.record-next-idle-seat.next-take-reserves-the-two-minute-review-while: next --take reserves the two-minute review while its only claim is a pending handoff (clauses 1 and 2) [C7,#3077]', async t => {
   const box = fixture(t);
   const held = submitting(box, 'Only claim is gating');
   const before = store.getItem(box.board, held);
