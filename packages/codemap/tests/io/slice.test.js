@@ -5,8 +5,8 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { sayMapSlice } from '../../src/io/slice.js';
-import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { fixtureCommitAll } from '../../../../gate/tests/fixtures/testkit.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fixtureCommitAll } from '../../../gate/tests/fixtures/testkit.js';
 
 /** A committed main checkout: one target module with a helper and a test, plus many modules sharing a generic name. */
 function fixture() {
