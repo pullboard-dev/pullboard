@@ -62,6 +62,7 @@ import { mergeGroup } from './merge.js';
 import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
+import { gateComponentTier } from '../../../../config/index.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
 const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
@@ -86,7 +87,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   // plan never stops landing, so repos whose checks are not literal Node test commands still land (#2897).
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
-  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
+  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests, componentTier: gateComponentTier() });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
     // The README badge files the landing itself writes select nothing; counted as changes they sent the whole batch to
