@@ -1,4 +1,5 @@
-/** Every activity-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9896]. @pullboard-test-input source-cell packages/activity */
+/** @pullboard-test-input source-cell packages/activity */
+/** Every activity-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9896]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
