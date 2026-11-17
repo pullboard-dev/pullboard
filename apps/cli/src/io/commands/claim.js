@@ -23,7 +23,7 @@ import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
 import { trunkBranch } from '../item/folder.js';
-import { offMainHeadRefusal } from '../../../../../packages/moves/index.js';
+import { offMainHeadRefusal } from '../../../../../packages/moves/light.js';
 import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
