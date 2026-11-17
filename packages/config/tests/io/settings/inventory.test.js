@@ -31,7 +31,7 @@ function repoRows(t, config) {
   db.exec('CREATE TABLE board_meta (meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   db.prepare('INSERT INTO board_meta VALUES (?, ?)').run('board_id', BOARD_ID);
   db.close();
-  if (config) fixtureProjectPolicy(root, { config });
+  fixtureProjectPolicy(root, { config: config ?? {} });
   const { settings } = settingsInventory([{ root }], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0, performanceCores: () => 2 });
   return settings.filter(row => row.key === 'landing.exactTreeCheck');
 }
