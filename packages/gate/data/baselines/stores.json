@@ -490,6 +490,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-env.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/env.js"
+    },
     "adapter-lint-fs.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
