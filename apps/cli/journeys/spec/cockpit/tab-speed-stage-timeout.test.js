@@ -1,3 +1,4 @@
+// pullboard: browser
 /** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-test-gui */
 /** A tab-speed setup stage whose event never fires fails within its limit naming the stage, and a marker that never appears is refused [C7]. */
