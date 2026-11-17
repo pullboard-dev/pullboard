@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell codemap */
 /** @pullboard-test-loads packages/codemap/src/io/module/imports.js */
 /** The V8 import parser survives runner load by splitting a timed-out batch, never by waiting longer [C7]. */
 import assert from 'node:assert/strict';
