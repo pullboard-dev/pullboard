@@ -20,7 +20,7 @@ function setup(t) {
 }
 const column = (board, seat) => board.db.prepare('SELECT agent_family AS f FROM agent WHERE agent_id=?').get(seat).f;
 
-test('submit records the derived family of a seat whose own column is NULL [C7]', t => {
+test('store.logic-rework-derived.submit-records-the-derived-family-of: submit records the derived family of a seat whose own column is NULL [C7]', t => {
   const { board, id } = setup(t);
   // A peer of the same session declares the vendor; the builder's own column stays NULL.
   store.register(board, { id: 'core-3', lane: 'core', path: '/fixture/core-3', family: 'anthropic', session: 'sess-build', model: 'm' });
@@ -29,7 +29,7 @@ test('submit records the derived family of a seat whose own column is NULL [C7]'
   assert.equal(store.getItem(board, id).item_builder_family, 'anthropic');
 });
 
-test('review admission uses the builder seat current family when none was recorded [C7]', t => {
+test('store.logic-rework-derived.review-admission-uses-the-builder-seat: review admission uses the builder seat current family when none was recorded [C7]', t => {
   const { board, id } = setup(t);
   submitFixture(board, id, { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
   assert.equal(store.getItem(board, id).item_builder_family, null, 'nothing was declared at submit');
@@ -39,7 +39,7 @@ test('review admission uses the builder seat current family when none was record
   assert.equal(store.getItem(board, id).item_review_by, 'core-2');
 });
 
-test('join --family on a seat with a NULL column writes it though its session derived it [C7]', t => {
+test('store.logic-rework-derived.join-family-on-a-seat-with: join --family on a seat with a NULL column writes it though its session derived it [C7]', t => {
   const { board } = setup(t);
   store.register(board, { id: 'core-3', lane: 'core', path: '/fixture/core-3', family: 'anthropic', session: 'sess-build', model: 'm' });
   assert.equal(column(board, 'core-1'), null);
