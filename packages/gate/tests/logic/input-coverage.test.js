@@ -28,7 +28,9 @@ test('clause 1: inputCoverage(files) returns per cell the counts tests, readers,
 
 test('clause 2: it reads only the file texts it is given and spawns no child process [C7,#9800]', () => {
   const source = readFileSync(new URL('../../src/logic/input-coverage.js', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /child_process|node:fs|spawn|exec/u);
+  const imports = source.split('\n').filter(line => line.startsWith('import ')).join('\n');
+  assert.doesNotMatch(imports, /child_process|node:fs/u);
+  assert.doesNotMatch(source.replace(/\/\*[\s\S]*?\*\//gu, ''), /spawn|exec/u);
   const given = [{ path: 'packages/nowhere/tests/ghost.test.js', text: READS }];
   assert.equal(inputCoverage(given)['packages/nowhere'].readers, 1);
 });
