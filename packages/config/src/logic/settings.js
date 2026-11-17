@@ -169,6 +169,12 @@ export function loadMachineSettings() {
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
+  if (value.gate?.excuseMainTimingReds !== undefined && typeof value.gate.excuseMainTimingReds !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.excuseMainTimingReds in ${file} must be true or false`);
+  }
+  if (value.gate?.componentTier !== undefined && typeof value.gate.componentTier !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.componentTier in ${file} must be true or false`);
+  }
   if (value.gate?.fencedHop !== undefined && typeof value.gate.fencedHop !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.fencedHop in ${file} must be true or false`);
   }
@@ -220,6 +226,9 @@ export function loadMachineSettings() {
   }
   if (value.tests?.requireJourneyPath !== undefined && typeof value.tests.requireJourneyPath !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.requireJourneyPath in ${file} must be true or false`);
+  }
+  if (value.canary?.directPush !== undefined && typeof value.canary.directPush !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `canary.directPush in ${file} must be true or false`);
   }
   if (value.census?.recordFileTimes !== undefined && typeof value.census.recordFileTimes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.recordFileTimes in ${file} must be true or false`);
@@ -274,6 +283,9 @@ export function loadMachineSettings() {
   }
   if (value.gate?.testNice !== undefined && typeof value.gate.testNice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.testNice in ${file} must be true or false`);
+  }
+  if (value['test']?.inProcessHooks !== undefined && typeof value['test'].inProcessHooks !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.inProcessHooks in ${file} must be true or false`);
   }
   if (value.gate?.sampleDiskIo !== undefined && typeof value.gate.sampleDiskIo !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.sampleDiskIo in ${file} must be true or false`);
@@ -422,11 +434,17 @@ export function loadMachineSettings() {
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
   }
+  if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
+  }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
+  }
+  if (value.read?.thinCommands !== undefined && typeof value.read.thinCommands !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `read.thinCommands in ${file} must be true or false`);
   }
   if (value.maintenance?.retireIdleSeats !== undefined && typeof value.maintenance.retireIdleSeats !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleSeats in ${file} must be true or false`);
@@ -535,6 +553,11 @@ export function relayPruneReceipts() {
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
 export function listThinRead() {
   return loadMachineSettings().list?.thinRead === true;
+}
+
+/** Whether whoami, show and status read through the thin doors (#9810, #3072): off by default; only an exact `true` turns it on. */
+export function readThinCommands() {
+  return loadMachineSettings().read?.thinCommands === true;
 }
 
 /**
