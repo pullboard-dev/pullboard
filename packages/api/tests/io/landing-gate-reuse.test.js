@@ -32,19 +32,19 @@ function offered(db, extra = {}) {
 /** The hit list as [file, inputKey] pairs. */
 const hits = payload => payload.proof.ledger.files.map(([file, inputKey]) => `${file}@${Number.parseInt(inputKey, 16)}`).sort();
 
-test('clause 1: with landing.reuseGateReceipts on, the hit list lists the item\'s green gate results for its files [C7,#9243]', t => {
+test('api.landing-gate-reuse.landing-reusegatereceipts-hit-list-lists: clause 1: with landing.reuseGateReceipts on, the hit list lists the item\'s green gate results for its files [C7,#9243]', t => {
   const payload = offered(board(t), { reuseGateReceipts: true });
   assert.ok(FILES.every(file => hits(payload).includes(`${file}@1`)), 'both files hit at the key the item\'s gate proved');
   assert.equal(payload.reuseGateReceipts, true, 'the job says the setting is on, for the runner');
 });
 
-test('clause 2: with it off the hit list is exactly today\'s and the setting is not on the job [C7,#9243]', t => {
+test('api.landing-gate-reuse.off-hit-list-exactly-today: clause 2: with it off the hit list is exactly today\'s and the setting is not on the job [C7,#9243]', t => {
   const payload = offered(board(t));
   assert.deepEqual(hits(payload), FILES.flatMap(file => [`${file}@3`, `${file}@4`]).sort(), 'the newest two rows of any origin, as before');
   assert.equal('reuseGateReceipts' in payload, false);
 });
 
-test('clause 2: a gate result with a fail row at the same key is not a hit, setting on [C7,#9243]', t => {
+test('api.landing-gate-reuse.gate-result-fail-row-same: clause 2: a gate result with a fail row at the same key is not a hit, setting on [C7,#9243]', t => {
   const payload = offered(board(t, { fail: true }), { reuseGateReceipts: true });
   assert.ok(hits(payload).includes(`${FILES[0]}@1`));
   assert.equal(hits(payload).includes(`${FILES[1]}@1`), false, 'a key that also failed is run, never reused');

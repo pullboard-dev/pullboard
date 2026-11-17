@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A landing gate executes its merged batch's selected test files, not the full project gate [C7,S10]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';

@@ -17,7 +17,7 @@ function decide(code, census) {
   finally { process.stderr.write = write; }
 }
 
-test('an EPERM for a pid that exited or was reused counts as gone and is logged [C7]', () => {
+test('gate.run-tests-kill.eperm-pid-exited-was-reused: an EPERM for a pid that exited or was reused counts as gone and is logged [C7]', () => {
   for (const [why, census] of [
     ['exited', new Map()],
     ['reused by another process', new Map([[OWNED.pid, { ...OWNED, started: 'Mon Oct 20 03:00:07 2026' }]])],
@@ -29,24 +29,24 @@ test('an EPERM for a pid that exited or was reused counts as gone and is logged 
   }
 });
 
-test('an ESRCH counts as gone and is logged [C7]', () => {
+test('gate.run-tests-kill.esrch-counts-gone-logged: an ESRCH counts as gone and is logged [C7]', () => {
   const { gone, lines } = decide('ESRCH', new Map([[OWNED.pid, OWNED]]));
   assert.equal(gone, true);
   assert.match(lines.join(''), /kill 4242 answered ESRCH/u);
 });
 
-test('an EPERM for a process that is still ours is a real permission error [C7]', () => {
+test('gate.run-tests-kill.eperm-process-still-ours-real: an EPERM for a process that is still ours is a real permission error [C7]', () => {
   const { gone, lines } = decide('EPERM', new Map([[OWNED.pid, { ...OWNED }]]));
   assert.equal(gone, false, 'the caller keeps it as a cleanup error');
   assert.deepEqual(lines, [], 'and nothing claims it is gone');
 });
 
-test('an EPERM with no census leaves the verdict to the next sweep, without claiming it is gone [C7]', () => {
+test('gate.run-tests-kill.eperm-census-leaves-verdict-next: an EPERM with no census leaves the verdict to the next sweep, without claiming it is gone [C7]', () => {
   const { gone, lines } = decide('EPERM', null);
   assert.equal(gone, true, 'the sweep retries rather than failing the run');
   assert.deepEqual(lines, []);
 });
 
-test('any other kill failure is never counted as gone [C7]', () => {
+test('gate.run-tests-kill.any-other-kill-failure-counted: any other kill failure is never counted as gone [C7]', () => {
   assert.equal(decide('EINVAL', new Map()).gone, false);
 });

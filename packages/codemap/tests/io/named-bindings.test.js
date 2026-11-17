@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { namedBindingsIn } from '../../src/io/module/names.js';
 
-test('clause 1: named imports and named re-exports are returned, star imports and star re-exports are unresolved [C7]', () => {
+test('codemap.named-bindings.named-imports-and-named-re: clause 1: named imports and named re-exports are returned, star imports and star re-exports are unresolved [C7]', () => {
   const [found] = namedBindingsIn([[
     "import { alpha, beta as b } from './one.js';",
     "export { gamma, delta as d, default as e } from './two.js';",
@@ -24,7 +24,7 @@ test('clause 1: named imports and named re-exports are returned, star imports an
   ]);
 });
 
-test('clause 2: default, namespace and dynamic imports and a malformed export list are unresolved, never dropped [C7]', () => {
+test('codemap.named-bindings.default-namespace-and-dynamic-imports: clause 2: default, namespace and dynamic imports and a malformed export list are unresolved, never dropped [C7]', () => {
   const [mixed, broken] = namedBindingsIn([
     [
       "import first, { second } from './default.js';",

@@ -7,8 +7,20 @@ import { setItem } from "../board.js";
 import { moveItem } from "../board.js";
 import { releaseItemHold } from "./release/hold.js";
 import { insertShout } from "./shout.js";
+import { shadowSetting } from "./submit.js";
+import { shadowHook } from "./shadow-record.js";
+import { reclaimDecision } from "./reclaim-table.js";
+import { reclaimDiffers } from "./reclaim-table.js";
+import { liveSetting } from "./submit.js";
 
-/** Apply one captured stale-state plan under authenticated coordinator authority. */
+/**
+ * Apply one captured stale-state plan under authenticated coordinator authority.
+ * With moves.shadow on (or a test's `reclaimShadow`), the reclaim table decides each row maintenance acts on and the compare is recorded [C7,#9367].
+ * With moves.live.reclaim on, the table's refusal and events are the ones applied instead [C7,#9374].
+ */
 export function maintainStaleState(board, options) {
-  return applyStaleState(board, options, { atomic, getItem, itemById, setItem, releaseItemHold, logEvent, insertShout, moveItem });
+  // With moves.live.reclaim on (a board's own `movesLive.reclaim` stands in for the setting in a store test), read before the write opens, the table decides [C7,#9374].
+  const live = (board.movesLive?.reclaim ?? liveSetting('reclaim')) === true;
+  const hook = shadowHook(board, 'reclaimShadow', 'reclaim', reclaimDiffers, shadowSetting);
+  return applyStaleState(board, options, { atomic, getItem, itemById, setItem, releaseItemHold, logEvent, insertShout, moveItem, reclaim: hook ? { hook, decide: reclaimDecision } : null, reclaimLive: live ? { decide: reclaimDecision } : null });
 }
