@@ -24,7 +24,7 @@ function gate(extra = {}) {
     collectionReport: { plannedFiles: ['packages/landing/tests/io/reuse/t1.test.js', FILE], completedFiles: ['packages/landing/tests/io/reuse/t1.test.js'] }, ...extra };
 }
 
-test('clause 1: a live file waiver covers a file-level red that left its file uncompleted, so the trunk is not held [C7]', () => {
+test('landing.waived.a-live-file-waiver-covers-a: clause 1: a live file waiver covers a file-level red that left its file uncompleted, so the trunk is not held [C7]', () => {
   const proof = waivedFileProof({ board: board([waiver]), landingPorts: ports }, gate());
   assert.ok(proof, 'the waived file is a waived proof');
   assert.deepEqual(proof.failures.map(entry => [entry.file, entry.waiver]), [[FILE, waiver.id]]);
@@ -40,7 +40,7 @@ function batch(id, state, extra = {}) {
   return { id, state, items: [{ id: 3768, commit: 'c1' }], ...extra };
 }
 
-test('clause 4: an item red in three batches in a row at one commit leaves selection and returns to its builder [C7]', () => {
+test('landing.waived.an-item-red-in-three-batches: clause 4: an item red in three batches in a row at one commit leaves selection and returns to its builder [C7]', () => {
   const item = { item_id: 3768, item_commit: 'c1' };
   const red = id => batch(id, 'blocked', { failures: [{ file: FILE, name: FILE }] });
   assert.equal(LANDING_RED_LIMIT, 3);

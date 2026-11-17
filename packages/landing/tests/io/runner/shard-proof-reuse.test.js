@@ -44,7 +44,7 @@ function shardsOf(offered, receipts) {
     receipts: list => list.map(job => ({ job, posted: receipts[ids.indexOf(job)] })) };
 }
 
-test('clause 1: with reuseGateReceipts on the land receipt lists the files its shards reused and counts them, and asks the board to head the hit lists with the items\' commits [C7,#9515]', async t => {
+test('landing.shard-proof-reuse.with-reusegatereceipts-on-the-land-receipt: clause 1: with reuseGateReceipts on the land receipt lists the files its shards reused and counts them, and asks the board to head the hit lists with the items\' commits [C7,#9515]', async t => {
   const { payload, workdir, commit } = landing(t, { reuseGateReceipts: true });
   const offered = [];
   const receipt = await runLandingJob(payload, { workdir, shards: shardsOf(offered, [posted(1, 1, [FILES[0]]), posted(1, 0, [FILES[2]])]) });
@@ -55,7 +55,7 @@ test('clause 1: with reuseGateReceipts on the land receipt lists the files its s
   assert.ok(commit);
 });
 
-test('clause 1: with reuseGateReceipts off the count is still what the shards reused, with no file account and no ask [C7,#9515]', async t => {
+test('landing.shard-proof-reuse.with-reusegatereceipts-off-the-count-is: clause 1: with reuseGateReceipts off the count is still what the shards reused, with no file account and no ask [C7,#9515]', async t => {
   const { payload, workdir } = landing(t);
   const offered = [];
   const receipt = await runLandingJob(payload, { workdir, shards: shardsOf(offered, [posted(1, 1, [FILES[0]]), posted(1, 0, [FILES[2]])]) });

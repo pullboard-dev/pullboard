@@ -29,6 +29,12 @@ import {
 import { doorMatchesMain } from './edges/main-tree.js';
 
 const CEILINGS = new URL('../../data/ceilings/cells-edges.json', import.meta.url);
+
+/** The committed cells-edges ceiling: file counts, cell rows and each package file's apps, for tests in other cells to assert on without reading the data file by path [C7]. */
+export function cellsEdgesCeiling() {
+  return JSON.parse(readFileSync(CEILINGS, 'utf8'));
+}
+
 const SOURCE = /^(?:src|packages|apps|bin)\/.*\.[cm]?js$/u;
 const TESTISH = /(?:^|\/)test\/|\.(?:test|spec)\.[cm]?js$/u;
 const ROOT_OWNER = '(root)';

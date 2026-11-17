@@ -34,7 +34,7 @@ function remoteFixture(t, body) {
   return { actual: JSON.parse(result.stdout), requests };
 }
 
-test('an idle pinned runner with stale job files and missing exact completion recovers once with an audited reason [C7]', t => {
+test('runner.self.an-idle-pinned-runner-with-stale-job: an idle pinned runner with stale job files and missing exact completion recovers once with an audited reason [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../../../../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, () => `
@@ -66,7 +66,7 @@ test('an idle pinned runner with stale job files and missing exact completion re
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
 });
 
-test('a live job stays unavailable and its next idle probe waits thirty seconds [C7]', t => {
+test('runner.self.a-live-job-stays-unavailable-and-its: a live job stays unavailable and its next idle probe waits thirty seconds [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../../../../packages/resources/index.js')).href;
   const { actual, requests } = remoteFixture(t, ({ root }) => `
@@ -115,7 +115,7 @@ test('a live job stays unavailable and its next idle probe waits thirty seconds 
   assert.equal(readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length, 1);
 });
 
-test('a job owner outside its job cwd blocks recovery only until that process exits [C7]', t => {
+test('runner.self.a-job-owner-outside-its-job-cwd: a job owner outside its job cwd blocks recovery only until that process exits [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
@@ -146,7 +146,7 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
   assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
 });
 
-test('an unmarked legacy worker through an alias blocks only its own runner root [C7]', t => {
+test('runner.self.an-unmarked-legacy-worker-through-an-alias: an unmarked legacy worker through an alias blocks only its own runner root [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const { actual } = remoteFixture(t, ({ root }) => `
     import { spawn } from 'node:child_process';
@@ -182,7 +182,7 @@ test('an unmarked legacy worker through an alias blocks only its own runner root
   assert.equal(actual.unknown.healthy, false, 'a malformed owner record cannot establish idle');
 });
 
-test('a runner resource lease prevents an idle proof even without a job cwd [C7]', t => {
+test('runner.self.a-runner-resource-lease-prevents-an-idle: a runner resource lease prevents an idle proof even without a job cwd [C7]', t => {
   const runners = pathToFileURL(join(import.meta.dirname, '../../../../packages/runners/index.js')).href;
   const { actual } = remoteFixture(t, ({ machineHome }) => `
     import { DatabaseSync } from 'node:sqlite';
@@ -201,7 +201,7 @@ test('a runner resource lease prevents an idle proof even without a job cwd [C7]
   assert.equal(actual.idle.healthy, true, JSON.stringify(actual));
 });
 
-test('a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
+test('runner.self.a-runner-unavailable-thirty-minutes-appears-in: a runner unavailable thirty minutes appears in the sentinel health findings [C7]', t => {
   const recovery = pathToFileURL(join(import.meta.dirname, '../../../../packages/resources/index.js')).href;
   const health = pathToFileURL(join(import.meta.dirname, '../../../../packages/health/index.js')).href;
   const box = cellProject(t, { gate: 'true' });

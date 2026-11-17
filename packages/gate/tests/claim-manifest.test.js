@@ -1,3 +1,5 @@
+/** @pullboard-test-input test-tree */
+/** @pullboard-test-input packages/gate/data/tests/test-manifest.json */
 /** Each test manifest row lists the spec ids its test names cite, and the freeze refuses to delete the sole proof of a claim [C7]. */
 /** @pullboard-world-pin: reads the committed test manifest and the test files it lists. */
 import assert from 'node:assert/strict';

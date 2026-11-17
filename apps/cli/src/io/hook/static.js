@@ -38,3 +38,19 @@ export async function stagedStaticProblems(root, env) {
   const companions = new Set(JSON.parse(env.PULLBOARD_HOOK_COMPANION_PATHS || '[]'));
   return stagedHookFailures(root).filter((line) => !companions.has(line.slice(0, line.indexOf(':'))));
 }
+
+/**
+ * The source ceiling tables whose rows a lane may move between its own files, from the same gate module the staged
+ * check loads, so the paths stay with the gate modules that own them (#10242). None when no check is named or the
+ * named module holds no tables (a project that is not this repository).
+ *
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {Promise<Record<string, { files?: boolean, bare?: boolean }>>}
+ */
+export async function stagedCeilingTables(env) {
+  const named = env.PULLBOARD_HOOK_STATIC;
+  if (!named) return {};
+  const file = resolve(TREE, named);
+  if (!HOOK_STATIC_CHECKS.includes(relative(TREE, file).split('\\').join('/'))) return {};
+  return (await import(pathToFileURL(file).href)).CEILING_ROW_TABLES ?? {};
+}

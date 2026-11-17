@@ -43,6 +43,7 @@ export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";
 export * from "./src/io/step/selection.js";
+export { landOneByHand } from "./src/io/land/hand.js";
 export * from "./src/io/step/merge.js";
 export * from "./src/io/step/failures.js";
 export * from "./src/io/step/gate.js";

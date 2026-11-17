@@ -68,7 +68,7 @@ function batchRun(timingRunId, lane, files) {
     output: `ok ${lane} ${files.join(' ')}\n${formatTestOutcomes(timingRunId, files.map(file => ({ file, name: `${file} case`, passed: true, skipped: false })))}` };
 }
 
-test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its batches into PROOF_MAX_SHARDS lanes, and every file runs once [C7]', { timeout: 60_000 }, async t => {
+test('gate.io-main-batches.a-gate-whose-pool-has-0: clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its batches into PROOF_MAX_SHARDS lanes, and every file runs once [C7]', { timeout: 60_000 }, async t => {
   const box = machine(t);
   const own = await hold(gateOptions(box, 'core-gate'));
   const others = [];
@@ -132,7 +132,7 @@ test('clause 1: a gate whose pool has 0 free slots and frees 5 mid-run pulls its
   } finally { for (const lease of [...others, own]) lease.release(); }
 });
 
-test('clause 1: a batch whose runner drops returns to the queue and runs once on another lane [C7]', async () => {
+test('gate.io-main-batches.a-batch-whose-runner-drops-returns: clause 1: a batch whose runner drops returns to the queue and runs once on another lane [C7]', async () => {
   const timingRunId = randomUUID();
   const calls = [];
   let slotsTaken = 0;
@@ -182,7 +182,7 @@ function runnerExecution(run, timingRunId) {
   remoteCommand: filesCommand(FILES), remoteOptions: { source: { commit: COMMIT, tree: TREE }, metadata: { timingRunId } } };
 }
 
-test('clause 1: a batch whose runner drops on the gate\'s own first lane returns to the queue and runs once on a slot lane [C7]', async () => {
+test('gate.io-main-batches.a-batch-whose-runner-drops-on: clause 1: a batch whose runner drops on the gate\'s own first lane returns to the queue and runs once on a slot lane [C7]', async () => {
   const timingRunId = randomUUID();
   const calls = [];
   const run = dropFirstOn('gate', timingRunId, calls);
@@ -201,7 +201,7 @@ test('clause 1: a batch whose runner drops on the gate\'s own first lane returns
   assert.match(notes.join('\n'), /proof batch returned to the queue: the gate's own runner dropped it \(RUNNER_UNAVAILABLE\)/u);
 });
 
-test('clause 1: when the gate\'s own lane drops a batch and no slot can be had, the gate asks for one and then runs the batch again itself [C7]', async () => {
+test('gate.io-main-batches.when-the-gate-s-own-lane: clause 1: when the gate\'s own lane drops a batch and no slot can be had, the gate asks for one and then runs the batch again itself [C7]', async () => {
   const timingRunId = randomUUID();
   const calls = [];
   const run = dropFirstOn('gate', timingRunId, calls);
@@ -216,7 +216,7 @@ test('clause 1: when the gate\'s own lane drops a batch and no slot can be had, 
   assert.deepEqual(merged.shards.flatMap(shard => shard.files).sort(), files, 'every file once');
 });
 
-test('clause 1: a batch that drops every runner it lands on refuses the proof after BATCH_DROP_LIMIT returns, so the gate reruns on infrastructure [C7]', async () => {
+test('gate.io-main-batches.a-batch-that-drops-every-runner: clause 1: a batch that drops every runner it lands on refuses the proof after BATCH_DROP_LIMIT returns, so the gate reruns on infrastructure [C7]', async () => {
   const timingRunId = randomUUID();
   const calls = [];
   const poison = new Set([FILES[0]]);
@@ -232,7 +232,7 @@ test('clause 1: a batch that drops every runner it lands on refuses the proof af
   assert.equal(calls.filter(call => call.files.some(file => poison.has(file))).length, BATCH_DROP_LIMIT + 1, 'the batch ran once and went back BATCH_DROP_LIMIT times');
 });
 
-test('clause 2: with no runners registered the same path runs the batches in one local lane [C7]', { timeout: 30_000 }, async t => {
+test('gate.io-main-batches.with-no-runners-registered-the-same: clause 2: with no runners registered the same path runs the batches in one local lane [C7]', { timeout: 30_000 }, async t => {
   const box = machine(t);
   assert.equal(freeRunnerSlots(box.pool), 0, 'no runner is registered on this machine');
   let requested = 0;

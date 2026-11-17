@@ -15,7 +15,7 @@ import { compiledIn } from '../../fixtures/parse-store.js';
 import { boundKeyedFolder } from '../../../src/io/keyed.js';
 import { sharedCacheFolder } from '../../../src/io/keyed.js';
 
-test('8233 clause 1: two runner jobs on one runner reuse one keyed cache entry for an unchanged tree [C7]', t => {
+test('runners.shared-cache.n8233-clause-1-two-runner-jobs: 8233 clause 1: two runner jobs on one runner reuse one keyed cache entry for an unchanged tree [C7]', t => {
   const runner = privateFixtureFiles('pullboard-shared-cache-').root;
   t.after(() => rmSync(runner, { recursive: true, force: true }));
   const shared = join(runner, 'shared-cache');
@@ -34,7 +34,7 @@ test('8233 clause 1: two runner jobs on one runner reuse one keyed cache entry f
   assert.equal(compiledIn(alone, source).count, 1, 'a process outside a runner job keeps its own private store');
 });
 
-test('8233: a shared cache folder others could write is never used, and a folder is bounded by size, oldest first [C7]', t => {
+test('runners.shared-cache.n8233-a-shared-cache-folder-others: 8233: a shared cache folder others could write is never used, and a folder is bounded by size, oldest first [C7]', t => {
   const runner = privateFixtureFiles('pullboard-shared-bound-').root;
   t.after(() => rmSync(runner, { recursive: true, force: true }));
   const shared = join(runner, 'shared-cache');
