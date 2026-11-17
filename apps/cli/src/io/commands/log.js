@@ -8,6 +8,9 @@ import {
   withBoardRead,
 } from '../entry.js';
 
+/** How many of the newest events a plain `pullboard log` prints; `--all` prints every one. */
+const PLAIN_LOG_EVENTS = 50;
+
 /** Run `pullboard log` and return its exit code. */
 export function run(io, { first, values = {} }) {
   const ctx = context(io);
@@ -19,7 +22,9 @@ export function run(io, { first, values = {} }) {
     since = at.toISOString();
   }
   const kinds = values.kind === undefined ? undefined : String(values.kind).split(',').map(kind => kind.trim()).filter(Boolean);
-  const { rows, agents } = withBoardRead(ctx, (board) => ({ rows: store.events(board, { itemId, since, kinds }), agents: store.listAgents(board) }));
+  // A bare board-wide log keeps to the newest rows, as it did before #9058; --all, --json or a filter reads them all.
+  const plain = itemId === undefined && !values.all && !values.json && since === undefined && kinds === undefined;
+  const { rows, agents } = withBoardRead(ctx, (board) => ({ rows: store.events(board, { itemId, since, kinds, ...(plain ? { last: PLAIN_LOG_EVENTS } : {}) }), agents: store.listAgents(board) }));
   // Rows go out one at a time: a large board's log is more than one string (or one budgeted reply) can hold.
   const write = io.stdout?.write && !values.json ? (text) => io.stdout.write(`${text}\n`) : (text) => io.say(text);
   // A filtered --json read is NDJSON, one event per line, written straight to stdout; the unfiltered document keeps its { events } shape.

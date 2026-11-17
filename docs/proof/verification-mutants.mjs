@@ -33,7 +33,7 @@ const MUTANTS = [
   ['V3', "the CLI's own check alone is removed; the board still refuses with the same code", [['apps/cli/src/io/commands/verify.js', CLI_CRITERION, CLI_CRITERION_OFF], ['apps/cli/src/io/commands/verify.js', CLI_CRITERION, CLI_CRITERION_OFF]], VERIFY_AT_COMMIT, 'green'],
   ['V4', 'submit takes a dirty tree', [['apps/cli/src/io/commands/submit.js', "const dirty = authorizationStep('tree-state', () => !treeUntouched(root) && !isClean(root));", "const dirty = authorizationStep('tree-state', () => false);"]], CLEAN_TREE, 'red'],
   ['V4', 'submit takes untracked files', [['apps/cli/src/io/commands/submit.js', "if (stray.length) throw new Refused('UNTRACKED'", "if (false) throw new Refused('UNTRACKED'"]], CLEAN_TREE, 'red'],
-  ['V4', 'submit takes a red gate', [RED_GATE], ['apps/cli/journeys/spec/e2e/next.test.js', 'a red gate refuses submit'], 'red'],
+  ['V4', 'submit takes a red gate', [RED_GATE], ['apps/cli/journeys/spec/e2e/submit.test.js', 'a red gate refuses submit'], 'red'],
   ['V5', 'an accept needs no proof note', [['packages/store/src/io/board/verify.js', '        proofNoted: () =>\n          suppliedNote', '        proofNoted: () =>\n          true || suppliedNote']], VERDICT_RULES, 'red'],
   ['V5', 'an accept may give another reason', [['packages/store/src/io/board/verify.js', 'reasonIsMet: () => (reason && reason !== ACCEPT_REASON ?', 'reasonIsMet: () => (false ?']], VERDICT_RULES, 'red'],
   ['V5', 'a reject needs no reason code', [['packages/store/src/io/board/verify.js', 'reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null :', 'reasonCoded: () => (true ? null :']], VERDICT_RULES, 'red'],

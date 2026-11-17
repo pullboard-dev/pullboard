@@ -1,4 +1,5 @@
 /** `pullboard stats runners --lag`: how soon each main commit gets a full-suite result, read-only over the board [C7]. */
+import { boardRunsReader } from '../../../../../../packages/store/index.js';
 import {
   MAIN_TEST_KIND,
   flowWindowMinutes,
@@ -38,7 +39,7 @@ export function runLag(io, ctx, { second, rest, values }) {
   const { landings, jobs } = withBoard(ctx, board => ({
     landings: readMainLandings(board.db, { from, until }),
     // A result may arrive after the window closes, so jobs are read to the end of time.
-    jobs: readRunnerJobs(board.db, { from, until: Number.MAX_SAFE_INTEGER, steps: ['receipt'], payloads: ['receipt'], kinds: [MAIN_TEST_KIND] }),
+    jobs: readRunnerJobs(board.db, { from, until: Number.MAX_SAFE_INTEGER, steps: ['receipt'], payloads: ['receipt'], kinds: [MAIN_TEST_KIND], runs: boardRunsReader(board, ctx.file) }),
   }));
   const results = jobs.flatMap(job => job.steps.filter(step => step.name === 'receipt' && typeof step.payload?.tree === 'string')
     .map(step => ({ tree: step.payload.tree, at: step.at, verdict: step.payload.verdict ?? 'unknown' })));

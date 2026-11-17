@@ -30,6 +30,7 @@ import {
   repoInfo,
 } from "../../../git/index.js";
 import { withGitSyncLock } from './git/lock.js';
+import { behindOptions } from './behind.js';
 import { Refused } from "../../../kernel/index.js";
 import {
   gitSyncFiles,
@@ -315,7 +316,7 @@ export async function gitBoardOperation(root, board, operation, args, io = {}) {
       }
       if (outcome.error) throw new Refused(outcome.error.code, outcome.error.message, outcome.error.next);
     }
-    const moveOptions = operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {};
+    const moveOptions = { ...(operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {}), ...await behindOptions(io) };
     pending = { version: 1, command, at: new Date().toISOString(), move: prepareEngineMove(board, operation, args, moveOptions) };
     save(file.pending, pending);
     outcome = await settle(root, board, pending);

@@ -34,6 +34,7 @@ export { INFRASTRUCTURE_CODES, INFRA_RETRIES, LOCK_CODES, LOCK_WAIT_LIMIT, INVEN
 export { gateStages, stagedScript, readPipes, readStages } from "./src/io/stages.js";
 export { replayChangedTables } from "./src/io/moves/replay.js";
 export { submitImportEdges } from "./src/io/submit-edges.js";
+export { regenerateDeclaredFiles } from "./src/io/submit-generated.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate, startCriterionRun, submitLogPath, startDiagnostics, namedFileRunner } from "./src/io/submit.js";
 export { gateWaitReporter } from "./src/logic/wait.js";
 export { recordGreenRun } from "./src/io/shards/green.js";
@@ -73,7 +74,7 @@ export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNoti
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
 export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure, testFileLoadScale } from "./src/logic/test/budget/file.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
-export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes } from "./src/io/test/value/timing.js";
+export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes, readFileSamples } from "./src/io/test/value/timing.js";
 export { testValueReport } from "./src/io/test/value.js";
 export { runTimedShell } from "./src/io/timed.js";
 export { timingRunner, timingFromOutput, logLines, timingFromLog, runnerPhaseFields, runnerPhaseLine, startRunnerPhases } from "./src/io/timing.js";
@@ -125,3 +126,4 @@ export { walk } from './src/io/scan.js';
 export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure, waitForAcceptedCells } from './src/io/inventory.js';
 export { deriveTestRegistries } from './src/io/test/derived.js';
 export { runJourneyCheck } from "./src/io/test/journey-check.js";
+export { unregisteredNewTests } from "./src/logic/test-registry.js";

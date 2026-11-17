@@ -15,6 +15,9 @@ import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
+import { proofOnlyTicked } from '../empty.js';
+import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseReceiptProblem } from '../../../../../packages/state/index.js';
@@ -24,6 +27,7 @@ import { testRunTickNotes } from '../../../../../packages/state/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { regenerateToolChange } from '../../../../../packages/sandbox/index.js';
+import { regenerateDeclaredFiles } from '../../../../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -40,10 +44,10 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 export { doctrineExecutionPhases } from '../submit/gate.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { submitAuthorizationMode } from '../../../../../packages/config/index.js';
 import { withBoardRead as waitBoardRead } from '../context.js';
-import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../../../../../packages/items/index.js';
 import { normalizeItemPatch } from '../../../../../packages/items/index.js';
 import { validateItemPatchInput } from '../../../../../packages/items/index.js';
@@ -55,7 +59,8 @@ import {
 import { barCheckWarning } from '../../../../../packages/verify/index.js';
 import { barCheckState } from '../../../../../packages/verify/index.js';
 import { dryRunReviewChecklist } from '../../../../../packages/verify/index.js';
-import { dryRunReviewEnabled } from '../../../../../packages/verify/index.js';
+import { dryRunReviewArm } from '../../../../../packages/verify/index.js';
+import { dryRunReviewMode } from '../../../../../packages/verify/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
 import { agentSessionDigest } from '../../../../../packages/person/index.js';
@@ -68,12 +73,9 @@ import {
 import {
 } from '../../../../../packages/gate/index.js';
 import {
-  cleanGitEnvironment,
   contains,
   git,
-  gitSpawnSync,
   headCommit,
-  headTree,
   isClean,
   treeUntouched,
   tryGit,
@@ -92,6 +94,8 @@ import {
 import {
   relayRecovered,
 } from '../../../../../packages/link/index.js';
+import { requireRedSubmitProgress } from '../submit/red-progress.js';
+import { restoreMergedHead } from '../submit/red-progress.js';
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import { submitPreflight } from '../../../../../packages/items/index.js';
 import {
@@ -100,6 +104,7 @@ import {
 import { changedLines } from '../../../../../packages/items/index.js';
 import { missingCheckFiles } from '../../../../../packages/items/index.js';
 import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
+import { recoverFromJobRow } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -115,6 +120,7 @@ import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
 import { titleCases } from '../submit.js';
+import { clauseMarksNote } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
 import { ordered } from '../entry.js';
@@ -130,8 +136,6 @@ import { recordMainComparison } from '../../../../../packages/flakes/index.js';
 import { actOn } from '../entry.js';
 import { recordedRecovery } from '../../../../../packages/state/index.js';
 import { topUpClaims } from '../next.js';
-import { cachedMainComparison } from '../../../../../packages/landing/index.js';
-import { redsAreMains } from '../submit/reds.js';
 import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
 import { mainRedItemCases } from '../../../../../packages/store/index.js';
 import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
@@ -153,6 +157,11 @@ function reportSubmitStage(ctx, name, start) {
   recordGateSpan({ phase: name === 'authorization and source' ? 'authorization' : name.replaceAll(' ', '-'), start: end - elapsed, end, outcome: 'done' });
 }
 
+/** Write one phase's wall time to stderr when PULLBOARD_SUBMIT_MARKS is set, so a slow submit names the phase that spent it [C7]. */
+export function submitMark(phase, startMs) {
+  if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark ${phase}: ${Date.now() - startMs} ms\n`);
+}
+
 /**
  * Run one step of the authorization stage and record it as its own gate span (phase "authorization-<step>"), so the
  * stage's median can be traced to the step that spends it: the whole stage had no sub-spans (p50 14.5 s, 584 spans) [C7].
@@ -164,7 +173,7 @@ function reportSubmitStage(ctx, name, start) {
  */
 function authorizationStep(step, work) {
   const start = Date.now();
-  const finish = outcome => recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome });
+  const finish = outcome => { submitMark(`authorization/${step}`, start); recordGateSpan({ phase: `authorization-${step}`, start, end: Date.now(), outcome }); };
   let value;
   try { value = work(); } catch (error) { finish('failed'); throw error; }
   if (typeof value?.then !== 'function') { finish('done'); return value; }
@@ -203,86 +212,8 @@ export function mainRedCheckCases(root, failures, items, id, main, retaken) {
   return mainRedItemCases(failures, items, id, main, retaken);
 }
 
-/** Hash the candidate's net code diff against the same admitted main used for every red head. */
-function itemChangeHash(root, head, main) {
-  const base = tryGit(root, ['merge-base', head, main]);
-  if (base.status !== 0 || !base.stdout) throw new Refused('NO_POLICY', 'the item or admitted main history cannot be read; restore Git history before submitting again');
-  const diff = gitSpawnSync(['--no-replace-objects', '-c', 'core.quotepath=false', 'diff', '--binary', '--no-ext-diff', base.stdout, head], {
-    cwd: root, env: cleanGitEnvironment(), maxBuffer: 32 * 1024 * 1024,
-  });
-  if (diff.status !== 0) throw new Refused('NO_POLICY', 'the item net diff cannot be read; restore Git history before submitting again');
-  return createHash('sha256').update(diff.stdout).digest('hex');
-}
-
-/** Project red handoffs only when their same-run native receipt proves this item's test failed. */
-function redSubmitTestRuns(board, id, digest, root) {
-  const rows = board.db.prepare("SELECT event_id,event_by,event_kind,event_detail FROM event WHERE item_id=? AND event_kind IN ('submit-handoff','proof-run') ORDER BY event_id").all(id);
-  const red = [];
-  let running = null;
-  for (const row of rows) {
-    let detail;
-    try { detail = JSON.parse(row.event_detail); } catch { running = null; continue; }
-    if (row.event_kind === 'submit-handoff') {
-      if (detail.state === 'running') running = { actor: row.event_by, source: detail.commit, receipts: [] };
-      else if (detail.state === 'red') {
-        if (running?.actor === row.event_by && running.source === detail.commit) {
-          const receipts = running.receipts.filter(receipt => receipt.kind === 'submit' && receipt.item === id
-            && receipt.seat === row.event_by && receipt.frozenDigest === digest && receipt.sourceClean === true
-            && Number.isSafeInteger(receipt.exitCode) && receipt.exitCode !== 0 && receipt.counts?.failed > 0
-            && contains(root, detail.commit, receipt.commit));
-          const commits = [...new Set(receipts.map(receipt => receipt.commit))];
-          if (commits.length === 1) red.push({ eventId: row.event_id, commit: commits[0], failures: receipts.flatMap(receipt => receipt.failures ?? []) });
-        }
-        running = null;
-      } else running = null;
-    } else if (running && detail.receipt) {
-      const receipt = detail.receipt;
-      if (receipt.item === id && receipt.seat === row.event_by && receipt.frozenDigest === digest) running.receipts.push(receipt);
-    }
-  }
-  return red;
-}
-
-/** Whether the local cache records main failing every case of a red gate, by file and case name. */
-function knownMainReds(root, failures, main) {
-  if (!failures?.length) return false;
-  try { return redsAreMains(failures, cachedMainComparison(root, main, failures.map(row => row.file)), main); } catch { return false; }
-}
-
-/** Stop unchanged third red submissions, queued or pulled, while naming the two test failures that need repair. */
-function requireRedSubmitProgress(root, board, id, digest, candidate, main, pulledReds = () => []) {
-  // A gate whose every red is a case main fails by the same name is main's red, not the item's code, so it is no loop [C7].
-  const red = [...redSubmitTestRuns(board, id, digest, root), ...pulledReds(board, id)].sort((a, b) => a.eventId - b.eventId).filter(row => !knownMainReds(root, row.failures, main));
-  if (red.length < 2) return;
-  const latest = red.slice(-2);
-  // A pulled gate writes its own notes and red facts; only a fact that is not the gate's own counts as the holder's progress.
-  const latestFact = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind='fact' AND COALESCE(json_extract(event_detail,'$.text'),'') NOT LIKE 'Gate job %'").get(id).id;
-  if (latestFact > latest.at(-1).eventId) return;
-  const candidateHash = itemChangeHash(root, candidate, main);
-  const hashes = latest.map(row => itemChangeHash(root, row.commit, main));
-  if (hashes.every(hash => hash !== candidateHash)) return;
-  const named = latest.map(row => {
-    const failure = row.failures.find(value => value.file || value.name);
-    const name = failure ? `${failure.file ?? ''}${failure.file ? ':' : ''}${failure.name ?? ''}`.trim() : 'test failure';
-    return `${name.slice(0, 120)} at ${row.commit.slice(0, 12)}`;
-  }).join(' and ');
-  throw new Refused('SUBMIT_RED_LOOP', `two red test gates still match this item code (${named}); change the failing code before another submit`,
-    `fix the two red test failures: ${named}; then commit the code change and submit again`);
-}
-
-/**
- * Put the item folder back on its pre-submit head after a BOARD_BUSY refusal that followed the automatic main merge.
- * Why: the refusal records nothing, so a moved head only strands the clause evidence ticked at the old head [#6096].
- * Only a clean tree whose head is exactly that merge (first parent the old head) is reset; any other state is left alone.
- */
-function restoreMergedHead(root, before) {
-  if (!before) return;
-  const now = headCommit(root);
-  if (!now || now === before || !isClean(root)) return;
-  const parents = tryGit(root, ['show', '-s', '--format=%P', now]);
-  if (parents.status !== 0 || parents.stdout.trim().split(' ')[0] !== before || parents.stdout.trim().split(' ').length !== 2) return;
-  tryGit(root, ['reset', '--hard', '-q', before]);
-}
+/** The tree of a commit, which for a composed submit is not the checkout's tree. */
+function commitTree(root, commit) { return git(root, ['rev-parse', `${commit}^{tree}`]).trim(); }
 
 export async function submitHere(ctx, id, infra, companionInput = null) {
   const { root } = ctx.info;
@@ -316,6 +247,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const offered = await (await import('../submit/pull.js')).recoverOfferedGate(ctx, id, recovered);
     if (offered !== null) return offered;
   }
+  // With submit.recoverFromJobRow on and no note held, the gate job row this seat offered answers instead [C7,#9825].
+  if (!recovered && recoverFromJobRow()) {
+    const offered = await (await import('../submit/pull.js')).recoverOfferedGateFromJobRow(ctx, id);
+    if (offered !== null) return offered;
+  }
+  // gate.runnersOnly means no gate runs on this computer: with no registered runner a pulled submit would queue for the loopback local runner or wait forever, so refuse before any job row, read here in the IO layer [C7,V4,#9398].
+  if (gateRunnerAdmission().runnerOnly && !(loadMachineSettings().runners ?? []).length) {
+    throw new Refused('RUNNER_WAIT_DEADLINE', `gate.runnersOnly is on and no runner is registered, so the gate for #${id} has nowhere to run`, 'register a runner with pullboard runner add, or turn the setting off with pullboard settings gate.runnersOnly off, then retry');
+  }
   const preflightStart = performance.now();
   // The fail-before check reads a base run of each [test] clause's file; produce it first, only when that check is on [C7,#8090].
   if (inspectClauses && failBefore) await authorizationStep('clause-base-runs', () => recordBaseRunsForSubmit(ctx, id, { withBoard, ordered, resourceAgent, store, gateTestFiles: (_root, item) => gateFilesOf(item), recordMainComparison }));
@@ -327,7 +267,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
-    if (ctx.dryRunReview && dryRunReviewEnabled(board)) {
+    const reviewMode = dryRunReviewMode(board);
+    const reviewArm = dryRunReviewArm(reviewMode, id);
+    // Under ab every submitted item records the arm it received, and the on arm prints the checklist without the flag [C7].
+    if (reviewMode === 'ab') await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `dry-run review arm: ${reviewArm}` }]);
+    if (reviewMode === 'ab' ? reviewArm === 'on' : ctx.dryRunReview && reviewMode !== false) {
       // Advisory only: print the verifier checklist before any clause refusal and record that it ran; off prints and records nothing [C7].
       for (const line of dryRunReviewChecklist({ id, clauses: criterionClauses(item.item_criterion), criterion: item.item_criterion, barNote: barCheckState(board, item).note })) ctx.io.say(line);
       await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: 'dry-run review ran: checklist printed to the builder before submit; advisory, not a verdict' }]);
@@ -375,14 +319,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx)) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit)); }
+    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })); }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
+    // The composed commit exists only as objects; the builder checkout and its HEAD are not moved [C7].
     if (mainMerge) commit = mainMerge.commit;
     if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
-  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit));
+  // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
+  authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
+    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -407,6 +354,17 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
     ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
   }
+  // With submit.regenerateDeclared on accepted main, a stale declared generated file is regenerated in the composed tree and committed (#8876) [C7].
+  if (!isSubmitHandoffWorker(ctx) && acceptedMain.config.submit?.regenerateDeclared === true && !regenerated) {
+    let declared;
+    try { declared = regenerateDeclaredFiles(root, acceptedMain.config, { base: held.item_claim_head, item: id }); }
+    catch (error) { throw new Refused('GENERATED_STALE', `${error.message}; next: run the generator yourself, commit, and submit again`); }
+    if (declared) {
+      commit = declared.commit;
+      trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+      ctx.io.say(`Regenerated ${declared.files.join(', ')} from its declared generator; new head ${commit.slice(0, 12)}.`);
+    }
+  }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   authorizationStep('proves-nothing', () => withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id))));
@@ -416,7 +374,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   /** The lane ownership check of authorization and source, on this machine: a lane refusal is routed after proof. */
   const localSubmissionPaths = () => {
     try {
-      authorizationStep('submission-paths', () => submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies }));
+      authorizationStep('submission-paths', () => submissionPaths(root, held, commit, { mainCommit: acceptedMain.commit, dependencies }));
     } catch (error) {
       if (error.code !== 'OUTSIDE_LANE' || !Array.isArray(error.paths)) throw error;
       ownershipRefusal = error;
@@ -431,7 +389,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
   };
   const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
-    dependencies, commit: headCommit(root) });
+    dependencies, commit });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
@@ -461,7 +419,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }));
   const preflightLines = authorizationStep('changed-lines', () => changedLines(root, acceptedMain.commit, commit));
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses,
+  authorizationStep('preflight-record', () => withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: commitTree(root, commit), submissionSize: preflightSize, inspectClauses,
     ...(inspectClauses ? { gateFiles: gateFilesOf(store.getItem(board, id)) } : {}) }, { atomic: store.atomic, submit: store.submit, prepareSubmit: store.prepareSubmit }, { refuse: (observed, item) => machineVerificationEligible(observed, item, filesSince(root, id, claimHead, commit)) ? null : refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) })));
   if (ctx.precheck) {
     // The cheap stage ends here: stacked-on-unverified is checked too, and nothing below (cells, static, gate, queue) starts [V4,C7].
@@ -494,7 +452,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     return prepareItemPatchSubmit(root, board, held, commit);
   }));
   if (companion) withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit: companion.commit, item: id }));
-  withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
+  withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? commitTree(root, commit)));
   const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
   authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
@@ -511,6 +469,11 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     const notes = testAuthorNotes(held, store.itemThread(board, id), { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), seat: me.id, family: seatFamily(board, me.id) });
     for (const text of notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
   });
+  // submit.clauseMarks (#9440): the submit records each bar clause with whether a tick covers it, for the reviewer.
+  if (submitClauseMarks()) await withBoard(ctx, async board => {
+    const text = clauseMarksNote(held, store.itemThread(board, id), commit);
+    if (text) { await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]); ctx.io.say(text); }
+  });
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   withBoard(ctx, (board) => refuseUnsubmittableStack(root, board, held, commit, trunk));
   withBoard(ctx, board => requireSlicePaths(board, held, changedSince(root, acceptedMain.commit, commit), acceptedMain.config.slices?.enforcePaths));
@@ -521,10 +484,15 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // a companion submit's gate judges its composed source [P7].
   if (ownershipRefusal) throw ownershipRefusal;
   // The configured static check runs in the agent's checkout before any runner job is queued, so a red one takes no trip (#5730).
+  const staticStart = Date.now();
   if (!companion) await requireStaticPreflight(root, acceptedMain.config.staticChecks, changedSince(root, acceptedMain.commit, commit), { timeoutMs: acceptedMain.config.check?.timeoutMs });
+  submitMark('preflight/static', staticStart);
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
-  return (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queueStart = Date.now();
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  submitMark('queueing', queueStart);
+  return queued;
 }
 
 /** `submit --preflight`: run every registered static check in parallel on this branch's changed files and submit nothing [C7]. */

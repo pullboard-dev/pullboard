@@ -42,6 +42,7 @@ export { acceptedInventoryKey, acceptedInventoryRuntimeIdentity, readAcceptedInv
 export { cellExistsSync, cellLstatSync, cellReadFileSync, cellReaddirSync, cellSourceSnapshot, withCellSourceSnapshots } from './src/io/cell/snapshot.js';
 export { moveDeclarationFiles, runnerWorkerFiles } from './src/io/cells/move/closure.js';
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
+export { namedBindingsIn } from './src/io/module/names.js';
 export { importParseScopes } from './src/io/module/cache.js';
 export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/logic/layout.js';
 export { LAYOUT_BASELINE, layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';
@@ -52,9 +53,9 @@ export { leasedModules, syncCallsIn, syncSpawnConfig, syncSpawnProblems, syncSpa
 
 export { git as cellGit, tryGit as cellTryGit, readPathMap as cellReadPathMap, withCellGitObjects } from './src/io/cells/git.js';
 export { cellsObjectSnapshots, landingPlanProblems } from './src/io/cells/snapshots.js';
-export { cellsCacheDirectory, inventoryCache, inventoryPending, observationCache } from './src/io/cells/scripts/cache.js';
+export { cellsCacheDirectory } from './src/io/cells/cache-files.js';
+export { inventoryCache, inventoryCodeDigest, inventoryPending, observationCache } from './src/io/cells/scripts/cache.js';
 export { checkMoved, stalePlanRows, unplanned } from './src/io/cells/scripts/plan.js';
 export { addedPlacementProblems, checkCuts, entryPlacementProblems, frontDoorBypasses, onlyForwards, withDeclaredLoads } from './src/io/cells/plan/cuts.js';
 export { lightFrontDoorProblems, pureDoorProblems, pureFrontDoorProblems } from './src/io/cells/door.js';
 export { scriptMentions } from './src/io/cells/shims.js';
-export { cellsBacklogCollector } from './src/io/cells/backlog.js';

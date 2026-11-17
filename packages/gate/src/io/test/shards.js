@@ -46,7 +46,9 @@ import {
   parseCollectionReports,
 } from '../run/receipt.js';
 import {
+  censusFileTimes,
   fileTimesPath,
+  readFileSamples,
   readFileTimes,
 } from './value/timing.js';
 
@@ -106,13 +108,16 @@ export async function planReleaseShards(files, executors, times = {}, needsBrows
 
 const GATE_MARKERS = [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV];
 
-/** Keep the newest wall time for every file this landing measured, beside the older ones. */
-export function writeFileTimes(root, measured) {
+/**
+ * Keep the newest wall time for every file this landing measured, beside the older ones. A census write passes `keep`,
+ * the tracked test list: files outside it drop and each file is planned by the lower of its last two samples [C7].
+ */
+export function writeFileTimes(root, measured, { keep = null } = {}) {
   const path = fileTimesPath(root);
-  const files = { ...readFileTimes(root), ...measured };
+  const record = keep ? censusFileTimes(readFileTimes(root), readFileSamples(root), measured, keep) : { version: 1, files: { ...readFileTimes(root), ...measured } };
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify({ version: 1, files }, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
   renameSync(temporary, path);
 }
 

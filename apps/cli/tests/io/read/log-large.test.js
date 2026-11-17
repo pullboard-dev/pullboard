@@ -1,5 +1,5 @@
 /** @pullboard-test-input apps/cli/src/io/commands/log.js packages/store/src/io/board/query.js */
-/** pullboard log streams a board of 200,000 events instead of building one string, plain and as filtered NDJSON [C7]. */
+/** pullboard log streams a board of 200,000 events instead of building one string, with --all and as filtered NDJSON [C7]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -34,9 +34,9 @@ test('clause 1: pullboard log --json --since --kind streams NDJSON on a board wi
   assert.ok(rows.every(row => row.event_kind === 'merged' && row.event_at >= since));
 });
 
-test('clause 2: plain pullboard log prints every event on a board with 200,000 events, not stopping early [C7]', async (t) => {
+test('clause 2: pullboard log --all prints every event on a board with 200,000 events, not stopping early [C7]', async (t) => {
   const { run } = bigBoard(t);
-  const answer = await run('log');
+  const answer = await run('log', '--all');
   assert.equal(answer.status, 0, answer.stderr);
   const lines = answer.stdout.split('\n').filter(line => /^20\d\d-\d\d-\d\dT/u.test(line));
   // The project's own set-up events come first; every seeded one is there, through the last.

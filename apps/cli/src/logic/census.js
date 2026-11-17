@@ -210,6 +210,40 @@ export function verdictOutcomes(verdicts) {
  * @param {Iterable<{ file: string, status: string, secs: number|null }>} rows
  * @returns {Record<string, number>}
  */
+/**
+ * The row a census reports for a non-green file after its one rerun alone: the rerun's row, marked flaky when it was
+ * green, with both outcomes kept. Why: 66 of 94 non-green files in census 4 were green on rerun (runner load), and the
+ * separate pass 2 that found them took 26 minutes [C7,#9138].
+ *
+ * @param {{ status: string, cases: string[], shard: string, host: string }} first - The file's row from its job.
+ * @param {{ status: string, cases: string[], shard: string, host: string }} again - The file's row from its rerun alone.
+ * @returns {object}
+ */
+export function rerunRow(first, again) {
+  const outcomes = [first, again].map(({ status, cases, shard, host }) => ({ status, cases, shard, host }));
+  return { ...again, ...(again.status === 'green' ? { flaky: true } : {}), outcomes };
+}
+
+/** True for a census row worth one rerun alone: anything but green or skipped [C7,#9138]. */
+export const rerunnable = row => row.status !== 'green' && row.status !== 'skipped';
+
+/**
+ * Wall time of each shard of one census, from its rows: a shard's rows share a label and the job's start and end instants,
+ * so the shard's time is the widest end minus start among them. Rows with no usable instants are skipped, so a census
+ * written before the instants were recorded gives an empty list [C7,U151].
+ *
+ * @param {Array<{ shard?: string, startedAt?: string, endedAt?: string }>} rows
+ * @returns {number[]} Milliseconds, one per shard that has a time.
+ */
+export function previousShardMs(rows) {
+  const byShard = new Map();
+  for (const { shard, startedAt, endedAt } of rows) {
+    const ms = Date.parse(endedAt) - Date.parse(startedAt);
+    if (typeof shard === 'string' && Number.isFinite(ms) && ms > 0) byShard.set(shard, Math.max(byShard.get(shard) ?? 0, ms));
+  }
+  return [...byShard.values()];
+}
+
 export function rowFileTimes(rows) {
   const measured = {};
   for (const { file, status, secs } of rows) if ((status === 'green' || status === 'red') && Number.isFinite(secs) && secs >= 0) measured[file] = Math.round(secs * 1000);
@@ -274,11 +308,18 @@ export function timeBoundJobs(files, times, limitMs) {
  * @param {number} count
  * @param {Record<string, number>} times
  * @param {boolean} balanceByTime - The census.balanceByTime setting.
- * @param {() => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times.
+ * @param {(files?: string[]) => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times; given the files left after solo ones are cut out.
  * @param {number|null} [jobMinutes] - The census.jobMinutes setting; when set it decides the plan, and `count` is ignored.
+ * @param {number|null} [soloSeconds] - The census.soloFileSeconds setting; when set, each file recorded slower than this is a one-file job and the rest plan as above (why: a slow file inside a mixed job set the census's end).
  * @returns {{ files: string[], weight: number }[]}
  */
-export function censusPlan(files, count, times, balanceByTime, base, jobMinutes = null) {
-  if (jobMinutes) return timeBoundJobs(files, times, jobMinutes * 60_000);
-  return balanceByTime ? balancedJobs(files, count, times) : base();
+export function censusPlan(files, count, times, balanceByTime, base, jobMinutes = null, soloSeconds = null) {
+  const solo = soloSeconds ? files.filter(file => Number.isFinite(times[file]) && times[file] > soloSeconds * 1000) : [];
+  const rest = solo.length ? files.filter(file => !solo.includes(file)) : files;
+  const alone = [...solo].sort((a, b) => times[b] - times[a] || a.localeCompare(b)).map(file => ({ files: [file], weight: times[file] }));
+  let jobs;
+  if (!rest.length) jobs = [];
+  else if (jobMinutes) jobs = timeBoundJobs(rest, times, jobMinutes * 60_000);
+  else jobs = balanceByTime ? balancedJobs(rest, count, times) : base(rest);
+  return solo.length ? [...alone, ...jobs].sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0])) : jobs;
 }

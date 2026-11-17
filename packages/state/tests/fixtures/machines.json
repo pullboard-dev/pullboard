@@ -69,7 +69,7 @@
       "id": "<hand-off id>",
       "created": "packages/jobs/src/io/shadow.js:shadowSubmitHandoff",
       "serves": "item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit",
-      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "withdrawn", "done"],
+      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
       "terminal": ["green", "submitted", "red", "incomplete", "ownership-wait", "ended", "withdrawn", "done"],
       "lease": "none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS)",
       "transitions": [
@@ -85,7 +85,8 @@
         { "from": "queued", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator; the running driver is not told", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "legacy leased row only: the fallback finds its item no longer submitted at its commit", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
-        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" }
+        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
+        { "from": "ended", "to": "reoffered", "trigger": "gate.reofferInfraEnd is on and the job ended as infrastructure: one more gate job is offered for the same candidate, then this one is done", "at": "packages/drive/src/io/reclaim.js:reofferGateJob" }
       ],
       "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
       "harness": "apps/cli/journeys/submit/handoff.test.js"
@@ -545,6 +546,99 @@
         "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
       },
       "harness": "packages/store/tests/check-baseline-worker.test.js"
+    },
+    {
+      "kind": "screen",
+      "name": "keyed sprint screen",
+      "id": "screen:<commit>:<digest>@<base>",
+      "created": "packages/drive/src/io/screen.js:runScreenJob",
+      "serves": "a submitted sprint item at its commit on the current base: the merge, static checks on its changed files, and secrets and hook rules re-checked by trusted code",
+      "states": [
+        "produce.started",
+        "part.<name>",
+        "result"
+      ],
+      "terminal": [
+        "result"
+      ],
+      "lease": "LEASE_MS 120 s renewed every 5 s until the screen settles, with no stall bound",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "produce.started",
+          "trigger": "the first driver to screen a sprint item at this commit, digest and base takes the lease",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        },
+        {
+          "from": "produce.started",
+          "to": "result",
+          "trigger": "the scratch-tree merge, static checks and trusted re-check returned one green or red receipt",
+          "at": "packages/drive/src/io/keyed.js:produceUnderLease"
+        }
+      ],
+      "servingCheck": {
+        "status": "n/a",
+        "at": "packages/drive/src/io/screen.js:runScreenJob",
+        "note": "keyed by commit, digest and base, so a moved item or base names a new screen; items not frozen at sprint are never screened"
+      },
+      "harness": "packages/drive/tests/io/screen.test.js"
+    },
+    {
+      "kind": "pull-out",
+      "name": "sprint pull-out",
+      "id": "pull-out:<item>:<landed commit, 12 hex>",
+      "created": "packages/landing/src/io/step/pull.js:runPullOutJob",
+      "serves": "an item whose landing is pulling: the lander reverts its landed commit on main and records pulled",
+      "states": [
+        "queued",
+        "reverted",
+        "pushed",
+        "blocked",
+        "done"
+      ],
+      "terminal": [
+        "blocked",
+        "done"
+      ],
+      "lease": "none: one runPullOutJob call reverts, pushes and records in turn; a rerun finds the item no longer pulling",
+      "transitions": [
+        {
+          "from": "(none)",
+          "to": "queued",
+          "trigger": "the item's landing is pulling, so the lander creates its pull-out job at the landed commit and the fetched trunk",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "queued",
+          "to": "blocked",
+          "trigger": "the revert of the landed commit conflicts on the trunk tip; the step names the conflicted paths and the landing stays pulling",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "queued",
+          "to": "reverted",
+          "trigger": "revertLanded wrote the revert commit on the trunk tip",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "reverted",
+          "to": "pushed",
+          "trigger": "pushTrunkThroughFence pushed the revert to trunk under the item's hop epoch",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        },
+        {
+          "from": "pushed",
+          "to": "done",
+          "trigger": "recordPulled wrote the pulled event at the pushed revert, and the job finished",
+          "at": "packages/landing/src/io/step/pull.js:runPullOutJob"
+        }
+      ],
+      "servingCheck": {
+        "status": "held",
+        "at": "packages/landing/src/io/step/pull.js:runPullOutJob",
+        "note": "created only while the item's landing is pulling, and recordPulled refuses NOT_PULLING, so a moved item is never pulled twice; only a sprint item reaches pulling"
+      },
+      "harness": "packages/landing/tests/io/step/pull.test.js"
     }
   ],
   "processes": [
@@ -593,7 +687,7 @@
     { "case": "gate driver lease lost", "current": "a refused renewal retakes the lease on the next tick", "intended": "same, but only while its item still is in its serving state", "harness": "NONE" },
     { "case": "gate driver killed", "current": "the gate is requeued on the same candidate within seconds, with no builder red", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/requeue.js" },
     { "case": "live driver mistaken for dead", "current": "a sweep never declares a live, same-incarnation driver dead for a lapsed lease alone", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/driver.js" },
-    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "packages/gate/tests/fixtures/pipeline/worker.js" },
+    { "case": "runner lost mid-shard", "current": "the idle probe stops the orphan worker; the gate requeues with attempt + 1; three infrastructure stops end it", "intended": "same", "harness": "apps/runner/tests/io/pipeline/worker.test.js" },
     { "case": "seat runs a stale CLI", "current": "a worktree runs the main checkout's current CLI", "intended": "same", "harness": "apps/cli/journeys/worktree/current.test.js" },
     { "case": "landing crash", "current": "killing the lander at any stage lets the next accept land both items without manual recovery", "intended": "same", "harness": "apps/cli/journeys/land/main.test.js" },
     { "case": "two landers", "current": "the board landing lease admits one; a stalled relay cannot block the holder's heartbeat", "intended": "same", "harness": "apps/lib/tests/landing/lease.test.js" },

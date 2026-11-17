@@ -119,6 +119,11 @@ export const RECLAIM_RULES = defineRules({
   lapsedReview: { says: 'the move frees a review whose lease lapsed', holds: (s, m) => m.kind === 'review-lapse' },
 });
 
+/** The table and its rules, as the engine the board root hands the store's maintenance shadow compare [C7,#9367]. */
+export function reclaimEngine() {
+  return { table: RECLAIM_TABLE, rules: RECLAIM_RULES };
+}
+
 /** The reclaim table: one guard per refusal code of each captured observation, then one outcome per maintenance kind. */
 export const RECLAIM_TABLE = Object.freeze({
   name: 'reclaim',

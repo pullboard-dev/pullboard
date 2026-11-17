@@ -18,6 +18,7 @@ import { headCommit } from '../../../../../packages/git/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../../packages/jobs/index.js';
 import { PULLED } from '../../../../../packages/drive/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
 import { fileBudgetField } from './file-limit.js';
@@ -52,6 +53,8 @@ let light = null;
 try { light = await import(pathToFileURL(join(tools, 'packages', 'gate', 'light.js')).href); } catch { /* an older main: a red run names no cases */ }
 const input = JSON.parse(readFileSync(0, 'utf8'));
 const started = performance.now();
+// The job's own start time and the runner's 1-minute load at that moment, so a census row can place the job [C7,#9284].
+const startedAt = new Date().toISOString(), loadAtStart = loadavg()[0];
 // A runner job is nobody's subtest: a node:test context inherited from the runner's own host would skip every file.
 // This runner is the job's whole execution host, so the run spreads its files over every core [P7,#5790].
 // The job's main names the base the candidate's import graph forks from, so its key analysis parses only what changed [C7,#6672].
@@ -93,7 +96,7 @@ const framed = () => {
 const receipt = { version: 1, kind: 'test', main: input.main, source: input.source, files: input.files, steps: { test: Math.round(performance.now() - started) },
   environment: { node: process.versions.node, platform: process.platform, arch: process.arch }, green: ran.status === 0,
   // The runner's own load, so the board can keep main's side of a comparison as a native receipt [V4,C7].
-  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) },
+  load: { average: loadavg(), cpus: availableParallelism(), freeMB: Math.floor(freemem() / 1048576) }, startedAt, endedAt: new Date().toISOString(), loadAtStart,
   phases: [{ role: 'test', status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: '', ...(ran.status !== 0 ? { failures, ...(failureSignatures ? { failureSignatures } : {}) } : {}) }] };
 // The receipt line stays under the runner's receipt-line cap: the tail shrinks until the whole line fits.
 if (runId) receipt.outcomes = framed();
@@ -212,7 +215,7 @@ export function testJobData({ main, commit, command, files, runId = null, fileBu
  * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null }) {
+async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
   const { root } = ctx.info;
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
@@ -221,7 +224,7 @@ async function testJobRow(ctx, { item, commit, main, command, files, runId = nul
   git(root, ['update-ref', ref, commit]);
   const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
-    item: item === undefined ? null : Number(item), candidate: commit, base: main, request } };
+    item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
 
 /** Start this machine's loopback runner when it has no registered one, as a pull submit does: otherwise the job waits unclaimed [P7,C7]. */
@@ -231,11 +234,39 @@ async function startLocalRunner(ctx) {
   if (host) await ensureLocalRunner(host);
 }
 
+/**
+ * The holder of the board's runs handle while runs_store is on, else null: an interactive test job's rows live there and
+ * nowhere on the board, since no move uses them [P7,B2,#9011]. The runs file opens on first use of `holder.db`.
+ *
+ * @param {object} ctx
+ * @returns {{ readonly db: import('node:sqlite').DatabaseSync } | null}
+ */
+export function testRunsHolder(ctx) {
+  return withBoardRead(ctx, board => boardRunsHolder(board, ctx.file));
+}
+
+/**
+ * Offer a test job row to the store that holds it: the runs file when `runs` is given, else the board. With runs_store on
+ * the job gets no board run row, because nothing on the board decides on it; off, it is the board job row as on main.
+ *
+ * @param {Function} offerJob - The api's offerJob.
+ * @param {{ board?: { db: import('node:sqlite').DatabaseSync }, runs?: { db: import('node:sqlite').DatabaseSync } | null }} stores
+ * @param {object} row
+ */
+export function offerTestRow(offerJob, { board, runs = null }, row) {
+  return offerJob((runs ?? board).db, row);
+}
+
+/** A test job's view from the store that holds it: the runs file when `runs` is given, else the board. */
+export function readTestRow({ board, runs = null }, job) {
+  return jobView((runs ?? board).db, job);
+}
+
 /** Offer one test job for a commit. Returns the job id and the pinned ref. */
-async function offerTestJob(ctx, fields) {
+async function offerTestJob(ctx, fields, runs) {
   const { offerJob } = await import('../../../../../packages/api/index.js');
   const { ref, row } = await testJobRow(ctx, fields);
-  const job = withBoard(ctx, board => offerJob(board.db, row));
+  const job = runs ? offerTestRow(offerJob, { runs }, row) : withBoard(ctx, board => offerTestRow(offerJob, { board }, row));
   await startLocalRunner(ctx);
   return { job: job.id, ref };
 }
@@ -263,11 +294,11 @@ export async function offerAcceptCheck(ctx, board, { item, commit, main, command
  *
  * @returns {Promise<{ receipt: Record<string, any>, runner: string | null }>}
  */
-async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS }) {
+async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS, runs = null }) {
   const deadline = Date.now() + gateRunnerWaitMs();
   let beat = 0, claimed = null;
   for (;;) {
-    const view = withBoardRead(ctx, board => jobView(board.db, job));
+    const view = runs ? readTestRow({ runs }, job) : withBoardRead(ctx, board => readTestRow({ board }, job));
     if (!view) throw new Refused('TEST_JOB_MISSING', `test job ${job} is gone from the board; run pullboard test again`);
     const posted = [...view.steps].reverse().find(step => step.name === 'receipt');
     if (posted) return { receipt: posted.payload.receipt ?? {}, runner: posted.payload.runner ?? null };
@@ -290,17 +321,22 @@ async function receiptOf(ctx, { job, agent, say, wait = pause, pollMs = POLL_MS 
  * names the job on its run, so the receipt still settles the run if the worker stops before it (#7574).
  */
 async function runJobFor(ctx, fields, { agent, say, testRun }) {
-  const offered = await offerTestJob(ctx, fields);
-  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep(board.db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
+  // The moment a runner took the job, for a census row's claimedAt [C7,#9284].
+  let claimedAt = null;
+  const noted = say;
+  say = line => { if (claimedAt === null && /took test job/u.test(String(line))) claimedAt = new Date().toISOString(); noted?.(line); };
+  const runs = testRunsHolder(ctx);
+  const offered = await offerTestJob(ctx, fields, runs);
+  if (typeof testRun === 'string' && testRun) withBoard(ctx, board => writeStep((runs ?? board).db, testRun, PULLED, { job: offered.job, until: Date.now() + gateRunnerWaitMs() }));
   say?.(`pullboard test: offered test job ${offered.job} for ${fields.commit.slice(0, 12)}; a runner fetches it from the trunk remote and runs it`);
   try {
-    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say });
+    const { receipt, runner } = await receiptOf(ctx, { job: offered.job, agent, say, runs });
     const gate = receipt.gate ?? {};
     const phase = gate.phases?.[0] ?? null;
     const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
     const output = phase?.tail ?? gate.error ?? receipt.tail ?? '';
     const outcomes = Array.isArray(gate.outcomes) ? gate.outcomes.filter(Array.isArray).map(([file, name, passed, skipped]) => ({ file, name, passed, skipped })) : null;
-    return { job: offered.job, runner, green, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
+    return { job: offered.job, runner, green, claimedAt, startedAt: typeof gate.startedAt === 'string' ? gate.startedAt : null, endedAt: typeof gate.endedAt === 'string' ? gate.endedAt : null, loadAtStart: Number.isFinite(gate.loadAtStart) ? gate.loadAtStart : null, output: String(output), failures: Array.isArray(phase?.failures) ? phase.failures : null,
       signatures: Array.isArray(phase?.failureSignatures) && phase.failureSignatures.length === phase?.failures?.length ? phase.failureSignatures : null, durationMs: receipt.durationMs ?? null, outcomes,
       verdicts: gate.verdicts && typeof gate.verdicts === 'object' && !Array.isArray(gate.verdicts) ? gate.verdicts : null,
       times: gate.times && typeof gate.times === 'object' && !Array.isArray(gate.times) ? gate.times : null,
@@ -339,8 +375,8 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
  * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say });
 }
 
 /**

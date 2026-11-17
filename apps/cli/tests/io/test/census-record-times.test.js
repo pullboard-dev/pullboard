@@ -9,6 +9,7 @@ import { fixtureCommitAll } from '../../../../../packages/gate/tests/fixtures/te
 import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runCensus } from '../../../src/io/test/census.js';
 import { readFileTimes } from '../../../../../packages/gate/index.js';
+import { writeFileTimes } from '../../../../../packages/gate/index.js';
 import { landingBalance } from '../../../../../packages/gate/index.js';
 import { planLandingShards } from '../../../../../packages/gate/index.js';
 
@@ -61,4 +62,11 @@ test('clause 3: with census.recordFileTimes off, the default, a census writes no
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });
   assert.deepEqual(readFileTimes(repo), {});
   assert.equal(landingBalance(FILES, readFileTimes(repo)), 'file count');
+});
+
+test('clause 1: with census.recordFileTimes on, a census write leaves no entry for a file no longer tracked [C7]', async (t) => {
+  const repo = fixture(t, { census: { recordFileTimes: true } });
+  writeFileTimes(repo, { 'gone.test.js': 788_000, 'one.test.js': 99_000 });
+  await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher() });
+  assert.deepEqual(readFileTimes(repo), { 'one.test.js': 1500, 'two.test.js': 3000, 'three.test.js': 4500 });
 });

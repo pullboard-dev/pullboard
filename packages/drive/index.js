@@ -10,6 +10,8 @@ export { FLAKE_DIAGNOSE_KIND, flakeDiagnoseKey, diagnoseTargets } from './src/lo
 export { reclaimPass, lapsedGateJobs, endDeadGateJobs, FALLBACK_BUDGET_MS, GATE_JOB_NO_PROGRESS_MS } from './src/io/reclaim.js';
 export { keyedResult, cellsInventoryJob } from './src/io/keyed.js';
 export { CELLS_INVENTORY_KIND, keyedJobId } from './src/logic/keyed.js';
+export { runScreenJob, screenCommit } from './src/io/screen.js';
+export { SCREEN_KIND, screenKey, screenQueued, screenReceipt } from './src/logic/screen.js';
 export { driveLanding } from './src/io/landing.js';
 export { LANDING_RUN_KIND, landingRunJobId, landingRunSummary } from './src/logic/landing.js';
 export { admitGateDrive, renewGateDriveHop, recordGateDriveSpawn, endGateDriveUnstarted, readGateDrive, stalledGateDriveFindings } from './src/io/gate.js';

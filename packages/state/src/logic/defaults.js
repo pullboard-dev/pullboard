@@ -616,9 +616,10 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   INBOX_KEEP_OFF: 'set inbox.keepUntilActed to true to keep and archive inbox entries',
   BAD_REVIEW_LIMIT: 'pullboard join <lane> --review-limit not-same-family',
   RANGE_UNREADABLE: 'pass commits this checkout holds, or fetch the missing ones first',
+  REVIEW_RELEASE_REASON: 'run pullboard release <id> --reason BAR|FAMILY|INFRA|TOO_LARGE --note "why"',
   RUNNER_RUN_SYNC: 'await a run on a runner: call runProfiledShellAsync instead of the synchronous runner',
   RUNNER_BRIDGE_DEADLINE: 'rerun the verdict; if it repeats, shout the coordinator with this line',
-  BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or wait for the next UTC day',
+  BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or resume after the next UTC day begins',
   MOVE_TABLES_MISSING: 'open the board through packages/board, or call provideMoveTables before the store runs its move tables'
 });
 

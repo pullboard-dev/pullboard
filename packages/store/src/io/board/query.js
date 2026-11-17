@@ -16,6 +16,7 @@ import {
   activityEventDetail,
   activityInterests,
   isActivityNews,
+  archivedItemEvents,
   itemActivity,
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
@@ -41,7 +42,7 @@ export { closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, r
 export { schemaMissing, writeRefused } from "./migrate.js";
 export { stats } from "../../logic/board/stats.js";
 export { submitInvariantEvents } from "./indexes.js";
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../verify/read.js";
+export { acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor } from "../../../../verify/read.js";
 
 export const PERSON = 'person';
 
@@ -49,7 +50,7 @@ import { now } from "./read/light.js";
 import { listItems } from "./read/light.js";
 export { now, boardId, listItems, listItemsSql } from "./read/light.js";
 
-const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
+export const REVIEW_RESERVATION_HEARTBEAT_TIMEOUT_MS = 2 * 60_000;
 
 /**
  * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
@@ -94,7 +95,7 @@ export function reviewReleasesSinceSubmit(board, itemId, agentId = null) {
     try {
       const detail = JSON.parse(event.event_detail);
       if (detail.review === true || detail.review === undefined) releases.push({ ...event, legacy: detail.review === undefined,
-        reason: detail.reason ?? 'reason not recorded' });
+        reason: detail.reason ?? 'reason not recorded', code: detail.reasonCode ?? null });
     } catch { /* Ignore malformed legacy details rather than treating them as review releases. */ }
   }
   return releases;
@@ -242,15 +243,26 @@ export function unreadCount(board, agentId) {
  * The event log, oldest first, for one item or the whole board; `since` (an ISO time) and `kinds` narrow it in the query.
  *
  * @param {any} board
- * @param {{ itemId?: number, since?: string, kinds?: string[] }} [filter]
+ * With `last`, only that many newest events come back (still oldest first), so a large board is never read whole.
+ *
+ * @param {{ itemId?: number, since?: string, kinds?: string[], last?: number }} [filter]
  * @returns {any[]}
  */
-export function events(board, { itemId, since, kinds } = {}) {
+export function events(board, { itemId, since, kinds, last } = {}) {
   const where = [], bindings = [];
   if (itemId !== undefined && itemId !== null) { where.push('item_id = ?'); bindings.push(itemId); }
   if (since) { where.push('event_at >= ?'); bindings.push(since); }
   if (kinds?.length) { where.push(`event_kind IN (${kinds.map(() => '?').join(', ')})`); bindings.push(...kinds); }
-  return board.db.prepare(`SELECT * FROM event${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY event_id`).all(...bindings);
+  const filtered = `FROM event${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`;
+  // An item's archived events (#9334) read as if they never moved: hot then archive, merged in event order [#9335].
+  const archived = itemId !== undefined && itemId !== null
+    ? archivedItemEvents(board, itemId).filter(event => (!since || event.event_at >= since) && (!kinds?.length || kinds.includes(event.event_kind))) : [];
+  const withArchive = rows => archived.length ? [...archived, ...rows].sort((a, b) => a.event_id - b.event_id) : rows;
+  if (Number.isInteger(last) && last > 0) {
+    const rows = board.db.prepare(`SELECT * FROM (SELECT * ${filtered} ORDER BY event_id DESC LIMIT ?) ORDER BY event_id`).all(...bindings, last);
+    return withArchive(rows).slice(-last);
+  }
+  return withArchive(board.db.prepare(`SELECT * ${filtered} ORDER BY event_id`).all(...bindings));
 }
 
 /** One event of an item's thread, as itemThread lists it; `withdrawals` maps an accept event to the withdrawal that undid it. */

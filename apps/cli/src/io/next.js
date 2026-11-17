@@ -17,6 +17,8 @@ import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { dirtyFiles } from './submit.js';
 import * as store from '../../../../packages/store/index.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
+import { nextHoldAboveLoad } from '../../../../packages/config/index.js';
 
 /** Next's selection, loaded at the first selection: its landing and gate loads never ride on the command's load [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
@@ -38,8 +40,26 @@ export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg
  * @param {any} values
  * @returns {Promise<{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }>}
  */
-export function nextOnce(ctx, values) {
+export async function nextOnce(ctx, values) {
+  const held = loadHold(ctx, values);
+  if (held) return held;
   return requireModule('../../../../packages/moves/src/io/selection.js').nextOnce(ctx, values, nextPorts);
+}
+
+/**
+ * With next.holdAboveLoad on, the idle answer for a seat on a machine above machine.loadCeiling: no new build or review claim,
+ * and the load named as the reason. A seat that holds a claim still resumes it, so work in progress is never stranded [C7,#9703].
+ *
+ * @param {any} ctx
+ * @param {any} values
+ * @returns {{ reasons: string[] }|null} The idle answer, or null when next may hand a claim.
+ */
+export function loadHold(ctx, values) {
+  if (!nextHoldAboveLoad()) return null;
+  const verdict = requireModule('../../../../packages/resources/index.js').machineLoadVerdict(loadMachineSettings());
+  if (!verdict.held) return null;
+  if (!values.build && withBoardRead(ctx, board => heldTop(ctx, board).length)) return null;
+  return { reasons: [`next hands no new work: ${verdict.line}`] };
 }
 
 /** Ids of this seat's live top-level build claims, the ones the claim guard counts against N (reworks and gated work aside) [C7]. */
@@ -78,7 +98,7 @@ export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
       // A claim the seat already holds is left out too, or selection hands it back as held and nothing new is claimed.
       for (const item of mine) omit.add(item.item_id);
       for (const item of items) if (item.item_status === 'open' && store.itemFiles(item).some(file => held.has(file))) omit.add(item.item_id);
-      return store.claimsPerSeat(board, perSeat).n - heldTop(ctx, board).length;
+      return store.claimsPerSeat(board, perSeat, { runs: store.boardRunsReader(board, ctx.file) }).n - heldTop(ctx, board).length;
     });
     if (room <= 0) break;
     const found = await nextOnce(ctx, { ...values, build: true, omitIds: [...omit] });

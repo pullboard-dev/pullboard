@@ -19,6 +19,7 @@ import { probeRunnerTransport } from '../../../../../packages/runners/index.js';
 import { readPulledCapacity } from '../../../../../packages/runners/index.js';
 import { lastRecordedLimit } from './stats/limits.js';
 import { recordLimitChange } from './stats/limits.js';
+import { boardRunsReader } from '../../../../../packages/store/index.js';
 import { openBoardReadOnly } from '../../../../../packages/store/index.js';
 import { atomic } from '../../../../../packages/store/index.js';
 import { logEvent } from '../../../../../packages/store/index.js';
@@ -36,6 +37,7 @@ import { installRunnerService } from '../../../../../packages/runners/index.js';
 import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
+import { asyncFetchEnabled } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -49,7 +51,7 @@ import {
 /** The runners the board sees live (serves that claimed within minutes), or undefined when it sees none or cannot be read. Why here: it is the board's one reader of pulled capacity [U151]. */
 export function liveRunnerCount(ctx) {
   try {
-    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db));
+    const { totals } = withBoardRead(ctx, board => readPulledCapacity(board.db, { runs: boardRunsReader(board, ctx.file) }));
     return totals.serves > 0 ? totals.serves : undefined;
   } catch { return undefined; }
 }
@@ -61,6 +63,13 @@ function sizeLine(runner, settings) {
   const formula = computeRunnerSlots(runner);
   return `${runner.cores} cores, ${runner.memoryMB} MB; formula ${formula.slots} slots, ${formula.browser} browser`
     + (runner.fixed === true ? '; declared count overrides' : settings.gate?.measuredSlots === true ? `; offering ${offered.slots}` : '; gate.measuredSlots is off');
+}
+
+/** One line naming a toolchain the runner's probe could not verify, with what was declared and what the runner answered [C7]. */
+function toolchainLine(host, problem) {
+  const want = problem.declared === '' ? 'any version' : `declared ${problem.declared}`;
+  return problem.problem === 'missing' ? `runner ${host}: toolchain ${problem.name} is missing (${want})`
+    : `runner ${host}: toolchain ${problem.name} is the wrong version (${want}, found ${problem.found})`;
 }
 
 /** List, add or remove machine-level SSH capacity without requiring a board identity or runner account. */
@@ -95,7 +104,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!existsSync(ctx.file)) throw new Refused('NO_BOARD', 'there is no board here', 'run pullboard runner status inside a board repository');
     const db = openBoardReadOnly(ctx.file);
     let capacity;
-    try { capacity = readPulledCapacity(db); } finally { db.close(); }
+    try { capacity = readPulledCapacity(db, { runs: boardRunsReader({ db }, ctx.file) }); } finally { db.close(); }
     io.result?.(capacity);
     io.say(capacity.serves.length ? [...capacity.serves.map(entry => `${entry.runner}: ${entry.claimed} of ${entry.jobs ?? 'unknown'} jobs`),
       `fleet: ${capacity.totals.claimed} of ${capacity.totals.jobs} jobs`].join('\n') : 'no serves have claimed pulled jobs');
@@ -196,7 +205,8 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     if (!targets.length) throw new Refused('RUNNER_NOT_REGISTERED', second === undefined ? 'no runners are registered' : `runner ${second} is not registered`, 'run pullboard runner list');
     const measured = [];
     for (const target of targets) {
-      const observation = await probeRunnerTransport(target, { observeGui: true });
+      const observation = await probeRunnerTransport(target, { observeGui: true, ...(target.toolchains ? { toolchains: target.toolchains } : {}) });
+      for (const problem of observation.toolchains?.problems ?? []) io.say(toolchainLine(target.host, problem));
       if (observation.cores === undefined) { io.say(`runner ${target.host}: measurement failed (${observation.reason}); its recorded size is unchanged`); measured.push({ host: target.host, measured: false }); continue; }
       let runner;
       try { runner = recordRunnerMeasurement(target.host, { gui: observation.gui, cores: observation.cores, memoryMB: observation.memoryMB, measuredAt: new Date().toISOString() }); }
@@ -224,7 +234,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const toolchains = values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, ...(toolchains ? { toolchains } : {}) });
   if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
   if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
@@ -235,7 +245,10 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   const sized = slotsGiven ? { slots: Number(values.slots), browser: Number(values.browser), fixed: true }
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
-  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(toolchains ? { toolchains } : {}) });
+  // Only the toolchains the runner's own probe answered are recorded; each one it could not verify is named and left out.
+  const verified = toolchains ? observation.toolchains?.verified ?? {} : undefined;
+  for (const problem of toolchains ? observation.toolchains?.problems ?? Object.keys(toolchains).map(name => ({ name, problem: 'missing', declared: toolchains[name], found: null })) : []) io.say(toolchainLine(second, problem));
+  const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(verified && Object.keys(verified).length ? { toolchains: verified } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
   recordRunnerGui(runner.host, observation.gui);
   io.result?.({ runner });
@@ -280,5 +293,5 @@ export async function openHostedItemFolder(runner, { itemId, branch, commonDir, 
 async function landJobHandler(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
   const { diagnoseLandingRed } = await import('./flakes.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed });
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, diagnose: diagnoseLandingRed, asyncFetch: asyncFetchEnabled() });
 }
