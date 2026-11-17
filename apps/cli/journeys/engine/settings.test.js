@@ -40,7 +40,7 @@ async function machineHomeUnder(env) {
   return home;
 }
 
-test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid values', async () => {
+test('cli.journeys-engine-settings.o5-o6-gateslots-defaults-to-two: [O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses invalid values', async () => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-settings-'));
   try {
     const initial = await settings(home);
@@ -85,7 +85,7 @@ test('[O5,O6] gateSlots defaults to two, reads and sets atomically, and refuses 
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
-test('[Q4] the machine pool ignores board and HOME overrides unless explicitly selected', async () => {
+test('cli.journeys-engine-settings.q4-the-machine-pool-ignores-board: [Q4] the machine pool ignores board and HOME overrides unless explicitly selected', async () => {
   const env = { ...process.env, HOME: '/private/home', PULLBOARD_HOME: '/private/board' };
   delete env.PULLBOARD_MACHINE_HOME;
   delete env.PULLBOARD_ACCOUNT_HOME;
@@ -100,13 +100,13 @@ test('[Q4] the machine pool ignores board and HOME overrides unless explicitly s
   assert.equal(await machineHomeUnder({ ...env, PULLBOARD_MACHINE_HOME: override }), resolve(override));
 });
 
-test('the settings API reports every setting with its scope, value, default and source and never a secret [O5,O6]', async () => {
+test('cli.journeys-engine-settings.the-settings-api-reports-every-setting: the settings API reports every setting with its scope, value, default and source and never a secret [O5,O6]', async () => {
   const { proveSettingsApi } = await import('../../tests/fixtures/api/settings.js');
   await proveSettingsApi();
 });
 
 /** Board-owned settings keep native move evidence, independent of machine-wide admission settings [R1,R2,H16]. */
-test('a line setting change is a recorded move with its reason and its range [R1,R2,H16]', async t => {
+test('cli.journeys-engine-settings.a-line-setting-change-is-a: a line setting change is a recorded move with its reason and its range [R1,R2,H16]', async t => {
   const { createE2eHelpers } = await import('../../tests/fixtures/e2e.js');
   const store = await import('../../../../packages/store/index.js');
   const nativeBoard = await import('../../../lib/index.js');
@@ -161,7 +161,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
 });
 
 /** The public opt-in persists only machine policy and validates both CLI and file inputs. */
-test('gate.runnersOnly defaults off and has a validated public on/off setting [C7,O5]', async () => {
+test('cli.journeys-engine-settings.gate-runnersonly-defaults-off-and-has: gate.runnersOnly defaults off and has a validated public on/off setting [C7,O5]', async () => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-runner-only-settings-'));
   try {
     const initial = await settings(home);
