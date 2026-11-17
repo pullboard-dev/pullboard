@@ -10,6 +10,7 @@ import { createE2eHelpers } from '../e2e.js';
 import {
   joinFixtureSeat,
   fileFixtureItem,
+  fixtureSettledMachine,
 } from '../testkit.js';
 
 /** Hold a private timer registration with this actual process; no detached worker is needed in these CLI cases. */
@@ -25,13 +26,18 @@ function retainFixtureTimer(box) {
   return common;
 }
 
-/** Commit only the private fixture's opt-in; no shared project settings are touched. */
-function enable(box) {
+/**
+ * Commit only the private fixture's opt-in; no shared project settings are touched.
+ * Why in process: the commit runs its hooks in this process (test.inProcessHooks on) instead of two node children [C7,#10461].
+ */
+async function enable(box) {
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const file = join(box.repo, 'pullboard.json'), config = JSON.parse(fs.readFileSync(file, 'utf8'));
   config.worktreeMaintenance = { enabled: true, every: '1h', grace: '1d', exclude: [] };
   fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
-  box.git(box.repo, 'commit', '-qm', 'chore: enable private fixture maintenance');
+  const committed = await box.tryGit(box.repo, 'commit', '-qm', 'chore: enable private fixture maintenance');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
 /** Write bytes into an ignored folder: Git status stays clean, so cleanup may archive and remove it. */
@@ -43,35 +49,35 @@ function writeIgnored(box, root, bytes) {
 
 /** Register only through the owning frozen check. */
 export function registerMaintenanceCliTests() {
-  test('maintenance CLI defaults off and prints exactly one count and space summary [B3,C7,N26]', t => {
+  test('maintenance CLI defaults off and prints exactly one count and space summary [B3,C7,N26]', async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-    const result = box.run(box.repo, 'maintenance');
+    const result = await box.runIn(box.repo, 'maintenance');
     assert.equal(result.code, 0, result.err);
     assert.match(result.out.trim(), /^maintenance: active 0, finished 0, orphaned 0, scratch 0; pruned 0; archived 0; space freed 0 B; off$/u);
     assert.equal(result.out.trim().split('\n').length, 1);
     assert.equal(fs.existsSync(join(box.repo, '.git', 'pullboard', 'worktree-maintenance')), false);
-    const json = box.run(box.repo, 'maintenance', '--json');
+    const json = await box.runIn(box.repo, 'maintenance', '--json');
     assert.equal(json.code, 0, json.err);
     assert.equal(JSON.parse(json.out).enabled, false);
   });
 
-  test('clause 1: ordinary release archives ignored owner files before cleaning and records its recovery fact [B3,C7,N26]', t => {
+  test('clause 1: ordinary release archives ignored owner files before cleaning and records its recovery fact [B3,C7,N26]', async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    const joined = joinFixtureSeat(box, owner, 'web');
+    const joined = await joinFixtureSeat(box, owner, 'web', { run: box.runIn });
     assert.equal(joined.code, 0, joined.err);
-    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive', diagnose: false,
+    const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private release archive', diagnose: false, run: box.runIn,
       criterion: 'The fixture can release its own work.', args: ['--specs', 'G1'],
-      brief: 'Files:\n- web/page.js\nChange:\n- Exercise private release.\nTest:\n- Native release retains archive evidence.' }).item_id;
-    const claimed = box.run(owner, 'claim', String(id), '--json');
+      brief: 'Files:\n- web/page.js\nChange:\n- Exercise private release.\nTest:\n- Native release retains archive evidence.' })).item_id;
+    const claimed = await box.runIn(owner, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
     writeIgnored(box, owner, bytes);
-    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
+    const released = await box.runIn(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
     assert.equal(fs.existsSync(join(owner, 'ignored', 'unfinished.bin')), false, released.err);
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');
@@ -82,31 +88,31 @@ export function registerMaintenanceCliTests() {
     assert.ok(archive, 'the cleanup has a persisted private recovery manifest');
     const file = archive.value.files.find(row => row.path === 'ignored/unfinished.bin');
     assert.deepEqual(fs.readFileSync(join(archive.directory, 'blobs', file.sha256)), bytes);
-    const log = box.run(box.repo, 'log', String(id), '--json');
+    const log = await box.runIn(box.repo, 'log', String(id), '--json');
     assert.equal(log.code, 0, log.err);
     assert.match(log.out, /Worktree work archived before maintenance cleanup/u);
-    const refused = box.run(owner, 'maintenance', '--json');
+    const refused = await box.runIn(owner, 'maintenance', '--json');
     assert.equal(refused.code, 1);
     assert.match(refused.out + refused.err, /COORDINATOR_ONLY/u);
   });
 
-  test('clause 1: ordinary release leaves a worktree with uncommitted changes in place and records a fact naming it and its dirty paths [C7]', t => {
+  test('clause 1: ordinary release leaves a worktree with uncommitted changes in place and records a fact naming it and its dirty paths [C7]', async t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-    enable(box);
+    await enable(box);
     const common = retainFixtureTimer(box), owner = join(box.dir, 'web-dirty-owner');
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', owner, 'main');
-    assert.equal(joinFixtureSeat(box, owner, 'web').code, 0);
-    const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private dirty release' }).item_id;
-    assert.equal(box.run(owner, 'claim', String(id), '--json').code, 0);
+    assert.equal((await joinFixtureSeat(box, owner, 'web', { run: box.runIn })).code, 0);
+    const id = (await fileFixtureItem(box, box.repo, { lane: 'web', title: 'Private dirty release', run: box.runIn })).item_id;
+    assert.equal((await box.runIn(owner, 'claim', String(id), '--json')).code, 0);
     const bytes = Buffer.from([0, 7, 8, 255]);
     fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
-    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
+    const released = await box.runIn(owner, 'release', String(id), '--reason', 'OTHER', '--note', 'fixture release', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
     assert.deepEqual(fs.readFileSync(join(owner, 'unfinished.bin')), bytes, 'release never removes uncommitted work');
     assert.notEqual(box.git(owner, 'status', '--porcelain').trim(), '');
     assert.equal(fs.existsSync(join(common, 'pullboard', 'worktree-archives')), false, 'no archive, reset or clean runs on a dirty tree');
-    const log = box.run(box.repo, 'log', String(id), '--json');
+    const log = await box.runIn(box.repo, 'log', String(id), '--json');
     assert.equal(log.code, 0, log.err);
     assert.match(log.out, /Worktree kept by maintenance because it holds uncommitted changes/u);
     assert.ok(log.out.includes('unfinished.bin') && log.out.includes(owner));

@@ -32,7 +32,7 @@ import {
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
 /** Prove an older agent worktree gets the exact commit-first instruction from its main checkout. */
-test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', async (t) => {
+test('cli.journeys-resume-flow.a-worktree-names-its-main-checkout: a worktree names its main checkout\'s uncommitted init files [I1,I2]', async (t) => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   const oldHead = box.git(box.repo, 'rev-parse', 'HEAD');
   const worktree = join(box.root, 'old-agent-worktree');
@@ -52,7 +52,7 @@ test('a worktree names its main checkout\'s uncommitted init files [I1,I2]', asy
   for (const path of ['pullboard.json', 'SPEC.md', 'DOCTRINE.md']) assert.ok(fromMain.stdout.includes(path), fromMain.stdout);
 });
 
-test('a first run records the version quietly [N19]', t => {
+test('cli.journeys-resume-flow.a-first-run-records-the-version: a first run records the version quietly [N19]', t => {
   const box = releaseFixture(t);
   const result = box.run(box.repo, 'resume');
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -60,7 +60,7 @@ test('a first run records the version quietly [N19]', t => {
   assert.equal(readFileSync(join(box.repo, '.git', 'pullboard-checkout', 'resume-version'), 'utf8'), '0.8.7\n');
 });
 
-test('resume limits long upgrade notes and skips changelog categories as headlines [N19]', t => {
+test('cli.journeys-resume-flow.resume-limits-long-upgrade-notes-and: resume limits long upgrade notes and skips changelog categories as headlines [N19]', t => {
   const box = releaseFixture(t, { previous: '0.8.3', version: '0.8.9', changelog: LONG_CHANGELOG });
   const result = box.run(box.repo, 'resume');
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
@@ -157,7 +157,7 @@ function alert(text, expected) {
   assert.match(lines.at(-2), /^next: /u);
 }
 
-test('coordinator resume ends with the exact measured-average flow alert [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-ends-with-the-exact: coordinator resume ends with the exact measured-average flow alert [N32,R1,R2]', async t => {
   const box = fixture(t, { wait: 61 });
   alert(await box.run(['resume']), 'flow: review wait average 1 h 1 min (1 measured; > 1 h 0 min); bottleneck: build (66.67% of 5 h 0 min measured cycle time); next: add a builder when open work is available');
   const json = await box.run(['resume', '--json']);
@@ -167,13 +167,13 @@ test('coordinator resume ends with the exact measured-average flow alert [N32,R1
   assert.deepEqual(json.flow.bottleneck, stats.stats.flow.bottleneck);
 });
 
-test('coordinator resume alerts for the oldest unreviewed submission alone [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-alerts-for-the-oldest: coordinator resume alerts for the oldest unreviewed submission alone [N32,R1,R2]', async t => {
   const box = fixture(t, { wait: 10, age: 181 });
   alert(await box.run(['resume']), 'flow: unreviewed #2 waiting 3 h 1 min (> 3 h 0 min); bottleneck: build (66.67% of 5 h 0 min measured cycle time); next: add a builder when open work is available');
   assert.deepEqual(box.stats().flow.unreviewed, { size: 1, oldest: { id: 2, since: '2026-10-10T05:19:00.000Z', ageMinutes: 181 } });
 });
 
-test('coordinator resume keeps both threshold trips in one final flow line [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-keeps-both-threshold-trips: coordinator resume keeps both threshold trips in one final flow line [N32,R1,R2]', async t => {
   const box = fixture(t, { wait: 61, age: 181 });
   const text = await box.run(['resume']);
   alert(text, 'flow: review wait average 1 h 1 min (1 measured; > 1 h 0 min); unreviewed #2 waiting 3 h 1 min (> 3 h 0 min); bottleneck: build (66.67% of 5 h 0 min measured cycle time); next: add a builder when open work is available');
@@ -183,20 +183,20 @@ test('coordinator resume keeps both threshold trips in one final flow line [N32,
     `every displayed minute unit is a rounded remainder below 60: ${flowLine}`);
 });
 
-test('coordinator resume adds no alert at exact healthy threshold boundaries [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-adds-no-alert-at: coordinator resume adds no alert at exact healthy threshold boundaries [N32,R1,R2]', async t => {
   const box = fixture(t, { wait: 60, age: 180 });
   const text = await box.run(['resume']);
   assert.doesNotMatch(text, /^flow:/mu);
   assert.match(text.split('\n').at(-1), /^next: /u);
 });
 
-test('coordinator resume adds no alert to an unmeasured healthy board [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-adds-no-alert-to: coordinator resume adds no alert to an unmeasured healthy board [N32,R1,R2]', async t => {
   const box = fixture(t);
   assert.equal(box.stats().flow.bottleneck.stage, null);
   assert.doesNotMatch(await box.run(['resume']), /^flow:/mu);
 });
 
-test('coordinator resume names an old waiting item without inventing a measured bottleneck [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-names-an-old-waiting: coordinator resume names an old waiting item without inventing a measured bottleneck [N32,R1,R2]', async t => {
   const box = fixture(t, { age: 181 });
   alert(await box.run(['resume']), 'flow: unreviewed #1 waiting 3 h 1 min (> 3 h 0 min); bottleneck: not measured yet');
 });
@@ -216,7 +216,7 @@ for (const reservation of ['live', 'verdict']) {
   });
 }
 
-test('agent resume keeps its next step without a coordinator flow alert [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.agent-resume-keeps-its-next-step: agent resume keeps its next step without a coordinator flow alert [N32,R1,R2]', async t => {
   const box = fixture(t, { wait: 61, age: 181 });
   const text = await box.run(['resume'], box.web);
   assert.doesNotMatch(text, /^flow:/mu);
@@ -225,7 +225,7 @@ test('agent resume keeps its next step without a coordinator flow alert [N32,R1,
 });
 
 /** Prove the coordinator's resume counts and names its waiting inbox, privately and read-only. */
-test('resume shows the coordinator its unread shouts [I1,A9]', async t => {
+test('cli.journeys-resume-flow.resume-shows-the-coordinator-its-unread: resume shows the coordinator its unread shouts [I1,A9]', async t => {
   const box = fixture(t);
   const none = await box.run(['resume']);
   assert.ok(none.split('\n').includes('inbox: 0 unread shouts, 0 open decisions for you'), none);
@@ -275,7 +275,7 @@ test('resume shows the coordinator its unread shouts [I1,A9]', async t => {
 });
 
 /** Prove the SessionStart hook prints the same inbox count, since it runs pullboard resume. */
-test('resume shows the coordinator its unread shouts through the SessionStart hook [I1,A9]', async t => {
+test('cli.journeys-resume-flow.resume-shows-the-coordinator-its-unread-2: resume shows the coordinator its unread shouts through the SessionStart hook [I1,A9]', async t => {
   const box = releaseFixture(t);
   const other = join(box.root, 'other-checkout');
   box.git(box.repo, 'add', '-A');
@@ -295,7 +295,7 @@ test('resume shows the coordinator its unread shouts through the SessionStart ho
 });
 
 
-test('coordinator resume finds the oldest unreserved item behind an older live review [N32,R1,R2]', async t => {
+test('cli.journeys-resume-flow.coordinator-resume-finds-the-oldest-unreserved: coordinator resume finds the oldest unreserved item behind an older live review [N32,R1,R2]', async t => {
   const box = fixture(t, { age: 190, otherAge: 181, reservation: 'live' });
   alert(await box.run(['resume']), 'flow: unreviewed #2 waiting 3 h 1 min (> 3 h 0 min); bottleneck: not measured yet');
   assert.deepEqual(box.stats().flow.unreviewed, { size: 1, oldest: { id: 2, since: '2026-10-10T05:19:00.000Z', ageMinutes: 181 } });

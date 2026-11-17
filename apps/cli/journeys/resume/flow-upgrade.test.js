@@ -16,7 +16,7 @@ import { LONG_CHANGELOG } from '../../tests/fixtures/resume/release.js';
  * The blueprint trial found resume blaming the person for the coordinator's own applied SPEC.md
  * and handing them a commit of every setup file.
  */
-test('clause 1: resume asks the coordinator to commit an applied row file [I1,L3]', async t => {
+test('cli.journeys-resume-flow-upgrade.resume-asks-the-coordinator-to-commit: clause 1: resume asks the coordinator to commit an applied row file [I1,L3]', async t => {
   const PERSON_LINE = "The person must commit Pullboard's setup files before agents can use worktrees: ";
   const ROW_LINE = 'The coordinator must commit the row file spec apply changed: ';
   /** Resume's text and JSON from the main checkout, both passing, and neither naming an unrelated dirty file. */
@@ -112,7 +112,7 @@ test('clause 1: resume asks the coordinator to commit an applied row file [I1,L3
 });
 
 // Process-level cases below stay processes: they run the fixture's copied CLI at a chosen release version and changelog, which the in-process dispatcher cannot stand in for.
-test('clause 2: resume says what is new once after an upgrade [N19]', async t => {
+test('cli.journeys-resume-flow-upgrade.resume-says-what-is-new-once: clause 2: resume says what is new once after an upgrade [N19]', async t => {
   const box = releaseFixture(t, { previous: '0.8.5' });
   const otherCheckout = join(box.root, 'other-checkout');
   box.git(box.repo, 'add', '-A');
@@ -139,7 +139,7 @@ test('clause 2: resume says what is new once after an upgrade [N19]', async t =>
   assert.doesNotMatch(second.stdout, /new in 0\.8\.[67]/u);
 });
 
-test('clause 3: resume --json carries what is new [N19]', t => {
+test('cli.journeys-resume-flow-upgrade.resume-json-carries-what-is-new: clause 3: resume --json carries what is new [N19]', t => {
   const box = releaseFixture(t, { previous: '0.8.5' });
   const first = box.run(box.repo, 'resume', '--json');
   assert.equal(first.status, 0, first.failure || first.stderr || first.stdout);
