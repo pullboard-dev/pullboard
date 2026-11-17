@@ -19,32 +19,34 @@ export function phaseKind(name) {
 
 /**
  * Turn a gate job view into its ordered phases. Pure: the page passes the plain object `jobView` returns (steps with name,
- * seq, payload and `at` in ms) and nothing here reads a clock, a file or the DOM.
+ * seq, payload and `at` in ms) and the clock, and nothing here reads a clock, a file or the DOM.
  *
- * Each step is one phase that ends at its `at`. It starts at its payload `startedAt` when it carries one, otherwise at the
- * previous phase's end (the job's `created` for the first), so a step written when its work finished still shows how long
- * the work took. When a phase starts later than the one before it ended, a `gap` row holds the silence between them. Phases
- * come back in start order, then step order; a phase never starts before the job did.
+ * A step is written when its phase begins, so each phase starts at its step's `at` and runs to the next step's `at`. A step
+ * whose payload carries `endedAt` ended its work there, and the silence from then to the next step is a `gap` row. The last
+ * phase of a finished job ends at the job's `updated`; the last phase of a job still running is open: it ends at `now`, so
+ * its `ms` is the time elapsed in it, and `current` names it. Phases come back in start order, then step order.
  *
- * @param {{ id?: string, item?: number|null, created: number, updated?: number, steps: { name: string, seq?: number, payload?: any, at: number }[] }} job
- * @returns {{ job: string|null, item: number|null, start: number, end: number, totalMs: number, busyMs: number, gapMs: number,
- *   phases: { type: 'phase'|'gap', kind: string, name: string, shard: string|null, start: number, end: number, ms: number }[] }}
+ * @param {{ id?: string, item?: number|null, step?: string, created?: number, updated?: number, steps: { name: string, seq?: number, payload?: any, at: number }[] }} job
+ * @param {{ now?: number }} [options] - The clock for a running job; a running job given no `now` ends its open phase at its last step.
+ * @returns {{ job: string|null, item: number|null, running: boolean, start: number, end: number, totalMs: number, busyMs: number, gapMs: number,
+ *   current: object|null, phases: { type: 'phase'|'gap', kind: string, name: string, shard: string|null, start: number, end: number, ms: number, open: boolean }[] }}
  */
-export function gateTrace(job) {
+export function gateTrace(job, { now = null } = {}) {
   const steps = (job.steps ?? []).map((step, index) => ({ ...step, index })).filter((step) => !KEEPSAKE.test(step.name) && Number.isFinite(step.at));
   steps.sort((a, b) => a.at - b.at || (a.seq ?? 0) - (b.seq ?? 0) || a.index - b.index);
-  const origin = Number.isFinite(job.created) ? job.created : steps[0]?.at ?? 0;
+  const running = steps.length > 0 && job.step !== 'done';
+  const origin = steps[0]?.at ?? (Number.isFinite(job.created) ? job.created : 0);
+  const lastEnd = running ? Math.max(steps.at(-1).at, Number.isFinite(now) ? now : steps.at(-1).at) : Math.max(steps.at(-1)?.at ?? origin, Number.isFinite(job.updated) ? job.updated : 0);
   const phases = [];
-  let cursor = origin;
-  for (const step of steps) {
-    const declared = Number(step.payload?.startedAt);
-    const start = Math.min(step.at, Math.max(origin, Number.isFinite(declared) ? declared : cursor));
-    if (start > cursor && phases.length) phases.push({ type: 'gap', kind: 'gap', name: 'gap', shard: null, start: cursor, end: start, ms: start - cursor });
-    const shard = phaseKind(step.name) === 'shard' ? String(step.payload?.shard ?? step.name.replace(/^(shard|tests?)[:/]/u, '')) : null;
-    phases.push({ type: 'phase', kind: phaseKind(step.name), name: step.name, shard, start, end: step.at, ms: step.at - start });
-    cursor = Math.max(cursor, step.at);
-  }
-  const end = Math.max(cursor, Number.isFinite(job.updated) ? job.updated : cursor);
+  steps.forEach((step, at) => {
+    const next = steps[at + 1]?.at ?? lastEnd, open = running && at === steps.length - 1;
+    const declared = Number(step.payload?.endedAt);
+    const end = Number.isFinite(declared) ? Math.min(next, Math.max(step.at, declared)) : next;
+    const kind = phaseKind(step.name);
+    phases.push({ type: 'phase', kind, name: step.name, shard: kind === 'shard' ? String(step.payload?.shard ?? step.name.replace(/^(shard|tests?)[:/]/u, '')) : null, start: step.at, end, ms: end - step.at, open });
+    if (end < next) phases.push({ type: 'gap', kind: 'gap', name: 'gap', shard: null, start: end, end: next, ms: next - end, open: false });
+  });
   const gapMs = phases.filter((phase) => phase.type === 'gap').reduce((sum, phase) => sum + phase.ms, 0);
-  return { job: job.id ?? null, item: job.item ?? null, start: origin, end, totalMs: end - origin, busyMs: end - origin - gapMs, gapMs, phases };
+  return { job: job.id ?? null, item: job.item ?? null, running, start: origin, end: lastEnd, totalMs: lastEnd - origin, busyMs: lastEnd - origin - gapMs, gapMs,
+    current: running ? phases.findLast((phase) => phase.type === 'phase') : null, phases };
 }
