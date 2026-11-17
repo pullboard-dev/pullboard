@@ -31,6 +31,7 @@ import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
+import { lightShaped } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
@@ -437,7 +438,9 @@ function nextPick(ctx, board, values, ports) {
   const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
   if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
     : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
-  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
+  // next.lightShapedStrong: the selection already found no free light item, so a light-shaped strong item is this light seat's to take [C7,#9568].
+  const shapedStrong = selection.lightShapedStrong === true && me.route === 'light' && item.item_route === 'strong' && lightShaped(item);
+  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !shapedStrong && !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
