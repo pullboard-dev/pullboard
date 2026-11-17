@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/relay/src/io/deploy/Dockerfile package.json CHANGELOG.md apps packages */
+/** @pullboard-test-input apps/relay/src/io/deploy/Dockerfile package.json CHANGELOG.md apps/** packages/** */
 /** The relay image copies only paths that exist after the layout freeze, each once [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

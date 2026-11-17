@@ -17,7 +17,7 @@ const SELF = 'apps/relay/tests/inputs.test.js';
 // The tests that read repo files by path, and the header each carries: exact files (or one folder glob), never a cell and never the whole tree.
 const READERS = {
   'apps/relay/tests/io/push-optin.test.js': ['apps/relay/src/io/browser/push-client.js', 'apps/relay/src/io/browser/push-sw.js'],
-  'apps/relay/tests/io/deploy/dockerfile.test.js': ['apps/relay/src/io/deploy/Dockerfile', 'package.json', 'CHANGELOG.md', 'apps', 'packages'],
+  'apps/relay/tests/io/deploy/dockerfile.test.js': ['apps/relay/src/io/deploy/Dockerfile', 'package.json', 'CHANGELOG.md', 'apps/**', 'packages/**'],
   'apps/relay/tests/io/deploy/health.test.js': ['package.json'],
   'apps/relay/tests/v093-data-folder.test.js': ['apps/relay/tests/fixtures/v093-data/**'],
 };
