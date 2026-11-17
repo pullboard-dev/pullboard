@@ -169,6 +169,9 @@ export function loadMachineSettings() {
   if (value.gate?.postLandSuite !== undefined && typeof value.gate.postLandSuite !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.postLandSuite in ${file} must be true or false`);
   }
+  if (value.gate?.excuseMainTimingReds !== undefined && typeof value.gate.excuseMainTimingReds !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `gate.excuseMainTimingReds in ${file} must be true or false`);
+  }
   if (value.gate?.componentTier !== undefined && typeof value.gate.componentTier !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.componentTier in ${file} must be true or false`);
   }
