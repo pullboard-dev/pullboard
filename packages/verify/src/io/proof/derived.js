@@ -59,3 +59,17 @@ export function derivedRows(board) {
   const schema = attached(board);
   return schema ? board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter ORDER BY meta_key`).all() : [];
 }
+
+/** Whether this board reads and writes the derived database: the setting is on and the board is a file. */
+export function derivedOn(board) {
+  return attached(board) !== null;
+}
+
+/** The text of every derived row under a key prefix, in numeric id order (the order board_meta rows arrived in); empty when off. */
+export function derivedTextRows(board, prefix) {
+  const schema = attached(board);
+  if (!schema) return [];
+  const rows = board.db.prepare(`SELECT meta_key, meta_value FROM ${schema}.proof_counter WHERE meta_key GLOB ?`).all(`${prefix}*`);
+  const id = row => Number(row.meta_key.slice(prefix.length));
+  return rows.sort((a, b) => (id(a) - id(b)) || (a.meta_key < b.meta_key ? -1 : 1)).map(row => row.meta_value);
+}

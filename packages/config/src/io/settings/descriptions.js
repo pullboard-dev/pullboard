@@ -10,6 +10,7 @@ const ROWS = [
   ['exitRules.tokens', 'Tokens per claim', 'Input plus output tokens, including cached reads as recorded; unknown usage never triggers a stop.', 'Order', 'count'],
   // This machine: Capacity
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],
+  ['gate.boardOpensCheck', 'Refuse new file-board opens', 'Off (default) refuses nothing. On, a changed test that adds a file-board open without naming why is refused by the static checks on every gate, even when no test is selected.', 'Capacity', 'on/off'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
   ['gate.contractAudit', 'Audit contract gaps and mismatches', 'Off (default) audits nothing. On, an export whose shape differs from its declared contract is refused CONTRACT_SHAPE_MISMATCH, and an export with no declared contract gets a draft contract file for its owner to review.', 'Capacity', 'on/off'],
@@ -38,6 +39,7 @@ const ROWS = [
   ['add.warnUnnamedTest', 'Add warns on an unnamed test', 'When enabled, pullboard add warns (never refuses) about a [test] clause that names no test file when the brief has no Test: line, because no gate run can tick it; off (default), add stays silent.', 'Order', 'on/off'],
   ['api.codeStampCache', 'Cache the state worker\'s code stamp', 'When enabled, a restart of the state worker over an unchanged code tree reuses the code stamp it saved, checking each recorded folder and file by size and modification time instead of listing the source folders again; any change walks the tree afresh. Off (default), every start walks the source folders.', 'Order', 'on/off'],
   ['board.archiveEvents', 'Archive old events', 'When enabled, the archiver moves the events of items verified more than 30 days ago into the event archive, keeping the live event table small; off (default), no event moves.', 'Order', 'on/off'],
+  ['board.hotState', 'Keep hot board state', 'When enabled, the state build keeps the open and recent items as a hot state and counts the finished ones instead of reading every item; off (default), the state build reads every item as before.', 'Order', 'on/off'],
   ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
