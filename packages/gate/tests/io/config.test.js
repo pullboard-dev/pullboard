@@ -82,6 +82,23 @@ test('gate.config.ocaml-globs: #10510 clause 2: detectTestGlobs for a dune-proje
   assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['dune'], unknown: [] });
 });
 
+test('gate.config.clojure-lein: #10511 clause 1: a root holding project.clj detects clojure with lein test [C7]', (t) => {
+  const root = rootWith(t, { 'project.clj': '(defproject app "0.1.0")\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'clojure', command: 'lein test' }]);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['lein'], unknown: [] });
+});
+
+test('gate.config.clojure-deps: #10511 clause 2: a root holding only deps.edn detects clojure with clojure -M:test, and project.clj wins when both exist [C7]', (t) => {
+  const root = rootWith(t, { 'deps.edn': '{}\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'clojure', command: 'clojure -M:test' }]);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['clojure'], unknown: [] });
+  assert.deepEqual(detectLanguages(rootWith(t, { 'deps.edn': '{}\n', 'project.clj': '' })), [{ language: 'clojure', command: 'lein test' }]);
+});
+
+test('gate.config.clojure-globs: #10511 clause 3: detectTestGlobs for a clojure root returns the Clojure test globs of the clojure row [C7]', (t) => {
+  assert.deepEqual(detectTestGlobs(rootWith(t, { 'deps.edn': '{}\n' })), ['test/**/*.clj', '**/*_test.clj']);
+});
+
 test('gate.config.nim-detected: #10514 clause 1: a root holding a .nimble file detects nim with nimble test [C7]', (t) => {
   const root = rootWith(t, { 'app.nimble': 'version = "0.1.0"\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'nim', command: 'nimble test' }]);
