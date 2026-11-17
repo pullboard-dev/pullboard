@@ -4,9 +4,11 @@ import { test } from 'node:test';
 import {
   pulledRedLines,
   pulledWaitingLines,
+  queueWaitLines,
   queuedGateLines,
   supersededStop,
 } from '../../../src/logic/show/gate.js';
+import { settledGate } from '../../../../../packages/jobs/index.js';
 
 const STOP = { state: 'infrastructure', agentId: 'core-1324', digest: 'old', commit: 'c'.repeat(40), executionCommit: 'c'.repeat(40),
   error: { code: 'GATE_INFRA_EXHAUSTED', message: 'the gate stopped on infrastructure 4 times', next: 'nothing to do as the builder: the coordinator restores the named runner and requeues this gate' } };
@@ -69,4 +71,14 @@ test('cli.logic-show-gate.show-names-a-deferred-gate-as-passed: clause 2: show n
   assert.match(line, /^GATE_WAITING: gate job gate:2 passed its checks; its proof waits on its shard jobs/u);
   assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: { ...DEFERRED, deferred: false } }, { item_id: 2, item_status: 'claimed' }), [], 'a plain red is not waiting');
   assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'submitted' }), []);
+});
+
+test('cli.logic-show-gate.show-prints-queuewaitseconds-in-under-200-ms: clause 2: show prints queueWaitSeconds from a fixture gate receipt in under 200 ms [C7,#10524]', () => {
+  const posted = { runner: 'r-a', receipt: { status: 0, queueWaitSeconds: 7.5, gate: { green: true, phases: [{ role: 'check', status: 0 }] } } };
+  const began = performance.now();
+  const lines = queueWaitLines({ id: 'gate:fixture', step: 'done', gate: settledGate('gate:fixture', posted) });
+  const ms = performance.now() - began;
+  process.stdout.write(`show queueWaitSeconds line ms: ${ms.toFixed(2)}\n`);
+  assert.deepEqual(lines, ['queueWaitSeconds: 7.5']);
+  assert.deepEqual(queueWaitLines({ id: 'g', step: 'done', gate: settledGate('g', { receipt: { gate: { green: true } } }) }), [], 'a receipt with no wait prints no line');
 });
