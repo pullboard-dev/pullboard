@@ -129,6 +129,11 @@ export async function nextHere(io, values) {
   }
 }
 
+/** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */
+function barLine(id) {
+  return `that is your bar; pullboard show ${id} adds the thread and history only`;
+}
+
 /**
  * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
  * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
@@ -362,6 +367,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
+        if (item.item_check) io.say(barLine(item.item_id));
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         for (const line of notices) io.say(`  ${line}`);
@@ -372,6 +378,7 @@ async function nextWithProgress(io, values, progress) {
           io.say(`item folder: ${next.itemFolder}; seat ${next.holder}; build, commit and submit there`);
           if (next.item.item_criterion) io.say(`criterion: ${next.item.item_criterion}`);
           if (next.item.item_check) io.say(`check: ${next.item.item_check}   (run it before you submit)`);
+          if (next.item.item_check) io.say(barLine(next.item.item_id));
           io.say(`when it is built and committed: ${cdTo(next.itemFolder)} pullboard submit ${next.item.item_id}`);
         }
         if (more.length) io.say(`you hold ${seatClaims(ctx).map(id => `#${id}`).join(', ')}: build each in its own folder`);
