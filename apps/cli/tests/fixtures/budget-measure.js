@@ -63,7 +63,6 @@ export function createBudgetMeasure(helpers) {
     sweep: 'releases and reopens board work', init: 'initializes a repository', takeover: 'takes over the coordinator seat',
     worktree: 'creates a worktree', heartbeat: 'records presence', tour: 'is an interactive walkthrough', help: 'is the reference page',
     export: 'prints the whole board as a data document meant for a file, never for an agent context',
-    log: 'prints every event row by row, unbounded by design (#9058), so a large board never builds one string',
   });
 
   /** Commands whose text reads machine-wide state, which an in-process call does not isolate the way a real process does. */
