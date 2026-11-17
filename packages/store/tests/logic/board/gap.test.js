@@ -30,7 +30,7 @@ function failedReview(board, id, { file = 'test/unselected.test.js', name = 'uns
   return receiptId;
 }
 
-test('an uncovered failing review case records SELECTOR_GAP and leaves the builder submitted [C7]', t => {
+test('store.logic-board-gap.an-uncovered-failing-review-case-records: an uncovered failing review case records SELECTOR_GAP and leaves the builder submitted [C7]', t => {
   const { board, id } = fixture(t);
   const receiptId = failedReview(board, id);
   const review = { commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: [] };
@@ -46,7 +46,7 @@ test('an uncovered failing review case records SELECTOR_GAP and leaves the build
     { decision: 'SELECTOR_GAP', item: recorded.item, filed: false }, 'repeated reviews reuse the same repair item');
 });
 
-test('a selected failure follows the ordinary reject path [C7]', t => {
+test('store.logic-board-gap.a-selected-failure-follows-the-ordinary: a selected failure follows the ordinary reject path [C7]', t => {
   const { board, id } = fixture(t);
   const review = { commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: [] };
   const selectedReceipt = failedReview(board, id, { file: 'test/selected.test.js', name: 'selected case' });
@@ -58,7 +58,7 @@ test('a selected failure follows the ordinary reject path [C7]', t => {
   assert.notEqual(store.getItem(board, id).item_status, 'submitted', 'the ordinary rejection reopens selected failing work');
 });
 
-test('a frozen criterion failure is not recast as a selector gap [C7]', t => {
+test('store.logic-board-gap.a-frozen-criterion-failure-is-not: a frozen criterion failure is not recast as a selector gap [C7]', t => {
   const { board, id } = fixture(t);
   const review = { commit: COMMIT, head: COMMIT, trunk: TRUNK, paths: [] };
   store.logEvent(board, 'core-1', 'proof-run', id, { receipt: { id: 'criterion-pass', kind: 'submit', item: id, commit: COMMIT,
