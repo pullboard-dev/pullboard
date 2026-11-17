@@ -10,7 +10,7 @@ function row(pid, ppid, command) {
   return [pid, { pid, ppid, command }];
 }
 
-test('the quarantine message names a process two levels below the job root and its parents [C7]', () => {
+test('runners.chain.the-quarantine-message-names-a-process: the quarantine message names a process two levels below the job root and its parents [C7]', () => {
   const census = new Map([row(1, 0, '/sbin/launchd'), row(100, 1, '/usr/bin/node'), row(200, 100, '/bin/sh'), row(300, 200, '/usr/bin/sleep')]);
   const state = {
     workerId: 'chain-job', cleanupStage: 'descendants', ownedChildren: new Map(),
@@ -26,7 +26,7 @@ test('the quarantine message names a process two levels below the job root and i
   assert.match(message, /pid=300 command="\/usr\/bin\/sleep"[^;]*parents=\[pid=200 command="\/bin\/sh" <- pid=100 command="\/usr\/bin\/node"\]/u);
 });
 
-test('a chain without a job root ends at launchd, and an unreadable census leaves no parents [C7]', () => {
+test('runners.chain.a-chain-without-a-job-root: a chain without a job root ends at launchd, and an unreadable census leaves no parents [C7]', () => {
   const census = new Map([row(1, 0, '/sbin/launchd'), row(200, 1, '/bin/sh'), row(300, 200, '/usr/bin/sleep')]);
   const state = { workerId: 'orphan-job', cleanupStage: 'descendants', ownedChildren: new Map([[300, { pid: 300, command: '/usr/bin/sleep' }]]) };
   assert.deepEqual(cleanupTimeoutDetails(state, census).processes[0].parents,
