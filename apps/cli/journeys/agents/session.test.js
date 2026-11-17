@@ -19,7 +19,7 @@ import { project } from "../../tests/fixtures/agents/session.js";
 
 after(cleanupSandboxes);
 
-test('clause 1: a second session cannot write in the main checkout until takeover [B3,B7]', async () => {
+test('cli.journeys-agents-session.a-second-session-cannot-write-in: clause 1: a second session cannot write in the main checkout until takeover [B3,B7]', async () => {
   const box = await project();
   const first = 'claude-session-secret-first-273';
   const second = 'claude-session-secret-second-273';
@@ -59,7 +59,7 @@ test('clause 1: a second session cannot write in the main checkout until takeove
   assert.deepEqual(boardSnapshot(box.boardFile), beforeSelf, 'self-addressed shout is refused without changing the board');
 });
 
-test('clause 1: lane ownership is session-scoped and takeover preserves the joined agent [B3,B7]', async () => {
+test('cli.journeys-agents-session.lane-ownership-is-session-scoped-and: clause 1: lane ownership is session-scoped and takeover preserves the joined agent [B3,B7]', async () => {
   const box = await project();
   const first = 'codex-thread-secret-first-273';
   const second = 'codex-thread-secret-second-273';
@@ -84,7 +84,7 @@ test('clause 1: lane ownership is session-scoped and takeover preserves the join
   assertNoRawSession(box, box.web, [first, second], 'CODEX_THREAD_ID');
 });
 
-test('clause 1: no-session shells are one session and markerless terminals retain their writes [B3,B7]', async () => {
+test('cli.journeys-agents-session.no-session-shells-are-one-session: clause 1: no-session shells are one session and markerless terminals retain their writes [B3,B7]', async () => {
   const box = await project();
   const sentinel = (await box.inProcess(box.web, ['claim', '1', '--json'], { session: undefined }));
   assert.equal(sentinel.status, 0, `${sentinel.stdout}${sentinel.stderr}`);
@@ -112,7 +112,7 @@ test('clause 1: no-session shells are one session and markerless terminals retai
   assert.deepEqual(boardSnapshot(box.boardFile), beforeSelf, 'self-addressed decision is refused without a write');
 });
 
-test('clause 1: a shout from the local view as the person is recorded as the person [N26,B26,B3,B7]', async () => {
+test('cli.journeys-agents-session.a-shout-from-the-local-view: clause 1: a shout from the local view as the person is recorded as the person [N26,B26,B3,B7]', async () => {
   const box = await project();
   const owner = (await box.inProcess(box.repo, ['shout', 'web', 'agent owns this checkout', '--json'], { session: 'view-owner-session-273' }));
   assert.equal(owner.status, 0, owner.stdout + owner.stderr);
@@ -147,7 +147,7 @@ test('clause 1: a shout from the local view as the person is recorded as the per
   assert.deepEqual(readFileSync(file), before, 'the authenticated view does not alter the local agent-session binding');
 });
 
-test('clause 1: a remote shell is recognized by any SSH marker [B26,E22]', async () => {
+test('cli.journeys-agents-session.a-remote-shell-is-recognized-by: clause 1: a remote shell is recognized by any SSH marker [B26,E22]', async () => {
   const box = await project();
   for (const key of SSH_SHELL_MARKERS) delete box.base[key];
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G2 [draft, must] A probe row for person moves. | gate: true\n`);

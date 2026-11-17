@@ -20,7 +20,7 @@ import { project } from "../../tests/fixtures/agents/session.js";
 
 after(cleanupSandboxes);
 
-test('clause 1: takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 90_000 }, async t => {
+test('cli.journeys-agents-session-write.takeover-waits-for-an-active-write: clause 1: takeover waits for an active write and then refuses the old session [B3,B7]', { timeout: 90_000 }, async t => {
   const box = await project();
   const started = join(box.dir, 'gate-started');
   const release = join(box.dir, 'gate-release');
