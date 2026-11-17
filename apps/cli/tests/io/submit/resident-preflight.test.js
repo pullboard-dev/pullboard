@@ -98,7 +98,7 @@ async function preflight(box, files, residentChecks) {
   return { findings: report.results.map(({ name, failures }) => ({ name, failures })).sort((a, b) => a.name.localeCompare(b.name)), nodeChildren };
 }
 
-test('clause 1: with submit.residentChecks on, the preflight is answered by the resident process, starts no node child, and finds what it finds with the setting off, for a clean and a refused change [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-on-the-preflight-is: clause 1: with submit.residentChecks on, the preflight is answered by the resident process, starts no node child, and finds what it finds with the setting off, for a clean and a refused change [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: true });
   for (const files of [CLEAN, REFUSED]) {
     const off = await preflight(box, files, false);
@@ -111,7 +111,7 @@ test('clause 1: with submit.residentChecks on, the preflight is answered by the 
   assert.ok((await preflight(box, CLEAN, true)).findings.every(row => !row.failures.length), 'the clean change is clean');
 });
 
-test('clause 1: with submit.residentChecks on and no resident process running, the preflight falls back to its children and finds the same [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-on-and-no-resident: clause 1: with submit.residentChecks on and no resident process running, the preflight falls back to its children and finds the same [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: false });
   const on = await preflight(box, REFUSED, true);
   assert.ok(on.nodeChildren > 0, 'no resident process: the children ran');
@@ -119,7 +119,7 @@ test('clause 1: with submit.residentChecks on and no resident process running, t
   assert.equal(existsSync(residentSocket(box.repo, PULLBOARD_ENTRY, 0).pid), false, 'asking never starts a resident process');
 });
 
-test('clause 2: with submit.residentChecks off, the preflight starts its node children as today even with a resident process running [C7,#5330]', { timeout: 240_000 }, async (t) => {
+test('cli.io-submit-resident-preflight.with-submit-residentchecks-off-the-preflight-starts: clause 2: with submit.residentChecks off, the preflight starts its node children as today even with a resident process running [C7,#5330]', { timeout: 240_000 }, async (t) => {
   const box = await preflightProject(t, { running: true });
   const off = await preflight(box, REFUSED, false);
   assert.ok(off.nodeChildren >= 2, `the list child and a child per check started (${off.nodeChildren})`);
