@@ -51,7 +51,7 @@ async function factTexts(box, id) {
   return events.filter((event) => event.event_kind === 'fact' && event.item_id === id).map((event) => JSON.stringify(event));
 }
 
-test('clause 1: pullboard test with board.url set records its receipt on the served board and opens no local board.sqlite [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, two node --test runs and six CLI calls, not a throughput claim.
+test('cli.io-remote-test-receipt.pullboard-test-with-board-url-set-records: clause 1: pullboard test with board.url set records its receipt on the served board and opens no local board.sqlite [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, two node --test runs and six CLI calls, not a throughput claim.
 async (t) => {
   const { box, clone, run, id, head } = await remoteSeat(t);
   const green = await run('test', 'app/pass.test.js');
@@ -66,7 +66,7 @@ async (t) => {
   assert.equal(existsSync(join(clone, '.git', 'pullboard', 'board.sqlite')), false, 'no local board.sqlite was opened');
 });
 
-test('clause 2: show <id> on the served board lists the receipt for the item [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one node --test run and five CLI calls, not a throughput claim.
+test('cli.io-remote-test-receipt.show-id-on-the-served-board-lists: clause 2: show <id> on the served board lists the receipt for the item [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one node --test run and five CLI calls, not a throughput claim.
 async (t) => {
   const { box, run, id, head } = await remoteSeat(t);
   const ran = await run('test', 'app/pass.test.js');
