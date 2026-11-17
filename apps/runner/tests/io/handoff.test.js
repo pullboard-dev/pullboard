@@ -17,13 +17,13 @@ async function criterion(check) {
   return { result, log: fixture.read('runner.log').toString('utf8') };
 }
 
-test('clause 1: a stage command runs under the timed shell entry, which sets the process-custody preload [C7,E27,#6906]', async () => {
+test('runner.handoff.a-stage-command-runs-under-the-timed: clause 1: a stage command runs under the timed shell entry, which sets the process-custody preload [C7,E27,#6906]', async () => {
   const { result, log } = await criterion('test -n "$PULLBOARD_RUNNER_PRELOAD" && echo custody-on');
   assert.equal(result.green, true);
   assert.match(log, /custody-on/u);
 });
 
-test('clause 1: a red stage command ends the job as GATE_RED with its output in the runner log [C7,#6906]', async () => {
+test('runner.handoff.a-red-stage-command-ends-the-job: clause 1: a red stage command ends the job as GATE_RED with its output in the runner log [C7,#6906]', async () => {
   const { result, log } = await criterion('echo stage-line; exit 3');
   assert.equal(result.green, false);
   assert.equal(result.failed.code, 'GATE_RED');

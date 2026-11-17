@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/kernel */
 /** @pullboard-world-pin reads packages/kernel/src to prove every file is on the kernel allowlist [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

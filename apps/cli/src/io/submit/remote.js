@@ -178,7 +178,7 @@ import {
   warmAcceptedCells,
 } from './packages/gate/index.js';
 import { withMainCheckout } from './packages/landing/index.js';
-import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
+import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { readFileSync } from 'node:fs';
 // An accepted main that predates the cli-owned module still keeps the checks in bin/.
 const { requireSubmitCells } = await import(existsSync(new URL('./apps/cli/src/io/cells-submit-checks.js', import.meta.url)) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js');

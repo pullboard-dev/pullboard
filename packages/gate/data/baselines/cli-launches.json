@@ -233,9 +233,6 @@
   "apps/cli/journeys/fact/wake.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/add/bar-lint.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/board/baseline/report.test.js": {
     "launch": 1
   },
@@ -311,9 +308,6 @@
   "apps/cli/journeys/agents/session.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/show/main.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/companion/companions/review.test.js": {
     "launch": 2
   },
@@ -330,7 +324,10 @@
     "launch": 7
   },
   "apps/cli/journeys/fact/board/busy.test.js": {
-    "launch": 9
+    "launch": 6
+  },
+  "apps/cli/journeys/fact/board/busy-labels.test.js": {
+    "launch": 2
   },
   "apps/cli/journeys/view/background.test.js": {
     "launch": 9
@@ -473,9 +470,6 @@
   "packages/landing/tests/io/shards/filter.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/publish/agent.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/roadmap/cockpit/detail.test.js": {
     "launch": 2
   },
@@ -539,10 +533,10 @@
   "apps/cli/journeys/relay/hosted/boards.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
@@ -617,7 +611,7 @@
   "apps/cli/journeys/relay/agent.test.js": {
     "launch": 2
   },
-  "packages/runners/tests/lints.test.js": {
+  "packages/runners/tests/lints-baseline.test.js": {
     "launch": 5
   },
   "apps/cli/journeys/init/calls.test.js": {
@@ -1077,7 +1071,13 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "launch": 3
+    "launch": 1
+  },
+  "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/shout/http-repeated-read.test.js": {
+    "launch": 1
   },
   "packages/gate/tests/runner/pid.test.js": {
     "launch": 1
@@ -1193,9 +1193,6 @@
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/assumptions.test.js": {
     "launch": 1
   },
@@ -1215,9 +1212,6 @@
     "launch": 8
   },
   "apps/cli/journeys/withdraw/hold.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/reopen/evidence.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/sizes.test.js": {
@@ -1463,13 +1457,16 @@
   "packages/resources/tests/io/admission/memory/latency.test.js": {
     "launch": 1
   },
-  "packages/store/tests/io/board/write.test.js": {
+  "packages/board/tests/from-store/io/board/write.test.js": {
     "launch": 2
   },
   "apps/cli/journeys/release/speed.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/scripts/release.test.js": {
+    "launch": 1
+  },
+  "packages/gate/tests/io/scripts/release-loop.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/submit/landing/accept.test.js": {
@@ -1618,5 +1615,8 @@
   },
   "apps/cli/journeys/verify/checks-heavy.test.js": {
     "launch": 1
+  },
+  "apps/cli/journeys/fact/board/busy-migration.test.js": {
+    "launch": 3
   }
 }

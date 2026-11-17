@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
@@ -1143,7 +1145,7 @@
     },
     "stats-history.jsonl": {
       "kind": "jsonl",
-      "owner": "apps/cli/src/io/commands/stats.js"
+      "owner": "packages/stats/src/io/time/history.js"
     },
     "storage-quota.sqlite": {
       "kind": "sqlite",
@@ -1519,7 +1521,7 @@
     },
     "temporary-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+      "owner": "apps/cli/src/io/cells/cache.js"
     },
     "test-cells.json": {
       "kind": "repo-data",
@@ -1555,11 +1557,11 @@
     },
     "timer.guard.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "timer.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "tooling-pin.json": {
       "kind": "json",
@@ -1570,7 +1572,7 @@
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
     },
     "vendors.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/items/src/logic/vendors.js"
     },
     "view-bind.json": {
@@ -1580,6 +1582,10 @@
     "view-reuse.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
     },
     "view.json": {
       "kind": "json",
@@ -1627,10 +1633,5 @@
     }
   },
   "exceptions": [],
-  "writeOwnerDebt": [
-    "stats-history.jsonl",
-    "timer.guard.sqlite",
-    "timer.json",
-    "vendors.json"
-  ]
+  "writeOwnerDebt": []
 }

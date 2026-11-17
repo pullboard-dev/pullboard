@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { settingDescriptions } from '../../../index.js';
 import { SETTING_DESCRIPTIONS } from '../../../index.js';
 
-test('clause 1: a settings key marked compatibility without a removeBy date is refused, and a dated one carries removeBy in the inventory [O6,C7]', () => {
+test('config.io-settings-toggles.clause-1-a-settings-key-marked: clause 1: a settings key marked compatibility without a removeBy date is refused, and a dated one carries removeBy in the inventory [O6,C7]', () => {
   const row = ['old.mode', 'Old mode', 'Keeps the old path.', 'Order', 'on/off'];
   for (const toggle of [{ compat: true }, { compat: true, removeBy: '' }, { compat: true, removeBy: 'next release' }]) {
     assert.throws(() => settingDescriptions([[...row, toggle]]), error => error.name === 'Refused' && error.code === 'COMPAT_NEEDS_REMOVE_BY'

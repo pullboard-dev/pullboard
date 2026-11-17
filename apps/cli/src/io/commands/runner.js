@@ -38,6 +38,7 @@ import { serviceBoard } from '../../../../../packages/runners/index.js';
 import { boardKey } from '../../../../../packages/config/index.js';
 import { boardKeyFile } from '../../../../../packages/config/index.js';
 import { asyncFetchEnabled } from '../../../../../packages/config/index.js';
+import { pulledProfilePathsEnabled } from '../../../../../packages/config/index.js';
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
@@ -144,7 +145,7 @@ export async function runnerCommand(io, { first, second, rest, values }) {
       fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
       fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
       pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'),
-      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') })
+      postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'), pulledProfilePaths: pulledProfilePathsEnabled() })
       .catch(error => { throw error?.code && !(error instanceof Refused) ? new Refused(error.code, error.message) : error; });
     io.result?.(served);
     return 0;
