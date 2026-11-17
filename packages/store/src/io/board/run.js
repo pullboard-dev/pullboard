@@ -27,6 +27,8 @@ import { runsPort } from "./runs.js";
 import { jobsOf } from "../../../../jobs/index.js";
 import { releaseLease } from "../../../../jobs/index.js";
 import { endWithdrawnGateHop } from "./hop.js";
+import { acceptPulledMachine } from "./submit.js";
+import { machineVerifyPulledOn } from "./submit.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
@@ -117,11 +119,17 @@ export function reconcileQueued(board, runs, port, id, { now = board.clock.now()
  * takes the outcome, the capped summary and an event; anything else (no run, a run already done or withdrawn, an
  * attempt not newer than the applied one) changes nothing.
  *
+ * With gate.machineVerifyPulled on, a green gate receipt that names `machineReceipts` (recorded proof receipt ids) for a
+ * submitted, machine-eligible item also records the machine accept, so the item reaches landing with its clause command
+ * receipts; off, or without those ids, the item stays in review as before. The setting is read before the write opens [C7,#10253].
+ *
  * @param {any} board
  * @param {{ by: string, job: string, attempt: number, outcome: string, summary?: object }} receipt - Read from the runs file before this write opens.
- * @returns {{ applied: boolean }}
+ * @param {{ machineVerifyPulled?: boolean }} [options] - machineVerifyPulled overrides the machine setting (tests).
+ * @returns {{ applied: boolean, machineAccepted?: boolean }}
  */
-export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {} }) {
+export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {} }, { machineVerifyPulled } = {}) {
+  const pulled = machineVerifyPulled ?? machineVerifyPulledOn();
   return atomic(board, () => {
     const run = boardRun(board.db, job);
     if (!run || run.run_state !== 'queued' || !(attempt > run.run_attempt)) return { applied: false };
@@ -130,7 +138,7 @@ export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {}
     board.db.prepare("UPDATE run SET run_state = 'done', run_attempt = ?, run_outcome = ?, run_summary = ?, run_updated = ? WHERE run_job = ? AND run_state = 'queued' AND run_attempt < ?")
       .run(attempt, outcome, JSON.stringify(kept), now, job, attempt);
     logEvent(board, by, RUN_APPLIED_EVENT, run.run_item, { job, attempt, outcome, summary: kept, state: 'done' }, new Date(now));
-    return { applied: true };
+    return pulled ? { applied: true, machineAccepted: acceptPulledMachine(board, run, summary) } : { applied: true };
   });
 }
 
