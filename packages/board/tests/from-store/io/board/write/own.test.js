@@ -2,14 +2,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { acknowledgeOwnWrites } from '../../../../index.js';
-import { appendFact } from '../../../../index.js';
-import { boardWriteSnapshot } from '../../../../index.js';
-import { requireBoardWriteSnapshot } from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
+import { acknowledgeOwnWrites } from '../../../../../../store/index.js';
+import { appendFact } from '../../../../../../store/index.js';
+import { boardWriteSnapshot } from '../../../../../../store/index.js';
+import { requireBoardWriteSnapshot } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
 /** A board with one item and the seat that may write to it. */
 function setup(t) {

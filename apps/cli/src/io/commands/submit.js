@@ -104,6 +104,7 @@ import {
 import { changedLines } from '../../../../../packages/items/index.js';
 import { missingCheckFiles } from '../../../../../packages/items/index.js';
 import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
+import { pendingFromJobRow } from '../../../../../packages/config/index.js';
 import { recoverFromJobRow } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
@@ -344,7 +345,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     if (error?.code !== 'MERGE_CONFLICT') throw error;
     if (!isSubmitHandoffWorker(ctx)) {
       acceptedMain = mainPolicy(root);
-      const queued = withBoard(ctx, board => pendingSubmitHandoff(board, held));
+      const queued = withBoard(ctx, board => pendingSubmitHandoff(board, held, { fromJobRow: pendingFromJobRow() }));
       if (queued && recordedToolCommits(root, acceptedMain.commit, commit)) throw new Refused('SUBMIT_HANDOFF_PENDING',
         'the original immutable source is already queued; read its result before submitting another source');
     }

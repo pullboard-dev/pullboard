@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** Every write-log and hold-log row names the board file it wrote, so live latency is told apart from test boards [C7,#3190]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -5,12 +6,14 @@ import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { appendFact } from '../../../../index.js';
-import { HOLD_LOG_ALL_ENV } from '../../../../src/io/board/hold/log.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { cellItem } from '../../../fixtures/cell.js';
-import { cellProject } from '../../../fixtures/cell.js';
-import { cellSeat } from '../../../fixtures/cell.js';
+import { appendFact } from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
+
+/** The environment name the store's hold log reads; its module sits behind the store door, so the name is spelled out here. */
+const HOLD_LOG_ALL_ENV = 'PULLBOARD_BOARD_HOLD_LOG_ALL';
 
 /** Write one fact on a real board file with every hold logged, then read both machine logs back. */
 function writeAndRead(t) {
