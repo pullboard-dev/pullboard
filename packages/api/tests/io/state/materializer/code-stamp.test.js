@@ -67,7 +67,7 @@ function cacheRecord(tree) {
   return { file, record: deserialize(readFileSync(file)) };
 }
 
-test('clause 1: with the cache on, a restart over an unchanged tree reads the cached code stamp without walking the source folders [A2,C7,#9679]', async (t) => {
+test('api.state-materializer-code-stamp.cache-restart-over-unchanged-tree: clause 1: with the cache on, a restart over an unchanged tree reads the cached code stamp without walking the source folders [A2,C7,#9679]', async (t) => {
   const tree = codeTree(t);
   const walked = await savedStamp(tree, { cache: false });
   assert.equal(cacheRecord(tree), null, 'with the cache off no stamp is saved');
@@ -80,7 +80,7 @@ test('clause 1: with the cache on, a restart over an unchanged tree reads the ca
   assert.equal(await savedStamp(tree, { cache: false }), walked, 'with the cache off the planted stamp is never read');
 });
 
-test('clause 2: with the cache on, an edited, added or removed source file changes the stamp [A2,C7,#9679]', async (t) => {
+test('api.state-materializer-code-stamp.cache-edited-added-removed-source: clause 2: with the cache on, an edited, added or removed source file changes the stamp [A2,C7,#9679]', async (t) => {
   const tree = codeTree(t);
   tree.write('packages/api/src/io/thing.js', 'export const a = 1;\n');
   await savedStamp(tree, { cache: true });
