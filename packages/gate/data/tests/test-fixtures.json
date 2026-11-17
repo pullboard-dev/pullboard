@@ -95,13 +95,15 @@
     "tempdir": 2
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "tempdir": 1,
-    "env-spread": 1,
-    "hand-policy": 1,
     "raw-board": 3
   },
-  "apps/cli/tests/fixtures/check-mask.js": {
+  "apps/cli/journeys/baseline/check-part2.test.js": {
     "raw-board": 1
+  },
+  "apps/cli/tests/fixtures/check-owner.js": {
+    "tempdir": 1,
+    "env-spread": 1,
+    "hand-policy": 1
   },
   "packages/gate/tests/io/admission/cpu/load.test.js": {
     "tempdir": 2
