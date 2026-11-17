@@ -49,7 +49,10 @@ function pin(box, id, tier) {
 /** The item `next --take` hands the actor seat, or null when it hands none. */
 async function offered(box) {
   const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
+  if (taken.code !== 0) {
+    assert.equal(taken.document?.error?.code, 'NOTHING_FREE', taken.out + taken.err);
+    return null;
+  }
   return taken.document?.item?.item_id ?? null;
 }
 
