@@ -44,6 +44,7 @@ export const LANGUAGE_ROWS = Object.freeze([
   { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
   { language: 'haskell', markers: ['stack.yaml', 'cabal.project'], pattern: /\.cabal$/u, command: (names) => (names.includes('stack.yaml') ? 'stack test' : 'cabal test'), tests: ['**/test/**/*.hs', '**/*Spec.hs'] },
   { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
+  { language: 'ocaml', markers: ['dune-project'], command: 'dune test', tests: ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml'] },
   { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
   { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
 ]);

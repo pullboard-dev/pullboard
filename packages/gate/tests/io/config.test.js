@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { detectLanguages } from '../../src/io/config.js';
+import { detectTestGlobs } from '../../src/io/config.js';
+import { languageToolchains } from '../../src/io/config.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 /** Make a repo root holding the given files, removed after the test. */
@@ -42,4 +44,16 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
     const run = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 60000 });
     assert.equal(run.status === 0 ? 0 : 1, status, `${command} in ${Object.keys(files).join(',')}: ${run.stderr}`);
   }
+});
+
+test('gate.config.ocaml-detected: #10510 clause 1: a root holding dune-project detects ocaml with dune test [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '(lang dune 3.0)\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'ocaml', command: 'dune test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.ml': '' })), []);
+});
+
+test('gate.config.ocaml-globs: #10510 clause 2: detectTestGlobs for a dune-project root returns the OCaml test globs of the ocaml row, and the dune toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'dune-project': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['dune'], unknown: [] });
 });
