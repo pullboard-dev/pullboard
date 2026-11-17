@@ -2103,7 +2103,7 @@
     "raw-board": 3
   },
   "apps/cli/journeys/submit/handoff.test.js": {
-    "raw-board": 3
+    "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {
     "repo-read": 1
