@@ -105,7 +105,7 @@ test("a worktree starts only from a commit that holds pullboard's files as the m
   assert.match(made.out, /repo-web-1 on branch web\/1, joined as web-1 \(fixture-model\) in the web lane/, 'the refusals made nothing and joined no one');
   const web = join(box.dir, 'repo-web-1');
   assert.ok(readFileSync(join(web, 'SPEC.md'), 'utf8').includes('- G3 [draft'), 'it starts with the spec as committed');
-  const foreign = commitFile(box, web, 'api/a.js', 'a', 'feat(web): page [G1]');
+  const foreign = await commitFile(box, web, 'api/a.js', 'a', 'feat(web): page [G1]');
   assert.match(foreign.stderr, /outside the web lane: api\/a.js/, 'its hooks run');
 });
 
