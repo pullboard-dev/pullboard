@@ -266,13 +266,22 @@ test('from the view the person adds items, shouts and holds lanes, through the C
     assert.equal(shouted.status, 200);
     assert.equal(shouted.document.event.event_kind, 'shout');
     assert.equal(shouted.document.event.event_by, 'person');
-    assert.match((await box.runLocal(box.web, 'inbox')).out, / person -> web: from the person/);
+    const inbox = JSON.parse((await box.runLocal(box.web, 'inbox', '--json')).out);
+    assert.ok(inbox.shouts.some((row) => row.shout_from === 'person' && row.shout_to === 'web' && row.shout_text === 'from the person'),
+      'the web seat receives the person\'s shout, read from inbox --json');
     const held = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', reason: 'G1 is changing' } });
     assert.equal(held.status, 200);
     assert.equal(held.document.event.event_kind, 'hold');
     assert.equal(held.document.event.event_by, 'person');
     assert.equal(JSON.parse(held.document.event.event_detail).channel, 'view');
-    assert.match((await box.runLocal(box.web, 'next', '--take')).err, /person holds the web lane: G1 is changing/);
+    const takeHeld = await box.runLocal(box.web, 'next', '--take', '--json');
+    assert.notEqual(takeHeld.code, 0, 'next --take is refused while the lane is held');
+    const heldError = JSON.parse(takeHeld.out).error;
+    // The old assert proved the refusal names the hold (who and why), not only that nothing was free. The --json error
+    // carries code, message and next, with no separate hold field, so the code is NOTHING_FREE and the hold stays a
+    // wording check on the message below (the held lane and its reason are the contract).
+    assert.equal(heldError.code, 'NOTHING_FREE');
+    assert.ok(heldError.message.includes('person holds the web lane') && heldError.message.includes('G1 is changing'), 'the refusal names who holds the lane and why');
     const released = await view.act(box.repo, { verb: 'hold', args: { lane: 'web', off: true } });
     assert.equal(released.status, 200);
     assert.equal(released.document.event.event_kind, 'unhold');
@@ -340,7 +349,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
   // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
   await box.runLocal(box.web, 'submit', '1');

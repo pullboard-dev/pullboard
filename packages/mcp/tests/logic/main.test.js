@@ -49,7 +49,7 @@ const seated = (extra = {}) => async argv => {
 
 const call = (id, name, args) => ({ jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } });
 
-test('MCP refuses missing native readers or formatters before consuming protocol input [A9,C7]', async t => {
+test('mcp.serve.refuses-missing-composition: MCP refuses missing native readers or formatters before consuming protocol input [A9,C7]', async t => {
   const input = Readable.from(['{"jsonrpc":"2.0","id":1,"method":"initialize"}\n']);
   const output = new PassThrough();
   const log = new PassThrough();
@@ -68,7 +68,7 @@ test('MCP refuses missing native readers or formatters before consuming protocol
   assert.equal(log.readableLength, 0);
 });
 
-test('MCP answers initialize with the requested protocol version or its first, names the seat, and ignores notifications [A9]', async () => {
+test('mcp.protocol.initialize-handshake: MCP answers initialize with the requested protocol version or its first, names the seat, and ignores notifications [A9]', async () => {
   const { replies, calls } = await serve(seated(), [
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } },
     { jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '1999-01-01' } },
@@ -84,7 +84,7 @@ test('MCP answers initialize with the requested protocol version or its first, n
   assert.deepEqual(calls.map(entry => entry.argv), [['whoami', '--json']], 'only whoami ran: protocol traffic never reaches the board');
 });
 
-test('MCP reports a checkout without an agent on its log and still serves [A9]', async () => {
+test('mcp.serve.no-agent-still-serves: MCP reports a checkout without an agent on its log and still serves [A9]', async () => {
   const { replies, log } = await serve(async () => ({ status: 1, document: { error: { message: 'no agent here', next: 'run join' } } }), [
     { jsonrpc: '2.0', id: 1, method: 'initialize' },
   ]);
@@ -93,7 +93,7 @@ test('MCP reports a checkout without an agent on its log and still serves [A9]',
   assert.equal(replies.length, 1, 'the log is not the protocol channel');
 });
 
-test('MCP lists every tool with a closed input schema, and offers no person move [A9,P6]', async () => {
+test('mcp.tools.closed-schemas-no-person-move: MCP lists every tool with a closed input schema, and offers no person move [A9,P6]', async () => {
   const { replies } = await serve(seated(), [{ jsonrpc: '2.0', id: 1, method: 'tools/list' }]);
   const { tools } = replies[0].result;
   assert.deepEqual(tools.map(tool => tool.name), ['board_status', 'show_item', 'item_slice', 'usages', 'impact', 'cell', 'shout', 'capture_idea', 'next', 'claim', 'submit', 'verify', 'resume']);
@@ -103,7 +103,7 @@ test('MCP lists every tool with a closed input schema, and offers no person move
   }
 });
 
-test('MCP answers malformed lines, bad requests and unknown methods with JSON-RPC errors in order [A9]', async () => {
+test('mcp.protocol.jsonrpc-errors-in-order: MCP answers malformed lines, bad requests and unknown methods with JSON-RPC errors in order [A9]', async () => {
   const { replies } = await serve(seated(), [
     'not json',
     '[1]',
@@ -116,7 +116,7 @@ test('MCP answers malformed lines, bad requests and unknown methods with JSON-RP
   assert.equal(replies[4].error.data.error.code, 'UNKNOWN_TOOL');
 });
 
-test('MCP refuses a person move by any spelling before it reads arguments or runs the CLI [A9,P6]', async () => {
+test('mcp.guard.refuses-person-move-any-spelling: MCP refuses a person move by any spelling before it reads arguments or runs the CLI [A9,P6]', async () => {
   const names = ['approve_row', 'declineRow', 'answer-decision', 'Sign.Off', 'sign off', 'checkAccept', 'decide'];
   const { replies, calls } = await serve(seated(), names.map((name, index) => call(index, name, { whatever: true })));
   for (const reply of replies) {
@@ -127,7 +127,7 @@ test('MCP refuses a person move by any spelling before it reads arguments or run
   assert.deepEqual(calls.map(entry => entry.argv[0]), ['whoami'], 'no refused call reached the CLI');
 });
 
-test('MCP validates arguments against the tool schema: unknown, missing, mistyped and out-of-enum values are refused [A9,C7]', async () => {
+test('mcp.tools.validates-arguments: MCP validates arguments against the tool schema: unknown, missing, mistyped and out-of-enum values are refused [A9,C7]', async () => {
   const bad = [
     call(1, 'show_item', { id: 1, channel: 'person' }),
     call(2, 'show_item', {}),
@@ -150,7 +150,7 @@ test('MCP validates arguments against the tool schema: unknown, missing, mistype
   assert.deepEqual(calls.map(entry => entry.argv[0]), ['whoami']);
 });
 
-test('MCP runs each loop move as the CLI argv it mirrors, flags as --name=value and positionals after -- [A9,P6]', async () => {
+test('mcp.tools.mirrors-cli-argv: MCP runs each loop move as the CLI argv it mirrors, flags as --name=value and positionals after -- [A9,P6]', async () => {
   const { replies, calls } = await serve(seated(), [
     call(1, 'next', {}),
     call(2, 'next', { verify: true }),
@@ -180,14 +180,14 @@ test('MCP runs each loop move as the CLI argv it mirrors, flags as --name=value 
   assert.equal(JSON.parse(replies[0].result.content[0].text).version, 1);
 });
 
-test('MCP returns a CLI refusal as the tool result flagged isError, with the CLI document intact [A9,P6]', async () => {
+test('mcp.tools.refusal-is-error-result: MCP returns a CLI refusal as the tool result flagged isError, with the CLI document intact [A9,P6]', async () => {
   const refusal = { version: 1, error: { code: 'NOT_YOURS', message: 'held by another seat', next: 'run next' } };
   const { replies } = await serve(seated({ claim: () => ({ status: 1, document: refusal }) }), [call(1, 'claim', { id: 3 })]);
   assert.equal(replies[0].result.isError, true);
   assert.deepEqual(replies[0].result.structuredContent, refusal);
 });
 
-test('MCP shouts as its agent and captures an idea as a coordinator shout with kind idea [A9]', async () => {
+test('mcp.tools.shout-and-idea-capture: MCP shouts as its agent and captures an idea as a coordinator shout with kind idea [A9]', async () => {
   const { calls } = await serve(seated(), [
     call(1, 'shout', { to: 'view', text: 'hello' }),
     call(2, 'shout', { to: 'coordinator', text: 'stuck', kind: 'blocker' }),
@@ -201,7 +201,7 @@ test('MCP shouts as its agent and captures an idea as a coordinator shout with k
   assert.deepEqual(argv[3], ['shout', '--kind=idea', '--json', '--', 'coordinator', '   '], 'blank text goes through unprefixed so the CLI refuses it');
 });
 
-test('MCP board_status joins status, list and the shared person-needs list, and stops at the first refusal [A9,N26]', async () => {
+test('mcp.tools.board-status-joins: MCP board_status joins status, list and the shared person-needs list, and stops at the first refusal [A9,N26]', async () => {
   const board = seated({
     status: () => ({ status: 0, document: { version: 1, agent: 'core-1', unread: 2 } }),
     list: () => ({ status: 0, document: { version: 1, items: [{ id: 1 }] } }),
@@ -219,7 +219,7 @@ test('MCP board_status joins status, list and the shared person-needs list, and 
   assert.deepEqual(blocked.calls.map(entry => entry.argv[0]), ['whoami', 'status'], 'list never ran after the refusal');
 });
 
-test('MCP reads code-map tools through the native reader and never the CLI, and refuses without one [A9,C7,D3]', async () => {
+test('mcp.tools.codemap-native-reader-only: MCP reads code-map tools through the native reader and never the CLI, and refuses without one [A9,C7,D3]', async () => {
   const reads = [];
   const readCodeMap = async (cwd, name, input) => { reads.push([cwd, name, input]); return { version: 1, name }; };
   const served = await serve(seated(), [call(1, 'usages', { target: 'a.js#f' }), call(2, 'cell', { path: 'a.js' }), call(3, 'impact', { files: ['a.js'] })], { readCodeMap });
@@ -230,7 +230,7 @@ test('MCP reads code-map tools through the native reader and never the CLI, and 
   assert.equal(missing.replies[0].result.structuredContent.error.code, 'BAD_REQUEST');
 });
 
-test('MCP turns a failing CLI command into an internal error naming the cause [A9]', async () => {
+test('mcp.tools.cli-failure-internal-error: MCP turns a failing CLI command into an internal error naming the cause [A9]', async () => {
   const silent = async argv => {
     if (argv[0] === 'whoami') return { status: 0, document: { id: 'core-1', lane: 'core' } };
     throw new Error('boom');
@@ -240,7 +240,7 @@ test('MCP turns a failing CLI command into an internal error naming the cause [A
   assert.match(replies[0].error.message, /boom/u);
 });
 
-test('MCP serves messages one at a time in arrival order even when an earlier tool is slow [A9]', async () => {
+test('mcp.serve.messages-in-arrival-order: MCP serves messages one at a time in arrival order even when an earlier tool is slow [A9]', async () => {
   const order = [];
   const slow = seated({
     show: async () => { await new Promise(resolve => setImmediate(resolve)); order.push('show'); return { status: 0, document: { version: 1 } }; },
@@ -251,7 +251,7 @@ test('MCP serves messages one at a time in arrival order even when an earlier to
   assert.deepEqual(replies.map(reply => reply.id), [1, 2]);
 });
 
-test('clause 1: creating a cloud board refuses with the H15 reason while H29 is unapproved and runs no command [H15,H29]', async () => {
+test('mcp.tools.cloud-board-refused-h29: clause 1: creating a cloud board refuses with the H15 reason while H29 is unapproved and runs no command [H15,H29]', async () => {
   const { replies, calls } = await serve(seated(), [call(1, 'create_cloud_board', {}), call(2, 'createBoard', {})]);
   for (const reply of replies) {
     const error = reply.result.structuredContent.error;

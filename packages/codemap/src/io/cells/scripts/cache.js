@@ -1,16 +1,9 @@
 import { validateAcceptedInventory } from '../../../../index.js';
 /** Cache immutable base inventories on the machine and incrementally inspect a candidate [C7,D3]. */
-import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { statSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { serialize } from 'node:v8';
 import { deserialize } from 'node:v8';
@@ -19,11 +12,12 @@ import { gunzipSync } from 'node:zlib';
 import { cellInventory } from '../../../../index.js';
 import { updateCellInventory } from '../../../../index.js';
 import { needsFullCensus } from '../../../../index.js';
-import { machineHome } from '../../../../../resources/index.js';
 import { receiptDigest } from '../../../../../git/index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
 import { fileURLToPath } from 'node:url';
-import { git } from '../git.js';
+import { cellGit as git } from '../../../../index.js';
+import { cellsCacheDirectory } from '../cache-files.js';
+import { publishCacheEntry } from '../cache-files.js';
 import { Refused } from '../../../../../kernel/index.js';
 import { temporaryCellEdges } from '../../../../index.js';
 
@@ -34,18 +28,11 @@ function unchanged(checkout, commit) {
   }
 }
 
-/** How many inventories or observation sets one machine keeps per kind; older entries leave by last use. */
-const KEEP = 24;
-
 /** How far back along main's first parents a missing base looks for a cached inventory to update. */
 const ANCESTORS = 200;
 
-/**
- * The machine-level folder for one kind of cells cache. Why the machine and not the checkout's Git directory: every
- * runner job is a fresh checkout, so a cache beside it never survived to the next job and each gate rebuilt main's
- * whole inventory (#2531). Entries are keyed by commit and checker digest, so repositories and jobs share safely.
- */
-export function cellsCacheDirectory(kind) { return join(machineHome(), 'cells-cache', kind); }
+/** The project root the default inventory code is named inside. */
+const TOOL_ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
 
 /** The modules whose code decides an inventory's content: the census, its incremental update and the import parsers. */
 const INVENTORY_CODE = ['../../cell/lint/inventory.js', '../../module/imports.js', './cache.js']
@@ -53,13 +40,17 @@ const INVENTORY_CODE = ['../../cell/lint/inventory.js', '../../module/imports.js
 let inventoryCode;
 
 /**
- * The digest of the inventory code's bytes, by path inside this tool. Why not the submit check's own key: that key
+ * The digest of the inventory code's bytes, by path inside `root`. Why not the submit check's own key: that key
  * also covers unrelated checker files and names files by absolute path, and a runner runs main's tools from a fresh
  * temporary folder per job, so it changed every job and no inventory was ever found again (#2601).
+ * The caller names the files, so the digest keeps working when the code moves out of this package; without a list it
+ * covers today's three modules.
  */
-function inventoryCodeDigest() {
-  inventoryCode ??= receiptDigest({ node: process.version,
-    files: checkCommandDefinition(fileURLToPath(new URL('../../../../../..', import.meta.url)), [], INVENTORY_CODE).map(file => [file.path, file.mode, file.digest]) });
+export function inventoryCodeDigest(files = INVENTORY_CODE, root = TOOL_ROOT) {
+  const digest = () => receiptDigest({ node: process.version,
+    files: checkCommandDefinition(root, [], files).map(file => [file.path, file.mode, file.digest]) });
+  if (files !== INVENTORY_CODE || root !== TOOL_ROOT) return digest();
+  inventoryCode ??= digest();
   return inventoryCode;
 }
 
@@ -77,20 +68,6 @@ export function inventoryCacheFile(key, commit) {
 /** Mark a cache entry used now, so pruning keeps the bases that gates still read. */
 function touch(file) {
   try { const now = new Date(); utimesSync(file, now, now); } catch { /* Use order is advisory. */ }
-}
-
-/** Atomically publish one cache entry, then keep only the most recently used entries of its kind. */
-export function publishCacheEntry(directory, file, bytes) {
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const temporary = join(directory, `.${randomUUID()}.tmp`);
-  writeFileSync(temporary, bytes, { mode: 0o600, flag: 'wx' });
-  renameSync(temporary, file);
-  try {
-    const entries = readdirSync(directory).filter(name => name.endsWith('.json.gz')).map(name => {
-      try { return { name, used: statSync(join(directory, name)).mtimeMs }; } catch { return null; }
-    }).filter(Boolean).sort((a, b) => b.used - a.used);
-    for (const entry of entries.slice(KEEP)) rmSync(join(directory, entry.name), { force: true });
-  } catch { /* Pruning failure only costs disk until the next write. */ }
 }
 
 /**

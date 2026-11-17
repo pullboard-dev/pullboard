@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** Product landing carries the blitz-only fixups: listing rebind, renames, ceilings merge, static rows judged on main's baseline, row-aware blame [C7,#5560]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

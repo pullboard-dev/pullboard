@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/reopen-records.json */
 /** @pullboard-world-pin reads the recorded reopens fixture, each with the reopen table's answer, to drive the store reopen writer with them. The store reopen writer applies the reopen table and agrees with it on every replayed reopen [C7,#8285]. */
 /** @pullboard-test-input packages/store/tests/fixtures/reopen-records.json */
 import assert from 'node:assert/strict';

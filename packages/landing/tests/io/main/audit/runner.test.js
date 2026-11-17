@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A pinned main comparison may use only a registered runner with the candidate's observed environment [V4,C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -22,8 +23,8 @@ import { takeResource } from '../../../../../resources/index.js';
 import { withEnvironment } from '../../../../../resources/index.js';
 import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { executionServices } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../../gate/tests/fixtures/runner/ssh.js';
 
 const A = HOST;
 const B = `${HOST}-drop`;

@@ -26,7 +26,7 @@ const MINUTE = 60_000;
 const database = t => cellBoard(t, ':memory:').db;
 const view = fields => ({ step: 'running', leaseOwner: 'w1', leaseUntil: 1000, updated: 500, ...fields });
 
-test('a running or leased-queued gate whose lease lapsed reads stalled with its age in minutes, and a driven one does not [C7]', () => {
+test('jobs.panel.stalled-gate: a running or leased-queued gate whose lease lapsed reads stalled with its age in minutes, and a driven one does not [C7]', () => {
   const lapsed = gatePanelState(view({ leaseUntil: 10 * MINUTE }), 15 * MINUTE + 5);
   assert.deepEqual(lapsed, { state: 'stalled', stalled: true, ageMinutes: 5, text: 'stalled (reclaimable) 5m' });
   assert.equal(gatePanelState(view({ leaseUntil: 10 * MINUTE }), 10 * MINUTE).stalled, false, 'the lease ends now, not before');
@@ -39,7 +39,7 @@ test('a running or leased-queued gate whose lease lapsed reads stalled with its 
   assert.equal(gatePanelState(view({ leaseUntil: 1 }), 9 * MINUTE, { workerAlive: () => true }).stalled, true, 'a worker only vouches for an unleased job');
 });
 
-test('gatePanel and stalledGates read the board: unknown job and missing tables answer nothing, stalled gates are listed [C7]', t => {
+test('jobs.panel.reads-board: gatePanel and stalledGates read the board: unknown job and missing tables answer nothing, stalled gates are listed [C7]', t => {
   const db = database(t);
   assert.equal(gatePanel(db, 'gate:none'), null);
   createJob(db, { id: 'gate:1', kind: 'gate', item: 3, now: 0 });
@@ -58,7 +58,7 @@ test('gatePanel and stalledGates read the board: unknown job and missing tables 
   assert.deepEqual(stalledGates(bare), []);
 });
 
-test('a submit handoff is shadowed as a gate job whose steps repeat per state, and a board without job tables refuses [C7]', t => {
+test('jobs.panel.submit-shadow: a submit handoff is shadowed as a gate job whose steps repeat per state, and a board without job tables refuses [C7]', t => {
   const db = database(t);
   const handoff = { id: 'handoff:1', state: 'queued', commit: 'a'.repeat(40), main: 'b'.repeat(40), tree: 't', digest: 'd', agentId: 'core-1' };
   assert.deepEqual(shadowSubmitHandoff(db, 7, handoff, { now: 10 }), { job: 'handoff:1', step: 'queued', seq: 0 });
@@ -82,7 +82,7 @@ const span = (end, fields = {}) => ({ v: 1, job: 'gate:1', phase: 'run', start: 
 const DAY = 86_400_000;
 const T0 = Date.parse('2026-11-09T12:00:00.000Z');
 
-test('gate spans append to a file per day under the common dir, and reading returns those in range, skipping torn and foreign lines [C7]', t => {
+test('jobs.panel.spans-per-day: gate spans append to a file per day under the common dir, and reading returns those in range, skipping torn and foreign lines [C7]', t => {
   const folder = spanFolder(t);
   assert.match(folder, /pullboard\/gate-spans$/u);
   assert.deepEqual(readGateSpans(folder, { since: T0 - DAY, now: T0 }), [], 'no folder, no spans');
@@ -96,7 +96,7 @@ test('gate spans append to a file per day under the common dir, and reading retu
   assert.deepEqual(readGateSpans(folder, { since: T0 - 3 * 60_000, now: T0 }).map(row => row.phase), ['today'], 'an earlier day file is not read');
 });
 
-test('a new day\'s first span removes day files older than the 14-day window [C7]', t => {
+test('jobs.panel.span-retention: a new day\'s first span removes day files older than the 14-day window [C7]', t => {
   const folder = spanFolder(t);
   appendGateSpan(folder, span(new Date(T0 - 20 * DAY).toISOString()));
   appendGateSpan(folder, span(new Date(T0 - 14 * DAY).toISOString()));
