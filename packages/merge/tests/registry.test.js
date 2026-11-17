@@ -1,4 +1,5 @@
-/** Every merge-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9396]. @pullboard-test-input source-cell packages/merge */
+/** @pullboard-test-input packages/merge/tests/** */
+/** Every merge-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9396].*/
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
