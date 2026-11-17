@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/cli packages/gate */
 /** A runner-only submit with the ssh stand-in registered settles its pulled gate in bounded time, or names where it stands; before #10303 it sat queued to the 180 s kill [C7,V4]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
