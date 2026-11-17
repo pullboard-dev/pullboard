@@ -7,7 +7,7 @@ import { buildTimeLines } from '../../../stats/index.js';
 import { criterionSize } from '../../../items/index.js';
 import { fixture } from '../fixtures/stats/time.js';
 
-test('store.logic-board-stats-time.landed-build-minutes-use-the-last: landed build minutes use the last claim, ignore renewals and retain unmeasured evidence [B35,R1,R2,C7]', t => {
+test('board.stats-time.landed-build-minutes-use-the-last: landed build minutes use the last claim, ignore renewals and retain unmeasured evidence [B35,R1,R2,C7]', t => {
   const { board } = fixture(t);
   const report = buildTimeStats(store.events(board), store.listItems(board, { all: true }), [], criterionSize);
   assert.equal(report.items.find(row => row.item === 1).buildMinutes, 20);
