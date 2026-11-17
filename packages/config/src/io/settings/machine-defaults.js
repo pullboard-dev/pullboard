@@ -30,6 +30,7 @@ export const MACHINE_DEFAULTS = {
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10_240,
   'gate.endStaleJobs': false,
+  'gate.excuseMainTimingReds': false,
   'gate.fencedHop': true,
   'gate.handoffWorkers': null,
   'gate.idiomSpread': false,

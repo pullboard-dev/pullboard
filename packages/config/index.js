@@ -58,6 +58,7 @@ export {
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
+  excuseMainTimingReds,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
