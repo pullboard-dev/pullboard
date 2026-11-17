@@ -14,7 +14,7 @@ import {
 import { repoInfo } from '../../../../git/index.js';
 import {
   machineSettingsFile,
-} from '../../../../resources/index.js';
+} from '../../../../resources/light.js';
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,
