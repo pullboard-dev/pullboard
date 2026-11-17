@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js */
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';

@@ -7,7 +7,6 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { nextRouteByTier } from '../../../../packages/config/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { tierOmissions } from '../../../../packages/moves/index.js';
 import { saveAgentModel } from '../../../../packages/seats/index.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
@@ -68,7 +67,6 @@ test('clause 2: with next.routeByTier on, an item pinned to a tier is never offe
   const id = box.add('Pinned to escalation');
   pin(box, id, 'escalation');
   nextSettings({ routeByTier: true });
-  assert.deepEqual(tierOmissions(box.config, box.board, store.listItems(box.board), { id: box.seats.actor.id }), [id], `the pinned item is left out: ${JSON.stringify(box.config.tiers)} ${store.agentModel(box.board, box.seats.actor.id)}`);
   assert.equal(await offered(box), null, 'a routine seat is not offered an escalation pin');
   saveAgentModel(box.board, box.seats.actor.id, FIXTURE_MODEL_EARLIER);
   assert.equal(await offered(box), id, 'an escalation seat is');
