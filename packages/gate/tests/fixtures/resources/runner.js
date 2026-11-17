@@ -239,7 +239,9 @@ process.exit(lines.length?1:0);
  */
 async function submitSettled(box, { settledGateJob }, id) {
   succeeded(await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
-  return settledGateJob(box, id, { deadlineMs: DOCTRINE_SETTLE_MS });
+  const job = await settledGateJob(box, id, { deadlineMs: DOCTRINE_SETTLE_MS });
+  process.stderr.write(`JOB ${JSON.stringify(job).slice(0, 5000)}\n`);
+  return job;
 }
 
 /** The doctrine refusal codes the settled gate job carries. */
@@ -249,6 +251,7 @@ function doctrineRefusals(job) {
 
 /** The doctrine observation receipts the registered runner kept under its cache folder, one parsed record each. */
 function doctrineReceipts(runner) {
+  process.stderr.write(`RUNNERFILES ${JSON.stringify(readdirSync(runner.folder, { recursive: true }).filter(name => /doctrine|observation/u.test(name)).slice(0, 60))}\n`);
   return readdirSync(runner.folder, { recursive: true }).filter(name => name.endsWith('observation.json') && name.includes('doctrine'))
     .map(name => JSON.parse(readFileSync(join(runner.folder, name), 'utf8')));
 }
