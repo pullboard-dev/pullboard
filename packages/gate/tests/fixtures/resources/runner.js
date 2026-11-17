@@ -208,7 +208,7 @@ process.exit(lines.length?1:0);
   writeFileSync(ledgerFile, JSON.stringify({ version: 2, gates: 20, codes: {
     [ledgerKey]: { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 } } }) + '\n');
   await serveRegisteredRunner(t, box, registered);
-  return { box, marker, paths: registered.paths, base, id, ledgerFile, ledgerKey };
+  return { box, marker, paths: registered.paths, base, id, added: JSON.parse(registered.added.out).item, ledgerFile, ledgerKey };
 }
 
 /**
@@ -229,7 +229,10 @@ function doctrineRefusals(job) {
 /** Install the rising-count case alone: its one registered-worker submit needs a file of its own to stay inside the time budget [C7,D1]. */
 export function installRunnerOnlyDoctrineCase(fixtures) {
   test('clause 2: runner-only doctrine refuses a rising count with RATCHET_ROSE in the registered worker [C7,D1,D3]', async t => {
-    const { box, id, ledgerFile, ledgerKey } = await runnerOnlyDoctrineSetup(t, fixtures);
+    const { box, id, added, ledgerFile, ledgerKey } = await runnerOnlyDoctrineSetup(t, fixtures);
+    await t.test('clause 1: the doctrine fixture adds its item without add --wait, so its setup runs no cold check [C7]', async () => {
+      assert.equal(added.item_check_baseline?.result, 'pending', `#${id}: its add waited on no check during setup`);
+    });
     await t.test('clause 1: the case seeds its RATCHET_ROSE trial in the refusal-trials ledger and runs no probe add or probe submit [C7,D1]', async () => {
       const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
       assert.deepEqual(ledger.codes[ledgerKey], { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 }, 'the ROSE row carries the identity ratchetMachineryRule returned');
