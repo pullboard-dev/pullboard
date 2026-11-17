@@ -9,6 +9,7 @@ export { LANDINGS, defineRules, deriveFact, landingOf } from "./src/logic/table/
 export { runTable } from "./src/logic/table/run.js";
 export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
 export { replayTable } from "./src/logic/table/replay.js";
+export { judgeRecords } from "./src/logic/table/judge.js";
 export { HOP_ATTEMPT_CAP, HOP_MOVES, hopEngine } from "./src/logic/table/hop.table.js";
 export { LANDING_NEXT, batchOutcome, itemRefusal, landingEngine, landingOrder, repeatedReds, selectBatch } from "./src/logic/table/landing.table.js";
 export { releaseEngine } from "./src/logic/table/release.table.js";
