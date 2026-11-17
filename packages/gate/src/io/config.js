@@ -55,7 +55,9 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   for (const [name, section] of [['tox.ini', 'pytest'], ['setup.cfg', 'tool:pytest']]) {
     if (!python && existsSync(join(root, name)) && readFileSync(join(root, name), 'utf8').includes(`[${section}]`)) python = true;
   }
-  if (python) add('python', 'pytest');
+  // A uv or poetry project keeps pytest in its own environment, so a lock file beside pyproject.toml fronts the command (uv wins over poetry) [C7,#10357].
+  const front = !existsSync(join(root, 'pyproject.toml')) ? '' : existsSync(join(root, 'uv.lock')) ? 'uv run ' : existsSync(join(root, 'poetry.lock')) ? 'poetry run ' : '';
+  if (python) add('python', `${front}pytest`);
   if (existsSync(join(root, 'composer.json'))) add('php', 'composer test');
   if (existsSync(join(root, 'mix.exs'))) add('elixir', 'mix test');
   if (readdirSync(root).some((name) => /\.(sln|csproj)$/iu.test(name))) add('csharp', 'dotnet test');

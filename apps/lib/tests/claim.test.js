@@ -20,7 +20,7 @@ function lapsedClaim(t) {
   return { board, held, other };
 }
 
-test('a lapsed claim with a queued gate is not offered by next, which returns other work, and claim agrees [C7,#3121]', t => {
+test('lib.claim.a-lapsed-claim-with-a-queued-gate: a lapsed claim with a queued gate is not offered by next, which returns other work, and claim agrees [C7,#3121]', t => {
   const { board, held, other } = lapsedClaim(t);
   recordSubmitHandoff(board.db, held, { id: `fixture-${held}`, commit: 'a'.repeat(40), agentId: 'web-1', state: 'queued' });
   const listed = store.listItems(board, { lane: 'web' }).find(item => item.item_id === held);
@@ -31,7 +31,7 @@ test('a lapsed claim with a queued gate is not offered by next, which returns ot
   assert.throws(() => store.claim(board, held, { agentId: 'web-2', lane: 'web', leaseMs: 60_000, freeze }), { code: 'HELD' });
 });
 
-test('a lapsed claim with no gate in flight is listed open and claimable [C7,#3121]', t => {
+test('lib.claim.a-lapsed-claim-with-no-gate-in: a lapsed claim with no gate in flight is listed open and claimable [C7,#3121]', t => {
   const { board, held } = lapsedClaim(t);
   const listed = store.listItems(board, { lane: 'web' }).find(item => item.item_id === held);
   assert.equal(listed.item_status, 'open', 'the remembered list expired with the lease');

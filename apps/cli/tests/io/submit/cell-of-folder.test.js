@@ -1,4 +1,5 @@
-/** A module path's cell is derived from its folder alone and matches the restructure plan [C7,#8554]. @pullboard-test-input source-cell apps/cli packages/codemap/data/plan */
+/** @pullboard-test-input packages/codemap/data/plan/** */
+/** A module path's cell is derived from its folder alone and matches the restructure plan [C7,#8554]. */
 import assert from 'node:assert/strict';
 import {
   readdirSync,

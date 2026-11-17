@@ -31,12 +31,28 @@ import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { landingHooks } from './selection.js';
 
-/** Append a durable snapshot before or after each external side effect. */
+/**
+ * The batch's exact-tree record with `tree` set to the tree id of `tip`, the tree main will point to if the batch lands [V16,RFC 0011 ET1].
+ * Why: a proof keyed by a tip or a past main can stand for a tree it never ran on; the tree id names exactly what lands.
+ * A tip whose tree cannot be read drops the record, so a stale tree id never outlives the tip it was read from.
+ */
+export function exactTreeRecord(root, tip, previous) {
+  const read = tryGit(root, ['rev-parse', '--verify', '-q', `${tip}^{tree}`]);
+  const tree = read.status === 0 ? read.stdout.trim() : '';
+  if (!/^[a-f0-9]{40,64}$/u.test(tree)) return undefined;
+  return previous?.tree === tree ? previous : { ...(previous ?? {}), tree };
+}
+
+/** Append a durable snapshot before or after each external side effect; every snapshot carries the tree id of its tip [V16]. */
 export async function save(state, patch) {
   const conflicts = [...new Map([...(state.batch.conflicts ?? []), ...(patch.conflicts ?? [])].map((entry) => [entry.id, entry])).values()];
   const resolutions = [...new Map([...(state.batch.resolutions ?? []), ...(patch.resolutions ?? [])]
     .map(entry => [JSON.stringify(entry), entry])).values()];
-  state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...state.batch, ...patch, conflicts, resolutions }, revision: state.batch.revision ?? 0 }]);
+  const batch = { ...state.batch, ...patch, conflicts, resolutions };
+  const exactTree = batch.tip ? exactTreeRecord(batch.root, batch.tip, batch.exactTree) : undefined;
+  if (exactTree) batch.exactTree = exactTree;
+  else delete batch.exactTree;
+  state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch, revision: state.batch.revision ?? 0 }]);
   return state.batch;
 }
 
