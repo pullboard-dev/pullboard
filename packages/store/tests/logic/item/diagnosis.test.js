@@ -24,7 +24,7 @@ function fixture(t, engine = TWO_TIER_DIAGNOSIS_ENGINE) {
   return { board, strong, light, add, claim };
 }
 
-test('native diagnosis validates its exact handoff, routes light and invalidates atomically on a wrong-diagnosis release [C7]', t => {
+test('store.logic-item-diagnosis.native-diagnosis-validates-its-exact-handoff: native diagnosis validates its exact handoff, routes light and invalidates atomically on a wrong-diagnosis release [C7]', t => {
   const f = fixture(t);
   assert.throws(() => f.add('light'), { code: 'DIAGNOSIS_REQUIRED' });
   const id = f.add();
@@ -58,7 +58,7 @@ test('native diagnosis validates its exact handoff, routes light and invalidates
   assert.equal(store.getItem(f.board, id).item_owner, f.light);
 });
 
-test('bar edits cannot reuse a stale diagnosis and new fact/release moves seal the required engine [C7]', t => {
+test('store.logic-item-diagnosis.bar-edits-cannot-reuse-a-stale: bar edits cannot reuse a stale diagnosis and new fact/release moves seal the required engine [C7]', t => {
   const f = fixture(t);
   const id = f.add();
   store.appendFact(f.board, id, { agentId: f.strong, kind: 'diagnosis', text: DIAGNOSIS });
@@ -74,7 +74,7 @@ test('bar edits cannot reuse a stale diagnosis and new fact/release moves seal t
   assert.throws(() => applyEngineMove(f.board, { ...release, engine: TWO_TIER_DIAGNOSIS_ENGINE - 1 }, { sequence: 1, at: new Date().toISOString() }), /engine/u);
 });
 
-test('old light items remain available for capable diagnosis and historical fact labels keep their engine floor [C7]', t => {
+test('store.logic-item-diagnosis.old-light-items-remain-available-for: old light items remain available for capable diagnosis and historical fact labels keep their engine floor [C7]', t => {
   const f = fixture(t, TWO_TIER_DIAGNOSIS_ENGINE - 1);
   const id = f.add('light');
   assert.throws(() => store.appendFact(f.board, id, { agentId: f.strong, kind: 'diagnosis', text: DIAGNOSIS }), { code: 'BAD_FACT_KIND' });
