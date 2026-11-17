@@ -121,7 +121,7 @@ async function buildAndSubmit(board, id, itemText) {
   box.git(web, 'add', '-A');
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
-  const submitted = await box.runLocal(web, 'submit', item, '--no-next');
+  const submitted = await box.runIn(web, 'submit', item, '--no-next');
   return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted };
 }
 
