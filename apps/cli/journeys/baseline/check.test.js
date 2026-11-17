@@ -97,7 +97,7 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
   }
 }
 
-test('[V2,N23] only the coordinator sets checks and agents confirm them before execution', async () => {
+test('cli.journeys-baseline-check.v2-n23-only-the-coordinator-sets: [V2,N23] only the coordinator sets checks and agents confirm them before execution', async () => {
   const box = await project();
   const itemCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM item').count;
   const eventCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM event').count;
@@ -176,7 +176,7 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
   assert.equal(readFileSync(join(box.web, 'check-ran-yes.txt'), 'utf8'), 'ran');
 });
 
-test('a check that pipes its proof into tail is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-pipes-its-proof: a check that pipes its proof into tail is refused [C7,V4]', () => {
   const board = openBoard(':memory:');
   try {
     const masked = { by: 'coordinator', lane: 'core', title: 'Masked proof', criterion: 'the proof passes', route: 'strong', check: `${shellWord(process.execPath)} -e "process.exit(1)" | tail -5` };
@@ -185,7 +185,7 @@ test('a check that pipes its proof into tail is refused [C7,V4]', () => {
   } finally { closeBoard(board); }
 });
 
-test('a captured-output check is accepted [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-captured-output-check-is-accepted: a captured-output check is accepted [C7,V4]', () => {
   const board = openBoard(':memory:');
   try {
     const captured = `out=$(${shellWord(process.execPath)} -e "process.exit(1)"); printf '%s\\n' "$out" | grep -Eq 'never'`;
@@ -202,23 +202,23 @@ function maskRefusal(check) {
   } catch (error) { return error.code; } finally { closeBoard(board); }
 }
 
-test('an uncaptured grep that decides the exit is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.an-uncaptured-grep-that-decides-the: an uncaptured grep that decides the exit is refused [C7,V4]', () => {
   assert.equal(maskRefusal('node -e "process.exit(1)" | grep -q x'), 'CHECK_MASKS_EXIT');
 });
 
-test('a pipe into xargs that hides the exit is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-into-xargs-that-hides: a pipe into xargs that hides the exit is refused [C7,V4]', () => {
   assert.equal(maskRefusal('node -e "process.exit(1)" | xargs echo'), 'CHECK_MASKS_EXIT');
 });
 
-test('a bare pipefail mention in an echo does not stop a masked pipe being refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-bare-pipefail-mention-in-an: a bare pipefail mention in an echo does not stop a masked pipe being refused [C7,V4]', () => {
   assert.equal(maskRefusal('echo pipefail; node -e "process.exit(1)" | tail -5'), 'CHECK_MASKS_EXIT');
 });
 
-test('a check that sets pipefail as a command is accepted [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-sets-pipefail-as: a check that sets pipefail as a command is accepted [C7,V4]', () => {
   assert.equal(maskRefusal('set -o pipefail; node -e "process.exit(1)" | tail -5'), null);
 });
 
-test('a pipe into tail inside a subshell or after an assignment is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-into-tail-inside-a: a pipe into tail inside a subshell or after an assignment is refused [C7,V4]', () => {
   const masked = `node -e "console.log('proof-red'); process.exit(7)" | tail -n1`;
   // A capture exempts only a pipeline that tests the captured value; this one is never read (#812 review).
   assert.equal(maskRefusal(`out=$(printf ok); ${masked}`), 'CHECK_MASKS_EXIT');
@@ -228,12 +228,12 @@ test('a pipe into tail inside a subshell or after an assignment is refused [C7,V
   assert.equal(maskRefusal(`{ ${masked}; }`), 'CHECK_MASKS_EXIT');
 });
 
-test("the board's own captured-output form is accepted [C7,V4]", () => {
+test('cli.journeys-baseline-check.the-board-s-own-captured-output: the board\'s own captured-output form is accepted [C7,V4]', () => {
   assert.equal(maskRefusal(`out=$(node apps/cli/src/io/run/tests.js test/x.test.js 2>&1); printf "%s\\n" "$out"; printf "%s\\n" "$out" | grep -Eq "^# fail 0$" && printf "%s\\n" "$out" | grep -Eq "ok"`), null);
   assert.equal(maskRefusal(`out=$(node -e "process.exit(1)" | tail -5); echo "$out" | grep -q ok`), null, 'a pipe inside the capture is not a check pipeline');
 });
 
-test('a check that turns pipefail off or sets it conditionally is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-turns-pipefail-off: a check that turns pipefail off or sets it conditionally is refused [C7,V4]', () => {
   const masked = `node -e "console.log('proof-red'); process.exit(7)" | tail -n1`;
   // /bin/sh never runs this set, since false fails first, so the pipe still exits 0 (#812 review).
   assert.equal(maskRefusal(`false && set -o pipefail; ${masked}`), 'CHECK_MASKS_EXIT');
@@ -245,7 +245,7 @@ test('a check that turns pipefail off or sets it conditionally is refused [C7,V4
   assert.equal(maskRefusal(`set -euo pipefail\n${masked}`), null, 'a first-command set that always runs keeps the producer exit');
 });
 
-test('a pipe inside a shell comment is not a pipeline [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-inside-a-shell-comment: a pipe inside a shell comment is not a pipeline [C7,V4]', () => {
   assert.equal(maskRefusal('printf proof-green # example only: false | tail'), null);
   assert.equal(maskRefusal('echo a#b | tail -n1'), 'CHECK_MASKS_EXIT', 'a # inside a word starts no comment');
 });
