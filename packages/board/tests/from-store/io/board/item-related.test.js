@@ -1,13 +1,12 @@
-/** @pullboard-test-input source-cell store */
 /** Related item links: one symmetric free link per pair, no dependency, an unknown item refused, and the setting off changes nothing [C7,#9355]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { register } from '../../../index.js';
-import { addItem } from '../../../index.js';
-import { claim } from '../../../index.js';
-import { relateItems } from '../../../index.js';
-import { relatedLinks } from '../../../index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { register } from '../../../../../store/index.js';
+import { addItem } from '../../../../../store/index.js';
+import { claim } from '../../../../../store/index.js';
+import { relateItems } from '../../../../../store/index.js';
+import { relatedLinks } from '../../../../../store/index.js';
 
 const clock = { now: () => new Date() };
 const ON = { enabled: true };

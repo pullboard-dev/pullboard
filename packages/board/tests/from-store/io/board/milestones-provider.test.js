@@ -1,12 +1,12 @@
 /** The store milestones module releases through a provided coordinatorMilestoneRelease when one is set, and through its import otherwise [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { addMilestone } from '../../../index.js';
-import { provideCoordinatorMilestoneRelease } from '../../../index.js';
-import { shipMilestone } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { addMilestone } from '../../../../../store/index.js';
+import { provideCoordinatorMilestoneRelease } from '../../../../../store/index.js';
+import { shipMilestone } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 
 /** A real repo and board with two milestones, A to ship and B to take what is left; no provider stays set after the test. */
 function fixture(t) {

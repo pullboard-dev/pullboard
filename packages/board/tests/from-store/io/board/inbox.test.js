@@ -1,18 +1,18 @@
 /** The receipt inbox applies each job's receipt to the board once, by job and attempt, and run rows replay from events [B2,R2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { RUN_APPLIED_EVENT } from '../../../index.js';
-import { RUN_QUEUED_EVENT } from '../../../index.js';
-import { applyReceipts } from '../../../index.js';
-import { applyRunReceipt } from '../../../index.js';
-import { boardRun } from '../../../index.js';
-import { openRunsStore } from '../../../index.js';
-import { queueRun } from '../../../index.js';
-import { runRowsFromEvents } from '../../../index.js';
-import { runsPort } from '../../../index.js';
-import { finishJob } from '../../../../jobs/index.js';
-import { writeStep } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { RUN_APPLIED_EVENT } from '../../../../../store/index.js';
+import { RUN_QUEUED_EVENT } from '../../../../../store/index.js';
+import { applyReceipts } from '../../../../../store/index.js';
+import { applyRunReceipt } from '../../../../../store/index.js';
+import { boardRun } from '../../../../../store/index.js';
+import { openRunsStore } from '../../../../../store/index.js';
+import { queueRun } from '../../../../../store/index.js';
+import { runRowsFromEvents } from '../../../../../store/index.js';
+import { runsPort } from '../../../../../store/index.js';
+import { finishJob } from '../../../../../jobs/index.js';
+import { writeStep } from '../../../../../jobs/index.js';
 
 const clock = { now: () => new Date() };
 const JOB = 'gate:3:abc:t1';

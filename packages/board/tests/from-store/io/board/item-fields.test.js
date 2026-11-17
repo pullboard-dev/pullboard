@@ -1,13 +1,12 @@
-/** @pullboard-test-input source-cell store */
 /** Typed item fields: text, choice and number values store and read back with their type, a wrong type is refused, and the setting off changes nothing [C7,#9350]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { register } from '../../../index.js';
-import { addItem } from '../../../index.js';
-import { declareItemField } from '../../../index.js';
-import { setItemField } from '../../../index.js';
-import { itemFields } from '../../../index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { register } from '../../../../../store/index.js';
+import { addItem } from '../../../../../store/index.js';
+import { declareItemField } from '../../../../../store/index.js';
+import { setItemField } from '../../../../../store/index.js';
+import { itemFields } from '../../../../../store/index.js';
 
 const clock = { now: () => new Date() };
 
