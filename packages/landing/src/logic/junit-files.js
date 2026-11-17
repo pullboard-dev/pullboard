@@ -4,6 +4,8 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
+  dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
 };
 
 /**
