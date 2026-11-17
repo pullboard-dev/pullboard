@@ -25,7 +25,7 @@ function answer(t, record) {
   return readCostAnalytics({ root: project.repo }, '7d', io);
 }
 
-test('clause 1: costAnalytics output carries the coordinator entry with its tokens and models when a session is recorded [C7,#9834]', async t => {
+test('api.cost-coordinator.costanalytics-output-carries-coordinator-entry: clause 1: costAnalytics output carries the coordinator entry with its tokens and models when a session is recorded [C7,#9834]', async t => {
   const { coordinator } = await answer(t, true);
   assert.equal(coordinator.sessions, 1);
   assert.equal(coordinator.inputTokens, 10);
@@ -33,7 +33,7 @@ test('clause 1: costAnalytics output carries the coordinator entry with its toke
   assert.deepEqual(coordinator.models, [SESSION_MODEL]);
 });
 
-test('clause 1: costAnalytics output carries a coordinator entry that reads unknown, not zero, when none is recorded [C7,#9834]', async t => {
+test('api.cost-coordinator.costanalytics-output-carries-coordinator-entry-2: clause 1: costAnalytics output carries a coordinator entry that reads unknown, not zero, when none is recorded [C7,#9834]', async t => {
   const { coordinator } = await answer(t, false);
   assert.equal(coordinator.sessions, 0);
   assert.equal(coordinator.inputTokens, null);

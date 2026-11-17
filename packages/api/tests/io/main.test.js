@@ -45,7 +45,7 @@ parentPort.postMessage({ started: threadId, port: api.port });
 await fresh.restarted;
 `;
 
-test('clause 1 [P7]: a served board keeps answering after a commit lands that changes a module the server loads lazily (#6157)', { timeout: 120_000 }, async (t) => {
+test('api.main.clause-served-board-keeps-answering: clause 1 [P7]: a served board keeps answering after a commit lands that changes a module the server loads lazily (#6157)', { timeout: 120_000 }, async (t) => {
   const { once } = await import('node:events');
   const { join } = await import('node:path');
   const { Worker } = await import('node:worker_threads');
@@ -91,7 +91,7 @@ test('clause 1 [P7]: a served board keeps answering after a commit lands that ch
   assert.ok(Array.isArray(body.events), `a board-backed answer: ${JSON.stringify(body)}`);
 });
 
-test('clause 1: a thrown TypeError behind the real HTTP service is logged with its stack while the body stays the generic SERVICE_ERROR [A2,C7]', async (t) => {
+test('api.main.thrown-typeerror-behind-real-http: clause 1: a thrown TypeError behind the real HTTP service is logged with its stack while the body stays the generic SERVICE_ERROR [A2,C7]', async (t) => {
   const logged = [];
   t.mock.method(process.stderr, 'write', (chunk) => { logged.push(String(chunk)); return true; });
   const handler = createApiHandler({ refusalDocument,
@@ -136,7 +136,7 @@ function fixtureBoardId(project) {
   try { return boardId(board); } finally { closeCellBoard(board); }
 }
 
-test('clause 1 [P7]: a registered board that cannot be read is logged with its code, message and board id, and the refusal names the read failure instead of NO_BOARD (#6158)', async (t) => {
+test('api.main.clause-registered-board-cannot-read: clause 1 [P7]: a registered board that cannot be read is logged with its code, message and board id, and the refusal names the read failure instead of NO_BOARD (#6158)', async (t) => {
   const project = cellProject(t, { real: true });
   const id = fixtureBoardId(project);
   writeFileSync(project.boardFile, 'this is not a SQLite database, so every read of the board fails\n'.repeat(64));
@@ -154,7 +154,7 @@ test('clause 1 [P7]: a registered board that cannot be read is logged with its c
   assert.match(line, /not a database|SQLITE|file/iu, 'the log line carries the underlying SQLite error');
 });
 
-test('clause 1 [P7]: a board id no registered board carries still answers NO_BOARD when every board reads (#6158)', async (t) => {
+test('api.main.clause-board-registered-board-carries: clause 1 [P7]: a board id no registered board carries still answers NO_BOARD when every board reads (#6158)', async (t) => {
   const project = cellProject(t, { real: true });
   fixtureBoardId(project);
   const logged = [];
@@ -165,7 +165,7 @@ test('clause 1 [P7]: a board id no registered board carries still answers NO_BOA
   assert.equal(logged.join('').includes('board read failed'), false, 'a readable board logs no read failure');
 });
 
-test('clause 1 [P7]: a landing that touches only docs or unrelated cells keeps the served process, a served-module landing restarts it (#6162)', { timeout: 60_000 }, async (t) => {
+test('api.main.clause-landing-touches-only-docs: clause 1 [P7]: a landing that touches only docs or unrelated cells keeps the served process, a served-module landing restarts it (#6162)', { timeout: 60_000 }, async (t) => {
   const { execFileSync } = await import('node:child_process');
   const { join } = await import('node:path');
   const { restartOnCodeMove, servedModuleMoved } = await import('../../../drive/index.js');
