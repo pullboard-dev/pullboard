@@ -54,9 +54,7 @@ export const OPERATIONS = Object.freeze([
     marks: code => code.search(/\bAtomics\s*\.\s*wait\s*\(/u) },
   { name: 'move-trunk', entry: 'packages/landing/src/io/step/publish.js', why: 'moves the trunk ref or pushes to main',
     marks: code => code.search(TRUNK_MOVE) },
-  { name: 'write-state-file', entry: 'packages/kernel/src/logic/atomic.js', why: 'writes a file, then renames it into place',
-    // The store's own copy, which #10495 makes the entry when the kernel copy goes (CD31).
-    adapters: ['packages/store/src/io/atomic.js'],
+  { name: 'write-state-file', entry: 'packages/store/src/io/atomic.js', why: 'writes a file, then renames it into place',
     marks: code => code.search(WRITE_THEN_RENAME) },
 ]);
 
