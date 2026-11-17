@@ -31,7 +31,7 @@ const run = (snapshot, move) => runTable(TABLE, RULES, structuredClone(snapshot)
 /** The item's status and landing after a move, read the way the rules layer derives landing. */
 const after = (s, out) => [out.patch.status, landingOf({ ...s.item, ...out.patch }, [...s.history, ...out.events])];
 
-test('clause 1: a submitted sprint item with landing landed is accepted by the verify table, ending verified with landing landed [V6,#8868]', () => {
+test('moves.verify-sprint.a-submitted-sprint-item-with-landing-landed: clause 1: a submitted sprint item with landing landed is accepted by the verify table, ending verified with landing landed [V6,#8868]', () => {
   const s = landed('sprint');
   assert.equal(landingOf(s.item, s.history), 'landed');
   const out = run(s, ACCEPT);
@@ -42,7 +42,7 @@ test('clause 1: a submitted sprint item with landing landed is accepted by the v
   assert.ok(legalLanding(...after(s, out)));
 });
 
-test('clause 2: a reject of that item writes a pull_out event, leaving it open with landing pulling for its builder [V6,M2,#8868]', () => {
+test('moves.verify-sprint.a-reject-of-that-item-writes-a: clause 2: a reject of that item writes a pull_out event, leaving it open with landing pulling for its builder [V6,M2,#8868]', () => {
   const s = landed('sprint');
   const out = run(s, REJECT);
   assert.equal(out.refused, undefined, JSON.stringify(out.refused));
@@ -59,7 +59,7 @@ test('clause 2: a reject of that item writes a pull_out event, leaving it open w
   assert.deepEqual([plain.via, plain.events.map(e => e.kind), after(unlanded, plain)], [['reject'], ['reject'], ['open', 'none']]);
 });
 
-test('clause 2: under sprint a published item, or one already pulling, takes no verdict, and its refusal names why [V6,#8868]', () => {
+test('moves.verify-sprint.under-sprint-a-published-item-or-one: clause 2: under sprint a published item, or one already pulling, takes no verdict, and its refusal names why [V6,#8868]', () => {
   const published = landed('sprint');
   published.history.push({ id: 3, kind: 'published', by: 'coordinator', detail: {} });
   const refused = run(published, ACCEPT).refused;
@@ -72,7 +72,7 @@ test('clause 2: under sprint a published item, or one already pulling, takes no 
   assert.equal(landingOf(pulling.item), 'landed', 'without its history the merged commit alone still reads landed');
 });
 
-test('clause 3: a landed steady item, and a landed strict one, are still refused with ALREADY_MERGED at not-merged [V6,#8868]', () => {
+test('moves.verify-sprint.a-landed-steady-item-and-a-landed: clause 3: a landed steady item, and a landed strict one, are still refused with ALREADY_MERGED at not-merged [V6,#8868]', () => {
   for (const pace of [undefined, 'steady', 'strict']) {
     const refused = run(landed(pace), ACCEPT).refused;
     assert.deepEqual([refused?.code, refused?.row], ['ALREADY_MERGED', 'not-merged'], String(pace));

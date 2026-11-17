@@ -13,7 +13,7 @@ function failing(extra = {}) {
   return { waits, probe: async () => ({ healthy: false, ...extra }), wait: async pause => { waits.push(pause); } };
 }
 
-test('clause 1: after only sub-second failures the last attempt waits past the 20 s host-down window [C7]', async () => {
+test('resources.host-down.after-only-sub-second-failures-the: clause 1: after only sub-second failures the last attempt waits past the 20 s host-down window [C7]', async () => {
   assert.ok(CONFIRM_HOST_DOWN_MS > 20_000, 'the pause outlasts net.link.ether.inet.host_down_time (20 s)');
   const { waits, probe, wait } = failing();
   const health = await confirmRunnerProbe(probe, RUNNER, { wait });
@@ -26,7 +26,7 @@ test('clause 1: after only sub-second failures the last attempt waits past the 2
   assert.deepEqual(recovery.waits, [1_000]);
 });
 
-test('clause 2: an attempt that timed out or failed slowly keeps the 1 s pause [C7]', async t => {
+test('resources.host-down.an-attempt-that-timed-out-or: clause 2: an attempt that timed out or failed slowly keeps the 1 s pause [C7]', async t => {
   const timedOut = failing({ timedOut: true });
   await confirmRunnerProbe(timedOut.probe, RUNNER, { wait: timedOut.wait });
   assert.deepEqual(timedOut.waits, [1_000, 1_000, 1_000], 'a timed-out attempt reached the network; no host-down wait');

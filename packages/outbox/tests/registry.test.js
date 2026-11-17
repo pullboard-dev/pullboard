@@ -1,4 +1,5 @@
-/** Every outbox-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9796]. @pullboard-test-input source-cell packages/outbox */
+/** @pullboard-test-input source-cell packages/outbox */
+/** Every outbox-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9796]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

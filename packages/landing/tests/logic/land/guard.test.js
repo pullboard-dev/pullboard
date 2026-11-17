@@ -17,26 +17,26 @@ function fixture(classification, green) {
     gate: { failures: [failure], flakeDiagnostics: { observations: [{ id: observation.id, recorded: true, classification }] } } };
 }
 
-test('local-trunk attribution refuses a known main red without blaming an item [B3,R3,C7]', () => {
+test('landing.guard.local-trunk-attribution-refuses-a-known: local-trunk attribution refuses a known main red without blaming an item [B3,R3,C7]', () => {
   const { state, gate } = fixture('stable-red', false);
   assert.throws(() => requireLocalGuardClassification(state, gate), { code: 'LAND_DIAGNOSTIC' });
 });
 
-test('local-trunk attribution accepts the exact failure paired with green pinned main [B3,R3,C7]', () => {
+test('landing.guard.local-trunk-attribution-accepts-the-exact: local-trunk attribution accepts the exact failure paired with green pinned main [B3,R3,C7]', () => {
   const { state, gate } = fixture('possible-regression', true);
   assert.doesNotThrow(() => requireLocalGuardClassification(state, gate));
   state.batch.base = 'b'.repeat(40);
   assert.throws(() => requireLocalGuardClassification(state, gate), { code: 'LAND_DIAGNOSTIC' });
 });
 
-test('local-trunk attribution holds unknown diagnostics and preserves rerun-off policy [B3,R3,C7]', () => {
+test('landing.guard.local-trunk-attribution-holds-unknown-diagnostics: local-trunk attribution holds unknown diagnostics and preserves rerun-off policy [B3,R3,C7]', () => {
   const { state, gate } = fixture('unclassified', false);
   assert.throws(() => requireLocalGuardClassification(state, gate), { code: 'LAND_DIAGNOSTIC' });
   state.config.flakes.rerun = false;
   assert.doesNotThrow(() => requireLocalGuardClassification(state, gate));
 });
 
-test('clause 1: a guard run red only on SLOT_DB_LOCKED with no failing case refuses SLOT_DB_LOCKED, never LAND_DIAGNOSTIC [C7,#3314]', async () => {
+test('landing.guard.a-guard-run-red-only-on: clause 1: a guard run red only on SLOT_DB_LOCKED with no failing case refuses SLOT_DB_LOCKED, never LAND_DIAGNOSTIC [C7,#3314]', async () => {
   const { requireNoLockOnlyRed } = await import('../../../src/io/land/guard.js');
   const { landingFault } = await import('../../../src/io/step/diagnose.js');
   const log = 'run-tests: [SLOT_DB_LOCKED] never ran: resources.sqlite stayed locked for 10002ms';

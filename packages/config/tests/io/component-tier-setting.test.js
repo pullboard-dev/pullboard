@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'gate.componentTier'));
 }
 
-test('clause 1: gate.componentTier is a described machine setting, off by default [C7,#9786]', () => {
+test('config.io-component-tier-setting.clause-1-gate-componenttier-is-a: clause 1: gate.componentTier is a described machine setting, off by default [C7,#9786]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,13 +34,13 @@ test('clause 1: gate.componentTier is a described machine setting, off by defaul
   assert.match(unset.description ?? JSON.stringify(unset), /front doors/u);
 });
 
-test('clause 2: gateComponentTier() is true only for an exact true [C7,#9786]', () => {
+test('config.io-component-tier-setting.clause-2-gatecomponenttier-is-true-only: clause 2: gateComponentTier() is true only for an exact true [C7,#9786]', () => {
   assert.equal(withSettings({}, gateComponentTier), false);
   assert.equal(withSettings({ gate: { componentTier: false } }, gateComponentTier), false);
   assert.equal(withSettings({ gate: { componentTier: true } }, gateComponentTier), true);
 });
 
-test('clause 3: a non-boolean gate.componentTier is refused BAD_MACHINE_SETTINGS [C7,#9786]', () => {
+test('config.io-component-tier-setting.clause-3-a-non-boolean-gate: clause 3: a non-boolean gate.componentTier is refused BAD_MACHINE_SETTINGS [C7,#9786]', () => {
   for (const bad of ['yes', 1, 'true']) {
     assert.throws(() => withSettings({ gate: { componentTier: bad } }, gateComponentTier), (err) => err.code === 'BAD_MACHINE_SETTINGS' && /gate\.componentTier/u.test(err.message));
   }
