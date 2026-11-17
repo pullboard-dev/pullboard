@@ -208,13 +208,14 @@ function laneWork(file, lane, reviewWaitMs, nowMs) {
  * Follow the board's live events until the signal aborts, printing each one as it arrives.
  * A dropped stream is followed again from the last sequence handled, so nothing is missed or repeated.
  *
- * With `quietReads` on (watch.quietReads, #9843), main's head read is reused for one second; off, it is read after every event.
+ * With `quietReads` on (watch.quietReads, #9843, #9844), events the kind and item filters drop are not looked up for detail
+ * and main's head read is reused for one second; off, every event is looked up and the head is read after each.
  *
- * @param {{ quietReads?: boolean, readHead?: Function, file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
+ * @param {{ quietReads?: boolean, readHead?: Function, detailOf?: Function, file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
  *   serveApi: Function, refusalDocument: Function, options: ReturnType<typeof watchOptions>, start: ReturnType<typeof watchStart>,
  *   write: (text: string) => void, note: (text: string) => void, signal: AbortSignal, now?: () => number, runningView: Function }} watch
  */
-export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, write, note, signal, runningView, now = Date.now, quietReads = false, readHead = headCommit }) {
+export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, write, note, signal, runningView, now = Date.now, quietReads = false, readHead = headCommit, detailOf = eventDetail }) {
   if (typeof runningView !== 'function') throw new TypeError('watch requires the caller-owned runningView operation');
   let cursor = options.since ?? start.sequence;
   const direct = directSource({ mainRoot, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts });
@@ -293,8 +294,11 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
           if (!event) continue;
           queue = queue.then(async () => {
             if (event.event_kind !== 'changed' && Number.isSafeInteger(event.event_id) && event.event_id > cursor) {
-              const detail = eventDetail(file, event);
-              if (wanted(event, detail.to)) {
+              // With quietReads on, an event the cheap kind and item filters drop is never looked up (#9844); --to still needs the detail.
+              const skip = quietReads && !options.to
+                && ((options.kinds && !options.kinds.has(event.event_kind)) || (options.item !== null && event.item_id !== options.item));
+              const detail = skip ? null : detailOf(file, event);
+              if (detail && wanted(event, detail.to)) {
                 print({ sequence: event.event_id, kind: event.event_kind, item: event.item_id ?? null, actor: event.event_by ?? null,
                   detail: detail.text, at: event.event_at, ...(detail.to ? { to: detail.to } : {}) });
               }
