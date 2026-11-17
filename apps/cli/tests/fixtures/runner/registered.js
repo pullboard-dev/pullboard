@@ -50,11 +50,11 @@ export function serveBoardQueue(box) {
 
 /**
  * Run `pullboard runner serve` as the registered runner: the board's job queue on loopback, and a serve process named
- * for the stand-in's host that works from the stand-in's own home and machine, so a pulled gate job runs under the
- * registered runner's home and not under the board host's local runner [C7,V4,#10318].
- * Why a machine of its own: the serve process must not read the box machine's gate.runnersOnly, which would send its
- * check to a registered runner again; it is the runner. Its output goes to the fixture runner log, so a settle waiting
- * on that folder wakes on every line the runner writes.
+ * for the stand-in's host with its cache in the stand-in's home, so a pulled gate job runs under the registered runner's
+ * home (its check executes in the stand-in worker, profile.executionRunner naming the host) and not under the board
+ * host's local runner [C7,V4,#10318].
+ * Why the box machine home: the serve process keeps the machine's registered runner and gate.runnersOnly, as the local
+ * runner did. Its output goes to the fixture runner log, so a settle waiting on that folder wakes on every line it writes.
  *
  * @param {import('node:test').TestContext} t - Stops the runner when the test ends.
  * @param {object} box - The e2e project (dir, repo, env).
@@ -67,9 +67,7 @@ export async function serveRegisteredRunner(t, box, { paths }) {
   mkdirSync(fixtureRunnerFolder(box.env), { recursive: true, mode: 0o700 });
   const folder = join(paths.remoteHome, 'pull-runner');
   const env = { ...box.env };
-  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_')) delete env[key];
-  env.PULLBOARD_MACHINE_HOME = paths.remoteMachine;
-  env.HOME = paths.remoteHome;
+  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_') && !['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME'].includes(key)) delete env[key];
   const child = spawn(process.execPath, [CLI_ENTRY, 'runner', 'serve', queue.url, '--as', HOST, '--directory', folder], { cwd: paths.remoteHome, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const note = chunk => appendFileSync(log, chunk);
   child.stdout.on('data', note);
