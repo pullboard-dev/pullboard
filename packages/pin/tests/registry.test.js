@@ -1,4 +1,5 @@
-/** Every pin-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,#9927]. @pullboard-test-input source-cell packages/pin */
+/** @pullboard-test-input source-cell packages/pin */
+/** Every pin-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,#9927]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
