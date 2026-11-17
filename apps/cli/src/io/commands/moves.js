@@ -60,11 +60,22 @@ export function movesReport(shadows, tables, settings, noWriter = NO_WRITER, now
   });
 }
 
+/**
+ * The table names the report lists: every `*.table.js` in the moves cell plus every table a live switch governs.
+ * Why the switches too: the hand-off writer records start and complete, which have no table file of their own, so with
+ * submit.handoff off they would never appear; a shadowed writer with no compares must still show, at 0 [C7,#10493].
+ *
+ * @param {string[]} paths - The move table file paths.
+ */
+export function moveTableNames(paths) {
+  return [...new Set([...paths.map(tableName), ...Object.keys(LIVE_SWITCH)])];
+}
+
 /** Run `pullboard moves` and return its exit code; it never writes the board. */
 export function run(io) {
   const ctx = context(io);
   const shadows = withBoardRead(ctx, board => readShadows(board));
-  const tables = movesReport(shadows, listMoveTables().map(tableName), loadMachineSettings());
+  const tables = movesReport(shadows, moveTableNames(listMoveTables()), loadMachineSettings());
   io.result?.({ tables });
   io.say('table      state   compared  disagreed  first compare             clean window');
   for (const row of tables) {
