@@ -158,6 +158,7 @@ export const TOOLCHAIN_NAME = /^[a-z][a-z0-9+_-]{0,31}$/u;
 /** Each language's toolchains; a function reads the detected command when the front tool varies (uv, poetry, bundle, rake, gradle, flutter). */
 const ROWS = Object.freeze({
   bun: ['bun'],
+  clojure: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
   cmake: ['cmake', 'ctest'],
   csharp: ['dotnet'],
   dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
