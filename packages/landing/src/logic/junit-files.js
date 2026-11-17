@@ -9,6 +9,11 @@ export const JUNIT_FILE_ROWS = {
     const crate = (row.classname ?? '').split('::')[0];
     return crate ? `${crate}/` : null;
   },
+  // dotnet test (JunitXml.TestLogger) writes namespace.Class in classname and no file attribute; the first segment names the test project directory.
+  csharp: row => {
+    const project = (row.classname ?? '').split('.')[0];
+    return project ? `${project}/` : null;
+  },
 };
 
 /**
