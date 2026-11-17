@@ -15,6 +15,8 @@ export const JUNIT_FILE_ROWS = {
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
+  // vitest --reporter=junit writes the test file path as classname and no file attribute (src/math.test.ts).
+  typescript: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null),
 };
 
 /**
