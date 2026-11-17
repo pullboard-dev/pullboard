@@ -171,9 +171,9 @@ describe('branch-independent trunk and lane merge cases [B34,P2,L3,V6]', { concu
   }
 
   /** A different fixture agent reviews the submitted commit, never a shared-board item. */
-  async function mergeReviewer(box) {
+  async function mergeReviewer(box, commit = box.git(box.web, 'rev-parse', 'HEAD')) {
     const review = join(box.dir, 'merge-review');
-    box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', box.git(box.web, 'rev-parse', 'HEAD'));
+    box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/merge-candidate', commit);
     assert.equal((await fixtureJoin(box.go, review, 'review', '--family', 'reviewer-fixture', '--model', FIXTURE_MODEL, '--route', 'strong')).code, 0);
     return review;
   }
@@ -194,7 +194,8 @@ describe('branch-independent trunk and lane merge cases [B34,P2,L3,V6]', { concu
     assert.deepEqual({ status: composed.status, staged: composed.staged, work: composed.work, result: composed.result },
       { status: before[1].status, staged: before[1].staged, work: before[1].work, result: before[1].result }, 'the composed builder checkout is clean and keeps its content');
     const after = [checkoutState(box, box.repo), composed];
-    const review = await mergeReviewer(box);
+    // The reviewer sits on the composed commit that was submitted, which is what accept verifies; the builder HEAD is not that commit (#2966).
+    const review = await mergeReviewer(box, composedCommit);
     const reviewBefore = checkoutState(box, review);
     const accepted = await box.go(review, 'verify', String(box.id), 'accept', '--note', 'Tried divergent trunk changes; merge and checkout bytes are checked by this fixture.');
     assert.equal(accepted.code, 0, accepted.err);
