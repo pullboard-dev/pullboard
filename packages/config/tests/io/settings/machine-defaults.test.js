@@ -153,6 +153,7 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
