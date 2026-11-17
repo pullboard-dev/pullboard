@@ -27,7 +27,7 @@ function inject(t, load) {
   t.after(() => { restoreLoad(); restorePs(); });
 }
 
-test('clause 1: pullboard health prints the 1-minute load and the ceiling it is judged against [Q1,C7,#2466]', async t => {
+test('cli.journeys-health-machine-load.pullboard-health-prints-the-1-minute: clause 1: pullboard health prints the 1-minute load and the ceiling it is judged against [Q1,C7,#2466]', async t => {
   inject(t, 7.5);
   const box = e2e.project();
   const health = await box.runLocal(box.repo, 'health', '--json');
@@ -39,7 +39,7 @@ test('clause 1: pullboard health prints the 1-minute load and the ceiling it is 
   assert.match(text.out, /load: holding heavy local work: 1-minute load 7\.5 on 4 cores \(ceiling 6\)/u);
 });
 
-test('clause 2: pullboard agents lists the top local consumers by command kind [Q1,C7,#2466]', async t => {
+test('cli.journeys-health-machine-load.pullboard-agents-lists-the-top-local: clause 2: pullboard agents lists the top local consumers by command kind [Q1,C7,#2466]', async t => {
   inject(t, 1);
   const box = e2e.project();
   const agents = await box.runLocal(box.repo, 'agents', '--json');
@@ -52,7 +52,7 @@ test('clause 2: pullboard agents lists the top local consumers by command kind [
   assert.match(text.out, /top local consumers: node tests\.js 150\.5% \(2\), git 30% \(1\), launchd 1% \(1\)/u);
 });
 
-test('clause 3: pullboard agents names seats on the machine that hold nothing [Q1,C7,#2466]', async t => {
+test('cli.journeys-health-machine-load.pullboard-agents-names-seats-on-the: clause 3: pullboard agents names seats on the machine that hold nothing [Q1,C7,#2466]', async t => {
   inject(t, 1);
   const box = e2e.project();
   const agents = await box.runLocal(box.repo, 'agents', '--json');

@@ -88,7 +88,7 @@ test('cli.io-test-census-rerun.with-census-rerunnongreen-off-the-default-rows: c
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(file => file === 'two.test.js', calls) });
   assert.equal(calls.length, 1, 'no file reruns');
   const rows = rowsOf(out);
-  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'claimedAt', 'endedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
+  assert.deepEqual(Object.keys(rows['two.test.js']).sort(), ['cases', 'claimedAt', 'endedAt', 'enqueuedAt', 'file', 'host', 'load1', 'secs', 'setupSecs', 'sha', 'shard', 'startedAt', 'status']);
   assert.equal(rows['two.test.js'].status, 'red');
   const described = describeSetting('census.rerunNonGreen');
   assert.ok(described, 'census.rerunNonGreen has a description');
