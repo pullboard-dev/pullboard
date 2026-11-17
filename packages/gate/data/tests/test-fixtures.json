@@ -1925,9 +1925,6 @@
   "apps/cli/journeys/runner/lost.test.js": {
     "hand-policy": 1
   },
-  "apps/cli/tests/fixtures/runner/redispatch.js": {
-    "model": 1
-  },
   "packages/runners/tests/io/checkouts.test.js": {
     "tempdir": 1
   },
