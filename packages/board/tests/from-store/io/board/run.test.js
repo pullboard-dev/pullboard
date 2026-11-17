@@ -29,7 +29,7 @@ function runRows(db) {
   return db.prepare('SELECT * FROM run ORDER BY run_job').all().map(row => ({ ...row }));
 }
 
-test('a board opens with the run table, its columns and its two indexes [R2,S2]', t => {
+test('board.run.board-opens-with-the-run-table: a board opens with the run table, its columns and its two indexes [R2,S2]', t => {
   const board = cellBoard(t, ':memory:');
   const columns = board.db.prepare('PRAGMA table_info(run)').all().map(row => row.name);
   assert.deepEqual(columns, ['run_job', 'run_kind', 'run_item', 'run_candidate', 'run_base', 'run_state', 'run_attempt', 'run_outcome',
@@ -41,7 +41,7 @@ test('a board opens with the run table, its columns and its two indexes [R2,S2]'
     /UNIQUE|PRIMARY KEY/u, 'a run id is never reused');
 });
 
-test('a board without the run table gains it on its next open, and no other table, index or version changes [R2,S2]', t => {
+test('board.run.board-without-the-run-table-gains: a board without the run table gains it on its next open, and no other table, index or version changes [R2,S2]', t => {
   const file = join(cellSandbox(t).dir, 'board.sqlite');
   const first = openCellBoard(file);
   // The fenced hop creates the hop table on a live board, so this board has it and only the run table is missing (#8465).
@@ -57,7 +57,7 @@ test('a board without the run table gains it on its next open, and no other tabl
   assert.equal(again.db.prepare('PRAGMA user_version').get().user_version, version);
 });
 
-test('export leaves out an empty run table and round-trips a board holding run rows [R2,S2]', t => {
+test('board.run.export-leaves-out-empty-run-table: export leaves out an empty run table and round-trips a board holding run rows [R2,S2]', t => {
   const empty = cellBoard(t, ':memory:');
   assert.equal(Object.hasOwn(exportBoard(empty).tables, 'run'), false, 'an empty run table is additive and left out');
   const source = cellBoard(t, ':memory:');

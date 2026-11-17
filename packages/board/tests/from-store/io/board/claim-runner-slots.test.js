@@ -29,7 +29,7 @@ function setup(t) {
   return { repo, board, seat, item: item.item_id, at: board.clock.now().getTime() };
 }
 
-test('clause 1: with runs_store on, the claim\'s N takes runner slots from a runs snapshot read before the board write opens [B2,#9015]', t => {
+test('board.claim-runner-slots.with-runs-store-the-claims-takes: clause 1: with runs_store on, the claim\'s N takes runner slots from a runs snapshot read before the board write opens [B2,#9015]', t => {
   const { board, seat, item, at } = setup(t);
   const runs = { db: cellBoard(t, ':memory:').db };
   serve(runs.db, at);
@@ -42,7 +42,7 @@ test('clause 1: with runs_store on, the claim\'s N takes runner slots from a run
   assert.equal(claimsPerSeat(board, null, { runs: { db: null } }).n >= 1, true, 'no runs file: the local cores size N');
 });
 
-test('clause 2: with runs_store on, no runs handle is opened inside the claim\'s board write [B2,#9015]', t => {
+test('board.claim-runner-slots.with-runs-store-runs-handle-opened: clause 2: with runs_store on, no runs handle is opened inside the claim\'s board write [B2,#9015]', t => {
   const { repo, board, seat, item, at } = setup(t);
   const runsDb = cellBoard(t, ':memory:').db;
   serve(runsDb, at);
@@ -56,7 +56,7 @@ test('clause 2: with runs_store on, no runs handle is opened inside the claim\'s
   assert.equal(JSON.parse(logged.event_detail).claimsPerSeat, 3, 'the claim records the N the snapshot sized');
 });
 
-test('clause 3: with runs_store off, the claim computes runner slots from the board\'s job rows as on main [B2,#9015]', t => {
+test('board.claim-runner-slots.with-runs-store-off-the-claim: clause 3: with runs_store off, the claim computes runner slots from the board\'s job rows as on main [B2,#9015]', t => {
   const { board, seat, item, at } = setup(t);
   serve(board.db, at);
   assert.equal(claimsPerSeat(board).n, 3);

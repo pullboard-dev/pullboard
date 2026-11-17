@@ -35,7 +35,7 @@ function drive(board, record, value = record.renewal) {
   return { seen: seen[0], returned, threw };
 }
 
-test('clause 1: the store submit writer applies the submit table and agrees on every replayed move [C7,#8271]', t => {
+test('board.submit-outcome-table.the-store-submit-writer-applies-the: clause 1: the store submit writer applies the submit table and agrees on every replayed move [C7,#8271]', t => {
   assert.equal(outcomes.length, 2, 'the replay holds the board\'s two refusal renewals');
   for (const record of outcomes) {
     const { seen, returned, threw } = drive(boardFor(t, record.snapshot), record);
@@ -46,7 +46,7 @@ test('clause 1: the store submit writer applies the submit table and agrees on e
   }
 });
 
-test('clause 1: a renewal on a claim that moved on is skipped by the table and refused by the writer [C7,#8271]', t => {
+test('board.submit-outcome-table.renewal-claim-that-moved-skipped-the: clause 1: a renewal on a claim that moved on is skipped by the table and refused by the writer [C7,#8271]', t => {
   const [record] = outcomes;
   const moved = { owner: 'someone-else' };
   const expired = { leaseUntil: '2000-01-01T00:00:00.000Z' };
@@ -60,7 +60,7 @@ test('clause 1: a renewal on a claim that moved on is skipped by the table and r
   }
 });
 
-test('clause 1: a malformed refusal is refused by both the table and the writer [C7,#8271]', t => {
+test('board.submit-outcome-table.malformed-refusal-refused-both-the-table: clause 1: a malformed refusal is refused by both the table and the writer [C7,#8271]', t => {
   const [record] = outcomes;
   for (const bad of [{ ...record.renewal, code: 'lower' }, { ...record.renewal, text: '   ' }]) {
     const { seen, threw } = drive(boardFor(t, record.snapshot), record, bad);
