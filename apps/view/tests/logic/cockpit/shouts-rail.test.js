@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { cockpitMarkup } from '../../../src/logic/cockpit/markup.js';
 
 const markup = cockpitMarkup({ repositoryAttribute: '#', cssAttribute: 'main.css', hostedLocal: false, snapshot: false, readOnly: false, requestMode: false,
-  privateCost: false, hostedMarkup: '', signIn: '', settingsMarkup: () => '', starMarkup: '' });
+  privateCost: false, hostedMarkup: () => '', signIn: '', settingsMarkup: () => '', starMarkup: () => '' });
 /** The markup of one pane, up to the next pane's opening tag. */
 const pane = (name, next) => markup.slice(markup.indexOf('<section data-pane="' + name + '"'), markup.indexOf('<section data-pane="' + next + '"'));
 
