@@ -2,7 +2,6 @@
 // fixture-subject: createFileWriteQueue (real temp directories and real child processes)
 /** The file write queue applies writes across processes in order and keeps each caller's result [C7,#8163]. */
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -11,17 +10,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createFileWriteQueue } from '../../src/io/write-queue-file.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { runModuleChild as child } from '../fixtures/module-child.js';
 
 const MODULE = fileURLToPath(new URL('../../src/io/write-queue-file.js', import.meta.url));
-
-/** Run `source` in a child process (module code with dir, log, name, module as argv); resolves with its exit code. */
-function child(source, ...args) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, ['--no-warnings', '--input-type=module', '-e', source, ...args], { stdio: ['ignore', 'inherit', 'inherit'] });
-    proc.on('error', reject);
-    proc.on('exit', code => resolve(code));
-  });
-}
 
 const WORKER = `
 import { appendFileSync } from 'node:fs';
