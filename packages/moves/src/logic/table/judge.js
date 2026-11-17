@@ -85,3 +85,29 @@ export function lastReleaseTag(tags) {
   }
   return best;
 }
+
+/**
+ * Fold per-table judge counts into one release verdict: a row per judged table, the tables the release lacked, the drifted ones and a clean flag.
+ * A table drifted when any record is current-drifted or both-differ; released-wrong is never drift, since the current table fixed what the release got wrong.
+ * Why: a release script needs one answer for about 15 tables, not 15 row lists.
+ * Pure: reads no clock, file or git, gives the same result in any input order and does not change the array.
+ *
+ * @param {{ table: string, judge?: { against: string, counts: { same: number, currentDrifted: number, releasedWrong: number, bothDiffer: number } }, missing?: boolean }[]} tables
+ * @returns {{ rows: { table: string, against: string | null, counts: object }[], newTables: string[], drifted: string[], clean: boolean }}
+ */
+export function judgeSummary(tables) {
+  const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const rows = [];
+  const newTables = [];
+  const drifted = [];
+  for (const entry of tables ?? []) {
+    if (entry?.missing || !entry?.judge) { newTables.push(entry?.table); continue; }
+    const counts = entry.judge.counts ?? {};
+    rows.push({ table: entry.table, against: entry.judge.against ?? null, counts });
+    if ((counts.currentDrifted ?? 0) + (counts.bothDiffer ?? 0) > 0) drifted.push(entry.table);
+  }
+  rows.sort((a, b) => byName(a.table, b.table));
+  newTables.sort(byName);
+  drifted.sort(byName);
+  return { rows, newTables, drifted, clean: drifted.length === 0 };
+}

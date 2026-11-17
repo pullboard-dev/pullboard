@@ -55,7 +55,8 @@ export function movesReport(shadows, tables, settings, noWriter = NO_WRITER, now
   return [...new Set([...tables, ...Object.keys(shadows)])].sort().map(table => {
     const counts = shadows[table] ?? null;
     const base = { table, state: stateOf(table, counts, settings, noWriter), liveSwitch: LIVE_SWITCH[table] ?? null, compared: counts?.compared ?? 0, disagreed: counts?.disagreed ?? 0,
-      firstCompareAt: counts?.since ?? null, lastDisagreedAt: counts?.lastDisagreedAt ?? null, lastDisagreements: counts?.last ?? [] };
+      firstCompareAt: counts?.since ?? null, lastDisagreedAt: counts?.lastDisagreedAt ?? null, lastDisagreements: counts?.last ?? [],
+      windowCompared: Number.isSafeInteger(counts?.windowCompared) ? counts.windowCompared : null };
     return { ...base, ...windowReport(base, now) };
   });
 }
