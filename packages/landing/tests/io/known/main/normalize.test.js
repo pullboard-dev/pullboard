@@ -57,7 +57,7 @@ function matches(candidate, baseline) {
   return matchingMainFailures(candidate.failures, { main, files: [{ file: baseline.failures[0].file, result: 'red', failures: baseline.failures }] }, main);
 }
 
-test('real source SHA, abbreviated SHA, ref and temporary path changes preserve the same assertion signature [V4,B3,C7]', t => {
+test('landing.normalize.real-source-sha-abbreviated-sha-ref: real source SHA, abbreviated SHA, ref and temporary path changes preserve the same assertion signature [V4,B3,C7]', t => {
   const baseline = failure(t), candidate = failure(t);
   assert.notEqual(candidate.source, baseline.source, 'real commits differ');
   assert.notEqual(candidate.ref, baseline.ref, 'real Git refs differ');
@@ -68,7 +68,7 @@ test('real source SHA, abbreviated SHA, ref and temporary path changes preserve 
   }
 });
 
-test('source normalization preserves identity relationships and unrelated hexadecimal values [V4,B3,C7]', () => {
+test('landing.normalize.source-normalization-preserves-identity-relationships-and: source normalization preserves identity relationships and unrelated hexadecimal values [V4,B3,C7]', () => {
   const hash = 'a'.repeat(40), other = 'b'.repeat(40);
   const normalize = text => normalizedFailureDiagnostics(['error: ' + text], '/fixture');
   assert.notDeepEqual(normalize('source ' + hash + ' source ' + hash), normalize('source ' + hash + ' source ' + other));
@@ -98,7 +98,7 @@ function retained(row, block = row.block) {
   return { failures };
 }
 
-test('original paired waiver-summary failure matches source identities without discarding its assertion [V4,B3,C7]', () => {
+test('landing.normalize.original-paired-waiver-summary-failure-matches: original paired waiver-summary failure matches source identities without discarding its assertion [V4,B3,C7]', () => {
   const fixture = JSON.parse(readFileSync(new URL('../../../../../gate/tests/fixtures/known-main-red/identities.json', import.meta.url), 'utf8'));
   const baseline = retained(fixture.runs[0]), candidate = retained(fixture.runs[1]);
   assert.ok(matches(candidate, baseline));
@@ -106,14 +106,14 @@ test('original paired waiver-summary failure matches source identities without d
   assert.equal(matches(different, baseline), null, 'a substantive diagnostic difference remains blocking');
 });
 
-test('#4349 clause 1: runs failing alike with different uuids and runner temp paths compare as one failure [V4,B3,C7]', () => {
+test('landing.normalize.n4349-clause-1-runs-failing-alike: #4349 clause 1: runs failing alike with different uuids and runner temp paths compare as one failure [V4,B3,C7]', () => {
   const line = (uuid, run, dir) => 'error: same assertion; packet ' + uuid + ' at /Users/user/.pullboard-runner/pull/env/test-' + run + '-1/tmp/pullboard-test-run-' + dir + '/pullboard-fixture-AbC123/state.json';
   const a = normalizedFailureDiagnostics([line('11111111-2222-3333-4444-555555555555', 'a1b2c3d4e5f6', '2D5XkT')], '/root');
   const b = normalizedFailureDiagnostics([line('66666666-7777-8888-9999-000000000000', '0f9e8d7c6b5a', 'Zq9PLm')], '/root');
   assert.deepEqual(a, b);
 });
 
-test('#4349 clause 2: a different assertion still compares as a different failure [V4,B3,C7]', () => {
+test('landing.normalize.n4349-clause-2-a-different-assertion: #4349 clause 2: a different assertion still compares as a different failure [V4,B3,C7]', () => {
   const line = text => 'error: ' + text + ' at /Users/user/.pullboard-runner/pull/env/test-a1b2c3d4e5f6-1/tmp/pullboard-test-run-2D5XkT/state.json';
   assert.notDeepEqual(normalizedFailureDiagnostics([line('expected 2')], '/root'), normalizedFailureDiagnostics([line('expected 3')], '/root'));
 });

@@ -4,8 +4,8 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { jobView } from '../../../jobs/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { createApiHandler } from '../../index.js';
@@ -14,7 +14,7 @@ import { offerJob } from '../../index.js';
 
 const KEY = 'fixture-board-key-0123456789';
 
-test('clause 1: a receipt posted with the board key but not the job\'s lease token is refused, and the holder\'s is recorded [P7]', async t => {
+test('api.lease.receipt-posted-board-key-but: clause 1: a receipt posted with the board key but not the job\'s lease token is refused, and the holder\'s is recorded [P7]', async t => {
   const { root } = privateFixtureFiles('pullboard-jobs-lease-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   offerJob(db, { id: 'gate:lease', kind: 'gate', needs: ['node22'] });

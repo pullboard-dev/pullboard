@@ -30,7 +30,7 @@ function fixture(t) {
   return { board, builder, item, batch, publish, advance: minutes => { at += minutes * 60_000; } };
 }
 
-test('a refused batch shouts its item and code, then escalates after fifteen unanswered minutes [B3,R3,A6,C7]', t => {
+test('health.landing.refused-shouts-escalates: a refused batch shouts its item and code, then escalates after fifteen unanswered minutes [B3,R3,A6,C7]', t => {
   const box = fixture(t);
   const revision = box.board.db.prepare('SELECT MAX(event_id) AS n FROM event').get().n;
   recordHealthFindings(box.board, { agentId: 'coordinator', observedRevision: revision,
@@ -50,7 +50,7 @@ test('a refused batch shouts its item and code, then escalates after fifteen una
   assert.ok(person.some(row => row.shout_text.includes('#' + box.item) && row.shout_text.includes('COMMIT_HEADER_LONG')));
 });
 
-test('only an explicit coordinator acknowledgement answers a landing failure [B3,R3,A6,C7]', t => {
+test('health.landing.ack-coordinator-only: only an explicit coordinator acknowledgement answers a landing failure [B3,R3,A6,C7]', t => {
   const box = fixture(t); box.publish();
   appendFact(box.board, box.item, { agentId: box.builder, kind: 'note', text: 'Landing batch refused-batch: acknowledged' });
   box.advance(15);
@@ -61,7 +61,7 @@ test('only an explicit coordinator acknowledgement answers a landing failure [B3
   assert.equal(landingFailureFindings(box.board)[0].owner.who, 'coordinator');
 });
 
-test('a later landing retires the failed batch instead of raising a stale exception [B3,R3,A6,C7]', t => {
+test('health.landing.later-landing-retires: a later landing retires the failed batch instead of raising a stale exception [B3,R3,A6,C7]', t => {
   const box = fixture(t); box.publish();
   atomic(box.board, () => logEvent(box.board, 'coordinator', 'landing_batch', null,
     { batch: { ...box.batch, id: 'landed-batch', state: 'landed', refusal: null } }));
@@ -70,7 +70,7 @@ test('a later landing retires the failed batch instead of raising a stale except
   assert.equal(box.publish(), null);
 });
 
-test('clause 1: a refused batch whose items all landed by another path raises no finding, one still open does [B3,R3,A6,C7]', t => {
+test('health.landing.landed-elsewhere-quiet: clause 1: a refused batch whose items all landed by another path raises no finding, one still open does [B3,R3,A6,C7]', t => {
   const box = fixture(t);
   assert.equal(landingFailureFindings(box.board).length, 1, 'an unlanded item keeps the finding');
   const other = addItem(box.board, { by: 'coordinator', lane: 'core', title: 'Second', criterion: 'It holds.' });

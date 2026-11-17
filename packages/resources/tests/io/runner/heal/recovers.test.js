@@ -47,7 +47,7 @@ function machine(t) {
   return directory;
 }
 
-test('waiting controllers requeue when cleanup failures quarantine every runner slot [C7]', t => {
+test('resources.recovers.waiting-controllers-requeue-when-cleanup-failures: waiting controllers requeue when cleanup failures quarantine every runner slot [C7]', t => {
   const { db, file } = pool(t);
   const host = 'fixture-host';
   const owner = { pool: file, token: 'holder-1' };
@@ -67,7 +67,7 @@ test('waiting controllers requeue when cleanup failures quarantine every runner 
     reason: 'CLEANUP_UNVERIFIED' }, 'controllers waiting for READY see the host once all configured slots are quarantined');
 });
 
-test('leases on a fully quarantined runner requeue onto healthy runners [C7]', async t => {
+test('resources.recovers.leases-on-a-fully-quarantined-runner: leases on a fully quarantined runner requeue onto healthy runners [C7]', async t => {
   const directory = machine(t);
   const runners = [{ host: 'quarantine-host', slots: 2, browser: 0 }, { host: 'healthy-host', slots: 2, browser: 0 }];
   const options = { name: 'gate', capacity: 1, browserCapacityProvider: () => 1, scope: 'machine', root: directory,
@@ -96,7 +96,7 @@ test('leases on a fully quarantined runner requeue onto healthy runners [C7]', a
   }
 });
 
-test('a healed runner returns with its pinned node path and needs no manual heal script [C7]', async t => {
+test('resources.recovers.a-healed-runner-returns-with-its: a healed runner returns with its pinned node path and needs no manual heal script [C7]', async t => {
   const { db } = pool(t);
   const root = mkdtempSync(join(tmpdir(), 'runner-quarantine-pinned-root-'));
   mkdirSync(join(root, '.git'), { recursive: true });

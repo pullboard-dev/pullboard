@@ -25,8 +25,9 @@ import { HEALTH_SENTINEL_ENGINE } from '../../../../../packages/store/index.js';
 import { readBlocks } from '../../../../../packages/items/index.js';
 import { rigorReport } from '../../../../../packages/store/index.js';
 import { dispatchHealth } from '../../../../../packages/sentinels/index.js';
-import { readGitSyncRepairs } from '../../../../../packages/config/index.js';
+import { readGitSyncRepairs } from '../../../../../packages/sync/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
+import { machineLoadVerdict } from '../../../../../packages/resources/index.js';
 import { runnerLeaseHealth } from '../../../../../packages/resources/index.js';
 import { healthDiskFloorGb } from '../../../../../packages/config/index.js';
 import { diskFloorFinding } from '../health/disk.js';
@@ -53,6 +54,7 @@ export async function run(io, { values = {}, statfs } = {}) {
     report.maintenanceTimer = maintenanceTimerHealth(ctx.info.commonDir);
     report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
   }
+  report.machineLoad = machineLoadVerdict(loadMachineSettings());
   report.lowDisk = diskFloorFinding(ctx.info.root, healthDiskFloorGb(), statfs);
   report.unfinishedFolders = unfinishedFolders(ctx.info.root, seatsByPath(ctx.file));
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
@@ -72,6 +74,7 @@ export async function run(io, { values = {}, statfs } = {}) {
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
+  io.say(report.machineLoad.line);
   if (report.lowDisk) io.say(report.lowDisk.line);
   for (const line of blockLines(report.blocks, { detail: Boolean(values.detail) })) io.say(line);
   for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'

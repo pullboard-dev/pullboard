@@ -223,19 +223,19 @@ function importsIn(sources) {
   });
 }
 
-test('no dependencies of any kind, and Node 22.13 or newer [P3]', () => {
+test('doctrine.package.no-dependencies-of-any-kind-and-node-22: no dependencies of any kind, and Node 22.13 or newer [P3]', () => {
   assert.equal(PACKAGE.dependencies, undefined);
   assert.equal(PACKAGE.devDependencies, undefined);
   assert.equal(PACKAGE.engines.node, '>=22.13');
 });
 
-test('npm metadata points to the official site and keeps GitHub project links [I12]', () => {
+test('doctrine.package.npm-metadata-points-to-the-official-site: npm metadata points to the official site and keeps GitHub project links [I12]', () => {
   assert.equal(PACKAGE.homepage, 'https://pullboard.dev');
   assert.equal(PACKAGE.repository.url, 'git+https://github.com/pullboard-dev/pullboard.git');
   assert.equal(PACKAGE.bugs.url, 'https://github.com/pullboard-dev/pullboard/issues');
 });
 
-test('the import scan finds a package however it is imported, and nothing that is not an import [P3]', () => {
+test('doctrine.package.the-import-scan-finds-a-package-however: the import scan finds a package however it is imported, and nothing that is not an import [P3]', () => {
   const forms = {
     "import pad from 'left-pad';": ['left-pad'],
     'import pad from "left-pad";': ['left-pad'],
@@ -343,7 +343,7 @@ function packageSource(file, source) {
 /** Parse one edited source control using exactly the package discovery policy. */
 function importsForPackageFile(file, source) { return importsIn([packageSource(file, source)])[0]; }
 
-test('every import is a node: built-in or a relative file [P3]', () => {
+test('doctrine.package.every-import-is-a-node-built-in-or-a: every import is a node: built-in or a relative file [P3]', () => {
   const files = [join(ROOT, 'apps/cli/pullboard.js')];
   for (const group of ['apps', 'packages']) {
     for (const cell of readdirSync(join(ROOT, group))) {
@@ -363,7 +363,7 @@ test('every import is a node: built-in or a relative file [P3]', () => {
   assert.ok(seen > 50, `the scan found ${seen} imports in apps and packages; expected every file's`);
 });
 
-test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
+test('doctrine.package.discovery-import-normalization-still: discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
   const file = join(ROOT, 'packages/moves/src/io/registry.js');
   const source = readFileSync(file, 'utf8');
   const site = 'loadMove(fileURLToPath(new URL(file, directory)))';
@@ -378,7 +378,7 @@ test('discovery import normalization still exposes package imports and arbitrary
   assert.ok(importsForPackageFile(join(ROOT, 'packages/moves/src/logic/moves/seed.js'), 'void import(otherTarget);').includes(COMPUTED), 'move leaves have no computed-import exemption');
 });
 
-test('the installable package includes the single inherited doctrine file [D1]', () => {
+test('doctrine.package.the-installable-package-includes-the: the installable package includes the single inherited doctrine file [D1]', () => {
   const packed = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(packed.status, 0, packed.stderr);
   const files = JSON.parse(packed.stdout)[0].files.map(file => file.path);
@@ -388,7 +388,7 @@ test('the installable package includes the single inherited doctrine file [D1]',
 });
 
 
-test('the parser finishes without waiting for stdin EOF [C7,P3]', { timeout: 6000 }, async function parserWithoutStdinEOF() {
+test('doctrine.package.the-parser-finishes-without-waiting-for: the parser finishes without waiting for stdin EOF [C7,P3]', { timeout: 6000 }, async function parserWithoutStdinEOF() {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-parser-eof-guard-'));
   const input = join(directory, 'sources.json');
   writeFileSync(input, JSON.stringify(["import 'node:fs';"]), { mode: 0o600 });

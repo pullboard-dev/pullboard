@@ -40,6 +40,7 @@ import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
 import { verdictsFor } from "../../../verify/index.js";
+import { verdictReads } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
@@ -163,7 +164,7 @@ export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../veri
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
 export { atomic, logEvent };
-export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
+export { verdictReviewProblem, verdictReads, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../logic/board/landing/test/defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../logic/board/gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../logic/board/reland.js";

@@ -151,13 +151,15 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
+const OK_LINES = 400, NOTE_LINES = 100;
+
 test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
     "const { writeSync } = require('node:fs');",
-    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
-    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
+    "for (let i = 0; i < " + OK_LINES + "; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
+    "if (red) { writeSync(2, 'not ok " + (OK_LINES + 1) + " - the page renders a heading\\n'); for (let i = 0; i < " + NOTE_LINES + "; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
     '',
   ].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
@@ -175,12 +177,12 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
   const red = await fixtureCommand(box, box.repo, 'gate');
   assert.equal(red.code, 1);
-  assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
-  assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
+  assert.match(red.out, new RegExp(`^gate red in \\d+s:\\n {2}not ok ${OK_LINES + 1} - the page renders a heading\\n`));
+  assert.match(red.out, new RegExp(` {2}# note ${NOTE_LINES - 1}\\n[\\s\\S]*the whole output is in `));
   assert.ok(red.out.length < 4000, `${red.out.length} characters`);
   const lines = readFileSync(log, 'utf8').split('\n');
-  assert.equal(lines.length, 502);
-  assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
+  assert.equal(lines.length, OK_LINES + 1 + NOTE_LINES + 1, 'every ok line, the stderr line, every note and the final newline');
+  assert.equal(lines[OK_LINES], `not ok ${OK_LINES + 1} - the page renders a heading`, 'stdout and stderr in one stream, in order');
   const web = join(box.dir, 'digest-builder');
   box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/digest', web, 'main');
   const joined = await fixtureCommand(box, web, 'join', 'web');
@@ -190,7 +192,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(added.code, 0, added.err);
   const claimed = await fixtureCommand(box, web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
+  const built = await commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
   assert.equal(built.status, 0, built.stderr);
   // Under pull dispatch the submit returns queued; the red verdict arrives on the settled gate job's receipt [P7,C7].
   const queued = await fixtureCommand(box, web, 'submit', '1', '--no-next', '--json');
@@ -212,7 +214,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.equal((await box.runLocal(box.repo, 'spec', 'approve', 'G1')).code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   const refused = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed, so no verifier could judge it; the coordinator runs pullboard refreeze 1, then you claim it and submit again/);

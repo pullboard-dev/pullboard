@@ -186,7 +186,7 @@ export const CLAIM_RETURNS_ENGINE = engineNumber('CLAIM_RETURNS_ENGINE');
 export const COORDINATOR_ACTIONS_ENGINE = engineNumber('COORDINATOR_ACTIONS_ENGINE');
 
 export { earlierHeadFacts, staleHeadClauses, staleHeadLines, linkEarlierFacts, namedEvidence } from './src/logic/stale.js';
-export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, gateCoveredFiles, testCaseTitles, testRunTickNotes, checkRunTickNotes } from './src/logic/clauses.js';
+export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, gateCoveredFiles, testCaseTitles, testRunTickNotes, checkRunTickNotes, namesEvidence, reviewChecklist, checklistEvidenceProblem, checklistGaps, checklistReceipt } from './src/logic/clauses.js';
 export { failBeforePassAfter, clauseTestFiles, clauseReceiptProblem, clauseReceiptNotes, clauseReceipts } from './src/logic/clause-receipt.js';
 
 export const STRICT_RENAME_ENGINE = engineNumber('STRICT_RENAME_ENGINE');

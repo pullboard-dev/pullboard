@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { refreshMainRedComparisons } from '../../../../../src/io/main/red.js';
 
-test('a red entry without named failures is refreshed alongside named ones; green and already refreshed files are not [C7]', async (t) => {
+test('landing.unnamed.a-red-entry-without-named-failures: a red entry without named failures is refreshed alongside named ones; green and already refreshed files are not [C7]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-refresh-unnamed-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);
@@ -32,7 +32,7 @@ test('a red entry without named failures is refreshed alongside named ones; gree
   assert.equal(results.length, 2);
 });
 
-test('a red file cached under a recent generation is refreshed when the prior main holds nothing; older generations and files past the limit wait [C7]', async (t) => {
+test('landing.unnamed.a-red-file-cached-under-a: a red file cached under a recent generation is refreshed when the prior main holds nothing; older generations and files past the limit wait [C7]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-refresh-generations-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);

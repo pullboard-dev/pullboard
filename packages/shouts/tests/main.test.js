@@ -17,7 +17,7 @@ const CONFIG = { lanes: { core: {}, view: {} } };
 const AGENTS = [{ agent_id: 'core-1', agent_lane: 'core' }, { agent_id: 'view-2', agent_lane: 'view' }];
 const options = values => watchOptions(values, { config: CONFIG, agents: AGENTS });
 
-test('a shout with glued prose is refused, and hashes, URLs and quoted examples are not prose [B7,N26]', () => {
+test('shouts.main.a-shout-with-glued-prose-is-refused-and: a shout with glued prose is refused, and hashes, URLs and quoted examples are not prose [B7,N26]', () => {
   const glued = 'thisisaverylongglueddescriptionofwork with spaces';
   assert.throws(() => requireReadableShout(glued), error => error.code === 'SHOUT_SPACES');
   assert.throws(() => requireReadableShout('THISISAVERYLONGSHOUTEDDESCRIPTIONHERE'), error => error.code === 'SHOUT_SPACES');
@@ -27,7 +27,7 @@ test('a shout with glued prose is refused, and hashes, URLs and quoted examples 
   assert.throws(() => requireReadableShout('"thisisaverylongglueddescriptionofwork"'), error => error.code === 'SHOUT_SPACES', 'a quoted example alone is the whole message');
 });
 
-test('watch flags become filters, and every bad value is refused with a usage error before anything is followed [A2,N26]', () => {
+test('shouts.main.watch-flags-become-filters-and-every-bad: watch flags become filters, and every bad value is refused with a usage error before anything is followed [A2,N26]', () => {
   const plain = options({});
   assert.deepEqual({ ...plain, to: null }, { kinds: null, item: null, to: null, work: null, reviewWaitMs: 20 * 60_000, since: null, json: false });
   const filtered = options({ kinds: 'shout, submit,', item: '12', to: 'core-1', work: 'core', 'review-wait': '5', since: '120', json: true });
@@ -58,7 +58,7 @@ function shoutedBoard(t) {
   return { repo, board, core, other, item };
 }
 
-test('watchStart reads the board id, its seats and its latest event sequence from the file alone [A2,N26]', t => {
+test('shouts.main.watchstart-reads-the-board-id-its-seats: watchStart reads the board id, its seats and its latest event sequence from the file alone [A2,N26]', t => {
   const { repo, core, other, board } = shoutedBoard(t);
   const start = watchStart(repo.boardFile);
   assert.match(start.id, /\S/u);
@@ -117,7 +117,7 @@ async function follow(t, shouted, watchFlags) {
   return { lines, notes, requests: served.requests };
 }
 
-test('following prints one line per event in order, skips change pings, and follows a dropped stream from the last sequence [A2,N26]', async t => {
+test('shouts.main.following-prints-one-line-per-event-in: following prints one line per event in order, skips change pings, and follows a dropped stream from the last sequence [A2,N26]', async t => {
   const shouted = shoutedBoard(t);
   const { lines, notes, requests } = await follow(t, shouted, {});
   const events = shouted.board.db.prepare('SELECT * FROM event ORDER BY event_id').all();
@@ -136,7 +136,7 @@ test('following prints one line per event in order, skips change pings, and foll
   assert.match(requests[0].url, /\/api\/v1\/boards\/[^/]+\/events\?signals=none$/u, 'events only: no changed notices without --work');
 });
 
-test('filters keep only the wanted kinds, item and audience, and --json prints one versioned document per line [A2,N26]', async t => {
+test('shouts.main.filters-keep-only-the-wanted-kinds-item: filters keep only the wanted kinds, item and audience, and --json prints one versioned document per line [A2,N26]', async t => {
   const shouted = shoutedBoard(t);
   const recorded = shouted.board.db.prepare('SELECT event_kind FROM event ORDER BY event_id').all().map(row => row.event_kind);
   const shoutKinds = [...new Set(recorded.filter(kind => kind.startsWith('shout')))];

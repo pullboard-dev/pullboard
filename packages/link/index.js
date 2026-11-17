@@ -4,7 +4,7 @@ export { beginCommandPhase, commandPhaseSnapshot } from './src/io/command.js';
 export { approvalContext, createApprovalReply, openApproval, restoreLinkReply, sealApproval, signApprovalIntent, verifyApprovalIntent } from './src/logic/relay/approval.js';
 export { nameBoardInConfig, namedBoard, onlyNamedBoardChanged, writeNamedBoard } from './src/io/relay/config.js';
 export { run } from './src/io/relay/canary/command.js';
-export { claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from './src/io/relay/canary/health.js';
+export { RELAY_HEALTH_FILE, claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from './src/io/relay/canary/health.js';
 export { relayCanaryNeeds } from './src/io/relay/canary/needs.js';
 export { probeRelayCanary } from './src/io/relay/canary/probe.js';
 export { RELAY_CANARY_INTERVAL_MS, runRelayCanary, startRelayCanaryWatch } from './src/io/relay/canary/watch.js';
@@ -25,6 +25,7 @@ export { baselineNotAccepted, permanentRelayRefusal, transientRelayFailure, tran
 export { briefLines, detailLines, outboxLines } from './src/io/relay/output.js';
 export { executePersonRequests } from './src/io/relay/execution.js';
 export { personRequestRecords, personRequestStatuses, receivePersonRequest, recordRequestMove, relayPerson, requestIntentDigest, requestMoveProblem, requestPerson, requestStageText } from './src/io/relay/requests.js';
+export { behindDeviceOptions } from './src/io/relay/behind.js';
 export { boardPhones, joinedComputers, relayRoster, rosterLines } from './src/io/relay/roster.js';
 export { actorTransport, cacheSeatToken, ensurePersonCoordinator, nameNextSeat, refuseRevokedSeat, seatReceipt, withSeatName } from './src/io/relay/seats.js';
 export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from './src/io/relay/setup.js';
@@ -33,4 +34,5 @@ export { RECOVER_COMMAND, parkedHealth, parkedMoves, recoveryRefusalMatches, rec
 export { relayStorage, relayStorageLine } from './src/logic/relay/storage.js';
 export { clearUploadPauseNotices, firstUploadPauseNotice, permanentUploadRefusal, safePauseMessage, uploadPauseType, uploadRetryReady } from './src/io/relay/pause.js';
 export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecoverParked, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/io/relay.js';
+export { renewAfterSync, rememberMachine } from './src/io/relay/credentials.js';
 export { landingRelayCallbacks } from './src/logic/landing.js';

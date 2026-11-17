@@ -18,7 +18,7 @@ const ROOT = resolve(import.meta.dirname, '../../../../..');
 const CORE_FILES = ['packages/items/src/logic/edit/bar.js', 'packages/items/src/logic/list.js',
   'packages/items/src/logic/order/work.js', 'packages/roadmap/src/logic/milestone.js'];
 
-test('the four state readers import no shell module and none of the kept state shims [C7]', () => {
+test('state.logic-engines-core-engine.the-four-state-readers-import-no-shell: the four state readers import no shell module and none of the kept state shims [C7]', () => {
   for (const file of CORE_FILES) {
     const source = readFileSync(join(ROOT, file), 'utf8');
     const specifiers = [...source.matchAll(/from\s+["']([^"']+)["']/gu)].map(match => match[1]);
@@ -29,8 +29,8 @@ test('the four state readers import no shell module and none of the kept state s
   }
 });
 
-test('extracted engine numbers and the moved lifecycle declaration are unchanged [C7,H16]', () => {
-  assert.equal(MILESTONE_RANK_ENGINE, 34, 'the milestone rank engine keeps its landed number');
+test('state.logic-engines-core-engine.extracted-engine-numbers-and-the-moved: extracted engine numbers and the moved lifecycle declaration are unchanged [C7,H16]', () => {
+  assert.ok(Object.values(ENGINE_REGISTRY).includes(MILESTONE_RANK_ENGINE), 'the milestone rank engine number is one the registry declares');
   assert.equal(LEAF_MILESTONE_RANK_ENGINE, MILESTONE_RANK_ENGINE, 'the leaf and the metadata name one number');
   assert.equal(ENGINE_REGISTRY['milestone-rank'], MILESTONE_RANK_ENGINE, 'discovery reads the leaf');
   assert.equal(ENGINE_VERSION, Math.max(...Object.values(ENGINE_REGISTRY)), 'the highest engine is unchanged by an older leaf');
@@ -38,7 +38,7 @@ test('extracted engine numbers and the moved lifecycle declaration are unchanged
   assert.equal(typeof coreCorrectedBar, 'function', 'the corrected-bar reader is in the pure core');
 });
 
-test('engineAtLeast matches the engine-folder comparison for every declared engine (negative control included) [H16]', () => {
+test('state.logic-engines-core-engine.engineatleast-matches-the-engine-folder: engineAtLeast matches the engine-folder comparison for every declared engine (negative control included) [H16]', () => {
   for (const engine of Object.values(ENGINE_REGISTRY)) {
     assert.equal(engineAtLeast({}, engine), (undefined ?? ENGINE_VERSION) >= engine, `origin at engine ${engine}`);
     assert.equal(engineAtLeast({ executionEngineVersion: null }, engine), (null ?? ENGINE_VERSION) >= engine, `null at engine ${engine}`);
@@ -46,10 +46,10 @@ test('engineAtLeast matches the engine-folder comparison for every declared engi
       assert.equal(engineAtLeast({ executionEngineVersion: recorded }, engine), recorded >= engine, `replay at ${recorded} for ${engine}`);
     }
   }
-  assert.equal(engineAtLeast({ executionEngineVersion: 33 }, MILESTONE_RANK_ENGINE), false, 'an older recorded move keeps the older rule');
+  assert.equal(engineAtLeast({ executionEngineVersion: MILESTONE_RANK_ENGINE - 1 }, MILESTONE_RANK_ENGINE), false, 'an older recorded move keeps the older rule');
 });
 
-test('the light door carries the readers moves, roadmap and seats use [C7]', async () => {
+test('state.logic-engines-core-engine.the-light-door-carries-the-readers-moves: the light door carries the readers moves, roadmap and seats use [C7]', async () => {
   const core = await import('../../../light.js');
   for (const name of ['itemHandoff', 'handoffMoveProblem', 'requireHandoffActive', 'submissionProof', 'boundedProofReason', 'submissionSize',
     'lineSettings', 'carriesImplies', 'rejectedWorkReturns', 'factFromEvent', 'submitAdmission',

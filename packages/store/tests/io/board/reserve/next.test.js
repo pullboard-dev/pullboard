@@ -5,6 +5,7 @@ import * as store from '../../../../index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { submitFixture } from '../../../fixtures/submit.js';
 import { reviewFamilyRelaxation } from '../../../../src/io/board/review/family.js';
+import { heartbeatSnapshot } from '../../../../src/io/board/query.js';
 import { confirmRelaxation } from '../../../../src/io/relaxation.js';
 import { itemReviewPolicy } from '../../../../../verify/index.js';
 import { familiesDiffer } from '../../../../../verify/index.js';
@@ -20,7 +21,7 @@ function backlog(t, submitted = SUBMITTED, { crossFamily = false } = {}) {
   board.clock = { now: () => new Date(now) };
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: '/fixture/coordinator', family: 'human', parentDigest: 'a'.repeat(64), model: 'fixture-model' });
   for (let seat = 1; seat <= SEATS; seat++) {
-    store.register(board, { id: `core-${seat}`, lane: 'core', path: `/fixture/core-${seat}`, family: crossFamily && seat === 2 ? 'anthropic' : 'openai',
+    store.register(board, { id: `core-${seat}`, lane: 'core', path: `/fixture/core-${seat}`, family: crossFamily && (seat === 2 || seat === 4) ? 'anthropic' : 'openai',
       parentDigest: seat.toString(16).padStart(64, '0'), model: 'fixture-model' });
   }
   const ids = [];
@@ -90,7 +91,7 @@ function witnessCost(board) {
   const holds = writerHolds(board);
   const item = store.nextFor(board, { ...who, verify: true }).item;
   const started = performance.now();
-  assert.ok(reviewFamilyRelaxation(board, store.getItem(board, item.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy), 'the fixture relaxes the frozen family rule');
+  assert.ok(reviewFamilyRelaxation(board, store.getItem(board, item.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board)), 'the fixture relaxes the frozen family rule');
   return { ms: performance.now() - started, statements: holds.prepared };
 }
 
@@ -128,7 +129,7 @@ test('clause 2: the lock confirms the witness built before it and never rebuilds
   const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
     looks++;
     if (before) return;
-    before = reviewFamilyRelaxation(board, store.getItem(board, item.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy);
+    before = reviewFamilyRelaxation(board, store.getItem(board, item.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board));
     // One more blocked review arrives after the look: a witness rebuilt in the lock would count it.
     submitWaiting(board, SUBMITTED + 1);
   } });
@@ -142,14 +143,14 @@ test('clause 2: the lock confirms the witness built before it and never rebuilds
 function countingPorts(board) {
   const read = [];
   return { read, ports: { reviewerChecks: store.reviewerChecks, reviewHolder: store.reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
-    listItems: store.listItems, seatFamily, familiesDiffer, itemReviewPolicy,
+    listItems: store.listItems, seatFamily, familiesDiffer, itemReviewPolicy, reviewHeartbeats: heartbeatSnapshot(board),
     getItem: (b, id) => { read.push(id); return store.getItem(b, id); } } };
 }
 
 test('clause 2: the in-lock confirmation reads at most the threshold of witness entries, and the first stale one gives up [C7,V15]', t => {
   const { board, ids } = backlog(t);
   const subject = store.getItem(board, ids[0]);
-  const witness = reviewFamilyRelaxation(board, subject, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy);
+  const witness = reviewFamilyRelaxation(board, subject, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board));
   assert.ok(witness, 'the fixture relaxes the frozen family rule');
   // A long stale list: a thousand reviews that no longer exist come before every live one.
   const stale = { ...witness, waiting: [...Array.from({ length: 1000 }, (_, index) => 100_000 + index), ...witness.waiting] };
@@ -175,7 +176,7 @@ test('clause 2: a named reservation through the writer builds its witness before
   const { board, ids } = backlog(t);
   // The builder is active before the look too, so the arriving submission leaves the free seats unchanged.
   store.shout(board, { from: 'core-1', to: 'coordinator', text: 'Building', lanes: ['core'] });
-  const before = reviewFamilyRelaxation(board, store.getItem(board, ids[0]), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy);
+  const before = reviewFamilyRelaxation(board, store.getItem(board, ids[0]), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board));
   assert.equal(before.queueLength, SUBMITTED);
   // One more blocked review lands just before the writer's transaction opens: a witness built in the lock would count it.
   const exec = board.db.exec.bind(board.db);
@@ -196,11 +197,11 @@ test('clause 2: an item another reviewer took between the look and the lock is s
   const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
     seen.push(item.item_id);
     // Another reviewer takes the chosen item after the look and before the lock.
-    if (seen.length === 1) store.reserveReview(board, item.item_id, { ...who, agentId: 'core-3', familyPolicy: 'off' });
+    if (seen.length === 1) store.reserveReview(board, item.item_id, { ...who, agentId: 'core-4', familyPolicy: 'off' });
   } });
   assert.equal(seen.length, 2, 'the changed choice was made again');
   assert.notEqual(reserved.item.item_id, seen[0], 'the item another reviewer took is not reserved twice');
-  assert.equal(store.getItem(board, seen[0]).item_review_by, 'core-3');
+  assert.equal(store.getItem(board, seen[0]).item_review_by, 'core-4');
   assert.equal(reserved.item.item_review_by, 'core-2');
 });
 
@@ -214,7 +215,7 @@ test('clause 2: a cross-family reservation rechecks only its pair in the lock, w
 test('clause 3: a same-family witness is built before the lock, confirmed inside it, and matches the in-lock result [C7,V15]', t => {
   const { board } = backlog(t);
   const expected = store.atomic(board, () => store.nextFor(board, { ...who, verify: true }).item);
-  const witness = store.atomic(board, () => reviewFamilyRelaxation(board, store.getItem(board, expected.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy));
+  const witness = store.atomic(board, () => reviewFamilyRelaxation(board, store.getItem(board, expected.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board)));
   assert.ok(witness, 'the fixture backlog relaxes the frozen family rule');
   const reserved = store.reserveNextReview(board, who);
   assert.equal(reserved.item.item_id, expected.item_id);

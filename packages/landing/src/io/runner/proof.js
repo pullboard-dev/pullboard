@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
+import { gitSpawn } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
 
@@ -14,6 +15,9 @@ const LEDGER_HITS_ENV = 'PULLBOARD_LEDGER_HITS';
 // An enclosing run's reuse, stage, store or hit settings never reach the landing proof: it plans from its own checkout.
 const INHERITED = /^PULLBOARD_(TEST_(ACTIONS|STAGE|REUSE|RESULT_\w+)|LEDGER_HITS)$/u;
 const REUSED = /^# reused [0-9a-f]{64} from ledger \(/u;
+// The file a ledger hit names, for the per-file account landing.reuseGateReceipts keeps [C7,#9244].
+const REUSED_FILE = /^# reused [0-9a-f]{64} from ledger \((.+)\)$/u;
+const ACCOUNT_FILES = 200;
 // A file main fails at its identical inputKey: charged to main, never run, so it holds no landing [P7].
 const MAIN_RED = /^# main red [0-9a-f]{64} from ledger \(/u;
 // A run-tests refusal ("run-tests: [NO_POLICY] ...") or a failing test ("not ok 3 - name" and its error lines): the red's cause [P7].
@@ -139,13 +143,26 @@ function shellWord(word) {
  * @param {{ runner: string, files: string[], ledger?: { contexts: string[], files: Array<[string, string, number]>, mainRed?: Array<[string, string, number]> } | null }} proof
  * A red whose every failure a live person waiver covers is ok and names them as `waived`: the landing goes ahead, waived, not green [#655].
  * @param {{ env?: NodeJS.ProcessEnv, waivers?: { id: string, kind: string, test: string, until: string }[], now?: () => number, deadline?: () => { at: number, ms: number } | null }} [options] - waivers: the job's payload waivers;
+ * reuseGate (landing.reuseGateReceipts, off by default): the receipt's proof adds `hits` (the hit list's size), `reusedFiles` (each file a ledger hit covered, capped) and `dirty` (changed paths in the tree, the one thing that makes run-tests ignore every hit) [C7,#9244].
  * deadline: when the landing's checks must be done; a proof still running then has its process tree stopped and returns `timeout: true`, never a red [C7,#7820].
  * failures: a red's failing tests by file, when its TAP accounts for every one (accountedRed), else absent.
  * failed: a red's failing files and case lines, and the path of the file holding its whole output [#8499].
  * @returns {(context: { root: string }) => Promise<{ ok: boolean, detail: string | null, waived?: { file: string, name: string, waiver: string }[], failures?: { file: string, name: string }[], proof: { files: number, reused: number, ran: number, mainRed?: number } }>}
  */
-export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null } = {}) {
+export function ledgerProofCheck(proof, { env = process.env, waivers = [], now = Date.now, deadline = null, reuseGate = false } = {}) {
   return ({ root }) => new Promise(resolve => {
+    // The per-file account: the hit list's size, the files it covered, and whether a dirty tree made run-tests ignore it [C7,#9244].
+    const reusedFiles = [];
+    const dirtyCount = new Promise(done => {
+      if (!reuseGate || !proof.ledger?.files?.length) return done(0);
+      let out = '';
+      const git = gitSpawn(['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
+      git.stdout.on('data', chunk => { out += chunk.toString('utf8'); });
+      git.on('error', () => done(0));
+      git.on('close', () => done(out.split('\0').filter(Boolean).length));
+    });
+    const settle = result => dirtyCount.then(dirty => resolve(reuseGate ? { ...result, proof: { ...result.proof, hits: proof.ledger?.files?.length ?? 0, reusedFiles: reusedFiles.slice(0, ACCOUNT_FILES), ...(dirty ? { dirty } : {}) } } : result));
+    const note = line => { const named = reuseGate ? REUSED_FILE.exec(line) : null; if (named) reusedFiles.push(named[1]); };
     const clean = Object.fromEntries(Object.entries(env).filter(([name]) => !INHERITED.test(name)));
     const command = `${proof.runner} ${proof.files.map(file => shellWord(`./${file}`)).join(' ')}`;
     const projected = waivers.map(({ kind, test }) => ({ kind, test }));
@@ -170,7 +187,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       const text = pending + chunk.toString('utf8');
       const lines = text.split('\n');
       pending = lines.pop();
-      for (const line of lines) { if (REUSED.test(line)) reused++; if (MAIN_RED.test(line)) mainRed++; cause(line); }
+      for (const line of lines) { if (REUSED.test(line)) { reused++; note(line); } if (MAIN_RED.test(line)) mainRed++; cause(line); }
       tail = (tail + chunk.toString('utf8')).slice(-2000);
       if (keepAll()) all += chunk.toString('utf8');
     };
@@ -187,15 +204,15 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
       if (settled) return undefined;
       settled = true;
       const result = { ok: false, timeout: true, detail: timeoutDetail(`the landing proof (${proof.files.length} files, ${reused} reused so far)`, limitMs, tail), proof: { files: proof.files.length, reused, ran: proof.files.length - reused } };
-      return () => resolve(result);
+      return () => settle(result);
     });
     const finish = (ok, detail, waived = null, failures = null, failed = null) => {
       clear();
       if (settled) return;
       settled = true;
-      if (REUSED.test(pending)) reused++;
+      if (REUSED.test(pending)) { reused++; note(pending); }
       if (MAIN_RED.test(pending)) mainRed++;
-      resolve({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), ...(failed ? { failed } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
+      settle({ ok, detail, ...(waived ? { waived } : {}), ...(failures ? { failures } : {}), ...(failed ? { failed } : {}), proof: { files: proof.files.length, reused, ran: proof.files.length - reused - mainRed, ...(mainRed ? { mainRed } : {}) } });
     };
     child.on('error', error => finish(false, String(error.message).slice(0, 300)));
     // After stdio closes, so the last refusal or failing line is read before the receipt is written.

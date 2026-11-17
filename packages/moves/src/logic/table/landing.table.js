@@ -172,6 +172,10 @@ function landingRules({ limits, faultCodes, repeatHold }) {
     pending: { says: 'the item is verified and has no landing receipt', holds: (s) => s.item.status === 'verified' && !s.item.mergedCommit },
     barFrozen: { says: "the item's bar is the one frozen at its claim [A6]", holds: (s) => Boolean(s.item.digest) && s.item.digest === s.item.claimDigest },
     screened: { says: 'a green, trusted screen receipt covers the item at its commit and frozen digest on the current base', holds: (s) => receiptCounts(s.io.screen, { kind: 'screen', item: s.item, base: s.base }) },
+    suiteGreen: { says: "the setting is off, or a green, trusted, leased full-suite receipt covers the item's group at its commit and digest on the current base [#9325]",
+      holds: (s) => !s.io.strictFullSuite || receiptCounts(s.io.suite, { kind: 'suite', item: s.item, base: s.base }) },
+    suiteGreenOrForced: { says: 'a forced merge goes around the gate, else the suite receipt rule holds [#9326]', reads: ['suiteGreen'], holds: (s, m, fact) => Boolean(reasonOf(m)) || !s.io?.strictFullSuite || fact('suiteGreen') },
+    strictPublishes: { says: 'a strict merge with the full-suite setting on and no forced reason lands and publishes in one step [#9326]', holds: (s, m) => s.io?.strictFullSuite === true && !reasonOf(m) },
     irreversibleChecked: { says: "the screen's trusted code re-checked secrets and the commit-hook rules over the item's commits [A8]",
       holds: (s) => s.io.screen?.checks?.secrets === 'green' && s.io.screen?.checks?.hooks === 'green' },
     pendingSubmitted: { says: 'the item is submitted or verified and has no landing receipt (sprint lands submitted work)', holds: (s) => SPRINT_LANDS.includes(s.item.status) && !s.item.mergedCommit },
@@ -252,6 +256,7 @@ function landingTables(inputs) {
       always['a6-bar-frozen'],
       paced(SUBMITTED_PACES, guard('screened', 'screened', 'SCREEN_PENDING', (s) => `#${s.item.id} waits for a green screen at ${String(s.item.commit).slice(0, 12)} on this base`)),
       always['a8-irreversible'],
+      paced(['strict'], guard('strict-full-suite', 'suiteGreen', 'LAND_SUITE_PENDING', (s) => `#${s.item.id} waits for a green full-suite receipt for group ${s.item.group ?? 'none'} at ${String(s.item.commit).slice(0, 12)} on this base`)),
       guard('not-held', 'notHeld', 'ITEM_HELD', (s) => s.item.holdReason),
       guard('verdict-fresh', 'verdictFresh', 'STALE_VERDICT', (s) => s.io.staleVerdict?.reason ?? 'the accepted review is stale'),
       guard('not-known-red', 'notKnownRed', 'LAND_KNOWN_RED', (s) => `#${s.item.id} is known red at this commit`),
@@ -304,12 +309,16 @@ function landingTables(inputs) {
       guard('coordinator', 'coordinatorActs', 'COORDINATOR_ONLY', 'only the coordinator records merges'),
       guard('forced-reason', 'reasonGiven', 'FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"'),
       paced(VERIFIED_PACES, guard('verified', 'mergeable', 'NOT_VERIFIED', (s) => `item #${s.item.id} is ${s.item.status}; merge verified work only`)),
+      paced(['strict'], guard('strict-full-suite', 'suiteGreenOrForced', 'LAND_SUITE_PENDING', (s) => `#${s.item.id} waits for a green full-suite receipt for group ${s.item.group ?? 'none'} at ${String(s.item.commit).slice(0, 12)} on this base`)),
       paced(SUBMITTED_PACES, guard('submitted', 'mergeableSubmitted', 'NOT_VERIFIED', (s) => `item #${s.item.id} is ${s.item.status}; under sprint merge submitted or verified work only`)),
     ]),
     outcomes: Object.freeze([
       { id: 'forced-unfinished', when: 'forcedUnfinished', patch: () => ({ status: 'withdrawn' }), events: (s, m) => [
         { kind: 'withdraw', by: m.actor, detail: { reason: `landed by hand at ${m.commit.slice(0, 12)}: ${reasonOf(m)}` } },
         { kind: 'merged', by: m.actor, detail: { commit: m.commit, forced: true, reason: reasonOf(m), from: s.item.status } }] },
+      { id: 'merge-publish', when: 'strictPublishes', paces: ['strict'], patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
+        { kind: 'merged', by: m.actor, detail: { commit: m.commit } },
+        { kind: 'published', by: m.actor, detail: { commit: m.commit } }] },
       { id: 'merge', patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
         { kind: 'merged', by: m.actor, detail: { commit: m.commit, ...(reasonOf(m) ? { forced: true, reason: reasonOf(m), from: s.item.status } : {}) } }] },
     ]),
