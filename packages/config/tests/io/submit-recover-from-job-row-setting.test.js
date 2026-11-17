@@ -34,13 +34,13 @@ test('clause 1: submit.recoverFromJobRow is a described machine setting, off by 
   assert.match(unset.description ?? JSON.stringify(unset), /job row/u);
 });
 
-test('clause 2: recoverFromJobRow() is true only for an exact true [C7,#9824]', () => {
+test('clause 1: recoverFromJobRow() is true only for an exact true [C7,#9824]', () => {
   assert.equal(withSettings({}, recoverFromJobRow), false);
   assert.equal(withSettings({ submit: { recoverFromJobRow: false } }, recoverFromJobRow), false);
   assert.equal(withSettings({ submit: { recoverFromJobRow: true } }, recoverFromJobRow), true);
 });
 
-test('clause 3: a non-boolean submit.recoverFromJobRow is refused BAD_MACHINE_SETTINGS [C7,#9824]', () => {
+test('clause 2: a non-boolean submit.recoverFromJobRow is refused BAD_MACHINE_SETTINGS [C7,#9824]', () => {
   for (const bad of ['yes', 1, 'true']) {
     assert.throws(() => withSettings({ submit: { recoverFromJobRow: bad } }, recoverFromJobRow), (err) => err.code === 'BAD_MACHINE_SETTINGS' && /submit\.recoverFromJobRow/u.test(err.message));
   }
