@@ -41,8 +41,8 @@ test('cli.journeys-publish-catalog-coverage.a-catalog-case-fails-if-it: clause 2
   } finally { coveredRoots.delete(probe); }
 });
 
-test('cli.journeys-publish-catalog-coverage.every-catalog-case-appears-in-exactly: clause 1: every catalog case appears in exactly one of the seven groups exported from cases.js [A1,C7,#9675]', () => {
-  assert.deepEqual(Object.keys(catalogGroups).sort(), ['commands', 'exercises', 'lanes', 'results-a1', 'results-a2', 'results-b1', 'results-b2'], 'seven groups, one per run file');
+test('cli.journeys-publish-catalog-coverage.every-catalog-case-appears-in-exactly: clause 1: every catalog case appears in exactly one of the ten groups exported from cases.js [A1,C7,#9675]', () => {
+  assert.deepEqual(Object.keys(catalogGroups).sort(), ['commands', 'commands-b', 'commands-c', 'commands-d', 'exercises', 'lanes', 'results-a1', 'results-a2', 'results-b1', 'results-b2'], 'ten groups, one per run file');
   const grouped = Object.values(catalogGroups).flat().map(({ name }) => name);
   assert.deepEqual([...grouped].sort(), catalogCases.map(({ name }) => name).sort(), 'the groups hold every case once and nothing else');
   assert.equal(new Set(grouped).size, grouped.length, 'no case sits in two groups');

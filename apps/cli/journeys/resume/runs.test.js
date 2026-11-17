@@ -33,7 +33,7 @@ function queueRunFor(box, seat, bound) {
   return { ...queued, item };
 }
 
-test('clause 1: a claim keeps through the sweep while its proof run has a live lease, and frees once the run lapses [B4,B28]', async t => {
+test('cli.journeys-resume-runs.a-claim-keeps-through-the-sweep: clause 1: a claim keeps through the sweep while its proof run has a live lease, and frees once the run lapses [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Held by a proof run');
@@ -57,7 +57,7 @@ test('clause 1: a claim keeps through the sweep while its proof run has a live l
   assert.equal(isHeld(box.board, item()), false);
 });
 
-test('clause 2: a finished run ends the hold, a run holds only its own item, and a freshly queued run holds [B4,B28]', async t => {
+test('cli.journeys-resume-runs.a-finished-run-ends-the-hold: clause 2: a finished run ends the hold, a run holds only its own item, and a freshly queued run holds [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Held by a proof run');
@@ -72,7 +72,7 @@ test('clause 2: a finished run ends the hold, a run holds only its own item, and
   assert.equal(itemWorkInFlight(box.board, getItem(box.board, id)), false, 'a recorded result ends the hold');
 });
 
-test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run is live and frees it once the run lapses [B4,B28]', async t => {
+test('cli.journeys-resume-runs.the-stale-sweep-keeps-a-quiet: clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run is live and frees it once the run lapses [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Held through the sweep');
@@ -100,7 +100,7 @@ test('clause 1: the stale sweep keeps a quiet seat\'s claim while its proof run 
   assert.equal(sweep().includes(id), true, 'once the worker stops renewing, the sweep frees the claim');
 });
 
-test('clause 2: a running test-run worker beats its agent seat while it renews the job lease [B4,B28]', async t => {
+test('cli.journeys-resume-runs.a-running-test-run-worker-beats: clause 2: a running test-run worker beats its agent seat while it renews the job lease [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Beaten by a worker');
@@ -117,7 +117,7 @@ test('clause 2: a running test-run worker beats its agent seat while it renews t
   assert.equal(seatGone(box.board, seat.id), false, 'the beats keep the seat from reading gone');
 });
 
-test('clause 1: cancelling a queued or running run marks it cancelled, stops its worker, frees the slot and is reported once [B4,B28]', async t => {
+test('cli.journeys-resume-runs.cancelling-a-queued-or-running-run: clause 1: cancelling a queued or running run marks it cancelled, stops its worker, frees the slot and is reported once [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Cancelled run');
@@ -146,7 +146,7 @@ test('clause 1: cancelling a queued or running run marks it cancelled, stops its
   assert.deepEqual(testRunLines(readTestRun(box.board, running.id)).length, 1);
 });
 
-test('clause 2: cancelling a finished run or another seat\'s run is refused with a next step [B4,B28]', async t => {
+test('cli.journeys-resume-runs.cancelling-a-finished-run-or-another: clause 2: cancelling a finished run or another seat\'s run is refused with a next step [B4,B28]', async t => {
   const box = await fixture(t);
   const seat = box.seats.actor;
   const id = box.add('Cancel refusals');

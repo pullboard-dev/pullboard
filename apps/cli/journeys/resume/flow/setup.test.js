@@ -25,7 +25,7 @@ import {
 
 /** Each case owns its sandbox, repo and machine home, so three run at once and overlap their waits instead of adding them [C7,I1,N32]. */
 describe('resume walks a new board through setup [I1,I2,N32,B26]', { concurrency: 3 }, () => {
-test('spec draft adds draft rows and resume names them [N32]', async t => {
+test('cli.journeys-resume-flow-setup.spec-draft-adds-draft-rows-and: spec draft adds draft rows and resume names them [N32]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const initial = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout);
   assert.equal(initial.setup.step, 1);
@@ -78,7 +78,7 @@ test('spec draft adds draft rows and resume names them [N32]', async t => {
     'draft preserves every existing status row and inserts in the first section');
 });
 
-test('setup lets agents build starter items while rows wait [S1,B26]', async t => {
+test('cli.journeys-resume-flow-setup.setup-lets-agents-build-starter-items: setup lets agents build starter items while rows wait [S1,B26]', async t => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   // Process-level case: init installs hooks stamped with the running version, and the git hooks run the fixture's copied CLI.
   const initialized = box.run(box.repo, 'init', '--blueprint', 'web-app');
@@ -124,7 +124,7 @@ test('setup lets agents build starter items while rows wait [S1,B26]', async t =
     'the real claim and build neither approve nor apply any row');
 });
 
-test("resume says setup waits on the person's approval [I1,I2]", async t => {
+test('cli.journeys-resume-flow-setup.resume-says-setup-waits-on-the: resume says setup waits on the person\'s approval [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   box.env.AI_AGENT = 'fixture-agent';
   const drafted = [
@@ -229,7 +229,7 @@ async function assertViewReceipt(box) {
   writeFileSync(receiptPath, receiptBytes);
 }
 
-test('a reused authenticated view completes setup for its new board [N26,N32]', async t => {
+test('cli.journeys-resume-flow-setup.a-reused-authenticated-view-completes-setup: a reused authenticated view completes setup for its new board [N26,N32]', async t => {
   const firstBoard = releaseFixture(t);
   const lease = await takeDefaultViewPort(firstBoard.root);
   t.after(() => lease.release());
@@ -364,7 +364,7 @@ async function finishSetup(box, observe = () => {}) {
   await assertViewReceipt(box);
 }
 
-test('clause 1: resume walks a new board through setup one step at a time [N32,N19]', async t => {
+test('cli.journeys-resume-flow-setup.resume-walks-a-new-board-through: clause 1: resume walks a new board through setup one step at a time [N32,N19]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   mkdirSync(join(box.repo, 'app'));
   const seen = [];
@@ -378,7 +378,7 @@ test('clause 1: resume walks a new board through setup one step at a time [N32,N
   assert.equal(JSON.parse(result.stdout).setup, null, 'actual successful view bind completes the board setup');
 });
 
-test('resume names lane add to make a lane [I1,N32]', async t => {
+test('cli.journeys-resume-flow-setup.resume-names-lane-add-to-make: resume names lane add to make a lane [I1,N32]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -406,7 +406,7 @@ test('resume names lane add to make a lane [I1,N32]', async t => {
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout).setup?.step, 3);
 });
 
-test("a set-up board's resume prints no setup steps [N32,N19]", async t => {
+test('cli.journeys-resume-flow-setup.a-set-up-board-s-resume: a set-up board\'s resume prints no setup steps [N32,N19]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   await finishSetup(box);
   const result = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
@@ -422,7 +422,7 @@ test("a set-up board's resume prints no setup steps [N32,N19]", async t => {
 });
 
 
-test('a new preconfigured board waits for every initial approval [I1,I2]', async t => {
+test('cli.journeys-resume-flow-setup.a-new-preconfigured-board-waits-for: a new preconfigured board waits for every initial approval [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const marker = join(box.repo, '.git/pullboard/setup-started.json');
   const started = JSON.parse(readFileSync(marker, 'utf8'));
@@ -465,7 +465,7 @@ test('a new preconfigured board waits for every initial approval [I1,I2]', async
   writeFileSync(marker, startedBytes);
 });
 
-test('an upgraded configured board stays set up before its first resume [I1,I2]', async t => {
+test('cli.journeys-resume-flow-setup.an-upgraded-configured-board-stays-set: an upgraded configured board stays set up before its first resume [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   await finishSetup(box);
   // Legacy installations have these actual completed setup facts, but neither new lifecycle receipt.
@@ -489,7 +489,7 @@ test('an upgraded configured board stays set up before its first resume [I1,I2]'
   assert.equal(statSync(join(stateDirectory, 'setup-complete.json')).mode & 0o077, 0);
 });
 
-test('a board building without spec rows is not told to draft the spec first [I10,B26]', async t => {
+test('cli.journeys-resume-flow-setup.a-board-building-without-spec-rows: a board building without spec rows is not told to draft the spec first [I10,B26]', async t => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));

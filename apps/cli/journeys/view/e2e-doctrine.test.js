@@ -20,7 +20,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, CONFIG } = e2e;
 
-test('doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', async () => {
+test('cli.journeys-view-e2e-doctrine.doctrine-init-preserves-legacy-rules-and: doctrine init preserves legacy rules and outside guidance, refreshes labels and refuses empty declines [D1,D2,D3,D4,S8]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'doctrine');
   mkdirSync(repo);
