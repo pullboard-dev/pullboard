@@ -1,6 +1,5 @@
-/** @pullboard-module-loads packages/board/src/logic/ports.js */
 /** The board composition root: opens a real board with every package port composed, so packages and their tests open boards without an app [C7]. */
-import { createRequire } from 'node:module';
+import { providers } from './src/io/providers.js';
 import * as store from '../store/index.js';
 import {
   addMilestone,
@@ -85,22 +84,7 @@ export { closeBoard } from '../store/index.js';
 /** The app above names its installed test runner through this door, so it imports one cell for the board and its proof binding [C7]. */
 export { bindProofRunner } from '../verify/index.js';
 
-const requireModule = createRequire(import.meta.url);
-let composed = null;
-let viewLoader = null;
-/** The package providers, loaded on the first call that needs them: a board that only reads never pays for the ~600 modules behind them [C7]. */
-function providers() {
-  if (composed) return composed;
-  composed = requireModule('./src/logic/ports.js');
-  composed.useBoardView(() => viewLoader);
-  return composed;
-}
-
-/**
- * Name how the view app's projections load. The app above this package supplies it, so the board never imports an app [C7].
- * Until it is named, a projection call refuses rather than guess; the loader runs at the first projection, never here.
- */
-export function bindBoardView(load) { viewLoader = typeof load === 'function' ? load : null; }
+export { bindBoardView } from './src/io/providers.js';
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() { return providers().nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification }); }
