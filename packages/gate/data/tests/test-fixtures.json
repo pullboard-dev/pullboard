@@ -687,9 +687,8 @@
   "apps/cli/journeys/spec/revision.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
-    "repo-read": 2,
-    "tempdir": 4
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/cockpit/boards.test.js": {
     "tempdir": 2
