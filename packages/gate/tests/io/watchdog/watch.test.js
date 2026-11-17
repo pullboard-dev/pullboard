@@ -2,4 +2,4 @@
 import { test } from 'node:test';
 import { runLegacy } from '../../fixtures/watchdog/legacy.js';
 
-test('watch attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'watch'));
+test('gate.io-watchdog-watch.watch-attributes-descendant-output-to-the: watch attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'watch'));

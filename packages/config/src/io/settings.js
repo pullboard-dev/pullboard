@@ -89,6 +89,16 @@ export function recoverFromJobRow() {
   return loadMachineSettings().submit?.recoverFromJobRow === true;
 }
 
+/** Whether submit.residentChecks is on (#10275): off by default; only an exact `true` turns it on. */
+export function residentChecks() {
+  return loadMachineSettings().submit?.residentChecks === true;
+}
+
+/** Whether submit.pendingFromJobRow is on (#9741): off by default; only an exact `true` turns it on. */
+export function pendingFromJobRow() {
+  return loadMachineSettings().submit?.pendingFromJobRow === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
@@ -170,6 +180,11 @@ export function requireJourneyPathEnabled() {
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
 export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
+/** Whether the static check refuses new direct environment reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9448]. */
+export function adapterLintEnvEnabled() {
+  return loadMachineSettings().gate?.adapterLintEnv === true;
 }
 
 /** Whether the static check refuses new zero-delay deferrals, polls and timer pauses: off by default; only an exact `true` turns it on [C7,#9518]. */

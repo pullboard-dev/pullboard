@@ -152,7 +152,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'runnerOnlyCompose', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -484,14 +484,26 @@ export function loadMachineSettings() {
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
   }
+  if (value.submit?.pendingFromJobRow !== undefined && typeof value.submit.pendingFromJobRow !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.pendingFromJobRow in ${file} must be true or false`);
+  }
   if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
+  }
+  if (value.submit?.residentChecks !== undefined && typeof value.submit.residentChecks !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.residentChecks in ${file} must be true or false`);
   }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
   if (value.gate?.withdrawCancelsJob !== undefined && typeof value.gate.withdrawCancelsJob !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.withdrawCancelsJob in ${file} must be true or false`);
+  }
+  if (value.landing?.runnerOnlyCompose !== undefined && typeof value.landing.runnerOnlyCompose !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.runnerOnlyCompose in ${file} must be true or false`);
+  }
+  if (value.launch?.reachableDispatcher !== undefined && typeof value.launch.reachableDispatcher !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `launch.reachableDispatcher in ${file} must be true or false`);
   }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
@@ -513,6 +525,7 @@ export function loadMachineSettings() {
     || Object.values(reserve).reduce((sum, share) => sum + share, 0) > 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.jobReserve in ${file} must be { "interactive", "gate", "landing", "background": a share of 0 through 1 }, adding up to at most 1; remove it to keep the plain claim order`);
   }
+  if (value.gate?.machineVerifyPulled !== undefined && typeof value.gate.machineVerifyPulled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.machineVerifyPulled in ${file} must be true or false`);
   if (value.gate?.localRunner !== undefined && typeof value.gate.localRunner !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `gate.localRunner in ${file} must be true or false`);
   if (value.gate?.localLoadShare !== undefined && (!Number.isFinite(value.gate.localLoadShare) || value.gate.localLoadShare <= 0)) throw new Refused('BAD_MACHINE_SETTINGS', `gate.localLoadShare in ${file} must be a number above 0: the load per core below which the local runner takes a job`);
   if (value.gate?.submitAuthorization !== undefined && !['runner', 'local'].includes(value.gate.submitAuthorization)) {
@@ -620,6 +633,16 @@ export function relayPruneReceipts() {
 /** Whether withdrawing an item also cancels its live gate job (#3860): off by default; only an exact `true` turns it on. */
 export function withdrawCancelsJob() {
   return loadMachineSettings().gate?.withdrawCancelsJob === true;
+}
+
+/** Whether a landing batch must be composed on a runner (#10245): off by default; only an exact `true` turns it on. */
+export function runnerOnlyCompose() {
+  return loadMachineSettings().landing?.runnerOnlyCompose === true;
+}
+
+/** Whether the handoff dispatcher check starts through spawnReachable (#10243): off by default; only an exact `true` turns it on. */
+export function reachableDispatcherOn() {
+  return loadMachineSettings().launch?.reachableDispatcher === true;
 }
 
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */

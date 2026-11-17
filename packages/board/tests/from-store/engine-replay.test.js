@@ -28,7 +28,7 @@ import { unpackRelease } from '../../../gate/tests/fixtures/release/archive.js';
 const RELEASE = '0f86cb6cd615200a91b9aa8d79b86841f3045ca3';
 const GENERIC_NEXT = 'Run pullboard help, correct the reported problem, and retry the command.';
 
-test('an engine-8 NOT_VERIFIED merge refusal replays unchanged [V1,H3,H16]', async (t) => {
+test('board.engine-replay.engine-8-not-verified-merge-refusal: an engine-8 NOT_VERIFIED merge refusal replays unchanged [V1,H3,H16]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine8-merge-'));
   const client = join(directory, 'v0.8.6');
   mkdirSync(client);

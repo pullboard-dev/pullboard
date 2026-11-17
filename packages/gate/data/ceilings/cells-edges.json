@@ -36,6 +36,10 @@
       "cells": 2,
       "deep": 0
     },
+    "apps/cli/src/io/cells/cache.js": {
+      "cells": 4,
+      "deep": 0
+    },
     "apps/cli/src/io/claim.js": {
       "cells": 10,
       "deep": 1
@@ -1535,10 +1539,6 @@
     "packages/codemap/src/io/cells/plan/cuts.js": {
       "cells": 2,
       "deep": 2
-    },
-    "packages/codemap/src/io/cells/scripts/cache.js": {
-      "cells": 4,
-      "deep": 0
     },
     "packages/codemap/src/io/cells/scripts/plan.js": {
       "cells": 5,

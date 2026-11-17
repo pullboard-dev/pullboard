@@ -1,5 +1,5 @@
-/** The cells inventory cache as apps/cli reaches it: one door file, so moving the cache into apps/cli edits only this file [C7]. */
-export { inventoryCache } from '../../../../../packages/codemap/index.js';
-export { observationCache } from '../../../../../packages/codemap/index.js';
-export { inventoryPending } from '../../../../../packages/codemap/index.js';
-export { inventoryCodeDigest } from '../../../../../packages/codemap/index.js';
+/** The cells inventory cache as apps/cli reaches it: one door file over the cache module that lives in this folder [C7]. */
+export { inventoryCache } from './cache.js';
+export { observationCache } from './cache.js';
+export { inventoryPending } from './cache.js';
+export { inventoryCodeDigest } from './cache.js';

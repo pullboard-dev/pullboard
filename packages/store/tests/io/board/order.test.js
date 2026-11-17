@@ -14,7 +14,7 @@ import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { workQueue } from '../../../../items/index.js';
 import { milestoneItemIds } from '../../../src/io/board/state.js';
 
-test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
+test('store.io-board-order.roadmap-lists-open-items-in-queue: roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
   const board = fixtureBoard(t);
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   store.register(board, { lane: 'core', path: '/strong', route: 'strong' });
@@ -34,7 +34,7 @@ test('roadmap lists open items in queue order with pins applied and agrees with 
 });
 
 // fixture-subject: addItem (a store unit test of the board state's milestone rows over seeded items)
-test('clause 1: the board state lists each local milestone item by id and leaves title, status and progress to the state items [C7]', (t) => {
+test('store.io-board-order.the-board-state-lists-each-local: clause 1: the board state lists each local milestone item by id and leaves title, status and progress to the state items [C7]', (t) => {
   const board = fixtureBoard(t);
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   store.register(board, { lane: 'core', path: '/strong', route: 'strong' });

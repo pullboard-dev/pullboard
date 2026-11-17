@@ -10,7 +10,7 @@ import { STATIC_CHECKS } from '../../../../heavy.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../..', import.meta.url));
 
-test('clause 1: one registry lists every static check class with a function that runs it, and submit reads the registry instead of an inline list [C7]', () => {
+test('gate.io-static-check-registry.one-registry-lists-every-static-check: clause 1: one registry lists every static check class with a function that runs it, and submit reads the registry instead of an inline list [C7]', () => {
   const names = STATIC_CHECKS.map(check => check.name);
   assert.equal(new Set(names).size, names.length, 'each class is listed once');
   for (const expected of ['relay-boundary', 'import-style', 'engine-folder', 'empty-catch', 'file-size', 'test-inputs', 'load-bearing', 'wall-clock-margins', 'test-waits']) {

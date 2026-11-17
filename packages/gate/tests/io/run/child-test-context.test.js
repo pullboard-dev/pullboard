@@ -28,13 +28,13 @@ function privateFile(name, body) {
   return { dir: files.root, file: join(files.root, name) };
 }
 
-test('clause 1: the helper runs a one-test child and sees one pass, even under an inherited test context [V4]', () => {
+test('gate.io-run-child-test-context.the-helper-runs-a-one-test: clause 1: the helper runs a one-test child and sees one pass, even under an inherited test context [V4]', () => {
   const { dir, file } = privateFile('child.test.js', "import { test } from 'node:test';\ntest('one', () => {});\n");
   const result = runChildTests([file], { cwd: dir, env: { ...process.env, NODE_TEST_CONTEXT: 'child-v8' } });
   assert.deepEqual([result.status, result.tests, result.pass, result.fail], [0, 1, 1, 0]);
 });
 
-test('clause 1: a child that reports zero tests fails instead of passing on nothing [V4]', () => {
+test('gate.io-run-child-test-context.a-child-that-reports-zero-tests: clause 1: a child that reports zero tests fails instead of passing on nothing [V4]', () => {
   const { dir, file } = privateFile('child.test.js', '// no tests here\n');
   assert.throws(() => runChildTests([file], { cwd: dir }), /zero tests/u);
 });
@@ -45,7 +45,7 @@ const GRANDFATHER_CEILING = 23;
 /** A source file that spawns node --test itself, assembled so this file does not match its own lint. */
 const directSpawnSource = `spawnSync(process.execPath, ['${['--', 'test'].join('')}', file], { cwd });\n`;
 
-test('clause 2: a new direct child node --test spawn outside the helper is refused unless grandfathered [V4]', () => {
+test('gate.io-run-child-test-context.a-new-direct-child-node-test: clause 2: a new direct child node --test spawn outside the helper is refused unless grandfathered [V4]', () => {
   assert.equal(spawnsTestsDirectly(directSpawnSource), true);
   assert.equal(spawnsTestsDirectly('runChildTests([file], { cwd });'), false);
   const { dir } = privateFile('apps/demo/journeys/new-spawner.test.js', directSpawnSource);
@@ -53,7 +53,7 @@ test('clause 2: a new direct child node --test spawn outside the helper is refus
   assert.deepEqual(refusedDirectSpawners(dir, ['apps/demo/journeys/new-spawner.test.js']), []);
 });
 
-test('clause 2: the repository adds no direct spawner, and adding a file to the grandfather list is refused [V4]', () => {
+test('gate.io-run-child-test-context.the-repository-adds-no-direct-spawner: clause 2: the repository adds no direct spawner, and adding a file to the grandfather list is refused [V4]', () => {
   const root = resolve(import.meta.dirname, '../../../../..');
   assert.deepEqual(refusedDirectSpawners(root), [], 'spawn child test runs through runChildTests in packages/gate/tests/fixtures/child-tests.js, not directly');
   assert.ok(GRANDFATHERED_DIRECT_SPAWNERS.length <= GRANDFATHER_CEILING, 'the grandfather list may only shrink: adding a file to it is refused');
