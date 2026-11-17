@@ -27,7 +27,7 @@ function boot(path, pub, at) {
 }
 
 /** A pull offer made before a board restart is still offered and takeable after it [C7]. */
-test('a pull offer made before a board restart is still takeable after the restart [C7]', () => {
+test('transport.pull-restart.a-pull-offer-made-before-a: a pull offer made before a board restart is still takeable after the restart [C7]', () => {
   const dir = files.root;
   {
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
@@ -51,7 +51,7 @@ test('a pull offer made before a board restart is still takeable after the resta
 });
 
 /** A missing store file is an empty book [C7]. */
-test('a missing store file starts an empty book [C7]', () => {
+test('transport.pull-restart.a-missing-store-file-starts-an: a missing store file starts an empty book [C7]', () => {
   const dir = files.root;
   {
     const { publicKey } = generateKeyPairSync('ed25519');
@@ -63,7 +63,7 @@ test('a missing store file starts an empty book [C7]', () => {
 });
 
 /** A revocation made before a board restart still refuses the runner after it [C7]. */
-test('clause 1: a runner revoked before a board restart is still refused its pulls and cannot register again [C7]', () => {
+test('transport.pull-restart.a-runner-revoked-before-a-board: clause 1: a runner revoked before a board restart is still refused its pulls and cannot register again [C7]', () => {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const pub = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
   const signText = text => sign(null, Buffer.from(text), privateKey).toString('base64url');
