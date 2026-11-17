@@ -43,7 +43,7 @@ function fixture(t, { recordSource = true } = {}) {
   return { main, job, older, newest };
 }
 
-test('a runner clone lacking the newest main commit reads it after one fetch, with no infrastructure error [C7]', t => {
+test('items.preflight.fetch-once: a runner clone lacking the newest main commit reads it after one fetch, with no infrastructure error [C7]', t => {
   const { job, older, newest } = fixture(t);
   assert.throws(() => runFixtureGit(['cat-file', '-e', newest], { cwd: job }), 'the clone starts without the newest commit');
   const entry = readTrunkEntry(job, newest, PLAN);
@@ -52,7 +52,7 @@ test('a runner clone lacking the newest main commit reads it after one fetch, wi
   assert.doesNotThrow(() => requirePlannedSource(job, newest, older, { deferUnplaced: true }), 'placement reads the fetched trunk');
 });
 
-test('a trunk commit no source can supply is an infrastructure retry, never a builder refusal [C7]', t => {
+test('items.preflight.infra-retry: a trunk commit no source can supply is an infrastructure retry, never a builder refusal [C7]', t => {
   const { job, newest } = fixture(t, { recordSource: false });
   assert.throws(() => readTrunkEntry(job, newest, PLAN), error => error.code === 'GIT_READ_INFRASTRUCTURE' && error.retryable === true && error.name !== 'Refused');
 });

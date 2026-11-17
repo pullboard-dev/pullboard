@@ -347,6 +347,14 @@ function takeScan(lock, settled) {
   }
 }
 
+/** The revision range the last history scan walked, as { base, range }, or null before any scan; a read-only seam for the scan-count test [C7,#9859]. */
+let lastWalk = null;
+
+/** The range the last protectHistory walk read, so a test can count its commits; null when no history was walked. */
+export function lastHistoryWalk() {
+  return lastWalk;
+}
+
 /**
  * Apply current protection rules to all selected historical names before any anonymous cache seed.
  * History is immutable, so a commit whose whole history passed these exact policies stays clean: a later scan of a
@@ -367,6 +375,7 @@ export function protectHistory(root, source, policies) {
     if (clean.includes(source.commit)) return;
     const base = clean.find(commit => gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', commit, source.commit],
       { cwd: root, env: cleanGitEnvironment() }).status === 0);
+    lastWalk = { base: base ?? null, range: base ? `${base}..${source.commit}` : source.commit };
     // Every historical path name, once per commit: this outgrew one blob's 8 MiB, so it gets its own bound.
     const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history',
       base ? `${base}..${source.commit}` : source.commit], { maxBuffer: 1 << 28 }).split('\0').filter(Boolean))];

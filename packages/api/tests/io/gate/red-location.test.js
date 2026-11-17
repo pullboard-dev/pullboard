@@ -36,17 +36,17 @@ function redFact(t, setting) {
   return store.itemThread(board, item.item_id).map(fact => fact.text ?? '').find(text => text.startsWith(`Gate job ${job} red`));
 }
 
-test('clause 1: with gate.redFactLocation on, a static red names the first three file:line places and counts the rest [C7,#9083]', t => {
+test('api.gate-red-location.gate-redfactlocation-static-red-names: clause 1: with gate.redFactLocation on, a static red names the first three file:line places and counts the rest [C7,#9083]', t => {
   const fact = redFact(t, true);
   assert.match(fact, /red at: packages\/a\/src\/one\.js:12, packages\/a\/src\/two\.js:40, packages\/b\/src\/three\.js:7; 1 more/u);
 });
 
-test('clause 2: with gate.redFactLocation off or unset, the red fact carries no location line [C7,#9083]', t => {
+test('api.gate-red-location.gate-redfactlocation-off-unset-red: clause 2: with gate.redFactLocation off or unset, the red fact carries no location line [C7,#9083]', t => {
   assert.doesNotMatch(redFact(t, undefined), /red at:/u);
   assert.doesNotMatch(redFact(t, false), /red at:/u);
 });
 
-test('clause 3: gate.redFactLocation is a described setting, off by default [C7,#9083]', t => {
+test('api.gate-red-location.gate-redfactlocation-described-setting-off: clause 3: gate.redFactLocation is a described setting, off by default [C7,#9083]', t => {
   const repo = cellRepo(t, { real: true });
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = `${repo.root}/no-machine-home`;

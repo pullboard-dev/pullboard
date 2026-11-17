@@ -14,7 +14,7 @@ const { nativeCommit, nativeFixture } = hookFixtures({ runFixtureChild, runFixtu
 
 
 
-test('an inherited main candidate cannot authorize an automatic merge from an unaccepted branch [H16,B26]', (t) => {
+test('doctrine.hooks-inherited-main.an-inherited-main-candidate-cannot: an inherited main candidate cannot authorize an automatic merge from an unaccepted branch [H16,B26]', (t) => {
   const box = nativeFixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   let result = box.git(box.lane, 'add', '-A');
@@ -48,7 +48,7 @@ test('an inherited main candidate cannot authorize an automatic merge from an un
     'the refused merge did not create a merge commit');
 });
 
-test('an inherited main candidate cannot authorize an ordinary foreign commit [H16,B26]', (t) => {
+test('doctrine.hooks-inherited-main.an-inherited-main-candidate-cannot-2: an inherited main candidate cannot authorize an ordinary foreign commit [H16,B26]', (t) => {
   const box = nativeFixture(t);
   const mainConfig = { ...box.config, lease: '3h' };
   writeFileSync(join(box.main, 'pullboard.json'), JSON.stringify(mainConfig, null, 2));
@@ -67,7 +67,7 @@ test('an inherited main candidate cannot authorize an ordinary foreign commit [H
   assert.match(result.stderr, /outside the core lane: view\/file/u);
 });
 
-test('removing a conflicted foreign file resolves a main merge and names the coordinator [H16,B26]', (t) => {
+test('doctrine.hooks-inherited-main.removing-a-conflicted-foreign-file: removing a conflicted foreign file resolves a main merge and names the coordinator [H16,B26]', (t) => {
   const box = nativeFixture(t);
   let result = box.git(box.main, 'switch', '-c', 'historical-view');
   assert.equal(result.status, 0, result.stderr);

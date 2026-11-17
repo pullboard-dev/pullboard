@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { secretsIn } from '../../../index.js';
 
-test('a large clean batch of kebab-case names and source text is never refused as a key [C7,S1]', () => {
+test('commits.runner-scan-transfer.a-large-clean-batch-of-kebab-case-names: a large clean batch of kebab-case names and source text is never refused as a key [C7,S1]', () => {
   const names = Array.from({ length: 600 }, (_, index) => ({
     path: `test/risk-management-policy-sheet-${index}-configuration.test.js`, line: 1,
     text: `risk-management-policy-sheet-${index}-configuration-task-runner.test.js`,
@@ -15,7 +15,7 @@ test('a large clean batch of kebab-case names and source text is never refused a
   assert.deepEqual(secretsIn([...names, ...source]), []);
 });
 
-test('a planted OpenAI or Anthropic key is still refused by name in transferred source [C7,S1]', () => {
+test('commits.runner-scan-transfer.a-planted-openai-or-anthropic-key-is: a planted OpenAI or Anthropic key is still refused by name in transferred source [C7,S1]', () => {
   // Assembled at run time so this source file holds no key-shaped literal for the commit scan to refuse.
   const openai = ['sk-proj', 'abcdefghijklmnopqrstuvwxyz0123456789ABCD'].join('-');
   const anthropic = ['sk-ant', 'api03-abcdefghijklmnopqrstuvwxyz0123'].join('-');
@@ -28,7 +28,7 @@ test('a planted OpenAI or Anthropic key is still refused by name in transferred 
   assert.match(findings[1], /^Anthropic key at src\/client\.js:9$/u);
 });
 
-test('legacy and None-prefixed OpenAI key shapes are still refused by name [C7,S1]', () => {
+test('commits.runner-scan-transfer.legacy-and-none-prefixed-openai-key: legacy and None-prefixed OpenAI key shapes are still refused by name [C7,S1]', () => {
   // Assembled at run time: the 'None' shape and a legacy key with an underscore in its first 32 characters.
   const none = ['sk-None', 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL'].join('-');
   const legacyUnderscore = ['sk', 'abcdef_ghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKL'].join('-');

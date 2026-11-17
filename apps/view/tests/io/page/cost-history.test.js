@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-world-pin reads the page script text readCostHistory is served in, and runs it against stand-in page globals. */
 /** The Cost tab reads cost-analytics once per window and again only on cost-bearing events, keeping its numbers meanwhile [N26]. */
 import assert from 'node:assert/strict';

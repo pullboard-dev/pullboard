@@ -27,8 +27,9 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
-import { isSourceCellLine } from '../affected/inputs.js';
-import { sourceCellPrefixes } from '../affected/inputs.js';
+import { declaresSource } from '../../logic/input-declaration.js';
+import { READ } from '../../logic/input-declaration.js';
+import { SOURCE_TREE_INPUT } from '../../logic/input-declaration.js';
 import {
   lex,
   lineAt,
@@ -38,32 +39,14 @@ import {
   walk,
 } from '../scan.js';
 
-const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
-const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '// pullboard: browser', '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */']);
-export const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
+export { declaresSource, READ };
+
 const ANCHOR = /(?<![\w$])import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const SOURCE_PATH = /(?:^|\/)src(?:\/|$)/u;
-// A header naming the exact files a test reads, such as `/** @pullboard-test-input packages/gate/src/io/run/slots.js */`, also declares it.
-const NAMED_INPUTS = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
+// With tests.requireDeclaredInputs on, a path under tests/fixtures, data or docs is an input too [C7,#9801].
+const OUTSIDE_SRC_PATH = /(?:^|\/)(?:tests\/fixtures|data|docs)(?:\/|$)/u;
 const OPENERS = '([{';
 const CLOSERS = ')]}';
-
-/**
- * True when the file's leading declaration lines include the source-tree input, read as the
- * affected-test selection reads them.
- *
- * @param {string} source
- * @returns {boolean}
- */
-export function declaresSource(source) {
-  for (const line of source.split(/\r?\n/u)) {
-    if (line === SOURCE_TREE_INPUT) return true;
-    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return false; return true; }
-    if (NAMED_INPUTS.test(line)) return true;
-    if (!DECLARATIONS.has(line)) return false;
-  }
-  return false;
-}
 
 /** The offset of the innermost bracket that encloses `at` in blanked code, or -1. */
 function enclosing(code, at) {
@@ -123,12 +106,13 @@ function moduleUrl(code, open, close) {
  *
  * @param {string} source
  * @param {ReturnType<typeof lex>} lexed
+ * @param {boolean} [outsideSrc] - also count paths under tests/fixtures, data and docs
  * @returns {number}
  */
-function firstAnchoredSourcePath(source, { code, strings }) {
+function firstAnchoredSourcePath(source, { code, strings }, outsideSrc = false) {
   for (const literal of strings) {
     const text = source[literal.start] === '`' ? literal.text.split('${')[0] : literal.text;
-    if (!SOURCE_PATH.test(text)) continue;
+    if (!SOURCE_PATH.test(text) && !(outsideSrc && OUTSIDE_SRC_PATH.test(text))) continue;
     const open = enclosing(code, literal.start);
     if (open === -1 || code[open] !== '(') continue;
     const close = closing(code, open);
@@ -139,19 +123,21 @@ function firstAnchoredSourcePath(source, { code, strings }) {
 }
 
 /**
- * One problem per test file that reads source files without the declaration.
+ * One problem per test file that reads source files without the declaration. With
+ * tests.requireDeclaredInputs on (`outsideSrc`, passed in by the static registry so this file reads no setting), reads of
+ * paths under tests/fixtures, data or docs count too; off keeps the source-tree rule alone.
  *
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path)) {
+export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path), outsideSrc = false) {
   const problems = [];
   for (const path of files.filter(path => TEST_FILE.test(path))) {
     const source = read(path);
     if (declaresSource(source)) continue;
     const lexed = lex(source);
     if (!READ.test(lexed.code)) continue;
-    const at = firstAnchoredSourcePath(source, lexed);
+    const at = firstAnchoredSourcePath(source, lexed, outsideSrc);
     if (at !== -1) problems.push({ path, line: lineAt(source, at), text: `reads source files without ${SOURCE_TREE_INPUT} at the top` });
   }
   return problems;
