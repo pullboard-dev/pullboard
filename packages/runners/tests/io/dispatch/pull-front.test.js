@@ -10,14 +10,14 @@ import { runnerExecutionServices } from '../../../src/io/health.js';
 
 const read = file => readFileSync(new URL(`../../../src/io/${file}`, import.meta.url), 'utf8');
 
-test('clause 1: runOnRunnerAsync in pull/delegate.js has no controller-mode branch and never imports dispatch.js [C7]', () => {
+test('runners.pull-front.runonrunnerasync-in-pull-delegate-js-has: clause 1: runOnRunnerAsync in pull/delegate.js has no controller-mode branch and never imports dispatch.js [C7]', () => {
   const source = read('pull/delegate.js');
   assert.doesNotMatch(source, /from '\.\.\/dispatch\.js'/u, 'the delegate imports nothing from dispatch.js');
   assert.doesNotMatch(source, /runnerDispatchMode|controllerRunOnRunnerAsync|ports\.mode/u, 'the delegate reads no dispatch mode and keeps no controller fallback');
   assert.match(source, /export async function runOnRunnerAsync\(root, command, options, ports = \{\}\) \{\n  return runPulled\(/u, 'the async front goes straight to the pulled run');
 });
 
-test('clause 2: health.js imports neither runOnRunnerAsync nor ownedTransportCompletion from dispatch.js, and its services still compose [C7]', () => {
+test('runners.pull-front.health-js-imports-neither-runonrunnerasync-nor: clause 2: health.js imports neither runOnRunnerAsync nor ownedTransportCompletion from dispatch.js, and its services still compose [C7]', () => {
   const source = read('health.js');
   assert.doesNotMatch(source, /import \{[^}]*(?:runOnRunnerAsync|ownedTransportCompletion)[^}]*\} from '\.\/dispatch\.js'/u, 'health.js takes neither from dispatch.js');
   assert.equal(dispatch.ownedTransportCompletion, ownedTransportCompletion, 'the transport completion lives in the transport package and stays reachable from dispatch.js');
