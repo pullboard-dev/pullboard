@@ -26,7 +26,7 @@ function specTests(dir = DIR) {
 
 const read = path => readFileSync(join(ROOT, path), 'utf8');
 
-test('clause 1: every spec test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('spec.inputs.declared: clause 1: every spec test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = specTests();
   assert.ok(files.length >= 7, 'the spec cell has test files to check');
   const undeclared = files.filter(file => READ.test(read(file)) && !declaresSource(read(file)));
@@ -37,7 +37,7 @@ test('clause 1: every spec test file that reads files carries an input header na
   }
 });
 
-test('clause 2: with the outside-src rule on, the reader rule reports none in packages/spec/tests [C7,U149]', () => {
+test('spec.inputs.rule-clean: clause 2: with the outside-src rule on, the reader rule reports none in packages/spec/tests [C7,U149]', () => {
   const files = specTests();
   assert.ok(files.includes(SELF));
   assert.deepEqual(testInputProblems(ROOT, files, read, true), []);
