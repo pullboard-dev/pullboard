@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -21,9 +25,21 @@ function queuedOperations(box) {
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')).moves.map(move => move.operation) : [];
 }
 
+/** Commit the board's relay.outbox setting as off, so only the machine's relay.queueOnFailure can queue a move (an absent setting means on). */
+function disableOutbox(box) {
+  const file = join(box.root, 'pullboard.json');
+  const config = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...config, relay: { outbox: false } }, null, 2) + '\n');
+  const cliPath = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
+  writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${cliPath}" "$@"\n`, { mode: 0o700 });
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
+  runFixtureSetupGit(['commit', '-q', '-m', 'chore(config): do not queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
+}
+
 /** A linked, accepted board with relay.queueOnFailure as given. */
 async function linked(t, on) {
   const box = await relayClientFixture(t);
+  disableOutbox(box);
   setQueueOnFailure(box, on);
   await box.link();
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselineAccepted, true, 'the relay accepted this board before the failure');
@@ -46,7 +62,7 @@ test('clause 1: with relay.queueOnFailure on, an add against a down relay exits 
 
 test('clause 1: with relay.queueOnFailure on, an add against a relay answering 503 exits 0 and shows recorded 1, queued 1 [C7,#10102,#9410]', async (t) => {
   const box = await linked(t, true);
-  box.failMoves(true);
+  box.refuseMoves(true);
   const added = await box.cliLocal('add', box.lane, 'Added while the relay answers 503');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.equal(await itemsTitled(box, 'Added while the relay answers 503'), 1, 'recorded 1');
