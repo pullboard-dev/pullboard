@@ -6,7 +6,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
-test('next in the main checkout names the lane worktree to join [N2,B26]', async t => {
+test('cli.journeys-next-order-part2.next-in-the-main-checkout-names: next in the main checkout names the lane worktree to join [N2,B26]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox(), repo = join(box.dir, 'fresh-board');

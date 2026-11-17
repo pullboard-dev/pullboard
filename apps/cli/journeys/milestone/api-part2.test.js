@@ -27,7 +27,7 @@ import { startLocalHandler } from '../../tests/fixtures/api/milestone.js';
 
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
-test('[A2] the local API admits only its listed origins', async (t) => {
+test('cli.journeys-milestone-api-part2.the-local-api-admits-only-its: [A2] the local API admits only its listed origins', async (t) => {
   const box = project();
   const listedOrigin = 'https://app.pullboard.dev';
   const configured = await startLocalHandler(t, box, { allowedOrigins: [listedOrigin] });
@@ -51,7 +51,7 @@ test('[A2] the local API admits only its listed origins', async (t) => {
   const defaultOrigin = await apiFetch(defaulted, '/api/v1/boards', { headers: { origin: listedOrigin } });
   assert.equal((await apiError(defaultOrigin, 403)).code, 'API_ORIGIN', 'omitting the option preserves same-origin-only behavior');
 });
-test('local API admits only configured literal IPv4 hosts at their own origin [H19]', async (t) => {
+test('cli.journeys-milestone-api-part2.local-api-admits-only-configured-literal: local API admits only configured literal IPv4 hosts at their own origin [H19]', async (t) => {
   const box = project();
   const configured = await startLocalHandler(t, box, { allowedHosts: ['192.168.7.9'] });
   const port = new URL(configured.origin).port;
@@ -72,7 +72,7 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-test('[A5] board opens upgrade older event logs and refuse future event logs before migration', async () => {
+test('cli.journeys-milestone-api-part2.board-opens-upgrade-older-event-logs: [A5] board opens upgrade older event logs and refuse future event logs before migration', async () => {
   const box = project();
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   assert.equal(readEventLogVersion(file), String(EVENT_LOG_VERSION));
