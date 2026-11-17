@@ -372,22 +372,15 @@ function parseOneDocument(stdout) {
 }
 
 
-catalogCase('[A1] command results match the catalog across roots: reads, spec and hooks', [
+catalogCase('[A1] command results match the catalog across roots: reads', [
   'agents',
   'badge',
-  'blueprint add',
-  'blueprint starters',
   'capacity',
   'doctor',
-  'doctrine check',
   'gate',
   'health',
   'heartbeat',
   'help',
-  'hook commit-msg',
-  'hook pre-commit',
-  'hook pre-merge-commit',
-  'hook pre-push',
   'hooks',
   'init',
   'lanes',
@@ -400,14 +393,6 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   'resume',
   'settings',
   'skills',
-  'spec',
-  'spec check',
-  'spec draft',
-  'spec show',
-  'spec signers',
-  'spec signoff',
-  'spec unmet',
-  'spec view',
   'stats',
   'stats moves',
   'stats pipeline',
@@ -476,6 +461,30 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   await json(box, repo, 'log');
   await json(box, repo, 'list');
   await json(box, repo, 'gate');
+}, ['agents', 'badge', 'capacity', 'decisions', 'doctor', 'gate', 'health', 'heartbeat', 'help', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'stats', 'status', 'version', 'whoami']);
+
+
+catalogCase('[A1] command results match the catalog across roots: spec and hooks', [
+  'blueprint add',
+  'blueprint starters',
+  'doctrine check',
+  'hook commit-msg',
+  'hook pre-commit',
+  'hook pre-merge-commit',
+  'hook pre-push',
+  'spec',
+  'spec check',
+  'spec draft',
+  'spec show',
+  'spec signers',
+  'spec signoff',
+  'spec unmet',
+  'spec view',
+], async () => {
+  const box = await project();
+  const { repo } = box;
+  assert.equal(box.initialized.version, 1);
+  assertRequiredShape(box.initialized, shapeFor('init').required, 'init');
 
   await json(box, repo, 'spec', ['--json']);
   await json(box, repo, 'spec', ['check'], 'check');
@@ -509,7 +518,7 @@ catalogCase('[A1] command results match the catalog across roots: reads, spec an
   await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
-}, ['agents', 'badge', 'blueprint', 'capacity', 'decisions', 'doctor', 'doctrine', 'gate', 'health', 'heartbeat', 'help', 'hook', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'spec', 'stats', 'status', 'version', 'whoami']);
+}, ['blueprint', 'doctrine', 'hook', 'init', 'spec']);
 
 
 catalogCase('[A1] command results match the catalog across roots: items, shouts and runs', [
@@ -1402,8 +1411,13 @@ catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real
  * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; four files run on four runners.
  */
 const CATALOG_GROUPS = {
+  'results-a1': [
+    '[A1] command results match the catalog across roots: reads',
+  ],
+  'results-a2': [
+    '[A1] command results match the catalog across roots: spec and hooks',
+  ],
   results: [
-    '[A1] command results match the catalog across roots: reads, spec and hooks',
     '[A1] command results match the catalog across roots: items, shouts and runs',
   ],
   lanes: [
