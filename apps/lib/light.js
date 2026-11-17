@@ -2,11 +2,11 @@
 /** The native board alone, without the library barrel's workers (gate, landing, handoff) [C7]. */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { bindProofRunner } from '../../packages/board/light.js';
-import { bindBoardView } from '../../packages/board/light.js';
-import { nativeBoardPorts } from '../../packages/board/light.js';
-import { openBoard } from '../../packages/board/light.js';
-import { openBoardForRead } from '../../packages/board/light.js';
+import { bindProofRunner } from '../../packages/board/index.js';
+import { bindBoardView } from '../../packages/board/index.js';
+import { nativeBoardPorts } from '../../packages/board/index.js';
+import { openBoard } from '../../packages/board/index.js';
+import { openBoardForRead } from '../../packages/board/index.js';
 
 // The board composition root lives in packages/board; this app binds the two things only an app may name [C7].
 // Rule-proof coverage compares committed runner bytes with this installed file; verify never imports the runner's cell.
