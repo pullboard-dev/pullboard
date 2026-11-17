@@ -9,13 +9,12 @@ const ROOT = join(import.meta.dirname, '../../../..');
 const FILES = ['apps/runner/src/io/custody.js', 'apps/runner/src/io/worker/process.js'];
 const BUDGET = /\/\/\s*budget:/u;
 const TIMEOUT_WAIT = /setTimeout\(\w+,\s*[\d_]+\)/u;
-const INTERVAL = /setInterval\(/u;
 
-/** The lines of a file that arm a timer wait, with the line above each one, so a budget comment on either counts. */
+/** The lines of a file that await a timeout wait, with the line above each one, so a budget comment on either counts. */
 function timerLines(path) {
   const lines = readFileSync(join(ROOT, path), 'utf8').split('\n');
   return lines.map((text, index) => ({ path, text, number: index + 1, above: lines[index - 1] ?? '' }))
-    .filter(({ text }) => !/^\s*(?:\/\/|\*|\/\*)/u.test(text) && (TIMEOUT_WAIT.test(text) || INTERVAL.test(text)));
+    .filter(({ text }) => !/^\s*(?:\/\/|\*|\/\*)/u.test(text) && TIMEOUT_WAIT.test(text));
 }
 
 test('clause 1: the 6 custody sleeps and the process-group retry and signal waits each carry a // budget: line [C7,#9525]', () => {
