@@ -71,7 +71,9 @@ function rebuild(db, since, only) {
     }
     return [...head, { kind: 'release', by: r.event_by, detail }, ...tail].map(e => ({ kind: e.kind, by: e.by, detail: stored(e.detail) }));
   };
-  const push = (table, r, snapshot, move, detail) => out[table].push({ event: { id: r.event_id, at: r.event_at }, snapshot, move, recorded: { events: written(r, detail) } });
+  /** A release record's snapshot also carries the engine its release was written at (null when an older engine recorded none), so the table can tell engines apart; no rule reads it yet [#9831]. */
+  const withEngine = (table, snapshot, detail) => (table === 'release' ? { ...snapshot, engine: detail.engine ?? null } : snapshot);
+  const push = (table, r, snapshot, move, detail) => out[table].push({ event: { id: r.event_id, at: r.event_at }, snapshot: withEngine(table, snapshot, detail), move, recorded: { events: written(r, detail) } });
 
   for (const r of releases) {
     if (only && !only.has(r.event_id)) continue;
