@@ -142,6 +142,7 @@ export {
   reofferTrunkBusyEnabled,
   archiveEventsEnabled,
   hotStateEnabled,
+  watchQuietReadsEnabled,
   readCrossProcessWrites,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
