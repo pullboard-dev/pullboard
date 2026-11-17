@@ -93,6 +93,7 @@ export {
   localLoadShare,
   staticCheckSlots,
   staticMemoOn,
+  boardOpensCheckOn,
   serveListen,
   servePullRoute,
   mainComparisonMode,
