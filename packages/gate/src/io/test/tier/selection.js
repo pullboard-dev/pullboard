@@ -26,6 +26,7 @@ import { codeMapGraph } from '../../affected/tests.js';
 import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
+import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -294,8 +295,8 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
 /** The generated fixture registry: one row per test file naming the fixtures it uses. */
 const [FIXTURE_REGISTRY] = BASELINE_TABLES;
-/** The per-file cross-cell import ceilings, a committed listing this module owns. */
-export const CELLS_EDGES_CEILINGS = 'packages/gate/data/ceilings/cells-edges.json';
+/** The per-file cross-cell import ceilings, a committed listing its writer in edges.js names. */
+export { CELLS_EDGES_CEILINGS };
 
 const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', CELLS_EDGES_CEILINGS, TEST_TIERS_FILE, FIXTURE_REGISTRY]);
 /** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
