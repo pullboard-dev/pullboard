@@ -1,9 +1,9 @@
 /** The item lister reads hand-off records only for items still in play, so a board of thousands of closed items stays fast [I6]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../index.js';
-import { cellBoard } from '../../../fixtures/cell.js';
-import { recordSubmitHandoff } from '../../../../../jobs/index.js';
+import * as store from '../../../../../../store/index.js';
+import { cellBoard } from '../../../../fixtures/cell-board.js';
+import { recordSubmitHandoff } from '../../../../../../jobs/index.js';
 
 // fixture-subject: addItem (a store unit test of the lister over seeded items; the board is opened through the kit)
 

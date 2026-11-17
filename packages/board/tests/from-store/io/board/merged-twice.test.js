@@ -1,12 +1,12 @@
 /** `merged` on an item that already has a merged commit refuses or writes nothing, so a landing is recorded once [B2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { submitFixture } from '../../fixtures/submit.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { cellSeat } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { submitFixture } from '../../../../../store/tests/fixtures/submit.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 
 /** A verified item on a real Git project and SQLite board. */
 function verifiedItem(t) {

@@ -1,14 +1,11 @@
-/** @pullboard-test-input source-cell store */
 /** A rejected submission's old head stays unverified after a sibling resubmission, until the item is accepted [V17,V1]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { submitFixture } from '../../fixtures/submit.js';
-import {
-  cellBoard,
-  cellItem,
-  cellSeat,
-} from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { submitFixture } from '../../../../../store/tests/fixtures/submit.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const OLD = 'a'.repeat(40);
 const SIBLING = 'b'.repeat(40);
