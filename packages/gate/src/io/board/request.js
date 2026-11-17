@@ -99,6 +99,16 @@ const BASE_REQUEST_BLOCKERS = Object.freeze(Object.fromEntries(
 ));
 
 const REQUEST_FILE = 'packages/gate/src/io/board/request.js';
+/**
+ * A function that moved between files while its known row is still listed under the old file: either spelling of the
+ * owner reads as the same row, so the lane moving the function needs no core edit in the same commit. Remove an entry
+ * once its key is renamed. Why: a view lane cannot edit this core-owned list [#10188].
+ */
+export const MOVED_BLOCKER_OWNERS = Object.freeze({
+  'apps/view/src/io/state.js#computeRowAges': 'apps/view/src/io/serve.js#computeRowAges',
+});
+/** The one spelling of an owner that a moved row is compared under. */
+const canonOwner = owner => MOVED_BLOCKER_OWNERS[owner] ?? owner;
 const KNOWN_ROW = /^\s*'([\w./-]+\.js#[\w$]+)':\s*(?:'(.*)'|"(.*)"),?\s*$/gmu;
 
 /** Read one blocker list from the candidate source without executing candidate tooling. */
@@ -167,10 +177,11 @@ export function apiRequestIoProblems(sources, { known = BASE_REQUEST_BLOCKERS, e
     const at = root.indexOf('#'), file = at < 0 ? root : root.slice(0, at);
     for (const name of at < 0 ? modules.get(file)?.functions.keys() ?? [] : [root.slice(at + 1)]) walk(file, name, []);
   }
-  const rows = [...lost, ...[...found.values()].filter(row => !(row.owner in known))];
-  const owners = new Set([...found.values()].map(row => row.owner));
+  const listed = new Set(Object.keys(known).map(canonOwner));
+  const rows = [...lost, ...[...found.values()].filter(row => !listed.has(canonOwner(row.owner)))];
+  const owners = new Set([...found.values()].map(row => canonOwner(row.owner)));
   for (const owner of Object.keys(known)) {
-    if (!owners.has(owner)) rows.push({ file: owner.slice(0, owner.indexOf('#')), line: 1, call: 'stale known violation', owner, chain: [owner], stale: true });
+    if (!owners.has(canonOwner(owner))) rows.push({ file: owner.slice(0, owner.indexOf('#')), line: 1, call: 'stale known violation', owner, chain: [owner], stale: true });
   }
   return rows.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.call.localeCompare(b.call));
 }
