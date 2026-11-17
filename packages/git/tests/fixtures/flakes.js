@@ -24,6 +24,7 @@ import { runCliInProcess } from '../../../../apps/cli/tests/fixtures/process.js'
 import { fixtureMachineSettings } from '../../../../apps/cli/tests/fixtures/testkit.js';
 import { startFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
 import { whenRunnerSettles } from '../../../../apps/cli/tests/fixtures/runner/local-start.js';
+import { CLI_ENTRY } from '../../../../apps/cli/tests/fixtures/runner/entry.js';
 import { stopFixtureLocalRunner } from '../../../../apps/cli/tests/fixtures/runner/local-stop.js';
 import { evidenceReader } from './evidence.js';
 
@@ -157,7 +158,7 @@ export function checkedItem(box) {
   const machine = box.env.PULLBOARD_MACHINE_HOME;
   // The baseline is a pulled job on the machine's loopback local runner; the scratch teardown stops it [P7,C7,#5821].
   fixtureMachineSettings(machine, { gate: { browserFreeChecks: true, timingRunner: false } });
-  startFixtureLocalRunner(box.env, box.root);
+  startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
   // Mid route: a light item now needs a recorded diagnosis (DIAGNOSIS_REQUIRED), which this fixture does not exercise.
   const added = box.cli('add', box.lane, 'Controlled Native check', '--criterion', 'The controlled target passes without accepting retries.',
     '--route', 'mid', '--brief', 'Files: test/alternating.test.mjs\nTest: run its configured Node TAP check. Preserve the original failed verdict while retaining exact diagnostic receipts.', '--check', check, '--wait');

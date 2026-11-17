@@ -42,8 +42,8 @@ import { tryGit } from '../../index.js';
 import { withGitFacts } from '../../index.js';
 import { withGitReadFacts } from '../../index.js';
 import { trunkRef } from '../../light.js';
-import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureExecFile } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/io/main.js

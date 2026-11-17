@@ -6,6 +6,11 @@
  */
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { mainPolicy } from '../../../sandbox/index.js';
 import { trunkMerge } from '../../../sandbox/index.js';
 import { UNBUILDABLE } from '../../../sandbox/index.js';
@@ -27,9 +32,12 @@ import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
+import { machineSettingsFile } from '../../../config/index.js';
+import { nextReadinessCache } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
+import { resolveCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
@@ -153,8 +161,9 @@ export async function nextOnce(ctx, values, ports) {
           { blockedOn: unmet, worktreeSnapshot: claimWorktreeSnapshot(target.info.root) }, 'BLOCKED']);
         return { retry: true, retryDetail: { phase: 'parked claim', item: item.item_id, code: 'WAITING', message: `#${item.item_id} waits on ${unmet.map(id => `#${id}`).join(', ')}` } };
       }
+      // A held claim is the seat's own work in progress: its folder holds its edits, so next reads no status of it (a renewed open) [C7,#8574].
       let itemFolder;
-      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, {}, ports); }
+      try { itemFolder = await openNextFolder(target, board, holder, item.item_id, { renewed: true }, ports); }
       catch (error) {
         // A held claim whose folder another live session holds can be built neither there nor in the seat checkout:
         // this seat hands the claim back and selects again, so it is never sent to build in its seat checkout (#3691).
@@ -201,11 +210,33 @@ export async function nextOnce(ctx, values, ports) {
 
 /**
  * Run an item's readiness command in this seat's checkout; the failure line (command, exit code, output) or null when it
- * passes or the item has none. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
+ * passes or the item has none. With next.readinessCache the result is kept for the main commit it ran on, so a second next on
+ * the same commit does not rerun the command, and a new main commit reruns it and re-offers an item that now passes [C7,#8794]. An unrunnable or hung command counts as failing, so next never offers an item that says it is not ready [C7,#8793].
  */
 function readinessFailure(ctx, item) {
   const command = typeof item.item_readiness_command === 'string' ? item.item_readiness_command.trim() : '';
   if (!command) return null;
+  if (!nextReadinessCache()) return runReadiness(ctx, command);
+  const main = resolveCommit(ctx.info.root, 'main');
+  if (!main) return runReadiness(ctx, command);
+  const file = join(dirname(machineSettingsFile()), 'readiness-cache.json');
+  const key = `${item.item_id}:${command}`;
+  let kept = {};
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    if (parsed?.main === main && parsed.results && typeof parsed.results === 'object') kept = parsed.results;
+  } catch { /* no cache yet, or one a crash left half written: run the command */ }
+  if (Object.hasOwn(kept, key)) return kept[key];
+  const failure = runReadiness(ctx, command);
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ main, results: { ...kept, [key]: failure } }));
+  } catch { /* an unwritable cache only costs a rerun */ }
+  return failure;
+}
+
+/** Run one readiness command in this seat's checkout; its failure line or null on exit 0. */
+function runReadiness(ctx, command) {
   const run = spawnSync(command, { shell: true, cwd: ctx.info.root, encoding: 'utf8', timeout: 30_000 });
   if (run.status === 0) return null;
   const output = `${run.stdout ?? ''}${run.stderr ?? ''}`.trim().slice(0, 300);
@@ -358,7 +389,7 @@ function nextPick(ctx, board, values, ports) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
   const own = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
@@ -394,11 +425,14 @@ function nextPick(ctx, board, values, ports) {
     const other = items.find(entry => entry.item_status === 'open' && (entry.item_lane !== me.lane
       || !store.ROUTES.includes(entry.item_route) || !store.ROUTES.includes(me.route) || !store.canTake(me.route, entry.item_route)));
     return { reasons: [...(reasons ?? []), ...(other ? [`#${other.item_id} is offered in ${other.item_lane} on the ${other.item_route} route; this seat leaves it unclaimed`] : [])],
+      ...(values.idleBlockers === true ? { blockers: own.blockers ?? [] } : {}),
       ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown', skips: [...(!values.build ? offer?.skips ?? [] : []), ...(own.skips ?? []), ...(picked.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3) } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+  // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
+  const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
+  if (item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
     : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
