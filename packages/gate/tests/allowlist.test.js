@@ -37,7 +37,7 @@ function fixture(t) {
   return { root, put, remove, strays, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
 }
 
-test('allowed root files and folders are not strays [C7,R44]', t => {
+test('gate.allowlist.allowed-root-files-folders-not: allowed root files and folders are not strays [C7,R44]', t => {
   const box = fixture(t);
   for (const file of ['CONTRIBUTING.md', 'SECURITY.md', 'CLAUDE.md', 'pullboard.json', '.githooks/pre-commit', 'docs/guide.md', '.github/workflows/ci.yml']) {
     box.put(file, 'allowed\n');
@@ -49,7 +49,7 @@ test('allowed root files and folders are not strays [C7,R44]', t => {
   }
 });
 
-test('a new stray is refused against the baseline, and its finding says where it belongs [C7,R44]', t => {
+test('gate.allowlist.new-stray-refused-against-baseline: a new stray is refused against the baseline, and its finding says where it belongs [C7,R44]', t => {
   const box = fixture(t);
   const baseline = cellLintBaseline(box.report());
   box.put('relay/worker.js', 'void 0;\n');
@@ -62,7 +62,7 @@ test('a new stray is refused against the baseline, and its finding says where it
   assert.match(strayNextStep('test/new.test.js'), /packages\/<cell>\/tests\//u);
 });
 
-test('today\'s strays are a baseline that only shrinks: removing one lowers it, and adding it back is refused [C7,R44]', t => {
+test('gate.allowlist.today-s-strays-baseline-only: today\'s strays are a baseline that only shrinks: removing one lowers it, and adding it back is refused [C7,R44]', t => {
   const box = fixture(t);
   const baseline = cellLintBaseline(box.report());
   assert.ok(baseline.metrics.strays.allowances['bin/old-tool.js'] && baseline.metrics.strays.allowances['test/old.test.js']);

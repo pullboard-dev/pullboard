@@ -33,7 +33,7 @@ test('clause 1: with spec.commitOnApply on and a clean checkout, an approved row
   assert.equal(readFileSync(join(files.root, 'SPEC.md'), 'utf8'), AFTER);
   assert.equal(git('rev-list', '--count', 'HEAD'), '2', 'exactly one new commit');
   assert.equal(git('log', '-1', '--format=%an <%ae>'), 'Pat Person <pat@example.test>');
-  assert.equal(git('log', '-1', '--format=%s'), 'spec: approve G1');
+  assert.equal(git('log', '-1', '--format=%s'), 'docs(spec): approve G1');
   assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['.pullboard/signoffs.jsonl', 'SPEC.md']);
   assert.equal(git('status', '--porcelain'), '', 'the checkout is clean again');
 });

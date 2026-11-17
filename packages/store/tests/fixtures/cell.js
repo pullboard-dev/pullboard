@@ -28,7 +28,7 @@ import { repoInfo } from '../../../git/index.js';
 import { createMemoryGitAdapter } from '../../../git/index.js';
 import { enterGitAdapter } from '../../../git/index.js';
 
-export { FIXTURE_MODEL, openKitBoard };
+export { FIXTURE_MODEL, openKitBoard, runFixtureGit };
 /** A second model name, so a later seat must register against the earlier one. */
 export const FIXTURE_MODEL_EARLIER = 'Earlier Fixture Model';
 

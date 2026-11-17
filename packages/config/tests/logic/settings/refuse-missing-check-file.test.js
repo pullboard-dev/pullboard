@@ -20,14 +20,14 @@ function withSettings(settings, work) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: the missing-check-file refusal is off until the machine setting is exactly true [C7,#3095]', () => {
+test('config.logic-settings-refuse-missing-check-file.clause-1-the-missing-check-file-refusal: clause 1: the missing-check-file refusal is off until the machine setting is exactly true [C7,#3095]', () => {
   assert.equal(withSettings(null, refuseMissingCheckFile), false);
   assert.equal(withSettings({ gate: {} }, refuseMissingCheckFile), false);
   assert.equal(withSettings({ gate: { refuseMissingCheckFile: false } }, refuseMissingCheckFile), false);
   assert.equal(withSettings({ gate: { refuseMissingCheckFile: true } }, refuseMissingCheckFile), true);
 });
 
-test('clause 1: a non-boolean gate.refuseMissingCheckFile is a machine settings refusal [C7,#3095]', () => {
+test('config.logic-settings-refuse-missing-check-file.clause-1-a-non-boolean-gate: clause 1: a non-boolean gate.refuseMissingCheckFile is a machine settings refusal [C7,#3095]', () => {
   for (const bad of ['true', 1, null]) {
     assert.throws(() => withSettings({ gate: { refuseMissingCheckFile: bad } }, loadMachineSettings), /BAD_MACHINE_SETTINGS.*refuseMissingCheckFile/u);
   }

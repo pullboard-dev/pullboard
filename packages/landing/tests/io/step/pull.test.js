@@ -81,7 +81,7 @@ function eventsOf(board, id, kind) {
   return board.db.prepare('SELECT event_by by, event_detail d FROM event WHERE item_id=? AND event_kind=? ORDER BY event_id').all(id, kind).map(row => ({ by: row.by, detail: JSON.parse(row.d) }));
 }
 
-test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, pushes the revert through the fence at its hop epoch, then records pulled at the pushed revert [M2,R3,#9099]', t => {
+test('landing.pull.runpulloutjob-creates-the-pull-out-job: clause 1: runPullOutJob creates the pull-out job only for a pulling item, pushes the revert through the fence at its hop epoch, then records pulled at the pushed revert [M2,R3,#9099]', t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\ntwo\nthree\nfour\n' });
   repo.put('api/y.js', 'later work\n');
@@ -126,7 +126,7 @@ test('clause 1: runPullOutJob creates the pull-out job only for a pulling item, 
   assert.equal(pullOutJobs(board).length, 1);
 });
 
-test('clause 2: a conflicting revert records the pull-out job blocked naming the conflict, pushes nothing, and leaves the landing pulling [M2,R3,#9099]', t => {
+test('landing.pull.a-conflicting-revert-records-the-pull: clause 2: a conflicting revert records the pull-out job blocked naming the conflict, pushes nothing, and leaves the landing pulling [M2,R3,#9099]', t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\ntwo\nthree\nfour\n' });
   // Later trunk work rewrites the same lines the landing added, so its revert cannot apply.
