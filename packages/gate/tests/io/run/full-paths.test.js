@@ -21,7 +21,7 @@ test('gate.full-paths.run-names-file-by-full-path: clause 1: node packages/gate/
   mkdirSync(join(work, 'packages/alpha/tests'), { recursive: true });
   writeFileSync(join(work, FILE), "import { test } from 'node:test'; test('works', () => {});\n");
   const progress = join(box.dir, 'progress.jsonl');
-  const env = { ...process.env, PULLBOARD_TEST_PROGRESS: progress };
+  const env = { ...box.env, PULLBOARD_TEST_PROGRESS: progress };
   delete env.PULLBOARD_TEST_STAGE;
   delete env.PULLBOARD_LANDING_RUN;
   const result = runFixtureChild(process.execPath, [RUNNER, FILE], { cwd: work, env, encoding: 'utf8', timeout: 120_000 });
