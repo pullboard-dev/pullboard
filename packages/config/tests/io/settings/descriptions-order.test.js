@@ -18,3 +18,11 @@ test('clause 2: gate.idiomSpread has a description row that says what it refuses
   assert.match(row.description, /idiom/u);
   assert.match(row.description, /off, it reports nothing/u);
 });
+
+test('clause 2: gate.viewTimerLayout has a description row that says what it refuses and that off reports nothing [C7]', () => {
+  const row = describeSetting('gate.viewTimerLayout');
+  assert.ok(row, 'gate.viewTimerLayout has a description row');
+  assert.match(row.description, /refuses/);
+  assert.match(row.description, /off, it reports nothing/);
+  assert.equal(row.unit, 'on/off');
+});
