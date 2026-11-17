@@ -25,7 +25,7 @@ function recorder(out) {
   return ['-e', `require('node:fs').writeFileSync(${JSON.stringify(out)}, JSON.stringify({ pid: process.pid, ppid: process.ppid, marker: process.env.LAUNCH_MARKER }))`];
 }
 
-test('clause 1: on macOS the lander wake runs as a launchd job, so launchd is its parent and responsible process; a later launch boots the finished job out [C7]',
+test('jobs.launch.launchd-wake: clause 1: on macOS the lander wake runs as a launchd job, so launchd is its parent and responsible process; a later launch boots the finished job out [C7]',
   { skip: !existsSync('/bin/launchctl') && 'launchd is not on this machine' }, async t => {
     const root = home(t), out = join(root, 'first.json');
     const first = await spawnReachable(process.execPath, recorder(out), { home: root, env: { ...process.env, LAUNCH_MARKER: 'kept' } });
@@ -47,7 +47,7 @@ test('clause 1: on macOS the lander wake runs as a launchd job, so launchd is it
     assert.deepEqual(readdirSync(join(root, 'launchd')), [`${second.label}.plist`], 'only the newer job file remains');
   });
 
-test('clause 2: without launchd the process is a plain detached spawn that still writes its log [C7]', async t => {
+test('jobs.launch.plain-spawn-log: clause 2: without launchd the process is a plain detached spawn that still writes its log [C7]', async t => {
   const root = home(t), log = join(root, 'out.log');
   const started = await spawnReachable(process.execPath, ['-e', 'console.log("hello from the daemon")'], { home: root, log, launchd: false });
   assert.equal(started.launchd, false);
@@ -56,7 +56,7 @@ test('clause 2: without launchd the process is a plain detached spawn that still
   assert.equal(existsSync(join(root, 'launchd')), false, 'no launchd job file is written');
 });
 
-test('clause 2: when the gui bootstrap fails the plain spawn runs the job and reports launchd false [C7]', async t => {
+test('jobs.launch.bootstrap-fails-fallback: clause 2: when the gui bootstrap fails the plain spawn runs the job and reports launchd false [C7]', async t => {
   const root = home(t), out = join(root, 'job.json'), calls = [];
   const launcher = async args => { calls.push(args[0]); return { status: 5, stdout: '' }; };
   const started = await spawnReachable(process.execPath, recorder(out), { home: root, launchd: true, launcher });
@@ -67,7 +67,7 @@ test('clause 2: when the gui bootstrap fails the plain spawn runs the job and re
   assert.deepEqual(readdirSync(join(root, 'launchd')), [], 'the refused job file is removed');
 });
 
-test('clause 3: a runner with no gui session still runs the job, whatever launchctl answers [C7]', async t => {
+test('jobs.launch.no-gui-session: clause 3: a runner with no gui session still runs the job, whatever launchctl answers [C7]', async t => {
   const root = home(t), out = join(root, 'job.json');
   const launcher = async () => ({ status: 113, stdout: 'Could not find domain for gui' });
   const started = await spawnReachable(process.execPath, recorder(out), { home: root, launchd: true, launcher });
@@ -75,7 +75,7 @@ test('clause 3: a runner with no gui session still runs the job, whatever launch
   await waitForCondition(() => existsSync(out), 'the job ran without a gui session');
 });
 
-test('clause 2: the job file escapes its strings and runs the command once [C7]', () => {
+test('jobs.launch.job-file-escapes: clause 2: the job file escapes its strings and runs the command once [C7]', () => {
   const plist = launchJobPlist('dev.pullboard.daemon.x', ['/bin/node', 'a<b&"c"'], { cwd: '/tmp', env: { K: 'v>w', N: undefined }, log: '/tmp/l' });
   assert.match(plist, /<string>a&lt;b&amp;&quot;c&quot;<\/string>/u);
   assert.match(plist, /<key>K<\/key><string>v&gt;w<\/string>/u);

@@ -755,19 +755,21 @@ export function apiBoards(projects = listApiProjects, isMain, boardOpeners) {
  * List readable registered boards and retain actionable warnings for entries that failed to open.
  *
  * @param {() => { root: string, name: string, project: string, added: string }[]} projects
+ * @param {string} [machineName] when a non-empty string, every board and warning entry carries it as `machine`
  * @returns {{ boards: object[], warnings: object[] }}
  */
-export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners, summaries = false) {
+export function apiBoardListing(projects = listApiProjects, isMain, refusalDocument, boardOpeners, summaries = false, machineName = undefined) {
   requireBoardOpeners(boardOpeners);
   if (typeof refusalDocument !== 'function') throw new TypeError('apiBoardListing needs the caller\'s refusalDocument renderer');
   const boards = [];
   const warnings = [];
+  const machine = typeof machineName === 'string' && machineName !== '' ? { machine: machineName } : {};
   for (const project of projects()) {
     try {
-      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board), ...(summaries ? { summaryVersion: 1 } : {}) }), isMain, boardOpeners));
+      boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board), ...(summaries ? { summaryVersion: 1 } : {}), ...machine }), isMain, boardOpeners));
     } catch (cause) {
       const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA', 'BOARD_UNAVAILABLE'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
-      warnings.push({ ...project, error: refusalDocument(error) });
+      warnings.push({ ...project, error: refusalDocument(error), ...machine });
     }
   }
   return { boards, warnings };
@@ -1268,7 +1270,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
       return settingsInventory(settingsScope.projects(), selected, settingsProviders);
     },
-    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function')); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
+    boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function', typeof viewPorts?.machineName === 'function' ? viewPorts.machineName() : undefined)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}` }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
