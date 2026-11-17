@@ -46,10 +46,18 @@ test('clause 1: every sandbox test file that reads files carries an input header
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/sandbox'], 'this file names only the sandbox cell');
 });
 
-test('clause 1: every sandbox input header is a cell, a tree or named files [C7,U149]', () => {
+/** The only sandbox tests that read a whole tree, and the tree headers each must declare; no other file may use a tree header. */
+const WHOLE_TREE = new Map([['packages/sandbox/tests/privacy/guard.test.js', ['test-tree', 'source-tree']]]);
+const TREE = /^(?:source-tree|test-tree|docs-tree)$/u;
+
+test('clause 1: only the listed whole-tree readers use a tree header, and each still declares it [C7,U149]', () => {
   for (const file of sandboxTests()) {
-    for (const header of headers(read(file))) {
-            assert.match(header, /^(?:source-cell [a-z/ ]+|source-tree|test-tree|docs-tree|\S+\.(?:js|json))(?: \S+\.(?:js|json))*$/u, `${file} declares a cell, the test tree or named files`);
+    const found = headers(read(file));
+    const trees = found.filter(header => TREE.test(header));
+    assert.deepEqual(trees, WHOLE_TREE.get(file) ?? [], `${file} tree headers`);
+    for (const header of found.filter(header => !TREE.test(header))) {
+      assert.match(header, /^(?:source-cell [a-z/ ]+|\S+\.(?:js|json))(?: \S+\.(?:js|json))*$/u, `${file} declares a cell or named files`);
     }
   }
+  for (const file of WHOLE_TREE.keys()) assert.ok(sandboxTests().includes(file), `${file} is still a sandbox test`);
 });
