@@ -16,10 +16,10 @@ import { test } from 'node:test';
 import {
   atomic,
   closeBoard,
-} from "../../../../../store/src/io/board.js";
+} from "../../../../../store/index.js";
 import { openCellBoard as openBoard } from "../../../fixtures/cell-board.js";
-import { captureBoardChanges } from "../../../../../store/src/io/board/capture.js";
-import { boardWriteHolderText } from "../../../../../store/src/io/board/write/lock.js";
+import { captureBoardChanges } from "../../../../../store/index.js";
+import { boardWriteHolderText } from "../../../../../store/index.js";
 
 /** A controlled handoff between operations; no clock or scheduler delay decides their order. */
 function barrier() {
