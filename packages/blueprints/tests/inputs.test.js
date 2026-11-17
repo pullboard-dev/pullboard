@@ -43,7 +43,7 @@ function declaredCells(source) {
   return null;
 }
 
-test('clause 1: every blueprints test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('blueprints.inputs.every-blueprints-test-file-that-reads-files: clause 1: every blueprints test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = blueprintTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the blueprints cell has test files to check');
   const readers = files.filter(file => READ.test(code(read(file))));
@@ -52,7 +52,7 @@ test('clause 1: every blueprints test file that reads files carries an input hea
   assert.deepEqual(undeclared, [], 'file readers without a header');
 });
 
-test('clause 1: a declared header names only the blueprints cell, never the whole source tree [C7,U149]', () => {
+test('blueprints.inputs.a-declared-header-names-only-the-blueprints: clause 1: a declared header names only the blueprints cell, never the whole source tree [C7,U149]', () => {
   for (const file of blueprintTests()) {
     const source = read(file);
     assert.ok(!/^\/\*\* @pullboard-test-input source-tree/mu.test(source), `${file} must not declare source-tree`);
@@ -62,7 +62,7 @@ test('clause 1: a declared header names only the blueprints cell, never the whol
   assert.deepEqual(declaredCells(read('packages/blueprints/tests/io/main.test.js')), ['packages/blueprints']);
 });
 
-test('clause 1: with the outside-src rule on, no blueprints test reads data or fixtures undeclared [C7,U149]', () => {
+test('blueprints.inputs.with-the-outside-src-rule-on-no: clause 1: with the outside-src rule on, no blueprints test reads data or fixtures undeclared [C7,U149]', () => {
   const problems = blueprintTests().filter(file => {
     const source = read(file);
     return READ.test(code(source)) && /(?:^|\/)(?:tests\/fixtures|data|docs|src)\//u.test(source) && declaredCells(source) === null;
