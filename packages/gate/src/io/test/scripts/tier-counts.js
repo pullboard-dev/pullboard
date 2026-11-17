@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 /** Report T1/T2/T3 counts and the files a one-line change to one front door selects, componentTier off and on [C7,#9789]. */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scratchFolder } from '../../../../../config/index.js';
 import { generateTestTiers } from '../../../../index.js';
 import { selectTestTiers } from '../../../../index.js';
 
@@ -20,7 +19,7 @@ function git(root, args, env = {}, input) {
 /** Commit object (never a ref) holding HEAD's tree with one line appended to `door`, built in a throwaway index so the checkout is untouched. */
 function changedCommit(root, door) {
   const head = git(root, ['rev-parse', 'HEAD']);
-  const scratch = mkdtempSync(join(tmpdir(), 'pullboard-tier-counts-'));
+  const scratch = scratchFolder('pullboard-tier-counts-');
   try {
     const env = { GIT_INDEX_FILE: join(scratch, 'index'), GIT_AUTHOR_NAME: 'tier-counts', GIT_AUTHOR_EMAIL: 'tier-counts@example.invalid', GIT_COMMITTER_NAME: 'tier-counts', GIT_COMMITTER_EMAIL: 'tier-counts@example.invalid' };
     git(root, ['read-tree', head], env);

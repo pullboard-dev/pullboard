@@ -54,7 +54,7 @@ async function fixture() {
   return { objects, reads, context, document, publish, root: () => root };
 }
 
-test('current summaries read before history and a selected old shout follows only its sealed ranges [H15,H17]', async () => {
+test('pages.layout.current-summaries-read-before-history-and: current summaries read before history and a selected old shout follows only its sealed ranges [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
   const total = box.objects.size;
@@ -84,14 +84,14 @@ test('current summaries read before history and a selected old shout follows onl
   await assert.rejects(page.shout(99999), { code: 'NO_SHOUT' });
 });
 
-test('a paged native restore preserves every row, counter and full presentation in its original order [H15,H17]', async () => {
+test('pages.layout.a-paged-native-restore-preserves-every: a paged native restore preserves every row, counter and full presentation in its original order [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
   const page = await openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine });
   assert.deepEqual(await page.native(), box.document);
 });
 
-test('newer engines, wrong board and wrong checkpoint coverage refuse before historical reads [H15,H17]', async () => {
+test('pages.layout.newer-engines-wrong-board-and-wrong: newer engines, wrong board and wrong checkpoint coverage refuse before historical reads [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
   await assert.rejects(openPagedSnapshot(root, box.context, { maxEngine: snapshotEngine - 1 }), { code: 'ENGINE_VERSION' });
@@ -101,7 +101,7 @@ test('newer engines, wrong board and wrong checkpoint coverage refuse before his
   assert.ok(box.reads.every(id => id === root.id));
 });
 
-test('a huge historical row stays out of current state and survives a bounded-object addressed read [H15,H17]', async () => {
+test('pages.layout.a-huge-historical-row-stays-out: a huge historical row stays out of current state and survives a bounded-object addressed read [H15,H17]', async () => {
   const box = await fixture();
   const text = randomBytes(800_000).toString('base64');
   box.document.tables.shout[0].shout_text = text;
@@ -116,7 +116,7 @@ test('a huge historical row stays out of current state and survives a bounded-ob
   assert.ok(box.reads.some(id => !current.has(id)));
 });
 
-test('unchanged history reuses immutable cipher objects across newer checkpoint positions [H15,H17]', async () => {
+test('pages.layout.unchanged-history-reuses-immutable-cipher-objects: unchanged history reuses immutable cipher objects across newer checkpoint positions [H15,H17]', async () => {
   const box = await fixture();
   await box.publish();
   const before = new Set(box.objects.keys());
@@ -128,7 +128,7 @@ test('unchanged history reuses immutable cipher objects across newer checkpoint 
   assert.ok([...box.objects.keys()].filter(id => !before.has(id)).length < 5, 'only changed metadata, its index and the checkpoint root are new');
 });
 
-test('invalid history ranges and duplicate root tables cannot become a partial board [H15,H17]', async () => {
+test('pages.layout.invalid-history-ranges-and-duplicate-root: invalid history ranges and duplicate root tables cannot become a partial board [H15,H17]', async () => {
   const box = await fixture();
   const root = await box.publish();
   const directory = await readSealedDescriptor(root, box.context);
@@ -141,7 +141,7 @@ test('invalid history ranges and duplicate root tables cannot become a partial b
   await assert.rejects(writePagedSnapshot(box.document, box.context), { code: 'RELAY_SNAPSHOT' });
 });
 
-test('bounded current state precedes thirty thousand events and complete background history arrives newest first [H15,H17]', async () => {
+test('pages.layout.bounded-current-state-precedes-thirty-thousand: bounded current state precedes thirty thousand events and complete background history arrives newest first [H15,H17]', async () => {
   const box = await fixture();
   box.document.tables.event = Array.from({ length: 30_000 }, (_, index) => ({ event_id: index + 1, event_detail: 'Preserved historical event ' + index }));
   box.document.presentation.state.items = Array.from({ length: 2000 }, (_, index) => ({ id: index + 1, title: 'A long item title '.repeat(250),
@@ -173,7 +173,7 @@ test('bounded current state precedes thirty thousand events and complete backgro
   assert.equal((await page.shout(1)).shout_text, 'Historical work 0');
 });
 
-test('a huge current field is bounded only on first paint and remains complete in detail [H15,H17]', async () => {
+test('pages.layout.a-huge-current-field-is-bounded: a huge current field is bounded only on first paint and remains complete in detail [H15,H17]', async () => {
   const box = await fixture();
   const text = 'Large current title '.repeat(100_000);
   box.document.presentation.state.items[0].title = text;

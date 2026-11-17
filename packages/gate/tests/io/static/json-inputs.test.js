@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/gate */
 /** The tree registry classes list the gate data files they read, so landing.staticAffectedOnly can run only those for a changed data file [C7,#9077]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';

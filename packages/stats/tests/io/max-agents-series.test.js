@@ -23,7 +23,7 @@ function seeded() {
   return db;
 }
 
-test('clause 1: the series prints per-hour landings and active seats, the plateau and the hours at it, identical on two runs [C7,#9450]', () => {
+test('stats.max-agents-series.the-series-prints-per-hour-landings: clause 1: the series prints per-hour landings and active seats, the plateau and the hours at it, identical on two runs [C7,#9450]', () => {
   const db = seeded();
   const first = readMaxAgentsSeries(db, { since: SINCE, until: UNTIL });
   const second = readMaxAgentsSeries(db, { since: SINCE, until: UNTIL });
@@ -36,7 +36,7 @@ test('clause 1: the series prints per-hour landings and active seats, the platea
   assert.match(maxAgentsLines(first).join('\n'), /plateau 4 landings per hour, reached with 3 active seats, 2 hours at the plateau/u);
 });
 
-test('clause 2: the series is read-only and prints the exact command line that reproduces it [C7,#9450]', () => {
+test('stats.max-agents-series.the-series-is-read-only-and: clause 2: the series is read-only and prints the exact command line that reproduces it [C7,#9450]', () => {
   const db = seeded();
   const before = db.prepare('SELECT COUNT(*) AS n, MAX(event_id) AS last FROM event').get();
   const series = readMaxAgentsSeries(db, { since: SINCE, until: UNTIL });

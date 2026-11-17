@@ -2,6 +2,8 @@
 export * from "./light.js";
 export { diskStores, diskStoresFrom, storeRegistry } from "./src/io/stores.js";
 export { removeTestSandbox } from "./src/io/test/cleanup.js";
+export { createInstallCache } from "./src/io/scripts/pack-cache.js";
+export { createPackCache } from "./src/io/scripts/pack-cache.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
@@ -44,7 +46,7 @@ export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/io/gui/admis
 export { guiSession } from "./src/io/gui/session.js";
 export { mainMovedSinceAudit, nudgeMainAudit } from "./src/io/main/audit/nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/io/main/audit/scheduler.js";
-export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, SETTLED_FILE } from "./src/io/main/audit/state.js";
+export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit, timerFiles, SETTLED_FILE } from "./src/io/main/audit/state.js";
 export { runMainAudits, mainAuditJobs, routeAuditFailures, closeAuditedMainReds, withAuditedMain } from "./src/io/main/audit/worker.js";
 export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle, auditRegressionNote } from "./src/io/main/audit/attribution.js";
 export { withImportParseCache } from "./src/io/imports.js";

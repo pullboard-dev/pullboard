@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { controllerRegistrationPorts } from '../../../../src/io/controller/custody.js';
 
-test('controller registration identifies the failed holder predicate [C7]', t => {
+test('resources.diagnostics.controller-registration-identifies-the-failed-holder: controller registration identifies the failed holder predicate [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'controller-registration-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'queue.sqlite');

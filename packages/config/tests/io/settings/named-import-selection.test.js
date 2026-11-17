@@ -20,7 +20,7 @@ function readWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 3: gate.namedImportSelection is a described setting, off by default [C7]', () => {
+test('config.io-settings-named-import-selection.clause-3-gate-namedimportselection-is-a: clause 3: gate.namedImportSelection is a described setting, off by default [C7]', () => {
   assert.equal(readWith({}), false);
   assert.equal(readWith({ gate: { namedImportSelection: false } }), false);
   assert.equal(readWith({ gate: { namedImportSelection: true } }), true);

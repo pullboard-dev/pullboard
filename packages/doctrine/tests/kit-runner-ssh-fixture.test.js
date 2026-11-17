@@ -21,7 +21,7 @@ function importersOfAppFixtures() {
   }
 }
 
-test('clause 1: no package test file imports the CLI app runner ssh or agent-host fixtures, and the app ssh path re-exports the package one [C7]', () => {
+test('doctrine.kit-runner-ssh-fixture.clause-1-no-package-test-file-imports: clause 1: no package test file imports the CLI app runner ssh or agent-host fixtures, and the app ssh path re-exports the package one [C7]', () => {
   assert.deepEqual(importersOfAppFixtures(), []);
   const ssh = readFileSync(`${ROOT}packages/gate/tests/fixtures/runner/ssh.js`, 'utf8');
   assert.match(ssh, /export function installSshStandIn\(/u);
