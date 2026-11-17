@@ -11,7 +11,7 @@ const css = name => readFileSync(new URL('../../../src/io/' + name, import.meta.
 
 /** The page script's Cost reader and pane, run against a request that never answers and an in-memory keep(). */
 function costPage(stored = {}) {
-  const script = pageScriptPart3({ applyStateDelta: function applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts() {}, expandItemSummaries: function expandItemSummaries() {}, costPrices: null, costTabScript: () => '', privateCost: true });
+  const script = pageScriptPart3({ applyStateDelta: function applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries: function expandItemSummaries() {}, costPrices: null, costTabScript: () => '', privateCost: true });
   const names = ['privateCost', 'snapshot', 'hosted', 'readOnly', 'data', 'view', 'keep', 'api', 'boardPath', 'render', 'modelTables', 'costOverviewHtml'];
   const kept = new Map(Object.entries(stored));
   const calls = { api: 0, render: 0 };

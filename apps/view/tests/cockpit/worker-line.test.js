@@ -9,7 +9,7 @@ import { pageScriptPart3 } from '../../index.js';
 
 /** The generated board listing reader and status line, run together as the page runs them, with an explicit listing reply. */
 function pageStatus(listing, stream) {
-  const reader = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts() {}, expandItemSummaries });
+  const reader = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries });
   const live = cockpitLive({ pageScriptPart1: () => '', pageScope: {}, pageScriptPart2: () => '', pageScriptPart3: () => '' });
   const from = reader.indexOf('function projectGroups(');
   const to = reader.indexOf('/** Whether a board state already carries', from);

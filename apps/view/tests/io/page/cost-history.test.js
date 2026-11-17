@@ -6,7 +6,7 @@ import { pageScriptPart3 } from '../../../index.js';
 
 /** Build the served readCostHistory against a stand-in page whose cost-analytics replies the test releases. */
 function page() {
-  const script = pageScriptPart3({ applyStateDelta() {}, deriveMilestoneForecasts() {}, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
+  const script = pageScriptPart3({ applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
   const start = script.indexOf('function readCostHistory'), end = script.indexOf('function costPaneHtml');
   const source = script.slice(start, end);
   const calls = [], waiting = [], drawn = [], logs = [];
