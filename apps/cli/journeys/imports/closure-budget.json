@@ -5,7 +5,7 @@
   "list": 265,
   "status": 1396,
   "next": 1520,
-  "test --status x": 932,
+  "test --status x": 928,
   "hook commit-msg": 39,
   "claim 1": 1140,
   "release 1 --reason OTHER --note x": 1092
