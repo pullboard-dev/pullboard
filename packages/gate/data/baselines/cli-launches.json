@@ -594,7 +594,10 @@
     "launch": 9
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/baseline/check-part2.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/receipts.test.js": {
     "launch": 3
