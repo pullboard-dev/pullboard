@@ -9,7 +9,7 @@ import { fixture } from '../../../fixtures/analysis.js';
 import { remoteSubmitCells } from '../../../../src/io/submit/remote.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
-test('clause 1: the real remoteSubmitCells path with a cold coordinator inventory ships no bundle and tells the runner to produce it, starting no process but git [C7]', async () => {
+test('cli.io-submit-remote-produces.the-real-remotesubmitcells-path-with-a-cold: clause 1: the real remoteSubmitCells path with a cold coordinator inventory ships no bundle and tells the runner to produce it, starting no process but git [C7]', async () => {
   const { root, item } = fixture('', '', 0);
   try {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'F', GIT_AUTHOR_EMAIL: 'f@example.invalid', GIT_COMMITTER_NAME: 'F', GIT_COMMITTER_EMAIL: 'f@example.invalid' };
