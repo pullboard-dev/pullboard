@@ -7,8 +7,10 @@
  */
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
@@ -21,7 +23,8 @@ const API_MS = 30_000;
 
 /**
  * Install the ssh stand-in in the box's PATH, turn load-aware dispatch off and run `add` (an item and its main baseline)
- * before `runner add`, so the baseline is measured at once and not queued behind the stand-in's real host load.
+ * before `runner add`, so the baseline is measured at once and not queued behind the stand-in's real host load; then turn the
+ * board host's local runner off and stop it, so the registered runner alone takes the pulled jobs.
  *
  * @param {object} box - The e2e project (dir, repo, env, run).
  * @param {{ requests: string, add: () => object | Promise<object> }} options - The stand-in's request log, and the add to run before registering.
@@ -35,6 +38,12 @@ export async function registerStandInAfterAdd(box, { requests, add }) {
   const off = box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off');
   if (off.code !== 0) throw new Error(`settings gate.loadAwareDispatch off failed: ${off.err}`);
   const added = await add();
+  // The add may have started the board host's local runner; the registered runner must be the one that serves the queue.
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const previous = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+  writeFileSync(settingsFile, JSON.stringify({ ...previous, gate: { ...previous.gate, localRunner: false } }));
+  const stopped = box.run(box.repo, 'runner', 'local', '--off');
+  if (stopped.code !== 0) throw new Error(`runner local --off failed: ${stopped.err}`);
   const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1');
   if (registered.code !== 0) throw new Error(`runner add ${HOST} failed: ${registered.err}`);
   return { paths, root: join(paths.remoteHome, '.pullboard-runner'), added };
