@@ -9,6 +9,7 @@ import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/e
 import { runSubmitGate } from '../../../src/io/submit.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../fixtures/testkit.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 
 const MAIN_ROW = 'packages/a/x.js:3: runs a git fetch outside the one entry point';
@@ -20,6 +21,7 @@ const PLAN = { check: '', selection: { full: false, reason: '', files: [] }, def
 function checkRepo(rows) {
   const { root } = privateFixtureFiles('pullboard-submit-known-main-');
   writeFileSync(join(root, 'check.sh'), `${rows.map(row => `echo 'STATIC_RED ${row}'`).join('\n')}\nexit 1\n`);
+  fixtureProjectPolicy(root);
   fixtureCommitAll(root);
   return root;
 }
