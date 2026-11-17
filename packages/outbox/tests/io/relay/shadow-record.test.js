@@ -25,13 +25,13 @@ function linked(t, { on, decide = table }) {
   return { board, link: { root: '/repo', localRecords: (root, work) => work(board) } };
 }
 
-test('clause 3: with moves.shadow off (the default) the outbox writer runs no table and records no compare [C7,#8389]', t => {
+test('outbox.shadow-record.off-runs-nothing: clause 3: with moves.shadow off (the default) the outbox writer runs no table and records no compare [C7,#8389]', t => {
   const { board, link } = linked(t, { on: false, decide: () => { throw new Error('the table must not run'); } });
   shadowOutbox(link, 'queue', null, doc(false), 'move-1');
   assert.equal(readShadow(board, 'outbox'), null);
 });
 
-test('clause 2: with moves.shadow on, a matching queue and park add one compare each and no disagreement to the outbox table\'s counts [C7,#8389]', t => {
+test('outbox.shadow-record.match-counts-compare: clause 2: with moves.shadow on, a matching queue and park add one compare each and no disagreement to the outbox table\'s counts [C7,#8389]', t => {
   const { board, link } = linked(t, { on: true });
   shadowOutbox(link, 'queue', null, doc(false), 'move-1');
   shadowOutbox(link, 'queue', doc(false), doc(false, false), 'move-2');
@@ -42,7 +42,7 @@ test('clause 2: with moves.shadow on, a matching queue and park add one compare 
   assert.equal(counts.since, new Date(AT).toISOString());
 });
 
-test('clause 1: with moves.shadow on, an outbox move whose table answer differs adds one disagreement naming the move and the field [C7,#8389]', t => {
+test('outbox.shadow-record.differs-counts-disagreement: clause 1: with moves.shadow on, an outbox move whose table answer differs adds one disagreement naming the move and the field [C7,#8389]', t => {
   const { board, link } = linked(t, { on: true });
   shadowOutbox(link, 'queue', doc(false), doc(false), 'move-lost');
   shadowOutbox(link, 'park', doc(false), doc(true), 'move-1');

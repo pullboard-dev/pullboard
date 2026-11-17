@@ -125,6 +125,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
+export function requireDeclaredInputsEnabled() {
+  return loadMachineSettings().tests?.requireDeclaredInputs === true;
+}
+
 /** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
 export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
@@ -407,6 +412,11 @@ export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
 }
 
+/** Whether engine.nameBehindDevice is on (#9418): off by default; a caller reads it and passes it to prepareEngineMove, since a move never reads a setting. */
+export function nameBehindDeviceEnabled() {
+  return loadMachineSettings().engine?.nameBehindDevice === true;
+}
+
 /** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on. */
 export function typedFieldsEnabled() {
   return loadMachineSettings().items?.typedFields === true;
@@ -457,9 +467,19 @@ export function lapsedSweepEnabled() {
   return loadMachineSettings().health?.lapsedSweep === true;
 }
 
+/** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
+export function docsRegenerateOnCommit() {
+  return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
+}
+
+/** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
+export function releaseRerouteUntouched() {
+  return loadMachineSettings().release?.rerouteUntouched === true;
 }
 
 /** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
@@ -506,6 +526,14 @@ export function nextIdleBlockers() {
 export function nextCapBuilders() {
   const cap = loadMachineSettings().next?.capBuilders;
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
+ * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
+ * claims as before; only an exact `true` turns it on.
+ */
+export function nextHoldAboveLoad() {
+  return loadMachineSettings().next?.holdAboveLoad === true;
 }
 
 /**
@@ -574,6 +602,14 @@ export function staticCheckSlots() {
  */
 export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
+}
+
+/**
+ * Whether the always-run static registry refuses a changed test that adds an unclassified file-board open: gate.boardOpensCheck, default off.
+ * Why: the open guard otherwise runs only when its own test is selected, so a new unannotated open could land unseen [C7].
+ */
+export function boardOpensCheckOn() {
+  return loadMachineSettings().gate?.boardOpensCheck === true;
 }
 
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
@@ -909,6 +945,11 @@ export function archiveEventsEnabled() {
   return loadMachineSettings().board?.archiveEvents === true;
 }
 
+/** Whether board.hotState is on (#9338): off by default; only an exact `true` turns it on. */
+export function hotStateEnabled() {
+  return loadMachineSettings().board?.hotState === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
@@ -917,6 +958,16 @@ export function codeStampCacheEnabled() {
 /** Whether landing.reuseContractResults is on (#9301): off by default; only an exact `true` turns it on. */
 export function reuseContractResultsEnabled() {
   return loadMachineSettings().landing?.reuseContractResults === true;
+}
+
+/** Whether landing.stallStop is on (#8749): off by default; only an exact `true` turns it on. */
+export function stallStopEnabled() {
+  return loadMachineSettings().landing?.stallStop === true;
+}
+
+/** Whether landing.parallelGates is on (#9747): off by default; only an exact `true` turns it on. */
+export function parallelGatesEnabled() {
+  return loadMachineSettings().landing?.parallelGates === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
