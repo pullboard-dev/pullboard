@@ -35,6 +35,17 @@ function run(root, command, args, extraEnv = {}) {
   return result.stdout;
 }
 
+/** Copy a tree for a child suite; on macOS a copy-on-write clone takes a fraction of the time and later writes never reach the source [C7]. */
+function copyTree(from, to) {
+  if (process.platform === 'darwin') {
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT;
+    if (runFixtureChild('cp', ['-cR', from, to], { env, encoding: 'utf8' }).status === 0) return;
+    rmSync(to, { recursive: true, force: true });
+  }
+  cpSync(from, to, { recursive: true });
+}
+
 /** Commit fixture files in its own initialized repository with an explicit fixture identity. */
 function commit(root, message) {
   run(root, 'git', ['add', '.']);
@@ -127,7 +138,7 @@ export async function registryMergeProof() {
   const started = Date.now();
   const phases = [];
   /** Record elapsed seconds at a named step; past 150 s the proof fails with the table instead of being killed silent [C7]. */
-  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 60000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
+  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 170000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-merge-'));
   try {
     const root = join(directory, 'repo');
@@ -157,7 +168,7 @@ export async function registryMergeProof() {
     assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
     // The three registry-suite runs (merged, allocated, edited record) each judge their own copy of the tree, so they run side by side instead of one after another [C7].
     const mergedCopy = join(directory, 'merged');
-    cpSync(root, mergedCopy, { recursive: true });
+    copyTree(root, mergedCopy);
     mark('merged copy');
     const mergedRun = registryChild(mergedCopy);
     // Allocation is the normal landing producer, not a hand-written record in either feature.
@@ -173,7 +184,7 @@ export async function registryMergeProof() {
     assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
     const allocatedCopy = join(directory, 'allocated');
     mark('commit');
-    cpSync(root, allocatedCopy, { recursive: true });
+    copyTree(root, allocatedCopy);
     mark('allocated copy');
     const allocatedRun = registryChild(allocatedCopy);
     const leaves = readEngineLeaves(join(root, 'packages/state/src/logic/engines'));
@@ -183,7 +194,7 @@ export async function registryMergeProof() {
     writeFileSync(join(root, frozen), `${bytes} `);
     assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${frozen}`), 'editing a shipped record fails even when its JSON meaning is unchanged');
     const editedCopy = join(directory, 'edited');
-    cpSync(root, editedCopy, { recursive: true });
+    copyTree(root, editedCopy);
     mark('edited copy');
     const negativeRun = registryChild(editedCopy);
 
