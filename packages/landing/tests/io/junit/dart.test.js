@@ -17,7 +17,7 @@ test('landing.junit.dart-failing-case: clause 1: junitFailures names exactly the
   const { rows, code } = junitFailures(XML, '/work/repo');
   assert.equal(code, null);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'Calc clause 2: halves a number');
+  assert.equal(rows[0].name, 'clause 2: halves a number');
   assert.match(rows[0].assertion, /^Expected: <2>/u);
   assert.equal(junitFile('dart', rows[0]), 'test/calc_test.dart');
 });
