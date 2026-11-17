@@ -30,7 +30,7 @@ const written = (board, after = 0) => board.db.prepare('SELECT event_kind kind, 
   .map(({ kind, by, detail }) => ({ kind, by, detail }));
 const lastId = board => board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
 
-test('clause 1: with moves.live.reopen on, a landed sprint submission reopened with a red gate note writes one reopen and one pull_out, and its landing reads pulling [C7,M2,#9209]', t => {
+test('board.reopen-pace.with-moves-live-reopen-landed-sprint: clause 1: with moves.live.reopen on, a landed sprint submission reopened with a red gate note writes one reopen and one pull_out, and its landing reads pulling [C7,M2,#9209]', t => {
   const { board, reopen } = landed(t, 'sprint', true);
   const before = lastId(board);
   reopen();
@@ -44,7 +44,7 @@ test('clause 1: with moves.live.reopen on, a landed sprint submission reopened w
   assert.equal(history.findLast(e => ['merged', 'pull_out', 'pulled', 'published'].includes(e.kind))?.kind, 'pull_out', 'its landing reads pulling');
 });
 
-test('clause 2: a steady item reopened the same way writes exactly the reopen event the writer writes on its own, byte for byte, and no pull_out [C7,M2,#9209]', t => {
+test('board.reopen-pace.steady-item-reopened-the-same-way: clause 2: a steady item reopened the same way writes exactly the reopen event the writer writes on its own, byte for byte, and no pull_out [C7,M2,#9209]', t => {
   const runs = [[undefined, true], ['steady', true], [undefined, false]].map(([pace, live]) => {
     const { board, reopen } = landed(t, pace, live);
     const before = lastId(board);

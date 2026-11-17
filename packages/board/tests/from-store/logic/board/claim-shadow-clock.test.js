@@ -21,7 +21,7 @@ function ticking(t) {
   return { board, id, claim };
 }
 
-test('clause 1: a claim and a renewal on a ticking board clock each record a compare with no disagreement [C7]', t => {
+test('board.claim-shadow-clock.claim-and-renewal-ticking-board-clock: clause 1: a claim and a renewal on a ticking board clock each record a compare with no disagreement [C7]', t => {
   const { board, claim } = ticking(t);
   claim();
   claim();
@@ -30,7 +30,7 @@ test('clause 1: a claim and a renewal on a ticking board clock each record a com
   assert.equal(counts.disagreed, 0, `the clock read once per claim: ${JSON.stringify(counts.last)}`);
 });
 
-test('clause 2: a table answer with a different owner still records a differing path [C7]', t => {
+test('board.claim-shadow-clock.table-answer-with-different-owner-still: clause 2: a table answer with a different owner still records a differing path [C7]', t => {
   const { board, id } = ticking(t);
   const hook = store.shadowHook(board, 'claimShadow', 'claim', store.claimDiffers, () => false);
   const wrote = { kind: 'claim', by: 'core-1', detail: JSON.stringify({ leaseUntil: 1, digest: 'd' }) };

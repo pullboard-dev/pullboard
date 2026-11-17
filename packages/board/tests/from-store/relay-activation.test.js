@@ -80,7 +80,7 @@ function observed(work) {
   catch (error) { return { error: { code: error.code, errcode: error.errcode, message: error.message } }; }
 }
 
-test('recorded activation preserves pre/post floors, acknowledged replay and administrative ordering [E21,H16]', t => {
+test('board.relay-activation.recorded-activation-preserves-pre-post-floors: recorded activation preserves pre/post floors, acknowledged replay and administrative ordering [E21,H16]', t => {
   const box = fixture(t);
   const { board, actor, probe } = box;
   assert.equal(agentGrantMinimum(board, probe), 1);
@@ -97,7 +97,7 @@ test('recorded activation preserves pre/post floors, acknowledged replay and adm
   assert.equal(applyEngineMove(board, administrative, { sequence: cursor + 1, at: AT }).error, undefined);
 });
 
-test('a rolled-back activation never becomes a witness [E21,H16]', t => {
+test('board.relay-activation.rolled-back-activation-never-becomes-witness: a rolled-back activation never becomes a witness [E21,H16]', t => {
   const box = fixture(t);
   const before = exportBoard(box.board);
   const original = new Error('rollback the genuine native activation');
@@ -108,7 +108,7 @@ test('a rolled-back activation never becomes a witness [E21,H16]', t => {
   assert.equal(agentGrantMinimum(box.board, box.probe), AGENT_GRANT_ENGINE, 'a later committed activation is visible');
 });
 
-test('import, newer checkpoint and epoch reset use their actual receipt witness [E21,H16]', t => {
+test('board.relay-activation.import-newer-checkpoint-and-epoch-reset: import, newer checkpoint and epoch reset use their actual receipt witness [E21,H16]', t => {
   const box = fixture(t);
   const legacy = exportBoard(box.board);
   box.activate();
@@ -124,7 +124,7 @@ test('import, newer checkpoint and epoch reset use their actual receipt witness 
   assert.equal(agentGrantMinimum(peer, box.probe), 1, 'a real epoch reset removes the old witness on the same connection');
 });
 
-test('a receipt beyond the applied cursor cannot activate the recorded prefix [E21,H16]', t => {
+test('board.relay-activation.receipt-beyond-the-applied-cursor-cannot: a receipt beyond the applied cursor cannot activate the recorded prefix [E21,H16]', t => {
   const box = fixture(t);
   const before = appliedSequence(box.board);
   box.activate();
@@ -135,7 +135,7 @@ test('a receipt beyond the applied cursor cannot activate the recorded prefix [E
   assert.equal(agentGrantMinimum(box.board, box.probe), AGENT_GRANT_ENGINE, 'the exact boundary includes its witness');
 });
 
-test('activation lookup excludes old engines and seeks sequence as genuine receipts grow [E21,C7]', t => {
+test('board.relay-activation.activation-lookup-excludes-old-engines-and: activation lookup excludes old engines and seeks sequence as genuine receipts grow [E21,C7]', t => {
   const box = fixture(t);
   const observations = [];
   for (const population of [8, 1024]) {
@@ -158,7 +158,7 @@ test('activation lookup excludes old engines and seeks sequence as genuine recei
   assert.equal(lookupPlan(box.board, box.probe).floor, AGENT_GRANT_ENGINE);
 });
 
-test('activation seeks the applied sequence even when modern receipts are all in the future [E21,H16,C7]', t => {
+test('board.relay-activation.activation-seeks-the-applied-sequence-even: activation seeks the applied sequence even when modern receipts are all in the future [E21,H16,C7]', t => {
   const box = fixture(t);
   const before = appliedSequence(box.board);
   box.activate();
@@ -175,7 +175,7 @@ test('activation seeks the applied sequence even when modern receipts are all in
     `the sequence cutoff must be an indexed range, not a filter after scanning future engines: ${JSON.stringify(lookup.plans)}`);
 });
 
-test('indexed activation retains original JSON types and malformed-receipt short circuits [E21,H16]', t => {
+test('board.relay-activation.indexed-activation-retains-original-json-types: indexed activation retains original JSON types and malformed-receipt short circuits [E21,H16]', t => {
   const box = fixture(t);
   const { board, probe } = box;
   const cursor = appliedSequence(board);
@@ -215,7 +215,7 @@ test('indexed activation retains original JSON types and malformed-receipt short
   }
 });
 
-test('owning open upgrades an old indexless board once without changing native data or read-only ownership [E21,H16,C7]', t => {
+test('board.relay-activation.owning-open-upgrades-old-indexless-board: owning open upgrades an old indexless board once without changing native data or read-only ownership [E21,H16,C7]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-activation-index-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');

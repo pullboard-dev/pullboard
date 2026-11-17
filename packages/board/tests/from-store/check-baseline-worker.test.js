@@ -58,7 +58,7 @@ function applyToEach(boards, move, sequence, at) {
   return boards.map((board) => applyEngineMove(board, move, { sequence, at }));
 }
 
-test('[V2,H16] a captured pending baseline completes once and replays without executing its command', (t) => {
+test('board.check-baseline-worker.captured-pending-baseline-completes-once-and: [V2,H16] a captured pending baseline completes once and replays without executing its command', (t) => {
   assert.ok(ENGINE_VERSION >= 2, 'completeCheckBaseline is a released engine operation');
   const { source, replicas } = boardReplicas(t);
   const marker = join(tmpdir(), `pullboard-baseline-must-not-run-${randomUUID()}`);
@@ -94,7 +94,7 @@ test('[V2,H16] a captured pending baseline completes once and replays without ex
   assert.equal(existsSync(marker), false, 'the completion move stores the result without executing the check');
 });
 
-test('[V2,H16] stale requests, cleared checks and duplicate terminal results cannot overwrite a baseline', (t) => {
+test('board.check-baseline-worker.stale-requests-cleared-checks-and-duplicate: [V2,H16] stale requests, cleared checks and duplicate terminal results cannot overwrite a baseline', (t) => {
   const board = memoryBoard(t);
   const commandA = 'check-a';
   const commandB = 'check-b';
@@ -136,7 +136,7 @@ test('[V2,H16] stale requests, cleared checks and duplicate terminal results can
   assert.equal(store.events(board, { itemId }).length, eventCount);
 });
 
-test('[V2,H16] only the coordinator can set or complete a check baseline and invalid results leave no writes', (t) => {
+test('board.check-baseline-worker.only-the-coordinator-can-set-complete: [V2,H16] only the coordinator can set or complete a check baseline and invalid results leave no writes', (t) => {
   const board = memoryBoard(t);
   const pending = pendingBaseline('true', '66666666-6666-4666-8666-666666666666');
   const before = exportBoard(board);

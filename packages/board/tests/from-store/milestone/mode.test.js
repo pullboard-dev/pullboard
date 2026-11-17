@@ -22,7 +22,7 @@ function fixture(t) {
   return { board, edit, plan };
 }
 
-test('clause 1: milestone edit --mode stores explicit and the roadmap shows it [N26,H16]', (t) => {
+test('board.mode.milestone-edit-mode-stores-explicit-and: clause 1: milestone edit --mode stores explicit and the roadmap shows it [N26,H16]', (t) => {
   const box = fixture(t);
   box.edit({ mode: 'explicit' });
   assert.equal(store.milestones(box.board)[0].mode, 'explicit');
@@ -37,7 +37,7 @@ test('clause 1: milestone edit --mode stores explicit and the roadmap shows it [
   } finally { box.board.executionEngineVersion = currentEngine; }
 });
 
-test('clause 2: the mode defaults to rollover and an existing limit reads as rollover [N26,H16]', (t) => {
+test('board.mode.the-mode-defaults-rollover-and-existing: clause 2: the mode defaults to rollover and an existing limit reads as rollover [N26,H16]', (t) => {
   const box = fixture(t);
   assert.equal(box.plan().mode, 'rollover');
   box.edit({ limit: '3' });

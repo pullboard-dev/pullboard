@@ -24,7 +24,7 @@ function fixture(t) {
   return { board, ids };
 }
 
-test('clause 1: itemThreads gives each item the thread itemThread reads, main moves in event order and usage left out [C7,#8480]', t => {
+test('board.threads.itemthreads-gives-each-item-the-thread: clause 1: itemThreads gives each item the thread itemThread reads, main moves in event order and usage left out [C7,#8480]', t => {
   const { board, ids } = fixture(t);
   const threads = itemThreads(board, ids, store.events(board));
   for (const id of ids) assert.deepEqual(threads.get(id), store.itemThread(board, id), `item ${id}`);
