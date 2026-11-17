@@ -6,6 +6,11 @@ export const JUNIT_FILE_ROWS = {
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
   bun: row => row.classname || null,
+  // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
+  rust: row => {
+    const crate = (row.classname ?? '').split('::')[0];
+    return crate ? `${crate}/` : null;
+  },
 };
 
 /**

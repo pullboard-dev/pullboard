@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: cargo nextest run --profile ci (JUnit written to target/nextest/ci/junit.xml)
+     Rust writes the crate in classname and no file attribute. Test names read "clause N: ..." as a naming hook
+     would write them. No tool is needed to read it. -->
+<testsuites name="nextest-run" tests="3" failures="1" errors="0" uuid="00000000-0000-0000-0000-000000000000" timestamp="2026-11-17T12:00:00.000+00:00" time="0.012">
+  <testsuite name="mycrate" tests="3" disabled="0" errors="0" failures="1">
+    <testcase name="clause 1: adds two numbers" classname="mycrate" timestamp="2026-11-17T12:00:00.000+00:00" time="0.001"/>
+    <testcase name="clause 2: halves a number" classname="mycrate" timestamp="2026-11-17T12:00:00.001+00:00" time="0.002">
+      <failure message="assertion `left == right` failed&#10;  left: 1&#10; right: 2" type="test failure with exit code 101">thread 'tests::test_half' panicked at src/lib.rs:14:9:
+assertion `left == right` failed
+  left: 1
+ right: 2</failure>
+    </testcase>
+    <testcase name="clause 3: later" classname="mycrate" timestamp="2026-11-17T12:00:00.003+00:00" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>
