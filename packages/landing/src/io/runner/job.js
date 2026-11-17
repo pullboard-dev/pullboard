@@ -288,7 +288,7 @@ async function landingCheck(payload, env, phases = null, shards = null) {
     const files = (payload.proof?.files ?? []).filter(file => existsSync(join(context.root, file)));
     // role: which of the item's own check and the job's proof a red came from, so a paired rerun uses that command's runner.
     // The board's staticChecks guard runs on the merged tree before any test; its red returns the item that turned it red [C7,#7492].
-    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline })) : null;
+    const staticGuard = payload.staticChecks ? (await import('./static.js')).staticGuardCheck(payload.staticChecks, argv => commandCheck(argv, { deadline }), { affectedOnly: payload.staticAffectedOnly === true }) : null;
     const proveFiles = own => {
       const here = prove(own, { env, waivers: Array.isArray(payload.waivers) ? payload.waivers : [], deadline, reuseGate: payload.reuseGateReceipts === true });
       return sharded ? sharded(own, { ...shards, gate: payload.shardProof, deadline, reuseGate: payload.reuseGateReceipts === true }, here) : here;
