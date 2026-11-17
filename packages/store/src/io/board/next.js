@@ -55,6 +55,7 @@ import { reviewReleaseCooldown } from "../board.js";
 import { parkedClaims } from "../cooldown.js";
 import { reviewerChecks } from "../board.js";
 import { reviewFamilyRelaxation } from './review/family.js';
+import { refusesFamilyRelaxation } from './next-refused-pairings.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../state/light.js';
 import { buildOrder } from "./order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../state/light.js";
@@ -120,21 +121,26 @@ export function diagnoseWanted(board, item, seatRoute) {
  *
  * @param {any} board
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
- * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
+ * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
   const { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt,
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
   /** Keep the first real filter for each of the first three skipped candidates, without changing selection. */
   const skip = (entry, code) => { if (observeIdle && idleSkips.length < 3 && !idleSkips.some(row => row.item === entry.item_id)) idleSkips.push({ item: entry.item_id, code }); };
+  /** With `idleBlockers`, up to three open items skipped as DEPENDENCY and the unverified item each waits on (#9619). */
+  const blockers = [];
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
-  const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
+  const empty = (reason, result) => {
+    const base = observeIdle ? { ...result, idleReason: reason, ...(idleSkips.length ? { skips: [...idleSkips] } : {}) } : result;
+    return idleBlockers ? { ...base, blockers: [...blockers] } : base;
+  };
   const focusCompare = focusOrder(board, () => 0, { milestones });
   const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
   const overflow = focus?.overflow === true;
@@ -191,7 +197,7 @@ export function nextFor(board, options) {
     const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
     // One selection shares its queue reads; authoritative reservations derive their witness afresh.
     const relaxationCache = new Map();
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: refusesFamilyRelaxation(board, agentId) ? () => null : item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy, relaxationCache, reviewHeartbeats) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -390,7 +396,9 @@ export function nextFor(board, options) {
     if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...(functionPlan?.warnings ?? [])], { milestones }), shared, crossRunTests: functionPlan?.tests ?? [] };
-    skip(entry, 'DEPENDENCY'); reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
+    skip(entry, 'DEPENDENCY');
+    if (idleBlockers && blockers.length < 3) blockers.push({ item: entry.item_id, waitsOn: waiting[0].item_id });
+    reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   // Open work that only overlaps other claims is still claimable (claim warns, never refuses): offer the best one with the overlap noted.
   for (const { entry, shared, collisions, functionPlan, rework, waiting } of overlapping) {

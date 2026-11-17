@@ -35,44 +35,20 @@ import { bridgeResult } from './bridge.js';
 import { runCeilingMs } from './bridge.js';
 import { runnerUnavailableRefusal } from './bridge.js';
 import { startupDeadline } from './bridge.js';
+import { ownedTransportCompletion } from '../../../transport/index.js';
 export { MAX_OUTPUT_BYTES } from './bridge.js';
 export { RUN_CEILING_MS } from './bridge.js';
 export { bridgeResult } from './bridge.js';
 export { runCeilingMs } from './bridge.js';
 export { runnerUnavailableRefusal } from './bridge.js';
 export { startupDeadline } from './bridge.js';
+export { ownedTransportCompletion } from '../../../transport/index.js';
 import { controllerWake } from './controller/watch.js';
 import { PARENT_PIPE_FD } from './controller/watch.js';
 
 
 // Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
 const RECEIPT_GRACE_MS = 500;
-
-/** Bound stopping only this owned child and its pipes; local settlement never proves remote cleanup. */
-export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_000 } = {}) {
-  let term, drain, stopping = false, observed = null, force;
-  const forced = new Promise(resolve => { force = resolve; });
-  const exited = (status, signal) => { observed = { status, signal }; };
-  let closed;
-  const complete = new Promise(resolve => { closed = (status, signal) => resolve({ status, signal, forced: false }); });
-  child.once('exit', exited); child.once('close', closed);
-  return {
-    wait: () => Promise.race([complete, forced]),
-    stop() {
-      if (stopping) return;
-      stopping = true;
-      child.stdin?.destroy(); child.kill('SIGTERM');
-      term = setTimeout(() => {
-        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-        drain = setTimeout(() => {
-          child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy(); child.unref();
-          force({ ...(observed ?? { status: null, signal: null }), forced: true });
-        }, drainMs);
-      }, termMs);
-    },
-    dispose() { clearTimeout(term); clearTimeout(drain); child.removeListener('exit', exited); child.removeListener('close', closed); },
-  };
-}
 
 // Budget: after a check's own ceiling and its startup window, the synchronous bridge gets this much more to report before it is killed.
 const BRIDGE_GRACE_MS = 120_000;

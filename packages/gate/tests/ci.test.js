@@ -4,6 +4,7 @@
  * Linux; registered Mac runners prove macOS. The workflow is read as text; no YAML parser is needed.
  */
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -13,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from './fixtures/child.js';
 import { runFixtureChild } from './fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
@@ -93,6 +95,42 @@ function job(name) {
   const next = rest.slice(1).search(/\n {2}[a-z][\w-]*:\n/);
   return next < 0 ? rest : rest.slice(0, next + 1);
 }
+
+/** The tag job's decision step, run for real with `outcome` as the receipt step's result and a stand-in `gh` that logs its calls. */
+function decisionStep(t, outcome) {
+  const match = RELEASE.match(/\n {8}id: main-ci\n[\s\S]*?\n {8}run: \|\n([\s\S]*?)\n {6}- name: Release notes/u);
+  assert.ok(match, 'the tag job has a decision step after the receipt step');
+  const box = privateFixtureFiles('pullboard-release-receipt-');
+  const directory = box.root;
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  box.write('gh', `#!/bin/sh\necho "$@" >> "${directory}/gh-calls"\n`);
+  chmodSync(join(directory, 'gh'), 0o755);
+  const output = join(directory, 'outputs');
+  box.write('outputs', '');
+  const result = runFixtureChild('bash', ['-c', match[1].replace(/^ {10}/gmu, '')], { cwd: directory, encoding: 'utf8',
+    env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, RUNNER_TEMP: directory, GITHUB_OUTPUT: output,
+      GITHUB_SHA: 'a'.repeat(40), GITHUB_REPOSITORY: 'example/project', RECEIPT: outcome } });
+  return { ...result, approved: readFileSync(output, 'utf8'), ghCalled: existsSync(join(directory, 'gh-calls')) };
+}
+
+test('clause 1: release.yml publishes on a green recorded receipt for its exact commit without reading gate.yml [C7,I15]', (t) => {
+  assert.match(RELEASE, /id: receipt\n\s+continue-on-error: true\n[\s\S]*?run: node packages\/landing\/src\/io\/verify\/release\.js --repository "\$GITHUB_REPOSITORY" --head "\$GITHUB_SHA"/u,
+    'the receipt is asked for the tagged commit itself');
+  assert.ok(RELEASE.indexOf('id: receipt') < RELEASE.indexOf('id: main-ci') && RELEASE.indexOf('id: main-ci') < RELEASE.indexOf('run: npm publish'),
+    'the receipt is read before anything publishes');
+  const accepted = decisionStep(t, 'success');
+  assert.equal(accepted.status, 0, accepted.context);
+  assert.equal(accepted.approved, 'passed=true\n', 'a green receipt permits the publish steps');
+  assert.equal(accepted.ghCalled, false, 'gate.yml and GitHub CI are never read when the receipt is accepted');
+});
+
+test('clause 2: a receipt for a different commit does not publish on its own [C7,I15]', (t) => {
+  assert.doesNotMatch(RELEASE, /--head "\$\{?(?!GITHUB_SHA)/u, 'the receipt check never names any commit but the tagged one');
+  const refused = decisionStep(t, 'failure');
+  assert.equal(refused.approved, '', 'a refused receipt approves nothing by itself');
+  assert.notEqual(refused.status, 0, 'with no main CI run either, the step refuses npm publish');
+  assert.equal(refused.ghCalled, true, 'the decision falls back to the main CI evidence for the exact commit');
+});
 
 test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux [C7]', () => {
   assert.match(WORKFLOW, /\non:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n/, 'pushes to main and pull requests');

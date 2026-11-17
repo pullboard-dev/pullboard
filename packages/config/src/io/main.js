@@ -311,7 +311,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'ledgerMainReds', 'priorityOrder', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -323,6 +323,7 @@ export function configProblems(config) {
   if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
   if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.ledgerMainReds !== undefined && typeof config.landing.ledgerMainReds !== 'boolean') problems.push('"landing.ledgerMainReds" is a boolean, off by default: on, a land job counts a red in a file the test ledger records red on main at its base as main\'s own');
+  if (config.landing?.priorityOrder !== undefined && typeof config.landing.priorityOrder !== 'boolean') problems.push('"landing.priorityOrder" is a boolean, off by default: on, the lander takes accepted items in the order next uses (person-urgent or pinned, milestone position, then accept order)');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
   if (config.landing?.pipeline !== undefined && typeof config.landing.pipeline !== 'boolean') problems.push('"landing.pipeline" is a boolean, off by default; true lets a second batch start gating while one is in flight');
   if (config.landing?.splitRed !== undefined && typeof config.landing.splitRed !== 'boolean') problems.push('"landing.splitRed" is a boolean; true always splits a red batch into singles, false always bisects; unset, the batch\'s measured gate decides');
@@ -417,6 +418,9 @@ export function configProblems(config) {
   if (config.checks !== undefined && (notPlain(config.checks)
     || Object.keys(config.checks).some((key) => key !== 'provesNothing') || !['hold', 'warn'].includes(config.checks.provesNothing))) {
     problems.push('"checks" is { "provesNothing": "hold" or "warn" }: "hold" refuses claim and submit while an item\'s check already passes on main');
+  }
+  if (config.release !== undefined && (notPlain(config.release) || Object.keys(config.release).some(key => key !== 'liftTwiceHold') || typeof config.release.liftTwiceHold !== 'boolean')) {
+    problems.push('"release" is { "liftTwiceHold": true or false }, false by default: true lifts an automatic released-twice hold when main moves or its named blocker lands');
   }
   if (config.withdraw !== undefined && (notPlain(config.withdraw)
     || Object.keys(config.withdraw).some(key => !['review', 'refuseLanded'].includes(key))
