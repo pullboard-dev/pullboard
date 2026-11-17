@@ -44,13 +44,13 @@ function recorded(t) {
 /** The totals proof stats read: the summary and every event row. */
 const totals = board => ({ summary: proofCounter(board, 'summary'), events: proofCounterRows(board, 'event') });
 
-test('clause 1: after recording events board_meta has no local:proof-stats rows [C7]', t => {
+test('store.io-proof-stats-derived-db.after-recording-events-board-meta-has: clause 1: after recording events board_meta has no local:proof-stats rows [C7]', t => {
   const { board } = recorded(t);
   assert.deepEqual(board.db.prepare('SELECT meta_key FROM board_meta WHERE meta_key GLOB ?').all(`${PROOF_COUNTER_PREFIX}*`), []);
   board.db.close();
 });
 
-test('clause 2: proof stats read the same totals from the derived database [C7]', t => {
+test('store.io-proof-stats-derived-db.proof-stats-read-the-same-totals: clause 2: proof stats read the same totals from the derived database [C7]', t => {
   const { board } = recorded(t);
   const read = totals(board);
   assert.equal(read.summary.last, 18);
@@ -58,7 +58,7 @@ test('clause 2: proof stats read the same totals from the derived database [C7]'
   board.db.close();
 });
 
-test('clause 3: deleting the derived database file then reading proof stats rebuilds the same totals from events [C7]', t => {
+test('store.io-proof-stats-derived-db.deleting-the-derived-database-file-then: clause 3: deleting the derived database file then reading proof stats rebuilds the same totals from events [C7]', t => {
   const { board, file, open } = recorded(t);
   const before = totals(board);
   board.db.close();

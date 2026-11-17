@@ -16,7 +16,7 @@ import { seatLines } from '../../seats/index.js';
 import { worktreeActivity } from '../../seats/index.js';
 import { beginImmediateQueued } from '../src/io/board/busy.js';
 
-test('local command record binds joined seat, item, start and end [C7,N2]', t => {
+test('store.seat-timing.local-command-record-binds-joined-seat: local command record binds joined seat, item, start and end [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-timing-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);
@@ -34,7 +34,7 @@ test('local command record binds joined seat, item, start and end [C7,N2]', t =>
   assert.equal(rows[1].id, rows[0].id); assert.ok(rows[1].durationMs >= 0);
 });
 
-test('seat ledger distinguishes held, reserved and idle seats and measured waits [C7,N2]', () => {
+test('store.seat-timing.seat-ledger-distinguishes-held-reserved-and: seat ledger distinguishes held, reserved and idle seats and measured waits [C7,N2]', () => {
   const now = Date.now(), at = new Date(now - 60000).toISOString();
   const agents = ['builder', 'reviewer', 'idle'].map(agent_id => ({ agent_id }));
   const items = [{ item_id: 1, item_status: 'claimed', item_owner: 'builder' }, { item_id: 2, item_status: 'submitted', item_review_by: 'reviewer', item_review_until: new Date(now + 60000).toISOString() }];
@@ -44,7 +44,7 @@ test('seat ledger distinguishes held, reserved and idle seats and measured waits
   assert.equal(rows[0].split.runnerWaitMs, 60000); // budget: declared synthetic one-minute span.
 });
 
-test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', () => {
+test('store.seat-timing.seat-ledger-prints-each-observed-live: seat ledger prints each observed live state and elapsed minutes [C7,N2]', () => {
   const now = Date.now();
   const names = ['building', 'reviewing', 'gate', 'reviewWait', 'lock', 'runner', 'silent', 'idle'];
   const agents = names.map(agent_id => ({ agent_id }));
@@ -74,7 +74,7 @@ test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', 
 });
 
 /** The measured lock span closes even when acquisition fails for a reason unrelated to contention. */
-test('board lock timing closes on success and refusal [C7,N2]', () => {
+test('store.seat-timing.board-lock-timing-closes-on-success: board lock timing closes on success and refusal [C7,N2]', () => {
   const port = Symbol.for('pullboard.seat-timing.lock');
   const prior = globalThis[port]; let started = 0, ended = 0;
   globalThis[port] = () => { started++; return () => { ended++; }; };
@@ -87,7 +87,7 @@ test('board lock timing closes on success and refusal [C7,N2]', () => {
 });
 
 /** A queued old item must not hide the seat's newer active claim. */
-test('a queued handoff does not hide a newer active build [C7,N2]', () => {
+test('store.seat-timing.a-queued-handoff-does-not-hide: a queued handoff does not hide a newer active build [C7,N2]', () => {
   const now = Date.now(), at = new Date(now - 60000).toISOString();
   const items = [{ item_id: 1, item_status: 'claimed', item_owner: 'builder' }, { item_id: 2, item_status: 'claimed', item_owner: 'builder' }];
   const events = [{ event_by: 'builder', event_at: at, event_kind: 'submit-handoff', item_id: 1, event_detail: '{"state":"running"}' }, { event_by: 'builder', event_at: at, event_kind: 'claim', item_id: 2 }];
@@ -95,7 +95,7 @@ test('a queued handoff does not hide a newer active build [C7,N2]', () => {
   assert.equal(row.state, 'building'); assert.equal(row.item, 2);
 });
 
-test('a successful join records the command that created its seat [C7,N2]', t => {
+test('store.seat-timing.a-successful-join-records-the-command: a successful join records the command that created its seat [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-join-timing-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]); mkdirSync(join(root, '.git', 'pullboard'));
@@ -107,7 +107,7 @@ test('a successful join records the command that created its seat [C7,N2]', t =>
   assert.deepEqual(rows.map(row => row.phase), ['start', 'end']); assert.equal(rows[1].seat, 'core-1');
 });
 
-test('overlapping command, test and wait spans split observed claim time without double counting [C7,N2]', () => {
+test('store.seat-timing.overlapping-command-test-and-wait-spans: overlapping command, test and wait spans split observed claim time without double counting [C7,N2]', () => {
   const now = Date.now(), m = 60000;
   const agents = [{ agent_id: 'builder' }], items = [{ item_id: 1, item_status: 'claimed', item_owner: 'builder' }];
   const events = [{ event_by: 'builder', event_at: new Date(now - 10 * m).toISOString(), event_kind: 'claim', item_id: 1 }];
@@ -125,7 +125,7 @@ test('overlapping command, test and wait spans split observed claim time without
 });
 
 
-test('recent uncommitted work keeps a held seat building [C7,N2]', t => {
+test('store.seat-timing.recent-uncommitted-work-keeps-a-held: recent uncommitted work keeps a held seat building [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-activity-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '-b', 'main', root]);

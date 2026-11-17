@@ -22,14 +22,14 @@ function fixture(t) {
   return { board, light, add, claim };
 }
 
-test('clause 1: store.claim by a light seat succeeds on a light item whose brief parses and has no diagnosis fact [C7]', t => {
+test('store.light-brief-diagnosis.store-claim-by-a-light-seat: clause 1: store.claim by a light seat succeeds on a light item whose brief parses and has no diagnosis fact [C7]', t => {
   const f = fixture(t);
   const id = f.add(GOOD, 'light');
   assert.doesNotThrow(() => f.claim(id));
   assert.equal(store.getItem(f.board, id).item_owner, f.light);
 });
 
-test('clause 2: store.claim by a light seat on a light item whose brief does not parse refuses DIAGNOSIS_REQUIRED [C7]', t => {
+test('store.light-brief-diagnosis.store-claim-by-a-light-seat-2: clause 2: store.claim by a light seat on a light item whose brief does not parse refuses DIAGNOSIS_REQUIRED [C7]', t => {
   const f = fixture(t);
   assert.throws(() => f.add(BAD, 'light'), { code: 'DIAGNOSIS_REQUIRED' });
   const id = f.add(BAD);
