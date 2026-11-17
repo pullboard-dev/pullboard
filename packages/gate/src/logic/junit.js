@@ -95,6 +95,7 @@ const ROWS = Object.freeze({
   python: { command: `pytest --junitxml=${DIR}/python.xml`, report: `${DIR}/python.xml`, needs: null },
   ruby: { command: `bundle exec rspec --format RspecJunitFormatter --out ${DIR}/ruby.xml`, report: `${DIR}/ruby.xml`, needs: 'the rspec_junit_formatter gem in the Gemfile test group' },
   rust: { command: 'cargo nextest run --profile ci', report: 'target/nextest/ci/junit.xml', needs: 'cargo-nextest and a [profile.ci.junit] path = "junit.xml" entry in .config/nextest.toml' },
+  sbt: { command: 'sbt test', report: 'target/test-reports', needs: null },
   swift: { command: `swift test --xunit-output ${DIR}/swift.xml`, report: `${DIR}/swift.xml`, needs: null },
 });
 
