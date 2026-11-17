@@ -1,18 +1,17 @@
 // pullboard: browser
 /** @pullboard-test-gui */
-/** Cockpit spec checks, using the shared real-board fixtures [N26]. */
+/** Cockpit real-Chrome row decision check, split from cockpit.test.js [B26,N26,C7]. */
+/** @pullboard-world-pin checks by path that the old cockpit.test.js is gone beside this file; no fixture can say that. */
 import assert from 'node:assert/strict';
 import {
+  existsSync,
   mkdtempSync,
+  readdirSync,
   rmSync,
-  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  after,
-  test,
-} from 'node:test';
+import { test } from 'node:test';
 import {
   tapTarget,
   machine,
@@ -24,9 +23,9 @@ import {
   closeSnapshotChrome,
   watchSpecDecisionWait,
   press,
-} from '../../tests/fixtures/cockpit/harness.js';
-import { pressTab } from '../../tests/fixtures/cockpit/stable.js';
-import { watchSpecPress } from '../../tests/fixtures/cockpit/spec-watch.js';
+} from '../../../tests/fixtures/cockpit/harness.js';
+import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
+import { watchSpecPress } from '../../../tests/fixtures/cockpit/spec-watch.js';
 
 test('real Chrome records Spec row decisions from the row, detail and confirmed section controls [B26,N26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
@@ -197,4 +196,9 @@ test('real Chrome records Spec row decisions from the row, detail and confirmed 
 
   await runWidth(375);
   await runWidth(1280);
+});
+
+test('clause 2: cockpit.test.js no longer holds the Spec row decisions case, which lives only in this file [B26,N26,C7]', () => {
+  assert.equal(readdirSync(new URL('../', import.meta.url)).includes('cockpit.test.js'), false, 'the emptied cockpit.test.js is gone');
+  assert.equal(existsSync(new URL('./decisions.test.js', import.meta.url)), true, 'the case lives here');
 });

@@ -4,7 +4,7 @@
     "packages/drive/src/io/",
     "packages/gate/src/io/inventory.js",
     "apps/lib/src/io/main/audit.js",
-    "packages/codemap/src/io/cells/scripts/cache.js"
+    "apps/cli/src/io/cells/cache.js"
   ],
   "baseline": {
     "apps/lib/src/io/main/audit.js": 1,
