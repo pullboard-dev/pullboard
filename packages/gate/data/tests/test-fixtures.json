@@ -1311,8 +1311,14 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/next/order.test.js": {
-    "raw-board": 17,
-    "model": 2
+    "raw-board": 16
+  },
+  "apps/cli/journeys/next/order-part2.test.js": {
+    "model": 1
+  },
+  "apps/cli/journeys/next/order-part3.test.js": {
+    "raw-board": 1,
+    "model": 1
   },
   "apps/cli/journeys/next/order/focus.test.js": {
     "raw-board": 21,
