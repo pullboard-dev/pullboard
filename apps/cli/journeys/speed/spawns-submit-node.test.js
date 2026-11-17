@@ -18,8 +18,8 @@ import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
 import { residentPoolSize } from '../../src/io/resident/client.js';
 import { residentSocket } from '../../src/io/resident/client.js';
 
-/** The most node children one submit may start (measured on a runner; run id on #10274). */
-const MEASURED_NODE_SPAWNS = 40;
+/** The most node children one submit may start (measured 15 on a runner, run 24f644ad-2b8c-4371-8027-133dc148f7e4, recorded on #10274). */
+const MEASURED_NODE_SPAWNS = 15;
 
 /** Stop every resident board process this board started, so the sandbox can be removed. */
 function stopResidents(repo) {
