@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/state packages/link */
 /** A move blocked by a teammate's device on an older engine names that device, the releases and the one fix command [H16,H17,C7,#1305]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
