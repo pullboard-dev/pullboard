@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const SOURCE = join(import.meta.dirname, '../../src/io/proof.js');
 
-test('clause 1: the rigor proof gate slot passes its item and kind flake-diagnose [C7]', () => {
+test('rigor.attribution.proof-slot-flake-diagnose: clause 1: the rigor proof gate slot passes its item and kind flake-diagnose [C7]', () => {
   const text = readFileSync(SOURCE, 'utf8');
   const at = text.indexOf('.withGateSlot(root');
   assert.notEqual(at, -1, 'proof.js calls withGateSlot');
