@@ -20,7 +20,7 @@ async function withdrawn(t, gate) {
   const claim = (await call({ action: 'claim', runner: 'runner-w', capabilities: ['node22'] })).claim;
   assert.ok(claim, 'the runner takes the offered gate job');
   const held = { job: claim.job, runner: 'runner-w', token: claim.token };
-  const out = box.run(sent.folder, 'gate', '--withdraw', String(id), '--json');
+  const out = await box.runIn(sent.folder, 'gate', '--withdraw', String(id), '--json');
   if (gate.withdrawCancelsJob) assert.equal(out.code, 0, `${out.err}\n${out.out}`);
   return { box, id, board, call, held, sent, out };
 }
@@ -39,9 +39,9 @@ test('clause 2: a withdrawn gate never posts a verdict later, and a fresh submit
   const { box, id, board, call, held, sent } = await withdrawn(t, { withdrawCancelsJob: true });
   const late = await call({ action: 'receipt', ...held, receipt: { status: 0, gate: { green: true, phases: [] } } }).catch(() => ({ recorded: false }));
   assert.equal(late.recorded, false, 'the cancelled job takes no receipt from its runner');
-  const shown = box.run(sent.folder, 'show', String(id), '--json');
+  const shown = await box.runIn(sent.folder, 'show', String(id), '--json');
   assert.doesNotMatch(shown.out, /"verdict"\s*:\s*"?green/u, 'no verdict was recorded for the withdrawn gate');
-  const again = box.run(sent.folder, 'submit', String(id), '--json');
+  const again = await box.runIn(sent.folder, 'submit', String(id), '--json');
   assert.equal(again.code, 0, `${again.err}\n${again.out}`);
   const live = gateRows(board, id).filter(row => !['done', 'cancelled'].includes(row.step));
   assert.equal(live.length, 1, 'the fresh submit queued one new live gate job');
