@@ -101,6 +101,7 @@ const BEFORE = {
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
+  'jobs.recordLapse': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.junitFailures': false,
