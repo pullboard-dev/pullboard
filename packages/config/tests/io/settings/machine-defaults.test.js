@@ -13,6 +13,7 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
   'budget.dailyUsd': null,
@@ -48,6 +49,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -83,6 +85,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
@@ -125,6 +128,7 @@ const BEFORE = {
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
+  'read.thinCommands': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
@@ -153,6 +157,8 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'submit.recoverFromJobRow': false,
+  'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
@@ -161,6 +167,7 @@ const BEFORE = {
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
   'view.background': true,
+  'watch.quietReads': false,
 };
 
 test('clause 1: every machine default key sits on its own line, in sorted order [O5]', () => {

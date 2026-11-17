@@ -28,6 +28,9 @@ import { fsLintRows } from '../adapter-lints/fs.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
 import { IDIOM_CEILING_FILE } from '../adapter-lints/idiom-spread.js';
 import { idiomSpreadRows } from '../adapter-lints/idiom-spread.js';
+import { literalPinsEnabled } from '../../../../config/index.js';
+import { LITERAL_PIN_ALLOWLIST_FILE } from '../adapter-lints/literal-pins.js';
+import { literalPinRows } from '../adapter-lints/literal-pins.js';
 import { testWaitReport } from '../test/waits.js';
 import { cliLaunchReport } from '../test/launches.js';
 import { cliLaunchGrowth } from '../test/launches.js';
@@ -241,6 +244,14 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     let ceilings = '{}';
     try { ceilings = readFileSync(join(root, IDIOM_CEILING_FILE), 'utf8'); } catch { /* No ceilings file: no named idiom is held. */ }
     return idiomSpreadRows(treeSources(root, sources), { enabled, ceilings });
+  } },
+  // A test that pins an engine number, an exact file or case count, a file hash or a frozen JSON snapshot, off the approved-text allowlist; off (gate.literalPins) it reports nothing (#9385).
+  { name: 'literal-pins', reads: TEST, run: (root, sources, context = MEMORY) => {
+    const enabled = context.literalPins ?? literalPinsEnabled();
+    if (enabled !== true) return [];
+    let allowlist = '{}';
+    try { allowlist = readFileSync(join(root, LITERAL_PIN_ALLOWLIST_FILE), 'utf8'); } catch { /* No allowlist file: no pin is approved. */ }
+    return literalPinRows(treeSources(root, sources), { enabled, allowlist });
   } },
   { name: 'worker-bundle', reads: SOURCE, run: (root, sources, context = MEMORY) => {
     // Cell-scoped: the bundle is the import closure of the runners cell, so a tree that changed no file in runners or the cells it imports keeps the answer [5564].

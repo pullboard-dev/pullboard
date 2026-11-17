@@ -793,6 +793,10 @@
       "kind": "json",
       "owner": "packages/state/src/io/engine/numbers.js"
     },
+    "literal-pins-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
+    },
     "load-bearing.json": {
       "kind": "json",
       "owner": "packages/gate/src/logic/load/bearing.js"
