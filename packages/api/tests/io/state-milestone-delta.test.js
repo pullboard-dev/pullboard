@@ -10,14 +10,15 @@ import { getItem } from '../../../store/index.js';
 import { merged } from '../../../store/index.js';
 import { shout } from '../../../store/index.js';
 import { verify } from '../../../store/index.js';
-import { openBoardForRead } from '../../../store/index.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
 import { serveApi } from '../../index.js';
+import { nativeBoardPorts } from '../../../../apps/lib/index.js';
+import { openBoard } from '../../../../apps/lib/index.js';
+import { openBoardForRead } from '../../../../apps/lib/index.js';
 import { viewApiPorts } from '../../../../apps/view/index.js';
 import { refusalDocument } from '../../../../apps/cli/index.js';
 import { submitFixture } from '../../../../apps/cli/tests/fixtures/board/submit.js';
@@ -60,7 +61,7 @@ async function served(t, milestoneDelta) {
   verify(board, ids[0], { agentId: agents[1].id, decision: 'ACCEPT', head, digest: getItem(board, ids[0]).item_frozen_digest, policy: 'any', note: 'Delta fixture only; no gate execution is claimed.' });
   merged(board, ids[0], { agentId: 'coordinator', commit: 'b'.repeat(40) });
   at = now;
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard: (file, clock, options) => openCellBoard(file, clock ?? (() => new Date(now)), options), openBoardForRead, moveArgs: (body) => [body.verb] }, refusalDocument, runCommand: async () => 0,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead, nativeBoardPorts, moveArgs: (body) => [body.verb] }, refusalDocument, runCommand: async () => 0,
     projects: () => [{ root: project.repo, name: 'Milestone delta fixture' }], now: () => now });
   t.after(() => api.close());
   const url = new URL(api.url);
