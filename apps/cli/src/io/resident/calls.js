@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/gate/src/io/changed/static.js packages/gate/src/io/static/check/registry.js */
 /**
  * The checks the resident board process answers for a client that would otherwise start a node child for each [C7,#5330].
  * A call is a name and a JSON payload; the answer is a JSON value. The gate cell is loaded by file URL, so this cell takes no import edge into it.
