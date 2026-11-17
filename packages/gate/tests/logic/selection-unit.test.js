@@ -16,7 +16,7 @@ const FILES = [
 test('clause 1: gate.selectionUnit is a described setting with file, package, crate and project, default file [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.selectionUnit'], 'file');
   assert.ok(describeSetting('gate.selectionUnit'));
-  assert.deepEqual(SELECTION_UNITS, ['file', 'package', 'crate', 'project']);
+  assert.deepEqual(SELECTION_UNITS, ['file', 'package', 'crate', 'project', 'module']);
 });
 
 test('clause 2: selectionUnits maps file, package, crate and project from the manifest list alone [C7]', () => {
