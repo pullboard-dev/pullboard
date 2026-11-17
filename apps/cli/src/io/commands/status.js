@@ -100,7 +100,7 @@ export async function run(io, { values }) {
       claimHealth: observedStaleState.claims.filter(entry => entry.health && entry.health !== 'building')
         .map(({ id, actor, health, idleMs, waitingOn }) => ({ id, actor, health, idleMs, waitingOn })) };
     const needsRescope = allItemsNeedingRescope(board);
-    const { personNeedsSummary } = await import('../../../../view/index.js');
+    const { personNeedsSummary } = await import('../../../../view/needs.js');
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };

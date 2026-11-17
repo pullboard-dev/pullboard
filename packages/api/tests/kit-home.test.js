@@ -1,4 +1,5 @@
-/** The API package's tests take the fixture kit from package homes, never from the CLI's fixture folder [C7]. @pullboard-test-input source-cell api */
+/** @pullboard-test-input source-cell packages/api */
+/** The API package's tests take the fixture kit from package homes, never from the CLI's fixture folder [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -20,7 +21,7 @@ function testFiles(dir) {
   });
 }
 
-test('clause 1: no test file under packages/api/tests imports a module of the CLI fixture kit [C7]', () => {
+test('api.kit-home.no-cli-fixture-import: clause 1: no test file under packages/api/tests imports a module of the CLI fixture kit [C7]', () => {
   const offenders = [];
   for (const file of testFiles(TESTS)) {
     for (const [, specifier] of readFileSync(file, 'utf8').matchAll(/(?:from|import\()\s*['"](\.[^'"]+)['"]/gu)) {

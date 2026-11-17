@@ -11,12 +11,12 @@ const ROOT = resolve(import.meta.dirname, '../../..');
 const REGISTRY = 'packages/gate/data/tests/test-fixtures.json';
 const rows = JSON.parse(readFileSync(join(ROOT, REGISTRY), 'utf8'));
 
-test('clause 1: test-fixtures.json holds no entry for a file missing on main [C7]', () => {
+test('gate.test-fixtures-stale.no-missing-file-entry: clause 1: test-fixtures.json holds no entry for a file missing on main [C7]', () => {
   const stale = Object.keys(rows).filter(file => !existsSync(join(ROOT, file)));
   assert.deepEqual(stale, [], 'remove these rows; a deleted file keeps no ceiling');
 });
 
-test('clause 2: every remaining entry is a positive whole-number ceiling per fixture kind, so removal never needed one raised [C7]', () => {
+test('gate.test-fixtures-stale.entries-positive-ceilings: clause 2: every remaining entry is a positive whole-number ceiling per fixture kind, so removal never needed one raised [C7]', () => {
   assert.ok(Object.keys(rows).length > 0, 'live files keep their rows');
   for (const [file, kinds] of Object.entries(rows)) {
     for (const [kind, ceiling] of Object.entries(kinds)) assert.ok(Number.isInteger(ceiling) && ceiling > 0, `${file} ${kind} is ${ceiling}`);

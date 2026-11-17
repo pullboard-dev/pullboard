@@ -43,7 +43,7 @@ test('reporter fixture [C7]', () => {});
   return { result, output, childArgs };
 }
 
-test('run-tests prints TAP on every Node version and keeps a caller reporter [C7]', (t) => {
+test('runners.reporter.run-tests-prints-tap-on-every: run-tests prints TAP on every Node version and keeps a caller reporter [C7]', (t) => {
   const defaultReporter = runReporterFixture(t);
   assert.equal(defaultReporter.result.status, 0, defaultReporter.output);
   assert.match(defaultReporter.output, /^TAP version \d+/mu);
@@ -67,7 +67,7 @@ test('run-tests prints TAP on every Node version and keeps a caller reporter [C7
   assert.doesNotMatch(splitCallerReporter.output, /^TAP version \d+/mu);
 });
 
-test('run-tests never injects timing reporters beside caller reporter options [C7,V10]', (t) => {
+test('runners.reporter.run-tests-never-injects-timing-reporters: run-tests never injects timing reporters beside caller reporter options [C7,V10]', (t) => {
   for (const reporterArgs of [
     ['--test-reporter=spec'], ['--test-reporter', 'spec'],
     ['--test-reporter=spec', '--test-reporter-destination=stdout'],
@@ -86,7 +86,7 @@ test('run-tests never injects timing reporters beside caller reporter options [C
   }
 });
 
-test('multiple dispatched files share one reporter factory and one truthful summary [C7,V10]', t => {
+test('runners.reporter.multiple-dispatched-files-share-one-reporter: multiple dispatched files share one reporter factory and one truthful summary [C7,V10]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-dispatch-reporters-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
@@ -155,7 +155,7 @@ if (process.argv[1] === ${JSON.stringify(runner)}) {
   return path;
 }
 
-test('watch and aggregate coverage retain their single native orchestrator [C7]', async t => {
+test('runners.reporter.watch-and-aggregate-coverage-retain-their: watch and aggregate coverage retain their single native orchestrator [C7]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-native-special-modes-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));

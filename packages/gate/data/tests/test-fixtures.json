@@ -993,7 +993,10 @@
     "hand-policy": 1
   },
   "apps/cli/journeys/init/gate.test.js": {
-    "hand-policy": 4
+    "hand-policy": 2
+  },
+  "apps/cli/journeys/init/gate-makefile.test.js": {
+    "hand-policy": 2
   },
   "apps/cli/journeys/init/gate-set.test.js": {
     "hand-policy": 1

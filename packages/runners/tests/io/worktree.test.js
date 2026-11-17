@@ -53,7 +53,7 @@ function fakeSsh(directory, runnerHome, log) {
   return path;
 }
 
-test('clause 1: a claimed item folder is created on the registered runner over ssh; git and the pre-commit hook run there and the branch returns to the coordinator with no coordinator worktree [C7]', async t => {
+test('runners.worktree.a-claimed-item-folder-is-created: clause 1: a claimed item folder is created on the registered runner over ssh; git and the pre-commit hook run there and the branch returns to the coordinator with no coordinator worktree [C7]', async t => {
   const coordinator = temporaryRepository(t, 'pullboard-hosted-coordinator-');
   const scratch = temporaryDirectory('pullboard-hosted-runner-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -97,7 +97,7 @@ test('clause 1: a claimed item folder is created on the registered runner over s
   assert.ok(hosts.every(host => host === 'runner-a'), 'every folder, git and hook step went over ssh to the runner');
 });
 
-test('a runner-hosted folder refuses an unregistered host, a non-item id and a ref that leaves the item branch [C7]', async () => {
+test('runners.worktree.a-runner-hosted-folder-refuses-an: a runner-hosted folder refuses an unregistered host, a non-item id and a ref that leaves the item branch [C7]', async () => {
   assert.equal(hostedItemFolderPath({ host: 'runner-a' }, 7), '.pullboard-runner/builders/item-7');
   assert.throws(() => hostedItemFolderPath({ host: 'bad host' }, 7), /registered runner host/u);
   assert.throws(() => hostedItemFolderPath({ host: 'runner-a' }, '../7'), /item number/u);
@@ -105,7 +105,7 @@ test('a runner-hosted folder refuses an unregistered host, a non-item id and a r
   await assert.rejects(createHostedItemFolder({ host: 'runner-a' }, { itemId: 7, origin: '/repo', branch: '../main' }), /refuses ref/u);
 });
 
-test('#5932 clause 1: three pulled jobs fetching one trunk commit at once share one cached pack build on the coordinator [C7]', async t => {
+test('runners.worktree.n5932-clause-1-three-pulled-jobs: #5932 clause 1: three pulled jobs fetching one trunk commit at once share one cached pack build on the coordinator [C7]', async t => {
   const trunk = temporaryRepository(t, 'pullboard-trunk-pack-');
   const scratch = temporaryDirectory('pullboard-trunk-pack-runners-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -129,7 +129,7 @@ test('#5932 clause 1: three pulled jobs fetching one trunk commit at once share 
   }
 });
 
-test('#5932 clause 2: a runner that already has the commit fetches nothing new, and a warm runner never downloads a whole-history pack [C7]', async t => {
+test('runners.worktree.n5932-clause-2-a-runner-that: #5932 clause 2: a runner that already has the commit fetches nothing new, and a warm runner never downloads a whole-history pack [C7]', async t => {
   const trunk = temporaryRepository(t, 'pullboard-trunk-warm-');
   const scratch = temporaryDirectory('pullboard-trunk-warm-runner-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -151,7 +151,7 @@ test('#5932 clause 2: a runner that already has the commit fetches nothing new, 
   assert.equal(asked, 0, 'a warm store fetches the new commit incrementally and never asks for the shared pack');
 });
 
-test('#5945 clause 1: the board serves GET /trunk/<commit>.pack from one shared build, 404 for an unknown commit, and refuses a non-hex id; cold runners fetch through it [C7]', async t => {
+test('runners.worktree.n5945-clause-1-the-board-serves: #5945 clause 1: the board serves GET /trunk/<commit>.pack from one shared build, 404 for an unknown commit, and refuses a non-hex id; cold runners fetch through it [C7]', async t => {
   const trunk = temporaryRepository(t, 'pullboard-trunk-route-');
   const scratch = temporaryDirectory('pullboard-trunk-route-runners-');
   t.after(() => rmSync(scratch, { recursive: true, force: true }));

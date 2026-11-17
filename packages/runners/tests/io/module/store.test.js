@@ -13,7 +13,7 @@ import { compiledIn } from '../../fixtures/parse-store.js';
 import { packageFiles } from '../../../src/io/package/files.js';
 import { withPackageListing } from '../../../src/io/package/files.js';
 
-test('a later short controller reuses stored compiler rows, and a malformed or shared store compiles again [C7]', t => {
+test('runners.store.a-later-short-controller-reuses-stored: a later short controller reuses stored compiler rows, and a malformed or shared store compiles again [C7]', t => {
   const scratch = privateFixtureFiles('pullboard-parse-store-').root;
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
   const source = `import { a } from './store-probe-${process.pid}-${Date.now()}.js';\nexport const b = a;\n`;
@@ -31,7 +31,7 @@ test('a later short controller reuses stored compiler rows, and a malformed or s
   assert.deepEqual(compiledIn(scratch, source), cold, 'a store others could write is never read');
 });
 
-test('one capture walks a package once, and the next walks it afresh [C7]', t => {
+test('runners.store.one-capture-walks-a-package-once: one capture walks a package once, and the next walks it afresh [C7]', t => {
   const root = privateFixtureFiles('pullboard-listing-').root;
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'src'));

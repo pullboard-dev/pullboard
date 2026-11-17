@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell packages/gate */
+/** @pullboard-test-input packages/codemap/data/plan/renames.tsv packages/codemap/data/plan/path-map/freeze.json */
 /** @pullboard-world-pin reads the committed rename chain, the gate sources and the front door to prove the preload.js move. */
 /** The gate preload.js module sits in the shell cell, with its importers repointed [C7]. */
 import assert from 'node:assert/strict';
