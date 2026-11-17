@@ -24,7 +24,7 @@ import { git } from '../../../../../packages/git/light.js';
 import { gitChildEnv } from '../../../../../packages/git/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { withGitFacts } from '../../../../../packages/git/light.js';
-import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/light.js';
+import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/light.js';
 import { withFileLock } from '../../../../../packages/outbox/light.js';
 

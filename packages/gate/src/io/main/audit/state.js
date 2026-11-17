@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { repoInfo } from '../../../../../git/index.js';
+import { withFileLock } from '../../../../../outbox/index.js';
 
 /** Resolve only the repository-owned private audit directory. */
 export function mainAuditDirectory(info) { return join(info.commonDir, 'pullboard', 'main-audits'); }
@@ -13,9 +15,6 @@ export function mainAuditDirectory(info) { return join(info.commonDir, 'pullboar
 export function timerFiles(directory) { return { guard: join(directory, 'timer.guard.sqlite'), timer: join(directory, 'timer.json') }; }
 /** Establish the first explicit rollout boundary once under a short private file lock, without reading the board. */
 export async function activateMainAudits(root, afterEventId, boardId) {
-  // Loaded here, not at the top: gate/light.js re-exports timerFiles from this module, and a light importer must not pull the git and outbox cells in.
-  const { repoInfo } = await import('../../../../../git/index.js');
-  const { withFileLock } = await import('../../../../../outbox/index.js');
   if (typeof boardId !== 'string' || !boardId || boardId.length > 128) throw new Error('main audit activation needs the native board identity');
   if (!Number.isSafeInteger(afterEventId) || afterEventId < 0) throw new Error('main audit activation needs the captured native event id');
   const directory = mainAuditDirectory(repoInfo(root));
