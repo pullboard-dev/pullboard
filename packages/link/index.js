@@ -25,6 +25,7 @@ export { baselineNotAccepted, permanentRelayRefusal, transientRelayFailure, tran
 export { briefLines, detailLines, outboxLines } from './src/io/relay/output.js';
 export { executePersonRequests } from './src/io/relay/execution.js';
 export { personRequestRecords, personRequestStatuses, receivePersonRequest, recordRequestMove, relayPerson, requestIntentDigest, requestMoveProblem, requestPerson, requestStageText } from './src/io/relay/requests.js';
+export { behindDeviceOptions } from './src/io/relay/behind.js';
 export { boardPhones, joinedComputers, relayRoster, rosterLines } from './src/io/relay/roster.js';
 export { actorTransport, cacheSeatToken, ensurePersonCoordinator, nameNextSeat, refuseRevokedSeat, seatReceipt, withSeatName } from './src/io/relay/seats.js';
 export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from './src/io/relay/setup.js';

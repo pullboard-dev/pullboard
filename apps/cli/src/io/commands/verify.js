@@ -168,6 +168,8 @@ import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
+import { gateComponentTier } from '../../../../../packages/config/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
@@ -312,7 +314,9 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status === 'withdrawn' && item.item_merged_commit) {
       landedVerdict = true;
       return await ordered(ctx, board, 'verify', [id, { agentId: me.id, decision, reason: values.reason, note: textArg(ctx.io, values, 'note') ?? '',
-        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true }]);
+        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true,
+        // The setting is read here, where the reject is issued; the move trusts only this recorded argument [#9637].
+        ...(decision === 'REJECT' && rejectKeepsCheck() ? { keepCheck: true } : {}) }]);
     }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
@@ -379,7 +383,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         knownMain = null;
         if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
-        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
+        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests, componentTier: gateComponentTier() });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;

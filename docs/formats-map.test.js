@@ -41,7 +41,20 @@ test('clause 1: each row is a user page or an engine section, and a named user p
       assert.equal(page, 'docs/formats.md', title);
       continue;
     }
+    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(page);
+    if (link) {
+      assert.equal(link[1], `docs/formats/${link[2]}`, `${title}: link text names its path`);
+      assert.ok(existsSync(resolve(ROOT, 'docs/formats', link[2])), `${title}: ${link[2]} does not exist`);
+      continue;
+    }
     const [path, mark] = page.split(' ');
     assert.ok(existsSync(resolve(ROOT, path)) || mark === '(planned)', `${title}: ${path} neither exists nor is planned`);
   }
+});
+
+test('clause 1: the map links spec, rulings, resume-notes, static-view, settings and rate-card with no planned mark [C7]', () => {
+  const pages = ['spec', 'rulings', 'resume-notes', 'static-view', 'settings', 'rate-card'];
+  const rows = mapRows().filter((r) => r.kind === 'user');
+  assert.deepEqual(rows.map((r) => r.page).sort(), pages.map((p) => `[docs/formats/${p}.md](${p}.md)`).sort());
+  for (const { title, page } of rows) assert.ok(!page.includes('(planned)'), `${title} is still marked planned`);
 });
