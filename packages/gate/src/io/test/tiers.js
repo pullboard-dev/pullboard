@@ -116,8 +116,10 @@ function commonEdges(files, edges, unknown) {
 /**
  * Compute every test's reached packages and one stable witness for each journey reason.
  * `depth` bounds how many import hops from the test count as reached (default: the whole closure), for callers that only need near neighbours.
+ * `componentTier` (default off) marks a test whose only journey witness is crossing packages, and which crosses only through
+ * each other package's index.js, as T2 with those doors listed; off, every row is as before [C7].
  */
-export function generateTestTiers(root, { onInventory, onReach, depth = Infinity } = {}) {
+export function generateTestTiers(root, { onInventory, onReach, depth = Infinity, componentTier = false } = {}) {
   return withImportParseCache(() => {
     const inventory = cellInventory(root, { importsIn: tierImports, commonJsIn });
     const { files, edges, unknown } = inventory;
@@ -134,7 +136,7 @@ export function generateTestTiers(root, { onInventory, onReach, depth = Infinity
       evidence.set(row.file, reasons);
     }
     const rows = [...files.keys()].filter(file => TEST.test(file)).sort().map(file => {
-      const reached = new Set(), packages = new Set(), witnesses = new Map();
+      const reached = new Set(), packages = new Set(), witnesses = new Map(), crossings = [];
       const pending = [file], hops = new Map([[file, 0]]);
       for (let next = 0; next < pending.length; next++) {
         const current = pending[next];
@@ -150,11 +152,23 @@ export function generateTestTiers(root, { onInventory, onReach, depth = Infinity
           if (!witnesses.has(category) || reason < witnesses.get(category)) witnesses.set(category, reason);
         }
         if (hops.get(current) >= depth) continue;
+        if (componentTier) {
+          const from = ownerOf(current, files, owners);
+          for (const edge of edges.get(current) ?? []) {
+            const to = ownerOf(edge.target, files, owners);
+            if (to && from !== to) crossings.push({ target: edge.target, owner: to });
+          }
+        }
         for (const edge of edges.get(current) ?? []) { if (!hops.has(edge.target)) hops.set(edge.target, hops.get(current) + 1); pending.push(edge.target); }
       }
       if (!packages.size) witnesses.set('no package', 'no package: no implementation import');
       if (packages.size > 1) witnesses.set('cross-package', 'cross-package: imports more than one package');
       const row = { file, tier: witnesses.size ? 'T3' : 'T1', packages: [...packages].sort(), reasons: [...witnesses.values()].sort() };
+      if (componentTier && witnesses.size === 1 && witnesses.has('cross-package')
+        && crossings.every(({ target, owner }) => target === `${owner}/index.js`)) {
+        row.tier = 'T2';
+        row.doors = [...new Set(crossings.map(crossing => crossing.target))].sort();
+      }
       onReach?.({ ...row, reached });
       return row;
     });

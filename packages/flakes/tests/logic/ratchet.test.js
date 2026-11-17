@@ -25,7 +25,7 @@ function appendEvent(board, note) {
     .run(new Date().toISOString(), 'coordinator', 'note', null, JSON.stringify({ note }));
 }
 
-test('a write from a second connection during the capture neither refuses it nor changes it from a quiet capture [C7]', t => {
+test('flakes.ratchet.second-connection-write-harmless: a write from a second connection during the capture neither refuses it nor changes it from a quiet capture [C7]', t => {
   const { root, file } = realBoard(t);
   const reader = cellBoard(t, file, undefined, { real: true, isMain: true, gitRoot: root });
   const quiet = landingFlakeRatchet(reader);

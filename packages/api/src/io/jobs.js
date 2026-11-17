@@ -500,7 +500,7 @@ function shadowOf(db) {
   const decide = jobTable;
   return { recorder: true,
     decide: (snapshot, move) => { try { return decide(snapshot, move); } catch (error) { return { threw: error?.code ?? String(error?.message ?? error) }; } },
-    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare)) };
+    seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
 /**
