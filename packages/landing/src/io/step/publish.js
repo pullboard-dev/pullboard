@@ -24,7 +24,10 @@ import { untracked } from '../../../../git/index.js';
 import { isStampedGreen } from '../../../../gate/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { save } from './merge.js';
+import { exactTreeRecord } from './merge.js';
 import { landingRunObserver } from './gate.js';
+import { sprintPorts } from './gate.js';
+import { sprintProof } from '../exact.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from '../main/red.js';
 import { fileURLToPath } from 'node:url';
@@ -430,6 +433,33 @@ export async function moveTrunkRef(state) {
     : `finish: ${ref} moved from ${base} to ${tip}; the primary checkout's tracked files did not follow (${(tree.stderr || tree.stdout).trim().split('\n')[0]}); run git reset --keep ${tip} there; refreshing the code map`);
 }
 
+/**
+ * Prove the batch's exact tree at Sprint depth before main moves: static checks, then the tests of each cell the batch changes [V37].
+ * The record lands on the batch as exactTree.pin, .cells and .result beside exactTree.tree. A red leaves main where it was, records
+ * the batch blocked with the failing cell named, and refuses LAND_EXACT_RED.
+ * Why before the finish write: a red tree must never get a main-moved receipt, and a green record must name the tree that lands.
+ *
+ * @param {object} state The landing state.
+ * @param {object} [ports] What the proof reads and runs; the batch's own checkout by default.
+ * @returns {Promise<object>} The exact-tree record as saved.
+ */
+export async function requireSprintProof(state, ports = state.sprintPorts ?? sprintPorts(state)) {
+  const recorded = exactTreeRecord(state.batch.root, state.batch.tip, state.batch.exactTree);
+  const tree = recorded?.tree;
+  if (recorded?.result === 'green') return recorded; // An adopted batch keeps the green proof it already holds for this tree.
+  if (!tree) throw new Refused('LAND_EXACT_TREE', `the batch tip ${state.batch.tip} has no readable tree id, so no proof can name the tree main will point to; rebuild the batch`);
+  state.say?.(`finish: proving tree ${tree} at Sprint depth before main moves`);
+  const proof = await sprintProof({ tree }, ports);
+  if (proof.result === 'green') {
+    await save(state, { exactTree: proof });
+    return state.batch.exactTree;
+  }
+  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
+  await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
+  state.say?.(`finish: ${message}`);
+  throw new Refused('LAND_EXACT_RED', message);
+}
+
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export function finishTrunk(state) {
   return landingSpan('record', () => finishTrunkSteps(state));
@@ -442,7 +472,8 @@ async function finishTrunkSteps(state) {
   state.say?.('finish: envelope recorded; checking module resolution');
   if (!scanRidesRunner(state)) await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
-  state.say?.('finish: module resolution checked; recording the finished batch');
+  state.say?.('finish: module resolution checked; proving the exact tree');
+  await requireSprintProof(state);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
