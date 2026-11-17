@@ -438,6 +438,9 @@ export function loadMachineSettings() {
   if (value.next?.holdAboveLoad !== undefined && typeof value.next.holdAboveLoad !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.holdAboveLoad in ${file} must be true or false`);
   }
+  if (value.next?.labelBounds !== undefined && typeof value.next.labelBounds !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.labelBounds in ${file} must be true or false`);
+  }
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
   }

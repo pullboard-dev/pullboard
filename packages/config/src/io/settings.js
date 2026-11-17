@@ -561,6 +561,11 @@ export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
 }
 
+/** Whether next fills a label below its declared minimum first (#9164): off by default; only an exact `true` turns it on. */
+export function nextLabelBounds() {
+  return loadMachineSettings().next?.labelBounds === true;
+}
+
 /**
  * Whether an idle next lists the waiting items and what each waits on (#2958): off by default, so an idle answer prints
  * exactly what it did before; only an exact `true` turns it on.

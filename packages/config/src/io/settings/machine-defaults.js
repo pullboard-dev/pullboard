@@ -122,6 +122,7 @@ export const MACHINE_DEFAULTS = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.labelBounds': false,
   'next.lightShapedStrong': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
