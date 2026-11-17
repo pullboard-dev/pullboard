@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/fixtures/upgrade-093/** */
 /**
  * A board made by the previous release (0.9.3) upgrades in place and keeps working: current code opens it and replays
  * 0.9.3's recorded moves with the same results, a seat commits through the hooks 0.9.3 installed, and doctor ends clean
