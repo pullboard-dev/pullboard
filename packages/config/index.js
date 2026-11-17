@@ -143,6 +143,7 @@ export {
   typedFieldsEnabled,
   nameBehindDeviceEnabled,
   recordWriteHolderEnabled,
+  landingSelfCheckEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
   strictFullSuiteEnabled,

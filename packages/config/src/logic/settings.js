@@ -417,6 +417,9 @@ export function loadMachineSettings() {
   if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
   }
+  if (value.sentinels?.landingSelfCheck !== undefined && typeof value.sentinels.landingSelfCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.landingSelfCheck in ${file} must be true or false`);
+  }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }

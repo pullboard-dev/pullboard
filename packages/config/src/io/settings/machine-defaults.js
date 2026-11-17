@@ -149,6 +149,7 @@ export const MACHINE_DEFAULTS = {
   'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   scratch: null,
+  'sentinels.landingSelfCheck': false,
   'sentinels.recordWriteHolder': false,
   'serve.address': '127.0.0.1',
   'serve.port': 0,
