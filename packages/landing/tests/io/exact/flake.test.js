@@ -76,7 +76,7 @@ test('landing.exact.flake-rerun-goes-on-when-main-green: clause 1: a red file th
   const record = await requireSprintProof(state);
   assert.equal(record.result, 'green');
   assert.deepEqual(record.flakes, [{ file, tree: treeOf(tip) }], 'the flake observation names the file and the tree');
-  assert.deepEqual(calls, ['static', 'packages/alpha', `rerun ${file}`], 'the file reran once, and the proof went on');
+  assert.deepEqual(calls, ['static', 'apps/beta', 'packages/alpha', `rerun ${file}`], 'the file reran once, and the proof went on');
   assert.deepEqual(state.batch.exactTree.flakes, record.flakes, 'the observation is on the saved batch record');
 });
 
