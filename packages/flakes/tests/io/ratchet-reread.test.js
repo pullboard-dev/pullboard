@@ -53,7 +53,7 @@ function batchOf(id, item, flakeRatchet) {
     logPath: '/fixture/landing.log', candidates: [entry], items: [entry], revision: 0, flakeRatchet };
 }
 
-const record = (board, batch) => store.recordLandingBatch(board, { agentId: 'coordinator', batch });
+const record = (board, batch, rereadRatchet = flakesRereadRatchetEnabled()) => store.recordLandingBatch(board, { agentId: 'coordinator', batch, rereadRatchet });
 const maxEvent = board => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
 
 test('clause 3: flakes.rereadRatchet is off by default and on only for an exact true [C7,#9436]', () => {
@@ -93,4 +93,19 @@ test('clause 2: a fresh ratchet that fails refuses BOARD_BUSY, and a move below 
     board.executionEngineVersion = FLAKE_RATCHET_ENGINE - 1;
     assert.throws(() => record(board, batchOf('third', id, stale)), { code: 'ENGINE_VERSION' });
   });
+});
+
+test('clause 4: the move replays the same with the machine setting off once the caller passed the decision in its args [C7,#10085]', t => {
+  const { board, id } = fixture(t);
+  const stale = landingFlakeRatchet(board).snapshot;
+  record(board, batchOf('first', id, stale), false);
+  board.nativePorts.logEvent(board, 'coordinator', 'reopen', null, {});
+  // Decided at the caller with the setting on; the replica replays the same args with the machine setting off.
+  const args = { agentId: 'coordinator', batch: batchOf('second', id, stale), rereadRatchet: true };
+  const recorded = withSettings({}, () => store.recordLandingBatch(board, args));
+  assert.ok(recorded.flakeRatchet.eventId > stale.eventId, 'the move re-read although the machine setting is off');
+  assert.equal(withSettings({ flakes: { rereadRatchet: true } }, () => {
+    assert.throws(() => store.recordLandingBatch(board, { agentId: 'coordinator', batch: batchOf('third', id, stale) }), { code: 'BOARD_BUSY' });
+    return true;
+  }), true, 'with the decision absent the machine setting on does not change the move');
 });

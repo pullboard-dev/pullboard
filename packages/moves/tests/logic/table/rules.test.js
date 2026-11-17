@@ -16,7 +16,7 @@ function lifecycle() {
 
 const SNAPSHOT = () => ({ after: [6928], landed: [6928], clauses: [1, 2], proofs: [1, 2] });
 
-test('deriveFact answers a fact and traces every fact it read, the asked fact last [C7,#8063]', () => {
+test('moves.rules.derivefact-answers-a-fact-and-traces: deriveFact answers a fact and traces every fact it read, the asked fact last [C7,#8063]', () => {
   const answer = deriveFact(lifecycle(), 'ready', SNAPSHOT());
   assert.deepEqual(answer, {
     fact: 'ready',
@@ -28,7 +28,7 @@ test('deriveFact answers a fact and traces every fact it read, the asked fact la
   assert.deepEqual(blocked.trace.at(-2), { fact: 'blocked', holds: true });
 });
 
-test('a fact read by two rules is derived once per call [C7,#8063]', () => {
+test('moves.rules.a-fact-read-by-two-rules: a fact read by two rules is derived once per call [C7,#8063]', () => {
   let calls = 0;
   const rules = defineRules({
     base: { says: 'base', holds: () => { calls += 1; return true; } },
@@ -39,18 +39,18 @@ test('a fact read by two rules is derived once per call [C7,#8063]', () => {
   assert.equal(calls, 1);
 });
 
-test('the moves front door exports defineRules and deriveFact [C7,#8063]', async () => {
+test('moves.rules.the-moves-front-door-exports-definerules: the moves front door exports defineRules and deriveFact [C7,#8063]', async () => {
   const door = await import('../../../index.js');
   assert.equal(typeof door.defineRules, 'function');
   assert.equal(typeof door.deriveFact, 'function');
 });
 
-test('defineRules refuses a rule that reads an undefined fact, when the rules are defined [C7,#8063]', () => {
+test('moves.rules.definerules-refuses-a-rule-that-reads: defineRules refuses a rule that reads an undefined fact, when the rules are defined [C7,#8063]', () => {
   assert.throws(() => defineRules({ ready: { says: 'ready', reads: ['proven'], holds: () => true } }),
     error => error.code === 'RULE_UNDEFINED' && /ready reads proven/.test(error.message) && /define proven/.test(error.next));
 });
 
-test('defineRules refuses a cycle, naming it, when the rules are defined [C7,#8063]', () => {
+test('moves.rules.definerules-refuses-a-cycle-naming-it: defineRules refuses a cycle, naming it, when the rules are defined [C7,#8063]', () => {
   assert.throws(() => defineRules({
     a: { says: 'a', reads: ['b'], holds: () => true },
     b: { says: 'b', reads: ['c'], holds: () => true },
@@ -59,13 +59,13 @@ test('defineRules refuses a cycle, naming it, when the rules are defined [C7,#80
   assert.throws(() => defineRules({ self: { says: 'self', reads: ['self'], holds: () => true } }), error => error.code === 'RULE_CYCLE');
 });
 
-test('a rule set that defines cleanly is never refused at use for its shape [C7,#8063]', () => {
+test('moves.rules.a-rule-set-that-defines-cleanly: a rule set that defines cleanly is never refused at use for its shape [C7,#8063]', () => {
   const rules = lifecycle();
   for (const name of Object.keys(rules)) assert.equal(typeof deriveFact(rules, name, SNAPSHOT()).holds, 'boolean');
   assert.throws(() => defineRules({ shapeless: { reads: [] } }), error => error.code === 'RULE_SHAPE');
 });
 
-test('a rule that reads a fact it did not declare is refused, so declared reads stay the whole graph [C7,#8063]', () => {
+test('moves.rules.a-rule-that-reads-a-fact: a rule that reads a fact it did not declare is refused, so declared reads stay the whole graph [C7,#8063]', () => {
   const rules = defineRules({
     proven: { says: 'proven', holds: () => true },
     sneaky: { says: 'sneaky', holds: (_s, _m, fact) => fact('proven') },
@@ -74,7 +74,7 @@ test('a rule that reads a fact it did not declare is refused, so declared reads 
   assert.throws(() => deriveFact(rules, 'missing', {}), error => error.code === 'RULE_UNDEFINED');
 });
 
-test('deriving leaves the snapshot unchanged [C7,#8063]', () => {
+test('moves.rules.deriving-leaves-the-snapshot-unchanged: deriving leaves the snapshot unchanged [C7,#8063]', () => {
   const snapshot = SNAPSHOT();
   const before = structuredClone(snapshot);
   deriveFact(lifecycle(), 'ready', snapshot, { at: 1 });
@@ -85,7 +85,7 @@ test('deriving leaves the snapshot unchanged [C7,#8063]', () => {
   assert.deepEqual(guarded, SNAPSHOT());
 });
 
-test('deriving gives the same answer twice for the same snapshot and move [C7,#8063]', () => {
+test('moves.rules.deriving-gives-the-same-answer-twice: deriving gives the same answer twice for the same snapshot and move [C7,#8063]', () => {
   const rules = lifecycle();
   const snapshot = SNAPSHOT();
   assert.deepEqual(deriveFact(rules, 'ready', snapshot, { at: 1 }), deriveFact(rules, 'ready', snapshot, { at: 1 }));

@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/withdraw-records.json */
 /** @pullboard-world-pin reads the recorded withdrawals fixture, each with the withdraw table's answer, to drive the store withdraw writer with them. The store withdraw writer agrees with the withdraw table on every replayed move [C7,#8273]. */
 /** @pullboard-test-input packages/store/tests/fixtures/withdraw-records.json */
 import assert from 'node:assert/strict';

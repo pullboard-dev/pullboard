@@ -13,7 +13,7 @@ function release(box, id, reason) {
   store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot take this work.', undefined, reason);
 }
 
-test('clause 2: INELIGIBLE history leaves explicit manual claim available [N2]', t => {
+test('moves.release-offers.ineligible-history-leaves-explicit-manual-claim-available: clause 2: INELIGIBLE history leaves explicit manual claim available [N2]', t => {
   const box = fixture(t);
   const id = box.add('Manually claimable item');
   release(box, id, 'INELIGIBLE');
@@ -22,7 +22,7 @@ test('clause 2: INELIGIBLE history leaves explicit manual claim available [N2]',
   assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
 });
 
-test('INELIGIBLE history excludes an item from automatic review after another author submits it [N2,V1]', async t => {
+test('moves.release-offers.ineligible-history-excludes-an-item-from-automatic: INELIGIBLE history excludes an item from automatic review after another author submits it [N2,V1]', async t => {
   const box = fixture(t);
   const id = box.add('Review after ineligible build release');
   const eligiblePeer = box.add('Other eligible review');
@@ -39,7 +39,7 @@ test('INELIGIBLE history excludes an item from automatic review after another au
   assert.equal(store.getItem(box.board, eligiblePeer).item_review_by, box.seats.actor.id, 'the positive control was reserved');
 });
 
-test('ordinary release still falls back to its only open item [B3,N2]', async t => {
+test('moves.release-offers.ordinary-release-still-falls-back-to-its: ordinary release still falls back to its only open item [B3,N2]', async t => {
   const box = fixture(t);
   const id = box.add('Ordinarily released item');
   release(box, id, 'OTHER');
