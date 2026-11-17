@@ -122,7 +122,6 @@
     "apps/cli/journeys/relay/setup/once.test.js": 49,
     "apps/cli/journeys/relay/setup.test.js": 102,
     "apps/cli/journeys/relay/upload.test.js": 79,
-    "apps/cli/journeys/relay/main.test.js": 976,
     "test/reopen.test.js": 451,
     "test/resources.test.js": 1374,
     "apps/cli/journeys/resume/flow.test.js": 481,

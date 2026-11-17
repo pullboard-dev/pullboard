@@ -13,12 +13,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 const SAMPLES = [{ journey: 'apps/cli/journeys/fact/plan/cells.test.js', boardless: true,
   cases: ['cut metadata refresh preserves frozen moves and records only current real source edges [D3,CD64]'] }];
 
-test('clause 1: a sample of the fact/plan/cells journey gives the same exit codes and printed results in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-fact-plan-cells.a-sample-of-the-fact-plan-cells: clause 1: a sample of the fact/plan/cells journey gives the same exit codes and printed results in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the fact/plan/cells journey keeps all 23 of its cases [C7]', () => {
+test('gate.journey-parity-fact-plan-cells.the-fact-plan-cells-journey-keeps-all: clause 2: the fact/plan/cells journey keeps all 23 of its cases [C7]', () => {
   const source = readFileSync(resolve(import.meta.dirname, '../../../apps/cli/journeys/fact/plan/cells.test.js'), 'utf8');
   assert.equal((source.match(/^test\(/gmu) ?? []).length, 23, 'no case is dropped, skipped or merged');
   assert.doesNotMatch(source, /^test\.(?:skip|todo)\(/mu);
