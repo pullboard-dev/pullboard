@@ -26,6 +26,7 @@ import { PENDING_STEP } from "./runs.js";
 import { runsPort } from "./runs.js";
 import { jobsOf } from "../../../../jobs/index.js";
 import { releaseLease } from "../../../../jobs/index.js";
+import { endWithdrawnGateHop } from "./hop.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
@@ -294,6 +295,8 @@ export function saveSubmitHandoff(db, item, handoff, { now = Date.now() } = {}) 
  * End an item's live gate job as cancelled through the runs port, so its runner's next renew or receipt is refused [C7,#3860].
  * A job already done or cancelled is left as it is; an item with no live gate job writes nothing.
  *
+ * The item's open gate hop ends too, when the board has a hop table (gate.fencedHop was on).
+ *
  * Why the lease is freed too: the cancelled step alone leaves the runner's lease standing, and a renew on a standing lease would succeed.
  *
  * @param {any} board - The open board, whose job tables serve while runs_store is off.
@@ -311,5 +314,7 @@ export function cancelGateJob(board, item, { runs = null, now = Date.now(), reas
     if (view.leaseOwner) releaseLease(db, view.id, view.leaseOwner, { now });
     cancelled.push(view.id);
   }
+  // The item's fenced hop ends with its gate, so a driver stepping it is refused HOP_FENCED [C7,#10224].
+  if (cancelled.length) endWithdrawnGateHop(board.db, item);
   return { written: cancelled.length > 0, jobs: cancelled };
 }
