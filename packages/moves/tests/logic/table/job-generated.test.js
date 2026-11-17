@@ -40,13 +40,13 @@ const ok = results.filter(c => !c.result.refused);
 const after = (c) => c.result.patch.job;
 const holds = (c) => Boolean(c.s.job?.claim) && c.s.job.claim.runner === c.move.runner && c.s.job.claim.token === c.move.token;
 
-test('moves.job.rows-fire: generated: every guard and outcome row of the job table fires on some seeded case [C7,#8252]', () => {
+test('moves.job-generated.moves-job-rows-fire-generated-every-guard-and-outcome-row: moves.job.rows-fire: generated: every guard and outcome row of the job table fires on some seeded case [C7,#8252]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards.map(row => row.id), ...TABLE.outcomes.map(row => row.id)];
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 
-test('moves.job.outcome-by-move: generated: every accepted move leaves by an outcome row of its own move [C7,#8252]', () => {
+test('moves.job-generated.moves-job-outcome-by-move-generated-every-accepted-move-leaves-by: moves.job.outcome-by-move: generated: every accepted move leaves by an outcome row of its own move [C7,#8252]', () => {
   const rows = { offer: ['offer', 'offer-again'], claim: ['claim', 'runaway'], renew: ['renew', 'renew-lost'], release: ['release', 'release-free', 'release-lost'],
     progress: ['progress'], receipt: ['receipt', 'receipt-again'], shards: ['shards'] };
   for (const c of ok) assert.ok(rows[c.move.name].includes(c.result.via[0]), `seed ${c.seed}: ${c.move.name} left by ${c.result.via[0]}`);
@@ -56,7 +56,7 @@ test('moves.job.outcome-by-move: generated: every accepted move leaves by an out
   }
 });
 
-test('moves.job.refusal-writes-nothing: generated: a refusal writes nothing and names a job code, a message and a next step [C7,#8252]', () => {
+test('moves.job-generated.moves-job-refusal-writes-nothing-generated-a-refusal-writes-nothing-and: moves.job.refusal-writes-nothing: generated: a refusal writes nothing and names a job code, a message and a next step [C7,#8252]', () => {
   const codes = new Set(TABLE.guards.map(row => row.code));
   for (const c of results.filter(each => each.result.refused)) {
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
@@ -64,14 +64,14 @@ test('moves.job.refusal-writes-nothing: generated: a refusal writes nothing and 
   }
 });
 
-test('moves.job.current-claim-only: generated: only the runner and token of the current claim renew, release, post progress or a receipt, or ask for shards [C7,#8252]', () => {
+test('moves.job-generated.moves-job-current-claim-only-generated-only-the-runner-and-token: moves.job.current-claim-only: generated: only the runner and token of the current claim renew, release, post progress or a receipt, or ask for shards [C7,#8252]', () => {
   for (const c of results.filter(each => HELD.includes(each.move.name) && each.s.job)) {
     if (!holds(c)) assert.equal(c.result.refused?.code, 'JOB_LEASE_MOVED', `seed ${c.seed}: a stale ${c.move.name} got through`);
   }
   for (const c of ok.filter(each => HELD.includes(each.move.name))) assert.ok(holds(c), `seed ${c.seed}`);
 });
 
-test('moves.job.claim-lapsed: generated: a claim is taken only from an offered or claimed job whose lease has lapsed, counts one attempt and hands the caller the lease [C7,#8252]', () => {
+test('moves.job-generated.moves-job-claim-lapsed-generated-a-claim-is-taken-only: moves.job.claim-lapsed: generated: a claim is taken only from an offered or claimed job whose lease has lapsed, counts one attempt and hands the caller the lease [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name === 'claim')) {
     const before = c.s.job;
     assert.ok(['offered', 'claimed'].includes(before.step) && before.leaseUntil < c.s.now, `seed ${c.seed}`);
@@ -87,7 +87,7 @@ test('moves.job.claim-lapsed: generated: a claim is taken only from an offered o
   }
 });
 
-test('moves.job.done-stays-done: generated: no move after the receipt brings a done job back, and no move changes its kind or claim token except a claim [C7,#8252]', () => {
+test('moves.job-generated.moves-job-done-stays-done-generated-no-move-after-the-receipt: moves.job.done-stays-done: generated: no move after the receipt brings a done job back, and no move changes its kind or claim token except a claim [C7,#8252]', () => {
   for (const c of ok.filter(each => each.s.job)) {
     if (c.s.job.step === 'done') assert.equal(after(c).step, 'done', `seed ${c.seed}`);
     assert.equal(after(c).kind, c.s.job.kind, `seed ${c.seed}`);
@@ -96,7 +96,7 @@ test('moves.job.done-stays-done: generated: no move after the receipt brings a d
   }
 });
 
-test('moves.job.release-backoff: generated: a release by the owner backs off by attempt or frees at once; one that lost the lease, a lost renew and a repeat receipt change nothing [C7,#8252]', () => {
+test('moves.job-generated.moves-job-release-backoff-generated-a-release-by-the-owner: moves.job.release-backoff: generated: a release by the owner backs off by attempt or frees at once; one that lost the lease, a lost renew and a repeat receipt change nothing [C7,#8252]', () => {
   for (const c of ok.filter(each => ['release', 'renew', 'receipt'].includes(each.move.name))) {
     const before = c.s.job, owns = before.owner === c.move.runner;
     if (c.move.name === 'release' && owns) {
@@ -115,14 +115,14 @@ test('moves.job.release-backoff: generated: a release by the owner backs off by 
   }
 });
 
-test('moves.job.offer-once: generated: an offer makes a fresh offered job once, and offering it again changes nothing [C7,#8252]', () => {
+test('moves.job-generated.moves-job-offer-once-generated-an-offer-makes-a-fresh: moves.job.offer-once: generated: an offer makes a fresh offered job once, and offering it again changes nothing [C7,#8252]', () => {
   for (const c of ok.filter(each => each.move.name === 'offer')) {
     if (c.s.job) assert.deepEqual([after(c), c.result.events], [c.s.job, []], `seed ${c.seed}`);
     else assert.deepEqual(after(c), { kind: c.move.kind, step: 'offered', attempt: 0, owner: null, leaseUntil: 0, claim: null }, `seed ${c.seed}`);
   }
 });
 
-test('moves.job.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8252]', () => {
+test('moves.job-generated.moves-job-deterministic-generated-the-table-is-deterministic-and: moves.job.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8252]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.move);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -130,7 +130,7 @@ test('moves.job.deterministic: generated: the table is deterministic and reads i
   }
 });
 
-test('moves.job.lease-moved: metamorphic: break the runner or the token of an accepted held move and it is refused JOB_LEASE_MOVED [C7,#8252]', () => {
+test('moves.job-generated.moves-job-lease-moved-metamorphic-break-the-runner-or-the: moves.job.lease-moved: metamorphic: break the runner or the token of an accepted held move and it is refused JOB_LEASE_MOVED [C7,#8252]', () => {
   const held = ok.filter(c => HELD.includes(c.move.name));
   assert.ok(held.length > 200, `only ${held.length} accepted held moves`);
   for (const c of held) {
@@ -140,7 +140,7 @@ test('moves.job.lease-moved: metamorphic: break the runner or the token of an ac
   }
 });
 
-test('moves.job.clock-shift: metamorphic: shifting the clock and every lease by the same amount changes no outcome; moving the clock to the lease end frees a claim [C7,#8252]', () => {
+test('moves.job-generated.moves-job-clock-shift-metamorphic-shifting-the-clock-and-every: moves.job.clock-shift: metamorphic: shifting the clock and every lease by the same amount changes no outcome; moving the clock to the lease end frees a claim [C7,#8252]', () => {
   const shift = (s, by) => ({ now: s.now + by, job: s.job && { ...s.job, leaseUntil: s.job.leaseUntil === 0 ? 0 : s.job.leaseUntil + by } });
   for (const c of results.filter(each => each.s.job?.leaseUntil !== 0).slice(0, 4000)) {
     for (const by of [-60_000, 1, 3_600_000]) {
@@ -154,7 +154,7 @@ test('moves.job.clock-shift: metamorphic: shifting the clock and every lease by 
   }
 });
 
-test('moves.job.rule-inputs: generated: the job engine refuses JOB_RULE without a positive lease and a whole claim cap of at least one [C7,#8252]', () => {
+test('moves.job-generated.moves-job-rule-inputs-generated-the-job-engine-refuses-job-rule: moves.job.rule-inputs: generated: the job engine refuses JOB_RULE without a positive lease and a whole claim cap of at least one [C7,#8252]', () => {
   for (const queue of [{ leaseMs: 0, maxAttempts: 1 }, { leaseMs: Number.NaN, maxAttempts: 1 }, { leaseMs: Number.POSITIVE_INFINITY, maxAttempts: 1 }, { leaseMs: 1, maxAttempts: 0 }, { leaseMs: 1, maxAttempts: 1.5 }, {}]) {
     assert.throws(() => jobEngine(queue), { code: 'JOB_RULE' }, JSON.stringify(queue));
   }

@@ -53,32 +53,32 @@ const results = Array.from({ length: CASES }, (_, seed) => {
 });
 const ok = results.filter(c => !c.result.refused);
 
-test('moves.hop.rows-fire: generated: every guard and outcome row of the hop table fires on some seeded case [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-rows-fire-generated-every-guard-and-outcome-row: moves.hop.rows-fire: generated: every guard and outcome row of the hop table fires on some seeded case [C7,#8328]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
   const rows = [...TABLE.guards.map(row => row.id), ...TABLE.outcomes.map(row => row.id)];
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
   assert.ok(ok.length > CASES / 10, `only ${ok.length} accepted moves`);
 });
 
-test('moves.hop.refusal-codes: generated: each case is refused with the code the rules in words name, or accepted when they name none [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-refusal-codes-generated-each-case-is-refused-with: moves.hop.refusal-codes: generated: each case is refused with the code the rules in words name, or accepted when they name none [C7,#8328]', () => {
   for (const c of results) assert.equal(c.result.refused?.code ?? null, verdict(c.s, c.move), `seed ${c.seed}: ${JSON.stringify([c.s, c.move])}`);
 });
 
-test('moves.hop.refusal-writes-nothing: generated: a refusal writes nothing and names a message and a next step [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-refusal-writes-nothing-generated-a-refusal-writes-nothing-and: moves.hop.refusal-writes-nothing: generated: a refusal writes nothing and names a message and a next step [C7,#8328]', () => {
   for (const c of results.filter(each => each.result.refused)) {
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
     assert.ok(c.result.refused.message && c.result.refused.next, `seed ${c.seed}`);
   }
 });
 
-test('moves.hop.epoch-rises: generated: the owner epoch rises by exactly one on acquire, cap and end, never otherwise, and never falls [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-epoch-rises-generated-the-owner-epoch-rises-by: moves.hop.epoch-rises: generated: the owner epoch rises by exactly one on acquire, cap and end, never otherwise, and never falls [C7,#8328]', () => {
   for (const c of ok.filter(each => each.move.name !== 'create')) {
     const rise = c.result.patch.hop.epoch - c.s.hop.epoch;
     assert.equal(rise, ['acquire', 'end'].includes(c.move.name) ? 1 : 0, `seed ${c.seed}: ${c.move.name} moved the epoch by ${rise}`);
   }
 });
 
-test('moves.hop.accepted-leaves-row: generated: each accepted move leaves the state, owner and lease its row names [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-accepted-leaves-row-generated-each-accepted-move-leaves-the: moves.hop.accepted-leaves-row: generated: each accepted move leaves the state, owner and lease its row names [C7,#8328]', () => {
   for (const c of ok) {
     const { name, actor } = c.move, before = c.s.hop, after = c.result.patch.hop;
     if (name === 'create') assert.deepEqual(after, { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: c.s.item.commit, digest: c.s.item.digest }, `seed ${c.seed}`);
@@ -94,14 +94,14 @@ test('moves.hop.accepted-leaves-row: generated: each accepted move leaves the st
   }
 });
 
-test('moves.hop.attempt-cap: generated: attempts never pass the cap and a finish keeps its result [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-attempt-cap-generated-attempts-never-pass-the-cap: moves.hop.attempt-cap: generated: attempts never pass the cap and a finish keeps its result [C7,#8328]', () => {
   for (const c of ok.filter(each => each.move.name !== 'create')) {
     assert.ok(c.result.patch.hop.attempts <= HOP_ATTEMPT_CAP, `seed ${c.seed}`);
     if (c.move.name === 'finish') assert.equal(c.result.patch.hop.result, c.move.result ?? null, `seed ${c.seed}`);
   }
 });
 
-test('moves.hop.event-per-move: generated: each accepted move records one hop event of its own kind naming the owner and epoch it wrote [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-event-per-move-generated-each-accepted-move-records-one: moves.hop.event-per-move: generated: each accepted move records one hop event of its own kind naming the owner and epoch it wrote [C7,#8328]', () => {
   const kinds = { create: 'hop.created', step: 'hop.stepped', finish: 'hop.finished', end: 'hop.ended' };
   for (const c of ok) {
     assert.equal(c.result.events.length, 1, `seed ${c.seed}`);
@@ -112,7 +112,7 @@ test('moves.hop.event-per-move: generated: each accepted move records one hop ev
   }
 });
 
-test('moves.hop.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-deterministic-generated-the-table-is-deterministic-and: moves.hop.deterministic: generated: the table is deterministic and reads its snapshot without changing it [C7,#8328]', () => {
   for (const c of results.slice(0, 2000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.move);
     assert.deepEqual(runTable(TABLE, RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -120,7 +120,7 @@ test('moves.hop.deterministic: generated: the table is deterministic and reads i
   }
 });
 
-test('moves.hop.fence-breaks: metamorphic: break any one fence fact of an accepted step or finish and it is refused HOP_FENCED [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-fence-breaks-metamorphic-break-any-one-fence-fact: moves.hop.fence-breaks: metamorphic: break any one fence fact of an accepted step or finish and it is refused HOP_FENCED [C7,#8328]', () => {
   const held = ok.filter(c => ['step', 'finish'].includes(c.move.name));
   assert.ok(held.length > 200, `only ${held.length} accepted steps and finishes`);
   const breaks = {
@@ -137,7 +137,7 @@ test('moves.hop.fence-breaks: metamorphic: break any one fence fact of an accept
   }
 });
 
-test('moves.hop.item-moved: metamorphic: move the item off an accepted acquire, step or finish and it is refused HOP_ITEM_MOVED, and an end then succeeds [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-item-moved-metamorphic-move-the-item-off-an: moves.hop.item-moved: metamorphic: move the item off an accepted acquire, step or finish and it is refused HOP_ITEM_MOVED, and an end then succeeds [C7,#8328]', () => {
   const served = ok.filter(c => ['acquire', 'step', 'finish'].includes(c.move.name));
   assert.ok(served.length > 400, `only ${served.length} accepted moves`);
   for (const c of served) {
@@ -152,7 +152,7 @@ test('moves.hop.item-moved: metamorphic: move the item off an accepted acquire, 
   }
 });
 
-test('moves.hop.old-owner-refused: metamorphic: an acquired hop refuses the old owner at its old epoch and every second acquire until the lease lapses [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-old-owner-refused-metamorphic-an-acquired-hop-refuses-the: moves.hop.old-owner-refused: metamorphic: an acquired hop refuses the old owner at its old epoch and every second acquire until the lease lapses [C7,#8328]', () => {
   const taken = ok.filter(c => c.move.name === 'acquire' && c.result.patch.hop.state === 'driven');
   assert.ok(taken.length > 200, `only ${taken.length} accepted acquires`);
   for (const c of taken) {
@@ -167,14 +167,14 @@ test('moves.hop.old-owner-refused: metamorphic: an acquired hop refuses the old 
   }
 });
 
-test('moves.hop.settled-hop: metamorphic: a done or ended hop refuses every move but a create, and a create refuses HOP_EXISTS [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-settled-hop-metamorphic-a-done-or-ended-hop: moves.hop.settled-hop: metamorphic: a done or ended hop refuses every move but a create, and a create refuses HOP_EXISTS [C7,#8328]', () => {
   for (const c of results.filter(each => each.s.hop && OVER.includes(each.s.hop.state))) {
     const wanted = c.move.name === 'create' ? 'HOP_EXISTS' : HOP_MOVES.includes(c.move.name) ? 'HOP_OVER' : 'HOP_UNKNOWN_MOVE';
     assert.equal(c.result.refused?.code, wanted, `seed ${c.seed}`);
   }
 });
 
-test('moves.hop.clock-shift: metamorphic: shifting every clock reading by the same amount changes no outcome, only the deadline it writes [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-clock-shift-metamorphic-shifting-every-clock-reading-by: moves.hop.clock-shift: metamorphic: shifting every clock reading by the same amount changes no outcome, only the deadline it writes [C7,#8328]', () => {
   const shift = (s, by) => ({ ...s, now: s.now + by, hop: s.hop && { ...s.hop, leaseUntil: s.hop.leaseUntil + by } });
   for (const c of results.slice(0, 5000)) {
     for (const by of [-3_600_000, 1, 86_400_000]) {
@@ -185,7 +185,7 @@ test('moves.hop.clock-shift: metamorphic: shifting every clock reading by the sa
   }
 });
 
-test('moves.hop.lease-rule: generated: the hop engine refuses HOP_LEASE for a missing lease length or lapse rule [C7,#8328]', () => {
+test('moves.hop-generated.moves-hop-lease-rule-generated-the-hop-engine-refuses-hop-lease: moves.hop.lease-rule: generated: the hop engine refuses HOP_LEASE for a missing lease length or lapse rule [C7,#8328]', () => {
   for (const lease of [undefined, {}, { leaseMs: Number.NaN, leaseLapsed }, { leaseMs: LEASE_MS }, { leaseMs: LEASE_MS, leaseLapsed: true }]) {
     assert.throws(() => hopEngine(lease), { code: 'HOP_LEASE' }, JSON.stringify(lease));
   }

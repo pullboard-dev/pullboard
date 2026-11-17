@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
 import { describeSetting } from '../../../../packages/config/index.js';
 import { main } from '../../tests/fixtures/native.js';
+import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 
 /** Turn next.labelBounds on or off for this fixture's machine, keeping the settings the fixture wrote. */
@@ -57,4 +58,43 @@ test('clause 2: with next.labelBounds off next offers exactly the queue top [C7,
 
 test('clause 2: next.labelBounds is a described setting [C7,#9164]', () => {
   assert.match(describeSetting('next.labelBounds')?.description ?? '', /minimum/u);
+});
+
+/**
+ * A pinned quick win, a quick win another seat already holds (quick-win has a max of one holder) and a plain item.
+ * Why a milestone pin: pins are the existing queue input that puts an item first, so the max must beat it.
+ */
+async function pinnedAtMax(t, on) {
+  const box = await fixture(t, { projectConfig: { labels: { 'quick-win': { max: 1 } } } });
+  const pinned = box.add('Pinned quick win at its label max', { brief: 'Files: web/pinned.js', expectedBuildMinutes: 5 });
+  const held = box.add('Quick win another seat holds', { brief: 'Files: web/held.js', expectedBuildMinutes: 5 });
+  const plain = box.add('Plain item', { brief: 'Files: web/plain.js' });
+  box.claim(held);
+  const added = await cli(box, box.root, ['milestone', 'add', 'Focus', '--items', `${pinned},${plain}`, '--reason', 'exercise a pin']);
+  assert.equal(added.code, 0, added.out + added.err);
+  const pin = await cli(box, box.root, ['milestone', 'pin', 'Focus', String(pinned), '--reason', 'pinned first']);
+  assert.equal(pin.code, 0, pin.out + pin.err);
+  labelBounds(on);
+  return { box, pinned, plain };
+}
+
+test('clause 1: with next.labelBounds on, next does not offer a pinned item whose label is at its maximum [C7,#9165]', async t => {
+  const { box, pinned, plain } = await pinnedAtMax(t, true);
+  const text = await printed(box, box.seats.actor.path);
+  assert.match(text, new RegExp(`claimed #${plain}:`, 'u'), 'the pin is capped by the quick-win max, so the next item is offered');
+  assert.doesNotMatch(text, new RegExp(`claimed #${pinned}:`, 'u'));
+});
+
+test('clause 2: pullboard labels --json lists the pinned item as capped [C7,#9165]', async t => {
+  const { box, pinned } = await pinnedAtMax(t, true);
+  const listed = await cli(box, box.seats.actor.path, ['labels']);
+  assert.equal(listed.code, 0, listed.out + listed.err);
+  assert.deepEqual(listed.document.capped, [{ item_id: pinned, labels: ['quick-win'] }]);
+  assert.equal(listed.document.labels.find(row => row.label === 'quick-win').capped, true);
+});
+
+test('clause 2: with next.labelBounds off the pin is honoured as on main [C7,#9165]', async t => {
+  const { box, pinned } = await pinnedAtMax(t, false);
+  const text = await printed(box, box.seats.actor.path);
+  assert.match(text, new RegExp(`claimed #${pinned}:`, 'u'));
 });

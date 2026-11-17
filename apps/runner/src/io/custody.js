@@ -448,10 +448,10 @@ export function createDescendantTracker(directory, { census: processCensusHook =
       tick();
       if (!census) {
         if (!warned) { warn(reason); warned = true; }
-        await new Promise(resolvePause => setTimeout(resolvePause, 1_000));
+        await new Promise(resolvePause => setTimeout(resolvePause, 1_000)); // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
         continue;
       }
-      if (censusFailure) { await new Promise(resolvePause => setTimeout(resolvePause, 250)); continue; }
+      if (censusFailure) { await new Promise(resolvePause => setTimeout(resolvePause, 250)); continue; } // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
       const live = liveDescendants();
       // Once the budget is spent and reported, an unidentified process is left alone, never waited on forever: the
       // controller already reruns the work locally, and a worker left waiting is itself a process left behind (#1063).
@@ -460,7 +460,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
         warn(reason || 'unresolved process identity remains live');
         warned = true;
       }
-      if (!live.length) { await new Promise(resolvePause => setTimeout(resolvePause, 250)); continue; }
+      if (!live.length) { await new Promise(resolvePause => setTimeout(resolvePause, 250)); continue; } // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
       // Signal each confirmed owned process group once; use PID signals only with exact kernel identity.
       const signaledGroups = new Set();
       for (const identity of live) {
@@ -481,7 +481,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
       }
       const deadline = Date.now() + 2_000;
       while (Date.now() < deadline) {
-        await new Promise(resolvePause => setTimeout(resolvePause, 50));
+        await new Promise(resolvePause => setTimeout(resolvePause, 50)); // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
         if (!observe()) break;
         if (!liveDescendants().length) break;
       }
@@ -502,7 +502,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
         try { kill(identity.pid, 'SIGKILL'); }
         catch (error) { if (error.code !== 'ESRCH') { markUncertain('owned descendant could not be killed safely'); } }
       }
-      await new Promise(resolvePause => setTimeout(resolvePause, 100));
+      await new Promise(resolvePause => setTimeout(resolvePause, 100)); // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
     }
   }
 
@@ -526,7 +526,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
         if (!liveRoots && !liveDescendants().length && (!pendingIdentities.size || timedOut())) return;
       }
       if (!warned) { warn(reason || 'owned process identity remains live'); warned = true; }
-      await new Promise(resolvePause => setTimeout(resolvePause, 1_000));
+      await new Promise(resolvePause => setTimeout(resolvePause, 1_000)); // budget: the custody scan watches processes that are not our children, so no close event exists and a poll stays
     }
   }
 
