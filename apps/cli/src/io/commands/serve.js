@@ -1,7 +1,7 @@
 import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../context.js';
 import { moveArgs } from '../../../../../packages/person/index.js';
-import { receiveCommits } from '../../../../../packages/pin/index.js';
+import { receiveMoveCommits as receiveCommits } from '../submit/pushed.js';
 import { withBoardRead } from '../context.js';
 import { withBoard } from '../context.js';
 import { serveReconciler } from '../reconcile.js';
@@ -116,7 +116,7 @@ export function serveBanner(url) {
  * lease and record ports are the job table's (#8764); the bundle port is a stub until the tree-to-bundle slice (#9316).
  *
  * @param {{ folder: string, openDb: () => import('node:sqlite').DatabaseSync, enabled?: boolean }} options - The board folder, the opener of a connection to the board's job table, and the setting's value.
- * @returns {((request: import('node:http').IncomingMessage, response: import('node:http').ServerResponse) => Promise<void>) | null}
+ * @returns {((request: object, response: object) => Promise<void>) | null} A request handler taking the Node HTTP request and response, or null.
  */
 export function pullRouteHandler({ folder, openDb, enabled = servePullRoute() }) {
   if (!enabled) return null;

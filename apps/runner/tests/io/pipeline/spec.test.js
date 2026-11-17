@@ -6,7 +6,6 @@
  *
  * The request is built for a scratch copy of the tree under test, in its own process; nothing is sent to any runner.
  */
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -16,9 +15,10 @@ import {
   gitIn,
   guardProcesses,
   hopCheck,
+  runModuleSource,
   scratch,
   within,
-} from './kit.js';
+} from '../../../../../packages/gate/tests/fixtures/pipeline/kit.js';
 
 /** The runner request frame bound requestFor enforces. */
 const SPEC_LIMIT = 1024 ** 2;
@@ -46,7 +46,7 @@ test('a runner request naming every test file of this repository builds a spec u
       process.stdout.write(JSON.stringify({ refused: error.code ?? error.name, message: error.message, inlined, ms: performance.now() - started }));
     }`;
   await hopCheck('runner-spec', async () => {
-    const run = spawnSync(process.execPath, ['--no-warnings', '--input-type=module', '-e', source, gitIn(repo, 'rev-parse', 'HEAD'), gitIn(repo, 'rev-parse', 'HEAD^{tree}'), command],
+    const run = runModuleSource(source, [gitIn(repo, 'rev-parse', 'HEAD'), gitIn(repo, 'rev-parse', 'HEAD^{tree}'), command],
       { cwd: repo, encoding: 'utf8', timeout: 240_000, maxBuffer: 16 * 1024 * 1024,
         env: { ...process.env, PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), PULLBOARD_TEST_REUSE: '0' } });
     if (run.status !== 0) throw new Error(`request builder exited ${run.status}: ${run.stderr.slice(0, 400)}`);

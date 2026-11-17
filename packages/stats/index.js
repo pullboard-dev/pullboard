@@ -100,6 +100,7 @@ export {
 export {
   publishUsage,
   checkpointAfterMove,
+  recordCoordinatorSession,
 } from './src/io/cost/checkpoint.js';
 export {
   USAGE_CHECKPOINT_ENV,
@@ -142,6 +143,7 @@ export {
   recordUsage,
   recordCoordinatorUsage,
   costTotals,
+  coordinatorUsage,
   budgetState,
   budgetClaimRefusal,
   machineBudgetState,

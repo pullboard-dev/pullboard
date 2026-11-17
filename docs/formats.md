@@ -258,6 +258,8 @@ A board without `event_log_version` is a legacy version-0 event log. Opening an 
 
 The `job` and `job_step` tables are part of a board export only while they hold rows: an export of a board with no jobs leaves both tables (and their `sqlite_sequence` counters) out, and an import treats a missing `job` or `job_step` table as empty. Every other table must be present exactly. Import reports the tables the export carried, so its `tables` list equals the export's table names.
 
+With `items.typedFields` on, an export of a board whose items hold typed fields also carries a top-level `fields` object beside `tables`, mapping each item id to its `{name, type, value}` list; with the setting off, or no field set, the document has no `fields` key and is exactly as before. Import ignores it, because the same values are in the `item_field` rows.
+
 A native board export includes the marker in its `board_meta` rows. Import refuses a newer event-log version before changing the destination; an older export upgrades its marker in place. Static view exports put `eventLogVersion` beside the data in both `state.json` and `events.json`, separately from the API envelope's `version`.
 
 Linked clients seal an executable operation and its deterministic inputs. The relay assigns its sequence and receipt timestamp without reading the operation. Each client runs the CLI's board engine at that timestamp. Successful results and engine refusals advance `board_meta.relay_applied_sequence` in the same transaction as the move's receipt, keyed by `relay_receipt_<operation-id>`; retries return the recorded outcome. An identical operation id and descriptor at a later relay position advances the prefix without another event and returns its first outcome. The same id with different contents is refused with `RELAY_MOVE`. `relay_engine_version` records the checkpoint's executable semantics. A future engine stops replay before either its rows or its cursor changes.
@@ -449,6 +451,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 | `job_step_lease` | `job` | `job_step`, `job_lease_until` | no |
 | `job_step_name_at` | `job_step` | `job_step_name`, `job_step_at` | no |
 | `job_step_name_seq` | `job_step` | `job_step_name`, `job_step_seq` | no |
+| `job_step_updated` | `job` | `job_step`, `job_updated`, `job_kind` | no |
 | `run_item_kind` | `run` | `run_item`, `run_kind` | no |
 | `run_open` | `run` | `run_state` | no |
 | `shout_answers` | `shout` | `shout_answers` | no |

@@ -12,7 +12,9 @@ import { moveFlowItem } from '../../../../stats/light.js';
 import { roleOf } from '../../../../stats/light.js';
 import { appendRuleProof } from '../rule/proof/append.js';
 import { deleteDerived } from './derived.js';
+import { derivedOn } from './derived.js';
 import { derivedText } from './derived.js';
+import { derivedTextRows } from './derived.js';
 import { writeDerived } from './derived.js';
 
 export const PROOF_COUNTER_PREFIX = 'local:proof-stats:';
@@ -141,9 +143,9 @@ export function proofCounter(board, key) {
   if (held) {
     let entry = held.get(key);
     if (!entry) {
-      const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
-      if (!row) return null;
-      entry = { text: row.meta_value, dirty: false }; held.set(key, entry);
+      const text = storedText(board, key);
+      if (text === null) return null;
+      entry = { text, dirty: false }; held.set(key, entry);
     }
     return decode(entry.text);
   }
@@ -158,8 +160,14 @@ export function derivedProofCounter(board, key) {
 
 /** Read and decode one stored record. */
 function readCounter(board, key) {
-  const row = statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key));
-  return row ? decode(row.meta_value) : null;
+  const text = storedText(board, key);
+  return text === null ? null : decode(text);
+}
+
+/** One counter's stored text, from the derived database when PULLBOARD_PROOF_DERIVED_DB is on and from board_meta otherwise; null when absent [C7]. */
+function storedText(board, key) {
+  if (derivedOn(board)) return derivedText(board, stored(key));
+  return statement(board.db, 'SELECT meta_value FROM board_meta WHERE meta_key=?').get(stored(key))?.meta_value ?? null;
 }
 
 /** Replace one affected shard without rewriting the board's accumulated history. */
@@ -213,6 +221,7 @@ const keptShards = new Map();
 export function proofCounterRows(board, kind) {
   const file = APPEND_ONLY_KINDS.has(kind) && typeof board.db.location === 'function' ? board.db.location() : null;
   const prefix = stored(`${kind}:`);
+  if (derivedOn(board)) return derivedTextRows(board, prefix).map(decode);
   if (!file) return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key GLOB ? ORDER BY rowid').all(`${prefix}*`)
     .map(row => decode(row.meta_value));
   const id = `${file}\0${kind}`;
