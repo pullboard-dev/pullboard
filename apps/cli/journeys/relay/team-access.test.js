@@ -73,7 +73,8 @@ test('clause 1: a used machine stays signed in, and clause 2: health warns befor
   const bytes = readFileSync(link);
   const health = boardHealth(join(root, '.git/pullboard/board.sqlite'), { root, now: new Date(started + 28 * DAY), dispatchHealth });
   const warnings = health.stuck.filter(finding => finding.cause === 'RELAY_CREDENTIAL_EXPIRING');
-  assert.ok(warnings.map(finding => finding.detail.kind).includes('machine'), 'health names the machine credential two days before expiry');
+  assert.equal(warnings.length, 1, 'health names the one machine credential two days before expiry');
+  assert.equal(warnings[0].detail.expired, false);
   assert.ok(warnings.every(finding => finding.next.includes('pullboard relay on')), 'each warning gives the explicit sign-in repair');
   assert.deepEqual(readFileSync(link), bytes, 'health only observes the saved credential metadata');
   assert.equal(JSON.stringify(health).includes(used.token), false, 'health never exposes the machine bearer');
