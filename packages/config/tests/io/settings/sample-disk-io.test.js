@@ -20,13 +20,13 @@ function readWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 2: gate.sampleDiskIo is off when unset and on only when set true [C7,#9029]', () => {
+test('config.io-settings-sample-disk-io.clause-2-gate-samplediskio-is-off-when: clause 2: gate.sampleDiskIo is off when unset and on only when set true [C7,#9029]', () => {
   assert.equal(readWith({}), false);
   assert.equal(readWith({ gate: { sampleDiskIo: false } }), false);
   assert.equal(readWith({ gate: { sampleDiskIo: true } }), true);
 });
 
-test('clause 2: a non-boolean gate.sampleDiskIo is refused naming the setting, and the setting is described [C7,#9029]', () => {
+test('config.io-settings-sample-disk-io.clause-2-a-non-boolean-gate-samplediskio: clause 2: a non-boolean gate.sampleDiskIo is refused naming the setting, and the setting is described [C7,#9029]', () => {
   assert.throws(() => readWith({ gate: { sampleDiskIo: 'yes' } }), /gate\.sampleDiskIo/u);
   assert.match(JSON.stringify(describeSetting('gate.sampleDiskIo')), /disk busy/u);
 });
