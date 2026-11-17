@@ -106,6 +106,7 @@ import { missingCheckFiles } from '../../../../../packages/items/index.js';
 import { refuseMissingCheckFile } from '../../../../../packages/config/index.js';
 import { pendingFromJobRow } from '../../../../../packages/config/index.js';
 import { recoverFromJobRow } from '../../../../../packages/config/index.js';
+import { gateJunitReport } from '../../../../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
@@ -121,6 +122,7 @@ import { context } from '../entry.js';
 import { filesSince } from '../entry.js';
 import { gateTestFiles } from '../entry.js';
 import { titleCases } from '../submit.js';
+import { junitTickNotes } from '../submit.js';
 import { clauseMarksNote } from '../submit.js';
 import { freezer } from '../entry.js';
 import { idArg } from '../entry.js';
@@ -279,6 +281,13 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
     }
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
+    // With gate.junitReport set, the builder's JUnit report ticks the [test] clauses whose named cases passed and names failing ones; unset (the default) adds nothing [C7,#9727].
+    const reportPath = inspectClauses ? gateJunitReport() : null;
+    if (reportPath) {
+      const junit = junitTickNotes(root, item, store.itemThread(board, id), headCommit(root), reportPath);
+      for (const text of junit.notes) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text }]);
+      for (const row of junit.failed) ctx.io.say(`JUnit report ${reportPath}: case "${row.name}" failed, so clause ${row.number} stays unticked`);
+    }
     const clauseProblem = inspectClauses ? authorizationStep('clause-inspection', () => clauseInspectionProblem(item, store.itemThread(board, id), { gateFiles: gateFilesOf(item), head: headCommit(root), folderTicks, titleTicks, cases: titleTicks ? titleCases(root, gateFilesOf(item)) : [] })) : null;
     if (clauseProblem) throw clauseProblem;
     // A [test] clause also needs a recorded run that failed on an assertion at the item's base (fail-before, pass-after) [C7].
