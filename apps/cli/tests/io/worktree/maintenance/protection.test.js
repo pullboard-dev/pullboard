@@ -9,7 +9,7 @@ const DAY = 24 * 60 * 60 * 1000;
 
 registerMaintenanceProtectionTests();
 
-test('clause 2 [test]: classification protects trees outside the scratch area whatever their age, and a retired seat stays eligible [C7,#5969]', () => {
+test('cli.io-worktree-maintenance-protection.clause-2-test-classification-protects-trees-outside: clause 2 [test]: classification protects trees outside the scratch area whatever their age, and a retired seat stays eligible [C7,#5969]', () => {
   const NOW = Date.UTC(2026, 9, 30, 17);
   const mainRoot = '/tmp/pullboard';
   const base = { mainRoot, currentRoot: mainRoot, items: [], now: NOW, workingDirectories: [], previous: { firstSeenAt: NOW - 10 * DAY },
@@ -27,7 +27,7 @@ test('clause 2 [test]: classification protects trees outside the scratch area wh
   assert.equal(retired.oldEnough, true);
 });
 
-test('clause 3 [test]: a retired seat spare is removable, a live seat spare is kept, a stray spare name is kept [C7,#5776]', () => {
+test('cli.io-worktree-maintenance-protection.clause-3-test-a-retired-seat-spare: clause 3 [test]: a retired seat spare is removable, a live seat spare is kept, a stray spare name is kept [C7,#5776]', () => {
   const NOW = Date.UTC(2026, 9, 30, 17);
   const mainRoot = '/tmp/pullboard';
   const base = { mainRoot, currentRoot: mainRoot, items: [], now: NOW, workingDirectories: [], previous: { firstSeenAt: NOW - 10 * DAY },

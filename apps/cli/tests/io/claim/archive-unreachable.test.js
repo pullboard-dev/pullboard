@@ -16,7 +16,7 @@ import { joinFixtureSeat } from '../../fixtures/testkit.js';
 
 const DRAFT = '<h1>Uncommitted draft</h1>\n';
 
-test('clause 1: claim with a worktree-archives link to a missing volume keeps the claim and the dirty folder, names the archive path once, and exits 0 [C7]', async t => {
+test('cli.io-claim-archive-unreachable.claim-with-a-worktree-archives-link-to: clause 1: claim with a worktree-archives link to a missing volume keeps the claim and the dirty folder, names the archive path once, and exits 0 [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');

@@ -75,12 +75,12 @@ function fixture(t, { gate = true } = {}) {
   return { board, stopped, job, seatGone, now: () => now };
 }
 
-test('clause 1: a quiet seat with no gate job is reclaimed at two minutes, so the fixture reads a stopped seat [C7,#8650]', t => {
+test('cli.io-gate-offered-claim.a-quiet-seat-with-no-gate-job: clause 1: a quiet seat with no gate job is reclaimed at two minutes, so the fixture reads a stopped seat [C7,#8650]', t => {
   const f = fixture(t, { gate: false });
   assert.deepEqual(f.seatGone(), [f.stopped.id]);
 });
 
-test('clause 1: an item with an offered gate job is not released for a missing heartbeat while the job is open [C7,#8650]', async t => {
+test('cli.io-gate-offered-claim.an-item-with-an-offered-gate-job: clause 1: an item with an offered gate job is not released for a missing heartbeat while the job is open [C7,#8650]', async t => {
   const f = fixture(t);
   assert.deepEqual(f.seatGone(), [], 'an offered gate job, past the queue window with no runner yet, keeps the claim');
   // A runner takes the job and dies: its lease lapses, and a command's fallback reclaim pass reads the job as lapsed.
@@ -95,7 +95,7 @@ test('clause 1: an item with an offered gate job is not released for a missing h
   assert.deepEqual([getItem(f.board, f.stopped.id).item_status, getItem(f.board, f.stopped.id).item_owner], ['claimed', f.stopped.holder]);
 });
 
-test('clause 1: a claimed item\'s older gate job is still ended stale once a newer one is offered [C7,#8650]', t => {
+test('cli.io-gate-offered-claim.a-claimed-item-s-older-gate-job: clause 1: a claimed item\'s older gate job is still ended stale once a newer one is offered [C7,#8650]', t => {
   const f = fixture(t);
   offerJob(f.board.db, { id: `${f.job}:newer`, kind: 'gate', priority: 'gate', item: f.stopped.id, candidate: 'e'.repeat(40), base: MAIN, now: f.now() - MINUTE,
     request: { submit: { agentId: f.stopped.holder, digest: 'bar' } } });
@@ -103,7 +103,7 @@ test('clause 1: a claimed item\'s older gate job is still ended stale once a new
   assert.equal(servingNow(f.board, jobView(f.board.db, `${f.job}:newer`)), true);
 });
 
-test('clause 2: the gate result still records on the item after its builder seat stops [C7,#8650]', async t => {
+test('cli.io-gate-offered-claim.the-gate-result-still-records-on-the: clause 2: the gate result still records on the item after its builder seat stops [C7,#8650]', async t => {
   const f = fixture(t);
   const held = claimJob(f.board.db, { runner: 'runner-1', now: f.now() - 10 * MINUTE, leaseMs: 2 * MINUTE });
   await reclaimPass(f.board.db, { owner: 'fallback:next:1', now: f.now, active: view => servingNow(f.board, view), drive: async () => ({ transition: null }) });

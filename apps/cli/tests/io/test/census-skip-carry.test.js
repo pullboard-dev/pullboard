@@ -45,7 +45,7 @@ const rowsFor = (repo, sha) => {
   return Object.fromEntries(readFileSync(join(dir, name), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).map(row => [row.file, row]));
 };
 
-test('clause 1: with census.skipUnchanged on, a census on a descendant sha runs only the changed-input file and writes carried green rows for the others, one row per file [C7,#10383]', async (t) => {
+test('cli.io-test-census-skip-carry.with-census-skipunchanged-on-a-census-on: clause 1: with census.skipUnchanged on, a census on a descendant sha runs only the changed-input file and writes carried green rows for the others, one row per file [C7,#10383]', async (t) => {
   const { repo, box, commit } = fixture(t, { census: { skipUnchanged: true } });
   const calls = [];
   assert.equal(await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher(calls) }), 0);
@@ -61,7 +61,7 @@ test('clause 1: with census.skipUnchanged on, a census on a descendant sha runs 
   for (const file of ['b.test.js', 'c.test.js']) { assert.equal(rows[file].status, 'green'); assert.equal(rows[file].carried, true); assert.equal(rows[file].carriedFrom, first); }
 });
 
-test('clause 1: with the setting off, or a census with no earlier one, every file runs and no row is marked carried [C7,#10383]', async (t) => {
+test('cli.io-test-census-skip-carry.with-the-setting-off-or-a-census: clause 1: with the setting off, or a census with no earlier one, every file runs and no row is marked carried [C7,#10383]', async (t) => {
   const { repo, box, commit } = fixture(t);
   const calls = [];
   await runCensus(quiet, { info: { root: repo } }, {}, { shards: 1, run: dispatcher(calls) });
