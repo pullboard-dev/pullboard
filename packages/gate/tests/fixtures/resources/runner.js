@@ -229,8 +229,8 @@ process.exit(lines.length?1:0);
   mkdirSync(dirname(ledgerFile), { recursive: true });
   writeFileSync(ledgerFile, JSON.stringify({ version: 2, gates: 20, codes: {
     [trialLedgerKey('RATCHET_ROSE', { rule: ['doctrine', machinery] })]: { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 } } }) + '\n');
-  const runner = await serveRegisteredRunner(t, box, registered);
-  return { box, marker, paths: registered.paths, runner, base, id };
+  await serveRegisteredRunner(t, box, registered);
+  return { box, marker, paths: registered.paths, base, id };
 }
 
 /**
@@ -239,22 +239,13 @@ process.exit(lines.length?1:0);
  */
 async function submitSettled(box, { settledGateJob }, id) {
   succeeded(await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json'));
-  const job = await settledGateJob(box, id, { deadlineMs: DOCTRINE_SETTLE_MS });
-  process.stderr.write(`JOB ${JSON.stringify(job).slice(0, 5000)}\n`);
-  return job;
+  return settledGateJob(box, id, { deadlineMs: DOCTRINE_SETTLE_MS });
 }
 
 /** The doctrine refusal codes the settled gate job carries: a pulled gate names them in its analysis refusals or in the machinery refusals it hands the board [C7,D1,D3]. */
 function doctrineRefusals(job) {
   const analysis = job.gate?.analysis ?? {};
   return [...(analysis.refusals ?? []).filter(row => row.part === 'doctrine'), ...(analysis.machinery ?? []).filter(row => row.kind === 'doctrine')].map(row => row.code);
-}
-
-/** The doctrine observation receipts the registered runner kept under its cache folder, one parsed record each. */
-function doctrineReceipts(runner) {
-  process.stderr.write(`RUNNERFILES ${JSON.stringify(readdirSync(runner.folder, { recursive: true }).filter(name => /doctrine|observation/u.test(name)).slice(0, 60))}\n`);
-  return readdirSync(runner.folder, { recursive: true }).filter(name => name.endsWith('observation.json') && name.includes('doctrine'))
-    .map(name => JSON.parse(readFileSync(join(runner.folder, name), 'utf8')));
 }
 
 /** Install the rising-count case alone: its one registered-worker submit needs a file of its own to stay inside the time budget [C7,D1]. */
@@ -271,11 +262,12 @@ export function installRunnerOnlyDoctrineCase(fixtures) {
 /** Install the uncountable and final green submits alone, with the receipts they bind to the registered worker [C7,D1,D3]. */
 export function installRunnerOnlyUncountedCase(fixtures) {
   test('clause 2: runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', async t => {
-    const { box, marker, paths, runner, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
+    const { box, marker, paths, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
     const broken = await submitSettled(box, fixtures, id);
     assert.deepEqual(doctrineRefusals(broken), ['RATCHET_UNCOUNTED'], JSON.stringify(broken.gate.analysis));
+    assert.match(broken.gate.analysis.refusals.find(row => row.part === 'doctrine').message, /its check exited 3/u, 'the uncountable exit is retained rather than a passing empty count');
     writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
     writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
     box.git(box.web, 'add', '-A');
@@ -287,12 +279,9 @@ export function installRunnerOnlyUncountedCase(fixtures) {
     assert.ok(observations.some(row => row.commit === commit), 'candidate command really ran');
     assert.ok(observations.some(row => row.commit === base), `touched existing problem really exercised the baseline command: base ${base}, saw ${JSON.stringify(observations)}`);
     assert.ok(observations.every(row => row.cwd.startsWith(paths.remoteHome + '/')), 'no current or baseline doctrine shell ran on the controller');
-    // Main's count is measured once, machine-wide, by the first submit, and its receipt sits in the registered runner's cache.
-    const receipts = doctrineReceipts(runner);
-    assert.ok(receipts.some(row => row.checkedSource.commit === commit && row.privateCheck.phases.check.code === 1), 'exit one remains a counted current result');
-    assert.ok(receipts.some(row => row.checkedSource.commit === base && row.privateCheck.phases.check.code === 1), 'the baseline has its own actual source-bound receipt');
-    assert.ok(receipts.some(row => row.privateCheck.phases.check.code === 3), 'the uncountable exit is retained rather than a passing empty count');
-    assert.ok(receipts.every(row => row.runner === HOST && row.checkedSource.commit === row.executionSource.commit
-      && row.checkedSource.tree === row.executionSource.tree && row.privateCheck.sourceUnchanged), 'all counted observations bind actual unchanged source');
+    // A pulled gate keeps no private-check envelope: its counted result, baseline and runner are on the settled job itself.
+    assert.equal(counted.gate.analysis.doctrine, 1, 'exit one remains a counted current result');
+    assert.ok(counted.gate.analysis.notes.some(note => /Q7 Web problems only fall\. · 1, was 1 · holding/u.test(note)), 'the baseline has its own counted result');
+    assert.ok(counted.gate.logRunner === HOST && counted.gate.source === commit && counted.gate.main === base, 'the counted observations bind the registered runner and the actual unchanged source');
   });
 }
