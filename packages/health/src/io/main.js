@@ -72,6 +72,8 @@ import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
+import { relayMachineContext } from '../../../link/index.js';
+import { credentialExpiryFindings } from './credential.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
@@ -142,6 +144,9 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
     }));
   }
+  let machineLink = null;
+  try { machineLink = relayMachineContext(root); } catch { /* no readable link: no credential to warn about */ }
+  report.stuck.push(...credentialExpiryFindings(machineLink, now.getTime(), finding));
   const settings = machineSettings;
   if (settings?.gate?.loadAwareDispatch === true) {
     const fresh = (settings.runners ?? []).filter(runner => {

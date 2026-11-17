@@ -40,13 +40,13 @@ test('clause 1: a new spawnSync, execSync, gitSpawnSync, readdirSync or Atomics.
 });
 
 test('clause 1: a known row that no longer fires fails so the set only shrinks [C7]', () => {
-  const rows = apiRequestIoProblems(sources, { known: { ...KNOWN_REQUEST_BLOCKERS, 'packages/api/src/io/main.js#gone': 'already fixed' } });
+  const rows = apiRequestIoProblems(sources, { known: { ...candidateKnownBlockers(sources), 'packages/api/src/io/main.js#gone': 'already fixed' } });
   assert.deepEqual(rows.map(row => row.owner), ['packages/api/src/io/main.js#gone']);
   assert.equal(rows[0].stale, true);
 });
 
 test('clause 1: an unlisted call fails when its owner is missing from the known set [C7]', () => {
-  const { 'packages/landing/src/io/main/red/receipt.js#treeOf': removed, ...rest } = KNOWN_REQUEST_BLOCKERS;
+  const { 'packages/landing/src/io/main/red/receipt.js#treeOf': removed, ...rest } = candidateKnownBlockers(sources);
   assert.ok(removed);
   const rows = apiRequestIoProblems(sources, { known: rest });
   assert.deepEqual(rows.map(row => row.owner), ['packages/landing/src/io/main/red/receipt.js#treeOf']);
@@ -142,7 +142,7 @@ test('#7340 clause 1: a candidate tree that removes a blocker together with its 
   const source = file => sources.find(entry => entry.file === file).source;
   const withRow = source(requestFile);
   const line = withRow.split('\n').find(text => text.startsWith(`  '${owner}': `));
-  assert.deepEqual(candidateKnownBlockers(sources), { ...KNOWN_REQUEST_BLOCKERS }, 'the tree list reads back whole');
+  assert.deepEqual(candidateKnownBlockers(sources, { includeExtra: true }), { ...KNOWN_REQUEST_BLOCKERS }, 'the tree list reads back whole');
   assert.ok(line, 'the row is in the tree');
   const withoutRow = withRow.replace(`${line}\n`, '');
   const edit = changes => sources.map(entry => entry.file in changes ? { ...entry, source: changes[entry.file] } : entry);
@@ -181,4 +181,21 @@ test('clause 1: extraRoots naming the materializer worker and the rule-proof app
     assert.deepEqual(found.filter(row => row.owner === owner).map(row => row.chain.at(-1)), [owner], `${file}: the seeded blocking call is reported through its extra root`);
     assert.ok(found.find(row => row.owner === owner).chain[0].startsWith(file), `${file}: the chain starts at the extra root`);
   }
+});
+
+test('clause 1: known blockers equal the owners reached from the requests, materializer worker and rule-proof append [C7,#9678]', () => {
+  const rows = apiRequestIoProblems(sources, { known: {}, extraRoots: EXTRA_REQUEST_ROOTS });
+  const owners = [...new Set(rows.map(row => row.owner))].sort();
+  assert.deepEqual(Object.keys(KNOWN_REQUEST_BLOCKERS).sort(), owners);
+  assert.ok(owners.every(owner => !/#(?:verdictTrunk|sourceRoot)$/u.test(owner)));
+
+  const check = STATIC_TREE_CHECKS.find(row => row.name === 'api-request-io');
+  assert.deepEqual(check.run(root, sources, { requestIoExtraRoots: true }), []);
+  const worker = 'packages/api/src/io/state/materializer/worker.js';
+  const tree = sources.map(row => row.file === worker ? {
+    ...row,
+    source: row.source.replace('function prewarm() {', 'function prewarm() {\n  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);'),
+  } : row);
+  assert.deepEqual(check.run(root, tree, { requestIoExtraRoots: false }), []);
+  assert.equal(check.run(root, tree, { requestIoExtraRoots: true }).filter(row => row.includes('global:Atomics#wait')).length, 1);
 });
