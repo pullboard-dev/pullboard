@@ -85,6 +85,11 @@ export function excuseMainTimingReds() {
   return loadMachineSettings().gate?.excuseMainTimingReds === true;
 }
 
+/** Whether submit.recoverFromJobRow is on (#9824): off by default; only an exact `true` turns it on. */
+export function recoverFromJobRow() {
+  return loadMachineSettings().submit?.recoverFromJobRow === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
