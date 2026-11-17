@@ -177,6 +177,7 @@ const ROWS = Object.freeze({
   rust: ['cargo'],
   sbt: ['java', 'sbt'],
   swift: ['swift'],
+  zig: ['zig'],
 });
 
 /**
