@@ -1,13 +1,13 @@
 /** Private native SQLite histories prove build accounting [B35,R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../../index.js';
-import { buildTimeStats } from '../../../../../stats/index.js';
-import { buildTimeLines } from '../../../../../stats/index.js';
-import { criterionSize } from '../../../../../items/index.js';
-import { fixture } from '../../../fixtures/stats/time.js';
+import * as store from '../../../store/index.js';
+import { buildTimeStats } from '../../../stats/index.js';
+import { buildTimeLines } from '../../../stats/index.js';
+import { criterionSize } from '../../../items/index.js';
+import { fixture } from '../fixtures/stats/time.js';
 
-test('store.logic-board-stats-time.landed-build-minutes-use-the-last: landed build minutes use the last claim, ignore renewals and retain unmeasured evidence [B35,R1,R2,C7]', t => {
+test('board.stats-time.landed-build-minutes-use-the-last: landed build minutes use the last claim, ignore renewals and retain unmeasured evidence [B35,R1,R2,C7]', t => {
   const { board } = fixture(t);
   const report = buildTimeStats(store.events(board), store.listItems(board, { all: true }), [], criterionSize);
   assert.equal(report.items.find(row => row.item === 1).buildMinutes, 20);

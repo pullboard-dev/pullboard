@@ -863,6 +863,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
+    },
     "push-only.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/push-only.js"

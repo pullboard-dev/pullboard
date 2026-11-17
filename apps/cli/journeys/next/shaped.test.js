@@ -32,7 +32,7 @@ async function offered(box) {
   return answer.document.item?.item_id ?? `none: ${answer.out}`;
 }
 
-test('clause 1: with next.lightShapedStrong on and no free light item, the real next from a light seat offers an unheld light-shaped strong item [C7,#9568]', async t => {
+test('cli.journeys-next-shaped.with-next-lightshapedstrong-on-and-no: clause 1: with next.lightShapedStrong on and no free light item, the real next from a light seat offers an unheld light-shaped strong item [C7,#9568]', async t => {
   const box = await fixture(t, { route: 'light' });
   const shaped = shapedStrong(box);
   box.add('Wrong route and not light-shaped', { route: 'strong' });
@@ -42,7 +42,7 @@ test('clause 1: with next.lightShapedStrong on and no free light item, the real 
   assert.equal(claimed.code, 0, `the light seat claims what next offered: ${claimed.out}${claimed.err}`);
 });
 
-test('clause 2: the light-shaped strong item is not offered while a light item is free [C7,#9568]', async t => {
+test('cli.journeys-next-shaped.the-light-shaped-strong-item-is: clause 2: the light-shaped strong item is not offered while a light item is free [C7,#9568]', async t => {
   const box = await fixture(t, { route: 'light' });
   shapedStrong(box);
   const light = box.add('Free light item', { route: 'light' });
@@ -50,7 +50,7 @@ test('clause 2: the light-shaped strong item is not offered while a light item i
   assert.equal(await offered(box), light);
 });
 
-test('clause 2: with the setting off, which is the default, it is not offered [C7,#9568]', async t => {
+test('cli.journeys-next-shaped.with-the-setting-off-which-is: clause 2: with the setting off, which is the default, it is not offered [C7,#9568]', async t => {
   const box = await fixture(t, { route: 'light' });
   const shaped = shapedStrong(box);
   assert.notEqual(await offered(box), shaped, 'the default is off');
