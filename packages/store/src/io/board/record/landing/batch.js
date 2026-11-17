@@ -17,10 +17,9 @@ import { latestLandingBatch } from "../../../../../../git/index.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../../../state/light.js";
 import { carriesFlakeDiagnostics } from "../../../../../../state/light.js";
 import { coordinatorOnly } from "../../../board.js";
-import { flakesRereadRatchetEnabled } from "../../../../../../config/index.js";
 
-/** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. */
-export function recordLandingBatch(board, { agentId, batch, revision = 0, landingFence }) {
+/** Append one coordinator-owned batch revision without changing the board schema [B3,R3]. `rereadRatchet` is the caller's decision (the machine setting is read at the caller, never in this move) so a replay with the setting off decides the same [#10085]. */
+export function recordLandingBatch(board, { agentId, batch, revision = 0, landingFence, rereadRatchet = false }) {
   coordinatorOnly(agentId, 'records landing batches');
   board.nativePorts.landingEnvironment.requireBatch(board, batch);
   if (carriesFlakeDiagnostics(batch) && (board.executionEngineVersion ?? ENGINE_VERSION) < NATIVE_FLAKE_ENGINE) {
@@ -54,7 +53,7 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
         ('test-quarantine','flake-observation','flake-repair','gate-run','accept','reject','reopen','withdraw','merged') LIMIT 1`).get(batch.flakeRatchet.eventId);
       if (changed) {
         // With flakes.rereadRatchet on, re-read the ratchet inside this write transaction and keep the fresh snapshot if it still passes [C7,#9436].
-        const fresh = flakesRereadRatchetEnabled() ? board.nativePorts.quarantine.landingFlakeRatchet(board) : null;
+        const fresh = rereadRatchet === true ? board.nativePorts.quarantine.landingFlakeRatchet(board) : null;
         if (!fresh?.allowed) throw new Refused('BOARD_BUSY', 'flake evidence or repair status changed before the landing snapshot was recorded; retry the landing');
         batch = { ...batch, flakeRatchet: fresh.snapshot };
       }
