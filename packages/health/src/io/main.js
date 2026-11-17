@@ -67,7 +67,7 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../store/index.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../landing/index.js';
+import { localReleaseRank } from '../../../landing/light.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';

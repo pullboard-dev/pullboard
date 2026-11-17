@@ -489,6 +489,11 @@ export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
 }
 
+/** The cap landing.staticParallelMax sets on static-check child processes at once (#9078), or null when unset: they run one at a time. */
+export function staticParallelMax() {
+  return loadMachineSettings().landing?.staticParallelMax ?? null;
+}
+
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
@@ -1081,6 +1086,11 @@ export function parallelGatesEnabled() {
 /** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
 export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
+}
+
+/** Whether gate.pulledProfilePaths is on (#9614): off by default; only an exact `true` turns it on. */
+export function pulledProfilePathsEnabled() {
+  return loadMachineSettings().gate?.pulledProfilePaths === true;
 }
 
 /** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
