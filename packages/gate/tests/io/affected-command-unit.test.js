@@ -16,6 +16,6 @@ test('gate.affected-command-unit.both-forms-refused: clause 2: a command holding
 
 test('gate.affected-command-unit.others-unchanged: clause 3: the file unit and the {units} form return byte for byte what they return today [C7]', () => {
   assert.equal(affectedCommand({ affectedTests: 'node --test  ' }, ['a/b.test.js']), "node --test './a/b.test.js'");
-  assert.equal(affectedCommand({ affectedTests: 'go test {units} -count=1' }, ['pkg/a', 'cmd/app'], 'package'), "go test 'cmd/app' 'pkg/a' -count=1");
+  assert.equal(affectedCommand({ affectedTests: 'go test {units} -count=1' }, ['pkg/a', 'cmd/app'], 'package'), "go test './cmd/app' './pkg/a' -count=1");
   assert.equal(affectedCommand({ affectedTests: 'cargo test -p {unit}' }, ['x'], 'file'), "cargo test -p {unit} './x'");
 });

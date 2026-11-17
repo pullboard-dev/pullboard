@@ -31,11 +31,13 @@ import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
+import { lightShaped } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
+import { nextLightShapedStrong } from '../../../config/index.js';
 import { nextRouteByTier } from '../../../config/index.js';
 import { tierOmissions } from './tier-routing.js';
 import { nextReadinessCheck } from '../../../config/index.js';
@@ -435,7 +437,7 @@ function nextPick(ctx, board, values, ports) {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
@@ -481,7 +483,9 @@ function nextPick(ctx, board, values, ports) {
   const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
   if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
     : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
-  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
+  // next.lightShapedStrong: the selection already found no free light item, so a light-shaped strong item is this light seat's to take [C7,#9568].
+  const shapedStrong = selection.lightShapedStrong === true && me.route === 'light' && item.item_route === 'strong' && lightShaped(item);
+  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !shapedStrong && !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
