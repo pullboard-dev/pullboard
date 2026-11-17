@@ -7,18 +7,23 @@ import {
   runFixtureChildAsync,
 } from '../../../tests/fixtures/child.js';
 import {
+  existsSync,
   mkdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import {
   after,
   describe,
   test,
 } from 'node:test';
 
+import { fixtureMachineSettings } from '../../../tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -81,6 +86,25 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
     // The ledger holds the builder's claim and submit; the reviewer's verify passing already proves it is another session.
     assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
     assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
+  }
+});
+test('clause 1: the tour carries the caller runners.localWake into its demo machine home, and only when it is on [C7,#10418]', { timeout: 300_000 }, async () => {
+  // Two tours with their own homes: the caller has localWake on in one and off (the default) in the other.
+  const runs = [true, false].map(on => {
+    const box = sandbox();
+    if (on) fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { 'runners.localWake': true });
+    const callerEnv = { ...box.env, TMPDIR: box.dir };
+    delete callerEnv.PULLBOARD_MODEL;
+    delete callerEnv.NO_COLOR;
+    delete callerEnv.FORCE_COLOR;
+    return { on, shown: runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv, encoding: 'utf8' }) };
+  });
+  for (const { on, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
+    assert.equal(shown.status, 0, `localWake ${on}: ${shown.stdout}${shown.stderr}`);
+    const repo = /Look around: cd (\S+) && pullboard log/u.exec(shown.stdout)[1];
+    const settings = join(dirname(repo), '.pullboard-machine', 'settings.json');
+    const demo = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')) : {};
+    assert.equal(demo['runners.localWake'], on ? true : undefined, `localWake ${on}: the demo settings carry the caller's switch only when it is on`);
   }
 });
 });
