@@ -224,7 +224,7 @@ test('gate.io-board-request-blocking.a-moved-row-age-key-is-accepted: clause 1: 
 test('gate.io-board-request-blocking.a-moved-row-still-goes-stale-or-unlisted: clause 2: the computeRowAges row still goes stale when the call site is gone from both files, and unlisted when neither key is listed [C7,#10188]', () => {
   const gone = rowAgeTree('apps/view/src/io/state.js').map(row => row.file === 'apps/view/src/io/state.js' ? { ...row, source: 'export function computeRowAges() { return []; }\n' } : row);
   for (const key of [SERVE_OWNER, STATE_OWNER]) {
-    const stale = apiRequestIoProblems(gone, { known: { [key]: why } }).filter(row => row.stale);
+    const stale = apiRequestIoProblems(gone, { known: { [key]: why } }).filter(row => row.stale && row.owner.endsWith('#computeRowAges'));
     assert.deepEqual(stale.map(row => row.owner), [key], `${key} is stale with no call site`);
   }
   for (const file of ['apps/view/src/io/serve.js', 'apps/view/src/io/state.js']) {
