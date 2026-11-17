@@ -9516,6 +9516,113 @@
       "coveredBy": "apps/cli/tests/io/submit/stack.test.js",
       "because": "the merge-in refusal and its control run on real git and a board file in the cli cell (stack.test.js); the ITEM_PATCH_SOURCE next step runs in apps/cli/tests/io/commands/patch-source.test.js, without the gated first submission",
       "generatedBy": "packages/moves/tests/logic/table/submit-generated.test.js"
+    },
+    {
+      "file": "apps/cli/journeys/next/adopt-orphan.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/adopt-pinned.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/answer.test.js",
+      "specs": [
+        "C7",
+        "N2"
+      ],
+      "coveredBy": 1413,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/cap-builders.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/cross-lane.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/idle.test.js",
+      "specs": [
+        "C7",
+        "N2"
+      ],
+      "coveredBy": 1413,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/lag.test.js",
+      "specs": [
+        "B3",
+        "N2"
+      ],
+      "coveredBy": 63,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/load-ceiling.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/no-refused-pairing.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/readiness-cache.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/readiness.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/real-size.test.js",
+      "specs": [
+        "N2"
+      ],
+      "coveredBy": 26,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
+    },
+    {
+      "file": "apps/cli/journeys/next/review-reason.test.js",
+      "specs": [
+        "C7"
+      ],
+      "coveredBy": 1397,
+      "because": "every spec id it cites is also cited by a cell unit or contract test"
     }
   ]
 }
