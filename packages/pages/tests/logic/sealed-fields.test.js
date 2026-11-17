@@ -30,7 +30,7 @@ async function fixture(extra = {}) {
   return { objects, page: await openPagedSnapshot(root, context, { maxEngine: ENGINE }), document };
 }
 
-test('clause 1: the sealed snapshot carries the item fields with their types and its related ids, and a reader built from it shows them [C7,#9358]', async () => {
+test('pages.sealed-fields.the-sealed-snapshot-carries-the-item: clause 1: the sealed snapshot carries the item fields with their types and its related ids, and a reader built from it shows them [C7,#9358]', async () => {
   const { page } = await fixture({ fields: FIELDS, relatedIds: [1] });
   const boot = await page.presentation();
   const summary = boot.state.items.find(item => item.id === 2);
@@ -41,7 +41,7 @@ test('clause 1: the sealed snapshot carries the item fields with their types and
   assert.deepEqual(full.relatedIds, [1]);
 });
 
-test('clause 2: a snapshot of items with no fields or links adds no keys to any row and restores the document unchanged [C7,#9358]', async () => {
+test('pages.sealed-fields.a-snapshot-of-items-with-no: clause 2: a snapshot of items with no fields or links adds no keys to any row and restores the document unchanged [C7,#9358]', async () => {
   const plain = await fixture();
   const boot = await plain.page.presentation();
   for (const item of boot.state.items) assert.ok(!Object.hasOwn(item, 'fields') && !Object.hasOwn(item, 'relatedIds'));

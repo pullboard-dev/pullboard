@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { createApiHandler } from '../../../index.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const MATERIALIZER = fileURLToPath(new URL('../../../src/io/state/materializer.js', import.meta.url));
 /** How long the stub worker takes over each build, standing in for a big board's build. */

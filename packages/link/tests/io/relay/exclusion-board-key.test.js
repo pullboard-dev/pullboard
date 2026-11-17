@@ -40,7 +40,7 @@ function boards(t, excludeByBoard) {
   return { repo, second, other };
 }
 
-test('clause 1: with relay.excludeByBoard on, excluding from one worktree excludes every worktree of that board and no other board [C7,#9414]', t => {
+test('link.exclusion-board-key.on-covers-every-worktree: clause 1: with relay.excludeByBoard on, excluding from one worktree excludes every worktree of that board and no other board [C7,#9414]', t => {
   const { repo, second, other } = boards(t, true);
   assert.equal(excludeRelayByPerson(repo, IO, { localRecords: records() }), true);
   assert.ok(relayExclusion(repo), 'the worktree it was made in');
@@ -50,7 +50,7 @@ test('clause 1: with relay.excludeByBoard on, excluding from one worktree exclud
   assert.equal(relayExclusion(repo), null);
 });
 
-test('clause 2: an old checkout-keyed exclusion reads as the board\'s, and with the setting off the keying is unchanged [C7,#9414]', t => {
+test('link.exclusion-board-key.old-keys-read-as-board: clause 2: an old checkout-keyed exclusion reads as the board\'s, and with the setting off the keying is unchanged [C7,#9414]', t => {
   const on = boards(t, true);
   excludeRelayByPerson(on.repo, { personChannel: 'view' }, { localRecords: records() });
   updateRelayMachine(state => {

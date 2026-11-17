@@ -10,13 +10,13 @@ const TIERS = JSON.parse(`{
   "escalation": { "endpoint": "http://gpu-c.lan:8000/v1", "model": "house-large" }
 }`);
 
-test('clause 1: a tiers setting naming routine, standard and escalation tiers, each with a self-hosted endpoint, loads, and is off by default [C7]', () => {
+test('config.tiers-setting.clause-1-a-tiers-setting-naming-routine: clause 1: a tiers setting naming routine, standard and escalation tiers, each with a self-hosted endpoint, loads, and is off by default [C7]', () => {
   assert.deepEqual(configFromSource(JSON.stringify({ tiers: TIERS })).tiers, TIERS);
   assert.equal(defaults().tiers, undefined);
   assert.equal(configFromSource('{}').tiers, undefined);
 });
 
-test('clause 2: a tier with no endpoint or model is refused with the tier named [C7]', () => {
+test('config.tiers-setting.clause-2-a-tier-with-no-endpoint-or: clause 2: a tier with no endpoint or model is refused with the tier named [C7]', () => {
   for (const [tier, field] of [['standard', 'endpoint'], ['escalation', 'model']]) {
     const { [field]: omitted, ...rest } = TIERS[tier];
     assert.ok(omitted);

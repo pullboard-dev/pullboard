@@ -8,7 +8,7 @@ import { temporaryDirectory } from '../../../../store/tests/fixtures/tmp.js';
 import { createRelayPageCache } from '../../../index.js';
 import { snapshotSourceId } from '../../../index.js';
 
-test('[H16] an acknowledge after another connection commits mid-upload is recorded, not refused database is locked', (t) => {
+test('pages.cache.an-acknowledge-after-another-connection-commits: [H16] an acknowledge after another connection commits mid-upload is recorded, not refused database is locked', (t) => {
   const home = realpathSync(temporaryDirectory('pullboard-page-cache-'));
   const saved = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = home;
