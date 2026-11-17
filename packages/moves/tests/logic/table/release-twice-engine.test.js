@@ -15,11 +15,11 @@ const NOW = '2026-11-16T12:00:00.000Z';
 const HOLDER = 'core-1';
 const INFRA = 'GATE_INFRA_EXHAUSTED: the gate ran out of runners';
 
-/** A claimed item the holder already handed back once (a touched BUDGET release), then claimed again, at the given recorded engine. */
+/** A claimed item the holder already handed back once (a touched BLOCKED release), then claimed again, at the given recorded engine. */
 function snapshot(engine) {
   const history = [
     { id: 1, kind: 'claim', by: HOLDER, detail: {} },
-    { id: 2, kind: 'release', by: HOLDER, detail: { reasonCode: 'BUDGET' } },
+    { id: 2, kind: 'release', by: HOLDER, detail: { reasonCode: 'BLOCKED' } },
     { id: 3, kind: 'claim', by: HOLDER, detail: {} },
   ];
   return {
@@ -31,7 +31,7 @@ function snapshot(engine) {
   };
 }
 
-const infraRelease = { id: 7, actor: HOLDER, root: '/seats/core-1', reason: 'BUDGET', note: INFRA, now: NOW, worktreeSnapshot: { head: 'h', digest: 'd' } };
+const infraRelease = { id: 7, actor: HOLDER, root: '/seats/core-1', reason: 'BLOCKED', note: INFRA, now: NOW, worktreeSnapshot: { head: 'h', digest: 'd' } };
 const onRelease = { id: 7, actor: HOLDER, root: '/seats/core-1', reason: 'BLOCKED', on: [8], now: NOW, worktreeSnapshot: { head: 'h', digest: 'd' } };
 const run = (s, m) => runTable(TABLE, RULES, structuredClone(s), structuredClone(m));
 const twice = result => result.via.includes('released-twice');
@@ -59,7 +59,7 @@ test('clause 2: the same two releases on a board at an older engine still count,
 });
 
 test('clause 2: an earlier release in the history that named --on or an infra note counts at an older engine and not at the new one [C7,#9832]', () => {
-  for (const detail of [{ reasonCode: 'BLOCKED', blockedOn: [8] }, { reasonCode: 'BUDGET', reason: INFRA }]) {
+  for (const detail of [{ reasonCode: 'BLOCKED', blockedOn: [8] }, { reasonCode: 'BLOCKED', reason: INFRA }]) {
     const base = snapshot(FROM);
     base.history[1] = { id: 2, kind: 'release', by: HOLDER, detail };
     const second = { ...infraRelease, note: 'x' };
