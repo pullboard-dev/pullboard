@@ -14,7 +14,7 @@ function judge(lane, table, before, after) {
     ownsFile: file => !outOfLane(config, lane, [file]).length });
 }
 
-test('clause 1: a view split moves its baseline rows to the new files without raising their sum, in both baselines [L3,C7]', () => {
+test('commits.lane-owns-baseline-rows.clause-1-a-view-split-moves-its-baseline: clause 1: a view split moves its baseline rows to the new files without raising their sum, in both baselines [L3,C7]', () => {
   for (const table of TABLES) {
     const base = { 'test/a.test.js': { sleep: 1 }, 'test/cockpit/roadmap.test.js': { sleep: 4, poll: 2 } };
     const split = { 'test/a.test.js': { sleep: 1 }, 'test/cockpit/roadmap-a.test.js': { sleep: 2, poll: 1 }, 'test/cockpit/roadmap-b.test.js': { sleep: 2, poll: 1 } };
@@ -24,7 +24,7 @@ test('clause 1: a view split moves its baseline rows to the new files without ra
   }
 });
 
-test('clause 2: a raised row, new rows beyond what the change freed, or a row outside the lane is refused [L3,C7]', () => {
+test('commits.lane-owns-baseline-rows.clause-2-a-raised-row-new-rows-beyond: clause 2: a raised row, new rows beyond what the change freed, or a row outside the lane is refused [L3,C7]', () => {
   const table = TABLES[0];
   const base = { 'test/a.test.js': { sleep: 1 }, 'test/cockpit/roadmap.test.js': { sleep: 4 } };
   const raised = judge('view', table, base, { ...base, 'test/cockpit/roadmap.test.js': { sleep: 5 } });
