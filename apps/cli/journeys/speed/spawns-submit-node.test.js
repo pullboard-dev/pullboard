@@ -11,6 +11,7 @@ import { test } from 'node:test';
 import { largeBoard } from '../../tests/fixtures/board/large.js';
 import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
+import { fixtureProjectPolicy } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { spawnCounts } from '../../tests/fixtures/spawns.js';
 import { spawnEnv } from '../../tests/fixtures/spawns.js';
 import { PULLBOARD_ENTRY } from '../../src/io/resident/client.js';
@@ -34,6 +35,12 @@ test(`clause 1: one submit on the large board starts at most ${MEASURED_NODE_SPA
   box.beforeCleanup(() => stopResidents(box.repo));
   for (const name of ['NODE_TEST_CONTEXT', 'NODE_TEST_WORKER_ID']) delete box.env[name];
   const log = join(box.dir, 'spawns.log');
+  // Pullboard's own static checker is the configured check, so submit's preflight starts its node children as it does on this repo.
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, staticChecks: 'node --experimental-vm-modules apps/cli/src/io/static/checks.js' } });
+  runFixtureGit(['add', '-A'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: use the own static checker'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['merge', '-q', '--ff-only', 'main'], { cwd: box.web, env: box.env });
   const id = fileFixtureItem(box, box.repo, { lane: 'web', title: 'Node spawns', diagnose: false, args: ['--specs', 'G1'] }).item_id;
   box.run(box.web, 'status', '--json'); // real process: this test measures real spawns
   const claim = box.run(box.web, 'claim', String(id), '--json'); // real process: this test measures real spawns
