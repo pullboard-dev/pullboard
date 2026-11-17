@@ -40,11 +40,36 @@ const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
 export function tabSpeedTrace(env = process.env, write = line => process.stderr.write(`${line}\n`)) {
   const on = Boolean(env.PULLBOARD_TAB_SPEED_TRACE) && env.PULLBOARD_TAB_SPEED_TRACE !== '0';
   return async function stage(label, run) {
-    if (!on) return run();
+    inFlight.push(label);
     const start = performance.now();
     try { return await run(); }
-    finally { write(`tab-speed-trace: ${label} ${Math.round(performance.now() - start)} ms`); }
+    finally {
+      inFlight.pop();
+      if (on) write(`tab-speed-trace: ${label} ${Math.round(performance.now() - start)} ms`);
+    }
   };
+}
+
+/** Stages begun and not yet ended, outermost first; lets a watchdog name the stage a run sits in. */
+const inFlight = [];
+export function tabSpeedStageNow() { return inFlight.join(' > ') || 'none'; }
+
+/** Longest any one setup stage may wait before the run fails naming it; board generation and first load keep their own larger setup budgets. */
+const STAGE_MS = 30_000;
+const FIRST_LOAD_GRACE_MS = 5000;
+
+/** Run a stage, failing with its name if it has not finished within `ms` instead of waiting for the file kill. */
+export function boundedStage(stage, label, ms, run) {
+  let timer;
+  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`tab-speed stage "${label}" did not finish within ${ms / 1000} s`)), ms); });
+  return Promise.race([stage(label, run), stuck]).finally(() => clearTimeout(timer));
+}
+
+/** Fail with the stage name if `work` has not finished in `ms`, instead of waiting for the file kill. */
+export function nameStuckStage(work, ms) {
+  let timer;
+  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`STUCK in stage: ${tabSpeedStageNow()}`)), ms); });
+  return Promise.race([work, stuck]).finally(() => clearTimeout(timer));
 }
 
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
@@ -129,21 +154,21 @@ function inputScript() {
 /** Measure first and repeated switches of `tabs` on one real generated board; always drain owned Chrome and server. */
 export async function measureTabSpeed(board, tabs = ALL_TABS, deps = {}) {
   const { findChromeExecutable: findChrome = findChromeExecutable, startChrome: launch = startChrome, stableChrome: stabilise = stableChrome,
-    press: pressTarget = press, startView: start = startView, stopView: stop = stopView, stage = tabSpeedTrace() } = deps;
+    press: pressTarget = press, startView: start = startView, stopView: stop = stopView, stage = tabSpeedTrace(), stageMs = STAGE_MS, firstLoadLimit = firstLoadMs() } = deps;
   const executable = findChrome();
   if (!executable) throw new Error('Chrome is required for the tab speed contract');
   const profile = join(board.workspace, 'tab-speed-chrome');
   mkdirSync(profile, { recursive: true, mode: 0o700 });
   let server, chrome;
   try {
-    server = await stage('server start', () => start(board));
-    chrome = await stage('chrome start', async () => stabilise(await launch({ url: 'about:blank', executable, profileDirectory: profile,
+    server = await boundedStage(stage, 'server start', stageMs, () => start(board));
+    chrome = await boundedStage(stage, 'chrome start', stageMs, async () => stabilise(await launch({ url: 'about:blank', executable, profileDirectory: profile,
       env: { HOME: profile, PATH: process.env.PATH ?? '/usr/bin:/bin' } })));
     await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: observationScript() });
     // First load of the 40000-shout state is setup, not a measured click: give a loaded runner a minute [N26].
-    await stage('first load', async () => {
+    await boundedStage(stage, 'first load', firstLoadLimit + FIRST_LOAD_GRACE_MS, async () => {
       await chrome.navigate(server.link.href);
-      await chrome.waitFor(LOADED, firstLoadMs());
+      await chrome.waitFor(LOADED, firstLoadLimit);
     });
     await chrome.stable(inputScript(), "document.querySelector('[data-tab=items]')");
     const hangs = [], hung = new Set();
