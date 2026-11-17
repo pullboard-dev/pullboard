@@ -355,6 +355,15 @@ test('#8623 clause 1: stats-history.jsonl, timer.guard.sqlite, timer.json and ve
   assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
   assert.deepEqual(storeWriteProblems(registry, read), []);
   assert.equal(registry.stores['stats-history.jsonl'].owner, 'packages/stats/src/io/time/history.js', 'the module that appends the history owns it');
+  assert.equal(registry.stores['timer.json'].owner, 'packages/gate/src/io/main/audit/state.js', 'the module that writes the timer owns it');
+  assert.equal(registry.stores['timer.guard.sqlite'].owner, 'packages/gate/src/io/main/audit/state.js');
   assert.equal(registry.stores['vendors.json'].kind, 'repo-data', 'vendors.json is only read');
   assert.equal(Object.values(baseline).filter(row => row['stats-history.jsonl']).length, 0, 'no second home names the history file');
+});
+
+test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store passes the write-owner check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
+  assert.deepEqual(storeWriteProblems(registry, read), []);
 });
