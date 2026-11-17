@@ -22,6 +22,10 @@ import { proofLimitMs } from './deadline.js';
 import { timeoutDetail } from './deadline.js';
 import { stopTree } from './deadline.js';
 import { watchDeadline } from './deadline.js';
+import { IDENTITY } from '../land/merge-args.js';
+import { citedIds } from '../land/merge-args.js';
+import { landingMergeArgs } from '../land/merge-args.js';
+export { IDENTITY, citedIds, landingMergeArgs };
 
 /** The board's landing job kind, as packages/api offers it. */
 export const LANDING_JOB_KIND = 'land';
@@ -35,7 +39,6 @@ export const LANDING_PAYLOAD_SHAPE = 3;
 const TRUNK_CACHE = 'refs/pullboard/landing/trunk';
 /** The release tags a trunk fetch also takes, as a runner's gate checkout does: a proof that archives an old release (git archive v0.8.6) needs them (#7816). */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
-export const IDENTITY = ['-c', 'user.name=Pullboard', '-c', 'user.email=landing@pullboard.invalid', '-c', 'core.hooksPath=/dev/null'];
 // A push into the board host's own checkout updates its checked-out trunk and work tree, and refuses if that tree is dirty.
 export const INTO_CHECKOUT = '--receive-pack=git -c receive.denyCurrentBranch=updateInstead receive-pack';
 const NO_PUSH_OPTIONS = /does not support push options/u;
@@ -173,23 +176,6 @@ export async function fetchItemAsync(root, remote, entry) {
   if (fetched.status !== 0) return { moved: `the trunk remote does not serve ${entry.ref ?? entry.commit}` };
   const commit = tryGit(root, ['rev-parse', '--verify', `${local}^{commit}`]).stdout;
   return commit === entry.commit ? { moved: null } : { moved: `${entry.ref} is at ${commit.slice(0, 12)}, not the accepted ${entry.commit.slice(0, 12)}` };
-}
-
-/** The spec ids an item's own subject cites: the merge's fallback for a job offered without a landing message. */
-export function citedIds(root, commit) {
-  const subject = tryGit(root, ['log', '-1', '--format=%s', commit]).stdout;
-  return /\[([A-Z][0-9A-Za-z.,\s]*)\]\s*$/u.exec(subject)?.[1] ?? 'P7';
-}
-
-/**
- * The git merge arguments that land one item with its message: the offered header and Pullboard trailers as the body,
- * with merge.log off so no shortlog joins them. Why: the board builds the message from the item's frozen rows, as the
- * Mac landing engine does, and spec coverage reads those trailers; a runner has no board to build it [B3,R3,C7].
- */
-export function landingMergeArgs(root, entry) {
-  const message = typeof entry.header === 'string' && typeof entry.trailers === 'string'
-    ? ['-m', entry.header, '-m', entry.trailers] : ['-m', `Merge #${entry.id} onto main [${citedIds(root, entry.commit)}]`];
-  return [...IDENTITY, '-c', 'merge.log=false', 'merge', '--no-ff', '--no-edit', '--no-log', '-q', ...message, entry.commit];
 }
 
 /**

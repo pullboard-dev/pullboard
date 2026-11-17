@@ -4,7 +4,7 @@ import { Refused } from '../../../../kernel/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { landingEntry } from '../step/selection.js';
 import { testDefectHoldMessage } from '../step/selection.js';
-import { landingMergeArgs } from '../runner/job.js';
+import { landingMergeArgs } from './merge-args.js';
 
 /**
  * Merge one accepted item onto the branch checked out in `root`, then record it as landed with the reason and the hold.
