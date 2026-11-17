@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners packages/config */
+/** @pullboard-test-input source-cell packages/runners */
 /** After one proof commit is scanned clean, its sibling's history scan reads only base..commit, not from the root [C7,#5550]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
