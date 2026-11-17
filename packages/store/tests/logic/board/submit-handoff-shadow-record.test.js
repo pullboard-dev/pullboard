@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-start-records.json */
 /** @pullboard-world-pin reads the recorded submit history and start moves fixtures to drive the hand-off writers with them. With moves.shadow on, the START and COMPLETE compares are recorded on the board; off, nothing is [C7,#8382]. */
 /** @pullboard-test-input packages/moves/tests/fixtures/table/submit-history.json packages/store/tests/fixtures/submit-start-records.json packages/store/src/io/submit/handoff/retry.js */
 import assert from 'node:assert/strict';
