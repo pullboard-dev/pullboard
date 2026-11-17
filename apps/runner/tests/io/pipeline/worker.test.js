@@ -59,7 +59,7 @@ function probe(runner, liveJobs) {
   return JSON.parse(run.stdout);
 }
 
-test('an orphaned runner worker is stopped by the idle probe and the runner is proven idle again [C7]', { timeout: 60_000 }, async () => {
+test('runner.worker.an-orphaned-runner-worker-is-stopped-by: an orphaned runner worker is stopped by the idle probe and the runner is proven idle again [C7]', { timeout: 60_000 }, async () => {
   const dir = await scratch('orphan');
   const runner = { root: join(dir, 'runner'), machine: join(dir, 'machine') };
   const entry = join(runner.root, 'runtime', 'a'.repeat(64), 'apps/runner/src/io/scripts/worker.js');
