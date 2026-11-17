@@ -12,7 +12,7 @@ const outcomes = FILES.map(file => ({ file, name: 'case', passed: true, skipped:
 // Read the lines back as the census does: `<prefix><ms> <file>`.
 const parse = text => Object.fromEntries(text.split('\n').filter(line => line.startsWith(PREFIX)).map((line) => { const [ms, file] = line.slice(PREFIX.length).split(' '); return [file, Number(ms)]; }));
 
-test('clause 1: a census over a batch of three green files records a positive secs for each file though the clipped tail holds no time line [C7]', () => {
+test('cli.logic-census-times.a-census-over-a-batch-of-three: clause 1: a census over a batch of three green files records a positive secs for each file though the clipped tail holds no time line [C7]', () => {
   const lines = pulledTimeLines({ 'a/one.test.js': 4100.4, 'a/two.test.js': 9000, 'a/three.test.js': 350 }, PREFIX);
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output: lines + TAIL, outcomes, times: parse(lines + TAIL) }, 'sha');
   assert.deepEqual(rows.map(row => row.status), ['green', 'green', 'green']);
@@ -20,12 +20,12 @@ test('clause 1: a census over a batch of three green files records a positive se
   assert.ok(rows.every(row => row.secs > 0));
 });
 
-test('clause 1: a shard that sent no times gives no secs, never a made-up one [C7]', () => {
+test('cli.logic-census-times.a-shard-that-sent-no-times-gives: clause 1: a shard that sent no times gives no secs, never a made-up one [C7]', () => {
   assert.equal(pulledTimeLines(undefined, PREFIX), '');
   assert.equal(pulledTimeLines(null, PREFIX), '');
 });
 
-test('clause 2: overlapping files in a shard never sum past the shard tests phase, so overlap is not counted twice [C7,#8890]', () => {
+test('cli.logic-census-times.overlapping-files-in-a-shard-never-sum: clause 2: overlapping files in a shard never sum past the shard tests phase, so overlap is not counted twice [C7,#8890]', () => {
   // Three files ran side by side: 20 s, 20 s and 20 s of wall each inside a 30 s tests phase.
   const times = { 'a/one.test.js': 20000, 'a/two.test.js': 20000, 'a/three.test.js': 20000 };
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output: TAIL, outcomes, times }, 'sha');
