@@ -10,6 +10,8 @@ const DIR = import.meta.dirname;
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
 const CELL_HEADER = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
 const TREE_HEADER = /^\/\*\* @pullboard-test-input source-tree \*\/$/u;
+// These five copy or walk the whole repository into a fixture runner, so they truly read every cell and keep the whole-tree header [C7,U149].
+const WHOLE_TREE = new Set(['merge.test.js', 'io/pack/clean.test.js', 'io/run/tests.test.js', 'io/run/tests/snapshot.test.js', 'io/run/tests/landing.test.js']);
 const OTHER = new Set(['// pullboard: browser', '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */']);
 
 /** Every test file under the runners cell's tests folder, nested folders included. */
@@ -31,11 +33,13 @@ const readers = testFiles(DIR).map((file) => ({ file, source: readFileSync(file,
 
 test('clause 1: every test file in packages/runners/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   assert.ok(readers.length > 0, 'the scan finds the cell test files that read');
-  const bare = readers.filter(({ source }) => !declares(source)).map(({ file }) => file.slice(DIR.length + 1));
+  const bare = readers.filter(({ file, source }) => !declares(source) && !(WHOLE_TREE.has(file.slice(DIR.length + 1)) && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line)))).map(({ file }) => file.slice(DIR.length + 1));
   assert.deepEqual(bare, []);
 });
 
-test('clause 2: with the declared-inputs rule on, no runners-cell reader is reported, and a header names a cell, never the whole tree [C7,U149]', () => {
-  const tree = readers.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1));
+test('clause 2: with the declared-inputs rule on, no runners-cell reader is reported, and a header names a cell, never the whole tree except the five named whole-repo copiers [C7,U149]', () => {
+  const tree = readers.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1)).filter((name) => !WHOLE_TREE.has(name));
   assert.deepEqual(tree, []);
+  const stale = [...WHOLE_TREE].filter((name) => !readers.some(({ file, source }) => file.slice(DIR.length + 1) === name && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))));
+  assert.deepEqual(stale, [], 'every allowed whole-tree file still declares it');
 });

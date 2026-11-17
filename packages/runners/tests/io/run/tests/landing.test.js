@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/resources packages/runners */
+/** @pullboard-test-input source-tree */
 /** The production test runner stops a landing run at its first failing file and owns its cleanup [C7,V4]. */
 import { awaitNestedPhase } from '../../../../../gate/index.js';
 import assert from 'node:assert/strict';
