@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { readTestOutcomes } from './src/io/test/outcomes.js';
 import { formatTestOutcomes } from './src/io/test/outcomes.js';
+export { timerFiles } from './src/io/main/audit/state.js';
 
 /** Accept only bounded worker-owned source measurements, never arbitrary receipt objects or paths. */
 export function sourcePreparationFields(value) {

@@ -6,8 +6,8 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { repoInfo } from '../../../../../git/index.js';
-import { withFileLock } from '../../../../../outbox/index.js';
+import { repoInfo } from '../../../../../git/light.js';
+import { withFileLock } from '../../../../../outbox/light.js';
 
 /** Resolve only the repository-owned private audit directory. */
 export function mainAuditDirectory(info) { return join(info.commonDir, 'pullboard', 'main-audits'); }

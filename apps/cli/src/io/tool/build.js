@@ -24,6 +24,7 @@ import { git } from '../../../../../packages/git/light.js';
 import { gitChildEnv } from '../../../../../packages/git/light.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
 import { withGitFacts } from '../../../../../packages/git/light.js';
+import { timerFiles as auditTimerFiles } from '../../../../../packages/gate/light.js';
 import { mainPolicy } from '../../../../../packages/sandbox/light.js';
 import { withFileLock } from '../../../../../packages/outbox/light.js';
 
@@ -81,14 +82,14 @@ export function timerFiles(common, create, { label, folder }) {
     if (!state.isDirectory() || state.isSymbolicLink() || name === folder && (state.mode & 0o077))
       throw new Error(`${label} directory is not private`);
   }
-  const guard = join(directory, 'timer.guard.sqlite');
+  const { guard, timer } = auditTimerFiles(directory);
   if (create) {
     try { closeSync(openSync(guard, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NOFOLLOW, 0o600)); }
     catch (error) { if (error.code !== 'EEXIST') throw error; }
   }
   const state = lstatSync(guard);
   if (!state.isFile() || state.isSymbolicLink() || state.mode & 0o077) throw new Error(`${label} lock is not private`);
-  return { directory, guard, file: join(directory, 'timer.json') };
+  return { directory, guard, file: timer };
 }
 
 /** Read a bounded private timer registration without following a replacement link. */
