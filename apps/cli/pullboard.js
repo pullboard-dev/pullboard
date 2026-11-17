@@ -34,6 +34,10 @@ if (versionJson) {
   process.exit(0);
 }
 
+// The installed post-commit hook has no rule to run, yet every commit starts it: answer before any module loads,
+// not after the dispatcher's ~400 modules decide it is not an agent nudge [C7].
+if (process.argv.length === 4 && process.argv[2] === 'hook' && process.argv[3] === 'post-commit') process.exit(0);
+
 // The plain version probe needs only the release metadata, so it runs before the compile cache too: each git hook asks it first, three times a
 // commit, and the cache step alone loaded the kernel light door [C7].
 if (process.argv.length === 3 && process.argv[2] === '--version') {

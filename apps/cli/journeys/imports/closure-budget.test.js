@@ -47,6 +47,11 @@ const GIT_HOOK_ROW = /^git-hook /u;
  * With runner true the seat's pullboard home is copied and given a runner's state first, so only the home's shape differs [#6085].
  */
 function modulesLoaded(args, runner = false, extraEnv = {}) {
+  return commandLoads(args, runner, extraEnv).loaded;
+}
+
+/** The distinct repo files one cold command loads, with the command's exit code and output, measured as modulesLoaded measures [C7]. */
+function commandLoads(args, runner = false, extraEnv = {}) {
   const files = privateFixtureFiles('closure-budget-');
   files.write('seen.txt', '');
   const env = { ...seat.env };
@@ -60,8 +65,8 @@ function modulesLoaded(args, runner = false, extraEnv = {}) {
   env.PULLBOARD_OWN_CLI = '1';
   env.PULLBOARD_RESIDENT = '0';
   env.PULLBOARD_COUNT_FILE = `${files.root}/seen.txt`;
-  spawnSync(process.execPath, ['--import', PRELOAD, `${ROOT}apps/cli/pullboard.js`, ...args.split(' ')], { cwd: seat.web, encoding: 'utf8', env });
-  return new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size;
+  const result = spawnSync(process.execPath, ['--import', PRELOAD, `${ROOT}apps/cli/pullboard.js`, ...args.split(' ')], { cwd: seat.web, encoding: 'utf8', env });
+  return { loaded: new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size, status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
 for (const [command, budget] of Object.entries(budgets)) {
@@ -78,4 +83,12 @@ test('a cold whoami under a runner-shaped home loads no more modules than under 
   const plain = modulesLoaded('whoami');
   const runner = modulesLoaded('whoami', true);
   assert.ok(runner <= plain, `pullboard whoami loaded ${runner} modules under a runner home and ${plain} under a plain home: keep runner state out of syncMayAct`);
+});
+
+test('clause 2: pullboard hook post-commit exits 0 with empty stdout and stderr and loads only the entry file [C7]', () => {
+  const run = commandLoads('hook post-commit');
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, '');
+  assert.equal(run.stderr, '');
+  assert.equal(run.loaded, 1);
 });
