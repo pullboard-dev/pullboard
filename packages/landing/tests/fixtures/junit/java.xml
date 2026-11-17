@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: mvn test (Surefire writes target/surefire-reports/TEST-com.example.CalcTest.xml).
+     The case has a dotted classname and no file attribute. No tool is needed to read it. -->
+<testsuite name="com.example.CalcTest" time="0.021" tests="3" errors="0" skipped="1" failures="1">
+  <testcase name="addsTwo" classname="com.example.CalcTest" time="0.001"/>
+  <testcase name="halvesFour" classname="com.example.CalcTest" time="0.003">
+    <failure message="expected: &lt;2&gt; but was: &lt;1&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected: &lt;2&gt; but was: &lt;1&gt;
+	at com.example.CalcTest.halvesFour(CalcTest.java:14)</failure>
+  </testcase>
+  <testcase name="runsLater" classname="com.example.CalcTest" time="0.000">
+    <skipped/>
+  </testcase>
+</testsuite>
