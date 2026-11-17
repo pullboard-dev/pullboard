@@ -72,6 +72,7 @@ export {
   recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
+  recordLapseEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
