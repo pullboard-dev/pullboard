@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../../../apps/cli/tests/fixtures/api.js';
 import { FIXTURE_BRIEF } from '../../../../apps/cli/tests/fixtures/api.js';
+import { withFixtureBoard } from '../../../../apps/cli/tests/fixtures/board.js';
+import { relateItems } from '../../../store/index.js';
 
 /** A served board with two items, a number field set on the first, and the two items related. */
 async function fixture(t) {
@@ -22,7 +24,7 @@ async function fixture(t) {
   });
   box.cli(box.root, 'field', 'declare', 'points', 'number');
   box.cli(box.root, 'field', 'set', String(ids[0]), 'points', '5');
-  box.cli(box.root, 'relate', String(ids[0]), String(ids[1]));
+  withFixtureBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'), board => relateItems(board, { by: 'coordinator', a: ids[0], b: ids[1], enabled: true }));
   const item = async id => (await box.call(`${box.path}/items/${id}`)).document;
   return { ids, item, setting };
 }
