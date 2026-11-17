@@ -94,7 +94,7 @@ test('clause 3: with read.thinCommands off, the full path serves whoami as today
   setThin(false);
   const seat = await whoamiOnce();
   assert.equal(seat.code, 0, seat.err);
-  assert.match(seat.out, /web-1 \(web lane\)/u);
+  assert.match(seat.out, /web-1 \(fixture-model\) \(web lane\)/u);
   const main = await box.runLocal(box.repo, 'whoami');
   assert.equal(main.code, 0, main.err);
   setThin(true);
