@@ -276,6 +276,9 @@ export function loadMachineSettings() {
   if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
   }
+  if (value.moves?.judgeByRelease !== undefined && typeof value.moves.judgeByRelease !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `moves.judgeByRelease in ${file} must be true or false`);
+  }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
   }
@@ -446,6 +449,9 @@ export function loadMachineSettings() {
   }
   if (value.next?.readinessCheck !== undefined && typeof value.next.readinessCheck !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCheck in ${file} must be true or false`);
+  }
+  if (value.next?.oneGitRead !== undefined && typeof value.next.oneGitRead !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `next.oneGitRead in ${file} must be true or false`);
   }
   if (value.next?.readinessCache !== undefined && typeof value.next.readinessCache !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `next.readinessCache in ${file} must be true or false`);
@@ -750,6 +756,11 @@ export function boardRemote() {
 /** Browser-free check admission is deliberately opt-in per machine; it lives here, not in the io settings file, so the light door reaches no resources module. */
 export function browserFreeChecksEnabled() {
   return loadMachineSettings().gate?.browserFreeChecks === true;
+}
+
+/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
+export function hunkFreshnessEnabled() {
+  return loadMachineSettings().verify?.hunkFreshness === true;
 }
 
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
