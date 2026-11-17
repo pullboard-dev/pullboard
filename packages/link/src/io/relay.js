@@ -62,6 +62,7 @@ import { ensurePersonCoordinator } from './relay/seats.js';
 import { seatReceipt } from './relay/seats.js';
 import { withSeatName } from './relay/seats.js';
 import { syncApprovers } from './relay/approvers.js';
+import { behindDeviceOptions } from './relay/behind.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { presentationDigest } from '../../../pages/index.js';
 import { relayPresentation } from '../../../pages/index.js';
@@ -884,9 +885,9 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       requestedMove = move;
       try {
         if (!move) {
-          const sent = withSeatName(root, operation, args, io);
+          const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
           move = stampCoordinatorHolder(localRecords(io.openBoard, root, (board) => prepareEngineMove(board, operation, sent,
-            io.personRequestMoveId ? { id: io.personRequestMoveId } : operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {})), state.machine, state.computerName, senderPolicy);
+            { ...(io.personRequestMoveId ? { id: io.personRequestMoveId } : operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {}), ...behind })), state.machine, state.computerName, senderPolicy);
           requestedMove = move;
           if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
           const problem = move.personRequest && localRecords(io.openBoard, root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));

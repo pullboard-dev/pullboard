@@ -16,7 +16,8 @@ import { pullGit } from './git.js';
 /** A pulled land job, as `pullboard runner serve` runs it: merge, check and push trunk by compare-and-swap in the cache [P7]. */
 async function land(claim, { cache, renew, env }) {
   const { runLandingJob } = await import('../../../../../packages/landing/index.js');
-  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env });
+  const { asyncFetchEnabled } = await import('../../../../../packages/config/index.js');
+  return runLandingJob(claim.payload, { workdir: join(cache, 'land'), renew, env, asyncFetch: asyncFetchEnabled() });
 }
 
 const [board, keyFile, cache, hint] = process.argv.slice(2);
