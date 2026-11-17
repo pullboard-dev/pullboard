@@ -6,5 +6,5 @@ import { SETTING_DESCRIPTIONS } from '../../../src/io/settings/descriptions.js';
 
 test('clause 2: gate.staticLoadAdmission defaults to off in the machine defaults and is described [C7,#8735]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.staticLoadAdmission'], false);
-  assert.ok(SETTING_DESCRIPTIONS.some(row => row[0] === 'gate.staticLoadAdmission'), 'the setting has a description row');
+  assert.ok(SETTING_DESCRIPTIONS['gate.staticLoadAdmission'], 'the setting has a description row');
 });
