@@ -116,6 +116,7 @@ export {
   reviewCanonicalFamilies,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
+  nextLabelBounds,
   nextCapBuilders,
   nextHoldAboveLoad,
   nextReadinessCheck,

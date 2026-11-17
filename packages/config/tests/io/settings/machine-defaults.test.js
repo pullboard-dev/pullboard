@@ -126,6 +126,7 @@ const BEFORE = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.labelBounds': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.rerunFailedShardOnce': false,
