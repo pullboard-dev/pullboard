@@ -42,7 +42,7 @@ const ATOMICS_WAIT = Object.freeze({ builtin: 'global:Atomics', name: 'wait' });
 
 /** Blocking calls reachable only through the additional walk roots. */
 const EXTRA_REQUEST_BLOCKERS = Object.freeze({
-  'packages/api/src/io/state/materializer/worker.js#codeStamp': 'materializer worker lists its source directory synchronously for its code stamp',
+  'packages/api/src/io/state/materializer/worker.js#scanCode': 'materializer worker lists its source directories synchronously to scan its code stamp',
   'packages/api/src/io/state/materializer/worker.js#walk': 'materializer worker recurses through its source tree with synchronous directory reads',
 });
 
