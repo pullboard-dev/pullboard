@@ -9,6 +9,8 @@ export const JUNIT_FILE_ROWS = {
     const crate = (row.classname ?? '').split('::')[0];
     return crate ? `${crate}/` : null;
   },
+  // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
+  cpp: row => row.classname || null,
 };
 
 /**
