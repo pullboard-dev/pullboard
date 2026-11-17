@@ -26,7 +26,7 @@ function loggingGit(box) {
   return { bin, log, calls: () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
-test('clause 1: four requests for one commit at once, three shards and an analysis trip, scan its source and tags once and all reuse that answer [C7,#5728]', { timeout: 240_000 }, async t => {
+test('lib.runner-once.four-requests-for-one-commit-at: clause 1: four requests for one commit at once, three shards and an analysis trip, scan its source and tags once and all reuse that answer [C7,#5728]', { timeout: 240_000 }, async t => {
   const box = cellSandbox(t);
   const tooling = join(box.dir, 'tooling'), project = join(box.dir, 'project'), home = join(box.dir, 'home');
   for (const folder of [tooling, project, home]) mkdirSync(folder, { recursive: true });
@@ -69,7 +69,7 @@ console.log(JSON.stringify({ commit: source.commit, protection, tags: candidateT
   assert.equal(calls.filter(line => line.includes('check-ref-format refs/tags/v1')).length, 1, 'the tag selection was scanned once');
 });
 
-test('clause 1: concurrent key builds for one tree build once; every waiter reads the builder\'s memo [C7,#5728]', { timeout: 120_000 }, async t => {
+test('lib.runner-once.concurrent-key-builds-for-one-tree: clause 1: concurrent key builds for one tree build once; every waiter reads the builder\'s memo [C7,#5728]', { timeout: 120_000 }, async t => {
   const box = cellSandbox(t);
   const store = join(box.dir, 'store');
   const count = join(box.dir, 'builds');

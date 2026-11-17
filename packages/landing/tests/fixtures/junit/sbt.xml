@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: sbt test (writes target/test-reports/TEST-com.example.CalcSpec.xml)
+     Assumption: sbt writes the class in classname and no file attribute; the source path is derived from the classname.
+     Case names read "clause N: ..." as a test titled that way would write them. No tool is needed to read it. -->
+<testsuite hostname="runner" name="com.example.CalcSpec" tests="3" errors="0" failures="1" skipped="1" time="0.021" timestamp="2026-11-17T12:00:00">
+  <testcase classname="com.example.CalcSpec" name="clause 1: adds two" time="0.001"/>
+  <testcase classname="com.example.CalcSpec" name="clause 2: halves a number" time="0.002">
+    <failure message="1 did not equal 2" type="org.scalatest.exceptions.TestFailedException">org.scalatest.exceptions.TestFailedException: 1 did not equal 2
+	at com.example.CalcSpec.$anonfun$new$2(CalcSpec.scala:9)</failure>
+  </testcase>
+  <testcase classname="com.example.CalcSpec" name="clause 3: later" time="0.000">
+    <skipped/>
+  </testcase>
+</testsuite>

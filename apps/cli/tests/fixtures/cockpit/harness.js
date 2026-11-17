@@ -108,6 +108,18 @@ function sendBack(box, p, id, note) {
   box.git(p.repo, 'switch', '-q', 'main');
 }
 
+/**
+ * The in-process twin of sendBack: the item's show read and the reject are awaited in this process instead of launched.
+ * Why: a journey's setup sends several items back, and each launch cost a node start-up; the parity test holds the two paths equal [C7,U149].
+ */
+async function sendBackLocal(box, p, id, note) {
+  box.git(p.repo, 'switch', '-q', '--detach', p.itemBranches.get(`${p.baseBranch}:${id}`) ?? p.branch);
+  const item = JSON.parse(await box.inProcess(p.repo, 'show', String(id), '--json'));
+  const clause = JSON.parse(item.item_frozen).criterion;
+  await box.inProcess(p.repo, 'verify', String(id), 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', clause, '--note', note, '--as', 'coordinator');
+  box.git(p.repo, 'switch', '-q', 'main');
+}
+
 /** Include the transport cause, which fetch's top-level error alone conceals. */
 function fetchReason(error, seen = new Set()) {
   if (!error || seen.has(error)) return '';
@@ -1403,4 +1415,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, buildLocal, acceptLocal, sendBack, sendBackLocal, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, openItemsNeeds, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive, pressTab };

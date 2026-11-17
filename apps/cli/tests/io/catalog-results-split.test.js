@@ -10,7 +10,7 @@ const RESULT_GROUPS = ['results-a1', 'results-a2', 'results-b1', 'results-b2'];
 /** The roots the one results case declared before the split. */
 const ORIGINAL_ROOTS = ['add', 'agents', 'answer', 'badge', 'blueprint', 'capacity', 'check', 'claim', 'decisions', 'doctor', 'doctrine', 'done', 'edit', 'escalate', 'fact', 'forget', 'gate', 'health', 'heartbeat', 'help', 'hold', 'hook', 'hooks', 'inbox', 'init', 'join', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'merged', 'next', 'pass', 'patch', 'prompt', 'refreeze', 'release', 'request', 'resources', 'resume', 'run', 'settings', 'shout', 'show', 'skills', 'spec', 'stats', 'status', 'submit', 'sweep', 'tour', 'verify', 'version', 'whoami', 'why', 'withdraw', 'worktree'];
 
-test('clause 1: catalogCases holds the split results cases whose roots together equal the roots the single results case covered [A1,C7,#9750]', () => {
+test('cli.io-catalog-results-split.catalogcases-holds-the-split-results-cases-whose: clause 1: catalogCases holds the split results cases whose roots together equal the roots the single results case covered [A1,C7,#9750]', () => {
   const results = RESULT_GROUPS.flatMap(group => catalogGroups[group]);
   assert.equal(results.length, RESULT_GROUPS.length, 'each results group holds exactly one case');
   assert.ok(results.every(({ name }) => catalogCases.some(entry => entry.name === name)), 'every results case is a catalog case');

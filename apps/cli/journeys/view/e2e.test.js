@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/fixtures/view/pty.py */
 import { cliCockpitRenderer$cockpitPage as cockpitSource } from '../../index.js';
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
@@ -64,7 +65,7 @@ async function waitForViewStopped(url) {
   throw new Error('the owned view listener did not close after SIGTERM');
 }
 
-test("an agent's pullboard view prints its link and returns [N26,N32]", async () => {
+test('cli.journeys-view-e2e.an-agent-s-pullboard-view-prints: an agent\'s pullboard view prints its link and returns [N26,N32]', async () => {
   const box = project(CONFIG.gate);
   const env = { ...box.env };
   delete env.AI_AGENT;
@@ -138,7 +139,7 @@ test("an agent's pullboard view prints its link and returns [N26,N32]", async ()
   }
 });
 
-test('a printed view link opens through its cookie redirect [N39,N26]', async (t) => {
+test('cli.journeys-view-e2e.a-printed-view-link-opens-through: a printed view link opens through its cookie redirect [N39,N26]', async (t) => {
   const requests = [];
   const server = createServer((req, res) => {
     requests.push({ url: req.url, cookie: req.headers.cookie ?? '' });
@@ -197,7 +198,7 @@ test('a printed view link opens through its cookie redirect [N39,N26]', async (t
   assert.deepEqual(requests, [{ url: '/?k=foreign-domain', cookie: '' }]);
 });
 
-test('a person running view with JSON in a terminal keeps the server in that terminal [N26,N32]', () => {
+test('cli.journeys-view-e2e.a-person-running-view-with-json: a person running view with JSON in a terminal keeps the server in that terminal [N26,N32]', () => {
   let box = sandbox();
   box.env.PULLBOARD_MODEL ??= 'Fixture Model';
   box = project(CONFIG.gate, box);
@@ -219,7 +220,7 @@ test('a person running view with JSON in a terminal keeps the server in that ter
   assert.equal(result.listenerClosed, true);
 });
 
-test('view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
+test('cli.journeys-view-e2e.view-serves-every-project-on-this: view serves every project on this machine, on loopback, behind its secret and its own Host [N26, I8]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   await box.runLocal(box.repo, 'shout', 'web-1', 'the heading is in G1');
@@ -250,7 +251,7 @@ test('view serves every project on this machine, on loopback, behind its secret 
   }
 });
 
-test('from the view the person adds items, shouts and holds lanes, through the CLI and its refusals [N27]', async () => {
+test('cli.journeys-view-e2e.from-the-view-the-person-adds: from the view the person adds items, shouts and holds lanes, through the CLI and its refusals [N27]', async () => {
   const box = project();
   const view = await startView(box, box.repo);
   try {
@@ -305,7 +306,7 @@ test('from the view the person adds items, shouts and holds lanes, through the C
   }
 });
 
-test('the view answers a request line no URL parser accepts with 403, and keeps serving [N26]', async () => {
+test('cli.journeys-view-e2e.the-view-answers-a-request-line: the view answers a request line no URL parser accepts with 403, and keeps serving [N26]', async () => {
   const box = project();
   const view = await startView(box, box.repo);
   try {
@@ -322,7 +323,7 @@ test('the view answers a request line no URL parser accepts with 403, and keeps 
   }
 });
 
-test('nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
+test('cli.journeys-view-e2e.nothing-a-person-types-on-the: nothing a person types on the view sits inside what the refresh rewrites [N27]', () => {
   const page = cockpitSource();
   // Every refresh part is written through store.paint (#6613), which replaced the direct innerHTML assignments.
   const rewritten = [...new Set([...page.matchAll(/store\.paint\(\$\('([a-z-]+)'\)/g)].map((match) => match[1]))];
@@ -345,7 +346,7 @@ test('nothing a person types on the view sits inside what the refresh rewrites [
   assert.doesNotMatch(script, /<input|<textarea|createElement\('(form|input|textarea)'\)/, 'the script never builds a field a refresh could erase');
 });
 
-test('the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
+test('cli.journeys-view-e2e.the-view-keeps-the-board-layout: the view keeps the board layout people know: switcher, tabs, a list and its detail, every verdict and the history [N26, N27]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');

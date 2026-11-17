@@ -21,7 +21,7 @@ function repository(t) {
   return root;
 }
 
-test('an io built the way the submit handoff worker builds it reports a gate wait without throwing [C7]', t => {
+test('cli.io-submit-wait.an-io-built-the-way-the-submit: an io built the way the submit handoff worker builds it reports a gate wait without throwing [C7]', t => {
   const said = [];
   const io = { cwd: repository(t), say: line => said.push(line), err: () => {}, result: () => {} };
   const ctx = context(io);
@@ -31,14 +31,14 @@ test('an io built the way the submit handoff worker builds it reports a gate wai
   assert.deepEqual(said, []);
 });
 
-test('control: a reporter the caller supplies is kept [C7]', t => {
+test('cli.io-submit-wait.a-reporter-the-caller-supplies-is-kept: control: a reporter the caller supplies is kept [C7]', t => {
   const supplied = () => () => {};
   const io = { cwd: repository(t), say: () => {}, err: () => {}, gateWaitReporter: supplied };
   assert.equal(context(io).io.gateWaitReporter, supplied);
 });
 
 
-test('a runner-only gate wait reports two runner holders by host [C7]', async t => {
+test('cli.io-submit-wait.a-runner-only-gate-wait-reports-two: a runner-only gate wait reports two runner holders by host [C7]', async t => {
   const root = repository(t);
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine');
