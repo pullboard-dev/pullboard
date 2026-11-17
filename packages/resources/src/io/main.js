@@ -61,8 +61,10 @@ import {
 import { writeWhileLocked } from './lock.js';
 import { gateQueueSettings } from '../../../queue/light.js';
 import { parseMachineSettings } from '../../../queue/light.js';
+import { hasRequiredToolchains } from './runner/pick.js';
 import { pickTieredRunner } from './runner/pick.js';
 import { troubledRunners } from './runner/pick.js';
+import { unsuppliedToolchainsMessage } from './runner/pick.js';
 import { reservedTimingRunner } from './runner/reserve.js';
 import { timingReserveAllows } from './runner/reserve.js';
 import { duringWriteTurn } from './identities.js';
@@ -120,7 +122,6 @@ export const GATE_SLOT_TOKEN_ENV = 'PULLBOARD_GATE_SLOT_TOKEN';
 export const BROWSER_SLOT_HELD_ENV = 'PULLBOARD_BROWSER_SLOT_HELD';
 /** Where a runner asks the lease guard to record its own browser-slot refusal (#1043). */
 export const BROWSER_REFUSAL_FILE_ENV = 'PULLBOARD_BROWSER_REFUSAL_FILE';
-
 /** Reserve a distinct resource row for each configured remote host. */
 function runnerResourceName(host) { return `runner:${host}`; }
 
@@ -578,7 +579,7 @@ function validatedRunners(value) {
       throw new Refused('BAD_RUNNER_POOL', 'runners require unique nonempty hosts, positive slots, and browser capacity from zero through slots');
     }
     seen.add(runner.host);
-    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(Number.isSafeInteger(runner.cores) ? { cores: runner.cores } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
+    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(Number.isSafeInteger(runner.cores) ? { cores: runner.cores } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}), ...(runner.toolchains && typeof runner.toolchains === 'object' ? { toolchains: runner.toolchains } : {}),
       ...(typeof runner.node === 'string' ? { node: runner.node } : {}),
       ...(typeof runner.root === 'string' ? { root: runner.root } : {}) };
   });
@@ -662,7 +663,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       /** Whether this runner has a free compatible slot; with the line, it asks the kept timing runner to lend one [C7,#3500]. */
       const fits = (runner, lendingTo) => {
         if (!runnerAllowedNow(waiter, runner, runners, unavailable) || !timingReserveAllows(reserved, waiter, runner, lendingTo) || !runnerCompatible(db, runner, waiter, unavailable)) return false;
-        if (runner.drain === true) return false; // `pullboard runner drain`: no new job while it finishes the running ones
+        if (runner.drain === true || !hasRequiredToolchains(runner, loadPolicy.requiredToolchains)) return false; // `pullboard runner drain`: no new job while it finishes the running ones; runners.requiredToolchains (#3969) names toolchains it must record
         const used = usage.get(runner.host), drained = drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host);
         return !drained && !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots - Number(reserve && runner.slots > 1) && (waiter.browser !== 1 || used.browsers < runner.browser);
@@ -680,8 +681,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       let selected = compatible[0], dispatch;
       if (loadPolicy.enabled === true) {
         // Live load: skip overloaded runners, prefer healthy ones, take the most headroom, or queue (#2509).
-        ({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now));
-        if (!selected) return null;
+        if (!({ selected, dispatch } = pickTieredRunner(compatible, troubled, waiter.browser === 1, host => usage.get(host), loadPolicy, now)).selected) return null;
       } else if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)
         && !(restriction?.kind === 'ssh' && restriction.hosts && compatible[0].host === restriction.host)) {
         // Flexible work preserves browser capacity whenever a compatible browser-free host is available,
@@ -1180,9 +1180,8 @@ async function takeResourceIn(options) {
             throw refused;
           }
         }
-        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) {
-          throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
-        }
+        const noToolchain = !executor && runnerOnly ? unsuppliedToolchainsMessage(runners, options.runnerLoadPolicyProvider?.().requiredToolchains) : null; if (noToolchain) throw new Refused('RUNNER_TOOLCHAIN_MISSING', noToolchain);
+        if (!executor && runnerOnly && gui && runners.length && !runners.some(runner => runnerAllowed(waiter, runner) && runnerHasGui(db, runner))) throw new Refused('RUNNER_WAIT_DEADLINE', `no registered runner has a GUI session (${runners.map(runner => runner.host).join(', ')}); log one in or register one, then retry`);
         if (executor) {
           const lateDispatch = runnerDeadlinePassed && executor.host ? { host: executor.host,
             queueDeadlineAt: runnerDeadlineAt, admittedAt: now, budgetMs: options.runnerStartupMs ?? LATE_STARTUP_MS,

@@ -10,6 +10,7 @@ import {
 import { join } from 'node:path';
 import { fixtureSettledMachine } from '../testkit.js';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 import {
@@ -104,7 +105,7 @@ function submittedAfterGate(box, cwd, id) {
     const status = shown.document?.item_status;
     if (status && status !== 'claimed') { assert.equal(status, 'submitted', `#${id} gate: ${shown.out}`); return; }
     assert.ok(Date.now() < deadline, `#${id} gate did not settle in ${GATE_SETTLE_MS} ms: ${shown.out}${shown.err}`);
-    reviveFixtureLocalRunner(cwd, box.env);
+    reviveFixtureLocalRunner(cwd, box.env, { entry: CLI_ENTRY });
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
   }
 }

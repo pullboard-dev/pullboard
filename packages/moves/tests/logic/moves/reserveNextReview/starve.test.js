@@ -1,11 +1,14 @@
 /** Real native eligibility and dispatch keep strict reviews from starving [C7,N2,V1,A6]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import * as store from '../../../../../store/index.js';
 import { healthReport } from '../../../../../health/index.js';
 import { defaults } from '../../../../../config/index.js';
+import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 import { configProblems } from '../../../../../config/index.js';
 
 /** Observe actual health against the fixture's immutable source and injected native clock. */
@@ -64,6 +67,27 @@ test('health names the exact native check when every joined seat is excluded fro
   assert.deepEqual(finding.detail.eligible, []);
   assert.ok(finding.detail.excluding.some(entry => entry.code === 'COORDINATOR_VERIFIES'));
   assert.match(finding.why, /COORDINATOR_VERIFIES/u, 'the report names the failing native check rather than inventing a reviewer');
+});
+
+test('clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the 8192 receipt cap and states the omitted seats [C7,A6,V1]', t => {
+  const box = fixture(t, { reviewers: true });
+  const waiting = box.add('Strict review with five hundred excluded seats', { reviewFamily: 'Family Beta' });
+  box.submit(waiting);
+  for (let n = 0; n < 500; n++) {
+    const path = join(box.project.dir, `crowd-${n}`);
+    mkdirSync(path);
+    cellSeat(box.board, { lane: 'review', path, family: 'Family Beta' });
+  }
+  box.advance(11 * 60_000);
+  const report = health(box, { ...box.config, verify: { ...box.config.verify, policy: 'coordinator' } });
+  const finding = report.stuck.find(entry => entry.cause === 'REVIEW_STARVED' && entry.item === waiting);
+  assert.ok(finding);
+  assert.ok(finding.detail.excluding.length >= 500, 'the structured detail still lists every excluded seat');
+  assert.ok(finding.why.length <= 8192, `the why is ${finding.why.length} characters`);
+  const omitted = /and (\d+) more seats omitted/u.exec(finding.why);
+  assert.ok(omitted, 'the why states how many seats it left out');
+  assert.ok(Number(omitted[1]) > 50);
+  assert.equal(store.normalizedHealthFindings([finding]).length, 1, 'the receipt accepts the truncated finding');
 });
 
 test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', t => {

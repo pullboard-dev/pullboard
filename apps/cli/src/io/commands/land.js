@@ -20,6 +20,7 @@ import { context } from '../read.js';
 import * as store from '../../../../../packages/store/index.js';
 import {
   COORDINATOR,
+  loadMachineSettings,
 } from '../../../../../packages/config/index.js';
 import {
   requirePersonChannel,
@@ -57,6 +58,7 @@ export async function run(io, { first, second, rest, values }) {
     if (!rows.length) io.say('no recorded landing batches to replay');
     return 0;
   }
+  if (values.item !== undefined) return landOneByHand(ctx, board, me, values);
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
   if (values.forced !== undefined) return offerForcedLanding(ctx, io, board, [first, second, ...rest], values);
   if (values.waive !== undefined) {
@@ -89,6 +91,20 @@ export async function run(io, { first, second, rest, values }) {
   if (!offered.offered) io.say('no verified items ready to land');
   return 0;
 });
+}
+
+/**
+ * `pullboard land --item <id>`: the refusals that guard landing one accepted item by hand (#9569). It lands nothing yet.
+ * Off by default, because the board lands accepted items by itself once landing.byHand is not set.
+ */
+function landOneByHand(ctx, board, me, values) {
+  if (loadMachineSettings().landing?.byHand !== true) throw new Refused('BY_HAND_OFF', 'landing one item by hand is off: the board lands accepted items by itself', 'the person sets landing.byHand to true in the machine settings to land by hand; otherwise run pullboard next for other work');
+  if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands an item by hand', 'ask your coordinator to run pullboard land --item <id>');
+  const id = String(values.item);
+  if (!/^[1-9][0-9]*$/u.test(id)) throw new Refused('USAGE', `--item takes an item number, not "${id}"`, 'pullboard land --item <id>');
+  const item = store.getItem(board, Number(id));
+  if (!item || item.item_status !== 'verified' || item.item_merged_commit) throw new Refused('NOT_ACCEPTED', `#${id} is not an accepted item waiting to land${item ? ` (${item.item_status}${item.item_merged_commit ? ', already landed' : ''})` : ''}`, `wait for a reviewer to accept #${id}: pullboard show ${id}`);
+  throw new Refused('NOT_BUILT_YET', `landing #${id} by hand is not built yet`, 'the board lands accepted items by itself; run pullboard next for other work');
 }
 
 /** The refusal when no runner can take a land job: no trunk remote of record and no local runner on this machine. */

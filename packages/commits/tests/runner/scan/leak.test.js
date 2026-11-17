@@ -13,9 +13,9 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { secretsIn } from '../../../index.js';
 import { runFixtureChild } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { shellQuote } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { shellQuote } from '../../../../gate/tests/fixtures/runner/ssh.js';
 
 const SENTINEL = 'not-the-listener-secret';
 const PRIVATE = ['ordinary', 'credential', 'value', '123456789'].join('-');

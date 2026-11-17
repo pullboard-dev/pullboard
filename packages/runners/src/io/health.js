@@ -1,8 +1,6 @@
 /** Probe a runner's pinned worker health and hand the canonical runner operations to the gate [C7]. */
 import { validateRunner } from '../../../config/index.js';
-import { runOnRunner } from './dispatch.js';
-import { runOnRunnerAsync } from './dispatch.js';
-import { ownedTransportCompletion } from './dispatch.js';
+import { ownedTransportCompletion } from '../../../transport/index.js';
 import { localRunnerDescriptor } from './load.js';
 import { sampleRunnerLoad } from './load.js';
 import { carriedRunnerTrunk } from './policy.js';
@@ -111,7 +109,7 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
 }
 
 /** Supply canonical late-bound runner operations to an actual higher gate composition root. */
-export function runnerExecutionServices(front = { runOnRunner, runOnRunnerAsync, probeRunnerHealth }) {
+export function runnerExecutionServices(front) {
   return Object.freeze({ runOnRunner: front.runOnRunner, runOnRunnerAsync: front.runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
     carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements, trustedTooling });
 }

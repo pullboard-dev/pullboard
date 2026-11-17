@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runFixtureChild } from '../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { DEFAULT_FILE_WALL_MS } from '../index.js';
 import { fileWatchdogLimits } from '../index.js';
 import { wallLoadFactor } from '../index.js';
