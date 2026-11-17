@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { settleLand } from '../land/settle.js';
@@ -14,15 +15,34 @@ import { fileFixtureItem } from '../testkit.js';
 import { fixtureProjectPolicy } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
+/** The account's real home: a runner job's fresh HOME holds an empty go build cache, so every gate would rebuild the standard library. */
+const REAL_HOME = userInfo().homedir || homedir();
+
 /**
- * The folder a gate needs to run go, or null when this machine has no working go.
- * Why: a runner job's PATH may lack the toolchain's folder, so the sandbox adds the folder go was found in [#10612].
+ * The go binary and the account's build cache, or null when this machine has no working go.
+ * Why: a runner job's PATH may lack go's folder and its fresh HOME starts a cold build cache; a wrapper on PATH carries both [#10612].
  */
 function goEnvironment() {
-  const probe = spawnSync('go', ['version'], { encoding: 'utf8', timeout: 10_000 });
+  const probe = spawnSync('go', ['env', 'GOCACHE'], { env: { ...process.env, HOME: REAL_HOME }, encoding: 'utf8', timeout: 10_000 });
   if (probe.error || probe.status !== 0) return null;
-  const found = String(spawnSync('sh', ['-c', 'command -v go'], { encoding: 'utf8', timeout: 5000 }).stdout).trim();
-  return found.startsWith('/') ? { folders: [dirname(found)] } : null;
+  const go = String(spawnSync('sh', ['-c', 'command -v go'], { encoding: 'utf8', timeout: 5000 }).stdout).trim();
+  const cache = String(probe.stdout).trim();
+  return go.startsWith('/') && cache.startsWith('/') ? { go, cache } : null;
+}
+
+/** Single-quote one shell word. */
+const quoted = (text) => `'${String(text).replaceAll("'", "'\\''")}'`;
+
+/**
+ * Write an executable wrapper named after the tool into the sandbox and return its folder.
+ * Why: a gate job keeps only PATH from the sandbox's variables, so the wrapper carries the variables the tool needs [#10612].
+ */
+function wrapperFolder(box, name, variables, target, args = '') {
+  const folder = join(box.dir, 'toolchain-bin');
+  mkdirSync(folder, { recursive: true });
+  const assignments = Object.entries(variables).map(([key, value]) => `${key}=${quoted(value)}`).join(' ');
+  writeFileSync(join(folder, name), `#!/bin/sh\n${assignments} exec ${quoted(target)}${args} "$@"\n`, { mode: 0o755 });
+  return folder;
 }
 
 export const GO = goEnvironment();
@@ -39,11 +59,10 @@ export const PASSING = `${HEADER}func TestAddsSmallNumbers(t *testing.T) {\n\tif
 export const BROKEN = `${HEADER}func TestAddsSmallNumbers(t *testing.T) {\n\tif got := Add(1, 2); got != 4 {\n\t\tt.Fatalf("got %d", got)\n\t}\n}\n`;
 const BASE_ITEM = `${HEADER}func TestAddsNothing(t *testing.T) {\n\tif got := Add(0, 0); got != 0 {\n\t\tt.Fatalf("got %d", got)\n\t}\n}\n`;
 
-/** A sandbox whose gate and runner see go and never fetch a newer toolchain: the variables are set before the first command starts the runner. */
+/** A sandbox whose gate and runner find go through a wrapper that keeps a warm build cache and never fetches a newer toolchain: set before the first command starts the runner. */
 export function goSandbox(helpers, settings = {}) {
   const box = helpers.sandbox();
-  box.env.PATH = [...(GO?.folders ?? []), box.env.PATH].join(':');
-  box.env.GOTOOLCHAIN = 'local';
+  if (GO) box.env.PATH = [wrapperFolder(box, 'go', { GOCACHE: GO.cache, GOTOOLCHAIN: 'local' }, GO.go), box.env.PATH].join(':');
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   return box;
 }
