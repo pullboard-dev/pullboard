@@ -44,7 +44,7 @@ import { cellSeat } from '../../store/tests/fixtures/cell.js';
 import { closeCellBoard } from '../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../store/tests/fixtures/cell.js';
 import { submitFixture as submitBoardStateFixture } from '../../store/tests/fixtures/submit.js';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 /** The model name the builder seat joins with. */
 const BUILDER_MODEL = 'Fixture builder';

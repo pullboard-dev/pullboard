@@ -92,7 +92,7 @@ export async function run(io, { first, values }) {
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
-  const { fields, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
@@ -101,6 +101,9 @@ export async function run(io, { first, values }) {
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
     // Typed fields load the full store only while items.typedFields is on: with it off the read is what it was [C7,#9352].
     const fields = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).itemFields(board, id, { enabled: true }) : [];
+    // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
+    const links = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).relatedLinks(board, id, { enabled: true })
+      .map(other => ({ id: other, title: board.db.prepare('SELECT item_title FROM item WHERE item_id=?').get(other)?.item_title ?? '' })) : [];
     const job = submitHandoff(board, id);
     const queuedSubmit = job ? { state: job.state, ...(Object.hasOwn(job, 'gateGreen') ? { gateGreen: job.gateGreen } : {}), commit: job.commit, tree: job.tree, executionCommit: job.executionCommit, executionTree: job.executionTree, companionDigest: job.companionDigest, ...(job.error ? { error: job.error } : {}), ...(job.requeuedFor ? { requeuedFor: job.requeuedFor } : {}), ...(supersededStop(job, item) ? { superseded: { agentId: job.agentId } } : {}) } : null;
     // The gate panel reads the jobs cell: a job whose lease lapsed shows as stalled, never as running [C7].
@@ -112,9 +115,9 @@ export async function run(io, { first, values }) {
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
     // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
     const gateJob = newestGateJob(board.db, id, result.proofReceipts);
-    if (values.json) return { ...result, gateJob, fields };
+    if (values.json) return { ...result, gateJob, fields, links };
     const history = store.events(board, { itemId: id });
-    return { ...result, gateJob, fields, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
+    return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
       agents: store.listAgents(board), mainMerge: mainMergeFor(board, id), submits: history.filter((event) => event.event_kind === 'submit') };
   });
@@ -132,7 +135,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, ...(fields.length ? { fields } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -213,6 +216,10 @@ export async function run(io, { first, values }) {
   if (fields.length) {
     io.say('fields:');
     for (const field of fields) io.say(`  ${field.name} (${field.type}): ${field.value}`);
+  }
+  if (links.length) {
+    io.say('related links:');
+    for (const link of links) io.say(`  #${link.id} ${link.title}`);
   }
   sayBrief(io, item.item_brief);
   for (const move of relayPending) io.say(`pending in the relay outbox: ${move.operation}${move.actor ? ` by ${move.actor}` : ''} (made ${move.queuedAt}); it goes up in order when the relay answers`);
