@@ -12,8 +12,8 @@ import { policyRepository } from '../../store/tests/fixtures/submit.js';
 import { fixtureMachineSettings } from './fixtures/testkit.js';
 import { fixtureProjectPolicy } from './fixtures/testkit.js';
 import { executionServices } from '../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from './fixtures/runner/ssh.js';
+import { installSshStandIn } from './fixtures/runner/ssh.js';
 import { measureBaseline } from '../src/io/check/baseline/worker.js';
 import { CHECK_BASELINE_KIND } from '../../api/index.js';
 import { offerCheckBaseline } from '../../api/index.js';
@@ -21,7 +21,7 @@ import { openKitBoard } from '../../board/tests/fixtures/board.js';
 
 const EXPECTED = { command: 'node apps/cli/src/io/run/tests.js test/a.test.js', main: 'a'.repeat(40) };
 
-test('clause 2: the in-process measurement runs nothing with no registered runner; the check is a pulled job, never inline on the host [C7,V2,#6560]', async () => {
+test('gate.add-check-baseline-runner.process-measurement-runs-nothing-registered: clause 2: the in-process measurement runs nothing with no registered runner; the check is a pulled job, never inline on the host [C7,V2,#6560]', async () => {
   // No execution services at all: nothing may run locally.
   assert.equal(await measureBaseline('/nonexistent-root', 1, EXPECTED, {}), null);
   // Services whose runner list is empty: still nothing runs locally.
@@ -31,7 +31,7 @@ test('clause 2: the in-process measurement runs nothing with no registered runne
   assert.equal(touched, 1, 'the registered-runner list was consulted');
 });
 
-test('clause 1: the in-process measurement never starts a local test process; a result comes from a runner [C7,V2,#6560]', async () => {
+test('gate.add-check-baseline-runner.process-measurement-never-starts-local: clause 1: the in-process measurement never starts a local test process; a result comes from a runner [C7,V2,#6560]', async () => {
   const services = { gateExecutionServices: async () => ({ runners: { effectiveRunners: () => [], runOnRunnerAsync: () => { throw new Error('no run without a runner'); } }, landing: {} }) };
   assert.equal(await measureBaseline('/nonexistent-root', 2, EXPECTED, services), null);
 });
@@ -73,7 +73,7 @@ function runnerFixture(t) {
   return { ...paths, env, requests, main: runFixtureGit(['rev-parse', 'HEAD'], { cwd: paths.repo, env }).trim() };
 }
 
-test('clause 1: with a registered runner the baseline runs there and returns its measured result [C7,V2]', { timeout: 90000 }, async t => {
+test('gate.add-check-baseline-runner.registered-runner-baseline-runs-there: clause 1: with a registered runner the baseline runs there and returns its measured result [C7,V2]', { timeout: 90000 }, async t => {
   const box = runnerFixture(t);
   const prior = { home: process.env.PULLBOARD_HOME, machine: process.env.PULLBOARD_MACHINE_HOME, agent: process.env.PULLBOARD_AGENT,
     path: process.env.PATH, accountHome: process.env.HOME };
@@ -93,7 +93,7 @@ test('clause 1: with a registered runner the baseline runs there and returns its
   assert.ok(readFileSync(box.requests, 'utf8').trim().length > 0, 'the run went through the runner transport, not a local process');
 });
 
-test('clause 3: with no registered runner the baseline is offered as a check-baseline pull job that carries the check and main, never run here [C7,V2,#6560]', t => {
+test('gate.add-check-baseline-runner.registered-runner-baseline-offered-check: clause 3: with no registered runner the baseline is offered as a check-baseline pull job that carries the check and main, never run here [C7,V2,#6560]', t => {
   const directory = privateFixtureFiles('pullboard-baseline-offer-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const board = openKitBoard(join(directory, 'board.sqlite'));

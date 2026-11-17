@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { retrySlotLocked } from '../../../src/io/worker/process.js';
 
-test('a locked slot database during the startup bridge is retried, never a worker failure [C7]', async () => {
+test('runner.process.a-locked-slot-database-during-the-startup: a locked slot database during the startup bridge is retried, never a worker failure [C7]', async () => {
   const waits = [];
   let calls = 0;
   const lease = await retrySlotLocked({ transportLost: false }, async () => {
@@ -16,7 +16,7 @@ test('a locked slot database during the startup bridge is retried, never a worke
   assert.deepEqual(waits, [100, 200]);
 });
 
-test('other refusals and a spent retry budget still fail the startup step [C7]', async () => {
+test('runner.process.other-refusals-and-a-spent-retry-budget: other refusals and a spent retry budget still fail the startup step [C7]', async () => {
   await assert.rejects(retrySlotLocked({ transportLost: false }, async () => { throw new Refused('BAD_RESOURCE_CAPACITY', 'fixture'); }, { wait: async () => {} }),
     { code: 'BAD_RESOURCE_CAPACITY' });
   let calls = 0;

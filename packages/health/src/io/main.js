@@ -7,6 +7,7 @@ import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
 import { noReviewerSupplyFindings } from './supply.js';
+import { credentialExpiryFindings } from './supply.js';
 import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
@@ -67,11 +68,12 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../store/index.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../landing/index.js';
+import { localReleaseRank } from '../../../landing/light.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
+import { relayMachineContext } from '../../../link/index.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
@@ -142,6 +144,9 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
     }));
   }
+  let machineLink = null;
+  try { machineLink = relayMachineContext(root); } catch { /* no readable link: no credential to warn about */ }
+  report.stuck.push(...credentialExpiryFindings(machineLink, now.getTime(), finding));
   const settings = machineSettings;
   if (settings?.gate?.loadAwareDispatch === true) {
     const fresh = (settings.runners ?? []).filter(runner => {
@@ -280,7 +285,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
         found(report.stuck, finding('REVIEW_STARVED', item, {
           since: wait.since, now: at, title: 'review starved',
           why: eligible.length ? `submitted ${Math.floor(wait.ageMs / 60_000)} minutes ago without a live reviewer`
-            : `no joined agent is eligible: ${excluding.map(entry => `${entry.agent}: ${entry.code}`).join('; ') || 'no joined agents'}`,
+            : `no joined agent is eligible: ${listedSeats(excluding.map(entry => `${entry.agent}: ${entry.code}`))}`,
           next: eligible.length ? `an eligible idle agent takes pullboard next before new build work` : `inspect the eligibility checks with pullboard show ${id}`,
           command: `pullboard show ${id}`, owner: { role: 'coordinator', who: COORDINATOR },
           detail: { ageMs: wait.ageMs, eligible, excluding },
@@ -549,6 +554,18 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     }));
   }
 
+  // A seat that joined without a model (no record, or the word unknown) cannot be routed by model or family: name each active one by seat id [C7,#9696].
+  const models = new Map(board.db.prepare("SELECT meta_key AS key, meta_value AS value FROM board_meta WHERE meta_key LIKE 'agent_model:%'").all().map(row => [row.key.slice('agent_model:'.length), String(row.value ?? '').trim().toLowerCase()]));
+  for (const agent of active.filter(candidate => !models.get(candidate.id) || models.get(candidate.id) === 'unknown')) {
+    findings.push(finding('SEAT_NO_MODEL', null, {
+      subject: agent.id, key: `SEAT_NO_MODEL:agent:${agent.id}`, since: new Date(agent.created ? Date.parse(agent.created) : agent.last).toISOString(), now,
+      title: 'joined without a model',
+      why: `${agent.id} in ${agent.lane} has no recorded model, so its work cannot be routed by model`,
+      next: `rejoin ${agent.path} with the model named: in a shell with PULLBOARD_MODEL set, run pullboard join ${agent.lane}`,
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: { lane: agent.lane, route: agent.route },
+    }));
+  }
+
   const open = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased].filter((entry) => entry.status === 'open');
   /** A returned repair belongs with its still-active last builder, not a different occupied holder. */
   const reworkBuilder = item => {
@@ -623,8 +640,34 @@ function finding(cause, item, { subject, key, since, now, title, why, next, comm
   const label = subject ?? `#${item.item_id}`;
   return {
     key: key ?? `${cause}:item:${item.item_id}`, cause, item: item?.item_id ?? null, subject: label, title,
-    since, ageMinutes: Math.max(0, Math.floor((now - Date.parse(since)) / 60_000)), why, next, command, owner, detail,
+    since, ageMinutes: Math.max(0, Math.floor((now - Date.parse(since)) / 60_000)), why: capText(why), next: capText(next), command, owner, detail,
   };
+}
+
+/** The longest text a health receipt keeps for one finding field; the store refuses more [#3113]. */
+const FINDING_TEXT_CAP = 8192;
+
+/**
+ * Cut a finding's text to the receipt cap, saying how many characters were left out.
+ * Why: one oversized finding made the receipt refuse the whole health scan [#3113].
+ */
+function capText(text) {
+  if (typeof text !== 'string' || text.length <= FINDING_TEXT_CAP) return text;
+  const kept = FINDING_TEXT_CAP - 48;
+  return `${text.slice(0, kept)} ... ${text.length - kept} more characters omitted`;
+}
+
+/**
+ * Join seat lines with "; " while they fit the receipt cap, then say how many seats were left out.
+ * Why: a board with hundreds of excluded seats wrote a finding longer than the cap and stopped the scan [#3113].
+ */
+function listedSeats(lines) {
+  if (!lines.length) return 'no joined agents';
+  const budget = FINDING_TEXT_CAP - 400;
+  let used = 0, shown = 0;
+  while (shown < lines.length && used + lines[shown].length + 2 <= budget) used += lines[shown++].length + 2;
+  const omitted = lines.length - shown;
+  return lines.slice(0, shown).join('; ') + (omitted ? `; and ${omitted} more seats omitted` : '');
 }
 
 /**

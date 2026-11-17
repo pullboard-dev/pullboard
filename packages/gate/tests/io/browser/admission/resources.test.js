@@ -22,6 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { setResourceCapacity } from '../../../../../resources/index.js';
 import { takeResource } from '../../../../../resources/index.js';
 import { checkNeedsBrowser } from '../../../../src/io/browser/admission.js';
+import { executionServicesSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { oldSchema } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { staleIdentity } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { expireHeartbeat } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
@@ -52,7 +53,7 @@ import { waitForProcessState } from '../../../../../../apps/cli/tests/fixtures/r
 import { waitUntil } from '../../../../../../apps/cli/tests/fixtures/resources/pool.js';
 import { worker } from '../../../../../../apps/cli/tests/fixtures/resources/pool.js';
 import { writeMemoryReading } from '../../../../../../apps/cli/tests/fixtures/resources/pool.js';
-test('single-quoted named-test checks skip the browser slot [C7]', async () => {
+test('gate.io-browser-admission-resources.single-quoted-named-test-checks-skip: single-quoted named-test checks skip the browser slot [C7]', async () => {
   const box = fixture();
   const { repo } = cpuCheckRepo(box);
   const itemCheck = 'node apps/cli/src/io/run/tests.js --test-name-pattern "item check marker" test/cpu-check.test.js';
@@ -97,7 +98,7 @@ test('single-quoted named-test checks skip the browser slot [C7]', async () => {
 
 
 /** Prove the machine setting changes real browser admission while retaining the single-slot default [C7]. */
-test('browserSlots admits that many browser runs and no more [C7]', async () => {
+test('gate.io-browser-admission-resources.browserslots-admits-that-many-browser-runs: browserSlots admits that many browser runs and no more [C7]', async () => {
   const defaults = fixture();
   const defaultSettings = machineSettings(defaults, 'loadMachineSettings');
   assert.equal(defaultSettings.error, undefined, defaultSettings.error?.message);
@@ -141,24 +142,24 @@ test('browserSlots admits that many browser runs and no more [C7]', async () => 
   await release(third);
 });
 
-const capacityCases = capacityChangeCases({ fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER });
+const capacityCases = capacityChangeCases({ machineSettings, fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER });
 
 /** Existing queued processes observe a raised limit without restarting their holders [Q1,Q2,Q4]. */
-test("raising a busy resource's capacity admits waiters at once [Q1,Q2,Q4]", capacityCases.raising);
+test('gate.io-browser-admission-resources.raising-a-busy-resource-s-capacity: raising a busy resource\'s capacity admits waiters at once [Q1,Q2,Q4]', capacityCases.raising);
 
 /** A refused decrease names the live holders and leaves their leases and settings intact [Q1,Q3,Q4]. */
-test("lowering capacity never stops a running holder [Q1,Q3,Q4]", capacityCases.lowering);
+test('gate.io-browser-admission-resources.lowering-capacity-never-stops-a-running: lowering capacity never stops a running holder [Q1,Q3,Q4]', capacityCases.lowering);
 
 /** Browser capacity can grow under the same live gate lease without exceeding either limit [Q1,Q2,Q4]. */
-test("raising busy browser capacity admits only the new browser slots [Q1,Q2,Q4]", capacityCases.browser);
+test('gate.io-browser-admission-resources.raising-busy-browser-capacity-admits-only: raising busy browser capacity admits only the new browser slots [Q1,Q2,Q4]', capacityCases.browser);
 
-test('the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
+test('gate.io-browser-admission-resources.the-gate-pool-serves-the-current: the gate pool serves the current release first [C7,V4]', () => releaseQueueProof({ machineSettings, executionServicesSource, fixture, poolWorker, privateList, event, acquired, release, legacyModule: PRE_RUNNER_MODULE }));
 
 
 // These cases keep all asynchronous state in separate child processes and private machine homes.
 // Their only parent environment changes are synchronous reads restored before yielding.
 describe('isolated resource queue scenarios [C7,Q1,Q2]', { concurrency: 4 }, () => {
-test('[Q1,Q2] capacity-one takers acquire in strict FIFO arrival order', async () => {
+test('gate.io-browser-admission-resources.q1-q2-capacity-one-takers-acquire: [Q1,Q2] capacity-one takers acquire in strict FIFO arrival order', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
   assert.equal((await event(holder)).acquired, 'holder');
@@ -192,7 +193,7 @@ test('[Q1,Q2] capacity-one takers acquire in strict FIFO arrival order', async (
   assert.deepEqual(order, ['first', 'second', 'third']);
 });
 
-test('[Q1,Q2] landing waiters jump ordinary gates but keep FIFO within each class [Q1,Q2]', async () => {
+test('gate.io-browser-admission-resources.q1-q2-landing-waiters-jump-ordinary: [Q1,Q2] landing waiters jump ordinary gates but keep FIFO within each class [Q1,Q2]', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
   assert.equal((await event(holder)).acquired, 'holder');
@@ -220,7 +221,7 @@ test('[Q1,Q2] landing waiters jump ordinary gates but keep FIFO within each clas
   await release(ordinarySecond);
 });
 
-test('the pool alone orders submits, reviews and browser runs [C7]', async () => {
+test('gate.io-browser-admission-resources.the-pool-alone-orders-submits-reviews: the pool alone orders submits, reviews and browser runs [C7]', async () => {
   const orderBox = fixture();
   const orderHolder = poolWorker(orderBox, { agent: 'order-holder' });
   const otherHolder = poolWorker(orderBox, { agent: 'other-holder' });
@@ -338,7 +339,7 @@ test('the pool alone orders submits, reviews and browser runs [C7]', async () =>
 
 });
 
-test('the pool admits reviews before submits before focused runs, and waiting runs age up [C7,V4]', async () => {
+test('gate.io-browser-admission-resources.the-pool-admits-reviews-before-submits: the pool admits reviews before submits before focused runs, and waiting runs age up [C7,V4]', async () => {
   const AGE_MS = 30 * 60_000;
   const box = fixture();
   setQueueOrder(box, { reviewsFirst: true }); // #697: class order is a machine opt-in.
@@ -428,7 +429,7 @@ test('the pool admits reviews before submits before focused runs, and waiting ru
 });
 
 describe('isolated mixed-version and release queues [C7,Q1,Q2]', { concurrency: 4 }, () => {
-test('a line holding an older pullboard waiter keeps arrival order, so mixed versions never deadlock [C7]', async () => {
+test('gate.io-browser-admission-resources.a-line-holding-an-older-pullboard: a line holding an older pullboard waiter keeps arrival order, so mixed versions never deadlock [C7]', async () => {
   const box = fixture();
   setQueueOrder(box, { reviewsFirst: true }); // #697: class order is a machine opt-in.
   const holders = [poolWorker(box, { agent: 'mixed-holder-one' }), poolWorker(box, { agent: 'mixed-holder-two' })];
@@ -455,7 +456,7 @@ test('a line holding an older pullboard waiter keeps arrival order, so mixed ver
 });
 
 
-test('[Q1,Q2] a waiting landing keeps a current holder from taking the second slot [Q1,Q2]', async () => {
+test('gate.io-browser-admission-resources.q1-q2-a-waiting-landing-keeps: [Q1,Q2] a waiting landing keeps a current holder from taking the second slot [Q1,Q2]', async () => {
   const box = fixture();
   const firstHolder = worker(box, { capacity: 2, agent: 'same-run' });
   const secondHolder = worker(box, { capacity: 2, agent: 'other-run' });
@@ -476,7 +477,7 @@ test('[Q1,Q2] a waiting landing keeps a current holder from taking the second sl
   await release(firstHolder);
 });
 
-test('[Q1,Q2] a holder cannot queue a landing second slot ahead of another landing [Q1,Q2]', async () => {
+test('gate.io-browser-admission-resources.q1-q2-a-holder-cannot-queue: [Q1,Q2] a holder cannot queue a landing second slot ahead of another landing [Q1,Q2]', async () => {
   const box = fixture();
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -533,7 +534,7 @@ test('[Q1,Q2] a holder cannot queue a landing second slot ahead of another landi
 });
 
 /** A capacity-three queue must not grant an empty slot to holders queued for their own second slot. */
-test('[Q1,Q2] landing holders leave an empty slot for the next eligible landing [Q1,Q2]', async () => {
+test('gate.io-browser-admission-resources.q1-q2-landing-holders-leave-an: [Q1,Q2] landing holders leave an empty slot for the next eligible landing [Q1,Q2]', async () => {
   const box = fixture();
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -597,7 +598,7 @@ test('[Q1,Q2] landing holders leave an empty slot for the next eligible landing 
 
 // Each process and memory case below also owns a distinct pool; no asynchronous parent environment override is shared.
 describe('isolated resource process and memory scenarios [C7,Q1,Q2,Q3]', { concurrency: 4 }, () => {
-test('[Q1,Q2] landing priority preserves tickets while an older resource database migrates [Q1,Q2]', async () => {
+test('gate.io-browser-admission-resources.q1-q2-landing-priority-preserves-tickets: [Q1,Q2] landing priority preserves tickets while an older resource database migrates [Q1,Q2]', async () => {
   const box = fixture();
   oldSchema(box);
   const oldSince = new Date().toISOString();
@@ -636,7 +637,7 @@ test('[Q1,Q2] landing priority preserves tickets while an older resource databas
   await release(landing);
 });
 
-test('[Q1,Q2] capacity two admits two holders and serves the next waiter', async () => {
+test('gate.io-browser-admission-resources.q1-q2-capacity-two-admits-two: [Q1,Q2] capacity two admits two holders and serves the next waiter', async () => {
   const box = fixture();
   const first = worker(box, { name: 'two-slots', capacity: 2, agent: 'first-holder' });
   const second = worker(box, { name: 'two-slots', capacity: 2, agent: 'second-holder' });
@@ -650,7 +651,7 @@ test('[Q1,Q2] capacity two admits two holders and serves the next waiter', async
   await release(next);
 });
 
-test('[Q2,Q3] a stopped head waiter keeps its place ahead of the next process', async () => {
+test('gate.io-browser-admission-resources.q2-q3-a-stopped-head-waiter: [Q2,Q3] a stopped head waiter keeps its place ahead of the next process', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
   assert.equal((await event(holder)).acquired, 'holder');
@@ -668,7 +669,7 @@ test('[Q2,Q3] a stopped head waiter keeps its place ahead of the next process', 
   await release(second);
 });
 
-test('[Q2,Q3] an evicted live waiter rejoins the FIFO line after it resumes [Q2,Q3]', async () => {
+test('gate.io-browser-admission-resources.q2-q3-an-evicted-live-waiter: [Q2,Q3] an evicted live waiter rejoins the FIFO line after it resumes [Q2,Q3]', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
   assert.equal((await event(holder)).acquired, 'holder');
@@ -686,7 +687,7 @@ test('[Q2,Q3] an evicted live waiter rejoins the FIFO line after it resumes [Q2,
   await release(waiter);
 });
 
-test('[Q3] a live stalled holder keeps its place beyond the lease timeout', async () => {
+test('gate.io-browser-admission-resources.q3-a-live-stalled-holder-keeps: [Q3] a live stalled holder keeps its place beyond the lease timeout', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'stalled-holder', stallMs: 22_000, env: { TZ: 'UTC' } });
   assert.equal((await event(holder)).acquired, 'stalled-holder');
@@ -699,7 +700,7 @@ test('[Q3] a live stalled holder keeps its place beyond the lease timeout', asyn
   await release(waiter);
 });
 
-test('[Q3] concurrent openers serialize migration of a prior resource database', async () => {
+test('gate.io-browser-admission-resources.q3-concurrent-openers-serialize-migration-of: [Q3] concurrent openers serialize migration of a prior resource database', async () => {
   const box = fixture();
   oldSchema(box);
   const workers = Array.from({ length: 8 }, (_, index) => worker(box, { name: 'legacy', capacity: 8, agent: `migrator-${index}` }));
@@ -708,7 +709,7 @@ test('[Q3] concurrent openers serialize migration of a prior resource database',
   await Promise.all(workers.map(release));
 });
 
-test('[Q3] a held lease records its OS process start identity', async () => {
+test('gate.io-browser-admission-resources.q3-a-held-lease-records-its: [Q3] a held lease records its OS process start identity', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'identity-recorded' });
   assert.equal((await acquired(holder)).acquired, 'identity-recorded');
@@ -720,7 +721,7 @@ test('[Q3] a held lease records its OS process start identity', async () => {
   await release(holder);
 });
 
-test('[Q3] process identity lookup ignores a misleading ps on PATH', async () => {
+test('gate.io-browser-admission-resources.q3-process-identity-lookup-ignores-a: [Q3] process identity lookup ignores a misleading ps on PATH', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'path-spoof-holder' });
   assert.equal((await acquired(holder)).acquired, 'path-spoof-holder');
@@ -741,7 +742,7 @@ test('[Q3] process identity lookup ignores a misleading ps on PATH', async () =>
   await release(holder);
 });
 
-test('[Q3] an unreadable process identity keeps a live holder', { skip: !SANDBOX_EXEC }, async () => {
+test('gate.io-browser-admission-resources.q3-an-unreadable-process-identity-keeps: [Q3] an unreadable process identity keeps a live holder', { skip: !SANDBOX_EXEC }, async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'sandbox-live-holder', stallMs: 27_000 });
   assert.equal((await acquired(holder)).acquired, 'sandbox-live-holder');
@@ -754,7 +755,7 @@ test('[Q3] an unreadable process identity keeps a live holder', { skip: !SANDBOX
   await release(waiter);
 });
 
-test('[Q3] an unreadable process identity still releases a dead holder', { skip: !SANDBOX_EXEC }, async () => {
+test('gate.io-browser-admission-resources.q3-an-unreadable-process-identity-still: [Q3] an unreadable process identity still releases a dead holder', { skip: !SANDBOX_EXEC }, async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'sandbox-dead-holder' });
   assert.equal((await acquired(holder)).acquired, 'sandbox-dead-holder');
@@ -767,7 +768,7 @@ test('[Q3] an unreadable process identity still releases a dead holder', { skip:
   await release(waiter);
 });
 
-test('[Q3] cached live identities expire so an actual zombie holder is released', { skip: !PERL_FORK }, async () => {
+test('gate.io-browser-admission-resources.q3-cached-live-identities-expire-so: [Q3] cached live identities expire so an actual zombie holder is released', { skip: !PERL_FORK }, async () => {
   const box = fixture();
   privateList(box);
   const script = 'my $pid = fork(); die "fork failed" unless defined $pid; if ($pid == 0) { select undef, undef, undef, 1.2; exit 0; } print "$pid\\n"; $| = 1; select undef, undef, undef, 30; waitpid($pid, 0);';
@@ -798,7 +799,7 @@ test('[Q3] cached live identities expire so an actual zombie holder is released'
   }
 });
 
-test('[Q3] renew refuses after an OS start-identity mismatch evicts the holder', async () => {
+test('gate.io-browser-admission-resources.q3-renew-refuses-after-an-os: [Q3] renew refuses after an OS start-identity mismatch evicts the holder', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'evicted-holder' });
   assert.equal((await event(holder)).acquired, 'evicted-holder');
@@ -810,7 +811,7 @@ test('[Q3] renew refuses after an OS start-identity mismatch evicts the holder',
   assert.equal((await holder.finished).code, 0, holder.errors);
 });
 
-test('[Q3] SIGKILL of a holder frees its lease for the next process', async () => {
+test('gate.io-browser-admission-resources.q3-sigkill-of-a-holder-frees: [Q3] SIGKILL of a holder frees its lease for the next process', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'doomed-holder' });
   assert.equal((await event(holder)).acquired, 'doomed-holder');
@@ -823,7 +824,7 @@ test('[Q3] SIGKILL of a holder frees its lease for the next process', async () =
   await release(next);
 });
 
-test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances', async () => {
+test('gate.io-browser-admission-resources.q2-q3-a-sigkilled-waiter-is: [Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'holder' });
   assert.equal((await event(holder)).acquired, 'holder');
@@ -839,7 +840,7 @@ test('[Q2,Q3] a SIGKILLed waiter is skipped while the next live waiter advances'
 });
 
 
-test('the pool holds work while the machine is out of memory and names the biggest process [C7]', async () => {
+test('gate.io-browser-admission-resources.the-pool-holds-work-while-the: the pool holds work while the machine is out of memory and names the biggest process [C7]', async () => {
   const box = fixture();
   const reading = join(box.dir, 'memory.json');
   writeMemoryReading(reading, { availableMB: 100, fullAvg10: 99, someAvg10: 99 });
@@ -887,7 +888,7 @@ test('the pool holds work while the machine is out of memory and names the bigge
 
 });
 
-test('[Q4] machine capacity decreases atomically refuse an occupied or queued resource', async () => {
+test('gate.io-browser-admission-resources.q4-machine-capacity-decreases-atomically-refuse: [Q4] machine capacity decreases atomically refuse an occupied or queued resource', async () => {
   const box = fixture();
   const oldHome = process.env.PULLBOARD_HOME;
   const oldMachineHome = process.env.PULLBOARD_MACHINE_HOME;
@@ -928,7 +929,7 @@ test('[Q4] machine capacity decreases atomically refuse an occupied or queued re
   }
 });
 
-test('[Q1] machine scope is shared, repo scope stays local, and board scope names relay requirement', async () => {
+test('gate.io-browser-admission-resources.q1-machine-scope-is-shared-repo: [Q1] machine scope is shared, repo scope stays local, and board scope names relay requirement', async () => {
   const box = fixture();
   const holder = worker(box, { agent: 'repo-a', root: box.first });
   assert.equal((await event(holder)).acquired, 'repo-a');
@@ -948,7 +949,7 @@ test('[Q1] machine scope is shared, repo scope stays local, and board scope name
   assert.match(refused.stderr, /BOARD_SCOPE_UNAVAILABLE.*relay/i);
 });
 
-test('[Q4] a red gate releases its lease before the same process starts another gate', async () => {
+test('gate.io-browser-admission-resources.q4-a-red-gate-releases-its: [Q4] a red gate releases its lease before the same process starts another gate', async () => {
   const box = fixture();
   const command = join(box.dir, 'red-then-green.cjs');
   const counter = join(box.dir, 'gate-count');
@@ -989,7 +990,7 @@ test('[Q4] a red gate releases its lease before the same process starts another 
 
 
 /** A write lock on the slot database delays a queued run; only a lock past the deadline stops it, as never ran [C7]. */
-test('a gate-slot waiter retries a locked slot database [C7]', async () => {
+test('gate.io-browser-admission-resources.a-gate-slot-waiter-retries-a: a gate-slot waiter retries a locked slot database [C7]', async () => {
   const box = fixture();
   mkdirSync(box.home, { recursive: true });
   const released = join(box.dir, 'lock-released');

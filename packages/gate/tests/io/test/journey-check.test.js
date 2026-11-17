@@ -31,7 +31,7 @@ function seam(drop) {
   return { mutate, calls };
 }
 
-test('the check scores each delete-tagged journey with and without it and reports the share that holds [C7]', async t => {
+test('gate.io-test-journey-check.the-check-scores-each-delete-tagged: the check scores each delete-tagged journey with and without it and reports the share that holds [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('apps/cli/journeys/edges/j2.test.js');
   const reachOf = () => new Map([['packages/a/tests/a.test.js', new Set(['packages/a/src/x.js'])], ['apps/cli/journeys/edges/j1.test.js', new Set(['packages/a/src/x.js'])], ['packages/z/tests/z.test.js', new Set(['packages/z/src/z.js'])]]);
@@ -46,7 +46,7 @@ test('the check scores each delete-tagged journey with and without it and report
   assert.match(result.stdout, /3 of 4 sampled delete tags hold \(75%\); 1 retagged convert, 0 unmeasured, of 4 delete tags/u);
 });
 
-test('--limit runs only a sample of the delete tags, spread over the sorted list [C7]', async t => {
+test('gate.io-test-journey-check.limit-runs-only-a-sample-of: --limit runs only a sample of the delete tags, spread over the sorted list [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('none');
   const result = await runJourneyCheck(['--manifest', 'manifest.json', '--limit', '2', files.root], { mutate, reachOf: () => new Map() });
@@ -55,7 +55,7 @@ test('--limit runs only a sample of the delete tags, spread over the sorted list
   assert.match(result.stdout, /2 of 2 sampled delete tags hold \(100%\).* of 4 delete tags/u);
 });
 
-test('--write retags the dropped journey in the manifest file and nothing else, and no flag leaves the file alone [C7]', async t => {
+test('gate.io-test-journey-check.write-retags-the-dropped-journey-in: --write retags the dropped journey in the manifest file and nothing else, and no flag leaves the file alone [C7]', async t => {
   const files = fixture(t);
   const { mutate } = seam('apps/cli/journeys/edges/j2.test.js');
   await runJourneyCheck(['--manifest', 'manifest.json', files.root], { mutate, reachOf: () => new Map() });
@@ -65,7 +65,7 @@ test('--write retags the dropped journey in the manifest file and nothing else, 
   assert.deepEqual(tags, { 'j1.test.js': 'delete', 'j2.test.js': 'convert', 'j3.test.js': 'delete', 'j4.test.js': 'delete', 'keep.test.js': 'keep' });
 });
 
-test('the check refuses an unknown flag and a non-numeric limit with its usage [C7]', async () => {
+test('gate.io-test-journey-check.the-check-refuses-an-unknown-flag: the check refuses an unknown flag and a non-numeric limit with its usage [C7]', async () => {
   const { mutate, calls } = seam('none');
   for (const args of [['--bogus'], ['--limit', 'many'], ['--limit', '0']]) {
     const result = await runJourneyCheck(args, { mutate, reachOf: () => new Map() });
@@ -75,7 +75,7 @@ test('the check refuses an unknown flag and a non-numeric limit with its usage [
   assert.equal(calls.length, 0);
 });
 
-test('clause 1: --only checks just the delete-tagged journeys under the listed prefixes, and a prefix matching none exits 1 naming it [C7]', async t => {
+test('gate.io-test-journey-check.only-checks-just-the-delete-tagged: clause 1: --only checks just the delete-tagged journeys under the listed prefixes, and a prefix matching none exits 1 naming it [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('none');
   const result = await runJourneyCheck(['--manifest', 'manifest.json', '--only', 'apps/cli/journeys/edges/j2,apps/cli/journeys/edges/j4', files.root], { mutate, reachOf: () => new Map() });
@@ -91,7 +91,7 @@ test('clause 1: --only checks just the delete-tagged journeys under the listed p
   assert.equal(bare.status, 1);
 });
 
-test('clause 2: without --only the check samples the same journeys as before, and the usage line lists --only [C7]', async t => {
+test('gate.io-test-journey-check.without-only-the-check-samples-the: clause 2: without --only the check samples the same journeys as before, and the usage line lists --only [C7]', async t => {
   const files = fixture(t);
   const { mutate, calls } = seam('none');
   await runJourneyCheck(['--manifest', 'manifest.json', '--limit', '2', files.root], { mutate, reachOf: () => new Map() });

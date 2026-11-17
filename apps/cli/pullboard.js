@@ -25,6 +25,15 @@ if (major < 22 || (major === 22 && minor < 13)) {
   process.exit(1);
 }
 
+// `--version --json` is a scripted version check that needs only the release metadata: it runs before the compile cache below,
+// so the probe loads nothing but package.json and touches no machine-home folder, and the plain `--version` keeps the cache [C7].
+const versionJson = process.argv.length === 4 && process.argv[2] === '--version' && process.argv[3] === '--json';
+if (versionJson) {
+  const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
+  process.stdout.write(`${JSON.stringify({ version: 1, release: packageData.version }, null, 2)}\n`);
+  process.exit(0);
+}
+
 // Compiled module code is kept per machine, so a short command re-reads it instead of compiling ~450 ms of small modules again [C7].
 // Only a directory this account owns and nobody else can write is used: cached code runs. Any failure leaves the command uncached.
 try {
@@ -58,13 +67,6 @@ process.stdout.on('error', (error) => {
 try { process.cwd(); } catch { (await import('./src/io/cli-main/live-cwd.js')).liveCwd(undefined); }
 
 // The common version probe needs only the release metadata, not the command dispatcher.
-// `--version --json` is the same probe in the document form, so a scripted version check pays for no dispatcher either [C7].
-const versionJson = process.argv.length === 4 && process.argv[2] === '--version' && process.argv[3] === '--json';
-if (versionJson) {
-  const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
-  process.stdout.write(`${JSON.stringify({ version: 1, release: packageData.version }, null, 2)}\n`);
-  process.exit(0);
-}
 if (process.argv.length === 3 && process.argv[2] === '--version') {
   const { default: packageData } = await import('../../package.json', { with: { type: 'json' } });
   // A hook one release back is told its own version, so an upgrade never stops a seat's commit (#7760).

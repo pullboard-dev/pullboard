@@ -14,7 +14,7 @@ import {
 import { repoInfo } from '../../../../git/index.js';
 import {
   machineSettingsFile,
-} from '../../../../resources/index.js';
+} from '../../../../resources/light.js';
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,
@@ -32,7 +32,7 @@ const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false, 'release.liftTwiceHold': false,
   project: null, name: null, generated: null, tiers: null, laneMode: 'on', 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.landedReviews': false, 'verify.queueAccept': false, 'verify.requireRowRewrite': false, 'resume.adoptOrphans': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'rigor.autoDraft': true, 'cells.cache': false, 'cells.shimMaxAgeDays': 7, 'relay.outbox': true, 'relay.board': null,
-  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
+  submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.perItem': true, 'landing.shardProof': false, 'landing.pipeline': false, 'landing.landedFromMain': false, 'landing.ledgerMainReds': false, 'landing.priorityOrder': false, 'landing.adaptiveBatch': false, 'landing.first': null, 'landing.auditOnly': null, 'landing.environment': null, 'landing.trunkRemote': null, positiveControl: null, affectedTests: null, affectedSuites: null,
   'inbox.keepUntilActed': false, 'inbox.escalateAfterMinutes': null, 'queue.contention': false, 'queue.contentionThreshold': 1,
   'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null, 'claims.perSeat': null, 'claims.itemsInGate': false, 'claims.itemsInGateMax': 3, 'claims.fileLease': false, 'claims.fileLeaseHubs': [], 'seat.checkpoints': false,
 };
@@ -85,7 +85,7 @@ function checkedValue(key, value, fallback) {
   // gate.timingRunner is "auto", a runner host, or false (off), as the machine settings loader accepts.
   if (key === 'gate.timingRunner' && value === false) return value;
   const expected = key === 'landing.environment' ? 'object' : fallback === null
-    ? (key === 'gate.memoryFloorMB' || key === 'submitDeferAbove' || key === 'claims.perSeat' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
+    ? (key === 'gate.memoryFloorMB' || key === 'machine.loadCeiling' || key === 'submitDeferAbove' || key === 'claims.perSeat' || key === 'landing.staticParallelMax' || key.startsWith('resources.') ? 'number' : key === 'approvers' ? 'array' : 'string') : typeof fallback;
   if (value !== null && (expected === 'array' ? !Array.isArray(value) : expected !== 'object' && typeof value !== expected)) {
     throw new Refused('BAD_SETTINGS', `setting ${key} has an unsupported type; restore its documented value`);
   }

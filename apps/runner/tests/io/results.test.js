@@ -26,7 +26,7 @@ function record(root, repo, key, kilobytes, ageMs, now) {
   return directory;
 }
 
-test('clause 1: old runner test results are pruned [C7]', () => {
+test('runner.results.old-runner-test-results-are-pruned: clause 1: old runner test results are pruned [C7]', () => {
   const now = Date.now();
   const { root } = privateFixtureFiles('pb-results-prune-');
   const old = record(root, REPO, 'old', 8, 7 * HOUR, now);
@@ -51,7 +51,7 @@ test('clause 1: old runner test results are pruned [C7]', () => {
   assert.equal(existsSync(configured), false, 'the age cap is configurable');
 });
 
-test('the prune runs once per interval and one worker wins the claim [C7]', () => {
+test('runner.results.the-prune-runs-once-per-interval-and: the prune runs once per interval and one worker wins the claim [C7]', () => {
   const now = Date.now();
   const { root } = privateFixtureFiles('pb-results-prune-');
   const old = record(root, REPO, 'old', 8, 7 * HOUR, now);

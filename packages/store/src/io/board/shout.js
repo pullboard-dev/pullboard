@@ -17,6 +17,7 @@ import { itemShoutReader } from "../../logic/board/audience.js";
 import { atomic } from "./event/log.js";
 import { logEvent } from "./event/log.js";
 import { COORDINATOR } from "../../../../config/index.js";
+import { compactShoutsEnabled } from "../../../../config/index.js";
 import { loadConfig } from "../../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { Refused } from "../../../../kernel/index.js";
@@ -45,7 +46,8 @@ export function insertShout(board, { from, to, text, lanes, item, decision = fal
   if (item !== undefined) {
     if (engine < ITEM_SHOUT_ENGINE) throw new Refused('ENGINE_VERSION', 'item messages require engine 93; upgrade every linked device before sending one');
     to = itemShoutTarget(board.db, item);
-    detail = { ...detail, item, text: text.trim() };
+    // board.compactShouts (#9336): the event keeps the shout id (set in persistShout) and the thread reads the text from the shout table.
+    detail = { ...detail, item, ...(compactShoutsEnabled() ? {} : { text: text.trim() }) };
   }
   const coordinationOnly = engine >= ITEM_SHOUT_ENGINE && to === 'all' && from !== COORDINATOR && from !== PERSON
     && Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(from));

@@ -26,7 +26,6 @@
   ["test/intake.test.js","packages/person/tests/logic/intake.test.js","seed"],
   ["test/person.test.js","packages/person/tests/logic/person.test.js","seed"],
   ["test/qr.test.js","packages/person/tests/logic/qr.test.js","seed"],
-  ["test/row-decisions.test.js","packages/person/tests/logic/row-decisions.test.js","seed"],
   ["test/stale-frozen-items.test.js","packages/person/tests/logic/stale-frozen-items.test.js","seed"],
   ["src/person-pairing-limit.js","packages/person/src/io/pairing/limit.js","rule"],
   ["src/person-request-digest.js","packages/person/src/io/digest.js","rule"]

@@ -2,12 +2,17 @@ import { landingWaivers as nativeLandingWaivers } from '../../logic/waivers.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing failures step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
+import { junitFailures } from '../../logic/junit-failures.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import * as store from '../../../../store/index.js';
 
-/** Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. */
-export function landingFailures(output, root, { excludeCancelled = false } = {}) {
+/**
+ * Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. With
+ * junitFailures on and junitXml given, the report's failing cases join the rows, deduped on file plus case names.
+ * Why: pytest, Go, Rust, PHP, Elixir, C# and C++ write JUnit, not TAP, so landing could name none of their reds [C7].
+ */
+export function landingFailures(output, root, { excludeCancelled = false, junitFailures: junitOn = false, junitXml = null } = {}) {
   const failures = [];
   let active = null;
   const cases = [];
@@ -78,6 +83,12 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
     const watchdog = fileLevel && (stopped.has(file) || (detailLines ?? []).some(line => /\bAbortError\b|This operation was aborted/u.test(line)));
     return [`${file}\0${JSON.stringify(caseNames ?? [name])}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}), ...(watchdog ? { watchdog: true } : {}) }];
   }));
+  if (junitOn === true && typeof junitXml === 'string') {
+    for (const { name, file, assertion } of junitFailures(junitXml, root).rows) {
+      const key = `${file}\0${JSON.stringify([name])}`;
+      if (!unique.has(key)) unique.set(key, { name, file, ...(assertion ? { assertion } : {}) });
+    }
+  }
   return [...unique.values()];
 }
 

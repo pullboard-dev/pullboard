@@ -18,11 +18,11 @@ function modelTierRoute(model, tiers) {
   return hits.find(entry => entry.contains.length === longest).route;
 }
 
-test('clause 1: a seat joined as claude-sonnet-5-5 resolves to the strong route [C7]', () => {
+test('config.model-tiers.clause-1-a-seat-joined-as-claude-sonnet: clause 1: a seat joined as claude-sonnet-5-5 resolves to the strong route [C7]', () => {
   assert.equal(modelTierRoute('claude-sonnet-5-5', defaults().modelTiers), 'strong');
 });
 
-test('clause 2: for every label in seats tiers.json, model-tiers.json gives the same route [C7]', () => {
+test('config.model-tiers.clause-2-for-every-label-in-seats-tiers: clause 2: for every label in seats tiers.json, model-tiers.json gives the same route [C7]', () => {
   const tiers = defaults().modelTiers;
   for (const [label, { route }] of Object.entries(MODEL_TIERS)) assert.equal(modelTierRoute(label, tiers), route, label);
 });

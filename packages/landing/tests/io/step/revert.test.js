@@ -37,7 +37,7 @@ function checkoutState(repo) {
     status: repo.git('status', '--porcelain', '--untracked-files=no') };
 }
 
-test('clause 1: revertLanded commits git revert -m 1 of a landed merge on the trunk tip and returns the revert sha [M2,R3,#9097]', t => {
+test('landing.revert.revertlanded-commits-git-revert-m-1: clause 1: revertLanded commits git revert -m 1 of a landed merge on the trunk tip and returns the revert sha [M2,R3,#9097]', t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\ntwo\nthree\nfour\n' });
   repo.put('api/y.js', 'later work\n');
@@ -58,7 +58,7 @@ test('clause 1: revertLanded commits git revert -m 1 of a landed merge on the tr
   assert.throws(() => repo.git('cat-file', '-e', `${result.commit}:web/x.js`));
 });
 
-test('clause 1: revertLanded reverts a non-merge landed commit with a plain revert [M2,R3,#9097]', t => {
+test('landing.revert.revertlanded-reverts-a-non-merge-landed: clause 1: revertLanded reverts a non-merge landed commit with a plain revert [M2,R3,#9097]', t => {
   const repo = trunkRepo(t);
   repo.put('web/x.js', 'landed\n');
   const landed = repo.commitAll();
@@ -72,7 +72,7 @@ test('clause 1: revertLanded reverts a non-merge landed commit with a plain reve
   assert.equal(repo.git('rev-parse', `${result.commit}^{tree}`), repo.git('rev-parse', 'HEAD^{tree}'), 'the tree matches git revert');
 });
 
-test('clause 2: a conflicting revert returns the conflicted paths and leaves the checkout at the trunk tip with no revert in progress [M2,R3,#9097]', t => {
+test('landing.revert.a-conflicting-revert-returns-the-conflicted: clause 2: a conflicting revert returns the conflicted paths and leaves the checkout at the trunk tip with no revert in progress [M2,R3,#9097]', t => {
   const repo = trunkRepo(t);
   const merged = land(repo, { 'web/x.js': 'landed\n', 'shared.txt': 'one\nTWO by the item\nthree\n' });
   repo.put('shared.txt', 'one\nTWO rewritten on trunk\nthree\n');
@@ -85,7 +85,7 @@ test('clause 2: a conflicting revert returns the conflicted paths and leaves the
   assert.equal(repo.git('rev-parse', 'refs/heads/main'), tip, 'trunk did not move');
 });
 
-test('clause 2: a landed commit the repository does not hold is refused PULL_OUT_REVERT [M2,R3,#9097]', t => {
+test('landing.revert.a-landed-commit-the-repository-does: clause 2: a landed commit the repository does not hold is refused PULL_OUT_REVERT [M2,R3,#9097]', t => {
   const repo = trunkRepo(t);
   assert.throws(() => revertLanded(repo.root, 'f'.repeat(40), 'main'), { code: 'PULL_OUT_REVERT' });
 });
