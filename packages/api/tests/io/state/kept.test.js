@@ -85,7 +85,7 @@ async function stubBoard(t, options = {}) {
   return { materializer, board, builds, watched, read, built, probe };
 }
 
-test('clause 1: a second state read with no board change is served from the kept record without a build [A2,C7]', async (t) => {
+test('api.state-kept.second-state-read-board-change: clause 1: a second state read with no board change is served from the kept record without a build [A2,C7]', async (t) => {
   const { builds, read, probe } = await stubBoard(t);
   const first = await read();
   assert.equal(builds.length, 1, 'the first read waits on one build');
@@ -97,7 +97,7 @@ test('clause 1: a second state read with no board change is served from the kept
   assert.equal(after.sequence, first.sequence + 1, 'the next build is the first after the first read');
 });
 
-test('clause 3: a kept read after a change serves the kept record at once and starts the build, and a plain read still waits for the write [A2,C7]', async (t) => {
+test('api.state-kept.kept-read-after-change-serves: clause 3: a kept read after a change serves the kept record at once and starts the build, and a plain read still waits for the write [A2,C7]', async (t) => {
   const { watched, read, built, probe } = await stubBoard(t);
   const first = await read();
   watched.revision = 'r2';
@@ -137,7 +137,7 @@ function rawRead(port, headers) {
   });
 }
 
-test('clause 2: the state reply is gzip-encoded when the request accepts gzip, with the same validator [A2,C7]', async (t) => {
+test('api.state-kept.state-reply-gzip-encoded-when: clause 2: the state reply is gzip-encoded when the request accepts gzip, with the same validator [A2,C7]', async (t) => {
   const { port, state } = await stateServer(t, 200_000);
   const plain = await rawRead(port, {});
   assert.equal(plain.status, 200);
@@ -164,7 +164,7 @@ async function timedDelta(materializer, board, since) {
   return { sequence: answer.sequence, ms: performance.now() - started };
 }
 
-test('#6850 clause 1: a delta read after a change answers at once from the last build and starts the build that catches up [A2,C7]', async (t) => {
+test('api.state-kept.delta-read-after-change-answers: #6850 clause 1: a delta read after a change answers at once from the last build and starts the build that catches up [A2,C7]', async (t) => {
   const { materializer, board, watched, read } = await stubBoard(t);
   const first = await read();
   watched.revision = 'r2';
@@ -177,7 +177,7 @@ test('#6850 clause 1: a delta read after a change answers at once from the last 
   assert.ok(later.sequence > first.sequence, 'the build the change started catches the next delta up');
 });
 
-test('#6850 clause 1: on a restarted server a restored snapshot answers the waiting kept read, though the board moved after it was saved [A2,C7]', async (t) => {
+test('api.state-kept.restarted-server-restored-snapshot-answers: #6850 clause 1: on a restarted server a restored snapshot answers the waiting kept read, though the board moved after it was saved [A2,C7]', async (t) => {
   const { read } = await stubBoard(t, { restored: true });
   const kept = await read({ kept: true });
   assert.equal(kept.sequence, 0, 'the kept read takes the restored record, saved at an older revision');
@@ -186,7 +186,7 @@ test('#6850 clause 1: on a restarted server a restored snapshot answers the wait
   assert.ok(plain.sequence > 0, 'a plain read still waits for a build of the board as it is');
 });
 
-test('#6850 clause 2: the build that lands after a read answered from an older one is announced once, and a plain read still returns the write it follows [A2,C7]', async (t) => {
+test('api.state-kept.build-lands-after-read-answered: #6850 clause 2: the build that lands after a read answered from an older one is announced once, and a plain read still returns the write it follows [A2,C7]', async (t) => {
   const { materializer, board, watched, read } = await stubBoard(t);
   const first = await read();
   const landed = materializer.landed(board);
