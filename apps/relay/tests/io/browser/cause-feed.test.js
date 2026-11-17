@@ -40,7 +40,7 @@ async function refusedAfterLoad(responses) {
   assert.fail('the stubbed read should have been refused');
 }
 
-test('clause 1: after the client loads an excluded-board list naming the open board, a failed read refuses with relayCause excluded [C7,#9667]', async () => {
+test('relay.io-browser-cause-feed.after-the-client-loads-an-excluded: clause 1: after the client loads an excluded-board list naming the open board, a failed read refuses with relayCause excluded [C7,#9667]', async () => {
   const phone = await createDeviceKeys();
   const device = { ...phone, account: '7', locator: 'a'.repeat(22) };
   const id = 'f'.repeat(32);
@@ -66,7 +66,7 @@ test('clause 1: after the client loads an excluded-board list naming the open bo
   } finally { stand.restore(); }
 });
 
-test('clause 2: after the client loads an empty exclusion list, a failed read refuses with no relayCause [C7,#9667]', async () => {
+test('relay.io-browser-cause-feed.after-the-client-loads-an-empty: clause 2: after the client loads an empty exclusion list, a failed read refuses with no relayCause [C7,#9667]', async () => {
   const responses = {
     '/api/v1/boards': BOARDS,
     '/api/v1/devices/approvals': APPROVALS,
