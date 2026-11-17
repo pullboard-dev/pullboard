@@ -59,6 +59,7 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
+import { relayQueueOnFailureEnabled } from '../../../../packages/config/index.js';
 import { lapsedSweepEnabled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
@@ -120,6 +121,7 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
+  ctx.io.relayQueueOnFailure ??= relayQueueOnFailureEnabled;
   // Every engine-27 registration records the seat that made it: the coordinator from the main
   // checkout, the joined agent from its worktree, or `machine` for a join no seat made (#579).
   if (operation === 'register' && args[0] && args[0].createdBy === undefined) {
