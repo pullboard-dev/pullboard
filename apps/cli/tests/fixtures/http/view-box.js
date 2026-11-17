@@ -214,13 +214,23 @@ try {
     const commit = execFileSync('git', ['commit-tree', tree, '-p', parent], { ...options, input: message }).trim();
     execFileSync('git', ['update-ref', 'HEAD', commit], options);
   }
+  /** The SPEC.md row-age commit once the view's age worker has answered: a state read answers at once with the age unknown (null) and refreshes it later, never naming the previous commit. */
+  async function specAgeAt(read) {
+    let latest = await read();
+    const deadline = Date.now() + 20_000; // budget: the age worker walks the fixture history once, as row-ages-new-commit.test.js allows
+    while (latest.rowAgesAt['SPEC.md'] === null && Date.now() < deadline) {
+      await new Promise((done) => setTimeout(done, 25));
+      latest = await read();
+    }
+    return { latest, age: latest.rowAgesAt['SPEC.md'] };
+  }
   writeSpec('G2');
   execFileSync('git', ['add', 'SPEC.md'], { cwd: target.root, env: process.env, stdio: 'ignore' });
   commitFixture(target.root, 'docs: refresh fixture spec [G1]');
   let current = await state();
   let head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: target.root, env: process.env, encoding: 'utf8' }).trim();
   assert.ok(current.spec.some((row) => row.id === 'G2'));
-  assert.equal(current.rowAgesAt['SPEC.md'], head, 'a new commit refreshes the file HEAD');
+  assert.equal((await specAgeAt(state)).age, head, 'a new commit refreshes the file HEAD');
 
   execFileSync('git', ['switch', '-q', '-c', 'freshness-branch'], { cwd: target.root, env: process.env, stdio: 'ignore' });
   writeSpec('G3');
@@ -229,7 +239,7 @@ try {
   current = await state();
   head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: target.root, env: process.env, encoding: 'utf8' }).trim();
   assert.ok(current.spec.some((row) => row.id === 'G3'));
-  assert.equal(current.rowAgesAt['SPEC.md'], head, 'a branch switch refreshes the selected HEAD');
+  assert.equal((await specAgeAt(state)).age, head, 'a branch switch refreshes the selected HEAD');
 
   execFileSync('git', ['pack-refs', '--all', '--prune'], { cwd: target.root, env: process.env, stdio: 'ignore' });
   assert.ok(readFileSync(resolve(target.root, '.git', 'packed-refs'), 'utf8').includes(' refs/heads/main\\n'),
@@ -263,7 +273,7 @@ try {
   writeFileSync(resolve(linked.root, 'SPEC.md'), '# HTTP fixture\\n\\n## Goals\\n- G1 [approved, must] Keep the board. | gate: true\\n- G5 [approved, must] Keep the linked worktree current. | gate: true\\n');
   execFileSync('git', ['add', 'SPEC.md'], { cwd: linked.root, env: process.env, stdio: 'ignore' });
   commitFixture(linked.root, 'docs: refresh linked worktree [G1]');
-  const linkedState = (await readApi(linkedPath)).state;
+  const linkedState = (await specAgeAt(async () => (await readApi(linkedPath)).state)).latest;
   const linkedHead = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: linked.root, env: process.env, encoding: 'utf8' }).trim();
   assert.ok(linkedState.spec.some((row) => row.id === 'G5'));
   assert.equal(linkedState.rowAgesAt['SPEC.md'], linkedHead, 'a linked worktree branch change refreshes its state');
