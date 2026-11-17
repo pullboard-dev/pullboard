@@ -11,7 +11,7 @@ import { RELEASE_TWICE_HOLD_ENGINE } from '../../../packages/state/light.js';
 import { RELEASE_TWICE_ROUTE_ENGINE } from '../../../packages/state/light.js';
 
 const commit = 'a'.repeat(40);
-test('two releases hold the item until coordinator lifts it [C7,H16]', t => {
+test('lib.hold.two-releases-hold-the-item-until-coordinator: two releases hold the item until coordinator lifts it [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-twice-'));
   const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
@@ -36,7 +36,7 @@ test('two releases hold the item until coordinator lifts it [C7,H16]', t => {
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 1);
 });
 
-test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
+test('lib.hold.old-engine-releases-retain-their-pre-hold: old-engine releases retain their pre-hold behavior [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-old-'));
   const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
@@ -53,7 +53,7 @@ test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 0);
 });
 
-test('clean next claims do not count, but changed or explicit claims do [C7,H16]', t => {
+test('lib.hold.clean-next-claims-do-not-count-but: clean next claims do not count, but changed or explicit claims do [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-auto-'));
   const board = openBoard(':memory:');
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
@@ -108,7 +108,7 @@ for (const [from, to] of [['light', 'mid'], ['mid', 'strong']]) {
   });
 }
 
-test('after the move the release count starts over [C7]', t => {
+test('lib.hold.after-the-move-the-release-count-starts: after the move the release count starts over [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'mid', 'pullboard-release-route-reset-', 'strong');
   claim(first); store.release(board, id, first, '', 'BLOCKED');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
@@ -119,7 +119,7 @@ test('after the move the release count starts over [C7]', t => {
   assert.match(store.getItem(board, id).item_hold_reason, /Released twice/, 'two on the strong route hold');
 });
 
-test('clause 2: a strong item still takes the Released-twice hold and shout [C7]', t => {
+test('lib.hold.a-strong-item-still-takes-the-released: clause 2: a strong item still takes the Released-twice hold and shout [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'strong', 'pullboard-release-route-strong-');
   claim(first); store.release(board, id, first, '', 'INELIGIBLE');
   claim(second); store.release(board, id, second, '', 'BLOCKED');
@@ -129,7 +129,7 @@ test('clause 2: a strong item still takes the Released-twice hold and shout [C7]
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 1);
 });
 
-test('clause 3: before the route engine a mid item is still held [C7]', t => {
+test('lib.hold.before-the-route-engine-a-mid-item: clause 3: before the route engine a mid item is still held [C7]', t => {
   const { board, first, second, id, claim } = routeBoard(t, 'mid', 'pullboard-release-route-old-', 'strong');
   board.executionEngineVersion = RELEASE_TWICE_ROUTE_ENGINE - 1;
   claim(first); store.release(board, id, first, '', 'INELIGIBLE');
