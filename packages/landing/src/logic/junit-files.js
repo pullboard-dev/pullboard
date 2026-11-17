@@ -54,6 +54,8 @@ export const JUNIT_FILE_ROWS = {
     return name ? `tests/${name}.php` : null;
   },
   // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  // Julia's Test suite JUnit report names the testset in classname and no file attribute; Pkg.test runs the one test/runtests.jl.
+  julia: row => (row.classname ? 'test/runtests.jl' : null),
   perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
