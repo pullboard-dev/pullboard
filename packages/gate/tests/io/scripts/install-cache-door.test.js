@@ -33,7 +33,7 @@ function setup(t) {
   return { root, state, install, folder: join(root, 'cache') };
 }
 
-test('clause 1: with the cache on, one tree id installs once and the next call copies the prefix [C7]', async t => {
+test('gate.io-scripts-install-cache-door.with-the-cache-on-one-tree: clause 1: with the cache on, one tree id installs once and the next call copies the prefix [C7]', async t => {
   const { root, state, install, folder } = setup(t);
   const cached = createInstallCache({ enabled: true, folder, install });
   const first = join(root, 'p1');
@@ -47,7 +47,7 @@ test('clause 1: with the cache on, one tree id installs once and the next call c
   assert.deepEqual(readdirSync(folder), ['tree-a.prefix']);
 });
 
-test('clause 2: a different tree id installs again [C7]', async t => {
+test('gate.io-scripts-install-cache-door.a-different-tree-id-installs-again: clause 2: a different tree id installs again [C7]', async t => {
   const { root, state, install, folder } = setup(t);
   const cached = createInstallCache({ enabled: true, folder, install });
   await cached('tree-a', '/work/a.tgz', join(root, 'p1'));
@@ -56,7 +56,7 @@ test('clause 2: a different tree id installs again [C7]', async t => {
   assert.match(readFileSync(join(root, 'p2', 'bin', 'pullboard'), 'utf8'), /b\.tgz/u);
 });
 
-test('clause 2: the cache folder is pruned by size, oldest first [C7]', async t => {
+test('gate.io-scripts-install-cache-door.the-cache-folder-is-pruned-by: clause 2: the cache folder is pruned by size, oldest first [C7]', async t => {
   const { root, install, folder } = setup(t);
   const cached = createInstallCache({ enabled: true, folder, install, maxBytes: 120 });
   for (const [index, id] of ['t1', 't2', 't3'].entries()) {
@@ -68,7 +68,7 @@ test('clause 2: the cache folder is pruned by size, oldest first [C7]', async t 
   assert.ok(left.length < 3 && left.includes('t3.prefix') && !left.includes('t1.prefix'), left.join());
 });
 
-test('clause 1: with the cache off every call installs and leaves no cache folder [C7]', async t => {
+test('gate.io-scripts-install-cache-door.with-the-cache-off-every-call: clause 1: with the cache off every call installs and leaves no cache folder [C7]', async t => {
   const { root, state, install, folder } = setup(t);
   const cached = createInstallCache({ folder, install });
   await cached('tree-a', '/work/a.tgz', join(root, 'p1'));
