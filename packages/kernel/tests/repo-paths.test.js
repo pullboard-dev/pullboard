@@ -80,14 +80,14 @@ function segmentBuiltCalls(file, text) {
   return found;
 }
 
-test('repoPath joins a slash-separated repository path under the root [C7]', () => {
+test('kernel.repo-paths.joins-under-root: repoPath joins a slash-separated repository path under the root [C7]', () => {
   assert.equal(repoPath('/work/repo', 'packages/gate/data/ceilings/cells-edges.json'), join('/work/repo', 'packages', 'gate', 'data', 'ceilings', 'cells-edges.json'));
   assert.equal(repoPath('/work/repo', 'src'), `/work/repo${sep}src`);
   assert.equal(repoPath('/work/repo', 'src/'), `/work/repo${sep}src`);
   assert.equal(repoPath('/work/repo', 'test/a b/c.test.js'), join('/work/repo', 'test', 'a b', 'c.test.js'));
 });
 
-test('the scan finds a root segment followed by more segments and nothing else [C7]', () => {
+test('kernel.repo-paths.scan-finds-root-segment: the scan finds a root segment followed by more segments and nothing else [C7]', () => {
   const sample = [
     "join(root, 'bin', 'checks', x)",
     "path.resolve(root,\n  'src',\n  `${name}.js`)",
@@ -98,7 +98,7 @@ test('the scan finds a root segment followed by more segments and nothing else [
   assert.deepEqual(segmentBuiltCalls('sample.js', sample), ['sample.js:1', 'sample.js:2']);
 });
 
-test('no tracked .js builds a repository path from a root segment followed by more segments [C7]', () => {
+test('kernel.repo-paths.no-tracked-js-builds-path: no tracked .js builds a repository path from a root segment followed by more segments [C7]', () => {
   const tracked = execFileSync('git', ['ls-files', '*.js', '*.mjs'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 }).split('\n').filter(Boolean);
   const found = [];
   for (const file of tracked) {

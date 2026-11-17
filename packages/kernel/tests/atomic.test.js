@@ -19,7 +19,7 @@ function folder(t) {
   return dir;
 }
 
-test('#6740 clause 1: writeFileAtomic replaces a file whole, privately, and leaves no temporary sibling [C7]', t => {
+test('kernel.atomic.replaces-whole-privately: #6740 clause 1: writeFileAtomic replaces a file whole, privately, and leaves no temporary sibling [C7]', t => {
   const dir = folder(t);
   const file = join(dir, 'state.json');
   writeFileSync(file, 'old');
@@ -29,7 +29,7 @@ test('#6740 clause 1: writeFileAtomic replaces a file whole, privately, and leav
   assert.deepEqual(readdirSync(dir), ['state.json']);
 });
 
-test('#6740 clause 1: a rename failure shows no torn file: the target is untouched and the temporary file is gone [C7]', t => {
+test('kernel.atomic.rename-failure-no-torn-file: #6740 clause 1: a rename failure shows no torn file: the target is untouched and the temporary file is gone [C7]', t => {
   const dir = folder(t);
   const target = join(dir, 'state');
   mkdirSync(target);
@@ -39,7 +39,7 @@ test('#6740 clause 1: a rename failure shows no torn file: the target is untouch
   assert.equal(readFileSync(join(target, 'keep.txt'), 'utf8'), 'kept');
 });
 
-test('#6740 clause 1: a write failure leaves the existing target as it was [C7]', t => {
+test('kernel.atomic.write-failure-keeps-target: #6740 clause 1: a write failure leaves the existing target as it was [C7]', t => {
   const dir = folder(t);
   const file = join(dir, 'missing', 'state.json');
   assert.throws(() => writeFileAtomic(file, 'x'), { code: 'ENOENT' });
