@@ -47,7 +47,7 @@ function runnerFixture(t) {
 
 const RESULT = id => `PULLBOARD_RUNNER_RESULT ${id} e30=\n`;
 
-test('5468 clause 1: enqueue builds the whole row (row.json, input, wanted) or none, and refuses a duplicate id [C7]', async t => {
+test('runners.pull.n5468-clause-1-enqueue-builds-the: 5468 clause 1: enqueue builds the whole row (row.json, input, wanted) or none, and refuses a duplicate id [C7]', async t => {
   const f = runnerFixture(t);
   const frame = Buffer.from([0, 1, 2, 10, 255, 10, 7]);
   await enqueueRunnerJob(f.runner, { id: 'j-1', row: { recovery: { request: 'r' }, rawOutput: false }, frame }, { ssh: f.ssh, dir: f.dir });
@@ -62,7 +62,7 @@ test('5468 clause 1: enqueue builds the whole row (row.json, input, wanted) or n
   await assert.rejects(enqueueRunnerJob(f.runner, { id: 'j-1', row: {}, frame }, { ssh: f.ssh, dir: f.dir }), error => error.code === 'RUNNER_PULL_SCRIPT' && error.status === 4);
 });
 
-test('5468 clause 1: a frame cut short is removed, never queued [C7]', async t => {
+test('runners.pull.n5468-clause-1-a-frame-cut: 5468 clause 1: a frame cut short is removed, never queued [C7]', async t => {
   const f = runnerFixture(t);
   const run = await runRunnerScript(f.runner, enqueueScript(f.runner, { id: 'cut', frameBytes: 100 }), { ssh: f.ssh, dir: f.dir, stdin: Buffer.from('{"id":"cut"}\nonly ten b') });
   assert.equal(run.status, 3);
@@ -70,12 +70,12 @@ test('5468 clause 1: a frame cut short is removed, never queued [C7]', async t =
   assert.equal(existsSync(join(f.root, 'queue', '.tmp-cut')), false);
 });
 
-test('5468 clause 1: an id that is not a plain folder name is refused before any script runs [C7]', () => {
+test('runners.pull.n5468-clause-1-an-id-that: 5468 clause 1: an id that is not a plain folder name is refused before any script runs [C7]', () => {
   assert.throws(() => enqueueScript({}, { id: '../x', frameBytes: 1 }), /invalid pull job id/u);
   assert.throws(() => enqueueScript({}, { id: "a'; rm -rf /; '", frameBytes: 1 }), /invalid pull job id/u);
 });
 
-test('5468 clause 1: a source pack uploads into the job folder and marks it ready; files read back whole or by tail [C7]', async t => {
+test('runners.pull.n5468-clause-1-a-source-pack: 5468 clause 1: a source pack uploads into the job folder and marks it ready; files read back whole or by tail [C7]', async t => {
   const f = runnerFixture(t);
   const folder = f.job('running', 'p-1', { 'out.bin': '0123456789', 'control.log': 'a\nb\n' });
   const pack = join(f.base, 'x.pack');
@@ -88,7 +88,7 @@ test('5468 clause 1: a source pack uploads into the job folder and marks it read
   await assert.rejects(fetchRunnerFile(f.runner, { id: 'nope', name: 'out.bin' }, { ssh: f.ssh, dir: f.dir }), error => error.status === 4);
 });
 
-test('5468 clause 1: the status script reports every job folder and applies wanted, cancel and ack lines from stdin [C7]', async t => {
+test('runners.pull.n5468-clause-1-the-status-script: 5468 clause 1: the status script reports every job folder and applies wanted, cancel and ack lines from stdin [C7]', async t => {
   const f = runnerFixture(t);
   const dead = 2 ** 22 + 12345;
   f.job('queue', 'q1');
@@ -120,7 +120,7 @@ test('5468 clause 1: the status script reports every job folder and applies want
   assert.equal(mirror.agent, 'absent');
 });
 
-test('5468 clause 1: many waiters on one runner share one status refresh, and each learns its own job ended [C7]', async t => {
+test('runners.pull.n5468-clause-1-many-waiters-on: 5468 clause 1: many waiters on one runner share one status refresh, and each learns its own job ended [C7]', async t => {
   const f = runnerFixture(t);
   // The mirror's freshness window is pinned wide: its clock starts before the ssh, so on a loaded runner a slow ssh would otherwise leave it stale on arrival and the claim would measure runner speed.
   const ids = Array.from({ length: 12 }, (_, index) => `w${index}`);
@@ -132,7 +132,7 @@ test('5468 clause 1: many waiters on one runner share one status refresh, and ea
   assert.equal(readRunnerMirror(HOST, { dir: f.dir }).reachable, true);
 });
 
-test('5468 clause 1: a fresh mirror is not refreshed again inside 3 s, and a stale lock does not block a refresh [C7]', async t => {
+test('runners.pull.n5468-clause-1-a-fresh-mirror: 5468 clause 1: a fresh mirror is not refreshed again inside 3 s, and a stale lock does not block a refresh [C7]', async t => {
   const f = runnerFixture(t);
   await refreshRunnerStatus(f.runner, f.mirror);
   const second = await refreshRunnerStatus(f.runner, f.mirror);
@@ -149,7 +149,7 @@ test('5468 clause 1: a fresh mirror is not refreshed again inside 3 s, and a sta
   assert.equal(existsSync(lock), false);
 });
 
-test('5468 clause 2: job end states map to the finish reasons the design lists [C7]', async t => {
+test('runners.pull.n5468-clause-2-job-end-states: 5468 clause 2: job end states map to the finish reasons the design lists [C7]', async t => {
   const f = runnerFixture(t);
   const wait = (id, extra = {}) => waitRunnerJob({ runner: f.runner, id, tickMs: 30, mirror: { ...f.mirror, intervalMs: 30 }, ...extra });
   f.job('done', 'ok', { 'control.log': RESULT('ok'), exit: '{"code":0,"signal":null}' });
@@ -163,7 +163,7 @@ test('5468 clause 2: job end states map to the finish reasons the design lists [
   assert.equal((await wait('never-queued')).finishReason, 'job-lost');
 });
 
-test('5468 clause 2: no ready by the startup deadline cancels and ends as admission-deadline; the cancel reaches the job [C7]', async t => {
+test('runners.pull.n5468-clause-2-no-ready-by: 5468 clause 2: no ready by the startup deadline cancels and ends as admission-deadline; the cancel reaches the job [C7]', async t => {
   const f = runnerFixture(t);
   f.job('queue', 'slow');
   const end = await waitRunnerJob({ runner: f.runner, id: 'slow', startupDeadline: Date.now() + 100, tickMs: 30, mirror: { ...f.mirror, intervalMs: 30 } });
@@ -172,7 +172,7 @@ test('5468 clause 2: no ready by the startup deadline cancels and ends as admiss
   assert.ok(existsSync(join(f.root, 'queue', 'slow', 'cancel')));
 });
 
-test('5468 clause 2: a ready job with no result past its ceiling is cancelled as run-timeout; ready is announced once [C7]', async t => {
+test('runners.pull.n5468-clause-2-a-ready-job: 5468 clause 2: a ready job with no result past its ceiling is cancelled as run-timeout; ready is announced once [C7]', async t => {
   const f = runnerFixture(t);
   f.job('running', 'hang', { 'control.log': 'PULLBOARD_RUNNER_READY hang\n', 'owner.json': JSON.stringify({ pid: process.pid }), beat: '' });
   let ready = 0;
@@ -183,7 +183,7 @@ test('5468 clause 2: a ready job with no result past its ceiling is cancelled as
   assert.ok(existsSync(join(f.root, 'running', 'hang', 'cancel')));
 });
 
-test('5468 clause 2: abort cancels as canceled, and an observe hit ends with the caller\'s own reason and error [C7]', async t => {
+test('runners.pull.n5468-clause-2-abort-cancels-as: 5468 clause 2: abort cancels as canceled, and an observe hit ends with the caller\'s own reason and error [C7]', async t => {
   const f = runnerFixture(t);
   f.job('queue', 'a');
   f.job('queue', 'b');
@@ -197,7 +197,7 @@ test('5468 clause 2: abort cancels as canceled, and an observe hit ends with the
   assert.deepEqual([hit.end, hit.finishReason, hit.cancel, hit.error], ['source-changed', 'source-changed', true, failure]);
 });
 
-test('5468 clause 2: a runner that fails three refreshes is unreachable and ends as ssh-exit; a needed inventory is handed over once [C7]', async t => {
+test('runners.pull.n5468-clause-2-a-runner-that: 5468 clause 2: a runner that fails three refreshes is unreachable and ends as ssh-exit; a needed inventory is handed over once [C7]', async t => {
   const f = runnerFixture(t);
   f.job('queue', 'lost');
   const end = await waitRunnerJob({ runner: f.runner, id: 'lost', tickMs: 20, mirror: { dir: f.dir, ssh: '/usr/bin/false', intervalMs: 20 } });
@@ -216,7 +216,7 @@ test('5468 clause 2: a runner that fails three refreshes is unreachable and ends
   assert.deepEqual(needs, [['needy', 'QUJD']]);
 });
 
-test('5578 clause 1: the status mirror carries the agent load line, with the reason while it holds new jobs [C7]', () => {
+test('runners.pull.n5578-clause-1-the-status-mirror: 5578 clause 1: the status mirror carries the agent load line, with the reason while it holds new jobs [C7]', () => {
   const held = parseStatus('agent present\nload state=hold load=34.2 cores=10 at=1700000000\nend\n');
   assert.equal(held.load.holding, true);
   assert.equal(held.load.cores, 10);

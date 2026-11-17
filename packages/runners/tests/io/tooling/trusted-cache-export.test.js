@@ -47,7 +47,7 @@ async function exportedTooling(t) {
   return async label => { const module = await import(`${url}?${label}`); module.pinRunnerTooling(); return module.trustedTooling; };
 }
 
-test('#8426 clause 1: a second trip in a work dir without .git reuses the saved capture [C7]', async t => {
+test('runners.trusted-cache-export.n8426-clause-1-a-second-trip: #8426 clause 1: a second trip in a work dir without .git reuses the saved capture [C7]', async t => {
   const tooling = await exportedTooling(t);
   const first = (await tooling('trip1'))();
   const file = savedFile();
@@ -62,7 +62,7 @@ test('#8426 clause 1: a second trip in a work dir without .git reuses the saved 
   assert.equal(second.tooling.sha256, first.tooling.sha256, 'it is the same tooling bytes');
 });
 
-test('#8426 clause 2: a saved capture whose sha256 no longer matches is recaptured in a work dir without .git [C7]', async t => {
+test('runners.trusted-cache-export.n8426-clause-2-a-saved-capture: #8426 clause 2: a saved capture whose sha256 no longer matches is recaptured in a work dir without .git [C7]', async t => {
   const tooling = await exportedTooling(t);
   const first = (await tooling('trip1'))();
   const file = savedFile();

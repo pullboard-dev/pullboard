@@ -30,14 +30,14 @@ async function memoryProbe(fail = false) {
   return { reading, calls };
 }
 
-test('memory process directories use nonblocking lsof without losing successful cwd data [C7]', async () => {
+test('runners.lookups.memory-process-directories-use-nonblocking-lsof: memory process directories use nonblocking lsof without losing successful cwd data [C7]', async () => {
   const { reading, calls } = await memoryProbe();
   assert.equal(reading.checked, true);
   assert.ok(calls.length > 0 && calls.every(args => args.includes('-b')));
   assert.equal(reading.processes[0].cwd, '/private/fixture-cwd');
 });
 
-test('a failed process-directory lookup names its pid and failure while memory admission remains available [C7]', async () => {
+test('runners.lookups.a-failed-process-directory-lookup-names: a failed process-directory lookup names its pid and failure while memory admission remains available [C7]', async () => {
   const { reading } = await memoryProbe(true);
   assert.equal(reading.checked, true);
   const result = memoryVerdict(reading, reading.totalBytes);
@@ -49,7 +49,7 @@ test('a failed process-directory lookup names its pid and failure while memory a
 /** Quote only a private fixture path as one literal shell word. */
 function shellWord(value) { return "'" + value.replaceAll("'", "'\\''") + "'"; }
 
-test('cleanup ownership probes request nonblocking lsof and retain scoped holder evidence [C7]', t => {
+test('runners.lookups.cleanup-ownership-probes-request-nonblocking-lsof: cleanup ownership probes request nonblocking lsof and retain scoped holder evidence [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-lsof-flags-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const output = join(root, 'args.txt'), path = join(root, 'lsof');
@@ -67,7 +67,7 @@ test('cleanup ownership probes request nonblocking lsof and retain scoped holder
   assert.doesNotMatch(report, /PRIVATE_OTHER_PATH|UNRELATED_PRIVATE_PROCESS/u, 'unrelated descriptor names and processes never enter fixture diagnostics');
 });
 
-test('literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
+test('runners.lookups.literal-process-directory-and-cleanup-helper: literal process-directory and cleanup helper probes all retain the nonblocking flag [C7]', () => {
   const sources = [['packages/resources/src/io/admission/memory.js', readFileSync(toolSourcePath(join(import.meta.dirname, '../../..'), 'packages/resources/src/io/admission/memory.js'), 'utf8')]];
   for (const path of ['packages/gate/tests/fixtures/diagnostics.js', 'packages/sentinels/src/io/cpu.js']) sources.push(['./' + path, readFileSync(new URL('../../../' + path, import.meta.url), 'utf8')]);
   let calls = 0;

@@ -16,7 +16,7 @@ import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 const ENGINES = 'packages/state/src/logic/engines';
 const REPO = new URL('../../../../../', import.meta.url);
 
-test('#8734 clause 1: serviceFiles() carries every file under packages/state/src/logic/engines/, though nothing imports them all [P7]', () => {
+test('runners.bundle.n8734-clause-1-servicefiles-carries-every: #8734 clause 1: serviceFiles() carries every file under packages/state/src/logic/engines/, though nothing imports them all [P7]', () => {
   const bundled = new Set(Object.keys(serviceFiles()));
   const leaves = readdirSync(new URL(`${ENGINES}/`, REPO), { recursive: true, withFileTypes: true })
     .filter(entry => entry.isFile()).map(entry => `${join(entry.parentPath, entry.name).slice(new URL(REPO).pathname.length)}`);
@@ -24,7 +24,7 @@ test('#8734 clause 1: serviceFiles() carries every file under packages/state/src
   assert.deepEqual(leaves.filter(leaf => !bundled.has(leaf)), []);
 });
 
-test('#8734 clause 2: a runner started from a serviceFiles() bundle in a temporary folder runs one job and posts its receipt [P7]', { timeout: 120_000 }, // budget: one bundle write, one local git checkout and one node child.
+test('runners.bundle.n8734-clause-2-a-runner-started: #8734 clause 2: a runner started from a serviceFiles() bundle in a temporary folder runs one job and posts its receipt [P7]', { timeout: 120_000 }, // budget: one bundle write, one local git checkout and one node child.
   async t => {
     const { root: app } = privateFixtureFiles('pullboard-service-bundle-');
     const { root: trunk } = privateFixtureFiles('pullboard-service-trunk-');

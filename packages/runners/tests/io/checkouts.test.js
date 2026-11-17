@@ -19,7 +19,7 @@ import { snapshotWarmCheckout } from '../../index.js';
 import { recycleWarmCheckout } from '../../index.js';
 import { cellSandbox } from '../../../store/tests/fixtures/cell.js';
 
-test('a warm loan moves its worktree and restores source, objects, config and refs before reuse [C7,P3]', async t => {
+test('runners.checkouts.a-warm-loan-moves-its-worktree: a warm loan moves its worktree and restores source, objects, config and refs before reuse [C7,P3]', async t => {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-warm-pool-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const source = join(directory, 'source'), pool = join(directory, 'pool');

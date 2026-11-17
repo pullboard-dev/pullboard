@@ -28,7 +28,7 @@ function fixture(t) {
   return root;
 }
 
-test('missing resource pool retains configured local and remote runners with unknown utilization [C7]', t => {
+test('runners.capacity.missing-resource-pool-retains-configured-local: missing resource pool retains configured local and remote runners with unknown utilization [C7]', t => {
   const root = fixture(t), rows = readRunnerCapacities();
   assert.equal(rows.length, 2); assert.equal(rows[0].slots.current, 2);
   assert.equal(rows[1].id, 'fixture-host'); assert.equal(rows[1].slots.current, 3);
@@ -39,7 +39,7 @@ test('missing resource pool retains configured local and remote runners with unk
   assert.equal(existsSync(join(root, 'resources.sqlite')), false, 'read never creates a missing admission pool');
 });
 
-test('old pool capacities and draining identities are read without migrations or deleting expired holders [C7]', t => {
+test('runners.capacity.old-pool-capacities-and-draining-identities: old pool capacities and draining identities are read without migrations or deleting expired holders [C7]', t => {
   const root = fixture(t), file = join(root, 'resources.sqlite');
   const db = new DatabaseSync(file);
   db.exec("CREATE TABLE resource(name TEXT PRIMARY KEY,capacity INTEGER); INSERT INTO resource VALUES('gate',4),('browser',1); CREATE TABLE holder(token TEXT PRIMARY KEY,name TEXT,pid INTEGER,heartbeat INTEGER); CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT);");
@@ -59,7 +59,7 @@ test('old pool capacities and draining identities are read without migrations or
   assert.deepEqual(readRunnerCapacities(), rows);
 });
 
-test('unrelated invalid settings and corrupt existing pools remain failures instead of fabricated empty rows [C7]', t => {
+test('runners.capacity.unrelated-invalid-settings-and-corrupt-existing: unrelated invalid settings and corrupt existing pools remain failures instead of fabricated empty rows [C7]', t => {
   const root = fixture(t), settings = join(root, 'settings.json');
   writeFileSync(settings, JSON.stringify({ gateSlots: 2, browserSlots: 1, health: { sentinel: 'yes' } }));
   assert.throws(() => loadMachineSettings(), error => error.code === 'BAD_MACHINE_SETTINGS');

@@ -18,7 +18,7 @@ import { sameCommonDir } from '../../git/index.js';
 
 const root = resolve(import.meta.dirname, '../../..');
 
-test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and compare equal [C7]', () => {
+test('gate.commondir.c-x-git-c-x: clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and compare equal [C7]', () => {
   assert.equal(canonicalCommonDir('C:\\x\\.git'), 'C:/x/.git');
   assert.equal(canonicalCommonDir('C:/x/.git'), 'C:/x/.git');
   assert.equal(canonicalCommonDir('c:\\x\\.git\\'), 'C:/x/.git');
@@ -29,12 +29,12 @@ test('clause 1: C:\\x\\.git and C:/x/.git canonicalise to one commonDir and comp
   assert.equal(canonicalCommonDir('/tmp/a\\b/.git'), '/tmp/a\\b/.git', 'POSIX paths keep a literal backslash');
 });
 
-test('clause 1: repoInfo returns the canonical commonDir [C7]', () => {
+test('gate.commondir.repoinfo-returns-canonical-commondir: clause 1: repoInfo returns the canonical commonDir [C7]', () => {
   const info = repoInfo(root);
   assert.equal(info.commonDir, canonicalCommonDir(info.commonDir));
 });
 
-test('clause 2: laneSeatContext reuses the invoking seat when both commonDir spellings name one repo [C7]', async t => {
+test('gate.commondir.laneseatcontext-reuses-invoking-seat-when: clause 2: laneSeatContext reuses the invoking seat when both commonDir spellings name one repo [C7]', async t => {
   const dir = privateFixtureFiles('pb-wincommon-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const run = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'pipe' });
@@ -71,7 +71,7 @@ function sources(dir, out = []) {
   return out;
 }
 
-test('clause 3: no raw commonDir === or !== comparison outside the canonical helper [C7]', () => {
+test('gate.commondir.raw-commondir-comparison-outside-canonical: clause 3: no raw commonDir === or !== comparison outside the canonical helper [C7]', () => {
   const raw = /\w*commonDir\)?\s*[!=]==(?!\s*['"`]|\s*null\b)|[!=]==\s*[\w.?()]*commonDir/iu;
   // resident-client and current-cli compare two paths from one Git answer and must stay import-light.
   const allowed = new Set(['apps/cli/src/io/resident/client.js', 'apps/cli/src/io/current.js', 'packages/git/src/io/main.js']);
@@ -86,7 +86,7 @@ test('clause 3: no raw commonDir === or !== comparison outside the canonical hel
   assert.deepEqual(found, [], 'compare commonDir values with sameCommonDir() from the git front door');
 });
 
-test('clause 2: next reuses the existing seat when its checkout names the repository with the other slash spelling, so no second seat opens and the tour passes step 3 [C7]', async t => {
+test('gate.commondir.next-reuses-existing-seat-when: clause 2: next reuses the existing seat when its checkout names the repository with the other slash spelling, so no second seat opens and the tour passes step 3 [C7]', async t => {
   const dir = privateFixtureFiles('pb-wincommon2-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const run = (...args) => execFileSync('git', args, { cwd: dir, stdio: 'pipe' });

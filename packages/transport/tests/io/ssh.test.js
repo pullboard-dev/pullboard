@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/transport packages/runners */
 /** Runner ssh calls share multiplexed masters per runner, opening a new one only when MaxSessions fills a master [C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -63,7 +64,7 @@ function connections(machine) {
   return readFileSync(machine.log, 'utf8').trim().split('\n').filter(Boolean);
 }
 
-test('clause 1: 30 concurrent sessions to one runner share three masters, a new one only when ten sessions fill a master [C7]', async () => {
+test('transport.ssh.xconcurrent-sessions-to-one-runner: clause 1: 30 concurrent sessions to one runner share three masters, a new one only when ten sessions fill a master [C7]', async () => {
   const machine = fakeMachine('burst');
   const results = await Promise.all(Array.from({ length: 30 }, (_, index) => call(machine, 'runner@one.test', `${BARRIER}; echo ok-${index}`)));
   assert.deepEqual(results.map(result => result.status), Array(30).fill(0));
@@ -76,14 +77,14 @@ test('clause 1: 30 concurrent sessions to one runner share three masters, a new 
   assert.deepEqual(masters, [0, 1, 2].map(slot => `${base.slice(base.lastIndexOf('/') + 1)}.${slot}`));
 });
 
-test('clause 1: sessions one after another reuse the first master instead of opening their own connection [C7]', async () => {
+test('transport.ssh.sessions-one-after-another-reuse-the: clause 1: sessions one after another reuse the first master instead of opening their own connection [C7]', async () => {
   const machine = fakeMachine('serial');
   for (let index = 0; index < 12; index += 1) assert.equal((await call(machine, 'runner@one.test', 'true')).status, 0);
   const lines = connections(machine);
   assert.deepEqual([lines.filter(line => line === 'tcp').length, lines.filter(line => line === 'mux').length], [1, 12], lines.join(','));
 });
 
-test('clause 1: each runner gets its own control path under the machine home [C7]', async () => {
+test('transport.ssh.each-runner-gets-its-own-control: clause 1: each runner gets its own control path under the machine home [C7]', async () => {
   const machine = fakeMachine('paths');
   const one = sshControlPath('runner@one.test', { home: machine.home });
   const two = sshControlPath('runner@two.test', { home: machine.home });
@@ -96,7 +97,7 @@ test('clause 1: each runner gets its own control path under the machine home [C7
   for (const path of [one, two]) assert.ok(names.includes(`${path.slice(path.lastIndexOf('/') + 1)}.0`), names.join(','));
 });
 
-test('clause 1: every ssh spawn in the transport and runners cells goes through spawnSsh [C7]', () => {
+test('transport.ssh.every-ssh-spawn-in-the-transport: clause 1: every ssh spawn in the transport and runners cells goes through spawnSsh [C7]', () => {
   const found = [];
   for (const cell of ['packages/transport/src', 'packages/runners/src']) {
     for (const entry of readdirSync(join(REPO, cell), { recursive: true })) {

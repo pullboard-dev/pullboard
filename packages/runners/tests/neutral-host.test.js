@@ -8,7 +8,7 @@ import { test } from 'node:test';
 // Built from parts so this file does not itself contain the word it forbids.
 const WORD = ['van', 'illa'].join('');
 
-test('clause 1: no tracked file under packages/runners contains the old machine host name [C7]', () => {
+test('runners.neutral-host.no-tracked-file-under-packages-runners: clause 1: no tracked file under packages/runners contains the old machine host name [C7]', () => {
   const root = new URL('../../..', import.meta.url).pathname;
   const files = execFileSync('git', ['ls-files', '-z', 'packages/runners'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   assert.ok(files.length > 0, 'git lists the tracked files');

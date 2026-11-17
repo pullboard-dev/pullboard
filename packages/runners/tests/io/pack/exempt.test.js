@@ -40,21 +40,21 @@ function packDirectory(t) {
   return files.root;
 }
 
-test('test 1: the listed historical fixture blob packs although it carries a lease token [C7,#7919]', t => {
+test('runners.exempt.test-1-the-listed-historical-fixture: test 1: the listed historical fixture blob packs although it carries a lease token [C7,#7919]', t => {
   const repo = history(t, { [FIXTURE]: listedBytes() });
   assert.equal(runFixtureGit(['rev-parse', `HEAD:${FIXTURE}`], { cwd: repo.root }).trim(), LISTED, 'the fixture commits the exact listed blob');
   assert.equal(historicalScanExempt(LISTED, 'blob'), true);
   assert.ok(existsSync(historyPack(repo.root, { commit: repo.commit }, [], packDirectory(t))));
 });
 
-test('test 2: any other version of that fixture file with the same token still refuses RUNNER_SECRET [C7,#7919]', t => {
+test('runners.exempt.test-2-any-other-version-of: test 2: any other version of that fixture file with the same token still refuses RUNNER_SECRET [C7,#7919]', t => {
   const repo = history(t, { [FIXTURE]: Buffer.concat([listedBytes(), Buffer.from('\n')]) });
   const directory = packDirectory(t);
   assert.throws(() => historyPack(repo.root, { commit: repo.commit }, [], directory), { code: 'RUNNER_SECRET' });
   assert.equal(existsSync(join(directory, 'source.pack')), false, 'no pack is written for refused history');
 });
 
-test('test 3: the same token value at any other path still refuses RUNNER_SECRET [C7,#7919]', t => {
+test('runners.exempt.test-3-the-same-token-value: test 3: the same token value at any other path still refuses RUNNER_SECRET [C7,#7919]', t => {
   // The lease token the listed blob carries, taken from its own bytes.
   const token = /"token":"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/u.exec(listedBytes().toString('latin1'))?.[1];
   assert.ok(token, 'the listed blob carries a lease token');

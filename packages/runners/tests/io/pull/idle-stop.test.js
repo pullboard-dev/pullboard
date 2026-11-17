@@ -16,7 +16,7 @@ import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const reply = document => ({ status: 200, json: async () => document });
 
-test('#8250 clause 1: an idle runner serve ends the moment it is stopped, though its idle wait is ten minutes [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute idle wait, so a slow exit fails by timeout.
+test('runners.idle-stop.n8250-clause-1-an-idle-runner: #8250 clause 1: an idle runner serve ends the moment it is stopped, though its idle wait is ten minutes [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute idle wait, so a slow exit fails by timeout.
   async t => {
     const { root: cache } = privateFixtureFiles('pullboard-idle-stop-cache-');
     t.after(() => rmSync(cache, { recursive: true, force: true }));
@@ -31,7 +31,7 @@ test('#8250 clause 1: an idle runner serve ends the moment it is stopped, though
     assert.deepEqual((await running).jobs, []);
   });
 
-test('#8250 clause 1: an idle local runner ends the moment it is stopped, though its heartbeat wait is ten minutes, and removes its state and lock [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute heartbeat wait, so a slow exit fails by timeout.
+test('runners.idle-stop.n8250-clause-1-an-idle-local: #8250 clause 1: an idle local runner ends the moment it is stopped, though its heartbeat wait is ten minutes, and removes its state and lock [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute heartbeat wait, so a slow exit fails by timeout.
   async t => {
     const { root: folder } = privateFixtureFiles('pullboard-idle-stop-local-');
     t.after(() => rmSync(folder, { recursive: true, force: true }));
@@ -48,7 +48,7 @@ test('#8250 clause 1: an idle local runner ends the moment it is stopped, though
     assert.equal(existsSync(join(folder, 'state.json')) || existsSync(join(folder, 'lock')), false);
   });
 
-test('#8250 clause 1: a stop that lands while a receipt write is in flight lets that write finish before the runner exits [C7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
+test('runners.idle-stop.n8250-clause-1-a-stop-that: #8250 clause 1: a stop that lands while a receipt write is in flight lets that write finish before the runner exits [C7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
   async t => {
     const { root: trunk } = privateFixtureFiles('pullboard-idle-stop-trunk-');
     const { root: cache } = privateFixtureFiles('pullboard-idle-stop-held-');

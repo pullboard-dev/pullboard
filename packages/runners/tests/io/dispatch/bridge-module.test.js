@@ -10,7 +10,7 @@ import * as dispatch from '../../../src/io/dispatch.js';
 const read = file => readFileSync(new URL(`../../../src/io/${file}`, import.meta.url), 'utf8');
 const HELPERS = ['bridgeResult', 'MAX_OUTPUT_BYTES', 'runCeilingMs', 'runnerUnavailableRefusal', 'startupDeadline'];
 
-test('clause 1: the pull-path helpers live in bridge.js and delegate.js and serve.js import them from there [C7]', () => {
+test('runners.bridge-module.the-pull-path-helpers-live-in: clause 1: the pull-path helpers live in bridge.js and delegate.js and serve.js import them from there [C7]', () => {
   for (const name of HELPERS) {
     assert.match(read('bridge.js'), new RegExp(`export (?:const|function) ${name}\\b`, 'u'), `${name} is defined in bridge.js`);
     assert.doesNotMatch(read('dispatch.js'), new RegExp(`(?:const|function) ${name}\\b`, 'u'), `${name} is no longer defined in dispatch.js`);
@@ -22,7 +22,7 @@ test('clause 1: the pull-path helpers live in bridge.js and delegate.js and serv
   }
 });
 
-test('clause 2: the moved helpers behave the same through bridge.js and the runners tests that import them pass [C7]', () => {
+test('runners.bridge-module.the-moved-helpers-behave-the-same: clause 2: the moved helpers behave the same through bridge.js and the runners tests that import them pass [C7]', () => {
   assert.equal(bridge.startupDeadline({ runnerWaitDeadline: 5 }, 0), 5, 'a lease deadline with no startup budget is kept');
   assert.equal(bridge.runCeilingMs({ kind: 'main-red' }, {}), null, 'a main comparison keeps no ceiling');
   assert.equal(bridge.runCeilingMs({ kind: 'submit' }, {}), bridge.RUN_CEILING_MS, 'a submit run is bounded');

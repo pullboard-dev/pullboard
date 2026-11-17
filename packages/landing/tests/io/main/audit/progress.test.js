@@ -17,7 +17,7 @@ function repository() {
   return { root: files.root, commit: runFixtureGit(['-C', files.root, 'rev-parse', 'HEAD']) };
 }
 
-test('clause 1: inside a driven gate, a comparison with main reports the gate running while it runs [C7]', async () => {
+test('landing.progress.inside-a-driven-gate-a-comparison: clause 1: inside a driven gate, a comparison with main reports the gate running while it runs [C7]', async () => {
   const { root, commit } = repository();
   const reports = [];
   let settled = false;
@@ -27,7 +27,7 @@ test('clause 1: inside a driven gate, a comparison with main reports the gate ru
   assert.ok(reports.some(report => report.running === true && report.settled === false), `the comparison reported the gate running before it ended: ${JSON.stringify(reports)}`);
 });
 
-test('clause 2: outside a driven gate the comparison runs as before and reports nothing [C7]', async () => {
+test('landing.progress.outside-a-driven-gate-the-comparison: clause 2: outside a driven gate the comparison runs as before and reports nothing [C7]', async () => {
   const { root, commit } = repository();
   const comparison = await compareMainFailures(root, { tests: [{ file: 'test/a.test.js', passed: false }] }, () => {}, '', { commit, runnerAdmission: {} });
   assert.equal(comparison.main, commit);
