@@ -12,6 +12,7 @@ import { testWaitSites } from '../../test/waits.js';
 import { testWaitGrowth } from '../../test/waits.js';
 import { relayBoundaryProblems } from '../../relay.js';
 import { cellsEdgeProblems } from '../../edges.js';
+import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 import { assumptionProblems } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { fixedWallMargins } from '../../budgets.js';
@@ -34,7 +35,6 @@ import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
 import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
-import { CELLS_EDGES_CEILINGS } from '../../test/tier/selection.js';
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.

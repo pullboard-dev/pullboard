@@ -10,7 +10,7 @@ function registeredHint() {
   return JSON.stringify(verify);
 }
 
-test('clause 1: [C7] the SELF_SESSION_VERIFY next step says to start the review in a separate process or session', () => {
+test('moves.record-next-idle-verify.the-self-session-verify-next-step-says-to-start: clause 1: [C7] the SELF_SESSION_VERIFY next step says to start the review in a separate process or session', () => {
   let refusal;
   try {
     refuseSelfSession({ commonDir: '/nonexistent' }, { item_id: 1, item_built_by: 'a' }, 'digest', [], { currentAuthorSessions: ['digest'] });
