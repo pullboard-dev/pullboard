@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/view/src/io/page */
+/** @pullboard-test-input apps/view/src/io/page/account.js apps/view/src/io/page/actions.js apps/view/src/io/page/boards.js apps/view/src/io/page/connect.js apps/view/src/io/page/menu.js apps/view/src/io/page/render.js apps/view/src/io/page/shouts.js */
 /** @pullboard-world-pin reads the page script's source and runs its afterPaint with stand-in frame and timer; a real paint needs a browser. */
 /** The view has one afterPaint helper and the frame-then-timer idiom lives only there [C7,#9528]. */
 import assert from 'node:assert/strict';
