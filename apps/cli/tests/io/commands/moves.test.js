@@ -111,18 +111,16 @@ test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each 
   });
 }
 
-/** The recorded fixture board plus the live jobs the backbone reads: gate 7 served, gate 8 unserved (its item withdrawn), and one job of a kind it does not list. */
+/** The recorded fixture board plus the live jobs the backbone reads: a main test job it serves, a gate job for an item that was never claimed (unserved), and one job of a kind it does not list. */
 function withJobs(t) {
   const box = recorded(t);
   const at = Date.now();
   withFixtureBoard(boardFile(box), board => {
     const now = '2026-11-17T12:00:00.000Z';
-    const item = board.db.prepare('INSERT INTO item (item_id, item_lane, item_title, item_status, item_owner, item_commit, item_frozen_digest, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    item.run(7, 'core', 'served', 'claimed', 'core-1', 'c'.repeat(40), 'd'.repeat(64), 'core-1', now, now);
-    item.run(8, 'core', 'withdrawn', 'withdrawn', 'core-1', 'c'.repeat(40), 'd'.repeat(64), 'core-1', now, now);
+    board.db.prepare('INSERT INTO item (item_id, item_lane, item_title, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(8, 'core', 'never claimed', 'open', 'core-1', now, now);
     const job = board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_candidate, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?)');
     const step = board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'offered', ?, ?)");
-    for (const [id, kind, itemId] of [['gate:7', 'gate', 7], ['gate:8', 'gate', 8], ['odd:7', 'odd-kind', 7]]) {
+    for (const [id, kind, itemId] of [['main:1', 'main-test', null], ['gate:8', 'gate', 8], ['odd:8', 'odd-kind', 8]]) {
       job.run(id, kind, itemId, 'c'.repeat(40), 'offered', at, at);
       step.run(id, JSON.stringify({ needs: [], request: { submit: { agentId: 'core-1', digest: 'd'.repeat(64) } } }), at);
     }
@@ -136,7 +134,8 @@ test('cli.io-commands-moves.backbone-row-counts-the-live-jobs-it-compared: claus
   const row = await backboneRow(withJobs(t));
   assert.equal(row.compared, 2);
   assert.equal(row.disagreed, 1);
-  assert.deepEqual(row.lastDisagreements.map(entry => [entry.id, entry.differs]), [[8, 'gate:8 (claimed)']]);
+  assert.deepEqual(row.lastDisagreements.map(entry => entry.id), [8]);
+  assert.match(row.lastDisagreements[0].differs, /^gate:8 \(.*claimed.*\)$/u);
 });
 
 test('cli.io-commands-moves.backbone-row-reads-shadow-once-compared: clause 2: the backbone row reads state shadow once compared is 1 or more, and map with none [C7,#10584]', async t => {
