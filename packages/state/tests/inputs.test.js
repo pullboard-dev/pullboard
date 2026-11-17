@@ -28,7 +28,7 @@ const read = path => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines in a file's leading comment lines, as the text after the tag. */
 const headers = source => source.split(/\r?\n/u).slice(0, 5).map(line => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every state test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('state.inputs.declared: clause 1: every state test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = stateTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the state cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && headers(read(file)).length === 0);
@@ -36,7 +36,7 @@ test('clause 1: every state test file that reads files carries an input header n
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/state'], 'this file names only the state cell');
 });
 
-test('clause 2: every state test header is a non-empty declaration [C7,U149]', () => {
+test('state.inputs.rule-clean: clause 2: every state test header is a non-empty declaration [C7,U149]', () => {
   for (const file of stateTests()) {
     for (const header of headers(read(file))) {
       assert.ok(header.trim().length > 0, `${file} has a header`);
