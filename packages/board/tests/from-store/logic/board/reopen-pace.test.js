@@ -2,8 +2,8 @@
 /** @pullboard-test-input packages/store/src/io/board/reopen.js packages/store/src/io/board/reopen-table.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const AT = Date.parse('2026-11-16T12:00:00.000Z');
 const STAMP = new Date(AT).toISOString();

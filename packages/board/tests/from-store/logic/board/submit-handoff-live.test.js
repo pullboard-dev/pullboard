@@ -4,12 +4,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { recorded } from '../../fixtures/submit-history.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { recorded } from '../../../../../store/tests/fixtures/submit-history.js';
 
 const STAMP = '2026-01-01T00:00:00.000Z';
-const starts = JSON.parse(readFileSync(new URL('../../fixtures/submit-start-records.json', import.meta.url), 'utf8'));
+const starts = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/submit-start-records.json', import.meta.url), 'utf8'));
 const [startRecord] = starts.filter(entry => entry.via === 'start');
 const [completion] = recorded().records.filter(record => record.table === 'COMPLETE');
 

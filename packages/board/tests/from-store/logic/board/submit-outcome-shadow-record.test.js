@@ -4,11 +4,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 const STAMP = '2026-01-01T00:00:00.000Z';
-const [record] = JSON.parse(readFileSync(new URL('../../fixtures/submit-outcome-records.json', import.meta.url), 'utf8'));
+const [record] = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/submit-outcome-records.json', import.meta.url), 'utf8'));
 
 /** A real board holding the one item a recorded refusal renewal saw, on a clock at the renewal's own instant. */
 function boardFor(t, snapshot, shadow) {

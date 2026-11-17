@@ -341,7 +341,7 @@
     "tempdir": 1,
     "raw-board": 8
   },
-  "packages/store/tests/logic/board/release.test.js": {
+  "packages/board/tests/from-store/logic/board/release.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
