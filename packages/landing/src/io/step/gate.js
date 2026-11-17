@@ -431,7 +431,7 @@ async function runGateGroup(state, label, options) {
   // read is recorded and the output parse stands, never a refusal of the step [C7].
   const reportPath = landingJunitFailures() ? gateJunitReport() : null;
   const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
-  if (report?.code) state.say(`gate ${label}: JUnit report ${reportPath} not used (${report.code}); parsing the output`);
+  if (report?.code || report?.unreadable?.length) state.say(`gate ${label}: JUnit report ${reportPath} ${report.code ? `not used (${report.code}); parsing the output` : `skipped ${report.unreadable.join(', ')}`}`);
   const junit = { ...(report?.xml ? { junitFailures: true, junitXml: report.xml } : {}), cargoFailures: landingCargoFailures() };
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
