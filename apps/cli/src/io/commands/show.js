@@ -138,7 +138,10 @@ export async function run(io, { first, values }) {
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
     // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
-    const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs: store.boardRunsReader(board, ctx.file) });
+    // The full store loads only when this board keeps its runs in a runs file: the light store has no runs reader [B2,#9013].
+    const runsOn = (() => { try { return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1'; } catch { return false; } })();
+    const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
+    const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
     if (values.json) return { ...result, gateJob, fields, links };
     const history = store.events(board, { itemId: id });
     return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
