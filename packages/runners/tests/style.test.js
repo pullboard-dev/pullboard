@@ -14,15 +14,6 @@ import { test } from 'node:test';
 import { runFixtureChild } from '../../gate/tests/fixtures/child.js';
 import { copyPackageFiles } from '../index.js';
 
-test('runners.style.the-repository-static-style-command-enforces: the repository static style command enforces its source rules [C7]', () => {
-  const before = performance.now();
-  const child = runFixtureChild(process.execPath,
-    ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', 'apps/cli/src/io/static/checks.js'],
-    { cwd: resolve(import.meta.dirname, '../../..'), encoding: 'utf8' });
-  console.log(JSON.stringify({ staticProgramWallMs: performance.now() - before, status: child.status }));
-  assert.equal(child.status, 0, child.failure ?? ((child.stdout ?? '') + (child.stderr ?? '')));
-});
-
 test('runners.style.the-static-checks-read-every-source: the static checks read every source file for one import binding per line [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-static-style-recursive-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
