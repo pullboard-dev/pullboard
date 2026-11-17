@@ -50,8 +50,8 @@ export const workHelp = `Work
   pullboard coordinate                  resume the coordinator and print how to add agents, lane by lane; read-only, safe to run twice
   pullboard split <id>                  file one child per numbered clause of item <id>, each with its clause and the parent's check,
                                         each --after the one before
-  pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
-                                        accepted or its status
+  pullboard roadmap [--field name=value]   ordered milestones, N/M landed, targets, and each item as landed,
+                                        accepted or its status; --field keeps items whose typed field matches
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
   pullboard milestone focus <name|off> [--overflow off|on]   focus next on one release
   pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
