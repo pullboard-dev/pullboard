@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell sync */
+/** @pullboard-test-input source-cell packages/sync */
 /** @pullboard-world-pin reads main.js to prove its prepareEngineMove call passes the behind-device options. With engine.nameBehindDevice on, the git sync move preparation passes the setting and the roster's engines to prepareEngineMove; off, it passes neither [H17,C7,#9830]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

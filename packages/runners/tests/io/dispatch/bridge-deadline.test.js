@@ -1,7 +1,7 @@
 /** A synchronous runner bridge that hears nothing ends as a deadline refusal instead of holding its slot (#8557) [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { bridgeDeadlineMs } from '../../../src/io/dispatch.js';
+import { bridgeDeadlineMs } from '../../../src/io/run-async.js';
 import { bridgeResult } from '../../../src/io/dispatch.js';
 
 const PLAIN_NODE_TEST = 'node --test apps/cli/journeys/cells/seals.test.js';

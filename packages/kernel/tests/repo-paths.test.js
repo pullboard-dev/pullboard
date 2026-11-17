@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell apps/cli packages/doctrine packages/gate packages/kernel */
 /** @pullboard-world-pin reads every tracked source file to prove none builds a repository path from root segments [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

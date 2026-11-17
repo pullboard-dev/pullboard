@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell seats */
 /** Disposable boards do not enter the person's project inventory [I8,N26,N35]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
