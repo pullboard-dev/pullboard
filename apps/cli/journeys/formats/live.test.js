@@ -1,4 +1,4 @@
-/** @pullboard-test-input docs/formats.md */
+/** @pullboard-test-input docs/formats.md docs/formats/spec.md */
 /** The live-behavior case of the format guide: its schema, versions, event kinds and event detail fields match what the code does, in its own file so each file fits the per-file budget [A5,A10]. */
 import { recordRelayExclusionIntent } from '../../../../packages/link/index.js';
 import assert from 'node:assert/strict';
