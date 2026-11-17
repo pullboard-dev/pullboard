@@ -169,6 +169,7 @@ export const MACHINE_DEFAULTS = {
   'spec.cascadeReject': false,
   'spec.commitOnApply': false,
   'spec.requireFactQuote': false,
+  'state.milestoneDelta': false,
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,

@@ -1068,6 +1068,11 @@ export function readCrossProcessWrites() {
   return loadMachineSettings().board?.crossProcessWrites === true;
 }
 
+/** Whether state.milestoneDelta is on (#9846, #9597): off by default; only an exact `true` turns it on. */
+export function milestoneDeltaEnabled() {
+  return loadMachineSettings().state?.milestoneDelta === true;
+}
+
 /** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
 export function watchQuietReadsEnabled() {
   return loadMachineSettings().watch?.quietReads === true;
