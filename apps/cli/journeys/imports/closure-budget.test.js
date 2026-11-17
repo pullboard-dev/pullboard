@@ -79,13 +79,13 @@ for (const [command, budget] of Object.entries(budgets)) {
   });
 }
 
-test('a cold whoami under a runner-shaped home loads no more modules than under a plain home: runner state never starts the relay sync [C7,#6085]', () => {
+test('cli.journeys-imports-closure-budget.a-cold-whoami-under-a-runner: a cold whoami under a runner-shaped home loads no more modules than under a plain home: runner state never starts the relay sync [C7,#6085]', () => {
   const plain = modulesLoaded('whoami');
   const runner = modulesLoaded('whoami', true);
   assert.ok(runner <= plain, `pullboard whoami loaded ${runner} modules under a runner home and ${plain} under a plain home: keep runner state out of syncMayAct`);
 });
 
-test('clause 2: pullboard hook post-commit exits 0 with empty stdout and stderr and loads only the entry file [C7]', () => {
+test('cli.journeys-imports-closure-budget.pullboard-hook-post-commit-exits-0: clause 2: pullboard hook post-commit exits 0 with empty stdout and stderr and loads only the entry file [C7]', () => {
   const run = commandLoads('hook post-commit');
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout, '');
