@@ -14,13 +14,13 @@ const ids = view => view.shown.map(item => item.id).sort();
 const milestone = { name: '0.9.5', items: items.map(item => item.id) };
 const rows = items.map(item => ({ ...item, state: 'open', stage: 'ready', label: '#' + item.id, why: item.title }));
 
-test('clause 1: choosing priority=high leaves only the items whose priority field is high in the list and the roadmap [C7,#1321]', () => {
+test('view.x-field-filter.clause-1-choosing-priority-high-leaves-only: clause 1: choosing priority=high leaves only the items whose priority field is high in the list and the roadmap [C7,#1321]', () => {
   const fieldFilter = { name: 'priority', value: 'high' };
   assert.deepEqual(ids(selectItemsView({ items, stateById, state: 'active', fieldFilter })), [1, 3]);
   assert.deepEqual(readMilestoneModel(milestone, rows, fieldFilter).rows.map(row => row.id).sort(), [1, 3]);
 });
 
-test('clause 2: clearing the filter restores the full list and roadmap [C7,#1321]', () => {
+test('view.x-field-filter.clause-2-clearing-the-filter-restores-the: clause 2: clearing the filter restores the full list and roadmap [C7,#1321]', () => {
   for (const fieldFilter of [null, undefined, { name: '', value: '' }]) {
     assert.deepEqual(ids(selectItemsView({ items, stateById, state: 'active', fieldFilter })), [1, 2, 3, 4]);
     assert.deepEqual(readMilestoneModel(milestone, rows, fieldFilter).rows.map(row => row.id).sort(), [1, 2, 3, 4]);
