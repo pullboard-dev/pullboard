@@ -1,4 +1,4 @@
-/** next fills a declared label below its minimum first, behind next.labelBounds [C7,#9164]. @pullboard-test-input source-cell apps/cli packages/config */
+/** next fills a declared label below its minimum first, behind next.labelBounds [C7,#9164]. @pullboard-test-input source-cell apps/cli */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
