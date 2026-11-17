@@ -1,7 +1,7 @@
 /** drive front door: continue a durable job from its last written step [C7]. */
 export { driveOnce, GATE_STALL_MS, GATE_STALL_RETRIES } from './src/io/once.js';
 export { PHASES, phaseOf, owedShards, shardSections, gateSections } from './src/logic/phase.js';
-export { startDetachedCheck } from './src/io/detached.js';
+export { startDetachedCheck, startReachableCheck } from './src/io/detached.js';
 export { mainRedLookup, classifyGateRed, MAIN_TEST_JOB, mainOwnedVerdictPorts } from './src/io/main/red.js';
 export { drainLoop, DRAIN_INTERVAL_MS } from './src/io/drain.js';
 export { rowSink, boardRows, recordJobRow, isJobRows } from './src/io/once.js';
@@ -26,6 +26,6 @@ export { pruneChromeTemp } from "./src/io/prune.js";
 export { runnerSettingOn } from "./src/io/runner-settings.js";
 export { restartOnCodeMove, servedClosure, servedModuleMoved } from "./src/io/fresh.js";
 export { SERVE_FD_ENV, announceListening, catchListeners, inheritedListener, spawnOnSocket } from "./src/io/handoff.js";
-export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner } from './src/io/local.js';
+export { BOARD_HOST, addLocalBoard, localBoards, localRunnerState, localRunnerStatus, processAlive, serveLocalRunner, startLocalRunner, wakeLocalRunner, WAKE_FILE } from './src/io/local.js';
 export { startLoopWatchdog } from './src/io/watchdog.js';
 export { startBeat } from './src/io/beat.js';

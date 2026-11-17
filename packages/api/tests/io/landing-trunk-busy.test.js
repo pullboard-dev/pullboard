@@ -30,7 +30,7 @@ const status = board => board.db.prepare('SELECT item_status, item_merged_commit
 const jobs = board => board.db.prepare('SELECT job_id FROM job ORDER BY job_id').all().map(row => row.job_id);
 const notes = board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id = 7 AND event_kind = 'fact'").get().n;
 
-test('clause 1: with landing.reofferTrunkBusy on, a trunk-busy receipt offers the landing again after a backoff and leaves the item verified [C7,#9102]', t => {
+test('api.landing-trunk-busy.landing-reoffertrunkbusy-trunk-busy-receipt: clause 1: with landing.reofferTrunkBusy on, a trunk-busy receipt offers the landing again after a backoff and leaves the item verified [C7,#9102]', t => {
   const { board, post } = landing(t);
   post(BUSY, { reofferTrunkBusy: true });
   assert.deepEqual(jobs(board), ['land:1:k', 'land:1:k~r1'], 'the landing is offered again as its first retry');
@@ -41,7 +41,7 @@ test('clause 1: with landing.reofferTrunkBusy on, a trunk-busy receipt offers th
   assert.deepEqual(later.payload, { items: [{ id: 7 }] }, 'with the same landing payload');
 });
 
-test('clause 2: with landing.reofferTrunkBusy off (the default), a trunk-busy receipt is applied as on main: no new job, the item stays verified [C7,#9102]', t => {
+test('api.landing-trunk-busy.landing-reoffertrunkbusy-off-default-trunk: clause 2: with landing.reofferTrunkBusy off (the default), a trunk-busy receipt is applied as on main: no new job, the item stays verified [C7,#9102]', t => {
   const off = landing(t);
   const before = notes(off.board);
   off.post(BUSY);

@@ -7,7 +7,7 @@ import { sweepStaleTests } from '../../../src/io/stale-test-sweep.js';
 
 const DRIVER = '/Users/person/.nvm/versions/node/v22.22.2/bin/node /Users/person/repo/apps/cli/pullboard.js test --test-run d4ac4dc7-e98b-4964-9a9b-ca1927e1804c apps/cli/journeys/publish/catalog.test.js';
 
-test('#8193 clause 2: a live run worker past the file budget is never stopped by the sweep [C7]', () => {
+test('resources.driver.n8193-clause-2-a-live-run: #8193 clause 2: a live run worker past the file budget is never stopped by the sweep [C7]', () => {
   // The 15 Nov case: worker 99149 waited 1037 s on its runner job and the age rule stopped it.
   const workers = [
     { pid: 99149, ppid: 1, ageMs: 1_037_000, command: DRIVER },
@@ -19,7 +19,7 @@ test('#8193 clause 2: a live run worker past the file budget is never stopped by
   assert.deepEqual(signalled, [], 'no run worker is signalled');
 });
 
-test('#8193 clause 2: the test processes under a run worker are still stopped past the budget [C7]', () => {
+test('resources.driver.n8193-clause-2-the-test-processes: #8193 clause 2: the test processes under a run worker are still stopped past the budget [C7]', () => {
   const child = { pid: 99152, ppid: 99149, ageMs: STALE_TEST_AFTER_MS + 1, command: '/usr/local/bin/node bin/run-tests.js apps/cli/journeys/publish/catalog.test.js' };
   const signalled = [];
   const stopped = sweepStaleTests({ processes: [{ pid: 99149, ppid: 1, ageMs: 1_037_000, command: DRIVER }, child], own: 7, stop: pid => signalled.push(pid) });

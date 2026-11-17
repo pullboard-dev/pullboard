@@ -20,7 +20,7 @@ function withSettings(settings, read) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('api.codeStampCache is a described setting, off by default, on only for an exact true [C7,#9679]', () => {
+test('config.io-code-stamp-cache-setting.api-codestampcache-is-a-described: api.codeStampCache is a described setting, off by default, on only for an exact true [C7,#9679]', () => {
   const unset = withSettings({}, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'api.codeStampCache'));
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

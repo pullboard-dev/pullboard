@@ -225,6 +225,25 @@ export function requirePublishTurn(state, batch, { batches = () => store.landing
 }
 
 /**
+ * With landing.pipeline on, a batch gated on top of an earlier batch that then blocked proved a tree that will never exist:
+ * record it blocked, so the lander rebuilds and gates it again on main, and refuse the publish. A batch whose earlier batch
+ * landed (or is still in flight) is untouched: it publishes without a second gate. Off, nothing changes [C7,#3155,#8938].
+ *
+ * @param {{ config: object, board: object, write: Function }} state
+ * @param {{ id: string, branch: string, base: string, startedAt?: string, revision?: number }} batch
+ * @param {{ batches?: () => object[] }} [options] The recorded batches; the board's by default.
+ */
+export async function discardOrphanedBatch(state, batch, { batches = () => store.landingBatches(state.board) } = {}) {
+  if (state.config?.landing?.pipeline !== true || !Number.isFinite(Date.parse(batch.startedAt ?? ''))) return;
+  const parent = batches().find(other => other.id !== batch.id && other.branch === batch.branch && other.state === 'blocked' && other.tip === batch.base);
+  if (!parent) return;
+  const message = `batch ${parent.id} failed, and ${batch.id} was gated on top of it; ${batch.id} is discarded and gated again on main`;
+  await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked',
+    refusal: { code: 'LAND_MAIN_MOVED', message, at: state.board.clock.now().toISOString() } }, revision: batch.revision ?? 0 }]);
+  throw new Refused('LAND_MAIN_MOVED', message);
+}
+
+/**
  * Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main.
  *
  * @param {object} state
@@ -232,6 +251,7 @@ export function requirePublishTurn(state, batch, { batches = () => store.landing
  */
 export async function publish(state, { batches, finish = finishLanding } = {}) {
   requirePublishTurn(state, state.batch, batches ? { batches } : undefined);
+  await discardOrphanedBatch(state, state.batch, batches ? { batches } : undefined);
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
   if (!scanRidesRunner(state)) await requireLandingModuleResolution(batch.root, batch.base, batch.tip);

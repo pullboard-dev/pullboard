@@ -14,13 +14,13 @@ function slotCalls(file) {
   return parts;
 }
 
-test('clause 1: the landing doctrine slot passes item and kind landing [C7]', () => {
+test('landing.attribution.the-landing-doctrine-slot-passes-item: clause 1: the landing doctrine slot passes item and kind landing [C7]', () => {
   for (const call of slotCalls('doctrine.js')) {
     assert.match(call, /kind: 'landing', item: '[^']+'/u);
   }
 });
 
-test('clause 1: the main-red slots and the runner check slot pass an item and a kind [C7]', () => {
+test('landing.attribution.the-main-red-slots-and-the: clause 1: the main-red slots and the runner check slot pass an item and a kind [C7]', () => {
   const red = slotCalls('main/red.js');
   const named = red.filter(call => /slotOptions\(/u.test(call) || /diagnostic: true, kind, item,/u.test(call));
   assert.match(readFileSync(join(SOURCE, 'main/red.js'), 'utf8'), /const slotOptions = .*kind: 'main-red', item: 'main'/u);

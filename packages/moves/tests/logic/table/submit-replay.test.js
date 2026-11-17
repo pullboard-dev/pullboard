@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded submit history fixture to replay it through the tables. The submit tables replay the submit-family writes recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8247]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -39,7 +40,7 @@ const { records, unreplayable } = readSubmitRecords(recordedBoard(), { since: HI
 const byTable = (name) => records.filter(record => record.table === name);
 const replay = (name, list = byTable(name)) => replayTable(ENGINE.tables[name], ENGINE.rules, list, { cut: HISTORY.since });
 
-test('clause 1: replaying recorded board history through the submit tables gives zero disagreements [C7,#8247]', () => {
+test('moves.submit-replay.replaying-recorded-board-history-through-the-submit: clause 1: replaying recorded board history through the submit tables gives zero disagreements [C7,#8247]', () => {
   const counts = {};
   for (const name of ['SUBMIT', 'COMMIT', 'START', 'COMPLETE']) {
     const report = replay(name);
@@ -57,19 +58,19 @@ test('clause 1: replaying recorded board history through the submit tables gives
   assert.deepEqual(counts, EXPECTED_COUNTS);
 });
 
-test('clause 1: every recorded write took the path the table chose [C7,#8247]', () => {
+test('moves.submit-replay.every-recorded-write-took-the-path-the: clause 1: every recorded write took the path the table chose [C7,#8247]', () => {
   for (const record of records.filter(entry => entry.table !== 'OUTCOME')) {
     const answer = runTable(ENGINE.tables[record.table], ENGINE.rules, structuredClone(record.snapshot), structuredClone(record.move));
     assert.equal(answer.via?.[0], record.via, `${record.table} ${record.path} at event ${record.event.id}`);
   }
 });
 
-test('clause 1: the replay covers every submit path the board used, commits and hand-offs included [C7,#8247]', () => {
+test('moves.submit-replay.the-replay-covers-every-submit-path-the: clause 1: the replay covers every submit path the board used, commits and hand-offs included [C7,#8247]', () => {
   const paths = new Set(records.map(record => `${record.table}: ${record.via}`));
   for (const path of EXPECTED_PATHS) assert.ok(paths.has(path), `${path} replayed`);
 });
 
-test('clause 1: a recorded submit replayed with one captured fact broken is a disagreement the replay names [C7,#8247]', () => {
+test('moves.submit-replay.a-recorded-submit-replayed-with-one-captured: clause 1: a recorded submit replayed with one captured fact broken is a disagreement the replay names [C7,#8247]', () => {
   const commit = byTable('COMMIT')[0];
   const stranger = { ...structuredClone(commit), move: { ...structuredClone(commit.move), actor: 'someone-else' } };
   assert.deepEqual(replay('COMMIT', [stranger]).disagreements.map(entry => [entry.event, entry.table.code]), [[commit.event.id, 'NOT_YOURS']]);
@@ -78,7 +79,7 @@ test('clause 1: a recorded submit replayed with one captured fact broken is a di
   assert.deepEqual(replay('SUBMIT', [moved]).disagreements.map(entry => entry.table.code), ['NOT_YOURS']);
 });
 
-test('clause 1: the submit table refuses with its words, and the command reads its next steps from the table [C7,#8247]', () => {
+test('moves.submit-replay.the-submit-table-refuses-with-its-words: clause 1: the submit table refuses with its words, and the command reads its next steps from the table [C7,#8247]', () => {
   const record = byTable('SUBMIT')[0];
   const refuse = (snapshot) => runTable(ENGINE.tables.SUBMIT, ENGINE.rules, structuredClone(snapshot), structuredClone(record.move)).refused;
   const none = refuse({ ...record.snapshot, item: null });

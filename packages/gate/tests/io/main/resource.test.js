@@ -119,7 +119,7 @@ await withGateSlot(process.cwd(), async () => {
 
 
 
-test('[Q4,O5,O6] gate processes run one at a time in FIFO order when machine slots are one', async () => {
+test('gate.io-main-resource.q4-o5-o6-gate-processes-run: [Q4,O5,O6] gate processes run one at a time in FIFO order when machine slots are one', async () => {
   const box = fixture();
   const releaseFirst = join(box.dir, 'release-first');
   const roots = ['first', 'second', 'third'].map((name) => gateRepo(box, name, name === 'first' ? 0.1 : 0.2, name === 'first' ? releaseFirst : null));
@@ -148,7 +148,7 @@ test('[Q4,O5,O6] gate processes run one at a time in FIFO order when machine slo
   assert.equal(maximum, 1);
 });
 
-test('[Q4] gates with different PULLBOARD_HOME values share the machine pool unless explicitly separated', async () => {
+test('gate.io-main-resource.q4-gates-with-different-pullboard-home: [Q4] gates with different PULLBOARD_HOME values share the machine pool unless explicitly separated', async () => {
   const shared = fixture();
   const releaseShared = join(shared.dir, 'release-shared');
   const firstRoot = gateRepo(shared, 'shared-first', 0, releaseShared);
@@ -208,7 +208,7 @@ test('[Q4] gates with different PULLBOARD_HOME values share the machine pool unl
   }
 });
 
-test('[Q4] an exact-tree cached gate starts while another machine gate holds the only slot', async () => {
+test('gate.io-main-resource.q4-an-exact-tree-cached-gate: [Q4] an exact-tree cached gate starts while another machine gate holds the only slot', async () => {
   const box = fixture();
   const cachedRoot = gateRepo(box, 'cached', 0.1);
   const releaseHolder = join(box.dir, 'release-holder');
@@ -232,7 +232,7 @@ test('[Q4] an exact-tree cached gate starts while another machine gate holds the
   assert.ok(events(box).includes('holder end'), 'the holder exits only after the test releases it');
 });
 
-test('[Q4] SIGKILL during a gate releases its machine slot for the next process', async () => {
+test('gate.io-main-resource.q4-sigkill-during-a-gate-releases: [Q4] SIGKILL during a gate releases its machine slot for the next process', async () => {
   const box = fixture();
   const deadRoot = gateRepo(box, 'dead', 20);
   const nextRoot = gateRepo(box, 'next', 0.1);
@@ -252,7 +252,7 @@ test('[Q4] SIGKILL during a gate releases its machine slot for the next process'
 });
 
 
-test('[Q1,Q2] an older diagnostic stays ahead of a later ordinary gate', async () => {
+test('gate.io-main-resource.q1-q2-an-older-diagnostic-stays: [Q1,Q2] an older diagnostic stays ahead of a later ordinary gate', async () => {
   const box = fixture();
   const holderRelease = join(box.dir, 'release-diagnostic-holder');
   const diagnosticRelease = join(box.dir, 'release-diagnostic');
@@ -289,7 +289,7 @@ test('[Q1,Q2] an older diagnostic stays ahead of a later ordinary gate', async (
   }
 });
 
-test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
+test('gate.io-main-resource.a-raw-full-suite-run-takes: a raw full-suite run takes a machine gate slot [Q4]', async () => {
   const modes = [
     [],
     ['--test-name-pattern', PROBE_PATTERN, '--test-reporter', 'tap', '--test-concurrency', '1', '--test-shard', '1/1', '--experimental-test-isolation', 'process'],
@@ -345,7 +345,7 @@ test('a raw full-suite run takes a machine gate slot [Q4]', async () => {
   }
 });
 
-test("the slot probe's marker is never seen half-written [Q4]", async () => {
+test('gate.io-main-resource.the-slot-probe-s-marker-is: the slot probe\'s marker is never seen half-written [Q4]', async () => {
   const box = fixture();
   const root = probeSuite(box, 'atomic-marker');
   const marker = join(box.dir, 'atomic-marker.started');
@@ -400,7 +400,7 @@ syncBuiltinESMExports();
   assert.equal(readFileSync(marker, 'utf8'), '1', 'the final marker contains the complete slot value');
 });
 
-test('a short slot is offered only to a literal runner call over regular test files [C7]', async () => {
+test('gate.io-main-resource.a-short-slot-is-offered-only: a short slot is offered only to a literal runner call over regular test files [C7]', async () => {
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
   const named = `${quote(process.execPath)} apps/cli/src/io/run/tests.js packages/gate/tests/io/main/resource.test.js`;
@@ -419,7 +419,7 @@ test('a short slot is offered only to a literal runner call over regular test fi
   assert.deepEqual(await explicitCheckFiles(root, named, { commit: head.stdout.trim() }), ['packages/gate/tests/io/main/resource.test.js'], 'a review reads the files from the submitted tree');
 });
 
-test('short slots behave the same with gate.browserByLaunch on [C7]', async () => {
+test('gate.io-main-resource.short-slots-behave-the-same-with: short slots behave the same with gate.browserByLaunch on [C7]', async () => {
   // With gate.browserByLaunch on, the runner adds its launch guard to NODE_OPTIONS for its children (#808). The
   // short-slot offer for the same named file must match under either setting: each run gets the environment the
   // runner gives its children for that setting, and both name the file. A foreign NODE_OPTIONS still refuses.
@@ -434,7 +434,7 @@ test('short slots behave the same with gate.browserByLaunch on [C7]', async () =
 });
 
 
-test('a focused run queues behind a held gate slot [Q4,C7]', async () => {
+test('gate.io-main-resource.a-focused-run-queues-behind-a: a focused run queues behind a held gate slot [Q4,C7]', async () => {
   const box = fixture();
   const release = join(box.dir, 'release-focused-holder');
   const holderRoot = gateRepo(box, 'focused-holder', 0.1, release);
@@ -471,7 +471,7 @@ test('a focused run queues behind a held gate slot [Q4,C7]', async () => {
   });
 });
 
-test('a full run nested under a held gate does not take a second slot [Q4]', async () => {
+test('gate.io-main-resource.a-full-run-nested-under-a: a full run nested under a held gate does not take a second slot [Q4]', async () => {
   const box = fixture();
   const gateRoot = gateRepo(box, 'nested-full-suite');
   probeSuite(box, 'nested-full-suite');

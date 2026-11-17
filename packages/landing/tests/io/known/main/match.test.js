@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing packages/gate */
 /** Known-main matching discards runtime noise without granting a file-wide exemption [V4,B3,C7]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -68,7 +69,7 @@ function compare(candidate, mainFailures) {
   return matchingMainFailures(candidate, { main, files: [{ file: candidate[0].file, result: 'red', failures: mainFailures }] }, main);
 }
 
-test('real assertion failures match across fresh native child paths, UUIDs, elapsed times and ephemeral ports [V4,B3,C7]', t => {
+test('landing.match.real-assertion-failures-match-across-fresh: real assertion failures match across fresh native child paths, UUIDs, elapsed times and ephemeral ports [V4,B3,C7]', t => {
   const first = realFailure(t), second = realFailure(t);
   assert.notEqual(first.output, second.output, 'the actual two runs retain distinct volatile diagnostics');
   assert.ok(compare(second.failures, first.failures), 'the same real assertion is a known main failure');
@@ -78,7 +79,7 @@ test('real assertion failures match across fresh native child paths, UUIDs, elap
   }
 });
 
-test('both retained landing-shards diagnostics match noise-only variations without claiming a second measured run [V4,B3,C7]', () => {
+test('landing.match.both-retained-landing-shards-diagnostics-match: both retained landing-shards diagnostics match noise-only variations without claiming a second measured run [V4,B3,C7]', () => {
   const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/known-main-red/shards.json', import.meta.url), 'utf8'));
   const before = retainedRun(fixture.blocks, fixture.executionRoot);
   assert.equal(before?.length, 2);
@@ -95,7 +96,7 @@ test('both retained landing-shards diagnostics match noise-only variations witho
   assert.equal(semantic[1].signature, before[1].signature);
 });
 
-test('cache migration never promotes old raw hashes or coarse red outcomes into normalized proof [V4,B3,C7]', () => {
+test('landing.match.cache-migration-never-promotes-old-raw: cache migration never promotes old raw hashes or coarse red outcomes into normalized proof [V4,B3,C7]', () => {
   const file = 'test/one.test.js', failures = [{ file, name: 'one failure [V4]', signature: 'b'.repeat(64) }];
   assert.equal(cachedFailureSignatures({ result: 'red', failures }, file), undefined);
   assert.equal(cachedFailureSignatures({ result: 'red' }, file), undefined);
@@ -105,7 +106,7 @@ test('cache migration never promotes old raw hashes or coarse red outcomes into 
   assert.equal(cachedFailureSignatures({ result: 'red', failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION }, 'test/other.test.js'), undefined);
 });
 
-test('runtime aliases preserve distinct paths and UUID relationships plus numeric assertion values [V4,B3,C7]', () => {
+test('landing.match.runtime-aliases-preserve-distinct-paths-and: runtime aliases preserve distinct paths and UUID relationships plus numeric assertion values [V4,B3,C7]', () => {
   const block = (left, right, expected = 2) => `not ok 1 - relational assertion [V4]\n  ---\n  location: '/repo/test/one.test.js:1:1'\n  failureType: 'testCodeFailure'\n  error: 'same assertion'\n  code: 'ERR_ASSERTION'\n  expected: ${expected}\n  actual: 1\n  operator: 'strictEqual'\n  left: '${left}'\n  right: '${right}'\n  ...`;
   const one = '/tmp/pullboard-fixture-AbCdEf/repo/a.json', two = '/tmp/pullboard-fixture-BcDeFg/repo/a.json';
   const identity = text => retainedRun([text], '/repo')[0].signature;
@@ -125,7 +126,7 @@ test('runtime aliases preserve distinct paths and UUID relationships plus numeri
 
 });
 
-test('normalization never accounts for process failures, missing summaries or cancelled tests [V4,B3,C7]', () => {
+test('landing.match.normalization-never-accounts-for-process-failures: normalization never accounts for process failures, missing summaries or cancelled tests [V4,B3,C7]', () => {
   const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/known-main-red/shards.json', import.meta.url), 'utf8'));
   const output = 'TAP version 13\n' + fixture.blocks[0] + '\n1..1\n# tests 1\n# pass 0\n# fail 1\n# cancelled 0\n';
   const run = { isGreen: false, executionRoot: fixture.executionRoot, executionRunner: 'retained-unit-fixture', stages: [{ status: 1, output }] };
@@ -156,7 +157,7 @@ function jobBlock(job, fn = 'assertLinked') {
   ...`;
 }
 
-test('failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
+test('landing.match.failures-carry-a-stable-signature-that: failures carry a stable signature that survives different runner job directories while the raw one moves [C7]', () => {
   const run = (job, fn) => retainedRun([jobBlock(job, fn)], `/home/example/.pullboard-runner/jobs/${job}/checkout`)[0];
   const first = run('r7k2m9');
   const second = run('x3p8q1');

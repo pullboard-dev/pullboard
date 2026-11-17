@@ -28,13 +28,13 @@ function withSettings(settings, body) {
 
 const ids = (records) => records.map((record) => record.id);
 
-test('clause 1: with relay.pruneReceipts on and a fake clock, a receipt from 8 days ago is gone and one from 6 days ago stays [C7,#9337]', () => {
+test('link.receipt-prune.drops-old-keeps-recent: clause 1: with relay.pruneReceipts on and a fake clock, a receipt from 8 days ago is gone and one from 6 days ago stays [C7,#9337]', () => {
   const kept = withSettings({ relay: { pruneReceipts: true } }, () => keptReceipts(board, RECORDS));
   assert.equal(ids(kept).includes('old'), false);
   assert.equal(ids(kept).includes('recent'), true);
 });
 
-test('clause 2: a legacy receipt with no recorded time stays, and with the setting off nothing is dropped [C7,#9337]', () => {
+test('link.receipt-prune.legacy-and-off-keep: clause 2: a legacy receipt with no recorded time stays, and with the setting off nothing is dropped [C7,#9337]', () => {
   const on = withSettings({ relay: { pruneReceipts: true } }, () => keptReceipts(board, RECORDS));
   assert.deepEqual(ids(on), ['recent', 'legacy', 'garbled']);
   const off = withSettings({}, () => keptReceipts(board, RECORDS));

@@ -5,7 +5,6 @@ import {
   mainCheckout,
 } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
-import { loadMachineSettings } from '../../../../config/light.js';
 import { ownPatchChanges } from '../../logic/verdict/own-patch.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 
@@ -61,9 +60,9 @@ function sameHunks(root, reviewed, merged) {
  * Why: main touching a shared file (packages/codemap/data/plan/cells.json) said nothing about the reviewed change, yet it made
  * every other accept stale and each needed a re-review of identical work.
  * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
- * a changed hunk of the submit's own patch makes the review stale; `hunkKeyed` overrides the setting.
+ * a changed hunk of the submit's own patch makes the review stale; the caller reads the setting and passes `hunkKeyed`, so the light read door never loads the config package.
  */
-export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = loadMachineSettings().verify?.hunkFreshness === true } = {}) {
+export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = false } = {}) {
   const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   if (merged.status !== 0) return false;
@@ -133,7 +132,7 @@ export function staleVerdictRefusal(item, state) {
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -256,7 +255,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
         if (file && mainContains(root, { checked, tip, paths: [...paths] })) return null;
-        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] })) return null;
+        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] }, { hunkKeyed })) return null;
         if (file) return { code: 'STALE_VERDICT', file, commit, reviewedTrunk: review.trunk, main: tip,
           ...(review.legacy ? { legacy: true } : {}) };
       }
@@ -282,12 +281,12 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
 const PRESENTATION_VERDICTS = new Map();
 
 /** Reuse derived presentation values, never a closed board connection or mutable native row. */
-export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader }) {
+export function cachedVerdictStates(root, board, info, { events, acceptedVerdict, verdictReviewProblem, boardId, trunkRevisionReader, hunkKeyed = false }) {
   // The caller's reader keeps the trunk watcher out of this light module; an unknown tip lets the projector resolve the trunk itself.
   const tip = trunkRevisionReader(info)();
   const event = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const key = JSON.stringify([info.commonDir, boardId(board)]);
-  const revision = JSON.stringify([tip, event]);
+  const revision = JSON.stringify([tip, event, hunkKeyed]);
   let cached = PRESENTATION_VERDICTS.get(key);
   if (cached?.revision !== revision) {
     cached = { revision, states: new Map() };
@@ -295,7 +294,7 @@ export function cachedVerdictStates(root, board, info, { events, acceptedVerdict
     PRESENTATION_VERDICTS.set(key, cached);
     while (PRESENTATION_VERDICTS.size > 32) PRESENTATION_VERDICTS.delete(PRESENTATION_VERDICTS.keys().next().value);
   }
-  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: tip ?? undefined }, { events, acceptedVerdict, verdictReviewProblem, hunkKeyed });
   /** Refresh only a changed item; unchanged sealed presentations start no new Git process. */
   return item => {
     const raw = JSON.stringify(item);

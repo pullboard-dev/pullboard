@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { availableParallelism } from 'node:os';
 import { tryGit } from '../../../../git/index.js';
 import { permitPushOptions } from '../../../../git/index.js';
+import { gitSpawn } from '../../../../git/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../sandbox/light.js';
 import { runnerPolicyRecord } from '../../../../sandbox/light.js';
 import { itemKeepRef } from '../land/squash.js';
@@ -154,7 +155,7 @@ function fetchAsync(root, args) {
   return new Promise(resolve => {
     const { GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ...env } = process.env;
     let stderr = '', child;
-    try { child = spawn('git', ['-C', root, 'fetch', '--no-tags', '--quiet', ...args], { stdio: ['ignore', 'ignore', 'pipe'], env }); }
+    try { child = gitSpawn(['-C', root, 'fetch', '--no-tags', '--quiet', ...args], { stdio: ['ignore', 'ignore', 'pipe'], env }); }
     catch (error) { resolve({ status: 1, stderr: String(error.message) }); return; }
     child.stderr.on('data', chunk => { if (stderr.length < 4000) stderr += chunk.toString('utf8'); });
     child.on('error', error => resolve({ status: 1, stderr: String(error.message) }));

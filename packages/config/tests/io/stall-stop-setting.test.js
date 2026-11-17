@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.stallStop'));
 }
 
-test('clause 3: landing.stallStop is a described setting, off by default, on only for an exact true [C7,#8749]', () => {
+test('config.io-stall-stop-setting.clause-3-landing-stallstop-is-a: clause 3: landing.stallStop is a described setting, off by default, on only for an exact true [C7,#8749]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

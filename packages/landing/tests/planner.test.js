@@ -6,7 +6,7 @@ import { planFreeSlotShards } from '../index.js';
 const TIMES = { 'test/a.test.js': 100_000, 'test/b.test.js': 60_000, 'test/c.test.js': 50_000, 'test/d.test.js': 40_000, 'test/e.test.js': 10_000 };
 const FILES = Object.keys(TIMES);
 
-test('clause 1: a test run splits across the free runner slots it is given, balanced by recorded file times [C7]', () => {
+test('landing.planner.a-test-run-splits-across-the: clause 1: a test run splits across the free runner slots it is given, balanced by recorded file times [C7]', () => {
   const plan = planFreeSlotShards(FILES, 3, TIMES);
   assert.equal(plan.slots, 3);
   assert.equal(plan.balance, 'history');

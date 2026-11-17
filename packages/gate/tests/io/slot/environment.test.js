@@ -8,7 +8,7 @@ import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 
-test('withGateSlot holds its lease in the machine home named by its env and runs the action as that env [C7]', async () => {
+test('gate.io-slot-environment.withgateslot-holds-its-lease-in-the: withGateSlot holds its lease in the machine home named by its env and runs the action as that env [C7]', async () => {
   const repo = fixtureCommittedGraph('pullboard-gate-env-');
   repo.put('package.json', '{}\n');
   repo.commit();

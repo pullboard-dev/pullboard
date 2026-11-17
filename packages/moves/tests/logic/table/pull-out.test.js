@@ -25,7 +25,7 @@ const run = (table, rules, snapshot, move) => runTable(table, rules, structuredC
 /** The item's status and landing after a move, read the way the rules layer derives landing. */
 const after = (s, out) => [out.patch.status ?? s.item.status, landingOf({ ...s.item, ...out.patch }, [...s.history, ...out.events])];
 
-test('clause 2: a red gate result on a submitted sprint item with landing landed writes a pull_out event and reopens it for its builder [M2,#8870]', () => {
+test('moves.pull-out.a-red-gate-result-on-a: clause 2: a red gate result on a submitted sprint item with landing landed writes a pull_out event and reopens it for its builder [M2,#8870]', () => {
   const s = landedRed('sprint');
   assert.equal(landingOf(s.item, s.history), 'landed');
   const out = run(TABLE, RULES, s, RED);
@@ -47,7 +47,7 @@ test('clause 2: a red gate result on a submitted sprint item with landing landed
   assert.deepEqual(run(TABLE, RULES, unlanded, RED).via, ['return-submission']);
 });
 
-test('clause 3: a pulled event at a revert commit moves the item\'s landing from pulling to none [M2,R3,#8870]', () => {
+test('moves.pull-out.a-pulled-event-at-a-revert: clause 3: a pulled event at a revert commit moves the item\'s landing from pulling to none [M2,R3,#8870]', () => {
   const s = landedRed('sprint');
   const reopened = run(TABLE, RULES, s, RED);
   const pulling = { item: { ...s.item, ...reopened.patch }, history: [...s.history, ...reopened.events] };

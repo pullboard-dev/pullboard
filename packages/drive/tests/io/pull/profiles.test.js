@@ -21,7 +21,7 @@ function folders(t) {
   return { scratch: root, kept };
 }
 
-test('clause 1: keepPhaseProfiles copies a phase profile into the kept folder as a plain file next to its log [C7,#7301]', t => {
+test('drive.profiles.keepphaseprofiles-copies-a-phase-profile: clause 1: keepPhaseProfiles copies a phase profile into the kept folder as a plain file next to its log [C7,#7301]', t => {
   const { scratch, kept } = folders(t);
   const profile = join(scratch, 'check-1.json');
   writeFileSync(profile, '{"files":[{"file":"a.test.js","seconds":1}]}\n');
@@ -33,7 +33,7 @@ test('clause 1: keepPhaseProfiles copies a phase profile into the kept folder as
   assert.ok(existsSync(profile), 'the original stays where it was');
 });
 
-test('clause 2: keepPhaseProfiles sets profileKept to that plain file name [C7,#7301]', t => {
+test('drive.profiles.keepphaseprofiles-sets-profilekept-to-that: clause 2: keepPhaseProfiles sets profileKept to that plain file name [C7,#7301]', t => {
   const { scratch, kept } = folders(t);
   const profile = join(scratch, 'p.json');
   writeFileSync(profile, '{}');
@@ -43,7 +43,7 @@ test('clause 2: keepPhaseProfiles sets profileKept to that plain file name [C7,#
   assert.ok(existsSync(join(kept, 'p.json')));
 });
 
-test('clause 3: a row with no profile or a vanished profile file comes back unchanged and nothing throws [C7,#7301]', t => {
+test('drive.profiles.a-row-with-no-profile: clause 3: a row with no profile or a vanished profile file comes back unchanged and nothing throws [C7,#7301]', t => {
   const { scratch, kept } = folders(t);
   const none = { name: 'a', kept: 'a.log' };
   const gone = { name: 'b', kept: 'b.log', profilePath: join(scratch, 'missing.json') };

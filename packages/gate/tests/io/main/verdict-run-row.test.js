@@ -24,7 +24,7 @@ const off = { jobs, mainTestKind: 'main-test', queueMainTest };
 const on = { ...off, verdictRun: { write: writeVerdictRun, awaiting: awaitingVerdictRuns } };
 const runRow = (db, id) => db.prepare('SELECT * FROM run WHERE run_job = ?').get(id);
 
-test('clause 1: with runs_store on, a gate verdict waiting for main is a run row in state awaiting that carries the verdict record [B2,M3]', (t) => {
+test('gate.io-main-verdict-run-row.with-runs-store-on-a-gate: clause 1: with runs_store on, a gate verdict waiting for main is a run row in state awaiting that carries the verdict record [B2,M3]', (t) => {
   const db = fixtureBoard(t).db;
   const gate = recordGateVerdict(on, db, { item: 7, candidate, base, command, reds, now: 20_000 });
   assert.equal(gate.verdict, 'pending');
@@ -42,7 +42,7 @@ test('clause 1: with runs_store on, a gate verdict waiting for main is a run row
   assert.equal(settled.run_outcome, 'green');
 });
 
-test('clause 2: with runs_store off, the verdict is kept where it is today [B2,M3]', (t) => {
+test('gate.io-main-verdict-run-row.with-runs-store-off-the-verdict: clause 2: with runs_store off, the verdict is kept where it is today [B2,M3]', (t) => {
   const db = fixtureBoard(t).db;
   const gate = recordGateVerdict(off, db, { item: 7, candidate, base, command, reds, now: 20_000 });
   assert.equal(runRow(db, gate.id), undefined, 'no run row while the flag is off');

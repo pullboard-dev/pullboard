@@ -40,7 +40,7 @@ function recording() {
   return { fetched, git: { run: testGit.run, fetchTrunk: (store, trunk, refs) => { fetched.push(refs); return testGit.fetchTrunk(store, trunk, refs); } } };
 }
 
-test('clause 1: a candidate named with a refs/pullboard/landing ref is fetched by that ref, and its checkout is the merged commit [test] [C7,#7818]', async t => {
+test('drive.landing-ref.a-candidate-named-with-a: clause 1: a candidate named with a refs/pullboard/landing ref is fetched by that ref, and its checkout is the merged commit [test] [C7,#7818]', async t => {
   const { cache, trunk, main, merged } = await trunkWithLandingRef(t);
   const { git, fetched } = recording();
   const checkout = await checkoutCandidate(cache, trunk, merged, 'slot-0', [main], { main, git, ref: REF });
@@ -49,7 +49,7 @@ test('clause 1: a candidate named with a refs/pullboard/landing ref is fetched b
   assert.equal((await runTestGit(checkout.folder, ['rev-parse', 'HEAD'])).stdout, merged, 'the job runs on the merged commit');
 });
 
-test('clause 1: only a landing ref is fetched by name; any other ref, and a landing ref the remote lacks, fall back to the commit id [test] [C7,#7818]', async t => {
+test('drive.landing-ref.only-a-landing-ref-is: clause 1: only a landing ref is fetched by name; any other ref, and a landing ref the remote lacks, fall back to the commit id [test] [C7,#7818]', async t => {
   const { cache, trunk, main, merged } = await trunkWithLandingRef(t);
   const other = recording();
   const named = await checkoutCandidate(cache, trunk, merged, 'slot-0', [main], { main, git: other.git, ref: 'refs/heads/main' });
@@ -62,7 +62,7 @@ test('clause 1: only a landing ref is fetched by name; any other ref, and a land
   assert.ok(missing.fetched.some(refs => refs.some(spec => spec.startsWith(`+${merged}:`))), 'the commit id is fetched when the ref is not there');
 });
 
-test('clause 1: a gate-shard job whose request names a landing ref makes the serving runner fetch it before running [test] [C7,#7818]', { timeout: 60_000 }, async t => {
+test('drive.landing-ref.a-gate-shard-job-whose: clause 1: a gate-shard job whose request names a landing ref makes the serving runner fetch it before running [test] [C7,#7818]', { timeout: 60_000 }, async t => {
   const { cache, trunk, main, merged } = await trunkWithLandingRef(t);
   const { git, fetched } = recording();
   const receipts = [];

@@ -67,7 +67,7 @@ async function timedHealth(api) {
   return { ms: performance.now() - started, status: response.status };
 }
 
-test('clause 2 [A2,C7]: with an events, moves or requests handler blocked for 30 s in a pool worker, health answers within 200 ms', { timeout: 60_000 }, async (t) => {
+test('api.pool-reads.clause-events-moves-requests-handler: clause 2 [A2,C7]: with an events, moves or requests handler blocked for 30 s in a pool worker, health answers within 200 ms', { timeout: 60_000 }, async (t) => {
   const channel = `reads-blocked-${process.pid}`;
   const listener = new BroadcastChannel(channel);
   t.after(() => listener.close());
@@ -87,7 +87,7 @@ test('clause 2 [A2,C7]: with an events, moves or requests handler blocked for 30
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with an events, a move and a request handler blocked`);
 });
 
-test('clause 3 [A2,C7]: the board lookup for a /api/v1/boards/:id route runs in a pool worker, so a blocked lookup leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
+test('api.pool-reads.clause-board-lookup-api-boards: clause 3 [A2,C7]: the board lookup for a /api/v1/boards/:id route runs in a pool worker, so a blocked lookup leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
   const channel = `reads-board-${process.pid}`;
   const listener = new BroadcastChannel(channel);
   t.after(() => listener.close());
@@ -103,7 +103,7 @@ test('clause 3 [A2,C7]: the board lookup for a /api/v1/boards/:id route runs in 
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the board lookup blocked`);
 });
 
-test('clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail handler blocked 30 s leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
+test('api.pool-reads.clause-item-detail-read-runs: clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail handler blocked 30 s leaves health answering within 200 ms', { timeout: 60_000 }, async (t) => {
   const channel = `reads-item-${process.pid}`;
   const listener = new BroadcastChannel(channel);
   t.after(() => listener.close());
@@ -119,7 +119,7 @@ test('clause 1 [A2,C7]: the item detail read runs in a pool worker, so a detail 
   assert.ok(health.ms < 200, `health took ${health.ms.toFixed(1)} ms with the item detail handler blocked`);
 });
 
-test('clause 1 [A2,C7]: an item detail read answers from the pool worker with the item the board holds', { timeout: 60_000 }, async (t) => {
+test('api.pool-reads.clause-item-detail-read-answers: clause 1 [A2,C7]: an item detail read answers from the pool worker with the item the board holds', { timeout: 60_000 }, async (t) => {
   const project = cellProject(t, { real: true });
   const board = openCellBoard(project.boardFile);
   let id, filed;
@@ -134,7 +134,7 @@ test('clause 1 [A2,C7]: an item detail read answers from the pool worker with th
   assert.equal(body.item.id, filed.item_id);
 });
 
-test('clause 1 [A2,C7]: with the state worker stopped, a state read is refused STATE_WORKER_STOPPED, never built on the request thread', { timeout: 60_000 }, async (t) => {
+test('api.pool-reads.clause-state-worker-stopped-state: clause 1 [A2,C7]: with the state worker stopped, a state read is refused STATE_WORKER_STOPPED, never built on the request thread', { timeout: 60_000 }, async (t) => {
   const crashing = 'data:text/javascript,' + encodeURIComponent('export async function boardStatePorts() { throw new Error("fixture: the state worker dies at start"); }');
   const stopped = Promise.withResolvers();
   t.mock.method(process.stderr, 'write', (text) => { if (String(text).includes('the state worker stopped')) stopped.resolve(); return true; });

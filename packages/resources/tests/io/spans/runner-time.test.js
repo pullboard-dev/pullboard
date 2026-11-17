@@ -16,7 +16,7 @@ function lines(root, now) {
   return readRunnerTime(runnerTimeFolder(repoInfo(root).commonDir), { since: now - 86_400_000, now });
 }
 
-test('clause 1: a dispatch records its host, item, kind and minutes in the runner-time sidecar [C7]', t => {
+test('resources.runner-time.a-dispatch-records-its-host-item: clause 1: a dispatch records its host, item, kind and minutes in the runner-time sidecar [C7]', t => {
   const root = temporaryRepository(t, 'pullboard-runner-time-');
   const end = Date.now(), ninetySeconds = 90_000;
   const line = recordRunnerTime(root, { startedAt: end - ninetySeconds, endedAt: end, host: 'runner-a', item: 4000, kind: 'gate' });
@@ -26,7 +26,7 @@ test('clause 1: a dispatch records its host, item, kind and minutes in the runne
     assert.deepEqual(lines(root, end).map(({ host, item, kind, minutes }) => ({ host, item, kind, minutes })), [{ host: 'runner-a', item: '4000', kind: 'gate', minutes: ninetySeconds / 60_000 }]);
 });
 
-test('clause 2: a dispatch with no gate or landing run open is still recorded, named or not [C7]', t => {
+test('resources.runner-time.a-dispatch-with-no-gate-or: clause 2: a dispatch with no gate or landing run open is still recorded, named or not [C7]', t => {
   closeGateSpans();
   closeLandingSpans();
   const root = temporaryRepository(t, 'pullboard-runner-time-open-');
@@ -38,7 +38,7 @@ test('clause 2: a dispatch with no gate or landing run open is still recorded, n
     [{ item: '8183', kind: 'focused', minutes: 1, outcome: 'ok' }, { item: '', kind: '', minutes: 0.5, outcome: 'failed' }]);
 });
 
-test('clause 2: a root that is no repository records nothing and never throws [C7]', t => {
+test('resources.runner-time.a-root-that-is-no-repository: clause 2: a root that is no repository records nothing and never throws [C7]', t => {
   const root = join(temporaryRepository(t, 'pullboard-runner-time-none-'), 'missing', 'elsewhere');
   assert.equal(recordRunnerTime(root, { startedAt: Date.now() - 1000, host: 'h', item: '1', kind: 'k' }), null);
 });

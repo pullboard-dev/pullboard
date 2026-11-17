@@ -41,6 +41,7 @@ export const MOVES = [
 
       { code: 'SUBMIT_HANDOFF_CHANGED', rule: 'the queued owner, captured source, companions and frozen bar still match', next: 'read the current claim and queued result; do not act for an old job' },
       { code: 'SUBMIT_HANDOFF_AUTHORITY', rule: 'a queued worker acts only for its exact native job and proved source', next: 'finish the captured job through its native worker; use the registered seat for other work' },
+      { code: 'RUNNER_TOOLCHAIN_MISSING', rule: 'a runner-only job is offered only while a runner supplies every toolchain the project declares', next: 'add a runner that has the named toolchain, or ask the person to install it on an existing runner' },
       { code: 'GENERATED_STALE', rule: 'with submit.regenerateDeclared on, every declared generated file regenerates cleanly in the composed tree', next: 'run the generator yourself, commit, and submit again' },
       { code: 'JOB_CENSUS_CAP', rule: 'a census job\'s censusPerRunner is a whole number of jobs, 1 or more', next: 'offer it with census.jobsPerRunner as set, or none' },
       { code: 'SUBMIT_HANDOFF_PENDING', rule: 'an unfinished queued candidate is retained until its terminal result', next: 'leave the captured candidate unchanged and read its queued result with pullboard show <id>' },

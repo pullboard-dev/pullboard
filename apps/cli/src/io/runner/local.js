@@ -17,6 +17,7 @@ import { addLocalBoard } from '../../../../../packages/drive/index.js';
 import { localBoards } from '../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../packages/drive/index.js';
 import { startLocalRunner as startProcess } from '../../../../../packages/drive/index.js';
+import { wakeLocalRunner } from '../../../../../packages/drive/index.js';
 import { machineHome } from '../../../../../packages/resources/index.js';
 
 export { BOARD_HOST } from '../../../../../packages/drive/index.js';
@@ -47,6 +48,17 @@ export function startLocalRunner(root, { env = process.env } = {}) {
 }
 
 /**
+ * Tell a live local runner a job was just offered, when runners.localWake is on: it claims at once instead of finishing
+ * its idle wait. Off, or with no live runner, nothing happens.
+ * Why here: the offering commands already call ensureLocalRunner once their offer is committed [C7,#10409].
+ *
+ * @returns {boolean} Whether the runner was woken.
+ */
+export function wakeRunnerForOffer() {
+  return loadMachineSettings()['runners.localWake'] === true && wakeLocalRunner(localRunnerFolder());
+}
+
+/**
  * Make sure this machine's local runner serves the board at `root`: on a board with no registered runners the first
  * pull submit starts it, and every later submit or landing starts it again if it died. A board the local runner
  * already serves keeps it when runners are registered later, so they only add capacity [P7].
@@ -63,7 +75,7 @@ export async function ensureLocalRunner(root, { start = startLocalRunner } = {})
     addLocalBoard(folder, board);
   }
   const state = localRunnerState(folder);
-  if (state) return { running: true, started: false, pid: state.pid, reason: null };
+  if (state) { wakeRunnerForOffer(); return { running: true, started: false, pid: state.pid, reason: null }; }
   const pid = await start(board);
   return { running: pid !== null, started: pid !== null, pid, reason: pid === null ? 'the local runner did not start' : null };
 }

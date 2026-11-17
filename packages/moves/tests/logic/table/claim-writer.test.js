@@ -86,7 +86,7 @@ function optionsFor(record) {
 const { records } = recorded();
 const { rules, table } = boardClaimEngine();
 
-test('clause 1: the store claim and renew writer applies the claim table and agrees on every replayed move [C7,#8270]', t => {
+test('moves.claim-writer.the-store-claim-and-renew-writer-applies: clause 1: the store claim and renew writer applies the claim table and agrees on every replayed move [C7,#8270]', t => {
   assert.ok(records.length >= 50, 'the replay holds the board\'s claims and renewals');
   const disagreements = [];
   const unrun = [];

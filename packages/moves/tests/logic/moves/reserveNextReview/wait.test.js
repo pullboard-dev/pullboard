@@ -30,14 +30,14 @@ function stuckShouts(box, to = 'coordinator') {
   return box.board.db.prepare("SELECT shout_text FROM shout WHERE shout_to=? AND shout_text LIKE 'Stuck: review cover.%'").all(to);
 }
 
-test('clause 1: next hands a builder its next item with green reviews waiting and no other-family reviewer [C7,#3792]', async t => {
+test('moves.reserve-next-review-wait.next-hands-a-builder-its-next-item: clause 1: next hands a builder its next item with green reviews waiting and no other-family reviewer [C7,#3792]', async t => {
   const { box, candidate } = backlogFixture(t);
   const found = await next(box);
   assert.equal(found.item.item_id, candidate);
   assert.equal(store.getItem(box.board, candidate).item_status, 'claimed');
 });
 
-test('clause 2: the Stuck shout reaches the coordinator and the person with the count and missing family, and repeats only when the count grows [C7,#3792]', async t => {
+test('moves.reserve-next-review-wait.the-stuck-shout-reaches-the-coordinator-and: clause 2: the Stuck shout reaches the coordinator and the person with the count and missing family, and repeats only when the count grows [C7,#3792]', async t => {
   const { box, waiting } = backlogFixture(t);
   const first = await next(box);
   assert.ok(first.item, JSON.stringify(first));
@@ -65,7 +65,7 @@ test('clause 2: the Stuck shout reaches the coordinator and the person with the 
   assert.match(stuckShouts(box)[1].shout_text, / has 4 green items/u);
 });
 
-test("clause 2: another family's earlier larger count does not hide this family's Stuck shout [C7,#3792]", async t => {
+test("moves.reserve-next-review-wait.another-family-s-earlier-larger-count-does-not: clause 2: another family's earlier larger count does not hide this family's Stuck shout [C7,#3792]", async t => {
   const { box, waiting } = backlogFixture(t);
   store.shout(box.board, { from: 'sentinel', to: 'coordinator', lanes: [], text: 'Stuck: review cover. otherfamily has 9 green items waiting for review and no live or wakeable anthropic reviewer. Wake or add one; builds continue.' });
   const found = await next(box);

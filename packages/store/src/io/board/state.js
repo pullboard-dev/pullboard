@@ -30,6 +30,7 @@ import { readCapacity } from "../../../../stats/light.js";
 import { budgetState } from "../../../../stats/light.js";
 import { loadMachineSettings } from "../../../../config/index.js";
 import { hotStateEnabled } from "../../../../config/index.js";
+import { hunkFreshnessEnabled } from "../../../../config/index.js";
 import { splitRecent } from "../../../../items/index.js";
 import { ruleProofCounts } from "../../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../../items/index.js";
@@ -104,7 +105,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() });
     const freshness = freshnessReader ?? projector.state;
     // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
     projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));

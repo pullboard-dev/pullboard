@@ -49,14 +49,14 @@ function board() {
   return file;
 }
 
-test('clause 1: replay counts agreed, disagreed and before-cut records and names each disagreement by event id [C7,#8071]', async () => {
+test('moves.report.replay-counts-agreed-disagreed-and-before-cut: clause 1: replay counts agreed, disagreed and before-cut records and names each disagreement by event id [C7,#8071]', async () => {
   const report = await replayReport({ root: tree(), boardFile: board(), name: 'demo', days: 20, now: NOW, cut: CUT });
   assert.deepEqual([report.agreed, report.disagreed, report.beforeCut, report.notReplayable], [1, 1, 2, 0]);
   assert.deepEqual(report.disagreements.map(miss => [miss.event, miss.differs]), [[3, 'detail']]);
   assert.equal(report.table, 'demo');
 });
 
-test('clause 2: the report is one plain document with the same counts, ready for --json [C7,#8071]', async () => {
+test('moves.report.the-report-is-one-plain-document-with: clause 2: the report is one plain document with the same counts, ready for --json [C7,#8071]', async () => {
   const report = await replayReport({ root: tree(), boardFile: board(), name: 'demo', days: 20, now: NOW, cut: CUT });
   const round = JSON.parse(JSON.stringify(report));
   assert.deepEqual(round, report);
@@ -64,7 +64,7 @@ test('clause 2: the report is one plain document with the same counts, ready for
   assert.equal(round.since, '2026-10-23T00:00:00.000Z');
 });
 
-test('clause 3: an unknown table is refused REPLAY_TABLE or EXPLAIN_TABLE naming the known tables [C7,#8071,#8072]', async () => {
+test('moves.report.an-unknown-table-is-refused-replay-table: clause 3: an unknown table is refused REPLAY_TABLE or EXPLAIN_TABLE naming the known tables [C7,#8071,#8072]', async () => {
   const root = tree();
   await assert.rejects(replayReport({ root, boardFile: board(), name: 'nope', now: NOW, cut: CUT }),
     error => error.code === 'REPLAY_TABLE' && error.message.includes('demo') && error.message.includes('odd'));
@@ -74,13 +74,13 @@ test('clause 3: an unknown table is refused REPLAY_TABLE or EXPLAIN_TABLE naming
   await assert.rejects(replayReport({ root, boardFile: board(), name: 'demo', days: 0, now: NOW, cut: CUT }), error => error.code === 'REPLAY_DAYS');
 });
 
-test('clause 1: explain lists the guards in order with code and next step, from explainTable [C7,#8072]', async () => {
+test('moves.report.explain-lists-the-guards-in-order-with: clause 1: explain lists the guards in order with code and next step, from explainTable [C7,#8072]', async () => {
   const demo = await explainReport({ root: tree(), name: 'demo' });
   assert.deepEqual(demo.guards, [{ order: 1, id: 'known', code: 'UNKNOWN_MOVE', fact: 'known', says: 'the move is one the board knows', next: 'use a move the board knows' }]);
   assert.equal((await explainReport({ root: REPO, name: 'backbone' })).table, 'backbone');
 });
 
-test('clause 1: replay never writes the board it reads [C7,#8071]', async () => {
+test('moves.report.replay-never-writes-the-board-it-reads: clause 1: replay never writes the board it reads [C7,#8071]', async () => {
   const file = board();
   const db = new DatabaseSync(file, { readOnly: true });
   const count = () => db.prepare('SELECT COUNT(*) AS n FROM event').get().n;

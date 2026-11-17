@@ -20,7 +20,7 @@ function withSettings(settings, read) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: add.warnUnnamedTest is a described setting, off by default, on only for an exact true [C7,#9303]', () => {
+test('config.io-add-warn-unnamed-test-setting.clause-1-add-warnunnamedtest-is-a: clause 1: add.warnUnnamedTest is a described setting, off by default, on only for an exact true [C7,#9303]', () => {
   const row = withSettings({}, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'add.warnUnnamedTest'));
   assert.equal(row.default, false);
   assert.equal(row.value, false);

@@ -27,7 +27,7 @@ function setup(t, batchedMarks) {
   return { board, agent, ctx, ports, calls };
 }
 
-test('clause 1: with inbox.batchedMarks on, delivery enqueues the inbox mark and writes none inline [C7]', async t => {
+test('activity.inbox.batched-marks-on: clause 1: with inbox.batchedMarks on, delivery enqueues the inbox mark and writes none inline [C7]', async t => {
   const { board, agent, ctx, ports } = setup(t, true);
   const result = await deliverActivity(ctx, {}, ports);
   assert.ok(result.shouts.length >= 3, 'the read still shows every waiting shout');
@@ -36,7 +36,7 @@ test('clause 1: with inbox.batchedMarks on, delivery enqueues the inbox mark and
   assert.equal(mark(board, agent), 3, 'the flush records the highest shout shown');
 });
 
-test('clause 2: with inbox.batchedMarks off, delivery writes the mark as on main, and the setting is described [C7]', async t => {
+test('activity.inbox.batched-marks-off: clause 2: with inbox.batchedMarks off, delivery writes the mark as on main, and the setting is described [C7]', async t => {
   const { board, agent, ctx, ports } = setup(t, false);
   await deliverActivity(ctx, {}, ports);
   assert.equal(mark(board, agent), 3, 'the mark is written inline');

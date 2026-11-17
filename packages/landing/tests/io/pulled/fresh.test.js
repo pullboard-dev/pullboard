@@ -41,7 +41,7 @@ function verifiedThenMainMoves(t, mainFile) {
   return { board, repo, item: item.item_id, main };
 }
 
-test('clause 2: main changing a reviewed file reopens the verified item to its lane and names the file [B3,C7]', async t => {
+test('landing.fresh.main-changing-a-reviewed-file-reopens: clause 2: main changing a reviewed file reopens the verified item to its lane and names the file [B3,C7]', async t => {
   const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/x.js');
   assert.equal(store.getItem(board, item).item_status, 'verified');
   const said = [];
@@ -54,7 +54,7 @@ test('clause 2: main changing a reviewed file reopens the verified item to its l
   assert.match(said.join('\n'), new RegExp(`STALE_VERDICT #${item} reopened to its lane: web/x.js changed on main in ${main.slice(0, 12)}`, 'u'));
 });
 
-test('clause 2: main changing only an unreviewed file leaves the verified item landable and writes nothing [B3,C7]', async t => {
+test('landing.fresh.main-changing-only-an-unreviewed-file: clause 2: main changing only an unreviewed file leaves the verified item landable and writes nothing [B3,C7]', async t => {
   const { board, repo, item, main } = verifiedThenMainMoves(t, 'web/y.js');
   const written = [];
   const all = await withoutStaleVerdicts(board, repo.root, main, store.listItems(board, { all: true }), { candidate: () => true, write: async operation => { written.push(operation); }, say: () => {} });

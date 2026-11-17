@@ -99,10 +99,10 @@ export async function landOnce(box) {
  *
  * @param {object} box - A box from `fixture`.
  * @param {object} t - The running test, for the submit settle.
- * @param {{ family: string, name?: string }} options - The builder seat's declared family.
+ * @param {{ family: string, name?: string, land?: boolean }} options - The builder seat's declared family; `land: false` stops at the submitted, unreviewed item [C7,#9864].
  * @returns {Promise<number>}
  */
-export async function landedBy(box, t, { family, name = `Landed by ${family}` }) {
+export async function landedBy(box, t, { family, name = `Landed by ${family}`, land = true }) {
   /** The public CLI, in process, exactly as `fixture` drives it. */
   const cli = (cwd, ...args) => captureCommandInProcess(main, args, { cwd, env: box.env });
   const slug = family.toLowerCase().replace(/[^a-z0-9]+/gu, '-');
@@ -127,6 +127,7 @@ export async function landedBy(box, t, { family, name = `Landed by ${family}` })
   const pending = await whenRunnerSettles(box.env, () => { const row = onBoard(box, board => getItem(board, item)); return row.item_status === 'claimed' ? null : row; },
     { deadlineMs: 60_000, what: `#${item} leaving claimed after its gate` });
   assert.equal(pending.item_status, 'submitted', `#${item} settled its gate but is ${pending.item_status}`);
+  if (!land) return item;
   // A forced merge records only a commit already on main, as the blitz lander leaves it.
   box.git(box.repo, 'merge', '-q', '--no-edit', `web/${slug}`);
   const merged = await cli(box.repo, 'merged', String(item), pending.item_commit, '--forced', 'blitz lander landed it before review', '--waive-proof', 'fixture', '--json');

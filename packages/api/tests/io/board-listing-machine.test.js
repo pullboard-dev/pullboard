@@ -23,14 +23,14 @@ function fixture(t) {
   return projects;
 }
 
-test('clause 1: a machineName option puts that name on every board and warning entry [A2,C7,#9538]', (t) => {
+test('api.board-listing-machine.machinename-option-puts-name-every: clause 1: a machineName option puts that name on every board and warning entry [A2,C7,#9538]', (t) => {
   const listing = apiBoardListing(fixture(t), undefined, refusalDocument, boardOpeners, false, 'studio-mac');
   assert.equal(listing.boards.length, 1);
   assert.equal(listing.warnings.length, 1);
   for (const entry of [...listing.boards, ...listing.warnings]) assert.equal(entry.machine, 'studio-mac');
 });
 
-test('clause 1: without the option the listing is unchanged, and an empty name adds nothing [A2,C7,#9538]', (t) => {
+test('api.board-listing-machine.without-option-listing-unchanged-empty: clause 1: without the option the listing is unchanged, and an empty name adds nothing [A2,C7,#9538]', (t) => {
   const projects = fixture(t);
   const plain = apiBoardListing(projects, undefined, refusalDocument, boardOpeners);
   for (const entry of [...plain.boards, ...plain.warnings]) assert.equal('machine' in entry, false);

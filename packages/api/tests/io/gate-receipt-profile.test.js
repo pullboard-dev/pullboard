@@ -37,14 +37,14 @@ function receipt({ check, proof, folder = FOLDER }) {
   return { version: 1, status: 1, ...(folder ? { output: { runner: 'runner-1', folder } } : {}), gate: { green: false, error: 'proof not ok', phases: [row('check', check), row('proof', proof)] } };
 }
 
-test('clause 1: a receipt whose check and proof phase rows carry profileKept and output.folder settles a gate whose check.profilePath and proofProfilePath are the files in that folder [C7,#9615]', t => {
+test('api.gate-receipt-profile.receipt-whose-check-proof-phase: clause 1: a receipt whose check and proof phase rows carry profileKept and output.folder settles a gate whose check.profilePath and proofProfilePath are the files in that folder [C7,#9615]', t => {
   const { board, job } = gateFor(t);
   const applied = applyGateReceipt(board, { job, receipt: receipt({ check: 'check.profile.json', proof: 'proof.profile.json' }) });
   assert.equal(applied.applied, true, JSON.stringify(applied));
   assert.deepEqual(applied.gate, { check: { profilePath: join(FOLDER, 'check.profile.json') }, proofProfilePath: join(FOLDER, 'proof.profile.json') });
 });
 
-test('clause 2: a receipt with no profileKept leaves both fields unset, as today [C7,#9615]', t => {
+test('api.gate-receipt-profile.receipt-profilekept-leaves-both-fields: clause 2: a receipt with no profileKept leaves both fields unset, as today [C7,#9615]', t => {
   const { board, job } = gateFor(t);
   const applied = applyGateReceipt(board, { job, receipt: receipt({}) });
   assert.equal(applied.applied, true, JSON.stringify(applied));
@@ -54,7 +54,7 @@ test('clause 2: a receipt with no profileKept leaves both fields unset, as today
   assert.equal('gate' in noFolder, false, 'a profile name with no kept folder names no file');
 });
 
-test('clause 3: a profileKept that is not one plain file name is ignored [C7,#9615]', t => {
+test('api.gate-receipt-profile.profilekept-plain-file-name-ignored: clause 3: a profileKept that is not one plain file name is ignored [C7,#9615]', t => {
   for (const bad of ['../escape.json', '/etc/passwd', 'a/b.json', '..', '.', 'sp ace.json', 7]) {
     const { board, job } = gateFor(t);
     const applied = applyGateReceipt(board, { job, receipt: receipt({ check: bad, proof: 'proof.profile.json' }) });

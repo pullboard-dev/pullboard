@@ -42,12 +42,12 @@ export function directSites(files, read) {
   return files.filter(file => !HOME.includes(file) && DIRECT.test(read(file)));
 }
 
-test('clause 1: no source creates a throwaway folder from tmpdir() outside scratchFolder and the allowlist [C7]', () => {
+test('config.scratch-sites.clause-1-no-source-creates-a-throwaway: clause 1: no source creates a throwaway folder from tmpdir() outside scratchFolder and the allowlist [C7]', () => {
   const extra = directSites(sourceFiles(), file => readFileSync(`${ROOT}${file}`, 'utf8')).filter(file => !ALLOWLIST.includes(file));
   assert.deepEqual(extra, [], `use scratchFolder(prefix) from packages/config instead of tmpdir() in: ${extra.join(', ')}`);
 });
 
-test('clause 1: a source joining tmpdir() is named by the lint, and the allowlist only lists real sites [C7]', () => {
+test('config.scratch-sites.clause-1-a-source-joining-tmpdir-is: clause 1: a source joining tmpdir() is named by the lint, and the allowlist only lists real sites [C7]', () => {
   const fake = { 'a.js': "const d = mkdtempSync(join(tmpdir(), 'x-'));", 'b.js': "const d = scratchFolder('x-');", 'c.js': 'const d = mkdtempSync(tmpdir());' };
   assert.deepEqual(directSites(Object.keys(fake), file => fake[file]), ['a.js', 'c.js']);
   const sites = new Set(directSites(sourceFiles(), file => readFileSync(`${ROOT}${file}`, 'utf8')));

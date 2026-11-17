@@ -27,7 +27,7 @@ function answers(board, runs) {
     open: openJob(board.db, { kind: 'gate', item: 9151, candidate: COMMIT }, ...option)?.id ?? null };
 }
 
-test('clause 2: with runs_store on, heldShards, the kept-step branch of offeredRequest and openJob read the runs file as the job rows off [P7,#9151]', t => {
+test('api.jobs-runs-readers.runs-store-heldshards-kept-step: clause 2: with runs_store on, heldShards, the kept-step branch of offeredRequest and openJob read the runs file as the job rows off [P7,#9151]', t => {
   const off = cellBoard(t, ':memory:');
   jobs(off.db);
   const board = cellBoard(t, ':memory:');
@@ -43,7 +43,7 @@ test('clause 2: with runs_store on, heldShards, the kept-step branch of offeredR
   assert.equal(answers(board).open, null);
 });
 
-test('clause 3: with runs_store off (the default) heldShards, offeredRequest and openJob read the board exactly as on main [P7,#9151]', t => {
+test('api.jobs-runs-readers.runs-store-off-default-heldshards: clause 3: with runs_store off (the default) heldShards, offeredRequest and openJob read the board exactly as on main [P7,#9151]', t => {
   const board = cellBoard(t, ':memory:');
   jobs(board.db);
   const main = answers(board);

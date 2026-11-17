@@ -14,7 +14,7 @@ function posted(t) {
   return runPhaseRows(trunk, cache);
 }
 
-test('clause 1: a fake pulled job printing a check and a proof phase row posts a receipt keeping both rows (#9778) [C7]', { timeout: 60_000 }, // budget: one node job and a local git checkout.
+test('drive.phase-rows.a-fake-pulled-job-printing: clause 1: a fake pulled job printing a check and a proof phase row posts a receipt keeping both rows (#9778) [C7]', { timeout: 60_000 }, // budget: one node job and a local git checkout.
 async t => {
   const { receipt } = await posted(t);
   assert.ok(receipt, 'the runner posted a receipt');
@@ -25,7 +25,7 @@ async t => {
   assert.notEqual(check.profilePath, proof.profilePath, 'each row keeps its own profile path');
 });
 
-test('clause 2: the posted rows keep their kept log names unchanged (#9778) [C7]', { timeout: 60_000 }, // budget: one node job and a local git checkout.
+test('drive.phase-rows.the-posted-rows-keep-their: clause 2: the posted rows keep their kept log names unchanged (#9778) [C7]', { timeout: 60_000 }, // budget: one node job and a local git checkout.
 async t => {
   const { receipt } = await posted(t);
   assert.deepEqual([receipt.gate.check.name, receipt.gate.check.log, receipt.gate.proof.name, receipt.gate.proof.log], ['check', 'check.log', 'proof', 'proof.log']);

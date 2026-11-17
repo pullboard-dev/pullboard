@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/receipt */
+/** @pullboard-test-input packages/receipt/tests/** */
 /** Every receipt-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

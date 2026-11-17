@@ -7,12 +7,12 @@ import { test } from 'node:test';
 
 const SOURCE = readFileSync(new URL('../../../src/io/land/guard.js', import.meta.url), 'utf8');
 
-test('clause 1: the landing guard imports browserFreeChecksEnabled from the config light door and nothing from the config index door [C7]', () => {
+test('landing.guard-imports.the-landing-guard-imports-browserfreechecksenabled-from: clause 1: the landing guard imports browserFreeChecksEnabled from the config light door and nothing from the config index door [C7]', () => {
   assert.match(SOURCE, /import \{ browserFreeChecksEnabled \} from '(?:\.\.\/)+config\/light\.js';/u);
   assert.doesNotMatch(SOURCE, /config\/index\.js/u);
 });
 
-test('clause 1: the landing guard imports nothing from the gate door and its exported guard function takes the six gate functions through a ports argument [C7]', () => {
+test('landing.guard-imports.the-landing-guard-imports-nothing-from: clause 1: the landing guard imports nothing from the gate door and its exported guard function takes the six gate functions through a ports argument [C7]', () => {
   assert.doesNotMatch(SOURCE, /gate\/index\.js/u);
   assert.match(SOURCE, /export async function runLocalLandingGuard\(root, config, \{[^}]*\}, ports\)/u);
   const taken = SOURCE.match(/const \{([^}]*)\} = ports;/u)?.[1] ?? '';

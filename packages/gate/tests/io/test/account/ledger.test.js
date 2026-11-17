@@ -22,12 +22,12 @@ function candidateLog() {
   return `${lines.join('\n')}\n`;
 }
 
-test('clause 1: replaying the 02:03Z landing candidate prints 125 keyless with reason non-literal dynamic import in apps/cli/src/io/hook/static.js [C7]', () => {
+test('gate.io-test-account-ledger.replaying-the-02-03z-landing-candidate: clause 1: replaying the 02:03Z landing candidate prints 125 keyless with reason non-literal dynamic import in apps/cli/src/io/hook/static.js [C7]', () => {
   assert.equal(ledgerFromOutput(candidateLog()),
     'ledger: 0 hits, 0 misses, 125 keyless (non-literal dynamic import in apps/cli/src/io/hook/static.js)');
 });
 
-test('clause 1: the ledger counts hits, keyed misses and keyless files apart, naming the most common keyless reason [C7]', () => {
+test('gate.io-test-account-ledger.the-ledger-counts-hits-keyed-misses: clause 1: the ledger counts hits, keyed misses and keyless files apart, naming the most common keyless reason [C7]', () => {
   const rows = [
     { file: 'a.test.js', outcome: 'reused', key: 'k1', missed: null },
     { file: 'b.test.js', outcome: 'ran', key: 'k2', missed: 'import lib/x.js' },
@@ -40,7 +40,7 @@ test('clause 1: the ledger counts hits, keyed misses and keyless files apart, na
   assert.equal(ledgerFromOutput('TAP version 13\nok 1 - x\n'), null, 'a run with no per-file account says none, never zero');
 });
 
-test('clause 1: a run prints the ledger line, its profile keeps it, and the rendered summary shows it [C7]', () => {
+test('gate.io-test-account-ledger.a-run-prints-the-ledger-line: clause 1: a run prints the ledger line, its profile keeps it, and the rendered summary shows it [C7]', () => {
   const rows = [{ file: 'a.test.js', outcome: 'ran', key: null, missed: HOOK }];
   const output = formatCacheRows(rows);
   assert.match(output, /^# ledger: 0 hits, 0 misses, 1 keyless \(non-literal dynamic import in apps\/cli\/src\/io\/hook\/static\.js\)$/mu);

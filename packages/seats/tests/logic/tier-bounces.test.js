@@ -7,7 +7,7 @@ import { bouncesAtTier } from '../../index.js';
 const pin = text => ({ type: 'fact', kind: 'note', text });
 const move = kind => ({ type: 'move', kind, detail: {} });
 
-test('clause 1: bouncesAtTier counts the rejects and returned reviews routed at the tier [C7,#9841]', () => {
+test('seats.tier-bounces.count-at-tier: clause 1: bouncesAtTier counts the rejects and returned reviews routed at the tier [C7,#9841]', () => {
   const thread = [move('add'), move('claim'), move('submit'), move('reject'), move('claim'), move('submit'), move('reopen'), move('accept')];
   assert.equal(bouncesAtTier(thread, 'routine'), 2);
   assert.equal(bouncesAtTier(thread, 'escalation'), 0);
@@ -19,7 +19,7 @@ test('clause 1: bouncesAtTier counts the rejects and returned reviews routed at 
   assert.equal(bouncesAtTier(pinned, 'standard', { pin: 'routine' }), 0);
 });
 
-test('clause 2: the count restarts when the tier pin changes [C7,#9841]', () => {
+test('seats.tier-bounces.restart-on-pin-change: clause 2: the count restarts when the tier pin changes [C7,#9841]', () => {
   const thread = [move('reject'), move('reject'), pin('tier-pin: escalation'), move('reject'), move('reopen')];
   assert.equal(bouncesAtTier(thread, 'escalation'), 2);
   assert.equal(bouncesAtTier(thread, 'routine'), 0);

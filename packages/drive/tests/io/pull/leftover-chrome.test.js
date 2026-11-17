@@ -14,7 +14,7 @@ import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
-test('#7811 clause 1: the sweep after a job ends removes a detached browser that names the job folder, and only that one [C7]', async t => {
+test('drive.leftover-chrome.c-7811-clause-1-the-sweep: #7811 clause 1: the sweep after a job ends removes a detached browser that names the job folder, and only that one [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
   const mine = join(root, 'env', 'job-1', 'tmp', 'profile'), other = join(root, 'env', 'job-2', 'tmp', 'profile');
   mkdirSync(mine, { recursive: true });
@@ -26,12 +26,12 @@ test('#7811 clause 1: the sweep after a job ends removes a detached browser that
   assert.equal(alive(stubs[2].pid), true, 'a process naming another job folder is never touched');
 });
 
-test('#7811 clause 1: a job folder that is a prefix of another job folder does not match it [C7]', async () => {
+test('drive.leftover-chrome.c-7811-clause-1-a-job: #7811 clause 1: a job folder that is a prefix of another job folder does not match it [C7]', async () => {
   const rows = async () => ' 11 1 chrome --user-data-dir=/r/env/job-1/tmp/p\n 12 1 chrome --user-data-dir=/r/env/job-10/tmp/p\n';
   assert.deepEqual(await pathProcesses('/r/env/job-1', { rows }), [11]);
 });
 
-test('#7811 clause 2: a runner start kills orphaned browsers under its env folder, logs the count and spares everything else [C7]', async t => {
+test('drive.leftover-chrome.c-7811-clause-2-a-runner: #7811 clause 2: a runner start kills orphaned browsers under its env folder, logs the count and spares everything else [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
   const cache = join(root, 'pull');
   const left = join(cache, 'env', 'test-old-1', 'tmp', 'profile'), elsewhere = join(root, 'not-env', 'profile');
@@ -47,13 +47,13 @@ test('#7811 clause 2: a runner start kills orphaned browsers under its env folde
   assert.equal(alive(live.pid), true, "a process with a live parent, another serve's job, survives");
 });
 
-test('#7813 clause 1: a work-tree folder that is a prefix of another work-tree folder does not match it [C7]', async () => {
+test('drive.leftover-chrome.c-7813-clause-1-a-work: #7813 clause 1: a work-tree folder that is a prefix of another work-tree folder does not match it [C7]', async () => {
   const rows = async () => ' 21 1 node /c/pull/work/runner-a-0/apps/cli/x.js\n 22 1 node /c/pull/work/runner-a-01/apps/cli/x.js\n 23 1 node /c/pull/env/job-1/tmp/p\n 24 5 node /c/pull/work/runner-a-0/apps/cli/y.js\n';
   assert.deepEqual(await pathProcesses('/c/pull/work/runner-a-0', { rows }), [21, 24]);
   assert.deepEqual(await pathProcesses(['/c/pull/env', '/c/pull/work'], { rows, orphans: true }), [21, 22, 23]);
 });
 
-test('#7813 clause 1: the sweep after a job ends removes orphaned test processes naming the job work tree, and only that one [C7]', async t => {
+test('drive.leftover-chrome.c-7813-clause-1-the-sweep: #7813 clause 1: the sweep after a job ends removes orphaned test processes naming the job work tree, and only that one [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
   const mine = join(root, 'pull', 'work', 'runner-a-0'), prefixed = join(root, 'pull', 'work', 'runner-a-01'), env = join(root, 'pull', 'env', 'job-1');
   mkdirSync(mine, { recursive: true }); mkdirSync(env, { recursive: true });
@@ -66,7 +66,7 @@ test('#7813 clause 1: the sweep after a job ends removes orphaned test processes
   assert.equal(alive(stubs[1].pid), true, 'a process naming a sibling work folder whose name only starts the same is never touched');
 });
 
-test('#7813 clause 1: a runner start kills orphaned processes naming its work folder, and spares another cache, a live parent and the rest [C7]', async t => {
+test('drive.leftover-chrome.c-7813-clause-1-a-runner: #7813 clause 1: a runner start kills orphaned processes naming its work folder, and spares another cache, a live parent and the rest [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
   const cache = join(root, 'pull'), foreign = join(root, 'other', 'pull');
   const left = join(cache, 'work', 'runner-old-1', 'apps', 'cli', 'tests', 'x.test.js');
@@ -83,7 +83,7 @@ test('#7813 clause 1: a runner start kills orphaned processes naming its work fo
   assert.equal(alive(live.pid), true, "a process with a live parent, another serve's job, survives");
 });
 
-test('#7819 clause 1: the environment words of a process count only when asked, and a sibling job folder never matches [C7]', async () => {
+test('drive.leftover-chrome.c-7819-clause-1-the-environment: #7819 clause 1: the environment words of a process count only when asked, and a sibling job folder never matches [C7]', async () => {
   const rows = async environment => (environment
     ? ' 31 1 node /l/pull/land/apps/cli/pullboard.js runner local TMPDIR=/c/env/job-1/tmp/x\n 32 1 node /l/pull/land/apps/cli/pullboard.js view TMPDIR=/c/env/job-10/tmp/x\n'
     : ' 31 1 node /l/pull/land/apps/cli/pullboard.js runner local\n 32 1 node /l/pull/land/apps/cli/pullboard.js view\n');
@@ -91,7 +91,7 @@ test('#7819 clause 1: the environment words of a process count only when asked, 
   assert.deepEqual(await pathProcesses('/c/env/job-1', { rows, environment: true }), [31]);
 });
 
-test('#7819 clause 1: the sweep after a job ends removes an orphaned local runner that names only the land clone and carries the job folder in its environment [C7]', async t => {
+test('drive.leftover-chrome.c-7819-clause-1-the-sweep: #7819 clause 1: the sweep after a job ends removes an orphaned local runner that names only the land clone and carries the job folder in its environment [C7]', async t => {
   const { root } = privateFixtureFiles('pullboard-leftover-');
   const mine = join(root, 'env', 'job-1'), other = join(root, 'env', 'job-2'), land = join(root, 'land', 'apps', 'cli', 'pullboard.js');
   mkdirSync(join(mine, 'tmp'), { recursive: true }); mkdirSync(join(other, 'tmp'), { recursive: true });

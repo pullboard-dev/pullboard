@@ -27,7 +27,7 @@ function repo() {
   return { root, blob, candidateBlob, trunkA, trunkB: vcs('rev-parse', 'HEAD') };
 }
 
-test('clause 1: a defect is released by a recorded green run of its test at the trunk tip, and only by a run naming its cases passing [C7]', t => {
+test('landing.release.a-defect-is-released-by-a: clause 1: a defect is released by a recorded green run of its test at the trunk tip, and only by a run naming its cases passing [C7]', t => {
   const { root, blob, trunkB } = repo();
   const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite') });
   t.after(() => closeBoard(board));
@@ -43,7 +43,7 @@ test('clause 1: a defect is released by a recorded green run of its test at the 
   assert.equal(held(() => { throw new Error('cache unreadable'); }), 1, 'an unreadable cache keeps it');
 });
 
-test('clause 2: defect recorded at trunk A, code fix lands as trunk B without touching the test: a green run at B lifts the hold, none keeps it [C7]', async t => {
+test('landing.release.defect-recorded-at-trunk-a-code: clause 2: defect recorded at trunk A, code fix lands as trunk B without touching the test: a green run at B lifts the hold, none keeps it [C7]', async t => {
   const { root, blob, trunkA, trunkB } = repo();
   const { MAIN_FAILURE_SIGNATURE_VERSION } = await import('../../../src/io/main/matches.js');
   const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-release-board-').root, 'board.sqlite') });
@@ -60,7 +60,7 @@ test('clause 2: defect recorded at trunk A, code fix lands as trunk B without to
   assert.equal(at(trunkB, otherCase), 0, 'a run in which only a different case fails shows the defect cases passing');
 });
 
-test('a green trunk receipt cannot clear a defect in different candidate-only test bytes [C7]', t => {
+test('landing.release.a-green-trunk-receipt-cannot-clear: a green trunk receipt cannot clear a defect in different candidate-only test bytes [C7]', t => {
   const { root, blob, candidateBlob, trunkB } = repo();
   const board = fixtureOpenBoard({ boardFile: join(privateFixtureFiles('pullboard-defect-candidate-board-').root, 'board.sqlite') });
   t.after(() => closeBoard(board));

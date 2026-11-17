@@ -10,7 +10,7 @@ import { runFrozenProof } from '../../../../index.js';
 /** A not-executed check result carrying the renames checkAtCommit followed. */
 const checked = renames => async () => ({ state: 'pass', green: true, executed: false, checked: true, report: '', renames });
 
-test('clause 1: a followed rename becomes a fact on the item naming the old and new path [C7]', async () => {
+test('gate.io-check-rename-record.a-followed-rename-becomes-a-fact: clause 1: a followed rename becomes a fact on the item naming the old and new path [C7]', async () => {
   const box = rigorFixtureBoard(store, openKitBoard);
   try {
     const id = box.submit('Rename follower');
@@ -27,7 +27,7 @@ test('clause 1: a followed rename becomes a fact on the item naming the old and 
   } finally { box.close(); }
 });
 
-test('clause 2: the frozen check digest is unchanged after that run [C7]', async () => {
+test('gate.io-check-rename-record.the-frozen-check-digest-is-unchanged: clause 2: the frozen check digest is unchanged after that run [C7]', async () => {
   const box = rigorFixtureBoard(store, openKitBoard);
   try {
     const id = box.submit('Rename digest');

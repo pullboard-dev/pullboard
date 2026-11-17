@@ -5,7 +5,7 @@ import { landingWakeTrigger } from '../index.js';
 
 const held = { 'apps/cli/journeys/submit/merge.test.js': 'a'.repeat(40) };
 
-test('clause 1: a waiver recorded during a back-off wakes the lander; nothing new keeps it asleep [C7]', () => {
+test('landing.wakes.a-waiver-recorded-during-a-back: clause 1: a waiver recorded during a back-off wakes the lander; nothing new keeps it asleep [C7]', () => {
   const before = { verified: ['3768:c1', '3489:c2'], held, waivers: 120 };
   assert.equal(landingWakeTrigger(before, { ...before, waivers: 131 }), 'waiver');
   assert.equal(landingWakeTrigger(before, { ...before }), null);

@@ -143,6 +143,19 @@ export function noteLease(db, job, what, payload, now) {
 }
 
 /**
+ * Write the lapsed step of a takeover: one row per lapsed attempt, in the claim's transaction. It never changes the job's current step, so views still read claimed [C7,#9247].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ attempt: number }} lapse - What the earlier claim held and last wrote.
+ * @param {number} now
+ */
+export function noteLapse(db, job, lapse, now) {
+  db.prepare('INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)')
+    .run(job, 'lapsed', lapse.attempt, JSON.stringify(lapse), now);
+}
+
+/**
  * Record a runner's progress for one attempt: the first post inserts the step, a later post for the same attempt replaces it.
  *
  * Why: progress is a live reading, so the newest post wins; this lives here because the jobs store owns job_step.

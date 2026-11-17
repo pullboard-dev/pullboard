@@ -97,7 +97,7 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   writeFileSync(join(box.repo, 'docs', 'c.js'), 'const c = 1;   \n');
   box.git(box.repo, 'add', 'docs');
   writeFileSync(join(box.repo, 'docs', 'c.js'), 'const c = 1;   \nconst d = 2;\n');
-  const committed = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: three files');
+  const committed = await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: three files');
   assert.equal(committed.status, 0, committed.stderr);
   const committedText = (path) => box.tryGit(box.repo, 'show', `HEAD:${path}`).stdout;
   assert.equal(committedText('docs/a.js'), 'const a = 1;\n');
@@ -109,7 +109,7 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   box.git(box.repo, 'commit', '-qam', 'chore: a fixer that fails');
   writeFileSync(join(box.repo, 'docs', 'e.js'), 'const e = 1;   \n');
   box.git(box.repo, 'add', 'docs/e.js');
-  const failed = box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: one more');
+  const failed = await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: one more');
   assert.equal(failed.status, 0, failed.stderr);
   assert.match(failed.stderr, /fixer "false" failed \(1\); staged nothing from it/);
   assert.equal(committedText('docs/e.js'), 'const e = 1;   \n');

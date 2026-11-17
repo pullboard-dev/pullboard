@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { describeSetting } from '../../../src/io/settings/descriptions.js';
 
-test('clause 2: gate.adapterLintTimers has a description row that says what it refuses and that off reports nothing [C7]', () => {
+test('config.io-settings-descriptions-order.clause-2-gate-adapterlinttimers-has-a: clause 2: gate.adapterLintTimers has a description row that says what it refuses and that off reports nothing [C7]', () => {
   const row = describeSetting('gate.adapterLintTimers');
   assert.ok(row, 'description row exists');
   assert.match(row.description, /refuses/u);
@@ -11,7 +11,7 @@ test('clause 2: gate.adapterLintTimers has a description row that says what it r
   assert.match(row.description, /off, it reports nothing/u);
 });
 
-test('clause 2: gate.idiomSpread has a description row that says what it refuses and that off reports nothing [C7]', () => {
+test('config.io-settings-descriptions-order.clause-2-gate-idiomspread-has-a: clause 2: gate.idiomSpread has a description row that says what it refuses and that off reports nothing [C7]', () => {
   const row = describeSetting('gate.idiomSpread');
   assert.ok(row, 'description row exists');
   assert.match(row.description, /refuses/u);
@@ -19,7 +19,7 @@ test('clause 2: gate.idiomSpread has a description row that says what it refuses
   assert.match(row.description, /off, it reports nothing/u);
 });
 
-test('clause 2: gate.viewTimerLayout has a description row that says what it refuses and that off reports nothing [C7]', () => {
+test('config.io-settings-descriptions-order.clause-2-gate-viewtimerlayout-has-a: clause 2: gate.viewTimerLayout has a description row that says what it refuses and that off reports nothing [C7]', () => {
   const row = describeSetting('gate.viewTimerLayout');
   assert.ok(row, 'gate.viewTimerLayout has a description row');
   assert.match(row.description, /refuses/);

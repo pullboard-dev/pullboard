@@ -1,4 +1,5 @@
-/** A source-backed fact records the quote it rests on next to its value, and reads it back [B2,#9550]. @pullboard-test-input source-cell packages/spec */
+/** @pullboard-test-input source-cell packages/spec */
+/** A source-backed fact records the quote it rests on next to its value, and reads it back [B2,#9550]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

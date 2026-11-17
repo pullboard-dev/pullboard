@@ -31,13 +31,13 @@ const LOG = [
 const records = (log) => log.map(row => ({ event: { id: row.id, at: at(row.at) }, snapshot: { job: row.before, now: T0 + row.at * 1000 }, move: row.move,
   recorded: row.refused ? { refused: row.refused } : { events: row.step ? [row.step] : (row.events ?? []) } }));
 
-test('replaying a recorded job log agrees with the table on every move: offer, claim, held, progress, release, reclaim, fenced, receipt and done [C7,#8239]', () => {
+test('moves.job-replay.replaying-a-recorded-job-log-agrees-with: replaying a recorded job log agrees with the table on every move: offer, claim, held, progress, release, reclaim, fenced, receipt and done [C7,#8239]', () => {
   const report = replayTable(table, rules, records(LOG), { cut: CUT });
   assert.deepEqual(report.disagreements, []);
   assert.deepEqual([report.total, report.agreed, report.disagreed, report.notReplayable], [13, 13, 0, 0]);
 });
 
-test('a log that disagrees with the table is found by event id: a claim recorded over a live lease, and a receipt recorded for a stale token [C7,#8239]', () => {
+test('moves.job-replay.a-log-that-disagrees-with-the-table: a log that disagrees with the table is found by event id: a claim recorded over a live lease, and a receipt recorded for a stale token [C7,#8239]', () => {
   const bad = LOG.map(row => (row.id === 3 ? { ...row, refused: undefined, step: { kind: 'job.step', step: 'claimed', attempt: 2, runner: 'b' } }
     : row.id === 10 ? { ...row, move: { ...row.move, token: 'stale' } } : row));
   const report = replayTable(table, rules, records(bad), { cut: CUT });

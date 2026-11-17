@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/spec */
 /** Sign-off records are signed as canonical text and verify only against a listed SSH key [S17,S19,S20,S21]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

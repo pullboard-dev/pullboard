@@ -38,7 +38,7 @@ function fixture(t) {
   return { db, adapter, signText, at, take: () => adapter.take({ runner: 'r1', at, nonce, signature: signText(pullStatement('take', 'r1', at, nonce)) }) };
 }
 
-test('clause 1: boardPullAdapter built with jobs-table ports on a SQLite board leases a queued job to a trusted runner take [C7]', t => {
+test('transport.pull-jobs.boardpulladapter-built-with-jobs-table-ports: clause 1: boardPullAdapter built with jobs-table ports on a SQLite board leases a queued job to a trusted runner take [C7]', t => {
   const { db, take } = fixture(t);
   assert.equal(jobView(db, 'gate-9').leaseOwner, null, 'the queued job is unleased');
   const claim = take();
@@ -46,7 +46,7 @@ test('clause 1: boardPullAdapter built with jobs-table ports on a SQLite board l
   assert.equal(jobView(db, 'gate-9').leaseOwner, 'r1', 'the job row names the runner that took it');
 });
 
-test('clause 2: a result posted through the adapter is recorded on the job row [C7]', t => {
+test('transport.pull-jobs.a-result-posted-through-the-adapter: clause 2: a result posted through the adapter is recorded on the job row [C7]', t => {
   const { db, adapter, signText, take } = fixture(t);
   const { token } = take();
   const digest = createHash('sha256').update(BYTES).digest('hex');

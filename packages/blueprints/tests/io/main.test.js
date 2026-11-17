@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/blueprints */
 /** Every bundled blueprint is a gallery card, valid, and carries the checks it promises, read through the cell's front door [S1,I1]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -26,7 +27,7 @@ const GALLERY = {
 const UNSAFE_CHECK = /\b(?:rm|curl|wget|sudo|ssh|scp|install|publish|push|deploy)\b|[>`]|\$\(/u;
 
 
-test('every gallery blueprint is bundled and valid [S1]', () => {
+test('blueprints.gallery.bundled-and-valid: every gallery blueprint is bundled and valid [S1]', () => {
   assert.deepEqual(bundledBlueprints(), Object.keys(GALLERY).sort(), 'the bundled blueprints are exactly the gallery cards');
   for (const [name, card] of Object.entries(GALLERY)) {
     const blueprint = readBlueprint(name, process.cwd());
@@ -40,7 +41,7 @@ test('every gallery blueprint is bundled and valid [S1]', () => {
   }
 });
 
-test('every bundled starter item carries a criterion and a check [S1,I1]', () => {
+test('blueprints.starter.criterion-and-check: every bundled starter item carries a criterion and a check [S1,I1]', () => {
   // Every bundled blueprint files at least one starter, and each carries a criterion and a check.
   for (const name of bundledBlueprints()) {
     const blueprint = readBlueprint(name, process.cwd());
@@ -56,7 +57,7 @@ test('every bundled starter item carries a criterion and a check [S1,I1]', () =>
     'test-reliability files one: find a flaky test by repeated runs, then make it deterministic');
 });
 
-test('bundled blueprint rows carry their checks [S1,I1]', async () => {
+test('blueprints.rows.carry-checks: bundled blueprint rows carry their checks [S1,I1]', async () => {
   // Imported here so the file's import lines stay as they are for the items editing them now.
   const { questionText, ruleText, saveBlueprint } = await import('../../index.js');
   const rule = (blueprint, key) => blueprint.rules.find((entry) => entry.key === key);

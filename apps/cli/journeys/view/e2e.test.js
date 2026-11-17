@@ -349,7 +349,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runLocal(box.web, 'claim', '1');
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   // A pulled submit returns once its gate job is offered and the fixture settles that job, so the gate has recorded
   // its receipt before the reject below. The pull path starts no background review comparison [V4,C7,P7].
   await box.runLocal(box.web, 'submit', '1');

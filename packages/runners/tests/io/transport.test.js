@@ -32,7 +32,7 @@ function idleReplyWithHome(home, root) {
   }
 }
 
-test('a gate holder whose process is gone does not keep a runner from proving idle, while a live one does [C7]', () => {
+test('runners.transport.a-gate-holder-whose-process-is: a gate holder whose process is gone does not keep a runner from proving idle, while a live one does [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-idle-root-'));
   mkdirSync(join(root, 'jobs'));
   const exited = spawnSync(process.execPath, ['-e', '0']);

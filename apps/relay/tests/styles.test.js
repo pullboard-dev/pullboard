@@ -22,13 +22,13 @@ async function serveCss(t) {
   return response.text();
 }
 
-test('clause 1: browser-page.js builds its stylesheet with composeViewStyles and no longer fills the markers itself [C7,#3202]', () => {
+test('relay.styles.browser-page-js-builds-its-stylesheet: clause 1: browser-page.js builds its stylesheet with composeViewStyles and no longer fills the markers itself [C7,#3202]', () => {
   const source = readFileSync(new URL('../src/io/browser/page.js', import.meta.url), 'utf8');
   assert.match(source, /composeViewStyles\(\)/u);
   assert.doesNotMatch(source, /@pullboard-[\w-]+-styles/u);
 });
 
-test('clause 2: the relay /view.css serves the composed stylesheet, with no marker left [C7,#3202]', async t => {
+test('relay.styles.the-relay-view-css-serves-the: clause 2: the relay /view.css serves the composed stylesheet, with no marker left [C7,#3202]', async t => {
   const css = await serveCss(t);
   assert.ok(css.startsWith(composeViewStyles()), 'the composed view stylesheet leads the served css');
   assert.doesNotMatch(css, /@pullboard-[\w-]+-styles/u);

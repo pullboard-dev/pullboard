@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** Landing receipts use the earliest first-parent commit, with logarithmic ancestry probes [B3,R3,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -34,7 +35,7 @@ function importedCommit(ref, mark, parent, message, merge, contents) {
     `${parent ? `from :${parent}\n` : ''}${merge ? `merge :${merge}\n` : ''}M 100644 inline history.txt\ndata ${contents.length}\n${contents}\n`;
 }
 
-test('first containing commit is exact across trunk, merge and absent sources with logarithmic probes [B3,R3,C7]', t => {
+test('landing.merge.first-containing-commit-is-exact-across: first containing commit is exact across trunk, merge and absent sources with logarithmic probes [B3,R3,C7]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-landing-attribution-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');

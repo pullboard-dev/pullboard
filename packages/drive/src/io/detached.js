@@ -18,3 +18,22 @@ export function startDetachedCheck(entry, { args = [], cwd = process.cwd(), env 
   child.unref();
   return child.pid ?? null;
 }
+
+/**
+ * Start `node <entry> ...args` through spawnReachable, so a dispatcher launched from an app that holds a denied Local
+ * Network permission still reaches the runners; returns the started process's pid, or null when nothing started.
+ * Why: the dispatcher launch is the last long-lived start that stayed a plain detached spawn; the caller picks this over
+ * startDetachedCheck only when launch.reachableDispatcher is on, and this cell sits below config so it cannot read it [C7].
+ * Same contract as startDetachedCheck: never awaited on the caller's command path, never rejects.
+ *
+ * @param {string} entry - The script to run.
+ * @param {{ args?: string[], cwd?: string, env?: NodeJS.ProcessEnv, home?: string, launchd?: boolean, launcher?: (args: string[]) => Promise<{ status: number, stdout: string }> }} [options] - home, launchd and launcher pass straight to spawnReachable.
+ * @returns {Promise<number | null>}
+ */
+export async function startReachableCheck(entry, { args = [], cwd = process.cwd(), env = process.env, home, launchd, launcher } = {}) {
+  try {
+    const { spawnReachable } = await import('../../../jobs/index.js');
+    const started = await spawnReachable(process.execPath, [entry, ...args], { cwd, env, ...(home === undefined ? {} : { home }), ...(launchd === undefined ? {} : { launchd }), ...(launcher === undefined ? {} : { launcher }) });
+    return started.pid ?? null;
+  } catch { return null; /* the next command's cheap check asks again once the wake spacing passes */ }
+}

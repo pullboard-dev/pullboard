@@ -31,25 +31,25 @@ async function commandFor(t, changes, options, output = null) {
   return { seen, result };
 }
 
-test('clause 1: with landing.staticAffectedOnly on, a batch whose only changed .json is one gate data file hands the static command just that path [C7,#9077]', async t => {
+test('landing.static-affected.with-landing-staticaffectedonly-on-a-batch: clause 1: with landing.staticAffectedOnly on, a batch whose only changed .json is one gate data file hands the static command just that path [C7,#9077]', async t => {
   const { seen } = await commandFor(t, { [DATA]: '{"a":1}\n' }, { affectedOnly: true });
   assert.match(seen, /^export PULLBOARD_STATIC_SCOPE='\["packages\/gate\/data\/baselines\/cli-launches\.json"\]'; node static\.js$/u);
 });
 
-test('clause 1: with it on, package.json, a .json outside gate data and a deleted file still run the whole static command [C7,#9077]', async t => {
+test('landing.static-affected.with-it-on-package-json-a: clause 1: with it on, package.json, a .json outside gate data and a deleted file still run the whole static command [C7,#9077]', async t => {
   for (const changes of [{ 'package.json': '{"a":1}\n' }, { 'web/other.json': '{}\n' }, { [DATA]: null }]) {
     const { seen } = await commandFor(t, changes, { affectedOnly: true });
     assert.equal(seen, 'node static.js', JSON.stringify(changes));
   }
 });
 
-test('clause 2: with it on, a red check on a changed file still refuses LAND_STATIC_RED naming its file and line [C7,#9077]', async t => {
+test('landing.static-affected.with-it-on-a-red-check: clause 2: with it on, a red check on a changed file still refuses LAND_STATIC_RED naming its file and line [C7,#9077]', async t => {
   const { result } = await commandFor(t, { [DATA]: '{"a":1}\n' }, { affectedOnly: true }, `${DATA}:1: ceiling grew`);
   assert.equal(result.ok, false);
   assert.match(result.detail, /^LAND_STATIC_RED: .*packages\/gate\/data\/baselines\/cli-launches\.json:1: ceiling grew/u);
 });
 
-test('clause 3: with landing.staticAffectedOnly off (the default), a changed .json file keeps the whole static command [C7,#9077]', async t => {
+test('landing.static-affected.with-landing-staticaffectedonly-off-the-default: clause 3: with landing.staticAffectedOnly off (the default), a changed .json file keeps the whole static command [C7,#9077]', async t => {
   const off = await commandFor(t, { [DATA]: '{"a":1}\n' });
   assert.equal(off.seen, 'node static.js');
   const explicit = await commandFor(t, { [DATA]: '{"a":1}\n' }, { affectedOnly: false });

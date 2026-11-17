@@ -14,8 +14,10 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
+import { landingPhaseLines } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
@@ -117,7 +119,7 @@ export async function run(io, { first, values }) {
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
   const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
-    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
+    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
@@ -162,7 +164,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), ...(item.landing_phases ? { landing: { phases: item.landing_phases } } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -293,6 +295,7 @@ export async function run(io, { first, values }) {
   for (const receipt of clauseReceipts(thread)) io.say(`fail-before, pass-after receipt, clause ${receipt.number}: ${receipt.text}`);
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
   if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
+  for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
   io.say('thread:');
   for (const entry of thread) {

@@ -3,10 +3,15 @@
 import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Refused } from '../../../../kernel/light.js';
+import { judgeByReleaseEnabled } from '../../../../config/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { explainTable } from '../../logic/table/explain.js';
+import { judgeRecords } from '../../logic/table/judge.js';
+import { recordedOutcome } from '../../logic/table/replay.js';
 import { replayTable } from '../../logic/table/replay.js';
+import { runTable } from '../../logic/table/run.js';
 import { loadDiscovered } from '../registry.js';
+import { loadMoveTableAtTag } from './at-tag.js';
 import { listMoveTables } from './read.js';
 import { readMoveRecords } from './read.js';
 
@@ -52,21 +57,69 @@ function tagCut(root) {
   return read.status === 0 && read.stdout ? new Date(read.stdout).toISOString() : null;
 }
 
+const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * What a table answers for each replayable record, by event id, in the shape the judge compares: a refusal by its code, or an acceptance with its events.
+ * A record is replayable on the same terms replayTable uses: a readable event, at or after the cut, with a snapshot, a move and a recorded decision.
+ * A record the rules cannot read gets no answer, so it matches nothing.
+ */
+function answersOf(table, rules, records) {
+  const answers = new Map();
+  for (const record of records) {
+    try {
+      const answer = runTable(table, rules, structuredClone(record.snapshot), structuredClone(record.move));
+      answers.set(record.event.id, answer.refused ? { decision: 'refused', code: answer.refused.code } : { decision: 'accepted', events: JSON.parse(JSON.stringify(answer.events)) });
+    } catch { /* no answer: it matches nothing */ }
+  }
+  return answers;
+}
+
+/** The records replayTable would replay: readable, at or after the cut, and carrying a snapshot, a move and a recorded decision. */
+function replayable(records, cutAt) {
+  return records.filter((record) => {
+    const at = typeof record?.event?.at === 'number' ? record.event.at : Date.parse(record?.event?.at);
+    return isObject(record) && record.event?.id !== undefined && Number.isFinite(at) && at >= cutAt
+      && isObject(record.snapshot) && isObject(record.move) && recordedOutcome(record.recorded) !== null;
+  });
+}
+
+/**
+ * Judge each replayable record by the released table, at a tag, and the current table, against what the board wrote.
+ * Why: a table change must not grade itself; the release's own tables are the second opinion. Read-only, and off unless moves.judgeByRelease is on.
+ *
+ * @returns {Promise<{ against: string, counts: object, rows: object[] }>} Counts for every record; rows only for the records where the two tables differ from each other or from the board.
+ */
+async function judgeAgainst(root, name, against, loaded, records, cutAt) {
+  const released = await loadMoveTableAtTag(root, name, against);
+  try {
+    const kept = replayable(records, cutAt);
+    const judged = judgeRecords(kept, answersOf(released.table, released.rules, kept), answersOf(loaded.table, loaded.rules, kept));
+    return { against, counts: judged.counts, rows: judged.rows.filter((row) => row.class !== 'same') };
+  } finally { released.dispose(); }
+}
+
 /**
  * Replay a table over the moves the board recorded in the last `days` days.
  * Why: a table is trusted only once it reproduces what the board decided; the board holds accepted moves only, so this checks accepted moves.
+ * With `against` set (a release tag) and moves.judgeByRelease on, the report also carries `judge`: the tag's table and the current table over the same records, one row per record they do not both get right [U150].
  *
- * @param {{ root: string, boardFile: string, name: string, days?: number, now?: number, cut?: string }} options
- * @returns {Promise<{ table: string, days: number, since: string, cut: string, total: number, agreed: number, disagreed: number, notReplayable: number, beforeCut: number, disagreements: object[], unreplayable: object[] }>}
+ * @param {{ root: string, boardFile: string, name: string, days?: number, now?: number, cut?: string, against?: string }} options
+ * @returns {Promise<{ table: string, days: number, since: string, cut: string, total: number, agreed: number, disagreed: number, notReplayable: number, beforeCut: number, disagreements: object[], unreplayable: object[], judge?: { against: string, counts: object, rows: object[] } }>}
  */
-export async function replayReport({ root, boardFile, name, days = 7, now = Date.now(), cut }) {
+export async function replayReport({ root, boardFile, name, days = 7, now = Date.now(), cut, against }) {
   if (!Number.isFinite(days) || days <= 0) throw new Refused('REPLAY_DAYS', 'replay looks back a number of days, and got none', 'pass --days 7');
+  if (against !== undefined && !judgeByReleaseEnabled()) {
+    throw new Refused('JUDGE_OFF', 'judging by a release is off on this machine', 'turn on the machine setting moves.judgeByRelease, or replay without a release tag');
+  }
   const loaded = await loadMoveTable(root, name, 'REPLAY_TABLE');
   const since = new Date(now - days * DAY_MS).toISOString();
   const cutAt = cut ?? tagCut(root) ?? since;
   const records = readMoveRecords(boardFile, { since });
   const report = replayTable(loaded.table, loaded.rules, records, { cut: cutAt });
-  return { table: name, days, since, cut: new Date(Date.parse(cutAt)).toISOString(), ...report };
+  const out = { table: name, days, since, cut: new Date(Date.parse(cutAt)).toISOString(), ...report };
+  if (against === undefined) return out;
+  return { ...out, judge: await judgeAgainst(root, name, against, loaded, records, Date.parse(cutAt)) };
 }
 
 /**

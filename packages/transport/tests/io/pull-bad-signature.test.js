@@ -7,7 +7,7 @@ import { pullAdapter } from '../../index.js';
 import { pullStatement } from '../../index.js';
 import { checkSignedResult } from '../../../receipt/index.js';
 
-test('clause 1: [C7] a runner result with an invalid signature is recorded as import.invalid, an infra outcome that retries, and never as a failing test', async () => {
+test('transport.pull-bad-signature.c7-a-runner-result-with-an: clause 1: [C7] a runner result with an invalid signature is recorded as import.invalid, an infra outcome that retries, and never as a failing test', async () => {
   const keys = generateKeyPairSync('ed25519');
   const publicKey = keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64url');
   const sig = (action, at, nonce) => sign(null, Buffer.from(pullStatement(action, 'r1', at, nonce)), keys.privateKey).toString('base64url');

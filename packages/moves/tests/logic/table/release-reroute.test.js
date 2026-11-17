@@ -40,7 +40,7 @@ function release(reason, untouched) {
 
 const run = (s, m) => runTable(TABLE, RULES, structuredClone(s), structuredClone(m));
 
-test('clause 1: two untouched releases with INELIGIBLE or ROUTED_ELSEWHERE reroute the item one route up when release.rerouteUntouched is on [C7]', () => {
+test('moves.release-reroute.two-untouched-releases-with-ineligible-or: clause 1: two untouched releases with INELIGIBLE or ROUTED_ELSEWHERE reroute the item one route up when release.rerouteUntouched is on [C7]', () => {
   for (const first of ['INELIGIBLE', 'ROUTED_ELSEWHERE']) {
     for (const second of ['INELIGIBLE', 'ROUTED_ELSEWHERE']) {
       const result = run(snapshot({ first, firstUntouched: true, reroute: true }), release(second, true));
@@ -52,7 +52,7 @@ test('clause 1: two untouched releases with INELIGIBLE or ROUTED_ELSEWHERE rerou
   }
 });
 
-test('clause 1: with the setting off or unset, untouched releases never reroute [C7]', () => {
+test('moves.release-reroute.with-the-setting-off-or-unset: clause 1: with the setting off or unset, untouched releases never reroute [C7]', () => {
   for (const reroute of [false, undefined]) {
     const result = run(snapshot({ first: 'INELIGIBLE', firstUntouched: true, reroute }), release('INELIGIBLE', true));
     assert.equal(result.refused, undefined);
@@ -61,7 +61,7 @@ test('clause 1: with the setting off or unset, untouched releases never reroute 
   }
 });
 
-test('clause 1: a touched ROUTED_ELSEWHERE release, or an untouched release with any other reason, does not reroute [C7]', () => {
+test('moves.release-reroute.a-touched-routed-elsewhere-release-or: clause 1: a touched ROUTED_ELSEWHERE release, or an untouched release with any other reason, does not reroute [C7]', () => {
   const touched = run(snapshot({ first: 'ROUTED_ELSEWHERE', firstUntouched: false, reroute: true }), release('ROUTED_ELSEWHERE', false));
   assert.deepEqual(touched.via, ['return-claim'], 'touched ROUTED_ELSEWHERE counts as nothing');
   const touchedNow = run(snapshot({ first: 'ROUTED_ELSEWHERE', firstUntouched: true, reroute: true }), release('ROUTED_ELSEWHERE', false));
@@ -74,7 +74,7 @@ test('clause 1: a touched ROUTED_ELSEWHERE release, or an untouched release with
   }
 });
 
-test('clause 2: with the setting off, ROUTED_ELSEWHERE never counts, touched or not, and the touched INELIGIBLE and BLOCKED pairs behave as before [C7]', () => {
+test('moves.release-reroute.with-the-setting-off-routed-elsewhere: clause 2: with the setting off, ROUTED_ELSEWHERE never counts, touched or not, and the touched INELIGIBLE and BLOCKED pairs behave as before [C7]', () => {
   for (const untouched of [false, true]) {
     const result = run(snapshot({ first: 'ROUTED_ELSEWHERE', firstUntouched: untouched, reroute: false }), release('ROUTED_ELSEWHERE', untouched));
     assert.deepEqual(result.via, ['return-claim']);

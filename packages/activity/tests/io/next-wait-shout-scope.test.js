@@ -24,14 +24,14 @@ function fixture(t) {
   return { repo, board, asked, rival, hear };
 }
 
-test('clause 1: a shout naming an open item in this seat\'s lane ends the wait [C7,#4057]', t => {
+test('activity.wait-shout.own-lane-ends: clause 1: a shout naming an open item in this seat\'s lane ends the wait [C7,#4057]', t => {
   const { board, hear } = fixture(t);
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   const heard = hear(`please build #${item.item_id} next`);
   assert.equal(heard.item?.item_id, item.item_id);
 });
 
-test('clause 1: a shout naming an open item in another lane is printed and the wait continues [C7,#4057]', t => {
+test('activity.wait-shout.other-lane-continues: clause 1: a shout naming an open item in another lane is printed and the wait continues [C7,#4057]', t => {
   const { board, hear } = fixture(t);
   const item = cellItem(board, { lane: 'api', title: 'Build the endpoint' });
   const heard = hear(`please build #${item.item_id} next`);
@@ -40,7 +40,7 @@ test('clause 1: a shout naming an open item in another lane is printed and the w
   assert.match(heard.lines[0], new RegExp(`please build #${item.item_id} next`, 'u'));
 });
 
-test('clause 1: a shout naming an item another seat holds is printed and the wait continues [C7,#4057]', t => {
+test('activity.wait-shout.other-seat-item-continues: clause 1: a shout naming an item another seat holds is printed and the wait continues [C7,#4057]', t => {
   const { repo, board, rival, hear } = fixture(t);
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, rival, { root: repo.root });
@@ -49,7 +49,7 @@ test('clause 1: a shout naming an item another seat holds is printed and the wai
   assert.equal(heard.lines.length, 1);
 });
 
-test('clause 1: a shout naming an item this seat holds ends the wait [C7,#4057]', t => {
+test('activity.wait-shout.own-item-ends: clause 1: a shout naming an item this seat holds ends the wait [C7,#4057]', t => {
   const { repo, board, asked, hear } = fixture(t);
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, asked, { root: repo.root });
