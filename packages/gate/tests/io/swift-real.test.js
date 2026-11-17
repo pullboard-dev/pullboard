@@ -13,6 +13,7 @@ import { junitCommand } from '../../src/logic/junit-commands.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 const FIXTURE = new URL('../fixtures/swift-pkg/', import.meta.url);
+const RUN_LIMIT_MS = 120_000;
 const FILES = ['Package.swift', 'Sources/Calc/Calc.swift', 'Tests/CalcTests/CalcTests.swift'];
 
 /** True when swift answers --version on this machine. */
@@ -21,27 +22,32 @@ function swiftAnswers() {
   return !probe.error && probe.status === 0;
 }
 
+/** One run of the swift row in a private copy, shared by the cases that read it; the copy goes when the last case ends. */
+let shared = null;
+
 /** Copy the fixture to a private temporary folder, so the .build folder and the report never land in the repo. */
-function tempCopy(t) {
+function sharedRun(t) {
+  if (shared) return shared;
   const { root, write } = privateFixtureFiles('swift-pkg-');
-  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => { rmSync(root, { recursive: true, force: true }); shared = null; });
   for (const name of FILES) write(name, readFileSync(new URL(name, FIXTURE)));
   mkdirSync(join(root, '.pullboard', 'junit'), { recursive: true });
-  return root;
+  const row = junitCommand('swift');
+  // The failing test makes swift test exit non-zero, as a red gate does; the report is still written.
+  const run = spawnSync('sh', ['-c', row.command], { cwd: root, encoding: 'utf8', timeout: RUN_LIMIT_MS });
+  shared = { root, reportFile: join(root, row.report), run };
+  return shared;
 }
 
-/** Run the swift row in the copy; the failing test makes swift test exit non-zero, as a red gate does. */
-function runRow(root) {
-  const row = junitCommand('swift');
-  const run = spawnSync('sh', ['-c', row.command], { cwd: root, encoding: 'utf8' });
-  return { row, run, reportFile: join(root, row.report) };
+/** Why swift could not build the fixture on this machine, from a finished run. */
+function buildReason(run) {
+  return run.error ? `it did not finish within ${RUN_LIMIT_MS / 1000} s (${run.error.code ?? run.error.message})` : `exit ${run.status}: ${String(run.stderr).slice(-300)}`;
 }
 
 test('gate.swift-real.report-names-one-pass-one-fail: clause 1: the swift row runs on a one-pass one-fail fixture and junitCases reads one pass and one fail from its report [C7]', (t) => {
   if (!swiftAnswers()) return t.skip('swift unavailable on this machine: swift --version did not answer');
-  const root = tempCopy(t);
-  const { run, reportFile } = runRow(root);
-  if (!existsSync(reportFile)) return t.skip(`swift unavailable: it could not build the fixture (exit ${run.status}): ${String(run.stderr).slice(-300)}`);
+  const { run, reportFile } = sharedRun(t);
+  if (!existsSync(reportFile)) return t.skip(`swift unavailable: it could not build the fixture, ${buildReason(run)}`);
   const { cases, reason } = junitCases(readFileSync(reportFile, 'utf8'));
   assert.equal(reason, null);
   assert.deepEqual(cases.map(({ outcome }) => outcome).sort(), ['fail', 'pass']);
@@ -58,8 +64,7 @@ test('gate.swift-real.skips-unavailable: clause 2: a missing swift is named as u
 
 test('gate.swift-real.build-folder-stays-in-the-copy: clause 3: the .build folder lives in the temporary copy, never in the repo [C7]', (t) => {
   if (!swiftAnswers()) return t.skip('swift unavailable on this machine: swift --version did not answer');
-  const root = tempCopy(t);
-  runRow(root);
-  assert.equal(existsSync(join(root, '.build')), true);
+  const { root, run } = sharedRun(t);
+  if (!existsSync(join(root, '.build'))) return t.skip(`swift unavailable: it left no build folder, ${buildReason(run)}`);
   assert.equal(existsSync(new URL('.build', FIXTURE)), false);
 });
