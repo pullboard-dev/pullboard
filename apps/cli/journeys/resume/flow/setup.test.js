@@ -19,6 +19,7 @@ import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { takeDefaultViewPort } from '../../../tests/fixtures/view/port.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import {
+  pullboardWords,
   releaseFixture,
 } from '../../../tests/fixtures/resume/release.js';
 
@@ -95,7 +96,7 @@ test('setup lets agents build starter items while rows wait [S1,B26]', async t =
   const lane = (await box.runLocal(box.repo, 'lane', 'add', first.item_lane, '--owns', `${first.item_lane}/`));
   assert.equal(lane.status, 0, lane.failure || lane.stderr);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: commit blueprint setup');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: commit blueprint setup');
   const coordinator = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
   assert.match(coordinator.stdout, /claimed and built now.*person.*parallel/iu);
   assert.ok(coordinator.stdout.includes(`#${first.item_id}`), 'prose names the same first starter');
@@ -175,9 +176,19 @@ test("resume says setup waits on the person's approval [I1,I2]", async t => {
   assert.equal(next.setup.waitingOn, undefined);
 });
 
-// Process-level cases kept as processes (beside the blueprint init above): the shell-run record-answer command and the two spawned, signalled view servers below.
-/** Execute the exact record-answer command offered by resume inside its private repository. */
-function recordSetupAnswer(box, command) {
+// Process-level cases kept as processes (beside the blueprint init above): the two spawned, signalled view servers below.
+/**
+ * Execute the exact record-answer command offered by resume inside its private repository.
+ * Why in process: a plain `pullboard ...` answer goes through box.runLocal (a real process under PULLBOARD_JOURNEY_MODE=process); only a command
+ * that needs a shell keeps sh -c [C7,#10413].
+ */
+async function recordSetupAnswer(box, command) {
+  const words = pullboardWords(command);
+  if (words) {
+    const result = await box.runLocal(box.repo, ...words);
+    assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+    return;
+  }
   const result = runFixtureChild('sh', ['-c', command], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
 }
@@ -330,17 +341,17 @@ async function finishSetup(box, observe = () => {}) {
     const result = (await box.runLocal(box.repo, ...args));
     assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   }
-  recordSetupAnswer(box, (await step(2)).command);
+  await recordSetupAnswer(box, (await step(2)).command);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ scripts: { test: 'node -e ""' } }));
   const gate = await step(3);
   assert.match(gate.question, /Suggested: npm test/u);
-  recordSetupAnswer(box, gate.command);
-  recordSetupAnswer(box, (await step(4)).command);
+  await recordSetupAnswer(box, gate.command);
+  await recordSetupAnswer(box, (await step(4)).command);
   const view = await step(5);
   assert.equal(view.command, 'pullboard view');
   assert.match(view.afterAnswer, /person’s own terminal, or start it in the background as the agent/u);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: set up private fixture');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: set up private fixture');
   const builder = (await box.runLocal(box.repo, 'worktree', 'app', '--model', 'Fixture'));
   assert.equal(builder.status, 0, builder.failure || builder.stderr);
   const stillWaiting = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout);
@@ -388,7 +399,7 @@ test('resume names lane add to make a lane [I1,N32]', async t => {
   assert.doesNotMatch(text.stdout, /node -e/u);
 
   // The printed command, run exactly as written, declares the lane and moves setup on.
-  recordSetupAnswer(box, setup.command);
+  await recordSetupAnswer(box, setup.command);
   const lanes = (await box.runLocal(box.repo, 'lanes'));
   assert.equal(lanes.status, 0, lanes.failure || lanes.stderr);
   assert.match(lanes.stdout, /^app\s+app\/(?:\s|$)/mu);
@@ -488,7 +499,7 @@ test('a board building without spec rows is not told to draft the spec first [I1
   mkdirSync(join(box.repo, 'app'));
   writeFileSync(join(box.repo, 'app/first.txt'), 'first working item\n');
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the private board');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: initialize the private board');
   const spec = (await box.runLocal(box.repo, 'spec', '--json'));
   assert.equal(spec.status, 0, spec.failure || spec.stderr);
   assert.deepEqual(JSON.parse(spec.stdout).rows.filter(row => row.file === 'SPEC.md'), []);
