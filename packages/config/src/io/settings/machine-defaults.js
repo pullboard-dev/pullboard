@@ -62,6 +62,7 @@ export const MACHINE_DEFAULTS = {
   'gate.refuseMissingCheckFile': false,
   'gate.refuseTempWorktree': false,
   'gate.reofferInfraEnd': false,
+  'gate.requestIoExtraRoots': false,
   'gate.requireRunnerAttribution': false,
   'gate.runnerBusyCeiling': 90,
   'gate.runnerDispatch': 'pull',
