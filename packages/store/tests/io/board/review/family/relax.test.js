@@ -10,7 +10,7 @@ import { prepareEngineMove } from '../../../../../../state/index.js';
 import { applyEngineMove } from '../../../../../../state/index.js';
 import { exportBoard } from '../../../../../index.js';
 
-test('backlog relaxation is bound to the reservation and never permits self review [V1,H16]', t => {
+test('store.io-board-review-family-relax.backlog-relaxation-is-bound-to-the: backlog relaxation is bound to the reservation and never permits self review [V1,H16]', t => {
   const board = fixtureBoard(t);
   let now = new Date('2026-01-01T00:00:00.000Z');
   board.clock = { now: () => new Date(now) };
@@ -82,7 +82,7 @@ test('backlog relaxation is bound to the reservation and never permits self revi
   assert.throws(() => store.reserveReview(board, legacy, noThreshold), { code: 'SAME_FAMILY' }, 'missing frozen threshold never relaxes');
 });
 
-test('coordinator activity cannot suppress family relaxation; an available other-family agent can [V1,H16]', t => {
+test('store.io-board-review-family-relax.coordinator-activity-cannot-suppress-family-relaxation: coordinator activity cannot suppress family relaxation; an available other-family agent can [V1,H16]', t => {
   const board = fixtureBoard(t);
   let now = new Date('2026-01-01T00:00:00.000Z');
   board.clock = { now: () => new Date(now) };

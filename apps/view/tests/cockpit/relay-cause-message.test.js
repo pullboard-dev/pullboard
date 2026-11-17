@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { startChrome } from '../../../cli/tests/fixtures/chrome.js';
 import { findChromeExecutable } from '../../../cli/tests/fixtures/chrome.js';
+import { stableChrome } from '../../../cli/tests/fixtures/cockpit/stable.js';
 import { cockpitPage } from '../../index.js';
 import { composeViewStyles } from '../../index.js';
 import { relayCauseMessage } from '../../src/logic/relay-cause.js';
@@ -47,14 +48,14 @@ async function startPhoneFixture() {
 test('clause 1: relay off, board excluded and network down each render their own message at phone width in real Chrome [H5,N26,C7,#9459]', { timeout: 120_000 }, async (t) => {
   if (!findChromeExecutable()) return t.skip('Install Chrome or set PULLBOARD_CHROME for the relay cause check.');
   const fixture = await startPhoneFixture();
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   try {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
     const shown = {};
     for (const name of Object.keys(CASES)) {
       await chrome.navigate(`${fixture.origin}/${name}`);
       await chrome.waitFor(`location.pathname === '/${name}' && innerWidth === 390 && (document.querySelector('#relay-screen .relay-live span')?.textContent ?? '') !== ''`);
-      shown[name] = await chrome.evaluate("document.querySelector('#relay-screen .relay-live span').textContent");
+      shown[name] = await chrome.stable("document.querySelector('#relay-screen .relay-live span').textContent");
     }
     const off = relayCauseMessage(CASES.off);
     const excluded = relayCauseMessage(CASES.excluded);

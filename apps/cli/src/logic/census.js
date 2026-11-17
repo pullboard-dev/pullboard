@@ -228,6 +228,25 @@ export function rerunRow(first, again) {
 export const rerunnable = row => row.status !== 'green' && row.status !== 'skipped';
 
 /**
+ * The two lists a census with reruns writes beside its rows, each sorted, one line per file: `reds` holds every row still
+ * not green after its rerun and not hung, as the file, a tab and its first failing case (else its status); `slow` holds
+ * every hung file. Why: the rows already carry each non-green file's rerun alone, so a separate pass 2 that rebuilt these
+ * lists took 10-31 minutes of every census cycle [C7,#10348].
+ *
+ * @param {Iterable<{ file: string, status: string, cases?: string[] }>} rows - The census's final rows.
+ * @returns {{ reds: string, slow: string }} Each list's text, empty when it has no line.
+ */
+export function censusVerdictLists(rows) {
+  const reds = [], slow = [];
+  for (const row of rows) {
+    if (row.status === 'hung') slow.push(row.file);
+    else if (rerunnable(row)) reds.push(`${row.file}\t${String(row.cases?.[0] ?? row.status).replace(/\s+/gu, ' ').slice(0, 160)}`);
+  }
+  const text = list => list.sort().map(line => `${line}\n`).join('');
+  return { reds: text(reds), slow: text(slow) };
+}
+
+/**
  * Wall time of each shard of one census, from its rows: a shard's rows share a label and the job's start and end instants,
  * so the shard's time is the widest end minus start among them. Rows with no usable instants are skipped, so a census
  * written before the instants were recorded gives an empty list [C7,U151].
@@ -298,6 +317,21 @@ export function timeBoundJobs(files, times, limitMs) {
   }
   for (const job of jobs) job.files.sort((a, b) => a.localeCompare(b));
   return jobs.sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0]));
+}
+
+/**
+ * The file kill, in milliseconds, a pulled census job carries under census.fileKillSeconds: that many seconds when every
+ * file in the job has a recorded time under it, else null (the job keeps the usual 600 s stop). Why: a file with a short
+ * record that runs on was hung or stalled, and it need not hold its job to the hard stop [C7,#10350].
+ *
+ * @param {string[]} files - The job's files.
+ * @param {Record<string, number>} times - Recorded ms per file.
+ * @param {number|null} killSeconds - The census.fileKillSeconds setting.
+ * @returns {number|null}
+ */
+export function shardFileKillMs(files, times, killSeconds) {
+  if (!killSeconds || !files.length) return null;
+  return files.every(file => Number.isFinite(times[file]) && times[file] < killSeconds * 1000) ? killSeconds * 1000 : null;
 }
 
 /**

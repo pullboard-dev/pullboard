@@ -30,7 +30,7 @@ for (const kind of ['reopen', 'reject']) {
   });
 }
 
-test('an item whose green submit job is newer than its last reopen is still skipped as gated [C7,#2955]', t => {
+test('store.io-board-next-gate.an-item-whose-green-submit-job: an item whose green submit job is newer than its last reopen is still skipped as gated [C7,#2955]', t => {
   const board = fixtureBoard(t);
   const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'resubmitted after reopen' });
   event(board, id, 'reopen', '2026-11-04T07:00:00.000Z');
