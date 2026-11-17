@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-cell gate */
-/** @pullboard-test-input packages/gate/tests/fixtures/conformance */
+/** @pullboard-test-input packages/gate/tests/fixtures/conformance/node.xml packages/gate/tests/fixtures/conformance/typescript.xml packages/gate/tests/fixtures/conformance/python.xml packages/gate/tests/fixtures/conformance/go.xml packages/gate/tests/fixtures/conformance/rust.xml packages/gate/tests/fixtures/conformance/php.xml packages/gate/tests/fixtures/conformance/elixir.xml packages/gate/tests/fixtures/conformance/csharp.xml packages/gate/tests/fixtures/conformance/ctest.xml */
 /** @pullboard-world-pin reads the checked-in conformance report fixtures, never a tool run. */
 /** The conformance list names each language setup, its report fixture and its toolchain, and a missing toolchain is unavailable, never red [C7]. */
 import assert from 'node:assert/strict';
