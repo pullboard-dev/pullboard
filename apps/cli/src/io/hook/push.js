@@ -226,14 +226,15 @@ export async function pushShardPlan(root, config, { runners, history } = {}) {
  * @returns {Promise<{ jobs: string[], ref: string, reoffer: (board: { db: object }, job: string, runner: string | null) => string }>}
  */
 export async function offerPushShards(ctx, plan) {
-  const [{ offerJob, endJobs, SHARD_JOB_KIND }, { GATE_NEEDS, gateShardRequest }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js')]);
+  const [{ offerJob, endJobs, SHARD_JOB_KIND }, { GATE_NEEDS, gateShardRequest, pushShardTooling }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/push/${tag}`;
   git(ctx.info.root, ['update-ref', ref, plan.source]);
   const of = plan.shards.length;
+  const pin = pushShardTooling(ctx.info.root, plan.source);
   const offer = (board, at, id, avoid = []) => offerJob(board.db, { id, kind: SHARD_JOB_KIND,
     priority: 'gate', needs: GATE_NEEDS, item: null, candidate: plan.source, base: plan.main, avoid,
-    request: gateShardRequest({ main: plan.main, source: plan.source, shard: { index: at + 1, of, files: plan.shards[at].files, command: plan.shards[at].command } }) }).id;
+    request: gateShardRequest({ main: plan.main, source: plan.source, shard: { index: at + 1, of, files: plan.shards[at].files, command: plan.shards[at].command }, ...pin }) }).id;
   const jobs = withBoard(ctx, board => plan.shards.map((shard, at) => offer(board, at, `push:${plan.source.slice(0, 12)}:${tag}:shard:${at + 1}`)));
   /** Withdraw a failed shard job and offer the same shard again, naming the runner it failed on to avoid [C7,#9274]. */
   const reoffer = (board, job, runner) => {

@@ -261,6 +261,11 @@ export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
 }
 
+/** Whether push.pinTooling is on: off by default; only an exact `true` makes a pre-push shard job carry the item gate's tooling pin [C7,#9373]. */
+export function pushPinToolingEnabled() {
+  return loadMachineSettings().push?.pinTooling === true;
+}
+
 /** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
 export function pushRecordTimingEnabled() {
   return loadMachineSettings().push?.recordTiming === true;

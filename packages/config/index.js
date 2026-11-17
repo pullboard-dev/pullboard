@@ -54,6 +54,7 @@ export {
   censusJobsPerRunner,
   censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
+  pushPinToolingEnabled,
   flakesRereadRatchetEnabled,
   pushRecordTimingEnabled,
   pushRefuseUnshardedEnabled,
