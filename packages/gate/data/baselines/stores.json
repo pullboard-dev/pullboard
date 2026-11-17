@@ -1521,7 +1521,7 @@
     },
     "temporary-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+      "owner": "apps/cli/src/io/cells/cache.js"
     },
     "test-cells.json": {
       "kind": "repo-data",
