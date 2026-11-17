@@ -434,6 +434,9 @@ export function loadMachineSettings() {
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
   }
+  if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
+  }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
@@ -442,6 +445,9 @@ export function loadMachineSettings() {
   }
   if (value.list?.thinRead !== undefined && typeof value.list.thinRead !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `list.thinRead in ${file} must be true or false`);
+  }
+  if (value.read?.thinCommands !== undefined && typeof value.read.thinCommands !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `read.thinCommands in ${file} must be true or false`);
   }
   if (value.maintenance?.retireIdleSeats !== undefined && typeof value.maintenance.retireIdleSeats !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `maintenance.retireIdleSeats in ${file} must be true or false`);
@@ -555,6 +561,11 @@ export function withdrawCancelsJob() {
 /** Whether pullboard list reads through the thin read door (#9089): off by default; only an exact `true` turns it on. */
 export function listThinRead() {
   return loadMachineSettings().list?.thinRead === true;
+}
+
+/** Whether whoami, show and status read through the thin doors (#9810, #3072): off by default; only an exact `true` turns it on. */
+export function readThinCommands() {
+  return loadMachineSettings().read?.thinCommands === true;
 }
 
 /**
