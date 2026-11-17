@@ -111,5 +111,20 @@ export function createFileWriteQueue(dir) {
     },
     /** The stored outcome of write `id`, or null when it has not finished. */
     result: id => readRecord(resultFile(id)),
+    /** Drop write `id`'s stored outcome, so the next submit of that id runs afresh. */
+    forget: id => rmSync(resultFile(id), { force: true }),
+    /** Remove every stored outcome and mark older than `maxAgeMs`; a pending write is never touched. Returns how many files went. */
+    prune(maxAgeMs, now = Date.now()) {
+      let removed = 0;
+      for (const name of readdirSync(dir)) {
+        if (!name.endsWith('.result') && !name.endsWith('.mark')) continue;
+        try {
+          if (now - statSync(join(dir, name)).mtimeMs <= maxAgeMs) continue;
+          rmSync(join(dir, name), { force: true });
+          removed += 1;
+        } catch { /* another process pruned it first */ }
+      }
+      return removed;
+    },
   };
 }
