@@ -120,7 +120,7 @@ function land(box, expected) {
   assert.equal(box.git('merge-base', '--is-ancestor', box.head, 'HEAD'), '');
 }
 
-test('JSON snapshots keep independent keys, removals, null and raised counters through inspection and landing [B3,R3,C7]', () => {
+test('cli.journeys-land-merge.json-snapshots-keep-independent-keys-removals: JSON snapshots keep independent keys, removals, null and raised counters through inspection and landing [B3,R3,C7]', () => {
   const box = fixture('apps/cli/tests/fixtures/move/registry/baseline.json',
     '{"keep":1,"remove":true,"counter":2,"list":["base"],"nullable":null}\n',
     '{"keep":1,"counter":3,"list":["base","left"],"nullable":null,"left":true}\n',
@@ -139,20 +139,20 @@ test('JSON snapshots keep independent keys, removals, null and raised counters t
   });
 });
 
-test('add-only Markdown retains both contributors without reopening [B3,R3,C7]', () => {
+test('cli.journeys-land-merge.add-only-markdown-retains-both-contributors: add-only Markdown retains both contributors without reopening [B3,R3,C7]', () => {
   const box = fixture('docs/api.md', '# API\n\nEnd.\n', '# API\n\nLeft.\nEnd.\n', '# API\n\nRight.\nEnd.\n');
   inspect(box, []);
   land(box, '# API\n\nLeft.\nRight.\nEnd.\n');
 });
 
-test('a valid JavaScript union is checked without executing its top-level body [B3,R3,C7]', () => {
+test('cli.journeys-land-merge.a-valid-javascript-union-is-checked: a valid JavaScript union is checked without executing its top-level body [B3,R3,C7]', () => {
   const box = fixture('src/cli.js', 'export {};\n', "throw new Error('inspection must not execute this');\nexport {};\n",
     'export const added = true;\nexport {};\n');
   inspect(box, []);
   land(box, "throw new Error('inspection must not execute this');\nexport const added = true;\nexport {};\n");
 });
 
-test('a generated doc is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
+test('cli.journeys-land-merge.a-generated-doc-is-classified-without: a generated doc is classified without executing item code and regenerated only by landing [B3,R3,C7]', () => {
   // The lifecycle doc is no longer generated (#5309); docs/api.md is, by docs/tools/update-docs.js --print <path>.
   const box = fixture('docs/api.md', generatedApi('old'), generatedApi('left'), generatedApi('right'), {
     'package.json': '{"type":"module"}\n',
@@ -188,7 +188,7 @@ for (const [name, path, base, left, right] of [
   });
 }
 
-test('version-one conflict replay keeps its original Git meaning while fresh mechanical returns require their engine [H16,V4]', t => {
+test('cli.journeys-land-merge.version-one-conflict-replay-keeps-its: version-one conflict replay keeps its original Git meaning while fresh mechanical returns require their engine [H16,V4]', t => {
   const box = boardFixture();
   const id = accepted(box, 1, { 'test/snapshot.json': '{"base":true,"left":true}\n' }, { verify: false });
   writeFileSync(join(box.repo, 'test/snapshot.json'), '{"base":true,"right":true}\n');
