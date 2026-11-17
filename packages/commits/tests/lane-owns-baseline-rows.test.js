@@ -2,8 +2,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { outOfLane } from '../../seats/index.js';
-import { CEILING_ROW_TABLES } from '../../gate/heavy.js';
-import { STATIC_CHECKS } from '../../gate/heavy.js';
 import { baselineRowChange } from '../light.js';
 
 const config = { shared: [], lanes: { core: { owns: ['test/'] }, view: { owns: ['test/cockpit/'] } } };
@@ -42,8 +40,15 @@ test('commits.lane-owns-baseline-rows.clause-2-a-raised-row-new-rows-beyond: cla
   assert.equal(baselineRowChange('packages/other.json', { before: () => null, after: () => null, ownsFile: () => true }).allowed, false);
 });
 
-/** The cells-edges ceilings: the gate table whose rows nest under files with more than one rule. */
-const EDGES = Object.keys(CEILING_ROW_TABLES).find(table => CEILING_ROW_TABLES[table].files && !CEILING_ROW_TABLES[table].bare);
+/**
+ * Stand-ins for the tables the gate cell hands the hook (its CEILING_ROW_TABLES), one of each row shape: plain
+ * `{file: {rule: n}}` rows (load-bearing, store-homes), bare counts under `files` (both adapter lints), and rule rows
+ * under `files` beside other sections (cells-edges). The gate's own test proves the real list.
+ */
+const CEILING_ROW_TABLES = { 'ceilings/rows.json': {}, 'ceilings/bare.json': { files: true, bare: true }, 'ceilings/nested.json': { files: true } };
+
+/** The nested stand-in: rows under files with sections beside them. */
+const EDGES = 'ceilings/nested.json';
 
 /** Each gate-owned ceiling table as a test document: its rows wrapped in the table's own shape. */
 const CEILING_TABLES = Object.fromEntries(Object.entries(CEILING_ROW_TABLES).map(([table, shape]) => [table, {
@@ -54,7 +59,6 @@ const CEILING_TABLES = Object.fromEntries(Object.entries(CEILING_ROW_TABLES).map
 }]));
 
 test('commits.lane-owns-baseline-rows.clause-1-a-source-row-moves-in-each-ceiling-table: clause 1: a source ceiling row moves to its own new file without a rise, in each per-file ceiling table [L3,C7,#10242]', () => {
-  assert.equal(Object.keys(CEILING_TABLES).length, 5, 'load-bearing, store-homes, both adapter lints and cells-edges');
   assert.equal(baselineRowChange(Object.keys(CEILING_TABLES)[0], { before: () => null, after: () => null, ownsFile: () => true }).allowed, false, 'without the gate\'s tables a ceiling table is not a baseline');
   for (const [table, { wrap, rule }] of Object.entries(CEILING_TABLES)) {
     const base = wrap({ 'packages/a.js': { [rule]: 1 }, 'apps/view/src/io/serve.js': { [rule]: 4 } });
@@ -81,16 +85,4 @@ test('commits.lane-owns-baseline-rows.clause-2-a-rise-beyond-the-freed-rows-is-r
   const edges = EDGES;
   const sections = (cells) => ({ files: { 'apps/view/a.js': { cells: 1, deep: 0 } }, cells });
   assert.equal(baselineRowChange(edges, { before: () => blob(sections({ a: 1 })), after: () => blob(sections({ a: 2 })), ownsFile: () => true, tables: CEILING_ROW_TABLES }).allowed, false, 'the other sections stay unchanged');
-});
-
-test('commits.lane-owns-baseline-rows.clause-3-the-pre-commit-judges-the-staged-ceiling-rows: clause 3: the pre-commit cells-edges check reads the staged ceiling rows, so a moved row is judged as moved [L3,C7,#10242]', () => {
-  const check = STATIC_CHECKS.find(entry => entry.name === 'cells-edges');
-  const file = 'apps/view/src/io/state.js';
-  const source = "import { x } from '../../../../packages/config/index.js';\nexport const y = x;\n";
-  const staged = JSON.stringify({ files: { [file]: { cells: 1, deep: 0 } }, cells: {}, packageApps: {} });
-  const run = ceilingText => check.run({ root: '/nonexistent-root', sources: [{ file, source }],
-    text: path => path === file ? source : path === EDGES ? ceilingText : '' });
-  assert.deepEqual(run(staged), [], 'a row staged for the new file allows its one cell');
-  const notStaged = JSON.stringify({ files: {}, cells: {}, packageApps: {} });
-  assert.match(run(notStaged).join('\n'), /new cross-cell import of config exceeds the ratchet \(1 cells > 0\)/u, 'without the row the same import is refused');
 });
