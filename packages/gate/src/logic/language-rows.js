@@ -29,6 +29,18 @@ function bunCommand(names, contents) {
   return 'bun test';
 }
 
+/**
+ * Ruby: a Gemfile alone proves nothing, so the command reads what the repo holds and answers '' (no match) when it holds neither a spec nor a Rake test setup.
+ *
+ * @param {string[]} names directory entry names of the repo root
+ * @returns {string}
+ */
+function rubyCommand(names) {
+  if (names.includes('.rspec') || names.includes('spec')) return 'bundle exec rspec';
+  if (names.includes('Rakefile') && names.includes('test')) return 'bundle exec rake test';
+  return '';
+}
+
 /** The Node built-in runner writing a JUnit report to the given path; kept in this adapter so core code names no runtime [C7]. */
 export function nodeJunitCommand(report) {
   return `node --test --test-reporter=junit --test-reporter-destination=${report}`;
@@ -55,6 +67,7 @@ export const LANGUAGE_ROWS = Object.freeze([
   { language: 'nim', pattern: /\.nimble$/u, command: 'nimble test', tests: ['**/tests/**/*.nim', '**/test_*.nim'] },
   { language: 'ocaml', markers: ['dune-project'], command: 'dune test', tests: ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml'] },
   { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
+  { language: 'ruby', markers: ['Gemfile'], command: rubyCommand, tests: (names) => (rubyCommand(names) === 'bundle exec rspec' ? ['**/*_spec.rb'] : ['**/test_*.rb', '**/*_test.rb']) },
   { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
   { language: 'zig', markers: ['build.zig'], command: 'zig build test', tests: ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig'] },
 ]);
