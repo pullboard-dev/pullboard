@@ -66,6 +66,7 @@ import { landingOperations } from './merge.js';
 import { gateComponentTier } from '../../../../config/index.js';
 import { gateJunitReport } from '../../../../config/index.js';
 import { landingJunitFailures } from '../../../../config/index.js';
+import { landingCargoFailures } from '../../../../config/index.js';
 import { readJunitReport } from './junit-report.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
@@ -390,7 +391,7 @@ async function runGateGroup(state, label, options) {
   const reportPath = landingJunitFailures() ? gateJunitReport() : null;
   const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
   if (report?.code) state.say(`gate ${label}: JUnit report ${reportPath} not used (${report.code}); parsing the output`);
-  const junit = report?.xml ? { junitFailures: true, junitXml: report.xml } : {};
+  const junit = { ...(report?.xml ? { junitFailures: true, junitXml: report.xml } : {}), cargoFailures: landingCargoFailures() };
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
