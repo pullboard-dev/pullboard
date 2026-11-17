@@ -36,7 +36,7 @@ async function refusalFor(machines) {
   } finally { await close(); }
 }
 
-test("clause 1: a move blocked by a teammate's old engine names them and the fix [H16,H17,C7,#1305]", async () => {
+test('cli.journeys-engine-floor.a-move-blocked-by-a-teammate: clause 1: a move blocked by a teammate\'s old engine names them and the fix [H16,H17,C7,#1305]', async () => {
   const error = await refusalFor([
     { machine: 'mac-studio', name: 'studio', created: 1, seen: 2, engine: 20 },
     { machine: 'mac-laptop', name: 'laptop', created: 1, seen: 2, engine: 10 },

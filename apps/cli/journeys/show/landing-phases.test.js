@@ -43,7 +43,7 @@ async function verifiedItem(t) {
   return { box, entry, land, record };
 }
 
-test('clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async t => {
+test('cli.journeys-show-landing-phases.show-json-for-a-landed-item: clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async t => {
   const { box, entry, land } = await verifiedItem(t);
   await land(PHASES);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
@@ -53,7 +53,7 @@ test('clause 1: show --json for a landed item carries landing.phases as {phase, 
   assert.deepEqual(document.landing.phases, PHASES);
 });
 
-test('clause 2: show prints one line per phase, and an item with no recorded landing phases prints none and no error [C7,#9079]', async t => {
+test('cli.journeys-show-landing-phases.show-prints-one-line-per-phase: clause 2: show prints one line per phase, and an item with no recorded landing phases prints none and no error [C7,#9079]', async t => {
   const { box, entry, land } = await verifiedItem(t);
   // Verified but not yet landed, as an item landed before phases were kept: no phase line, no landing document, no error.
   const plain = await box.runLocal(box.repo, 'show', String(entry.item));
@@ -72,7 +72,7 @@ test('clause 2: show prints one line per phase, and an item with no recorded lan
 const TREE = 'a'.repeat(40);
 const PROOF = { tree: TREE, pin: 'b'.repeat(40), cells: ['apps/cli', 'packages/landing'], result: 'green' };
 
-test('clause 1: show prints one line beside the landing with the tree id, the tooling commit, the cells run and the result, and --json carries the record [V16,V38]', async t => {
+test('cli.journeys-show-landing-phases.show-prints-one-line-beside-the: clause 1: show prints one line beside the landing with the tree id, the tooling commit, the cells run and the result, and --json carries the record [V16,V38]', async t => {
   const { box, entry, land, record } = await verifiedItem(t);
   await land(PHASES);
   record(PROOF);
@@ -84,7 +84,7 @@ test('clause 1: show prints one line beside the landing with the tree id, the to
   assert.deepEqual(JSON.parse(json.out).landing.exactTree, PROOF);
 });
 
-test('clause 2: an item landed before the record existed prints no exact-tree line and no error [V16,V38]', async t => {
+test('cli.journeys-show-landing-phases.an-item-landed-before-the-record: clause 2: an item landed before the record existed prints no exact-tree line and no error [V16,V38]', async t => {
   const { box, entry, land, record } = await verifiedItem(t);
   await land(PHASES);
   record(undefined);

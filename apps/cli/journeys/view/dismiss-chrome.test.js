@@ -15,7 +15,7 @@ import {
   closeSnapshotChrome,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('clause 1: scroll, page height and the result panel box are unchanged across the old 6 s window after a decision settles [H12,#9529,#9865]', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-view-dismiss-chrome.scroll-page-height-and-the-result: clause 1: scroll, page height and the result panel box are unchanged across the old 6 s window after a decision settles [H12,#9529,#9865]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to measure the result panel.');
   const box = machine();

@@ -187,6 +187,7 @@ const ROWS = Object.freeze({
   bun: ['bun'],
   clojure: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
   cmake: ['cmake', 'ctest'],
+  crystal: ['crystal'],
   csharp: ['dotnet'],
   dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
   deno: ['deno'],

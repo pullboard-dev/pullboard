@@ -26,7 +26,7 @@ async function fixture(t, on) {
   return { box, id, run, settings: { file, saved } };
 }
 
-test('clause 1: show prints a fields: block listing each set field with its type and value, and omits it when none are set [C7,#9352]', async t => {
+test('cli.journeys-show-field-show.show-prints-a-fields-block-listing: clause 1: show prints a fields: block listing each set field with its type and value, and omits it when none are set [C7,#9352]', async t => {
   const { id, run } = await fixture(t, true);
   const none = await run(['show', String(id)]);
   assert.equal(none.status, 0, none.stdout + none.stderr);
@@ -39,7 +39,7 @@ test('clause 1: show prints a fields: block listing each set field with its type
   assert.deepEqual((json.result ?? json).fields, [{ name: 'points', type: 'number', value: 3 }, { name: 'priority', type: 'choice', value: 'high' }]);
 });
 
-test('clause 2: export includes the item fields, and with items.typedFields off show and export are byte-identical to before any field was set [C7,#9352]', async t => {
+test('cli.journeys-show-field-show.export-includes-the-item-fields-and: clause 2: export includes the item fields, and with items.typedFields off show and export are byte-identical to before any field was set [C7,#9352]', async t => {
   const { id, run, settings } = await fixture(t, false);
   const plainShow = (await run(['show', String(id)])).stdout;
   const plainExport = (await run(['export'])).stdout;
