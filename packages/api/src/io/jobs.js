@@ -586,6 +586,7 @@ function finishClaimHop(db, hop, { job, runner, epoch, now, leaseMs }) {
 /** The writer's renew: the claim's runner extends its lease, and with gate.fencedHop on steps its gate hop at the claim's epoch, so a replaced owner is refused HOP_FENCED [C7,#8352]. */
 function renewHeld(db, { job, runner, token, now, leaseMs, hop }) {
   const held = heldBy(db, job, runner, token);
+  if (held.step === 'cancelled') throw new Refused('JOB_CANCELLED', `job ${job} was cancelled because its gate was withdrawn; stop work on it and claim a new job`);
   if (hop && held.hopEpoch !== undefined) stepClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
   const renewed = renewLease(db, job, runner, { now, leaseMs, lapsed: true });
   return { renewed, leaseUntil: renewed ? now + leaseMs : null };
@@ -733,6 +734,8 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
   if (Buffer.byteLength(JSON.stringify(receipt)) > RECEIPT_BYTES) throw new Refused('JOB_RECEIPT', `a receipt is at most ${RECEIPT_BYTES} bytes; keep output in a report file and post its digest`);
   return shadowed(db, { name: 'receipt', job, runner, token }, now, () => atomically(db, () => {
     const held = heldBy(db, job, runner, token);
+    // A cancelled job (its gate was withdrawn) takes no receipt, so a withdrawn gate never posts a verdict later [C7,#3860].
+    if (held.step === 'cancelled') throw new Refused('JOB_CANCELLED', `job ${job} was cancelled because its gate was withdrawn; stop work on it and claim a new job`);
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
