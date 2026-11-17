@@ -37,7 +37,7 @@ function fixture(t) {
   return { dir, clone, first, parent: join(dir, '.reviews') };
 }
 
-test('clause 1: a commit already in the clone gets a detached worktree without git fetch [C7,#3091]', (t) => {
+test('git.review-folder.no-fetch: clause 1: a commit already in the clone gets a detached worktree without git fetch [C7,#3091]', (t) => {
   const { clone, first, parent } = fixture(t);
   const { folder, created } = reviewFolder(clone, first, parent);
   assert.equal(created, true);
@@ -47,7 +47,7 @@ test('clause 1: a commit already in the clone gets a detached worktree without g
   // The remote does not exist, so any fetch would have failed the call above.
 });
 
-test('clause 2: a second call for the same commit reuses that folder instead of creating another [C7,#3091]', (t) => {
+test('git.review-folder.reuse: clause 2: a second call for the same commit reuses that folder instead of creating another [C7,#3091]', (t) => {
   const { clone, first, parent } = fixture(t);
   const one = reviewFolder(clone, first, parent);
   const two = reviewFolder(clone, first, parent);
