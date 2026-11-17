@@ -102,11 +102,13 @@
   "apps/view/src/io/serve.js": {
     "board.sqlite": 3,
     "state.json": 1,
-    "boards.json": 1,
-    "resources.sqlite": 1
+    "boards.json": 1
   },
   "apps/view/src/io/session.js": {
     "view.json": 1
+  },
+  "apps/view/src/io/state.js": {
+    "resources.sqlite": 1
   },
   "packages/api/src/io/event-signals.js": {
     "board.sqlite": 2
