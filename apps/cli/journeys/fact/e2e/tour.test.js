@@ -63,7 +63,8 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
   // reject-and-rework still verifies (#952). The caller's own digest must appear on no item the tour moved.
   const runs = [['CLAUDE_CODE_SESSION_ID', 'caller-session-952'], ['CODEX_THREAD_ID', 'caller-thread-952']].map(([name, value]) => {
     const box = sandbox();
-    const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value };
+    // One of the two runs keeps git's own hook scripts as processes, the real-process path a person's commit takes [N10,#10408].
+    const callerEnv = { ...box.env, TMPDIR: box.dir, CLAUDECODE: '1', [name]: value, ...(name === 'CODEX_THREAD_ID' ? { PULLBOARD_TOUR_REAL_HOOKS: '1' } : {}) };
     delete callerEnv.PULLBOARD_MODEL;
     delete callerEnv.NO_COLOR;
     delete callerEnv.FORCE_COLOR;
@@ -73,6 +74,8 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
     assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
     assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
     assert.match(shown.stdout, /verified #1: CRITERION_MET/);
+    assert.match(shown.stdout, /\$ git commit -q -m "feat\(app\): greet by name \[G1\]"/u, `${name}: the first scripted commit is shown`);
+    assert.match(shown.stdout, /\$ git commit -q -am "fix\(app\): a blank name greets the world \[G1\]"/u, `${name}: the fix commit is shown`);
     assert.doesNotMatch(shown.stdout, /SELF_SESSION_VERIFY/);
 
     const repo = /Look around: cd (\S+) && pullboard log/.exec(shown.stdout)[1];
