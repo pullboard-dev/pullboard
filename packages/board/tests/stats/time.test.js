@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell board store stats state */
 /** Private native SQLite histories prove build accounting [B35,R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
