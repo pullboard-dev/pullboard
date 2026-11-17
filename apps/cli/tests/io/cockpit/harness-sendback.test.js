@@ -23,7 +23,8 @@ let launches;
 async function submitted() {
   const box = machine();
   const demo = project(box, 'demo');
-  fileFixtureItem(box, demo.repo, { lane: 'web', title: 'Greeting', criterion: 'greets', args: ['--specs', 'G1'] });
+  // The machine's run returns stdout and refuses a non-zero status, so it is shaped as the testkit's result.
+  fileFixtureItem(box, demo.repo, { lane: 'web', title: 'Greeting', criterion: 'greets', args: ['--specs', 'G1'], run: (cwd, ...args) => ({ status: 0, stdout: box.run(cwd, ...args) }) });
   await buildLocal(box, demo, 1, 'greeting.html', { queued: true });
   box.settled(demo.repo, 1);
   return { box, demo };
