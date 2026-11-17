@@ -622,6 +622,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   BUDGET_STOP: 'raise budget.dailyUsd or budget.totalUsd in the machine settings file, or resume after the next UTC day begins',
   MOVE_TABLES_MISSING: 'open the board through packages/board, or call provideMoveTables before the store runs its move tables',
   BY_HAND_OFF: 'the person sets landing.byHand to true in the machine settings to land by hand; otherwise run pullboard next for other work',
+  HAND_REASON: 'pass --reason with why the item lands by hand: pullboard land --item <id> --reason "<why>"',
   NOT_BUILT_YET: 'the board lands accepted items by itself; run pullboard next for other work',
   FIELDS_OFF: 'turn on items.typedFields in the machine settings first',
   GENERATED_STALE: 'run the generator yourself, commit, and submit again',
