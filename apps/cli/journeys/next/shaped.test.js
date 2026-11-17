@@ -38,6 +38,8 @@ test('clause 1: with next.lightShapedStrong on and no free light item, the real 
   box.add('Wrong route and not light-shaped', { route: 'strong' });
   nextSettings({ lightShapedStrong: true });
   assert.equal(await offered(box), shaped, 'the shaped strong item is offered');
+  const claimed = await cli(box, box.seats.actor.path, ['claim', String(shaped)]);
+  assert.equal(claimed.code, 0, `the light seat claims what next offered: ${claimed.out}${claimed.err}`);
 });
 
 test('clause 2: the light-shaped strong item is not offered while a light item is free [C7,#9568]', async t => {
