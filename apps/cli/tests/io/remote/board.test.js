@@ -37,7 +37,7 @@ function cloneBoard(clone) {
   return existsSync(join(clone, '.git', 'pullboard', 'board.sqlite'));
 }
 
-test('show <id> prints a served item from a clone with no board.sqlite [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and four CLI calls, not a throughput claim.
+test('cli.io-remote-board.show-id-prints-a-served-item-from: show <id> prints a served item from a clone with no board.sqlite [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and four CLI calls, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   assert.equal((await seat.run('settings', 'board.url', seat.box.origin)).status, 0);
@@ -53,7 +53,7 @@ async (t) => {
   assert.equal(cloneBoard(seat.clone), false, 'show opened no local board');
 });
 
-test("whoami prints the named agent's lane from the served board with no board.sqlite [P7]", { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and three CLI calls, not a throughput claim.
+test("cli.io-remote-board.whoami-prints-the-named-agent-s-lane: whoami prints the named agent's lane from the served board with no board.sqlite [P7]", { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and three CLI calls, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   assert.equal((await seat.run('settings', 'board.url', `${seat.box.origin}${seat.box.path}`)).status, 0);
@@ -68,7 +68,7 @@ async (t) => {
   assert.equal(cloneBoard(seat.clone), false, 'whoami opened no local board');
 });
 
-test('an unreachable board.url or a wrong token refuses with a code and a next step [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
+test('cli.io-remote-board.an-unreachable-board-url-or-a-wrong: an unreachable board.url or a wrong token refuses with a code and a next step [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and five CLI calls, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   await seat.run('settings', 'board.url', seat.box.origin);

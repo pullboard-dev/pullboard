@@ -22,7 +22,7 @@ function landOnMain(box, count) {
   }
 }
 
-test('cli.next.lag.next-claim-and-inbox-print-one: clause 1: next, claim and inbox print one line naming the commits behind and the base age when the seat is behind main [N2,B3]', async t => {
+test('cli.io-next-lag.cli-next-lag-next-claim-and-inbox: cli.next.lag.next-claim-and-inbox-print-one: clause 1: next, claim and inbox print one line naming the commits behind and the base age when the seat is behind main [N2,B3]', async t => {
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   const id = box.add('Work a lagging seat claims');
   const seat = box.seats.actor.path;
@@ -37,7 +37,7 @@ test('cli.next.lag.next-claim-and-inbox-print-one: clause 1: next, claim and inb
   }
 });
 
-test('cli.next.lag.a-seat-level-with-main-prints: clause 2: a seat level with main prints no lag line [N2,B3]', async t => {
+test('cli.io-next-lag.cli-next-lag-a-seat-level-with: cli.next.lag.a-seat-level-with-main-prints: clause 2: a seat level with main prints no lag line [N2,B3]', async t => {
   const box = await fixture(t, { files: { 'web/shared.txt': 'base\n' } });
   box.add('Work a level seat claims');
   const seat = box.seats.actor.path;

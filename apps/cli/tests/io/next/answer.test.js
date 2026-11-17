@@ -17,7 +17,7 @@ async function answer(box, args = ['next']) {
   return { code, text: `${out}${err}` };
 }
 
-test('cli.next.answer.no-item-answer-comes-first-and: no-item answer comes first and fifty held items fit in a short response [N2,C7]', async t => {
+test('cli.io-next-answer.cli-next-answer-no-item-answer-comes: cli.next.answer.no-item-answer-comes-first-and: no-item answer comes first and fifty held items fit in a short response [N2,C7]', async t => {
   const box = await fixture(t);
   for (let index = 0; index < 50; index++) {
     const id = box.add(`Held item ${index + 1}`);
@@ -34,7 +34,7 @@ test('cli.next.answer.no-item-answer-comes-first-and: no-item answer comes first
   assert.ok(Buffer.byteLength(result.text) < 2048, `response was ${Buffer.byteLength(result.text)} bytes`);
 });
 
-test('cli.next.answer.claim-action-is-the-first-line: claim action is the first line before unread message details [N2,C7]', async t => {
+test('cli.io-next-answer.cli-next-answer-claim-action-is-the: cli.next.answer.claim-action-is-the-first-line: claim action is the first line before unread message details [N2,C7]', async t => {
   const box = await fixture(t);
   const ready = box.add('Ready item to claim');
   const message = 'The seat has a message behind its next action';
@@ -49,7 +49,7 @@ test('cli.next.answer.claim-action-is-the-first-line: claim action is the first 
   assert.equal(store.getItem(box.board, ready).item_owner, box.seats.actor.id);
 });
 
-test('cli.next.answer.an-existing-held-claim-is-the: an existing held claim is the first line [N2,C7]', async t => {
+test('cli.io-next-answer.cli-next-answer-an-existing-held-claim: cli.next.answer.an-existing-held-claim-is-the: an existing held claim is the first line [N2,C7]', async t => {
   const box = await fixture(t);
   const held = box.add('Already claimed work');
   box.claim(held, box.seats.actor);
@@ -61,7 +61,7 @@ test('cli.next.answer.an-existing-held-claim-is-the: an existing held claim is t
   assert.match(first, new RegExp(`^you hold #${held}: Already claimed work$`, 'u'));
 });
 
-test('cli.next.answer.a-returned-red-gate-starts-with: a returned red gate starts with the fix action [N2,C7]', async t => {
+test('cli.io-next-answer.cli-next-answer-a-returned-red-gate: cli.next.answer.a-returned-red-gate-starts-with: a returned red gate starts with the fix action [N2,C7]', async t => {
   const box = await fixture(t);
   box.board.gitRoot = box.root;
   const seat = box.seats.actor;
@@ -84,7 +84,7 @@ test('cli.next.answer.a-returned-red-gate-starts-with: a returned red gate start
   assert.match(first, new RegExp(`^red queued gate on #${id}: GATE_RED; pullboard show ${id} for the full refusal`, 'u'));
 });
 
-test('cli.next.answer.scope-and-overlap-notes-are-capped: clause 2: scope and overlap notes are capped at 3 lines followed by a count of the rest [N2,C7]', () => {
+test('cli.io-next-answer.cli-next-answer-scope-and-overlap-notes: cli.next.answer.scope-and-overlap-notes-are-capped: clause 2: scope and overlap notes are capped at 3 lines followed by a count of the rest [N2,C7]', () => {
   const items = [{ item_id: 1, item_status: 'claimed', item_owner: 'one' }];
   const overlaps = [2, 3, 4].map(item => ({ item, builder: `peer${item}`, files: ['shared.js'] }));
   const outOfScope = [5, 6].map(item => ({ item, files: ['elsewhere.js'] }));
