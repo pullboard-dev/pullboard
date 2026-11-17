@@ -37,7 +37,7 @@ function accept(f) {
     note: 'Synthetic review lease verdict fixture accept.', ...REVIEW });
 }
 
-test('clause 1: with runs_store on, verify ends the review lease in the run lease columns and writes no job row [B2]', t => {
+test('store.io-board-review-lease-verdict.with-runs-store-on-verify-ends: clause 1: with runs_store on, verify ends the review lease in the run lease columns and writes no job row [B2]', t => {
   const f = fixture(t, true);
   assert.equal(f.run().run_lease_owner, 'core-2', 'the reservation holds the lease before the verdict');
   const before = f.jobRows();
@@ -49,7 +49,7 @@ test('clause 1: with runs_store on, verify ends the review lease in the run leas
   assert.deepEqual(f.jobRows(), before);
 });
 
-test('clause 2: with runs_store on, withdraw ends the review lease in the run lease columns and writes no job row [B2]', t => {
+test('store.io-board-review-lease-verdict.with-runs-store-on-withdraw-ends: clause 2: with runs_store on, withdraw ends the review lease in the run lease columns and writes no job row [B2]', t => {
   const f = fixture(t, true);
   const before = f.jobRows();
   store.withdraw(f.board, f.id, { agentId: 'coordinator', reason: 'duplicate of another item' });
@@ -60,7 +60,7 @@ test('clause 2: with runs_store on, withdraw ends the review lease in the run le
   assert.deepEqual(f.jobRows(), before);
 });
 
-test('clause 3: with runs_store off, review leases behave exactly as today on a job row [B2]', t => {
+test('store.io-board-review-lease-verdict.with-runs-store-off-review-leases: clause 3: with runs_store off, review leases behave exactly as today on a job row [B2]', t => {
   const verified = fixture(t, false);
   assert.equal(verified.run(), undefined);
   assert.equal(verified.job().owner, 'core-2');
