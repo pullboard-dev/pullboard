@@ -46,6 +46,7 @@ export const LANGUAGE_ROWS = Object.freeze([
   { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
   { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
   { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
+  { language: 'zig', markers: ['build.zig'], command: 'zig build test', tests: ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig'] },
 ]);
 
 /**

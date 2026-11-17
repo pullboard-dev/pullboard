@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { detectLanguages } from '../../src/io/config.js';
+import { detectTestGlobs } from '../../src/io/config.js';
+import { languageToolchains } from '../../src/io/config.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 /** Make a repo root holding the given files, removed after the test. */
@@ -42,4 +44,16 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
     const run = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 60000 });
     assert.equal(run.status === 0 ? 0 : 1, status, `${command} in ${Object.keys(files).join(',')}: ${run.stderr}`);
   }
+});
+
+test('gate.config.zig-detected: #10509 clause 1: a root holding build.zig detects zig with zig build test [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': 'const std = @import("std");\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'zig', command: 'zig build test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.zig': '' })), []);
+});
+
+test('gate.config.zig-globs: #10509 clause 2: detectTestGlobs for a build.zig root returns the Zig test globs of the zig row, and the zig toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['zig'], unknown: [] });
 });
