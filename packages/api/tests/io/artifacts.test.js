@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/api */
 /** A runner job's log and artifacts are readable from the board after the runner's folder is deleted [P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
