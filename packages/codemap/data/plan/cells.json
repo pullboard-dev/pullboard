@@ -2577,6 +2577,7 @@
     "board->seats",
     "board->spec",
     "board->state",
+    "board->stats",
     "board->store",
     "board->verify",
     "apps/lib->board"
