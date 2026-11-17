@@ -14,7 +14,7 @@ const pullGit = async () => ({ status: 0, stdout: '', stderr: '' });
 const COMMIT = 'a'.repeat(40);
 const PROVED_FILES = 700; // large enough that the proof could not ride a payload
 
-test('clause 2: the runner serving a land job whose proof moved to its request gives the handler the whole proof [C7,#7766]', async t => {
+test('api.jobs-requested.runner-serving-land-job-whose: clause 2: the runner serving a land job whose proof moved to its request gives the handler the whole proof [C7,#7766]', async t => {
   const db = cellBoard(t, ':memory:').db;
   const rows = Array.from({ length: PROVED_FILES }, (_, index) => ({ file: `packages/area/tests/io/some/deeper/case-${index}.test.js`, inputKey: index.toString(16).padStart(64, '0'),
     command: 'proof', context: 'c'.repeat(64), status: 'pass' }));

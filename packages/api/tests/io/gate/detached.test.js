@@ -12,7 +12,7 @@ import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';
 
-test('a green pulled gate is submitted while the coordinator checkout is detached for review [C7,#8011]', t => {
+test('api.gate-detached.green-pulled-gate-submitted-while: a green pulled gate is submitted while the coordinator checkout is detached for review [C7,#8011]', t => {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;

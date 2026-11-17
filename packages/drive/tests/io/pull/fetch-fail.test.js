@@ -46,7 +46,7 @@ function writeSettings(file, value) { writeFileSync(file, JSON.stringify(value))
 /** Git whose trunk fetch is `fetchTrunk` and whose every other command is real git. */
 function gitWith(fetchTrunk) { return { run: runTestGit, fetchTrunk }; }
 
-test('clause 1: with runners.fetchFailFast on, a job whose trunk fetch fails is released at once naming the fetch error, and the job behind it is released without a fetch of its own (#9024) [C7]', async t => {
+test('drive.fetch-fail.with-runners-fetchfailfast-on-a: clause 1: with runners.fetchFailFast on, a job whose trunk fetch fails is released at once naming the fetch error, and the job behind it is released without a fetch of its own (#9024) [C7]', async t => {
   const stop = new AbortController();
   const board = stubBoard(['test:one', 'test:two'], { stop, done: b => b.releases.length === 2 });
   let fetches = 0;
@@ -59,7 +59,7 @@ test('clause 1: with runners.fetchFailFast on, a job whose trunk fetch fails is 
   assert.equal(fetches, 2, 'one job fetched by id and by branches; the job behind it fetched nothing');
 });
 
-test('clause 1: with runners.fetchFailFast on, a trunk fetch still running at the deadline sends the claim back naming the deadline (#9024) [C7]', async t => {
+test('drive.fetch-fail.with-runners-fetchfailfast-on-a-2: clause 1: with runners.fetchFailFast on, a trunk fetch still running at the deadline sends the claim back naming the deadline (#9024) [C7]', async t => {
   const stop = new AbortController();
   const board = stubBoard(['test:hung'], { stop, done: b => b.releases.length === 1 });
   const git = gitWith(() => new Promise(() => {}));
@@ -73,7 +73,7 @@ test('clause 1: with runners.fetchFailFast on, a trunk fetch still running at th
   assert.match(board.releases[0].reason, /trunk fetch did not end within 0 s of the claim/u);
 });
 
-test('clause 2: with runners.drainOnFetchFailure on, a runner claims no job after 3 trunk fetch failures in a row until a fetch succeeds (#9024) [C7]', async t => {
+test('drive.fetch-fail.with-runners-drainonfetchfailure-on-a: clause 2: with runners.drainOnFetchFailure on, a runner claims no job after 3 trunk fetch failures in a row until a fetch succeeds (#9024) [C7]', async t => {
   const stop = new AbortController();
   // Five jobs wait; the runner may claim only the first three, then probes the trunk until it answers.
   const board = stubBoard(['test:1', 'test:2', 'test:3', 'test:4', 'test:5'], { stop, done: b => b.releases.length === 4 });
@@ -92,7 +92,7 @@ test('clause 2: with runners.drainOnFetchFailure on, a runner claims no job afte
   assert.ok(lines.some(line => /not claiming: 3 trunk fetches failed in a row/u.test(line)));
 });
 
-test('clause 3: with both settings off, every job tries its own fetch and the runner keeps claiming after any number of failures (#9024) [C7]', async t => {
+test('drive.fetch-fail.with-both-settings-off-every: clause 3: with both settings off, every job tries its own fetch and the runner keeps claiming after any number of failures (#9024) [C7]', async t => {
   const stop = new AbortController();
   const board = stubBoard(['test:1', 'test:2', 'test:3', 'test:4'], { stop, done: b => b.releases.length === 4 });
   let fetches = 0;
@@ -104,7 +104,7 @@ test('clause 3: with both settings off, every job tries its own fetch and the ru
   assert.ok(board.releases.every(r => /Operation timed out/u.test(r.reason)));
 });
 
-test('clause 3: both settings read off unless the machine settings file says exactly true, and a flat key is read beside the runners list (#9024) [C7]', t => {
+test('drive.fetch-fail.both-settings-read-off-unless: clause 3: both settings read off unless the machine settings file says exactly true, and a flat key is read beside the runners list (#9024) [C7]', t => {
   const { root } = privateFixtureFiles('pullboard-fetch-fail-settings-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const file = join(root, 'settings.json');
