@@ -25,6 +25,7 @@ import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
+import { noteLapse } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
@@ -308,7 +309,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -333,9 +334,12 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
+      // jobs.recordLapse: what the earlier claim held and last wrote, read before this claim overwrites the lease [C7,#9247].
+      const lapsed = recordLapse && row.job_attempt >= 1 ? lapseOf(db, row, now) : null;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
+      if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
@@ -352,6 +356,21 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
+}
+
+/**
+ * What the earlier claim of a job whose lease ran out held: its runner, attempt and lease end, when it last renewed or wrote a step, and the last step it wrote.
+ * Why: a lapse left no record, so six claims of one land job could not be told from a runner that never started [C7,#9247].
+ *
+ * @returns {{ runner: string | null, attempt: number, leaseUntil: number, lastAt: number | null, lastStep: string | null } | null} null when no runner ever held the job.
+ */
+function lapseOf(db, row, now) {
+  const held = db.prepare('SELECT job_lease_owner AS owner, job_lease_until AS until FROM job WHERE job_id = ?').get(row.job_id);
+  if (!held?.owner || held.until >= now) return null;
+  // A renewal of a gate job leaves a note: step; any other kind's last sign of life is its newest step.
+  const last = db.prepare("SELECT job_step_name AS name, job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  const noted = db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = ? AND job_step_name NOT LIKE 'note:%' AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  return { runner: held.owner, attempt: row.job_attempt, leaseUntil: held.until, lastAt: last?.at ?? null, lastStep: noted?.name ?? null };
 }
 
 /** acquireOrEnd's answer for a gate job it ended because its hop is over. */
@@ -824,11 +843,11 @@ export function jobArtifacts(db, job) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });

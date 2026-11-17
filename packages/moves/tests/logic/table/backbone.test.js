@@ -16,14 +16,14 @@ import { tableCoverage } from '../../../index.js';
 
 const FIXTURE = JSON.parse(readFileSync(new URL('../../../../state/tests/fixtures/machines.json', import.meta.url), 'utf8'));
 
-test('the backbone item rows are the declared moves, one row each, with no second list [C7,#8067]', () => {
+test('moves.backbone.the-backbone-item-rows-are-the-declared: the backbone item rows are the declared moves, one row each, with no second list [C7,#8067]', () => {
   assert.equal(BACKBONE_TABLE.items.length, MACHINE.moves.length);
   const keys = BACKBONE_TABLE.items.map(row => row.key);
   assert.equal(new Set(keys).size, keys.length);
   MACHINE.moves.forEach((move, index) => assert.equal(BACKBONE_TABLE.items[index].key, `${move.verb}:${move.from.join('|')}>${move.to}`));
 });
 
-test('every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
+test('moves.backbone.every-job-kind-in-the-state-map: every job kind in the state map is one backbone row whose serves fact is a rule, and the words match the map [C7,#8067]', () => {
   assert.deepEqual(CREATED_JOB_KINDS, FIXTURE.jobs.map(job => job.kind), 'the kinds the code creates are exactly the map\'s');
   assert.deepEqual(BACKBONE_TABLE.jobs.map(row => row.kind), FIXTURE.jobs.map(job => job.kind), 'the pull-out job is created by the lander, so the map names it too');
   assert.equal(BACKBONE_TABLE.jobs.length, 16);
@@ -35,7 +35,7 @@ test('every job kind in the state map is one backbone row whose serves fact is a
   }
 });
 
-test('serves facts derive over a snapshot and trace what they read [C7,#8067]', () => {
+test('moves.backbone.serves-facts-derive-over-a-snapshot-and: serves facts derive over a snapshot and trace what they read [C7,#8067]', () => {
   const item = { status: 'claimed', owner: 's1', commit: 'c1', digest: 'd1' };
   const gate = deriveFact(BACKBONE_RULES, servesRule('gate'), { item, job: { kind: 'gate', seat: 's1', commit: 'c1', digest: 'd1' } });
   assert.equal(gate.holds, true);
@@ -45,7 +45,7 @@ test('serves facts derive over a snapshot and trace what they read [C7,#8067]', 
   assert.equal(deriveFact(BACKBONE_RULES, servesRule('main-test'), { item, job: { kind: 'main-test' } }).holds, false);
 });
 
-test('tableCoverage over the stored item statuses and job kinds reports no gap, and explain names every kind [C7,#8067]', () => {
+test('moves.backbone.table-coverage-over-the-stored-item-statuses-and: tableCoverage over the stored item statuses and job kinds reports no gap, and explain names every kind [C7,#8067]', () => {
   assert.deepEqual(BACKBONE_STATES, [...MACHINE.states.map(state => state.id), ...FIXTURE.jobs.map(job => job.kind)]);
   assert.equal(MACHINE.states.length, 5);
   assert.deepEqual(tableCoverage(BACKBONE_TABLE, BACKBONE_STATES).gaps, []);
@@ -53,7 +53,7 @@ test('tableCoverage over the stored item statuses and job kinds reports no gap, 
   assert.equal(explainTable(BACKBONE_TABLE, BACKBONE_RULES).table, 'backbone');
 });
 
-test('clause 1: the job kinds list screen, with a serves rule naming a submitted sprint item at its commit and base [M1]', () => {
+test('moves.backbone.the-job-kinds-list-screen-with-a: clause 1: the job kinds list screen, with a serves rule naming a submitted sprint item at its commit and base [M1]', () => {
   const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === 'screen');
   assert.deepEqual(row, { kind: 'screen', serves: 'serves.screen' });
   assert.match(BACKBONE_RULES[row.serves].says, /submitted sprint item at its commit on the current base/u);
@@ -68,7 +68,7 @@ test('clause 1: the job kinds list screen, with a serves rule naming a submitted
   assert.equal(serves({ item, job, base: 'b2' }), false, 'only on the current base');
 });
 
-test('clause 1: the job kinds list pull-out, serving an item whose landing is pulling [M2,#8870]', () => {
+test('moves.backbone.the-job-kinds-list-pull-out-serving-an: clause 1: the job kinds list pull-out, serving an item whose landing is pulling [M2,#8870]', () => {
   const row = BACKBONE_TABLE.jobs.find(entry => entry.kind === 'pull-out');
   assert.deepEqual(row, { kind: 'pull-out', serves: 'serves.pull-out' });
   assert.match(BACKBONE_RULES[row.serves].says, /landing is pulling/u);
