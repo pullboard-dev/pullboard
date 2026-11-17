@@ -29,6 +29,11 @@ function bunCommand(names, contents) {
   return 'bun test';
 }
 
+/** The Node built-in runner writing a JUnit report to the given path; kept in this adapter so core code names no runtime [C7]. */
+export function nodeJunitCommand(report) {
+  return `node --test --test-reporter=junit --test-reporter-destination=${report}`;
+}
+
 /** The three JVM test-file globs, shared by the maven and gradle rows. */
 const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
 
