@@ -88,6 +88,7 @@ const ROWS = Object.freeze({
   elixir: { command: 'mix test', report: `${DIR}/elixir.xml`, needs: `the junit_formatter dependency as an ExUnit formatter, with report_dir "${DIR}" and report_file "elixir.xml"` },
   go: { command: `gotestsum --junitfile ${DIR}/go.xml -- ./...`, report: `${DIR}/go.xml`, needs: 'gotestsum (go install gotest.tools/gotestsum@latest)' },
   gradle: { command: './gradlew test', report: 'build/test-results/test', needs: null },
+  haskell: { command: `JUNIT_ENABLED=1 JUNIT_OUTPUT_DIRECTORY=${DIR} JUNIT_OUTPUT_NAME=haskell.xml cabal test`, report: `${DIR}/haskell.xml`, needs: 'the hspec-junit-formatter package in the test suite, run through hspec-discover' },
   maven: { command: 'mvn test', report: 'target/surefire-reports', needs: null },
   node: { command: nodeJunitCommand(`${DIR}/node.xml`), report: `${DIR}/node.xml`, needs: null },
   php: { command: `vendor/bin/phpunit --log-junit ${DIR}/php.xml`, report: `${DIR}/php.xml`, needs: null },
