@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell config gate */
+/** @pullboard-test-input source-cell gate */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
