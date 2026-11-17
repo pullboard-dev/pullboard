@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** A checker's fingerprint comes from the git index: the same tree gives the same one, and a changed or new file moves it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
