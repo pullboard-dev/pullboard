@@ -36,6 +36,7 @@ const BEFORE = {
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
+  'gate.componentTier': false,
   'gate.contractAudit': false,
   'gate.contractWeakening': false,
   'gate.diskFloorMB': 10240,
