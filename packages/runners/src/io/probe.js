@@ -65,17 +65,18 @@ function word(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
 
 /**
  * Confirm SSH and the configured Node answer a fresh nonce; this does not attest worker cleanup or test success.
+ * `discover` asks the runner about every name in DISCOVERABLE_TOOLCHAINS and returns the versions it answered as `discovered` (#10376).
  * `timeoutMs` bounds the whole observation (default 3 s); a confirming probe after a failed call passes a longer
  * budget so a loaded runner is not mistaken for a dead one [C7].
  */
-export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false, discoverNode = false, enrollSigningKey = false, toolchains, timeoutMs = 3_000, spawn = spawnSsh } = {}) {
+export async function probeRunnerTransport(runner, { observeGui = false, observeLoad = false, discoverNode = false, enrollSigningKey = false, toolchains, discover = false, timeoutMs = 3_000, spawn = spawnSsh } = {}) {
   if (!/^[A-Za-z0-9][A-Za-z0-9_.@:\[\]-]{0,254}$/u.test(runner?.host ?? '')
     || runner.node !== undefined && (typeof runner.node !== 'string' || /[\u0000-\u001f\u007f]/u.test(runner.node)
       || !(runner.node === 'node' || runner.node.startsWith('/')))) {
     return { healthy: false, reason: 'invalid runner destination' };
   }
   const nonce = randomUUID();
-  const names = toolchains ? Object.keys(toolchains).filter(name => /^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) : [];
+  const names = discover ? [...DISCOVERABLE_TOOLCHAINS] : toolchains ? Object.keys(toolchains).filter(name => /^[a-z][a-z0-9+_-]{0,31}$/u.test(name)) : [];
   // Each declared toolchain prints its own version; a missing or failing command reports null.
   const checks = names.length ? `const tcRun=require('node:child_process');const tcOut={};for(const n of ${JSON.stringify(names)}){const r=tcRun.spawnSync(n,[n==='go'?'version':'--version'],{encoding:'utf8',timeout:1500});const m=r.error||r.status!==0?null:/(\\d+(?:\\.\\d+)*)/.exec((r.stdout||'')+(r.stderr||''));tcOut[n]=m?m[1]:null;}` : '';
   const desktop = observeGui || observeLoad || enrollSigningKey ? `/* pullboard registration GUI probe */const {spawnSync}=require('node:child_process');const guiSession=${guiSession.toString()};const os=require('node:os');` : '';
@@ -110,7 +111,7 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   const measured = cpu && Number.isFinite(Date.parse(cpu.at)) && Number.isFinite(cpu.busyPercent) && cpu.busyPercent >= 0 && cpu.busyPercent <= 100
     && Array.isArray(cpu.average) && cpu.average.length === 3 && cpu.average.every(n => Number.isFinite(n) && n >= 0);
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
-  return { healthy: Boolean(healthy), ...(healthy && toolchains ? { toolchains: toolchainVerdict(toolchains, reply?.toolchains) } : {}), ...(healthy && discoverNode && typeof reply?.nodePath === 'string' && isAbsolute(reply.nodePath) && !/[\u0000-\u001f\u007f]/u.test(reply.nodePath) ? { nodePath: reply.nodePath } : {}), ...(healthy && enrollSigningKey ? { publicKey: reply.publicKey } : {}), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
+  return { healthy: Boolean(healthy), ...(healthy && toolchains && !discover ? { toolchains: toolchainVerdict(toolchains, reply?.toolchains) } : {}), ...(healthy && discover ? { discovered: Object.fromEntries(DISCOVERABLE_TOOLCHAINS.flatMap(name => typeof reply?.toolchains?.[name] === 'string' ? [[name, reply.toolchains[name]]] : [])) } : {}), ...(healthy && discoverNode && typeof reply?.nodePath === 'string' && isAbsolute(reply.nodePath) && !/[\u0000-\u001f\u007f]/u.test(reply.nodePath) ? { nodePath: reply.nodePath } : {}), ...(healthy && enrollSigningKey ? { publicKey: reply.publicKey } : {}), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
     ...(healthy && Number.isSafeInteger(reply?.cores) && reply.cores > 0 && Number.isSafeInteger(reply?.memoryMB) && reply.memoryMB > 0 ? { cores: reply.cores, memoryMB: reply.memoryMB } : {}) } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
 }
