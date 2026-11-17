@@ -543,10 +543,10 @@ export function createMemoryGitAdapter(seeds) {
  * packages/runners/tests/run-updates-main-reds.test.js: disk-written fixtures
  * packages/seats/tests/io/checkout.test.js: killSignal
  * packages/shouts/tests/main.test.js: board busy
- * packages/store/tests/any.test.js: disk-written fixtures
- * packages/store/tests/cli.test.js: killSignal
- * packages/store/tests/corrections.test.js: disk-written fixtures
- * packages/store/tests/fixtures-stand-ins.test.js: disk-written fixtures
- * packages/store/tests/implies.test.js: disk-written fixtures
- * packages/store/tests/io/board/blobs.test.js: board busy
+ * packages/board/tests/from-store/any.test.js: disk-written fixtures
+ * packages/board/tests/from-store/cli.test.js: killSignal
+ * packages/board/tests/from-store/corrections.test.js: disk-written fixtures
+ * packages/board/tests/from-store/fixtures-stand-ins.test.js: disk-written fixtures
+ * packages/board/tests/from-store/implies.test.js: disk-written fixtures
+ * packages/board/tests/from-store/io/board/blobs.test.js: board busy
  */

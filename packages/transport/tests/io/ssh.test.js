@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/transport packages/runners */
 /** Runner ssh calls share multiplexed masters per runner, opening a new one only when MaxSessions fills a master [C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
