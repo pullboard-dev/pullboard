@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-start-records.json */
 /** @pullboard-world-pin reads the recorded start moves fixture to drive the hand-off start writer with it. The store hand-off start writer applies the START table and agrees on every replayed move [C7,#8279]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
