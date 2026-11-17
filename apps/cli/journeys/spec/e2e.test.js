@@ -14,6 +14,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fixtureSettledMachine } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
 
@@ -141,4 +142,12 @@ test('a hook git ignores is committed by force before a worktree; a deleted conf
   assert.equal((await box.runIn(box.repo, 'status')).code, 0, 'restored, the board works again');
   rmSync(join(box.web, 'pullboard.json'));
   assert.ok((await box.runIn(box.web, 'next')).err.includes(`restore it: cd ${box.web} && git checkout HEAD -- pullboard.json`), 'a linked worktree restores its own');
+});
+
+test('clause 1: a journey commit through box.tryGit is awaited and answers its status with test.inProcessHooks on [C7]', async () => {
+  const box = project();
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const committed = await commitFile(box, box.repo, 'docs/awaited.md', 'awaited\n', 'docs: awaited commit');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
+  assert.equal(box.git(box.repo, 'log', '-1', '--format=%s'), 'docs: awaited commit', 'the commit landed before the journey went on');
 });
