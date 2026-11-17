@@ -80,6 +80,7 @@ const BEFORE = {
   'gate.sampleDiskIo': false,
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
+  'gate.staticLoadAdmission': false,
   'gate.staticMemo': false,
   'gate.staticSlots': 2,
   'gate.submitAuthorization': 'runner',
@@ -131,6 +132,7 @@ const BEFORE = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.lightShapedStrong': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
@@ -249,6 +251,11 @@ test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: c
 test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('config.io-settings-machine-defaults.clause-1-next-lightshapedstrong-is-a: clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['next.lightShapedStrong'], false);
+  assert.ok(SETTING_DESCRIPTIONS['next.lightShapedStrong']);
 });
 
 test('config.io-settings-machine-defaults.clause-1-gate-overlapstaticproof-is-a: clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
