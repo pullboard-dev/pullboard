@@ -8,7 +8,7 @@ import { test } from 'node:test';
 const ROOT = join(import.meta.dirname, '../../../..');
 const FILES = ['apps/runner/src/io/custody.js', 'apps/runner/src/io/worker/process.js'];
 const BUDGET = /\/\/\s*budget:/u;
-const TIMEOUT_WAIT = /setTimeout\(\w+,\s*[\d_]+\)/u;
+const TIMEOUT_WAIT = /setTimeout\(\w+,\s*(?:[\d_]+|ms)\)/u;
 
 /** The lines of a file that await a timeout wait, with the line above each one, so a budget comment on either counts. */
 function timerLines(path) {
