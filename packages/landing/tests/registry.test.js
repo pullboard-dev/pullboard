@@ -13,13 +13,15 @@ const TESTS = /^test\(/gmu;
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
 /** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
 const TEMPLATES = new RegExp('\x60[^\x60]*\x60', 'gu');
+/** Only these files hold such fixture projects; stripping elsewhere mispairs a lone backtick in a regex literal and hides real tests (smoke-runner.test.js) [C7,#9922]. */
+const TEMPLATE_FILES = ['io/step/gate/reporter.test.js', 'io/known/main/normalize.test.js', 'io/known/main/match.test.js', 'logic/failures.test.js'];
 
 function registryFindings(files, records) {
   const ids = [];
   const findings = [];
   const known = new Set(Object.keys(records));
   for (const { file, source } of files) {
-    const code = source.replace(TEMPLATES, '');
+    const code = TEMPLATE_FILES.some((name) => file.endsWith(name)) ? source.replace(TEMPLATES, '') : source;
     const found = [...code.matchAll(TITLE_ID)].map((match) => match[1]);
     const missing = [...code.matchAll(TESTS)].length - found.length;
     if (missing > 0) findings.push(`${file}: ${missing} test title(s) start without an ID and a colon`);
