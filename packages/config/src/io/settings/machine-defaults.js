@@ -105,6 +105,7 @@ export const MACHINE_DEFAULTS = {
   'landing.staticAffectedOnly': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
+  'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
