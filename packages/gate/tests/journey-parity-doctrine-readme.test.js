@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/doctrine/readme.test.js', cases: ["Pullboard's doctrine carries its four checks [D1,D3]"] }];
+// boardless: the sampled case runs spec and doctrine checks in a clone of the repo, which keeps no board to compare.
+const SAMPLES = [{ journey: 'apps/cli/journeys/doctrine/readme.test.js', cases: ["Pullboard's doctrine carries its four checks [D1,D3]"], boardless: true }];
 
 test('clause 1: a sample of the doctrine/readme journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
