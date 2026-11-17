@@ -1,8 +1,11 @@
 /** The browser transport builds and loads one board inventory against in-memory stand-ins, with no network [H5,H15,C7]. @pullboard-test-input source-cell apps/relay */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createTransport } from '../../../src/io/browser/client.js';
 import { installBrowserTransport } from '../../fixtures/browser-transport.js';
+import { registerBrowserAliases } from '../../fixtures/browser-transport.js';
+
+registerBrowserAliases();
+const { createTransport } = await import('../../../src/io/browser/client.js');
 
 const EMPTY = {
   '/api/v1/boards': { version: 1, boards: [] },

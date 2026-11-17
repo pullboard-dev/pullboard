@@ -1,4 +1,6 @@
 /** In-memory browser stand-ins so the relay's browser transport runs under node with no network [H5,H15,C7]. */
+import { readFileSync } from 'node:fs';
+import { register } from 'node:module';
 
 /** Named globals the browser transport reads; each is restored to its prior descriptor afterward. */
 const NAMES = ['localStorage', 'sessionStorage', 'indexedDB', 'fetch', 'location', 'history', 'document', 'addEventListener', 'removeEventListener'];
@@ -91,4 +93,31 @@ export function installBrowserTransport({ responses = {}, origin = 'https://rela
       }
     },
   };
+}
+
+const PAGE = new URL('../../src/io/browser/page.js', import.meta.url);
+
+/** The loader hooks' source: a relative import with no file behind it resolves to its public relay alias's file. */
+const ALIAS_HOOKS = `
+let aliases = {};
+export function initialize(data) { aliases = data; }
+export async function resolve(specifier, context, next) {
+  try { return await next(specifier, context); }
+  catch (error) {
+    const target = error?.code === 'ERR_MODULE_NOT_FOUND' && specifier.startsWith('.') ? aliases[specifier.split('/').pop()] : null;
+    if (!target) throw error;
+    return next(target, context);
+  }
+}`;
+
+/**
+ * Let node import the browser client, whose modules are served under public relay aliases (./seal.js and the like) that
+ * have no file beside it. The alias table is read from page.js, so it cannot drift from what a real browser is served.
+ */
+export function registerBrowserAliases() {
+  const aliases = {};
+  for (const [, name, path] of readFileSync(PAGE, 'utf8').matchAll(/'\/relay\/([\w.-]+)': new URL\('([^']+)', import\.meta\.url\)/gu)) {
+    aliases[name] = new URL(path, PAGE).href;
+  }
+  register('data:text/javascript,' + encodeURIComponent(ALIAS_HOOKS), { parentURL: import.meta.url, data: aliases });
 }
