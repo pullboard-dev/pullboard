@@ -21,6 +21,7 @@ const BEFORE = {
   'budget.totalUsd': null,
   'canary.directPush': false,
   'census.balanceByTime': false,
+  'census.fileKillSeconds': null,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,
   'census.jobsPerRunnerQuiet': null,

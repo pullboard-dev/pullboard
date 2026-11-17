@@ -289,6 +289,9 @@ export function loadMachineSettings() {
   if (value.census?.soloFileSeconds !== undefined && value.census.soloFileSeconds !== null && !(Number.isSafeInteger(value.census.soloFileSeconds) && value.census.soloFileSeconds >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.soloFileSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
   }
+  if (value.census?.fileKillSeconds !== undefined && value.census.fileKillSeconds !== null && !(Number.isSafeInteger(value.census.fileKillSeconds) && value.census.fileKillSeconds >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.fileKillSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
+  }
   if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
   }

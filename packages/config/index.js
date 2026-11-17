@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusSoloFileSeconds,
+  censusFileKillSeconds,
   censusJobsPerRunner,
   censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
