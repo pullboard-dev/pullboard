@@ -52,13 +52,11 @@ export function serveBoardQueue(box) {
 }
 
 /**
- * Run `pullboard runner serve` as the registered runner against the box's board API, which `pullboard serve` runs on the
- * IPv6 loopback with the machine's board key; the runner is named for the stand-in's host and keeps its cache in the
- * stand-in's home, so a pulled gate job runs under the registered runner's home (its check executes in the stand-in
- * worker, profile.executionRunner naming the host) and not under the board host's local runner [C7,V4,#10318].
- * Why the real board API: it applies a gate's receipt to the item, which a settle waits for; and why ::1: an address
- * other than 127.0.0.1 makes `serve` take the machine's board key, the way a runner reaches a board it does not share a
- * session with, while staying off the network.
+ * Run `pullboard runner serve` as the registered runner against the box's board API, which `pullboard serve` runs on
+ * loopback with a session key of its own, as the local runner's API does; the runner is named for the stand-in's host and
+ * keeps its cache in the stand-in's home, so a pulled gate job runs under the registered runner's home and the settled
+ * job's logRunner names the host, not the board host's local runner [C7,V4,#10318].
+ * Why the real board API: it applies a gate's receipt to the item, which a settle waits for.
  * Why the box machine home: the serve process keeps the machine's registered runner and gate.runnersOnly, as the local
  * runner did. Both processes write to the fixture runner log, so a settle waiting on that folder wakes on every line.
  *
@@ -74,7 +72,7 @@ export async function serveRegisteredRunner(t, box, { paths }) {
   const kept = ['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME'];
   const env = { ...box.env };
   for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_') && !kept.includes(key)) delete env[key];
-  const api = spawn(process.execPath, [CLI_ENTRY, 'serve', '--address', '::1', '--port', '0', '--json'], { cwd: box.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const api = spawn(process.execPath, [CLI_ENTRY, 'serve', '--port', '0', '--json'], { cwd: box.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { try { api.kill('SIGTERM'); } catch { /* already gone */ } });
   let out = '';
   api.stderr.on('data', chunk => appendFileSync(log, chunk));
@@ -86,9 +84,12 @@ export async function serveRegisteredRunner(t, box, { paths }) {
       try { const document = JSON.parse(out); clearTimeout(timer); done(document); } catch { /* the document is not complete yet */ }
     });
   });
-  const url = board.boards?.[0]?.runnerUrl;
-  if (!url) throw new Error(`the fixture board API named no board to pull from: ${out.slice(0, 2000)}`);
-  const key = readFileSync(board.keyFile, 'utf8').trim();
+  const listing = new URL(board.url);
+  const key = listing.searchParams.get('k');
+  const boards = await (await fetch(listing)).json();
+  const id = (boards.boards ?? boards)[0]?.id;
+  if (!key || !id) throw new Error(`the fixture board API named no board to pull from: ${JSON.stringify(boards).slice(0, 2000)}`);
+  const url = `${listing.origin}/api/v1/boards/${id}`;
   const folder = join(paths.remoteHome, 'pull-runner');
   const runner = spawn(process.execPath, [CLI_ENTRY, 'runner', 'serve', url, '--as', HOST, '--key', key, '--directory', folder], { cwd: paths.remoteHome, env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { try { runner.kill('SIGTERM'); } catch { /* already gone */ } });
