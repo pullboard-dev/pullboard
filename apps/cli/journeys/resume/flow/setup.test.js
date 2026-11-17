@@ -364,7 +364,7 @@ async function finishSetup(box, observe = () => {}) {
   await assertViewReceipt(box);
 }
 
-test('resume walks a new board through setup one step at a time [N32,N19]', async t => {
+test('clause 1: resume walks a new board through setup one step at a time [N32,N19]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   mkdirSync(join(box.repo, 'app'));
   const seen = [];
