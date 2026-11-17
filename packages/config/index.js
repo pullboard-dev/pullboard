@@ -121,6 +121,7 @@ export {
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextCapBuilders,
+  nextLightShapedStrong,
   nextHoldAboveLoad,
   nextReadinessCheck,
   nextReadinessCache,

@@ -563,6 +563,14 @@ export function nextCapBuilders() {
 }
 
 /**
+ * Whether next offers a light seat an open light-shaped strong item when no light item is free (#9568): off by default, so
+ * next routes items as before; only an exact `true` turns it on.
+ */
+export function nextLightShapedStrong() {
+  return loadMachineSettings().next?.lightShapedStrong === true;
+}
+
+/**
  * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
  * claims as before; only an exact `true` turns it on.
  */

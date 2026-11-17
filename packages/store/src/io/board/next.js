@@ -47,6 +47,7 @@ import { CLAIM_RETURNS_ENGINE } from "../../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../../state/index.js";
 import { ROUTES } from "../../../../seats/index.js";
 import { canTake } from "../../../../seats/index.js";
+import { lightShaped } from "../../../../seats/index.js";
 import { cappedRoute } from "../../../../seats/index.js";
 import { routeOf } from "../../../../seats/index.js";
 import { milestoneRanks } from "../../../../items/index.js";
@@ -128,7 +129,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set() } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -174,7 +175,7 @@ export function nextFor(board, options) {
     else if (verify && skipIds.includes(entry.item_id)) skip(entry, 'SELF_SESSION_VERIFY');
   }
   const items = allItems
-    .filter((entry) => !omitIds.includes(entry.item_id) && canTake(route, entry.item_route) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
+    .filter((entry) => !omitIds.includes(entry.item_id) && (canTake(route, entry.item_route) || shapedIds.has(entry.item_id)) && routes.includes(entry.item_route) && (!runnable || entry.item_check)
       && (entry.item_status !== 'open' || routeFloor === null || tier(entry) >= routeFloor)
       && (entry.item_status !== 'open' || routeCeiling === null || tier(entry) <= routeCeiling))
     .sort((first, second) => tier(second) - tier(first));
@@ -187,6 +188,13 @@ export function nextFor(board, options) {
       return light.item?.item_status === 'open' && light.item.item_id !== preferred.item.item_id
         ? { ...preferred, lightReserved: light.item } : preferred;
     }
+  }
+  // next.lightShapedStrong (off unless a project turns it on): a light seat finding no free item is offered an open light-shaped strong item [C7,#9568].
+  if (!verify && lightShapedStrong && route === 'light') {
+    const plain = nextFor(board, { ...options, lightShapedStrong: false });
+    if (plain.item) return plain;
+    const shaped = new Set(allItems.filter(entry => entry.item_status === 'open' && entry.item_route === 'strong' && lightShaped(entry)).map(entry => entry.item_id));
+    return shaped.size ? nextFor(board, { ...options, lightShapedStrong: false, shapedIds: shaped }) : plain;
   }
   const tiers = route === 'strong' ? '' : `${ROUTES.slice(0, ROUTES.indexOf(route) + 1).reverse().join(' or ')} `;
   const routed = `${tiers}${runnable ? 'runnable ' : ''}`;
