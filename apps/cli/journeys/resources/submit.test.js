@@ -10,7 +10,7 @@ import { HOST } from '../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { fixtureAdd } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { registerStandInAfterAdd } from '../../tests/fixtures/runner/registered.js';
-import { serveRegisteredRunner } from '../../tests/fixtures/runner/registered.js';
+import { serveBoardQueue } from '../../tests/fixtures/runner/registered.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
 
 const helpers = createE2eHelpers();
@@ -22,7 +22,7 @@ function succeeded(result) {
   return result;
 }
 
-test('opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', async t => {
+test('opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', async () => {
   const t0 = Date.now(), tick = label => process.stderr.write(`TIMING ${((Date.now() - t0) / 1000).toFixed(1)}s ${label}\n`);
   const box = helpers.project('true');
   const requests = join(box.dir, 'runner-only-requests.jsonl');
@@ -44,7 +44,7 @@ test('opt-in native submit uses a real registered worker even with free local ca
   const settings = JSON.parse(succeeded(box.run(box.repo, 'settings', '--json')).out).settings;
   assert.ok(settings.gateSlots > 0, 'local capacity remains available throughout this control');
   assert.equal(settings.gate.runnersFirst, false, 'runner-only does not depend on runner-first preference');
-  await serveRegisteredRunner(t, box, registered);
+  serveBoardQueue(box);
   tick('after settings and registered runner');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const queued = JSON.parse(succeeded(await box.runAsync(box.web, 'submit', String(id), '--wait', '--no-next', '--json')).out);
