@@ -101,6 +101,7 @@ export const MACHINE_DEFAULTS = {
   'jobs.recordLapse': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
+  'landing.cargoFailures': false,
   'landing.junitFailures': false,
   'landing.junitSignatures': false,
   'landing.parallelGates': false,

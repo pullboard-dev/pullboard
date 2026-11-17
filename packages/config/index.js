@@ -66,6 +66,7 @@ export {
   recoverFromJobRow,
   residentChecks,
   gateComponentTier,
+  landingCargoFailures,
   landingJunitFailures,
   gateJunitReport,
   testNiceEnabled,
