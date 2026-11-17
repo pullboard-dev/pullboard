@@ -242,6 +242,7 @@ const ROWS = [
   ['submit.recoverFromJobRow', 'Recover a submit from its job row', 'When enabled, a submit that lost its result recovers it from the gate job row; off (default), the submit is not recovered. Only an exact true turns it on.', 'Checks', 'on/off'],
   ['submit.regenerateDeclared', 'Regenerate declared files', 'On, submit runs the generator of a declared generated file whose input the diff changed and commits the result; off, the composed tree is left as committed.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
+  ['submit.residentChecks', 'Run submit checks in the resident process', 'When enabled, a submit runs its preflight and analysis checks in the resident board process instead of starting a new node child for each; when the resident process is not running they fall back to the child. Off (default), each check starts its child as before. Only an exact true turns it on.', 'Checks', 'on/off'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['testConcurrency.browser', 'Browser test files at once', 'How many browser test files run at the same time; never more than the file limit.', 'Checks', 'count'],
   ['testConcurrency.files', 'Test files at once', 'How many test files run at the same time.', 'Checks', 'count'],
