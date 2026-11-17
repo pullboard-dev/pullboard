@@ -1,8 +1,8 @@
 /** release.liftTwiceHold: an automatic released-twice hold lifts when main moves or its named blocker lands [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { openCellBoard as openBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { openCellBoard as openBoard } from '../../../fixtures/cell-board.js';
 
 // fixture-subject: addItem (a store unit test of the release-twice hold over two seats' releases; the board is opened through the cell fixture)
 

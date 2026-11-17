@@ -4,11 +4,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 /** The board's recorded reopens, each with the item state it saw and the events the reopen table answered; built from the moves cell's reopen replay, whose own test proves the table agrees with the board's record. */
-const RECORDS = JSON.parse(readFileSync(new URL('../../fixtures/reopen-records.json', import.meta.url), 'utf8'));
+const RECORDS = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/reopen-records.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** A real board, with the reopen writer applying the table, holding one item in the state the record found it, with the accept, the verdict and the landing batch the record leaned on. */
