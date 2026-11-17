@@ -1,15 +1,25 @@
-/** @pullboard-test-input source-cell packages/gate packages/landing */
 /** The static run at main's commit returns main's findings from a throwaway checkout it removes [C7,#10449]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { withMainCheckout } from '../../../../landing/index.js';
 import { staticFindingsOnMain } from '../../../src/io/static/main-findings.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';
+
+/** The one main-checkout helper's shape: a clean detached clone at `commit`, handed to `run` and always removed (the landing cell owns the real one). */
+async function withMainCheckout(root, commit, run) {
+  const { root: folder } = privateFixtureFiles('pullboard-main-findings-checkout-');
+  const checkout = join(folder, 'checkout');
+  try {
+    runFixtureGit(['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { cwd: folder });
+    runFixtureGit(['checkout', '--quiet', '--force', '--detach', commit], { cwd: checkout });
+    return await run(checkout);
+  } finally { rmSync(folder, { recursive: true, force: true }); }
+}
 
 /** A repository with one commit whose tracked check script prints `lines` and exits `status`; returns its root, commit and git. */
 function repoWithCheck(lines, status) {
