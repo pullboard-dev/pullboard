@@ -4,6 +4,7 @@ import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { join } from 'node:path';
 import { openBoard } from '../../../lib/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { boardFixture } from '../../tests/fixtures/next/order.js';
 import { closeBoard } from '../../../../packages/store/index.js';
@@ -30,9 +31,12 @@ test('a real landing no longer refuses a newly observed unquarantined flake: red
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
-  const item = fixtures.itemWorktree(box, 1);
-  fixtures.submitItem(box, item);
-  fixtures.acceptItem(box, item);
+  // The commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10471].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const item = await fixtures.itemWorktreeLocal(box, 1);
+  await fixtures.commitItemLocal(box, item);
+  await fixtures.submitItemLocal(box, item);
+  await fixtures.acceptItemLocal(box, item);
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
@@ -56,6 +60,8 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
+  // The commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10471].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(boardFile, undefined, { gitRoot: box.repo });
@@ -64,9 +70,10 @@ test('real landings record the quarantine baseline and lower it after repair [C7
     repair = addItem(board, { by: 'coordinator', lane: 'web', title: 'Repair synthetic flake', route: 'strong' });
     logEvent(board, 'coordinator', 'test-quarantine', repair, { engine: 1, file: 'test/old.test.js', name: 'old case', runs: [] });
   } finally { closeBoard(board); }
-  const first = fixtures.itemWorktree(box, 1);
-  fixtures.submitItem(box, first);
-  fixtures.acceptItem(box, first);
+  const first = await fixtures.itemWorktreeLocal(box, 1);
+  await fixtures.commitItemLocal(box, first);
+  await fixtures.submitItemLocal(box, first);
+  await fixtures.acceptItemLocal(box, first);
   const landed = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(landed.code, 0, landed.err + landed.out);
   assert.equal(JSON.parse(landed.out).batch.flakeRatchet.count, 1);
@@ -74,9 +81,10 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const laterBoard = openBoard(boardFile, undefined, { gitRoot: box.repo });
   try { withdraw(laterBoard, repair, { agentId: 'coordinator', reason: 'The synthetic flake was repaired.' }); }
   finally { closeBoard(laterBoard); }
-  const second = fixtures.itemWorktree(box, 2);
-  fixtures.submitItem(box, second);
-  fixtures.acceptItem(box, second);
+  const second = await fixtures.itemWorktreeLocal(box, 2);
+  await fixtures.commitItemLocal(box, second);
+  await fixtures.submitItemLocal(box, second);
+  await fixtures.acceptItemLocal(box, second);
   const next = await box.runLocal(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
@@ -88,9 +96,12 @@ test('manual merged records quarantine count without refusing historical publica
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
-  const item = fixtures.itemWorktree(box, 1);
-  fixtures.submitItem(box, item);
-  fixtures.acceptItem(box, item);
+  // The commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10471].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const item = await fixtures.itemWorktreeLocal(box, 1);
+  await fixtures.commitItemLocal(box, item);
+  await fixtures.submitItemLocal(box, item);
+  await fixtures.acceptItemLocal(box, item);
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test seeds or reads that same file.
   const board = openBoard(boardFile, undefined, { gitRoot: box.repo });

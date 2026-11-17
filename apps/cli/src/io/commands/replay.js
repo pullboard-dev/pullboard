@@ -1,5 +1,6 @@
 /** The pullboard replay command: how often a move table agrees with what the board recorded, read-only [C7,#8071]. */
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { judgeAllReport } from '../../../../../packages/moves/index.js';
 import { replayReport } from '../../../../../packages/moves/index.js';
 import { context } from '../entry.js';
 
@@ -8,6 +9,8 @@ import { context } from '../entry.js';
  * Why read-only: judging a table must never change the board; the cell reads recorded moves through a read-only open.
  */
 export async function run(io, { first, second, rest, values }) {
+  if (values['fail-on-drift'] && !values.all) throw new Refused('USAGE', 'pullboard replay --all --against <tag|last> --fail-on-drift');
+  if (values.all) return runAll(io, { first, second, rest, values });
   if (second !== undefined || rest?.length) throw new Refused('USAGE', 'pullboard replay <table> [--days N] [--json] [--against <tag>]');
   const days = values.days === undefined ? 7 : Number(values.days);
   const ctx = context(io);
@@ -19,6 +22,28 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`judge against ${report.judge.against}:`);
     for (const [name, count] of Object.entries(JUDGE_CLASS_COUNTS)) io.say(`  ${name}: ${report.judge.counts[count]}`);
     for (const row of report.judge.rows) io.say(`  event ${row.event}: ${row.class} (board ${describe(row.recorded)}, release ${describe(row.released)}, table ${describe(row.current)})`);
+  }
+  return 0;
+}
+
+/**
+ * Run `pullboard replay --all --against <tag|last> [--days N] [--json]`: every current table judged against one release, then a verdict; with --fail-on-drift a drifted verdict exits 1 so a release script can stop [U150].
+ * Why: a release has many tables; one command says whether any drifted from the last release. Read-only, and off unless moves.judgeByRelease is on.
+ */
+async function runAll(io, { first, second, rest, values }) {
+  const form = 'pullboard replay --all --against <tag|last> [--days N] [--json] [--fail-on-drift]';
+  if (first !== undefined || second !== undefined || rest?.length || values.against === undefined) throw new Refused('USAGE', form);
+  const days = values.days === undefined ? 7 : Number(values.days);
+  const ctx = context(io);
+  const report = await judgeAllReport({ root: ctx.info.root, boardFile: ctx.file, against: values.against, days });
+  io.result?.(report);
+  io.say(`judge against ${report.against}: ${report.rows.length} tables`);
+  for (const row of report.rows) io.say(`  ${row.table}: ${Object.entries(JUDGE_CLASS_COUNTS).map(([name, count]) => `${name} ${row.counts[count]}`).join(', ')}`);
+  if (report.newTables.length) io.say(`new since ${report.against}: ${report.newTables.join(', ')}`);
+  io.say(report.clean ? 'verdict: clean' : `verdict: drifted ${report.drifted.join(', ')}`);
+  if (values['fail-on-drift'] && !report.clean) {
+    io.say(`drift: ${report.drifted.join(', ')} decide moves differently than ${report.against}`);
+    return 1;
   }
   return 0;
 }

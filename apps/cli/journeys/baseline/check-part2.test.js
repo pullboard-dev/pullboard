@@ -2,7 +2,9 @@
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
+import { closeSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { openSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,14 +44,14 @@ async function cleanupFixtures() {
 after(cleanupFixtures);
 
 /** Wait for a real baseline worker to start its held check before the test body ends. */
-async function waitForFile(filename, child, description) {
+async function waitForFile(filename, child, description, detail = async () => '') {
   // budget: a pulled check starts only after its enqueue, the runner agent and the job's worker each boot; at runner load
   // that passed 10 s on the pull runners (#6917).
   const deadline = Date.now() + 60_000;
   while (!existsSync(filename) && child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
     await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
   }
-  assert.ok(existsSync(filename), `${description}${child.fixtureFailure ? `: ${child.fixtureFailure}` : ''}`);
+  assert.ok(existsSync(filename), `${description}${child.fixtureFailure ? `: ${child.fixtureFailure}` : ''}${existsSync(filename) ? '' : await detail()}`);
 }
 
 test('check cleanup waits for every background writer [C7]', async () => {
@@ -77,9 +79,21 @@ test('check cleanup waits for every background writer [C7]', async () => {
   } finally { closeBoard(board); }
 
   // Process-level: a detached baseline worker must outlive the test body until cleanup releases it.
+  // A pulled check retries an infrastructure stop after a real 30 s wait unless the fixture sets it to 0, as the other runner
+  // fixtures do; on a loaded runner that wait outlasts the 60 s start budget below. The worker's stderr is kept so a miss names its cause.
+  const errorFile = join(box.dir, 'baseline-worker.err');
+  const errorFd = openSync(errorFile, 'w');
   const child = spawn(process.execPath, [BASELINE_WORKER, box.repo, String(itemId), baseline.request], {
-    cwd: box.repo, env: box.env, stdio: 'ignore',
+    cwd: box.repo, env: { ...box.env, PULLBOARD_INFRA_RETRY_BACKOFF_MS: '0' }, stdio: ['ignore', 'ignore', errorFd],
   });
+  closeSync(errorFd);
+  /** What the item's baseline and the worker's stderr say, so a worker that never started its check is explained. */
+  const why = async () => {
+    const shown = await box.runLocal(box.repo, ['show', String(itemId)]);
+    const baselineLine = /^.*baseline.*$/mu.exec(shown.stdout)?.[0] ?? 'no baseline line';
+    const stderr = existsSync(errorFile) ? readFileSync(errorFile, 'utf8').trim().slice(0, 600) : '';
+    return `; worker exit ${child.exitCode}, ${baselineLine.trim().slice(0, 400)}${stderr ? `, stderr: ${stderr}` : ''}`;
+  };
   const closed = new Promise(resolveClose => {
     child.once('close', (code, signal) => resolveClose({ code, signal }));
   });
@@ -91,6 +105,6 @@ test('check cleanup waits for every background writer [C7]', async () => {
     completedValue,
     closed,
   });
-  await waitForFile(startedFile, child, `background writer ${baseline.request} started its check`);
+  await waitForFile(startedFile, child, `background writer ${baseline.request} started its check`, why);
   assert.equal(existsSync(completedFile), false, 'the baseline is still writing after the test body reaches cleanup');
 });
