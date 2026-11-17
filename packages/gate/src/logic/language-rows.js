@@ -29,6 +29,11 @@ function bunCommand(names, contents) {
   return 'bun test';
 }
 
+/** The Node built-in runner writing a JUnit report to the given path; kept in this adapter so core code names no runtime [C7]. */
+export function nodeJunitCommand(report) {
+  return `node --test --test-reporter=junit --test-reporter-destination=${report}`;
+}
+
 /** The three JVM test-file globs, shared by the maven and gradle rows. */
 const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
 
@@ -37,7 +42,10 @@ export const LANGUAGE_ROWS = Object.freeze([
   { language: 'bun', markers: ['bun.lock', 'bun.lockb', 'bunfig.toml'], command: bunCommand, tests: ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts'] },
   { language: 'deno', markers: ['deno.json', 'deno.jsonc'], command: 'deno test', tests: ['**/*_test.ts', '**/*.test.ts', '**/*_test.js'] },
   { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
+  { language: 'haskell', markers: ['stack.yaml', 'cabal.project'], pattern: /\.cabal$/u, command: (names) => (names.includes('stack.yaml') ? 'stack test' : 'cabal test'), tests: ['**/test/**/*.hs', '**/*Spec.hs'] },
   { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
+  { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
+  { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
 ]);
 
 /**

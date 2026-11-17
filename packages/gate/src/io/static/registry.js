@@ -26,6 +26,8 @@ import { adapterLintClockEnabled } from '../../../../config/index.js';
 import { adapterLintTimersEnabled } from '../../../../config/index.js';
 import { timerLintRows } from '../adapter-lints/timers.js';
 import { clockLintRows } from '../adapter-lints/clock.js';
+import { adapterLintEnvEnabled } from '../../../../config/index.js';
+import { envLintRows } from '../adapter-lints/env.js';
 import { adapterLintFsEnabled } from '../../../../config/index.js';
 import { fsLintRows } from '../adapter-lints/fs.js';
 import { idiomSpreadEnabled } from '../../../../config/index.js';
@@ -304,6 +306,7 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     const scope = cellScopedKey(treeSources(root, sources), ['runners'], { edgeCache: edgeCacheOf(context), extra: ['package.json', WORKER_IMPORTS_FILE], read: file => readFileSync(join(root, file), 'utf8') });
     return context.cache('worker-imports', 1).get('worker-imports', scope, () => workerImportProblems(root));
   } },
+  { name: 'adapter-lint-env', reads: SOURCE, run: (root, sources, context = MEMORY) => envLintRows(root, { enabled: context.adapterLintEnv ?? adapterLintEnvEnabled() }) },
   { name: 'prose-commands', reads: (path, apps) => Boolean(apps?.cliCell) && path.startsWith(`${apps.cliCell}/`), child: (root, sources, context) => context.apps?.cliHelp ? proseChild(root, context.apps.cliIndex) : null, run: (root, sources, context = MEMORY) => {
     if (!context.apps?.cliHelp) return noApps('prose-commands');
     const { declared, actual } = proseCommandSets(root, context.apps.cliIndex, context.children?.get('prose-commands'));

@@ -15,7 +15,7 @@ test('a landing stop never signals a reused process group [Q1,Q3,C7]', async () 
 // The doctrine-count case went with the host landing batch: a runner land job merges and checks, and the batch's count
 // tightening is not part of it; L6e deletes that engine (#6119), so it is no longer journeyed here [P7,#6577].
 
-test('a repo with no remote lands into the local trunk and status reads as normal [I1,B3,R3,H5]', () => {
-  assertNoRemoteLanding(sandbox, commitFile);
+test('a repo with no remote lands into the local trunk and status reads as normal [I1,B3,R3,H5]', async () => {
+  await assertNoRemoteLanding(sandbox, commitFile);
 });
 /** Keep the complete private diagnostic refusal in a failing assertion before fixture cleanup deletes its logs. */

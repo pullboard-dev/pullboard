@@ -81,7 +81,7 @@ function readCostHistory(project, switching = false) {
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart3(scope) {
-  const { applyStateDelta, costPrices, costTabScript, expandItemSummaries, privateCost } = scope;
+  const { applyStateDelta, costPrices, costTabScript, deriveMilestoneForecasts, expandItemSummaries, milestoneForecast, privateCost } = scope;
 const privateCostSource = privateCost ? `${costTabScript()}
 const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
@@ -377,6 +377,10 @@ let stateWorkerStopped = false;
 const sentStates = new Map();
 // #552's delta applier, embedded as the server's own source, so the page applies a delta and recomputes nothing.
 const applyStateDelta = (${applyStateDelta.toString()});
+// state.milestoneDelta (#9849): with it on, a milestone's forecast is derived here from its count left and the pace the page holds.
+const MILESTONE_DELTA = ${JSON.stringify(typeof milestoneForecast === 'function')};
+const deriveMilestoneForecasts = (${deriveMilestoneForecasts.toString()});
+const milestoneForecast = ${typeof milestoneForecast === 'function' ? '(' + milestoneForecast.toString() + ')' : 'null'};
 // Expand the opt-in wire dictionary before holding a delta base or rendering any item.
 const expandItemSummaries = (${expandItemSummaries.toString()});
 
@@ -393,7 +397,8 @@ async function boardRead(board, seen) {
     if (reply.delta) {
       // The finished items may have joined the kept state while this read was on its way: build on that state, at the same sequence, so the reply never puts the open-only one back (#8904).
       const now = sentStates.get(board.id), base = now && now.sequence === held.sequence ? now : held;
-      const state = applyStateDelta(base.state, reply.delta);
+      const applied = applyStateDelta(base.state, reply.delta);
+      const state = MILESTONE_DELTA ? deriveMilestoneForecasts(applied, milestoneForecast) : applied;
       // A state that already holds the finished items stays whole: the delta's counts never mark them omitted again (#6697).
       if (base.whole) { delete state.itemsOmitted; delete state.finished; }
       sentStates.set(board.id, { state, sequence: reply.sequence, version: reply.eventLogVersion, whole: base.whole });

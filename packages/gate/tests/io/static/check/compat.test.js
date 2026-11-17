@@ -14,7 +14,7 @@ const row = (key, removeBy) => `  ['${key}', 'Label', 'One sentence.', 'Order', 
 const inventory = rows => `// rows end { compat: true, removeBy: 'YYYY-MM-DD' }\nconst ROWS = [\n${rows.join('\n')}\n];\n`;
 const run = (source, accepted, now) => check.run({ text: () => source, previous: () => accepted, now });
 
-test('clause 2: a toggle past its removeBy date fails the static checks with its removal next step [O6,C7]', () => {
+test('gate.io-static-check-compat.a-toggle-past-its-removeby-date: clause 2: a toggle past its removeBy date fails the static checks with its removal next step [O6,C7]', () => {
   assert.ok(check, 'the static check registry lists compat-toggles');
   const source = inventory([row('old.mode', '2026-11-10'), row('fresh.mode', '2026-12-31')]);
   const failures = run(source, source, Date.parse('2026-11-11T12:00:00Z'));
@@ -26,7 +26,7 @@ test('clause 2: a toggle past its removeBy date fails the static checks with its
   assert.deepEqual(check.run({ text: () => { throw new Error('ENOENT'); }, previous: () => '' }), [], 'a project with no inventory has nothing to judge');
 });
 
-test('clause 3: the count of compatibility toggles is a ratchet that may only fall against main [O6,C7]', () => {
+test('gate.io-static-check-compat.the-count-of-compatibility-toggles-is: clause 3: the count of compatibility toggles is a ratchet that may only fall against main [O6,C7]', () => {
   const now = Date.parse('2026-11-11T00:00:00Z');
   const two = inventory([row('a.mode', '2026-12-31'), row('b.mode', '2026-12-31')]);
   const three = inventory([row('a.mode', '2026-12-31'), row('b.mode', '2026-12-31'), row('c.mode', '2026-12-31')]);
@@ -37,7 +37,7 @@ test('clause 3: the count of compatibility toggles is a ratchet that may only fa
   assert.deepEqual(run(three, 'const ROWS = [];\n', now), [], 'main before toggles were tracked does not hold the first marking');
 });
 
-test('clause 2: a reversed-order expired row fails, and an unparseable marked row fails closed [O6,C7]', () => {
+test('gate.io-static-check-compat.a-reversed-order-expired-row-fails: clause 2: a reversed-order expired row fails, and an unparseable marked row fails closed [O6,C7]', () => {
   const now = Date.parse('2026-11-11T00:00:00Z');
   const reversed = `const ROWS = [\n  ['rev.mode', 'Label', 'One sentence.', 'Order', 'on/off', { removeBy: '2020-01-01', compat: true }],\n];\n`;
   assert.match(run(reversed, reversed, now).join('\n'), /:2: compatibility toggle rev\.mode passed its removeBy date 2020-01-01; next: remove rev\.mode/u);

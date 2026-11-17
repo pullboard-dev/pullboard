@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** Big job results live in a content-addressed blob store, not in board rows [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

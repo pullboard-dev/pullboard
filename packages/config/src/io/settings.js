@@ -104,6 +104,11 @@ export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
 }
 
+/** Whether landing.cargoFailures is on (#10384): off by default; only an exact `true` turns it on. */
+export function landingCargoFailures() {
+  return loadMachineSettings().landing?.cargoFailures === true;
+}
+
 /** Whether landing.junitFailures is on (#9763): off by default; only an exact `true` turns it on. */
 export function landingJunitFailures() {
   return loadMachineSettings().landing?.junitFailures === true;
@@ -145,6 +150,11 @@ export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
 }
 
+/** Name the worker's error in a gate red that printed no receipt only when this machine opted in; off, the part text is unchanged [C7,#9925]. */
+export function receiptMissingCauseEnabled() {
+  return loadMachineSettings().gate?.receiptMissingCause === true;
+}
+
 /** Name the file:line a static check reported in a pulled gate's red fact only when this machine opted in; off, the fact is unchanged [C7,#9083]. */
 export function redFactLocationEnabled() {
   return loadMachineSettings().gate?.redFactLocation === true;
@@ -180,6 +190,11 @@ export function requireJourneyPathEnabled() {
 /** Whether the static check refuses new direct clock reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9447]. */
 export function adapterLintClockEnabled() {
   return loadMachineSettings().gate?.adapterLintClock === true;
+}
+
+/** Whether the static check refuses new direct environment reads outside the kernel: off by default; only an exact `true` turns it on [C7,#9448]. */
+export function adapterLintEnvEnabled() {
+  return loadMachineSettings().gate?.adapterLintEnv === true;
 }
 
 /** Whether the static check refuses new zero-delay deferrals, polls and timer pauses: off by default; only an exact `true` turns it on [C7,#9518]. */
@@ -248,9 +263,20 @@ export function censusJobMinutes() {
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
+/** Whether census.skipUnchanged is on: off by default; only an exact `true` lets a census carry forward the green rows of files whose declared inputs did not change [C7,#10381]. */
+export function censusSkipUnchangedEnabled() {
+  return loadMachineSettings().census?.skipUnchanged === true;
+}
+
 /** Seconds over which a file recorded in an earlier census plans as a census job to itself; null (the default) plans as before [C7,#9499]. */
 export function censusSoloFileSeconds() {
   const secs = loadMachineSettings().census?.soloFileSeconds;
+  return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
+}
+
+/** Seconds a pulled census job's files may run when every file in it has a recorded time under this; null (the default) keeps the 600 s stop [C7,#10350]. */
+export function censusFileKillSeconds() {
+  const secs = loadMachineSettings().census?.fileKillSeconds;
   return Number.isSafeInteger(secs) && secs >= 1 ? secs : null;
 }
 
