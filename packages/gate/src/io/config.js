@@ -171,6 +171,7 @@ const ROWS = Object.freeze({
   maven: ['java', 'mvn'],
   nim: ['nimble'],
   node: ['node'],
+  ocaml: ['dune'],
   perl: ['perl'],
   php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),
   python: command => [...(/^\s*uv\s/u.test(command) ? ['uv'] : /^\s*poetry\s/u.test(command) ? ['poetry'] : []), 'python3'],
