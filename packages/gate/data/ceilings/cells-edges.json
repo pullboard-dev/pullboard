@@ -6004,14 +6004,6 @@
     ],
     "packages/store/tests/fixtures/dispatch.js": [
       "apps/cli"
-    ],
-    "packages/store/tests/fixtures/stats/compare.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
-    "packages/store/tests/fixtures/stats/time.js": [
-      "apps/cli",
-      "apps/lib"
     ]
   },
   "lightDoors": {
