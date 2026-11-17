@@ -47,7 +47,7 @@ test('clause 1: with verify.family require and no live eligible seat for 20 minu
   assert.match(verdict.verdict_note, /review family relaxed at reservation: 2 waiting, threshold 2/u);
 });
 
-test('clause 2: an eligible reviewer that is joined, live and busy holding another review keeps the item unwidened under the real next --verify [V1,H16]', async t => {
+test('clause 1: an eligible reviewer that is joined, live and busy holding another review keeps the item unwidened under the real next --verify [V1,H16]', async t => {
   const box = await fixture(t, { family: 'require' });
   const held = submitted(box, 'The live reviewer holds this review');
   const waiting = [submitted(box, 'Waits behind a busy reviewer'), submitted(box, 'A second review waits too')];

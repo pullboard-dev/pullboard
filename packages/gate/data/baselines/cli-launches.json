@@ -1071,9 +1071,12 @@
     "launch": 1
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "launch": 2
+    "launch": 1
   },
   "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "launch": 1
+  },
+  "apps/cli/journeys/shout/http-repeated-read.test.js": {
     "launch": 1
   },
   "packages/gate/tests/runner/pid.test.js": {

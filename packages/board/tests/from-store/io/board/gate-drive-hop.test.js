@@ -1,14 +1,13 @@
-/** @pullboard-test-input source-cell store */
 /** Gate-drive takes and renews its hop through the fenced row when gate.fencedHop is on, and a second driver for the item is refused naming the first [C7,#8274]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { admitGateDrive } from '../../../../drive/index.js';
-import { renewGateDriveHop } from '../../../../drive/index.js';
-import { readGateDrive } from '../../../../drive/index.js';
-import { gateHopMove } from '../../../src/io/board/hop.js';
-import { readGateHop } from '../../../src/io/board/hop.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { admitGateDrive } from '../../../../../drive/index.js';
+import { renewGateDriveHop } from '../../../../../drive/index.js';
+import { readGateDrive } from '../../../../../drive/index.js';
+import { gateHopMove } from '../../../../../store/index.js';
+import { readGateHop } from '../../../../../store/index.js';
 
 const NOW = 1_000_000;
 const LEASE_MS = 120_000;
