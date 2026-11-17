@@ -60,3 +60,28 @@ export function judgeRecords(records, releasedAnswers, currentAnswers) {
   rows.sort(byEvent);
   return { rows, counts };
 }
+
+/** A release tag: v, then major, minor and patch numbers, and nothing after them. */
+const RELEASE_TAG = /^v(\d+)\.(\d+)\.(\d+)$/u;
+
+/**
+ * Pick the last release from a list of tag names: the highest vMAJOR.MINOR.PATCH, each part compared as a number.
+ * Prerelease tags (v0.9.5-rc.1), unprefixed ones (0.9.5) and any other name are skipped.
+ * Why: "the last released kernel" must be found the same way on every machine; tag creation dates and text order disagree (v0.9.10 sorts before v0.9.9 as text).
+ * Pure: reads no clock, file or git, and does not change the list.
+ *
+ * @param {string[]} tags - Tag names, in any order.
+ * @returns {string | null} The highest release tag, or null when no name is a release tag.
+ */
+export function lastReleaseTag(tags) {
+  let best = null;
+  let bestParts = null;
+  for (const tag of tags ?? []) {
+    const match = RELEASE_TAG.exec(String(tag));
+    if (!match) continue;
+    const parts = match.slice(1).map(Number);
+    const at = bestParts ? parts.findIndex((part, i) => part !== bestParts[i]) : 0;
+    if (!bestParts || (at >= 0 && parts[at] > bestParts[at])) { best = tag; bestParts = parts; }
+  }
+  return best;
+}

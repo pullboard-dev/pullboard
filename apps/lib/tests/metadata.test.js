@@ -38,7 +38,7 @@ function historyFixture() {
   return { root, commit };
 }
 
-test('a new companion commit carries Pullboard-Item and an old one still parses [C7]', () => {
+test('lib.metadata.a-new-companion-commit-carries-pullboard-item: a new companion commit carries Pullboard-Item and an old one still parses [C7]', () => {
   const box = historyFixture();
   // Synthetic frozen item shape isolates message generation; the commit and stored bytes are real Git.
   const item = { item_id: 17, item_parent_id: 8, item_lane: 'docs', item_title: 'Companion guide',
@@ -69,7 +69,7 @@ test('a new companion commit carries Pullboard-Item and an old one still parses 
     'a malformed canonical identity never borrows the legacy value');
 });
 
-test('file history retains old companion items alongside newly generated item trailers [C7]', () => {
+test('lib.metadata.file-history-retains-old-companion-items-alongside: file history retains old companion items alongside newly generated item trailers [C7]', () => {
   const box = historyFixture();
   box.commit('old\n', 'docs(merge): old guide [C7]\n\nPullboard-Companion: #11');
   box.commit('new\n', buildCommitMessage({ type: 'docs', scope: 'merge', title: 'new guide', item: 12, rows: ['C7'] }).message);
