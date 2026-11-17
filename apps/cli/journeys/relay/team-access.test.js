@@ -61,7 +61,7 @@ test('clause 1: a used machine stays signed in, and clause 2: health warns befor
   advance(first.expires - DAY - authNow());
   const before = box.calls.length;
   const started = authNow();
-  assert.equal((await box.cli('relay', 'status')).code, 0, 'day-29 sync succeeds without signing in again');
+  assert.equal((await box.journeyCli('relay', 'status')).code, 0, 'day-29 sync succeeds without signing in again');
   const finished = authNow();
   assert.ok(box.calls.slice(before).some(call => call.method === 'GET' && call.path.startsWith('/api/')), 'the real relay sync reached its board transport');
   const used = linkState(root);
