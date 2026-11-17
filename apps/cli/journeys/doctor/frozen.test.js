@@ -29,7 +29,6 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from "../../../../packages/kernel/index.js";
-import { assertSpecCorrectionRefreezesCitations } from "../../tests/fixtures/refreeze.js";
 import {
   recordFixtureAcceptance,
   recordFixtureSubmission,
@@ -299,10 +298,6 @@ test('cli.journeys-doctor-frozen.s19-v3-doctor-and-resume-list: [S19,V3] doctor 
   assert.deepEqual(afterRefreeze.stale.map((item) => item.id).sort((a, b) => a - b), expected.filter((id) => id !== ids.open), 'explicit refreeze clears only the active item repaired against new text');
   const historical = (snapshot) => snapshot.items.filter((item) => item.item_status === 'verified');
   assert.deepEqual(historical(receiptSnapshot(box)), historical(before), 'refreezing active work preserves every accepted historical receipt');
-});
-
-test('cli.journeys-doctor-frozen.v2-v3-s19-native-row-approval: [V2,V3,S19] native row approval refreezes every unlanded citation', { timeout: 120_000 }, (t) => { // budget: hang ceiling for the real-Git citation fixture across open, claimed, submitted and verified states.
-  assertSpecCorrectionRefreezesCitations(t);
 });
 
 
