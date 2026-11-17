@@ -20,6 +20,7 @@ import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { main as viewMain } from '../../tests/fixtures/native.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -185,7 +186,10 @@ test("the coordinator's resume names its next step from the spec and the board, 
   at('the page commit lands on the seat');
   assert.equal(commitFile(box, box.web, 'web/index.html', '<h1>hi</h1>', 'feat(web): page [G1]').status, 0);
   at('the item is submitted');
-  assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
+  const submitted = await box.runLocal(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+  // A pulled submit returns queued and the board moves the item to submitted only when the gate receipt applies, so resume must be asked after that [N32,I9].
+  await settleSubmit(t, box, JSON.parse(submitted.out));
   at('resume next asks for the verify');
   assert.match((await next(box, box.repo)), /^pullboard next --verify --as coordinator, or a verifier that built nothing: pullboard worktree review/);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');

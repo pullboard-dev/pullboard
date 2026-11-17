@@ -21,16 +21,16 @@ function withSettings(settings, read) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: releaseRerouteUntouched() is false when release.rerouteUntouched is unset [C7,#9759]', () => {
+test('config.io-release-reroute-reader.clause-1-releasererouteuntouched-is: clause 1: releaseRerouteUntouched() is false when release.rerouteUntouched is unset [C7,#9759]', () => {
   assert.equal(withSettings({}, releaseRerouteUntouched), false);
   assert.equal(withSettings({ release: {} }, releaseRerouteUntouched), false);
 });
 
-test('clause 2: releaseRerouteUntouched() is true only for an exact true [C7,#9759]', () => {
+test('config.io-release-reroute-reader.clause-2-releasererouteuntouched-is-true: clause 2: releaseRerouteUntouched() is true only for an exact true [C7,#9759]', () => {
   assert.equal(withSettings({ release: { rerouteUntouched: true } }, releaseRerouteUntouched), true);
   assert.equal(withSettings({ release: { rerouteUntouched: false } }, releaseRerouteUntouched), false);
 });
 
-test('clause 3: releaseRerouteUntouched is exported by packages/config/index.js [C7,#9759]', () => {
+test('config.io-release-reroute-reader.clause-3-releasererouteuntouched-is: clause 3: releaseRerouteUntouched is exported by packages/config/index.js [C7,#9759]', () => {
   assert.equal(typeof config.releaseRerouteUntouched, 'function');
 });

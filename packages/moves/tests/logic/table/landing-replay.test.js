@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded landing history fixture to replay it through the tables. The landing tables replay select, record, merged and park decisions recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8249]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

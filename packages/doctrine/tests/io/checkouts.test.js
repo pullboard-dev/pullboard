@@ -41,7 +41,7 @@ function recordingRule(seen) {
   };
 }
 
-test('every main-side rule of a hold runs in one checkout of its commit [C7]', async t => {
+test('doctrine.io-checkouts.every-main-side-rule-of-a-hold-runs-in: every main-side rule of a hold runs in one checkout of its commit [C7]', async t => {
   const repo = repository(t);
   const seen = [];
   const bases = baseCheckouts(recordingRule(seen), commit => openBaseCheckout(repo.root, commit));
@@ -56,7 +56,7 @@ test('every main-side rule of a hold runs in one checkout of its commit [C7]', a
   } finally { bases.close(); }
 });
 
-test('a rule that leaves the checkout dirty makes the next rule clone afresh [C7]', async t => {
+test('doctrine.io-checkouts.a-rule-that-leaves-the-checkout-dirty: a rule that leaves the checkout dirty makes the next rule clone afresh [C7]', async t => {
   const repo = repository(t);
   const seen = [];
   const record = recordingRule(seen);
@@ -75,7 +75,7 @@ test('a rule that leaves the checkout dirty makes the next rule clone afresh [C7
   } finally { bases.close(); }
 });
 
-test('closing the hold removes its base checkouts even after a rule throws [C7]', async t => {
+test('doctrine.io-checkouts.closing-the-hold-removes-its-base: closing the hold removes its base checkouts even after a rule throws [C7]', async t => {
   const repo = repository(t);
   const seen = [];
   const bases = baseCheckouts(async cwd => { seen.push(cwd); throw new Error('rule failed'); }, commit => openBaseCheckout(repo.root, commit));
@@ -85,7 +85,7 @@ test('closing the hold removes its base checkouts even after a rule throws [C7]'
   assert.equal(existsSync(dirname(seen[0])), false);
 });
 
-test('a commit Git cannot check out is reported broken, never counted [C7]', async t => {
+test('doctrine.io-checkouts.a-commit-git-cannot-check-out-is: a commit Git cannot check out is reported broken, never counted [C7]', async t => {
   const repo = repository(t);
   const bases = baseCheckouts(async () => assert.fail('no rule runs without a checkout'), commit => openBaseCheckout(repo.root, commit));
   try {
