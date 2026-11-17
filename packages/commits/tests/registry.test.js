@@ -1,4 +1,5 @@
-/** Every commits-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9910]. @pullboard-test-input source-cell packages/commits */
+/** @pullboard-test-input source-cell packages/commits */
+/** Every commits-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9910]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

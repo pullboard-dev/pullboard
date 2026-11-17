@@ -49,7 +49,7 @@ export function submitGatePlan(root, config, options) {
 export async function submitGateAdmission(root) { record(root, 'admission'); return { browser: false, gui: false }; }
 `,
   'packages/landing/index.js': 'export function withMainCheckout() {}\n',
-  'packages/codemap/src/io/cells/scripts/cache.js': 'export function transferredCellsInventories() { return null; }\n',
+  'apps/cli/src/io/cells/cache.js': 'export function transferredCellsInventories() { return null; }\n',
   'bin/cells-submit-checks.js': `import { record } from './record.js';
 export async function requireSubmitCells(root) { record(root, 'cells'); return { cells: ['fixture'], existingCuts: [] }; }
 `,

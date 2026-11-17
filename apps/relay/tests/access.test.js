@@ -54,7 +54,7 @@ async function cachedAccessFixture(t) {
   };
 }
 
-test('a cached write grant survives 9:59 and observes revocation at 10:00 [H21,H8]', async t => {
+test('relay.access.a-cached-write-grant-survives-9: a cached write grant survives 9:59 and observes revocation at 10:00 [H21,H8]', async t => {
   const box = await cachedAccessFixture(t);
   assert.equal((await box.write('grant-start')).status, 201);
   const checked = box.checks();
@@ -69,7 +69,7 @@ test('a cached write grant survives 9:59 and observes revocation at 10:00 [H21,H
   assert.equal(box.checks(), checked + 1, 'the exact boundary refreshes the revoked repository role');
 });
 
-test('cached negative writes do not query GitHub until their ten-minute window expires [H21,H8]', async t => {
+test('relay.access.cached-negative-writes-do-not-query: cached negative writes do not query GitHub until their ten-minute window expires [H21,H8]', async t => {
   const box = await cachedAccessFixture(t);
   assert.equal((await box.write('denial-seed')).status, 201);
   box.advance(ACCESS_WINDOW_MS);
@@ -93,7 +93,7 @@ test('cached negative writes do not query GitHub until their ten-minute window e
   assert.equal(box.checks(), checked + 1, 'expiry permits exactly one fresh authorization check');
 });
 
-test('a cached readable role cannot authorize a write [H21,H8]', async t => {
+test('relay.access.a-cached-readable-role-cannot-authorize: a cached readable role cannot authorize a write [H21,H8]', async t => {
   const box = await cachedAccessFixture(t);
   assert.equal((await box.write('readable-seed')).status, 201);
   box.advance(ACCESS_WINDOW_MS);
