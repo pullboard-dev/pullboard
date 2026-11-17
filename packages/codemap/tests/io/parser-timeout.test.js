@@ -31,7 +31,7 @@ function isolated(t) {
   });
 }
 
-test('clause 1: a batch whose parser child is killed at the timeout is split and still answers every source, timeout unchanged [C7]', t => {
+test('codemap.parser-timeout.a-batch-whose-parser-child: clause 1: a batch whose parser child is killed at the timeout is split and still answers every source, timeout unchanged [C7]', t => {
   isolated(t);
   const calls = [];
   const sources = ['import "./a.js";', 'import "./b.js";', 'import "./c.js";', 'import "./d.js";', 'import "./e.js";'];
@@ -42,7 +42,7 @@ test('clause 1: a batch whose parser child is killed at the timeout is split and
   assert.deepEqual([...new Set(calls.map(call => call.timeout))], [10_000], 'no retry waits longer than 10 s');
 });
 
-test('clause 2: a second sweep over unchanged sources spawns no parser child, every result from the stored cache [C7]', t => {
+test('codemap.parser-timeout.a-second-sweep-over-unchanged: clause 2: a second sweep over unchanged sources spawns no parser child, every result from the stored cache [C7]', t => {
   isolated(t);
   const calls = [];
   const sources = ['import "./x.js";', 'import "./y.js";'];

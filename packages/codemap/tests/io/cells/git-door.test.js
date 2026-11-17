@@ -9,7 +9,7 @@ import { fixtureCommittedGraph } from '../../../../gate/tests/fixtures/testkit.j
 import { cellGit } from '../../../index.js';
 import { git } from '../../../src/io/cells/git.js';
 
-test('clause 1: the door exports the Git reader and it returns the same rev-parse HEAD output in a temp repository [C7]', () => {
+test('codemap.git-door.the-door-exports-the-git: clause 1: the door exports the Git reader and it returns the same rev-parse HEAD output in a temp repository [C7]', () => {
   const repo = fixtureCommittedGraph('git-door-');
   repo.put('a.txt', 'one\n');
   const commit = repo.commit();
@@ -19,7 +19,7 @@ test('clause 1: the door exports the Git reader and it returns the same rev-pars
   assert.equal(head, git(repo.root, ['rev-parse', 'HEAD']));
 });
 
-test('clause 1: the inventory cache imports its Git reader from the door, not by relative path [C7]', () => {
+test('codemap.git-door.the-inventory-cache-imports-its: clause 1: the inventory cache imports its Git reader from the door, not by relative path [C7]', () => {
   const cache = readFileSync(fileURLToPath(new URL('../../../src/io/cells/scripts/cache.js', import.meta.url)), 'utf8');
   assert.match(cache, /import \{ cellGit as git \} from '\.\.\/\.\.\/\.\.\/\.\.\/index\.js';/u);
   assert.doesNotMatch(cache, /from '\.\.\/git\.js'/u);
