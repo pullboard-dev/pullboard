@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell shouts */
 /** An idle watcher with watch.quietReads on is measured for CPU over 100 s in this process, and the percent is printed [C7,#9845,#9618]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
