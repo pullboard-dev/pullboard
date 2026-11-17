@@ -9,7 +9,7 @@ import { recordLandingAudit } from '../../../../src/io/merged/followup.js';
 
 const LANDED = 'c'.repeat(40);
 
-test('clause 1: the audit job records an audit proof-run naming the item and its landed commit, once per landing [C7,#4743]', t => {
+test('landing.post-landing.the-audit-job-records-an-audit: clause 1: the audit job records an audit proof-run naming the item and its landed commit, once per landing [C7,#4743]', t => {
   const board = cellBoard(t, ':memory:');
   cellSeat(board, { lane: 'coordinator', path: '/coordinator' });
   const id = cellItem(board, { lane: 'core', title: 'Audited landing', route: 'strong' }).item_id;

@@ -125,6 +125,11 @@ export function endStaleJobsEnabled() {
   return loadMachineSettings().gate?.endStaleJobs === true;
 }
 
+/** Record why a lapsed job lease lapsed when the next claim takes it over, only when this machine opted in (stored flat as "jobs.recordLapse") [C7,#9247]. */
+export function recordLapseEnabled() {
+  return loadMachineSettings()['jobs.recordLapse'] === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
@@ -256,9 +261,19 @@ export function jobsAvoidRunnersEnabled() {
   return loadMachineSettings().jobs?.avoidRunners === true;
 }
 
+/** Whether push.pinTooling is on: off by default; only an exact `true` makes a pre-push shard job carry the item gate's tooling pin [C7,#9373]. */
+export function pushPinToolingEnabled() {
+  return loadMachineSettings().push?.pinTooling === true;
+}
+
 /** Whether push.recordTiming is on: off by default; only an exact `true` makes a finished pre-push gate record its wall clock and per-shard times on the board [C7,U151,#9371]. */
 export function pushRecordTimingEnabled() {
   return loadMachineSettings().push?.recordTiming === true;
+}
+
+/** Whether push.refuseUnsharded is on: off by default; only an exact `true` makes the pre-push hook refuse a push it cannot shard instead of running the one-command gate [C7,#9369]. */
+export function pushRefuseUnshardedEnabled() {
+  return loadMachineSettings().push?.refuseUnsharded === true;
 }
 
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
@@ -484,6 +499,11 @@ export function reofferTrunkBusyEnabled() {
   return loadMachineSettings().landing?.reofferTrunkBusy === true;
 }
 
+/** The cap landing.staticParallelMax sets on static-check child processes at once (#9078), or null when unset: they run one at a time. */
+export function staticParallelMax() {
+  return loadMachineSettings().landing?.staticParallelMax ?? null;
+}
+
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
@@ -588,6 +608,11 @@ export function nextIdleBlockers() {
 export function nextCapBuilders() {
   const cap = loadMachineSettings().next?.capBuilders;
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/** Whether next offers an item only to a seat on the tier the project's tiers route it to (#8800): off by default; only an exact `true` turns it on. */
+export function nextRouteByTier() {
+  return loadMachineSettings().next?.routeByTier === true;
 }
 
 /**
@@ -1043,6 +1068,11 @@ export function readCrossProcessWrites() {
   return loadMachineSettings().board?.crossProcessWrites === true;
 }
 
+/** Whether state.milestoneDelta is on (#9846, #9597): off by default; only an exact `true` turns it on. */
+export function milestoneDeltaEnabled() {
+  return loadMachineSettings().state?.milestoneDelta === true;
+}
+
 /** Whether watch.quietReads is on (#9843, #9618): off by default; only an exact `true` turns it on. */
 export function watchQuietReadsEnabled() {
   return loadMachineSettings().watch?.quietReads === true;
@@ -1073,9 +1103,19 @@ export function asyncFetchEnabled() {
   return loadMachineSettings().landing?.asyncFetch === true;
 }
 
+/** Whether gate.pulledProfilePaths is on (#9614): off by default; only an exact `true` turns it on. */
+export function pulledProfilePathsEnabled() {
+  return loadMachineSettings().gate?.pulledProfilePaths === true;
+}
+
 /** Whether relay.queueOnFailure is on (#9410): off by default; only an exact `true` turns it on. */
 export function relayQueueOnFailureEnabled() {
   return loadMachineSettings().relay?.queueOnFailure === true;
+}
+
+/** Whether relay.renewAfterSync is on (#9330): off by default; only an exact `true` turns it on. */
+export function renewAfterSyncEnabled() {
+  return loadMachineSettings().relay?.renewAfterSync === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */

@@ -36,6 +36,8 @@ import { machineSettingsFile } from '../../../config/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
+import { nextRouteByTier } from '../../../config/index.js';
+import { tierOmissions } from './tier-routing.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { resolveCommit } from '../../../git/index.js';
@@ -427,10 +429,12 @@ function nextPick(ctx, board, values, ports) {
   // queue.contention (off unless a project turns it on): the recent conflict rate of each file steers next [C7,#8527].
   const contention = ctx.config.queue?.contention === true ? { threshold: ctx.config.queue.contentionThreshold ?? 1,
     rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
+  // next.routeByTier (off by default): items routed to another tier are left out of this seat's pick [C7,#8800].
+  const tierLeftOut = nextRouteByTier() ? tierOmissions(ctx.config, board, items, me) : [];
   const selection = { ...(laneOff ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}), buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
