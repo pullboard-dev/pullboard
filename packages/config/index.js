@@ -59,6 +59,7 @@ export {
   tableReplayEnabled,
   overlapStaticProofEnabled,
   excuseMainTimingReds,
+  recoverFromJobRow,
   gateComponentTier,
   testNiceEnabled,
   fencedHopEnabled,
@@ -80,6 +81,7 @@ export {
   adapterLintClockEnabled,
   adapterLintFsEnabled,
   idiomSpreadEnabled,
+  literalPinsEnabled,
   movesLiveEnabled,
   gateRunnerAdmission,
   setGateRunnersOnly,
@@ -141,10 +143,13 @@ export {
   reofferTrunkBusyEnabled,
   archiveEventsEnabled,
   hotStateEnabled,
+  watchQuietReadsEnabled,
+  readCrossProcessWrites,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   parallelGatesEnabled,
   reuseGateReceiptsEnabled,
+  asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
@@ -240,7 +245,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { listThinRead, namedImportSelectionOn, relayPruneReceipts } from './src/logic/settings.js';
+export { listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
