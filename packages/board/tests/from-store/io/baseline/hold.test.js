@@ -2,9 +2,9 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import * as store from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellItem } from '../../fixtures/cell.js';
+import * as store from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 
 const MAIN = 'a'.repeat(40);
 

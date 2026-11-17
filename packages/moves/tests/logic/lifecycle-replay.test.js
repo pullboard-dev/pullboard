@@ -28,7 +28,7 @@ const CLEAN = () => [
   fact('verify', 1, 'core-2'),
 ];
 
-test('clause 2: a clean history agrees with every rule and the final state matches the board [C7]', () => {
+test('moves.lifecycle-replay.clean-history-agrees-every-rule-final: clause 2: a clean history agrees with every rule and the final state matches the board [C7]', () => {
   const run = replay(CLEAN());
   assert.equal(run.judged, 8);
   assert.equal(run.agreed, 8);
@@ -37,7 +37,7 @@ test('clause 2: a clean history agrees with every rule and the final state match
   assert.deepEqual(compareFinal(run.items, [{ id: 1, status: 'verified', owner: null, held: false, after: [] }]).mismatches, []);
 });
 
-test('clause 2: a move the rules refuse is listed with its event id, rule and cause, and replay continues [C7]', () => {
+test('moves.lifecycle-replay.move-rules-refuse-listed-event-id: clause 2: a move the rules refuse is listed with its event id, rule and cause, and replay continues [C7]', () => {
   const facts = [
     fact('add', 2, 'coordinator', { after: '[]' }),
     fact('claim', 2, 'core-1', { leaseUntil: hour(0) }),
@@ -56,7 +56,7 @@ test('clause 2: a move the rules refuse is listed with its event id, rule and ca
   assert.equal(report.final.agreed, 1, 'the board did accept it, and the replay follows the board');
 });
 
-test('clause 2: a forced landing and a claim over a live lease are separate disagreement kinds [C7]', () => {
+test('moves.lifecycle-replay.forced-landing-claim-over-live-lease: clause 2: a forced landing and a claim over a live lease are separate disagreement kinds [C7]', () => {
   const facts = [
     fact('add', 3, 'coordinator', { after: '[]' }),
     fact('claim', 3, 'core-1', { leaseUntil: hour(30) }),
@@ -67,7 +67,7 @@ test('clause 2: a forced landing and a claim over a live lease are separate disa
   assert.deepEqual(kinds, ['claim: HELD', 'merged: NOT_VERIFIED (forced from claimed)']);
 });
 
-test('clause 1: readiness is derived once: open, not held, and every dependency verified [C7]', () => {
+test('moves.lifecycle-replay.readiness-derived-once-open-held-every: clause 1: readiness is derived once: open, not held, and every dependency verified [C7]', () => {
   const facts = [
     fact('add', 10, 'coordinator', { after: '[]' }),
     fact('add', 11, 'coordinator', { after: '[10]' }),
@@ -84,7 +84,7 @@ test('clause 1: readiness is derived once: open, not held, and every dependency 
   assert.equal(claimBlocked.disagreements[0].kind, 'claim: BLOCKED (waits on a open item)');
 });
 
-test('clause 2: a release that names blockers adds them to what the item waits on, so the final dependencies agree [C7]', () => {
+test('moves.lifecycle-replay.release-names-blockers-adds-them-what: clause 2: a release that names blockers adds them to what the item waits on, so the final dependencies agree [C7]', () => {
   const facts = [
     fact('add', 20, 'coordinator', { after: '[]' }),
     fact('claim', 20, 'core-1', { leaseUntil: hour(60) }),
@@ -95,7 +95,7 @@ test('clause 2: a release that names blockers adds them to what the item waits o
   assert.equal(compareFinal(items, [{ id: 20, status: 'open', owner: null, held: false, after: [7, 8] }]).agreed, 1);
 });
 
-test('clause 2: a final-state mismatch names the item and the last event that touched it [C7]', () => {
+test('moves.lifecycle-replay.final-state-mismatch-names-item-last: clause 2: a final-state mismatch names the item and the last event that touched it [C7]', () => {
   const facts = [fact('add', 30, 'coordinator', { after: '[]' }), fact('claim', 30, 'core-1', { leaseUntil: hour(70) })];
   const { items } = replay(facts);
   const result = compareFinal(items, [{ id: 30, status: 'open', owner: null, held: false, after: [] }]);

@@ -1,18 +1,17 @@
-/** @pullboard-test-input source-cell store */
 /** cancelGateJob ends an item's live gate job as cancelled through the runs port [C7,#3860]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { cellSandbox } from '../../fixtures/cell.js';
-import { cancelGateJob } from '../../../index.js';
-import { openRunsStore } from '../../../index.js';
-import { runsFilePath } from '../../../index.js';
-import { runsPort } from '../../../index.js';
-import { jobView } from '../../../../jobs/index.js';
-import { renewLease } from '../../../../jobs/index.js';
-import { takeJob } from '../../../../jobs/index.js';
-import { finishJob } from '../../../../jobs/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { cellSandbox } from '../../../../../store/tests/fixtures/cell.js';
+import { cancelGateJob } from '../../../../../store/index.js';
+import { openRunsStore } from '../../../../../store/index.js';
+import { runsFilePath } from '../../../../../store/index.js';
+import { runsPort } from '../../../../../store/index.js';
+import { jobView } from '../../../../../jobs/index.js';
+import { renewLease } from '../../../../../jobs/index.js';
+import { takeJob } from '../../../../../jobs/index.js';
+import { finishJob } from '../../../../../jobs/index.js';
 
 /** A real board file and a real runs file beside it, both in a sandbox the test removes. */
 function fixture(t) {

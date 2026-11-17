@@ -111,6 +111,7 @@ import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
 import { codeStampCacheEnabled } from '../../../config/index.js';
+import { milestoneDeltaEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
@@ -519,6 +520,7 @@ function jsonDigest(value) {
  * its entry order and each entry's digest. A list whose keys repeat or are missing is a whole field.
  */
 function fingerprint(state) {
+  const derived = milestoneDeltaEnabled();
   const fields = new Map();
   const lists = new Map();
   for (const [field, value] of Object.entries(state)) {
@@ -526,7 +528,7 @@ function fingerprint(state) {
     const key = Object.hasOwn(DELTA_KEYS, field) ? DELTA_KEYS[field] : null;
     const ids = key && Array.isArray(value) ? value.map((entry) => entry?.[key]) : null;
     if (ids && ids.every((id) => typeof id === 'number' || typeof id === 'string') && new Set(ids).size === ids.length) {
-      const own = field === 'milestones' ? milestoneWithoutPace : (entry) => entry;
+      const own = field === 'milestones' ? (entry) => milestoneWithoutPace(entry, derived) : (entry) => entry;
       lists.set(field, { key, ids, digests: new Map(value.map((entry) => [entry[key], jsonDigest(own(entry))])) });
     } else fields.set(field, jsonDigest(value));
   }

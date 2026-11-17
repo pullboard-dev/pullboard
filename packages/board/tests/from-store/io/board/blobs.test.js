@@ -7,19 +7,19 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellBoard } from '../../fixtures/cell.js';
-import { closeCellBoard } from '../../fixtures/cell.js';
-import { cellProject } from '../../fixtures/cell.js';
-import { openCellBoard } from '../../fixtures/cell.js';
-import { createJob } from '../../../../jobs/index.js';
-import { writeStep } from '../../../../jobs/index.js';
-import { jobView } from '../../../../jobs/index.js';
-import { blobDirOf } from '../../../../jobs/index.js';
-import { BLOB_THRESHOLD_BYTES } from '../../../../jobs/index.js';
-import { keyedResult } from '../../../../drive/index.js';
-import { exportBoard } from '../../../index.js';
-import { migrateJobBlobs } from '../../../index.js';
-import { compactBoard } from '../../../index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
+import { closeCellBoard } from '../../../fixtures/cell-board.js';
+import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../fixtures/cell-board.js';
+import { createJob } from '../../../../../jobs/index.js';
+import { writeStep } from '../../../../../jobs/index.js';
+import { jobView } from '../../../../../jobs/index.js';
+import { blobDirOf } from '../../../../../jobs/index.js';
+import { BLOB_THRESHOLD_BYTES } from '../../../../../jobs/index.js';
+import { keyedResult } from '../../../../../drive/index.js';
+import { exportBoard } from '../../../../../store/index.js';
+import { migrateJobBlobs } from '../../../../../store/index.js';
+import { compactBoard } from '../../../../../store/index.js';
 
 /** The result a finished keyed job stored, or undefined when it was pruned or never finished. */
 function storedResult(view) {
