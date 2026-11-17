@@ -28,6 +28,7 @@ try {
   say(`runner serve pulling from ${board}`);
   await serveRunner({ board, key: readFileSync(keyFile, 'utf8').trim(), cache, handlers: { land }, git: pullGit, signal: stop.signal, say, unreachableHint: hint,
     fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
+    fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
     pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
     postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') });
 } catch (error) {
