@@ -4,10 +4,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { checkedSubmitOutcome } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { checkedSubmitOutcome } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
-const outcomes = JSON.parse(readFileSync(new URL('../../fixtures/submit-outcome-records.json', import.meta.url), 'utf8'));
+const outcomes = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/submit-outcome-records.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** A real board holding the one item a recorded refusal renewal saw; `live` stands in for the moves.live.outcome machine setting. */
