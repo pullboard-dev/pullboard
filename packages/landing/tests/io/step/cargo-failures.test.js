@@ -1,5 +1,5 @@
 /** @pullboard-test-input packages/landing/src/io/step/failures.js */
-/** @pullboard-test-input packages/gate/src/logic/cargo-cases.js */
+/** @pullboard-test-input packages/gate/src/logic/junit.js */
 /** landingFailures names failing Rust tests from cargo test output when landing.cargoFailures is on [C7,#10385]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
