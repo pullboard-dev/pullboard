@@ -37,7 +37,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   BOARD_TOO_OLD: 'open this board with pullboard 0.9.3 first, then open it with this version',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
-  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit, merge main, then submit again',
+  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit and submit again (submit composes current main)',
   CROSS_OWNERSHIP: 'split the item so each piece names only its own lane’s folders, or shout the owning lane to build the other paths',
   ITEM_WORK_IN_SEAT: 'move the change to the item folder that pullboard claim <id> opens, commit there, and switch this seat checkout off the item branch',
   MERGED_ALREADY: 'run pullboard show <id> to read the recorded merge commit; nothing more is needed unless a different commit must land through a new item',
