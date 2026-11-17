@@ -74,8 +74,10 @@ export async function serveRegisteredRunner(t, box, { paths }) {
   for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_') && !kept.includes(key)) delete env[key];
   const api = spawn(process.execPath, [CLI_ENTRY, 'serve', '--port', '0', '--json'], { cwd: box.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { try { api.kill('SIGTERM'); } catch { /* already gone */ } });
+  // A line that arrives after the box is removed has nowhere to go; the runner is stopping then.
+  const note = chunk => { try { appendFileSync(log, chunk); } catch { /* the fixture folder is gone */ } };
   let out = '';
-  api.stderr.on('data', chunk => appendFileSync(log, chunk));
+  api.stderr.on('data', note);
   const board = await new Promise((done, fail) => {
     const timer = setTimeout(() => fail(new Error(`the fixture board API did not print its address within ${API_MS} ms:\n${out.slice(-2000)}`)), API_MS);
     api.once('exit', code => { clearTimeout(timer); fail(new Error(`the fixture board API exited ${code} before it printed its address:\n${out.slice(-2000)}`)); });
@@ -93,7 +95,7 @@ export async function serveRegisteredRunner(t, box, { paths }) {
   const folder = join(paths.remoteHome, 'pull-runner');
   const runner = spawn(process.execPath, [CLI_ENTRY, 'runner', 'serve', url, '--as', HOST, '--key', key, '--directory', folder], { cwd: paths.remoteHome, env, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { try { runner.kill('SIGTERM'); } catch { /* already gone */ } });
-  runner.stdout.on('data', chunk => appendFileSync(log, chunk));
-  runner.stderr.on('data', chunk => appendFileSync(log, chunk));
+  runner.stdout.on('data', note);
+  runner.stderr.on('data', note);
   return { pid: runner.pid, url, name: HOST, folder };
 }

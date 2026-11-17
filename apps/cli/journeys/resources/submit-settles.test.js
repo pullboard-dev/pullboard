@@ -95,8 +95,8 @@ test('clause 1: a runner-only submit --wait with the ssh stand-in registered ret
   const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
   succeeded(await box.runAsync(box.repo, 'settings', 'gate.runnersOnly', 'on'));
-  await serveRegisteredRunner(t, box, registered);
-  tick('after claim, commit, settings and local runner');
+  const runner = await serveRegisteredRunner(t, box, registered);
+  tick('after claim, commit, settings and registered runner');
   const submitted = await step(box, 'submit', box.web, ['submit', String(id), '--wait', '--no-next', '--json'], snapshot);
   tick('after submit --wait');
   assert.ok(!submitted.capped, submitted.err);
@@ -106,9 +106,10 @@ test('clause 1: a runner-only submit --wait with the ssh stand-in registered ret
   try { job = await settledGateJob(box, id, { deadlineMs: STEP_MS }); }
   catch (error) { process.stderr.write(`STATE settle at cap ${JSON.stringify(snapshot())}\n`); throw error; }
   tick('after gate settled');
-  process.stderr.write(`JOB ${JSON.stringify(job).slice(0, 6000)}\n`);
   assert.equal(job.id, queued.gateJob, 'the job the submit offered is the one that settled');
   assert.equal(job.gate?.green, true, JSON.stringify(job).slice(0, 2000));
+  assert.equal(job.gate.logRunner, runner.name, 'the registered runner served the job, not the board host local runner');
+  assert.ok(job.gate.logPath.startsWith(`${runner.folder}/`), `the job ran under the registered runner home ${runner.folder}: ${job.gate.logPath}`);
   assert.equal(job.gate.check?.command, 'printf RUNNER_ONLY_FROZEN_BODY');
   assert.ok(job.gate.phases.some(phase => phase.role === 'check' && phase.tail.includes('RUNNER_ONLY_FROZEN_BODY')), 'the frozen check body ran');
   assert.deepEqual(jobRows(box).filter(row => row.job_step !== 'done'), [], 'no job row is left for the fixture settle to wait on');
