@@ -17,7 +17,7 @@ import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { fixtureProjectPolicy } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
-/** The most node children one submit may start (measured 15 as a real process on a runner, run 24f644ad-2b8c-4371-8027-133dc148f7e4, recorded on #10274). */
+/** The most node children one submit may start (measured 15 on a runner, run a738b961-6010-4c28-bb75-1b9f9b65f0fe, recorded on #10274). */
 const MEASURED_NODE_SPAWNS = 15;
 const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec', 'fork'];
 
