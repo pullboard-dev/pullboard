@@ -4,11 +4,11 @@
      No tool is needed to read it. -->
 <testsuites name="bun test" tests="3" failures="1" skipped="1" time="0.012">
   <testsuite name="calc.test.ts" tests="3" failures="1" skipped="1" time="0.008">
-    <testcase name="adds two numbers" classname="calc.test.ts" time="0.001"/>
-    <testcase name="halves a number" classname="calc.test.ts" time="0.002">
+    <testcase name="clause 1: adds two numbers" classname="calc.test.ts" time="0.001"/>
+    <testcase name="clause 2: halves a number" classname="calc.test.ts" time="0.002">
       <failure message="expected 2, received 1"/>
     </testcase>
-    <testcase name="runs later" classname="calc.test.ts" time="0.000">
+    <testcase name="clause 3: runs later" classname="calc.test.ts" time="0.000">
       <skipped/>
     </testcase>
   </testsuite>
