@@ -165,6 +165,7 @@ const ROWS = Object.freeze({
   haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
   make: ['make'],
   maven: ['java', 'mvn'],
+  nim: ['nimble'],
   node: ['node'],
   perl: ['perl'],
   php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),

@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { detectLanguages } from '../../src/io/config.js';
+import { detectTestGlobs } from '../../src/io/config.js';
+import { languageToolchains } from '../../src/io/config.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 /** Make a repo root holding the given files, removed after the test. */
@@ -42,4 +44,16 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
     const run = spawnSync(command, { cwd: root, shell: true, encoding: 'utf8', timeout: 60000 });
     assert.equal(run.status === 0 ? 0 : 1, status, `${command} in ${Object.keys(files).join(',')}: ${run.stderr}`);
   }
+});
+
+test('gate.config.nim-detected: #10514 clause 1: a root holding a .nimble file detects nim with nimble test [C7]', (t) => {
+  const root = rootWith(t, { 'app.nimble': 'version = "0.1.0"\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'nim', command: 'nimble test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.nim': '' })), []);
+});
+
+test('gate.config.nim-globs: #10514 clause 2: detectTestGlobs for a .nimble root returns the Nim test globs of the nim row, and the nimble toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'app.nimble': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/tests/**/*.nim', '**/test_*.nim']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['nimble'], unknown: [] });
 });
