@@ -8,13 +8,16 @@
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOST } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../../../../packages/gate/tests/fixtures/runner/ssh.js';
 import { startFixtureLocalRunner } from './local-start.js';
 import { fixtureRunnerFolder } from './local-start.js';
-import { pullQueue } from '../pull.js';
 import { CLI_ENTRY } from './entry.js';
+
+// Budget: how long the fixture board API has to print its address before the fixture gives up.
+const API_MS = 30_000;
 
 /**
  * Install the ssh stand-in in the box's PATH, turn load-aware dispatch off and run `add` (an item and its main baseline)
@@ -49,29 +52,47 @@ export function serveBoardQueue(box) {
 }
 
 /**
- * Run `pullboard runner serve` as the registered runner: the board's job queue on loopback, and a serve process named
- * for the stand-in's host with its cache in the stand-in's home, so a pulled gate job runs under the registered runner's
- * home (its check executes in the stand-in worker, profile.executionRunner naming the host) and not under the board
- * host's local runner [C7,V4,#10318].
+ * Run `pullboard runner serve` as the registered runner against the box's board API, which `pullboard serve` runs on the
+ * IPv6 loopback with the machine's board key; the runner is named for the stand-in's host and keeps its cache in the
+ * stand-in's home, so a pulled gate job runs under the registered runner's home (its check executes in the stand-in
+ * worker, profile.executionRunner naming the host) and not under the board host's local runner [C7,V4,#10318].
+ * Why the real board API: it applies a gate's receipt to the item, which a settle waits for; and why ::1: an address
+ * other than 127.0.0.1 makes `serve` take the machine's board key, the way a runner reaches a board it does not share a
+ * session with, while staying off the network.
  * Why the box machine home: the serve process keeps the machine's registered runner and gate.runnersOnly, as the local
- * runner did. Its output goes to the fixture runner log, so a settle waiting on that folder wakes on every line it writes.
+ * runner did. Both processes write to the fixture runner log, so a settle waiting on that folder wakes on every line.
  *
- * @param {import('node:test').TestContext} t - Stops the runner when the test ends.
+ * @param {import('node:test').TestContext} t - Stops both processes when the test ends.
  * @param {object} box - The e2e project (dir, repo, env).
  * @param {{ paths: Record<string, string> }} stand - The folders registerStandInAfterAdd returned.
  * @returns {Promise<{ pid: number, url: string, name: string, folder: string }>} The runner's pid, the board url it pulls from, its id and its cache folder.
  */
 export async function serveRegisteredRunner(t, box, { paths }) {
-  const queue = await pullQueue(t, { ...box, boardFile: join(box.repo, '.git', 'pullboard', 'board.sqlite') });
-  const log = join(fixtureRunnerFolder(box.env), 'runner.log');
-  mkdirSync(fixtureRunnerFolder(box.env), { recursive: true, mode: 0o700 });
-  const folder = join(paths.remoteHome, 'pull-runner');
+  const logFolder = fixtureRunnerFolder(box.env);
+  mkdirSync(logFolder, { recursive: true, mode: 0o700 });
+  const log = join(logFolder, 'runner.log');
+  const kept = ['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME'];
   const env = { ...box.env };
-  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_') && !['PULLBOARD_MACHINE_HOME', 'PULLBOARD_ACCOUNT_HOME', 'PULLBOARD_HOME'].includes(key)) delete env[key];
-  const child = spawn(process.execPath, [CLI_ENTRY, 'runner', 'serve', queue.url, '--as', HOST, '--directory', folder], { cwd: paths.remoteHome, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  const note = chunk => appendFileSync(log, chunk);
-  child.stdout.on('data', note);
-  child.stderr.on('data', note);
-  t.after(() => { try { child.kill('SIGTERM'); } catch { /* already gone */ } });
-  return { pid: child.pid, url: queue.url, name: HOST, folder };
+  for (const key of Object.keys(env)) if (key.startsWith('PULLBOARD_') && !kept.includes(key)) delete env[key];
+  const api = spawn(process.execPath, [CLI_ENTRY, 'serve', '--address', '::1', '--port', '0', '--json'], { cwd: box.repo, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  t.after(() => { try { api.kill('SIGTERM'); } catch { /* already gone */ } });
+  let out = '';
+  api.stderr.on('data', chunk => appendFileSync(log, chunk));
+  const board = await new Promise((done, fail) => {
+    const timer = setTimeout(() => fail(new Error(`the fixture board API did not print its address within ${API_MS} ms:\n${out.slice(-2000)}`)), API_MS);
+    api.once('exit', code => { clearTimeout(timer); fail(new Error(`the fixture board API exited ${code} before it printed its address:\n${out.slice(-2000)}`)); });
+    api.stdout.on('data', chunk => {
+      out += chunk;
+      try { const document = JSON.parse(out); clearTimeout(timer); done(document); } catch { /* the document is not complete yet */ }
+    });
+  });
+  const url = board.boards?.[0]?.runnerUrl;
+  if (!url) throw new Error(`the fixture board API named no board to pull from: ${out.slice(0, 2000)}`);
+  const key = readFileSync(board.keyFile, 'utf8').trim();
+  const folder = join(paths.remoteHome, 'pull-runner');
+  const runner = spawn(process.execPath, [CLI_ENTRY, 'runner', 'serve', url, '--as', HOST, '--key', key, '--directory', folder], { cwd: paths.remoteHome, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  t.after(() => { try { runner.kill('SIGTERM'); } catch { /* already gone */ } });
+  runner.stdout.on('data', chunk => appendFileSync(log, chunk));
+  runner.stderr.on('data', chunk => appendFileSync(log, chunk));
+  return { pid: runner.pid, url, name: HOST, folder };
 }
