@@ -430,7 +430,9 @@ function nextPick(ctx, board, values, ports) {
   }
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  if (item.item_lane !== me.lane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
+  // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
+  const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
+  if (item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
     : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
