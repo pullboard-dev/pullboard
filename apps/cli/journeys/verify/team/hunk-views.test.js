@@ -31,7 +31,7 @@ function hunkFreshness(box, on) {
   writeFileSync(file, JSON.stringify({ ...settings, verify: { ...settings.verify, hunkFreshness: on } }));
 }
 
-test('clause 1: with verify.hunkFreshness on, show, list and the projector landing builds all read an accepted verdict fresh when main only shifted its hunk; off, all read it stale [C7,#10170]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('clause 1: with verify.hunkFreshness on, show, list and the projector landing builds all read an accepted verdict fresh when main only shifted its hunk; an edit to the reviewed hunk reads stale in all three [C7,#10170]', { timeout: 180_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (root, ...args) => {
@@ -67,13 +67,12 @@ test('clause 1: with verify.hunkFreshness on, show, list and the projector landi
     const row = (Array.isArray(listed) ? listed : listed.items).find(item => item.item_id === 1);
     const tip = box.git(box.repo, 'rev-parse', 'HEAD');
     const landing = withBoard(box.repo, board => verdictProjector(box.repo, board, { main: tip },
-      { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessOn }).state(store.getItem(board, 1)))?.code ?? null;
+      { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: true }).state(store.getItem(board, 1)))?.code ?? null;
     return { shown, listed: row.item_verdict_state?.code ?? null, landing };
   };
-  let hunkFreshnessOn = false;
-  hunkFreshness(box, false);
-  assert.deepEqual(await states(), { shown: 'STALE_VERDICT', listed: 'STALE_VERDICT', landing: 'STALE_VERDICT' }, 'off, a shifted hunk reads stale everywhere');
-  hunkFreshnessOn = true;
   hunkFreshness(box, true);
-  assert.deepEqual(await states(), { shown: null, listed: null, landing: null }, 'on, the shifted hunk reads fresh in show, list and the landing projector alike');
+  assert.deepEqual(await states(), { shown: null, listed: null, landing: null }, 'on, a shifted hunk reads fresh in show, list and the landing projector alike');
+  // Main then edits the reviewed line itself: every reader agrees the review is stale.
+  assert.equal((await helpers.commitFile(box, box.repo, 'web/notes.txt', notes({ insert: 'main added', replace: 'main twenty' }), 'feat(web): main edits [G1]')).status, 0);
+  assert.deepEqual(await states(), { shown: 'STALE_VERDICT', listed: 'STALE_VERDICT', landing: 'STALE_VERDICT' }, 'on, an edit to the reviewed hunk reads stale in all three');
 });
