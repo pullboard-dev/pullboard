@@ -43,7 +43,7 @@ function fixture(t) {
   return { root, commits, add, addPath, poison };
 }
 
-test('clause 1: after one proof commit is scanned clean, a sibling scans only base..commit, not from the root [C7,#5550]', t => {
+test('runners.incremental.after-one-proof-commit-is-scanned-clean: clause 1: after one proof commit is scanned clean, a sibling scans only base..commit, not from the root [C7,#5550]', t => {
   const policies = [defaults().protect];
   const { root, commits, add, poison } = fixture(t);
   const tip = commits[HISTORY - 1];

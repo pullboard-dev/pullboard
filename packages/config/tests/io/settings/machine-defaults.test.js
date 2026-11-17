@@ -21,6 +21,7 @@ const BEFORE = {
   'budget.totalUsd': null,
   'canary.directPush': false,
   'census.balanceByTime': false,
+  'census.fileKillSeconds': null,
   'census.jobMinutes': null,
   'census.jobsPerRunner': null,
   'census.jobsPerRunnerQuiet': null,
@@ -28,6 +29,7 @@ const BEFORE = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'census.skipUnchanged': false,
   'census.soloFileSeconds': null,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,
@@ -36,6 +38,7 @@ const BEFORE = {
   'flakes.rereadRatchet': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
+  'gate.adapterLintEnv': false,
   'gate.adapterLintFs': false,
   'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
@@ -52,6 +55,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.knownMainStatic': false,
   'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
@@ -69,6 +73,7 @@ const BEFORE = {
   'gate.queue.currentReleaseFirst': false,
   'gate.queue.reviewsFirst': false,
   'gate.recaptureHandoff': false,
+  'gate.receiptMissingCause': false,
   'gate.redFactLocation': false,
   'gate.refuseMissingCheckFile': false,
   'gate.refuseTempWorktree': false,
@@ -107,6 +112,7 @@ const BEFORE = {
   'jobs.recordLapse': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
+  'landing.cargoFailures': false,
   'landing.junitFailures': false,
   'landing.junitSignatures': false,
   'landing.parallelGates': false,
@@ -114,6 +120,7 @@ const BEFORE = {
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
+  'landing.runnerOnlyCompose': false,
   'landing.squash': false,
   'landing.stallStop': false,
   'landing.staticAffectedOnly': false,
@@ -166,6 +173,7 @@ const BEFORE = {
   'runners.drainOnFetchFailure': false,
   'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
+  'runners.localWake': false,
   'runners.postedLineNamesCase': false,
   'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
@@ -269,6 +277,11 @@ test('config.io-settings-machine-defaults.clause-1-gate-idiomspread-is-in-the: c
 test('config.io-settings-machine-defaults.clause-1-landing-asyncfetch-is-a-machine: clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: gate.knownMainStatic is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['gate.knownMainStatic'], false);
+  assert.ok(SETTING_DESCRIPTIONS['gate.knownMainStatic']);
 });
 
 test('config.io-settings-machine-defaults.clause-1-next-lightshapedstrong-is-a: clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {

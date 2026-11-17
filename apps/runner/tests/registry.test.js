@@ -1,4 +1,5 @@
-/** Every runner-app test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10241]. @pullboard-test-input source-cell apps/runner */
+/** @pullboard-test-input apps/runner/tests/** */
+/** Every runner-app test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10241]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

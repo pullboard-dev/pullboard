@@ -38,7 +38,7 @@ function headers(source) {
   return found;
 }
 
-test('clause 1: every store test file that reads files carries an input header naming what it reads [C7,U149]', () => {
+test('store.inputs.every-store-test-file-that-reads: clause 1: every store test file that reads files carries an input header naming what it reads [C7,U149]', () => {
   const files = storeTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the store cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && ANCHOR.test(read(file)) && headers(read(file)).length === 0);
@@ -46,7 +46,7 @@ test('clause 1: every store test file that reads files carries an input header n
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/store'], 'this file names only the store cell');
 });
 
-test('clause 1: no store test declares the whole source tree, and a cell header names cells by path [C7,U149]', () => {
+test('store.inputs.no-store-test-declares-the-whole: clause 1: no store test declares the whole source tree, and a cell header names cells by path [C7,U149]', () => {
   for (const file of storeTests()) {
     for (const header of headers(read(file))) {
       assert.notEqual(header.trim(), 'source-tree', `${file} declares source-tree`);

@@ -12,7 +12,7 @@ import { FIXTURE_MODEL } from '../../../../gate/tests/fixtures/testkit.js';
 const RECORDS = [{ model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs: 0, knownInputTokens: 9, knownOutputTokens: 4,
   freshInputTokens: 2, cacheReadInputTokens: 5, cacheWriteInputTokens: 2, unknownReasons: [] }];
 
-test('recordCoordinatorUsage is declared at the coordinator engine with the authenticated seat as actor [C7]', () => {
+test('moves.record-coordinator-usage.record-coordinator-usage-is-declared-at-the-coordinator-engine: recordCoordinatorUsage is declared at the coordinator engine with the authenticated seat as actor [C7]', () => {
   const declaration = MOVE_REGISTRY.recordCoordinatorUsage;
   assert.equal(declaration.engine, COORDINATOR_USAGE_ENGINE);
   assert.equal(declaration.minimumEngine([{ agentId: 'coordinator' }]), COORDINATOR_USAGE_ENGINE);
@@ -20,7 +20,7 @@ test('recordCoordinatorUsage is declared at the coordinator engine with the auth
   assert.equal(declaration.itemIdFirstArgument, false);
 });
 
-test('the prepared move runs the store function and a replay changes nothing [C7]', t => {
+test('moves.record-coordinator-usage.the-prepared-move-runs-the-store-function: the prepared move runs the store function and a replay changes nothing [C7]', t => {
   const board = cellBoard(t, ':memory:');
   cellSeat(board, { lane: 'coordinator', path: '/repo' });
   const move = prepareEngineMove(board, 'recordCoordinatorUsage', [{ agentId: 'coordinator', session: 's-1', records: RECORDS, observedAt: 5 }]);

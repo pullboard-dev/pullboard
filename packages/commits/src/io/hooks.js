@@ -528,7 +528,7 @@ export function preCommitProblems(context) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const touchedPaths = new Set(touched), writtenPaths = new Set(written);
@@ -616,7 +616,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },

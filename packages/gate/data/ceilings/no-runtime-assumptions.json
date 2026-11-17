@@ -4,6 +4,7 @@
     "packages/runners/",
     "packages/sandbox/",
     "packages/gate/src/io/run-tests.js",
+    "packages/gate/src/logic/affected-rows.js",
     "packages/gate/src/logic/language-rows.js",
     "docs/"
   ],

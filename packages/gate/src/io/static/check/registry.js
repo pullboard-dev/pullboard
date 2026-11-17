@@ -12,6 +12,7 @@ import { testWaitSites } from '../../test/waits.js';
 import { testWaitGrowth } from '../../test/waits.js';
 import { relayBoundaryProblems } from '../../relay.js';
 import { cellsEdgeProblems } from '../../edges.js';
+import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 import { assumptionProblems } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { fixedWallMargins } from '../../budgets.js';
@@ -70,6 +71,18 @@ function movedPaths(root, staged) {
 }
 
 /**
+ * The cells-edges ceilings as the checked tree holds them (the staged rows in the pre-commit), so a row moved in the
+ * commit is judged as moved; the CLI's own copy applies when the tree has none. Why: a seat's hook runs main's CLI,
+ * whose ceiling file cannot see the moved row and read it as a rise (#10242).
+ *
+ * @param {(file: string) => string} text
+ * @returns {{ ceilings?: object }}
+ */
+function stagedCeilings(text) {
+  try { return { ceilings: JSON.parse(text(CELLS_EDGES_CEILINGS)) }; } catch { return {}; }
+}
+
+/**
  * The load-bearing process check over the changed files: new detached children, unrefs, daemon loops and state files
  * outside the drive, transport, jobs and pin cells, against the ceilings file, which may only fall against main's.
  * A checkout with no ceilings file (a project that is not this repository) has nothing to judge.
@@ -102,7 +115,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'relay-boundary', run: ({ files, sources, read }) => relayBoundaryProblems([...sources, ...files.filter(file => /^apps\/relay\/src\/io\/deploy\/.*\.[cm]?js$/u.test(file)).map(read)])
     .map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A new cross-cell import or deep import past a cell's index needs a plan declaration (packages/gate/src/io/edges.js).
-  { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
+  { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text, ...stagedCeilings(text) })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (packages/codemap/src/io/sync-spawn-in-leases.js).
   { name: 'sync-spawn-in-leases', run: ({ root, files, text }) => syncSpawnProblems(root, { read: text, only: files })
