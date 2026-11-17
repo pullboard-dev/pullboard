@@ -55,10 +55,7 @@ export function gateQueueSettings() {
 
 const DEFAULT_SHORT_SLOTS = 0;
 
-/** Browser-free check admission is deliberately opt-in per machine. */
-export function browserFreeChecksEnabled() {
-  return loadMachineSettings().gate?.browserFreeChecks === true;
-}
+export { browserFreeChecksEnabled } from './settings/browser-free.js';
 
 /** Runner-first admission is machine-wide and remains off unless explicitly enabled. */
 export function gateRunnersFirstEnabled() {

@@ -10,7 +10,7 @@ export {
   environmentProblem,
   loadConfig,
 } from './src/io/main.js';
-export { browserFreeChecksEnabled } from './src/io/settings.js';
+export { browserFreeChecksEnabled } from './src/io/settings/browser-free.js';
 export { maintenanceDurations } from './src/logic/maintenance.js';
 export {
   boardRemote,
