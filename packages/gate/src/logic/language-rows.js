@@ -1,5 +1,34 @@
 /** Marker rows for further ecosystems: each language is one row of data, not more detection code [#3707,C7]. */
 
+/** The default `npm init` test script, which is not a real test. */
+const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
+
+/**
+ * The gradle command: the wrapper when the root holds a gradlew entry, else the installed gradle.
+ *
+ * @param {string[]} names directory entry names of the repo root
+ * @returns {string}
+ */
+function gradleCommand(names) {
+  return names.includes('gradlew') ? './gradlew test' : 'gradle test';
+}
+
+/**
+ * The bun command, or '' when a package.json already holds a real test script: the node row's 'npm test' runs that, so bun adds no second entry.
+ *
+ * @param {string[]} names directory entry names of the repo root
+ * @param {(name: string) => string | null} contents reads one root file, null when absent
+ * @returns {string}
+ */
+function bunCommand(names, contents) {
+  if (!names.includes('package.json')) return 'bun test';
+  try {
+    const test = JSON.parse(contents('package.json') ?? '')?.scripts?.test;
+    if (typeof test === 'string' && test.trim() && test.trim() !== NPM_DEFAULT_TEST) return '';
+  } catch { /* An unreadable package does not hide bun. */ }
+  return 'bun test';
+}
+
 /**
  * Ruby: a Gemfile alone proves nothing, so the command reads what the repo holds and answers '' (no match) when it holds neither a spec nor a Rake test setup.
  *
@@ -12,21 +41,23 @@ function rubyCommand(names) {
   return '';
 }
 
-/** The extra ecosystem rows, in alphabetical order by language; a row's command or tests may be a function of the root's entry names. */
+/** The three JVM test-file globs, shared by the maven and gradle rows. */
+const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
+
+/** The extra ecosystem rows, in detection order; starts empty so behaviour is unchanged until a row is added. */
 export const LANGUAGE_ROWS = Object.freeze([
-  Object.freeze({
-    language: 'ruby',
-    markers: Object.freeze(['Gemfile']),
-    command: rubyCommand,
-    tests: (names) => (rubyCommand(names) === 'bundle exec rspec' ? ['**/*_spec.rb'] : ['**/test_*.rb', '**/*_test.rb']),
-  }),
+  { language: 'bun', markers: ['bun.lock', 'bun.lockb', 'bunfig.toml'], command: bunCommand, tests: ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts'] },
+  { language: 'deno', markers: ['deno.json', 'deno.jsonc'], command: 'deno test', tests: ['**/*_test.ts', '**/*.test.ts', '**/*_test.js'] },
+  { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
+  { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
+  { language: 'ruby', markers: ['Gemfile'], command: rubyCommand, tests: (names) => (rubyCommand(names) === 'bundle exec rspec' ? ['**/*_spec.rb'] : ['**/test_*.rb', '**/*_test.rb']) },
 ]);
 
 /**
  * Whether one row's ecosystem is present in a repo root, judged only from names and file contents.
  * Why: a table of simple rows lets each language land as one row and one test, with no new detection code.
  *
- * @param {{ markers?: string[], pattern?: RegExp, requires?: { file: string, includes: string } }} row
+ * @param {{ markers?: string[], pattern?: RegExp, requires?: { file: string, includes: string }, command?: string | ((names: string[], contents: (name: string) => string | null) => string) }} row
  * @param {string[]} names directory entry names of the repo root
  * @param {(name: string) => string | null} contents reads one root file, null when absent
  * @returns {boolean}
@@ -35,7 +66,7 @@ export function rowMatches(row, names, contents) {
   const hit = (row.markers ?? []).some((marker) => names.includes(marker))
     || (row.pattern instanceof RegExp && names.some((name) => new RegExp(row.pattern.source, row.pattern.flags.replace(/[gy]/gu, '')).test(name)));
   if (!hit) return false;
-  if (typeof row.command === 'function' && row.command(names) === '') return false;
+  if (typeof row.command === 'function' && !row.command(names, contents)) return false;
   if (!row.requires) return true;
   return contents(row.requires.file)?.includes(row.requires.includes) ?? false;
 }

@@ -11,7 +11,7 @@ function ports(runners, body = async () => false) {
     recoverIdleRunners: async (...args) => { calls.push(args); return body(); } }) };
 }
 
-test('clause 1: the resident tick calls recoverIdleRunners for a configured runner when its interval is due and no gate is waiting [C7,#8325]', async () => {
+test('landing.idle-runners.the-resident-tick-calls-recoveridlerunners-for: clause 1: the resident tick calls recoverIdleRunners for a configured runner when its interval is due and no gate is waiting [C7,#8325]', async () => {
   let now = 0;
   const { calls, load } = ports([{ host: 'quarantined-runner' }]);
   const tick = idleRunnerTick({ settings: () => ({}), clock: () => now, intervalMs: 1_000, load });
@@ -29,7 +29,7 @@ test('clause 1: the resident tick calls recoverIdleRunners for a configured runn
   assert.equal(calls.length, 2);
 });
 
-test('clause 2: a slow probe never delays the resident tick past its interval [C7,#8325]', async () => {
+test('landing.idle-runners.a-slow-probe-never-delays-the: clause 2: a slow probe never delays the resident tick past its interval [C7,#8325]', async () => {
   let now = 0;
   let release;
   const { calls, load } = ports([{ host: 'slow-runner' }], () => new Promise(done => { release = done; }));
@@ -51,7 +51,7 @@ test('clause 2: a slow probe never delays the resident tick past its interval [C
   await second;
 });
 
-test('clause 1: a failing pass is swallowed and a runnerless machine makes no call [C7,#8325]', async () => {
+test('landing.idle-runners.a-failing-pass-is-swallowed-and: clause 1: a failing pass is swallowed and a runnerless machine makes no call [C7,#8325]', async () => {
   let now = 0;
   const failing = ports([{ host: 'r' }], async () => { throw new Error('queue locked'); });
   const tick = idleRunnerTick({ settings: () => ({}), clock: () => now, intervalMs: 10, load: failing.load });

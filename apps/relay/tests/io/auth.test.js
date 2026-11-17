@@ -7,7 +7,7 @@ import { createAuthHandler } from '../../index.js';
 import { createGitHubClient } from '../../index.js';
 import { githubFixture } from '../../../cli/tests/fixtures/relay.js';
 
-test('a GitHub rate limit is named as one [H5,H16]', async (t) => {
+test('relay.io-auth.a-github-rate-limit-is-named: a GitHub rate limit is named as one [H5,H16]', async (t) => {
   const fixture = await githubFixture(t);
   const reset = Math.floor(Date.now() / 1000) + 600;
   const limited = createServer((req, res) => {

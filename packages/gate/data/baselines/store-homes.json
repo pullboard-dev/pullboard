@@ -49,10 +49,6 @@
   "apps/cli/src/io/submit/wait.js": {
     "submission.json": 1
   },
-  "apps/cli/src/io/tool/build.js": {
-    "timer.guard.sqlite": 1,
-    "timer.json": 1
-  },
   "apps/cli/src/io/tour.js": {
     "pullboard.json": 1
   },
@@ -609,9 +605,6 @@
   },
   "packages/stats/src/io/cost/shared.js": {
     "table:board_meta": 2
-  },
-  "packages/stats/src/io/time/checkpoint.js": {
-    "stats-history.jsonl": 1
   },
   "packages/store/src/io/baseline/check.js": {
     "table:board_meta": 2

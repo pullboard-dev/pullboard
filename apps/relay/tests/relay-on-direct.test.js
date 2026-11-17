@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { relayDirectFixture } from './fixtures/relay-direct-fixture.js';
 
-test('a board links to the relay by calling relayOn directly, with no CLI process [H1,H18]', async (t) => {
+test('relay.relay-on-direct.a-board-links-to-the-relay: a board links to the relay by calling relayOn directly, with no CLI process [H1,H18]', async (t) => {
   const box = await relayDirectFixture(t);
   await box.link();
   const link = box.readLink();

@@ -73,7 +73,7 @@ function until(label, root, condition, ms = 15_000) {
 
 const exitOf = (root, id) => JSON.parse(readFileSync(join(root, 'done', id, 'exit'), 'utf8'));
 
-test('a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
+test('runner.agent.a-queued-job-is-claimed-by-rename: a queued job is claimed by rename and runs on file stdin, stdout and stderr with a heartbeat [C7,#5467]', async t => {
   const { root, start } = machine(t);
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'job1', { command: 'cat; echo err >&2; echo "$PULLBOARD_QUEUE_JOB" > folder.txt; sleep 1', input: 'frame-bytes' });
@@ -90,7 +90,7 @@ test('a queued job is claimed by rename and runs on file stdin, stdout and stder
   assert.deepEqual({ code: exitOf(root, 'job1').code, signal: exitOf(root, 'job1').signal }, { code: 0, signal: null });
 });
 
-test('a failing job records its exit code and cancel stops its whole process group [C7,#5467]', async t => {
+test('runner.agent.a-failing-job-records-its-exit-code: a failing job records its exit code and cancel stops its whole process group [C7,#5467]', async t => {
   const { root, start } = machine(t);
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'bad', { command: 'exit 7' });
@@ -106,7 +106,7 @@ test('a failing job records its exit code and cancel stops its whole process gro
   await until('the grandchild to receive the group signal', root, () => existsSync(join(root, 'done', 'long', 'gone')));
 });
 
-test('a stale wanted file ends a running job and stops a queued one before it starts [C7,#5467]', async t => {
+test('runner.agent.a-stale-wanted-file-ends-a-running: a stale wanted file ends a running job and stops a queued one before it starts [C7,#5467]', async t => {
   const { root, start } = machine(t);
   mkdirSync(join(root, 'queue'), { recursive: true });
   enqueue(root, 'run', { command: GRANDCHILD, extra: { wanted: '' } });
@@ -124,7 +124,7 @@ test('a stale wanted file ends a running job and stops a queued one before it st
   assert.ok(!existsSync(join(root, 'done', 'never', 'ran')));
 });
 
-test('one agent holds agent.lock and it exits when idle, freeing the lock for the next start [C7,#5467]', async t => {
+test('runner.agent.one-agent-holds-agent-lock-and-it: one agent holds agent.lock and it exits when idle, freeing the lock for the next start [C7,#5467]', async t => {
   const { root, start, agentPid } = machine(t);
   start();
   await until('the agent lock', root, () => agentPid() > 0);
@@ -136,7 +136,7 @@ test('one agent holds agent.lock and it exits when idle, freeing the lock for th
   await until('a new agent', root, () => agentPid() > 0 && agentPid() !== first);
 });
 
-test('a worker command that reads its capsule then execs node still sees the rest of the input file [C7,#5467]', async t => {
+test('runner.agent.a-worker-command-that-reads-its-capsule: a worker command that reads its capsule then execs node still sees the rest of the input file [C7,#5467]', async t => {
   const { root, start } = machine(t);
   mkdirSync(join(root, 'queue'), { recursive: true });
   const reader = 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(s))';
@@ -147,7 +147,7 @@ test('a worker command that reads its capsule then execs node still sees the res
   assert.equal(readFileSync(join(root, 'done', 'frame', 'out.bin'), 'utf8'), 'spec-frame\nrest');
 });
 
-test('a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
+test('runner.agent.a-runner-at-or-above-its-core: a runner at or above its core count takes no new job, says why, and pulls again once load drops [C7,#5578]', async t => {
   const { root, start } = machine(t);
   const loadFile = join(root, '..', 'load-now');
   const setLoad = value => { writeFileSync(`${loadFile}.tmp`, `${value}\n`); renameSync(`${loadFile}.tmp`, loadFile); };
@@ -166,7 +166,7 @@ test('a runner at or above its core count takes no new job, says why, and pulls 
   assert.match(readFileSync(join(root, 'load'), 'utf8'), /state=ok load=9.99 cores=10/);
 });
 
-test('an agent records the digest of its own script, and a start with another digest hands over without losing a running job [C7,#5590]', async t => {
+test('runner.agent.an-agent-records-the-digest-of-its: an agent records the digest of its own script, and a start with another digest hands over without losing a running job [C7,#5590]', async t => {
   const { root, start, agentPid } = machine(t, `${FAST} PULLBOARD_AGENT_IDLE_SECONDS=30 PULLBOARD_AGENT_WANTED_SECONDS=60`);
   mkdirSync(join(root, 'queue'), { recursive: true });
   assert.match(agentVersion(), /^[0-9a-f]{16}$/);
@@ -211,7 +211,7 @@ function liveChild(t, source, env) {
   return { exited, hears, stderr: () => stderr };
 }
 
-test('a worker whose job folder disappears ends itself within a minute, whatever it is doing [C7,#5593]', async t => {
+test('runner.agent.a-worker-whose-job-folder-disappears-ends: a worker whose job folder disappears ends itself within a minute, whatever it is doing [C7,#5593]', async t => {
   const base = privateFixtureFiles('pb-orphan-').root;
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const folder = join(base, 'running-job');
@@ -227,7 +227,7 @@ test('a worker whose job folder disappears ends itself within a minute, whatever
   assert.equal(await exited, 1, 'a worker stuck in cleanup is ended after its grace');
 });
 
-test('a source-cache pin is freed once its job directory is gone, even held by a live worker with a never-expiring beat [C7,#5593]', async t => {
+test('runner.agent.a-source-cache-pin-is-freed-once: a source-cache pin is freed once its job directory is gone, even held by a live worker with a never-expiring beat [C7,#5593]', async t => {
   const base = privateFixtureFiles('pb-pin-').root;
   t.after(() => rmSync(base, { recursive: true, force: true }));
   const runnerRoot = join(base, 'runner');

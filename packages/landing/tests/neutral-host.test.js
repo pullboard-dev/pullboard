@@ -8,7 +8,7 @@ import { test } from 'node:test';
 // Built from parts so this file does not itself contain the word it forbids.
 const WORD = ['van', 'illa'].join('');
 
-test('clause 1: no tracked file under packages/landing contains the old machine host name [C7]', () => {
+test('landing.neutral-host.no-tracked-file-under-packages-landing: clause 1: no tracked file under packages/landing contains the old machine host name [C7]', () => {
   const root = new URL('../../..', import.meta.url).pathname;
   const files = execFileSync('git', ['ls-files', '-z', 'packages/landing'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   assert.ok(files.length > 0, 'git lists the tracked files');
@@ -16,7 +16,7 @@ test('clause 1: no tracked file under packages/landing contains the old machine 
   assert.deepEqual(hits, [], 'use a neutral host name such as studio-host');
 });
 
-test('clause 2: the step failures module whose comment was reworded still loads [C7]', async () => {
+test('landing.neutral-host.the-step-failures-module-whose-comment: clause 2: the step failures module whose comment was reworded still loads [C7]', async () => {
   const mod = await import('../src/io/step/failures.js');
   assert.ok(Object.keys(mod).length > 0, 'failures.js exports are intact');
 });

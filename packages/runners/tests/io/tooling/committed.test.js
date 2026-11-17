@@ -33,7 +33,7 @@ function fixture(t) {
   return { repo: resolve(import.meta.dirname, '../../../../..'), temp };
 }
 
-test('a shared export is removed when its last run finishes [E28,C7]', t => {
+test('runners.committed.a-shared-export-is-removed-when: a shared export is removed when its last run finishes [E28,C7]', t => {
   const { repo } = fixture(t);
   const first = committedRunnerController(repo, { shared: true });
   const second = committedRunnerController(repo, { shared: true });
@@ -44,7 +44,7 @@ test('a shared export is removed when its last run finishes [E28,C7]', t => {
   assert.equal(existsSync(second.root), false);
 });
 
-test('at most 8 shared exports remain after a sweep, newest kept, in-use never removed [E28,C7]', t => {
+test('runners.committed.at-most-8-shared-exports-remain: at most 8 shared exports remain after a sweep, newest kept, in-use never removed [E28,C7]', t => {
   const { repo, temp } = fixture(t);
   const live = committedRunnerController(repo, { shared: true });
   const now = Date.now() / 1000;
@@ -63,7 +63,7 @@ test('at most 8 shared exports remain after a sweep, newest kept, in-use never r
   live.cleanup();
 });
 
-test('a shared export another process holds survives this process releasing and pruning it [C7]', async t => {
+test('runners.committed.a-shared-export-another-process-holds: a shared export another process holds survives this process releasing and pruning it [C7]', async t => {
   const { repo, temp } = fixture(t);
   const mine = committedRunnerController(repo, { shared: true });
   // Another live process leases the same export, as its own committedRunnerController call would.
@@ -84,7 +84,7 @@ test('a shared export another process holds survives this process releasing and 
   assert.equal(existsSync(lease), false, 'the dead process lease is removed on sight');
 });
 
-test('clause 1: dispatch.js and delegate.js name no apps/ path and take the checkout controller from the tooling file [C7]', () => {
+test('runners.committed.dispatch-js-and-delegate-js-name: clause 1: dispatch.js and delegate.js name no apps/ path and take the checkout controller from the tooling file [C7]', () => {
   for (const file of ['../../../src/io/dispatch.js', '../../../src/io/pull/delegate.js']) {
     const source = readFileSync(new URL(file, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /apps\//u, `${file} names no app path`);

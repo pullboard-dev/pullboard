@@ -11,9 +11,11 @@ import { ENGINE_VERSION } from "../../../../state/index.js";
 import { REVIEW_GATE_RECEIPT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
 import { processMachineHome } from "../../../../kernel/light.js";
+import { writeFileAtomic } from "../../../../kernel/light.js";
 import { readCrossProcessWrites } from "../../../../config/index.js";
 import { createFileWriteQueue } from "../write-queue-file.js";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { requireFileLease } from "../../../../items/index.js";
 
@@ -95,6 +97,9 @@ function warmHistories(board) {
 /** One file queue handle per queue folder for this process, so every claim shares its pending records and drain lock. */
 const FILE_QUEUES = new Map();
 
+/** How long a stored queue answer is kept: long enough for a crashed caller's retry, short enough that the folder never fills (#10089). */
+const QUEUE_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
 /** The operations that go through the file write queue with board.crossProcessWrites on: one list, never a copy per operation (#9816, #9817, #8163). */
 const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify']);
 
@@ -115,9 +120,24 @@ function queuedWriteId(board, operation, args) {
 async function writeThroughFileQueue(board, operation, args, actor, options) {
   const dir = join(processMachineHome(), 'board-write-queue');
   if (!FILE_QUEUES.has(dir)) FILE_QUEUES.set(dir, createFileWriteQueue(dir));
-  const outcome = await FILE_QUEUES.get(dir).submit({ id: queuedWriteId(board, operation, args), run: () => writeBoardDirect(board, operation, args, actor, options) });
+  const queue = FILE_QUEUES.get(dir);
+  queue.prune(QUEUE_RESULT_MAX_AGE_MS);
+  const id = queuedWriteId(board, operation, args);
+  const mark = join(dir, `${id}.mark`);
+  const item = Number.isInteger(args[0]) ? args[0] : null;
+  const newest = () => (item === null ? 0 : board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(item)?.id ?? 0);
+  // A stored answer is for the item as that write left it. A repeat after the item moved on (claim, release, claim again) is a new write, not a retry [#10089].
+  if (queue.result(id) && newest() > Number(readMark(mark))) queue.forget(id);
+  const outcome = await queue.submit({ id, run: () => {
+    try { return writeBoardDirect(board, operation, args, actor, options); } finally { writeFileAtomic(mark, String(newest())); }
+  } });
   if (outcome.ok) return outcome.value;
   throw new Refused(outcome.error.code, outcome.error.message.replace(new RegExp(`^\\[${outcome.error.code}\\] `, 'u'), ''));
+}
+
+/** The item event id a queued write's result was stored at, or -1 when the mark is missing so the result counts as stale. */
+function readMark(file) {
+  try { return readFileSync(file, 'utf8'); } catch { return '-1'; }
 }
 
 /**

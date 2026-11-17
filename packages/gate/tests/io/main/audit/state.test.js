@@ -12,7 +12,7 @@ import { readRemoteGateHolders } from '../../../fixtures/runner/holders.js';
 import { waitForCondition } from '../../../fixtures/runner/holders.js';
 import { runFixtureChildAsync } from '../../../fixtures/child.js';
 
-test('a runner fixture wait observes a real holder release within its fixture deadline [C7]', async t => {
+test('gate.io-main-audit-state.a-runner-fixture-wait-observes-a: a runner fixture wait observes a real holder release within its fixture deadline [C7]', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-wait-'));
   const file = join(dir, 'resources.sqlite');
   const db = new DatabaseSync(file);
@@ -26,7 +26,7 @@ test('a runner fixture wait observes a real holder release within its fixture de
   assert.deepEqual(readRemoteGateHolders(file), []);
 });
 
-test('a runner fixture timeout names elapsed time and last state at its real test deadline [C7]', async t => {
+test('gate.io-main-audit-state.a-runner-fixture-timeout-names-elapsed: a runner fixture timeout names elapsed time and last state at its real test deadline [C7]', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-fixture-deadline-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'held.test.mjs');
@@ -34,7 +34,7 @@ test('a runner fixture timeout names elapsed time and last state at its real tes
   writeFileSync(file, `import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { waitForCondition } from ${JSON.stringify(module)};
-test('held state reaches its actual fixture deadline [C7]', { timeout: 80 }, async t => { // budget: deliberate test-owned abort; the wait must report it without a private deadline.
+test('gate.io-main-audit-state.held-state-reaches-its-actual-fixture: held state reaches its actual fixture deadline [C7]', { timeout: 80 }, async t => { // budget: deliberate test-owned abort; the wait must report it without a private deadline.
   const db = new DatabaseSync(':memory:');
   db.exec("CREATE TABLE holder (pid INTEGER, kind TEXT); INSERT INTO holder VALUES (42,'held-fixture')");
   t.after(() => db.close());

@@ -323,7 +323,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         ...(decision === 'REJECT' && rejectKeepsCheck() ? { keepCheck: true } : {}) }]);
     }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
-    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
+    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }

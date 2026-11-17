@@ -38,8 +38,9 @@ test('clause 1: a fake row table matches by marker, pattern, requires and functi
   assert.equal(rowMatches({ ...rows[1], pattern: /\.beta$/gu }, ['x.beta', 'y.beta'], () => null), true);
 });
 
-test('clause 2: the shipped table leaves detectLanguages and detectTestGlobs unchanged for a go.mod directory [C7]', (t) => {
+test('clause 2: the shipped rows leave detectLanguages and detectTestGlobs unchanged for a go.mod directory [C7]', (t) => {
   const root = rootWith(t, { 'go.mod': 'module example.test/project\n' });
+  assert.equal(LANGUAGE_ROWS.some((row) => row.markers?.includes('go.mod')), false);
   assert.equal(Object.isFrozen(LANGUAGE_ROWS), true);
   assert.deepEqual(detectLanguages(root), [{ language: 'go', command: 'go test ./...' }]);
   assert.deepEqual(detectLanguages(root, []), detectLanguages(root));
