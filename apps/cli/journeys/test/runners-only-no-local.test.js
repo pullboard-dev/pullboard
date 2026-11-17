@@ -43,7 +43,7 @@ function lonely() {
   graph.put('test/runner.js', `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   graph.put('apps/cli/pullboard.js', `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\n`);
   const main = graph.commit();
-  fixtureMachineSettings(machine, { gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true, timingRunner: false, runnersOnly: true, runnerWaitMs: 80 }, runners: [] });
+  fixtureMachineSettings(machine, { gateSlots: 1, browserSlots: 1, gate: { browserFreeChecks: true, timingRunner: false, runnersOnly: true, runnerWaitMs: 80 }, runners: [] });
   const env = { PATH: process.env.PATH, HOME: directory, PULLBOARD_HOME: directory, PULLBOARD_MACHINE_HOME: machine,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   return { root: graph.root, main, marker, env };
