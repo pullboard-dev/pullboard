@@ -81,6 +81,7 @@ export {
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintTimersEnabled,
+  viewTimerLayoutEnabled,
   adapterLintFsEnabled,
   idiomSpreadEnabled,
   literalPinsEnabled,
