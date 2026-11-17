@@ -360,16 +360,16 @@ export function censusPlan(files, count, times, balanceByTime, base, jobMinutes 
 
 /**
  * The seconds a census spent in each phase, cut from four clock readings in milliseconds: the start, the first job's
- * answer, the end of pass 1 and the end of the last rerun. The three parts add up to the wall clock within a second
- * because each is the whole seconds of its own span, so a slow phase names itself [C7,#10525].
+ * answer, the end of pass 1 and the end of the last rerun. The three parts add up to the wall clock exactly
+ * because each is a difference of whole seconds since the start, so a slow phase names itself [C7,#10525].
  *
  * @param {{ start: number, first: number | null, pass1: number, end: number }} marks - Clock readings, in milliseconds.
  * @returns {{ firstJobSecs: number, pass1Secs: number, rerunSecs: number, wallSecs: number }}
  */
 export function censusPhases({ start, first, pass1, end }) {
   const firstAt = Math.min(Math.max(first ?? pass1, start), pass1), lastAt = Math.max(end, pass1);
-  const secs = (from, to) => Math.round((to - from) / 1000);
-  return { firstJobSecs: secs(start, firstAt), pass1Secs: secs(firstAt, pass1), rerunSecs: secs(pass1, lastAt), wallSecs: secs(start, lastAt) };
+  const upTo = at => Math.round((at - start) / 1000);
+  return { firstJobSecs: upTo(firstAt), pass1Secs: upTo(pass1) - upTo(firstAt), rerunSecs: upTo(lastAt) - upTo(pass1), wallSecs: upTo(lastAt) };
 }
 
 /** The one summary line for a census's phases [C7,#10525]. */
