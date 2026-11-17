@@ -17,7 +17,7 @@ test('clause 2: scan.js and parser.js import saveKeyedResult through the runner 
     assert.match(read(file), /import \{ saveKeyedResult \} from '\.\.\/keyed\.js';/u, file);
     assert.doesNotMatch(read(file), /pin\/index\.js/u, file);
   }
-  assert.match(read('packages/runners/src/io/keyed.js'), /export \{ saveKeyedResult \} from '\.\.\/\.\.\/\.\.\/transport\/index\.js';/u);
+  assert.match(read('packages/runners/src/io/keyed.js'), /export \{ loadKeyedResult, saveKeyedResult \} from '\.\.\/\.\.\/\.\.\/transport\/index\.js';/u);
   const cells = JSON.parse(read('packages/gate/data/ceilings/cells-edges.json')).cells;
   assert.ok(!cells.runners.imports.includes('pin'), 'runners must not list pin');
 });
