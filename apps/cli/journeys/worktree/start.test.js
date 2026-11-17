@@ -18,7 +18,10 @@ import {
   after,
   test,
 } from 'node:test';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import {
+  JOURNEY_MODE,
+  createE2eHelpers,
+} from '../../tests/fixtures/e2e.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 import {
   configProblems,
@@ -37,6 +40,8 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project } = e2e;
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
+/** Setup joins run in this process through the warm worker; a real process under PULLBOARD_JOURNEY_MODE=process (U149). */
+const setupRun = (box) => (JOURNEY_MODE === 'process' ? box.run : box.runSync);
 
 test("the README's worktree command works in a fresh repo [I1,I2]", async () => {
   const box = sandbox();
@@ -60,6 +65,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
 
   delete box.env.PULLBOARD_MODEL;
   const before = box.git(repo, 'worktree', 'list', '--porcelain');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingWorktreeModel = runFixtureChild(process.execPath, [BIN, 'worktree', 'api'],
     { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(missingWorktreeModel.status, 1);
@@ -86,6 +92,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   delete box.env.PULLBOARD_MODEL;
   const missingJoin = join(box.dir, 'join-without-model');
   box.git(repo, 'worktree', 'add', '-q', '--detach', missingJoin, 'HEAD');
+  // Kept real: this case tests the exit code and the exact stderr of a refusal.
   const missingJoinModel = runFixtureChild(process.execPath, [...fixtureJoinArgv(BIN), 'api'],
     { cwd: missingJoin, env: box.env, encoding: 'utf8' });
   assert.equal(missingJoinModel.status, 1);
