@@ -32,12 +32,12 @@ function fixture(t, settings) {
 
 /**
  * A shard dispatcher, as a shard's log reads: red.test.js fails every run with a named case, flaky.test.js fails only in
- * the census's own job, hung.test.js is stopped by the watchdog every run, and green.test.js passes. A rerun is a call of one file.
+ * the census's own job (the first call), hung.test.js is stopped by the watchdog every run, and green.test.js passes. A rerun is a call of one file.
  */
 function dispatcher(calls) {
-  return async ({ files, write, count }) => {
-    calls.push([...files]);
-    const rerun = count === 1;
+  return async ({ files, write }) => {
+    // The census's own job is the first call; every later call is a rerun (a one-shard plan also has count 1).
+    const rerun = calls.push([...files]) > 1;
     const red = files.filter(file => file === 'red.test.js' || (file === 'flaky.test.js' && !rerun));
     write(`# landing shard 1/1 attempt 1 on host-${calls.length}: ${red.length || files.includes('hung.test.js') ? 'red' : 'green'} in 9000 ms\n`);
     const lines = files.flatMap(file => (file === 'hung.test.js'
