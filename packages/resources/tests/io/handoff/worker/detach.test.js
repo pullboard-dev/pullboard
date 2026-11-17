@@ -26,7 +26,7 @@ function machine(t) {
 const options = { name: 'submit-handoff-workers', scope: 'machine', kind: 'submit-handoff', allowCapacityGrowth: true };
 const capacityOf = () => listResources({ scope: 'machine' }).find(row => row.name === options.name)?.capacity;
 
-test('a lower worker target shrinks the pool instead of refusing, and a held slot keeps working [C7,#2944]', async t => {
+test('resources.detach.a-lower-worker-target-shrinks-the: a lower worker target shrinks the pool instead of refusing, and a held slot keeps working [C7,#2944]', async t => {
   machine(t);
   const held = await takeResource({ ...options, capacity: 16, agent: 'worker-a' });
   await assert.rejects(takeResource({ ...options, capacity: 10, agent: 'worker-b' }), { code: 'RESOURCE_CAPACITY_MISMATCH' }, 'without shrink the old refusal stands');
