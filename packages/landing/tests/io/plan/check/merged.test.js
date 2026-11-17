@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A hand-landed commit meets the engine-numbering check that automatic landing applies [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
