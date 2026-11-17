@@ -49,6 +49,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
