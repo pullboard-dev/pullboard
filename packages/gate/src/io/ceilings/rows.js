@@ -18,3 +18,6 @@ export const CEILING_ROW_TABLES = Object.freeze({
   [FS_CEILING_FILE]: Object.freeze({ files: true, bare: true }),
   [CELLS_EDGES_CEILINGS]: Object.freeze({ files: true }),
 });
+
+/** The cells-edges table's split check, kept beside the table shapes so the hook reads both from one module [L3,C7]. */
+export { splitRowCovered } from './split.js';

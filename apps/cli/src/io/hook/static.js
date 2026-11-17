@@ -52,5 +52,8 @@ export async function stagedCeilingTables(env) {
   if (!named) return {};
   const file = resolve(TREE, named);
   if (!HOOK_STATIC_CHECKS.includes(relative(TREE, file).split('\\').join('/'))) return {};
-  return (await import(pathToFileURL(file).href)).CEILING_ROW_TABLES ?? {};
+  const module = await import(pathToFileURL(file).href);
+  const tables = module.CEILING_ROW_TABLES ?? {};
+  const covered = module.splitRowCovered;
+  return typeof covered === 'function' ? Object.fromEntries(Object.entries(tables).map(([path, shape]) => [path, path.endsWith('/cells-edges.json') ? { ...shape, splitCovered: covered } : shape])) : tables;
 }

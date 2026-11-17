@@ -615,7 +615,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path), read: planRead,
     ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
