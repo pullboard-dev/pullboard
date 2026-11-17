@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { nextRouteByTier } from '../../../../packages/config/index.js';
 import { machineSettingsFile } from '../../../../packages/config/index.js';
-import { tierOmissions } from '../../../../packages/moves/src/io/tier-routing.js';
+import { tierOmissions } from '../../../../packages/moves/index.js';
 import { saveAgentModel } from '../../../../packages/seats/index.js';
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
