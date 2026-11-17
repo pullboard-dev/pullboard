@@ -53,6 +53,7 @@ import { pulledTimeLines } from '../../logic/census.js';
 import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
+import { censusVerdictLists } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
 import { shardFileKillMs } from '../../logic/census.js';
 import { previousShardMs } from '../../logic/census.js';
@@ -288,6 +289,8 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
     // Opt-in: each non-green file runs once more, alone, before the census calls it red; this replaces a separate pass 2 [C7,#9138].
     if (settleReruns) writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
     else if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
+    // With reruns on the rows are the confirmed verdict, so the census writes the reds and slow lists pass 2 used to [C7,#10348].
+    if (settleReruns || censusRerunNonGreenEnabled()) { const lists = censusVerdictLists(rows.values()); writeFileSync(`${out}.reds.txt`, lists.reds); writeFileSync(`${out}.slow.txt`, lists.slow); }
   } finally {
     if (env.collect === undefined) delete process.env[LANDING_COLLECT_ALL_ENV]; else process.env[LANDING_COLLECT_ALL_ENV] = env.collect;
     if (env.collection === undefined) delete process.env[COLLECTION_ID_ENV]; else process.env[COLLECTION_ID_ENV] = env.collection;
