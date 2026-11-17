@@ -67,10 +67,6 @@ record(process.cwd(), 'static');
 import { join } from 'node:path';
 export function writeProfile(role) { if (process.env.PULLBOARD_FIXTURE_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
 `,
-  // The item check a journey names (PROFILED_CHECK) when it wants the check phase's timing profile too.
-  'bin/check.js': `import { writeProfile } from './profile.js';
-writeProfile('check');
-`,
   // The proof holds its job open a moment, so the host is sampled while all the gates run at once; it writes the ACCEPT timing profile.
   'bin/proof.js': `import { record } from './record.js';
 import { writeProfile } from './profile.js';
@@ -81,8 +77,8 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
   'DOCTRINE.md': '# Doctrine\n\n## D · Rules\n- D1 [approved, must] The fixture rule holds. | gate: check true | count: 0\n',
 };
 
-/** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. */
-export const PROFILED_CHECK = 'node bin/check.js';
+/** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. Why inline: a bar naming a file path must be one a lane owns, so the check names none. */
+export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_FIXTURE_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
 
 /** Processes on this host whose command line names the board's sandbox: a dispatcher, driver or worker the submit left behind. */
 export function hostProcesses(dir) {
