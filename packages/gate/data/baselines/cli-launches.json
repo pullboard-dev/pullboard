@@ -308,9 +308,6 @@
   "apps/cli/journeys/agents/session.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/show/main.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/companion/companions/review.test.js": {
     "launch": 2
   },
@@ -1212,9 +1209,6 @@
     "launch": 8
   },
   "apps/cli/journeys/withdraw/hold.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/reopen/evidence.test.js": {
     "launch": 1
   },
   "packages/gate/tests/io/sizes.test.js": {
