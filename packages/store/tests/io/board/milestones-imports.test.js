@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-cell store stats */
-/** The store milestones module imports nothing from the stats package, and the coordinator release still reads the same values through the board root [C7]. */
+/** The store milestones module imports nothing from the stats package, and the coordinator release still reads the same values through the store door [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
