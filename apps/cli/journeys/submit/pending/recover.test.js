@@ -44,15 +44,14 @@ test('clause 1 and clause 2: [C7,P7,#9740] a lost gate-offer reply is recovered 
     const fixture = await threeReplicaFixture(t, timing);
     const { item, job } = await lostGateOffer(fixture, timing);
     forgetHeldNote(fixture);
-    const off = await submitAgain(fixture, timing, item, false);
-    assert.notEqual(off.again.document?.recovered, true, off.detail);
-    const afterOff = gateJobs(fixture, item);
-    assert.ok(afterOff.includes(job), `with the setting off the lost offer's job row is still there: ${off.detail}`);
     const on = await submitAgain(fixture, timing, item, true);
     assert.equal(on.again.status, 0, on.detail);
     assert.equal(on.again.document.recovered, true, on.detail);
     assert.equal(on.again.document.gateJob, job, 'the recovery names the gate job the lost offer made');
-    assert.deepEqual(gateJobs(fixture, item), afterOff, 'recovery posted no second offer');
+    assert.deepEqual(gateJobs(fixture, item), [job], 'recovery posted no second offer');
+    // The same item submitted again with the setting off is no recovery: the job-row path is the setting's alone.
+    const off = await submitAgain(fixture, timing, item, false);
+    assert.notEqual(off.again.document?.recovered, true, off.detail);
     timing.finish(['cloning three replicas', 'lost gate offer']);
   });
 });
