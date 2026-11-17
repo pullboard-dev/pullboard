@@ -33,8 +33,8 @@ test('clause 1: staticFindingsOnMain runs the static command in a throwaway chec
     }),
   });
   assert.deepEqual(found, [
-    { rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' },
     { rule: '# tests over the ratchet of #', file: 'packages/b/y.js' },
+    { rule: 'runs a git fetch outside the one entry point', file: 'packages/a/x.js' },
   ]);
   assert.equal(seen.length, 1);
   assert.equal(existsSync(seen[0]), false, 'the checkout is gone afterwards');
