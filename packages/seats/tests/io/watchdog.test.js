@@ -12,7 +12,7 @@ function claim(over = {}) {
   return { item: 7, owner: 'core-1', seatLive: true, claimedAt: minutes(0), lastCommitAt: null, lastSubmitAt: null, lastGateAt: null, ...over };
 }
 
-test('a live seat with no commit, submit or gate for 30 minutes gets exactly one nudge [B4]', () => {
+test('seats.watchdog.one-nudge-after-30-min: a live seat with no commit, submit or gate for 30 minutes gets exactly one nudge [B4]', () => {
   const nudged = new Map();
   const sent = [];
   const ports = { claims: () => [claim()], nudged, now: () => T0 + 29 * 60_000, nudge: row => sent.push(row.item), release: () => assert.fail('no release') };
@@ -25,12 +25,12 @@ test('a live seat with no commit, submit or gate for 30 minutes gets exactly one
   assert.equal(nudged.get(7), minutes(30));
 });
 
-test('a seat that is not otherwise live is not nudged [B4]', () => {
+test('seats.watchdog.not-live-not-nudged: a seat that is not otherwise live is not nudged [B4]', () => {
   const plan = planClaimWatchdog([claim({ seatLive: false })], new Map(), T0 + 90 * 60_000);
   assert.deepEqual(plan, { nudge: [], release: [], keep: [], cleared: [] });
 });
 
-test('a flagged claim with no progress 10 minutes after the nudge is released back to next [B4]', () => {
+test('seats.watchdog.flagged-claim-released: a flagged claim with no progress 10 minutes after the nudge is released back to next [B4]', () => {
   const nudged = new Map([[7, minutes(30)]]);
   assert.deepEqual(planClaimWatchdog([claim()], nudged, T0 + 39 * 60_000).release, []);
   const released = [];
@@ -40,7 +40,7 @@ test('a flagged claim with no progress 10 minutes after the nudge is released ba
   assert.equal(nudged.has(7), false, 'the flag is gone once the claim is released');
 });
 
-test('progress after the nudge clears the flag, and a submit or gate in the last 10 minutes is never touched [B4]', () => {
+test('seats.watchdog.progress-clears-flag: progress after the nudge clears the flag, and a submit or gate in the last 10 minutes is never touched [B4]', () => {
   const nudged = new Map([[7, minutes(30)]]);
   const committed = claim({ lastCommitAt: minutes(35) });
   assert.deepEqual(planClaimWatchdog([committed], nudged, T0 + 45 * 60_000).cleared, [7]);

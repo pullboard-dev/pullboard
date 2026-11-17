@@ -33,7 +33,7 @@ function project(t) {
   return box;
 }
 
-test('clause 1: the first open sets the schema up in a write turn and a later process opens it with none [C7]', async t => {
+test('resources.once.the-first-open-sets-the-schema: clause 1: the first open sets the schema up in a write turn and a later process opens it with none [C7]', async t => {
   const box = project(t);
   const first = await child(t, box, 'listResources({ scope: "machine", root }); process.stdout.write(JSON.stringify({ begins }));');
   assert.equal(first.begins, 2, 'a new pool takes one setup turn and one listing turn');
@@ -41,7 +41,7 @@ test('clause 1: the first open sets the schema up in a write turn and a later pr
   assert.equal(later.begins, 2, 'a current pool takes only the two listing turns: its opens take none');
 });
 
-test('clause 2: ten leases held at once in one process share one connection to the pool [C7]', async t => {
+test('resources.once.ten-leases-held-at-once-in: clause 2: ten leases held at once in one process share one connection to the pool [C7]', async t => {
   const box = project(t);
   const result = await child(t, box, `import { execFileSync } from 'node:child_process';
 const leases = await Promise.all(Array.from({ length: 10 }, (_, index) => takeResource({ name: 'shard-' + index, capacity: 1, scope: 'machine', root, agent: 'shard-' + index })));

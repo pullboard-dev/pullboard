@@ -19,4 +19,4 @@ export { claimHealthProjection, claimHealthSnapshot } from './src/io/claim/proje
 export { runScheduledClaimWatchdog } from './src/io/claim/sweep.js';
 export { slowHoldLines } from './src/io/holds.js';
 export { sweepDerivedHolds, derivedStatePath } from './src/io/derived.js';
-export { mainComparisonAlarm, repeatedStopAlarm } from './src/io/landing-self-check.js';
+export { mainComparisonAlarm, repeatedStopAlarm, shoutLandingSelfCheck } from './src/io/landing-self-check.js';
