@@ -26,6 +26,8 @@ export const JUNIT_FILE_ROWS = {
   cpp: row => row.classname || null,
   // sbt test writes the dotted class (com.example.CalcSpec) in classname and no file attribute.
   sbt: row => (row.classname ? `src/test/scala/${row.classname.replace(/\./gu, '/')}.scala` : null),
+  // dune test with an OCaml JUnit reporter (alcotest or ounit2 output) writes the suite name in classname (Calc) and no file attribute; dune keeps it in test/calc.ml.
+  ocaml: row => (row.classname ? `test/${row.classname.toLowerCase()}.ml` : null),
   // vitest --reporter=junit writes the test file path as classname and no file attribute (src/math.test.ts).
   typescript: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null),
   // node --test --test-reporter=junit writes file (absolute, inside the checkout) on every case, which junitFile already prefers; the row only answers a case the reporter left without one.
