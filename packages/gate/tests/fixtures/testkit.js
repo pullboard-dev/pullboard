@@ -195,6 +195,7 @@ export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
 /**
  * Make a fixture machine home whose submits settle the same way whatever the machine's runnerDispatch default is:
  * the folder, and its settings with FIXTURE_GATE_DISPATCH under any gate fields the fixture names.
+ * A runner job may set PULLBOARD_FIXTURE_INPROCESS_HOOKS=1 to turn test.inProcessHooks on for every fixture home (a fixture's own test fields win); unset, nothing about it is written [#10255].
  *
  * @param {string} machineHome - The fixture's machine home folder.
  * @param {object} [settings] - Further machine settings; its gate fields keep their own values beside the dispatch.
@@ -202,7 +203,8 @@ export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
  */
 export function fixtureSettledMachine(machineHome, settings = {}) {
   mkdirSync(machineHome, { recursive: true });
-  fixtureMachineSettings(machineHome, { ...settings, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
+  const hooks = process.env.PULLBOARD_FIXTURE_INPROCESS_HOOKS === '1' ? { test: { inProcessHooks: true, ...settings.test } } : {};
+  fixtureMachineSettings(machineHome, { ...settings, ...hooks, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
 }
 
 /**
