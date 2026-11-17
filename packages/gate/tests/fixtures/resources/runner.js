@@ -196,10 +196,11 @@ process.exit(lines.length?1:0);
   assert.ok(machinery, 'main has a readable tree to identify the doctrine machinery');
   const ledgerFile = refusalTrialFile(box.repo);
   mkdirSync(dirname(ledgerFile), { recursive: true });
+  const ledgerKey = trialLedgerKey('RATCHET_ROSE', { rule: ['doctrine', machinery] });
   writeFileSync(ledgerFile, JSON.stringify({ version: 2, gates: 20, codes: {
-    [trialLedgerKey('RATCHET_ROSE', { rule: ['doctrine', machinery] })]: { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 } } }) + '\n');
+    [ledgerKey]: { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 } } }) + '\n');
   await serveRegisteredRunner(t, box, registered);
-  return { box, marker, paths: registered.paths, base, id };
+  return { box, marker, paths: registered.paths, base, id, ledgerFile, ledgerKey };
 }
 
 /**
@@ -220,7 +221,14 @@ function doctrineRefusals(job) {
 /** Install the rising-count case alone: its one registered-worker submit needs a file of its own to stay inside the time budget [C7,D1]. */
 export function installRunnerOnlyDoctrineCase(fixtures) {
   test('clause 2: runner-only doctrine refuses a rising count with RATCHET_ROSE in the registered worker [C7,D1,D3]', async t => {
-    const { box, id } = await runnerOnlyDoctrineSetup(t, fixtures);
+    const { box, id, ledgerFile, ledgerKey } = await runnerOnlyDoctrineSetup(t, fixtures);
+    await t.test('clause 1: the case seeds its RATCHET_ROSE trial in the refusal-trials ledger and runs no probe add or probe submit [C7,D1]', async () => {
+      const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
+      assert.deepEqual(ledger.codes[ledgerKey], { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 }, 'the ROSE row carries the identity ratchetMachineryRule returned');
+      assert.ok(ledger.gates >= 20, 'the ledger is aged past the twenty clean gates a refusal waits for');
+      const probe = await box.runAsync(box.repo, 'show', String(id + 1), '--json', '--no-next');
+      assert.notEqual(probe.code, 0, `no probe item was added beside the item under test: ${probe.out.slice(0, 300)}`);
+    });
     const roseCommit = helpers.commitFile(box, box.web, 'web/a.txt', 'TODO old\nTODO new\n', 'feat(web): private rising count [G1]');
     assert.equal(roseCommit.status, 0, roseCommit.failure ?? roseCommit.stderr);
     const rose = await submitSettled(box, fixtures, id);
