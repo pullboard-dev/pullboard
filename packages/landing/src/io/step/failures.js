@@ -91,7 +91,7 @@ export function landingFailures(output, root, { excludeCancelled = false, junitF
   }));
   if (junitOn === true && typeof junitXml === 'string') {
     for (const { name, classname, file: reported, assertion } of junitFailures(junitXml, root).rows) {
-      const file = reported ?? (typeof junitLanguage === 'string' ? junitFile(junitLanguage, { classname, file: null }) : null);
+      const file = reported ?? (typeof junitLanguage === 'string' ? junitFile(junitLanguage, { classname, file: null, root }) : null);
       const key = `${file}\0${JSON.stringify([name])}`;
       if (!unique.has(key)) unique.set(key, { name, file, ...(assertion ? { assertion } : {}) });
     }

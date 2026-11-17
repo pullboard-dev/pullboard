@@ -50,6 +50,6 @@ test('landing.reporter.a-python-report-failure-lands-with-its-file: clause 3: a 
   const xml = '<testsuites><testsuite name="pytest"><testcase classname="tests.test_math" name="halves"><failure message="assert 1 == 2">boom</failure></testcase></testsuite></testsuites>';
   const rows = landingFailures('', project.root, { junitFailures: true, junitXml: xml, junitLanguage: landingJunitLanguage(project.root) });
   assert.deepEqual(rows.map(({ file, name }) => ({ file, name })), [{ file: 'tests/test_math.py', name: 'halves' }]);
-  project.write('package.json', '{"type":"module"}\n');
+  project.write('go.mod', 'module m\n');
   assert.equal(landingJunitLanguage(project.root), null);
 });
