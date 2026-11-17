@@ -3,6 +3,7 @@ export * from './light.js';
 export * from './src/io/main.js';
 export * from './src/io/admission/memory.js';
 export * from './src/io/admission/load.js';
+export * from './src/io/admission/consumers.js';
 export { closeResourceConnections, reuseResourceConnections } from './src/io/connections.js';
 export * from './src/io/home.js';
 export { withEnvironment } from './src/io/environment.js';
