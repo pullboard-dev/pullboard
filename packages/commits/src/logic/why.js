@@ -7,7 +7,6 @@
 import { tryGit } from "../../../git/index.js";
 import { mainCheckout } from "../../../git/index.js";
 import { Refused } from "../../../kernel/light.js";
-import { originOf } from "./origin.js";
 import {
   historicalPaths,
   mappedPath,
@@ -105,4 +104,16 @@ export function whyFile(board, root, target) {
   }
   return { file: parsed.file, line: parsed.line, items: [...itemMap.values()], rows: [...rowMap.values()],
     decisions: [...decisionMap.values()].sort((left, right) => left.id - right.id) };
+}
+
+/* Read recorded decision provenance without importing answer authority [N29,B29,P6]. */
+/**
+ * The origin an answer event recorded; unknown when it recorded none.
+ *
+ * @param {{ provenance?: { origin?: string } }} detail an answer event's detail
+ * @returns {string}
+ */
+export function originOf(detail) {
+  const origin = detail?.provenance?.origin;
+  return typeof origin === 'string' && origin ? origin : 'unknown';
 }
