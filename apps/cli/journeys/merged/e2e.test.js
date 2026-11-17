@@ -50,7 +50,7 @@ async function command(box, cwd, ...argv) {
   return runCliInProcess(argv, { cwd, env: box.env });
 }
 
-test('init writes config, spec, agent docs and hooks once, and never clobbers [I1, I2]', async () => {
+test('cli.journeys-merged-e2e.init-writes-config-spec-agent-docs: init writes config, spec, agent docs and hooks once, and never clobbers [I1, I2]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
@@ -103,7 +103,7 @@ test('init writes config, spec, agent docs and hooks once, and never clobbers [I
   assert.match(second.out, /kept the Claude Code skills/);
 });
 
-test("init's spec has its sections and no rows, and the README's example fits under them as written [I1, S8]", async () => {
+test('cli.journeys-merged-e2e.init-s-spec-has-its-sections: init\'s spec has its sections and no rows, and the README\'s example fits under them as written [I1, S8]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'fresh');
   mkdirSync(repo);
@@ -132,7 +132,7 @@ test("init's spec has its sections and no rows, and the README's example fits un
   assert.match(check.out, new RegExp(`SPEC.md: ${rows.length} rows, 0 errors`));
 });
 
-test("the coordinator's resume names its next step from the spec and the board, stage by stage [N32, I9]", async (t) => {
+test('cli.journeys-merged-e2e.the-coordinator-s-resume-names-its: the coordinator\'s resume names its next step from the spec and the board, stage by stage [N32, I9]', async (t) => {
   let stage = 0;
   /** Print the stage number and what it checks before its assertion, so a failing run names its stage [N32,I9]. */
   const at = (what) => t.diagnostic(`stage ${++stage}: ${what}`);
@@ -206,7 +206,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   assert.match((await next(box, box.repo)), /^plan the approved rows no item cites \(G2\)/);
 });
 
-test('spec check lints both files; spec view writes one page into the git dir [S6, S7]', async () => {
+test('cli.journeys-merged-e2e.spec-check-lints-both-files-spec: spec check lints both files; spec view writes one page into the git dir [S6, S7]', async () => {
   const box = project();
   writeFileSync(join(box.repo, 'DOCTRINE.md'), '# Doctrine\n\n## C · Code\n- C1 [approved, must] Functions under 60 lines.\n');
   const check = (await command(box, box.repo, 'spec', 'check'));
