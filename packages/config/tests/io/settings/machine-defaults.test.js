@@ -149,6 +149,7 @@ const BEFORE = {
   'relay.pruneReceipts': false,
   'relay.push': false,
   'relay.queueOnFailure': false,
+  'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
