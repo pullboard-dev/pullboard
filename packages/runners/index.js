@@ -25,7 +25,8 @@ export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProb
 export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, lastHistoryWalk, objectRecord } from "./src/io/source/scan.js";
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/io/pack.js";
 export { requestFor, queuedSource } from "./src/io/request.js";
-export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/io/dispatch.js";
+export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, serveRunnerController as dispatchServeRunnerController } from "./src/io/dispatch.js";
+export { runOnRunnerAsync as dispatchRunOnRunnerAsync, bridgeDeadlineMs, refuseLegacyControllerEntry } from "./src/io/run-async.js";
 export { pinRunnerTooling, runnerToolingPinned, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerLaunch, readCapsuleFromStdin, CAPSULE_STDIN_LIMIT } from "./src/io/tooling/remote.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/io/package/files.js";
 export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/io/module/parser.js";
