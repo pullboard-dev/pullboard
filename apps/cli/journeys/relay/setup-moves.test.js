@@ -4,17 +4,16 @@ import {
   mkdirSync,
   rmSync,
 } from 'node:fs';
-import {
-  join,
-  resolve,
-} from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
+import {
+  captureCommandInProcess,
+  runCliInProcess,
+} from '../../tests/fixtures/process.js';
+import { updateRelayMachine } from '../../../../packages/link/index.js';
 import {
   FIXTURE_MODEL,
   privateFixtureFiles,
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import {
@@ -57,12 +56,11 @@ async function relayOffWorktree(t, { stale }) {
     const gone = await board('stale-scratch');
     rmSync(join(gone, '.git'), { recursive: true, force: true });
   }
-  // Process-level case: the one-off module script below needs its own node process, so it stays a launched process.
   // Set up once, then the relay is off: auto-link stays on for the owner, and no board on this machine is linked.
-  const machine = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../../../packages/link/index.js')).href);
-  const saved = runFixtureChild(process.execPath, ['--input-type=module', '-e',
-    `import { updateRelayMachine } from ${machine}; updateRelayMachine(state => { state.autoLink = true; state.owner = { account: 'fixture-account', url: 'http://127.0.0.1:9' }; });`],
-  { cwd: root, env, encoding: 'utf8' });
+  const saved = await captureCommandInProcess(() => {
+    updateRelayMachine(state => { state.autoLink = true; state.owner = { account: 'fixture-account', url: 'http://127.0.0.1:9' }; });
+    return 0;
+  }, [], { cwd: root, env });
   assert.equal(saved.status, 0, saved.stderr);
   const worktree = join(scratch, 'repo-core-1');
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/1', worktree], { cwd: root, env });
