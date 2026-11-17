@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { criterionSize } from '../../index.js';
 
-test('criterion scope deduplicates files and maps legacy paths to their actual cells [B35,C7]', () => {
+test('items.size.criterion-scope: criterion scope deduplicates files and maps legacy paths to their actual cells [B35,C7]', () => {
   const catalog = [{ name: 'alpha', root: 'packages/alpha', paths: ['src/a.js'] }, { name: 'beta', root: 'packages/beta', paths: ['src/b.js'] }];
   const size = criterionSize('(1) Change src/a.js. (2) Prove src/a.js and src/b.js.', catalog);
   assert.deepEqual(size.files, ['src/a.js', 'src/b.js']);
@@ -21,7 +21,7 @@ test('criterion scope deduplicates files and maps legacy paths to their actual c
   assert.equal(criterionSize('(1) Read; (1) Change; (1) Prove; (1) Publish.').oversized, true);
 });
 
-test('real one-cell criteria do not turn surrounding prose into extra cells [B35,C7]', () => {
+test('items.size.one-cell-prose: real one-cell criteria do not turn surrounding prose into extra cells [B35,C7]', () => {
   const catalog = [{ name: 'seats', root: 'packages/seats', paths: ['src/agent-hook.js', 'src/github-origin.js',
     'src/line-capacity-board.js', 'src/seat-checkout.js', 'src/seats.js'] }, { name: 'link', root: 'packages/link' }];
   const criteria = [
