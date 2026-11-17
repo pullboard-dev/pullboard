@@ -69,7 +69,7 @@ async function pinnedAtMax(t, on) {
   const pinned = box.add('Pinned quick win at its label max', { brief: 'Files: web/pinned.js', expectedBuildMinutes: 5 });
   const held = box.add('Quick win another seat holds', { brief: 'Files: web/held.js', expectedBuildMinutes: 5 });
   const plain = box.add('Plain item', { brief: 'Files: web/plain.js' });
-  box.claim(held, box.seats.sibling);
+  box.claim(held);
   const added = await cli(box, box.root, ['milestone', 'add', 'Focus', '--items', `${pinned},${plain}`, '--reason', 'exercise a pin']);
   assert.equal(added.code, 0, added.out + added.err);
   const pin = await cli(box, box.root, ['milestone', 'pin', 'Focus', String(pinned), '--reason', 'pinned first']);
