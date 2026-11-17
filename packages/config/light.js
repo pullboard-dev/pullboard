@@ -10,15 +10,16 @@ export {
   environmentProblem,
   loadConfig,
 } from './src/io/main.js';
-export { browserFreeChecksEnabled } from './src/io/settings.js';
 export { maintenanceDurations } from './src/logic/maintenance.js';
 export {
   boardRemote,
+  browserFreeChecksEnabled,
   healthDiskFloorGb,
   listThinRead,
   loadMachineSettings,
   namedImportSelectionOn,
   readThinCommands,
+  reofferInfraEndEnabled,
   retireIdleSeatHours,
   submitProofOnly,
   validateRunner,
