@@ -46,6 +46,7 @@ export const MACHINE_DEFAULTS = {
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
+  'gate.machineVerifyPulled': false,
   'gate.mainCaseFilter': false,
   'gate.mainComparison': 'on-red',
   'gate.measuredSlots': false,
