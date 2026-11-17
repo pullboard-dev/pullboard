@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/state packages/gate */
 /** The packages named by #6456 no longer reach apps/*: the live report and the committed ceiling both have no row for them [C7,CD12]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
