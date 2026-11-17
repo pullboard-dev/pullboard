@@ -606,9 +606,6 @@
   "packages/stats/src/io/cost/shared.js": {
     "table:board_meta": 2
   },
-  "packages/stats/src/io/time/checkpoint.js": {
-    "stats-history.jsonl": 1
-  },
   "packages/store/src/io/baseline/check.js": {
     "table:board_meta": 2
   },

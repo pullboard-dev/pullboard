@@ -29,7 +29,7 @@ function offerTaken(port, runs, id, item, runner = 'runner-1') {
   assert.equal(takeJob(runs.db, id, runner, { now: 1002 }).taken, true);
 }
 
-test('clause 1: cancelGateJob(board, item, { runs }) writes the cancelled step on the item\'s live gate job, so jobView reads step cancelled [C7,#3860]', t => {
+test('board.cancel-gate-job.cancelgatejob-board-item-runs-writes-the: clause 1: cancelGateJob(board, item, { runs }) writes the cancelled step on the item\'s live gate job, so jobView reads step cancelled [C7,#3860]', t => {
   const { board, runs, port } = fixture(t);
   offerTaken(port, runs, 'gate:7:abc:t', 7);
   offerTaken(port, runs, 'gate:8:abc:t', 8);
@@ -39,7 +39,7 @@ test('clause 1: cancelGateJob(board, item, { runs }) writes the cancelled step o
   assert.equal(jobView(runs.db, 'gate:8:abc:t').step, 'offered', 'another item\'s job is untouched');
 });
 
-test('clause 2: a runner renew after the cancel is refused, and a finished job stays finished [C7,#3860]', t => {
+test('board.cancel-gate-job.runner-renew-after-the-cancel-refused: clause 2: a runner renew after the cancel is refused, and a finished job stays finished [C7,#3860]', t => {
   const { board, runs, port } = fixture(t);
   offerTaken(port, runs, 'gate:7:abc:t', 7);
   assert.equal(renewLease(runs.db, 'gate:7:abc:t', 'runner-1', { now: 1500, lapsed: true }), true, 'the runner renews before the cancel');
@@ -52,7 +52,7 @@ test('clause 2: a runner renew after the cancel is refused, and a finished job s
   assert.equal(jobView(runs.db, 'gate:9:abc:t').step, 'done', 'a finished job stays finished');
 });
 
-test('clause 3: an item with no live gate job returns written false and writes nothing [C7,#3860]', t => {
+test('board.cancel-gate-job.item-with-live-gate-job-returns: clause 3: an item with no live gate job returns written false and writes nothing [C7,#3860]', t => {
   const { board, runs, port } = fixture(t);
   assert.deepEqual(cancelGateJob(board, 5, { runs, now: 2000 }), { written: false, jobs: [] });
   port.intend({ id: 'land:5:k', kind: 'land', item: 5, now: 1000 });

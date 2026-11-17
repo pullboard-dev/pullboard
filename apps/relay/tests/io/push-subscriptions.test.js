@@ -34,7 +34,7 @@ function setup(on) {
   return { store, calls, done: () => rmSync(directory, { recursive: true, force: true }) };
 }
 
-test('clause 1: with relay.push on, a paired device is woken for an alert and, once revoked, is not [C7]', async () => {
+test('relay.io-push-subscriptions.with-relay-push-on-a-paired: clause 1: with relay.push on, a paired device is woken for an alert and, once revoked, is not [C7]', async () => {
   const { store, calls, done } = setup(true);
   try {
     assert.equal(store.subscribe('acct', 'phone', subscription()), true);
@@ -49,7 +49,7 @@ test('clause 1: with relay.push on, a paired device is woken for an alert and, o
   } finally { done(); }
 });
 
-test('clause 1: a second subscription from the same device replaces the first [C7]', async () => {
+test('relay.io-push-subscriptions.a-second-subscription-from-the-same: clause 1: a second subscription from the same device replaces the first [C7]', async () => {
   const { store, calls, done } = setup(true);
   try {
     store.subscribe('acct', 'phone', subscription('https://push.example/old'));
@@ -59,7 +59,7 @@ test('clause 1: a second subscription from the same device replaces the first [C
   } finally { done(); }
 });
 
-test('clause 2: with relay.push off nothing is stored or sent [C7]', async () => {
+test('relay.io-push-subscriptions.with-relay-push-off-nothing-is: clause 2: with relay.push off nothing is stored or sent [C7]', async () => {
   const { store, calls, done } = setup(false);
   try {
     assert.equal(store.subscribe('acct', 'phone', subscription()), false);

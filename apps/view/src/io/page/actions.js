@@ -1459,7 +1459,7 @@ async function loadTransport() {
     return transport;
   })();
   try { return await transportLoading; }
-  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say(error.message + ' Check your connection, then reload this page.'); throw error; }
+  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say((${scope.startupFailureLine})(error, ${scope.relayCauseMessage})); throw error; }
   finally { transportLoading = null; }
 }
 
