@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null, working = null, agentsTable = null, gateTrace = null }) {
   const histories = new Map();
   // The Agents table's between-items rows stay open across live redraws once the person opens them (#6847).
   let quietOpen = false;
@@ -12,6 +12,9 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
   let drawnFloor = null;
+  // The In the gate row whose trace panel is open, and the regions already listening for its clicks (one listener per page region, never one per redraw).
+  let openGate = null;
+  const listening = new WeakSet();
   let lastNeeds = { root: null, html: '', header: '' };
   /** Whether the events hold every id from 1 to the prefix, by the position of the prefix's last event (ids are strictly rising). */
   function covers(events, prefix) {
@@ -102,7 +105,18 @@ export function dashboardRuntime({ model, html, stagePresentation = null, when =
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, seen(held, prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor'), gate: gateTrace ? { open: openGate, trace: gateTrace } : null });
+    // A click on a gate row opens its trace panel, a second click (or Close) shuts it; the redraw paints the panel from the held model at once.
+    if (gateTrace && !listening.has(region) && region.addEventListener) {
+      listening.add(region);
+      region.addEventListener('click', event => {
+        const row = event.target?.closest?.('[data-gate-trace]');
+        if (!row) return;
+        const id = Number(row.dataset?.gateTrace ?? row.getAttribute?.('data-gate-trace'));
+        openGate = openGate === id ? null : id;
+        redraw();
+      });
+    }
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();
