@@ -482,6 +482,11 @@ export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
 }
 
+/** Whether the sentinel checks landing's own comparisons and stops (#10125): off by default; only an exact `true` turns it on. */
+export function landingSelfCheckEnabled() {
+  return loadMachineSettings().sentinels?.landingSelfCheck === true;
+}
+
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
 export function recordWriteHolderEnabled() {
   return loadMachineSettings().sentinels?.recordWriteHolder === true;
