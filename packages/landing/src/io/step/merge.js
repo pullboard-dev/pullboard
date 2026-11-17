@@ -13,6 +13,7 @@ import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { hunkFreshnessEnabled } from '../../../../config/index.js';
+import { runnerOnlyCompose } from '../../../../config/index.js';
 import { landingSquashEnabled } from '../../../../config/index.js';
 import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
@@ -92,6 +93,8 @@ export async function mergeGroup(state, items) {
     const message = messages.get(item.item_id);
     return { id: item.item_id, commit: landedCommit(item), header: message.header, trailers: message.trailers };
   })) : null;
+  // With landing.runnerOnlyCompose on, a batch the runner could not compose stops here: nothing is merged on the coordinator [C7,#10246].
+  if (onRunner && !composed && runnerOnlyCompose()) throw new Refused('LAND_RUNNER_REQUIRED', `the runner could not compose landing batch ${batch.id} and landing.runnerOnlyCompose is on, so nothing was merged here; fix the runner (pullboard runners) and let the landing retry, or turn landing.runnerOnlyCompose off to merge on the coordinator`);
   if (onRunner && !composed) state.say('the runner could not compose this batch; its items were merged on the coordinator');
   if (composed) {
     for (const engine of composed.assigned) state.say(`engine ${engine.name}: ${engine.number}`);
