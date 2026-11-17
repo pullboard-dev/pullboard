@@ -58,6 +58,7 @@ export {
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
+  gateComponentTier,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
