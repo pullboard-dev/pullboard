@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners packages/config */
+/** @pullboard-test-input source-cell packages/runners */
 /** The history scan prints how many commits it walked, first and second, with and without a scanned ancestor [C7,#9859]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
