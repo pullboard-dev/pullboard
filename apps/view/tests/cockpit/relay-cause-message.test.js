@@ -31,7 +31,7 @@ async function startPhoneFixture() {
     const send = (type, body, status = 200) => response.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' }).end(body);
     const name = url.pathname.slice(1);
     if (CASES[name]) {
-      const page = cockpitPage('', { readOnly: true, requests: true, transportModule: `/transport-${name}.js`, apiHeaders: {}, stylesheet: '/view.css', relaySession: true })
+      const page = cockpitPage('', { readOnly: true, requests: true, transportModule: `/transport-${name}.js`, apiHeaders: {}, stylesheet: '/view.css', relaySession: true, commandPhrases: () => ['add'] })
         .replace('<html', '<html data-relay-device="phone"')
         .replace(/<body[^>]*>/u, (open) => `${open}<section id="relay-screen"><p class="relay-live"><span></span></p></section>`);
       return send('text/html; charset=utf-8', page);
