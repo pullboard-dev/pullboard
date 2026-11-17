@@ -77,7 +77,7 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async ()
     delete callerEnv.FORCE_COLOR;
     return { name, value, wake, shown: runFixtureChildAsync(process.execPath, [BIN, 'tour'], { cwd: box.dir, env: callerEnv }) };
   });
-  for (const { name, value, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
+  for (const { name, value, wake, shown } of await Promise.all(runs.map(async run => ({ ...run, shown: await run.shown })))) {
     assert.equal(shown.status, 0, `${name}: ${shown.stdout}${shown.stderr}`);
     assert.match(shown.stdout, /^Nothing shipped until a second agent verified it\.$/mu);
     assert.match(shown.stdout, /verified #1: CRITERION_MET/);
