@@ -455,7 +455,8 @@ function redFileDetail(proof) {
 export async function requireSprintProof(state, ports = state.sprintPorts ?? sprintPorts(state)) {
   const recorded = exactTreeRecord(state.batch.root, state.batch.tip, state.batch.exactTree);
   const tree = recorded?.tree;
-  if (recorded?.result === 'green') return recorded; // An adopted batch keeps the green proof it already holds for this tree.
+  // An adopted batch keeps the green proof it already holds for this tree; with landing.sprintBarTests on, that proof must carry its bar-test record [U147].
+  if (recorded?.result === 'green' && (state.config.landing?.sprintBarTests !== true || recorded.barTests)) return recorded;
   if (!tree) throw new Refused('LAND_EXACT_TREE', `the batch tip ${state.batch.tip} has no readable tree id, so no proof can name the tree main will point to; rebuild the batch`);
   state.say?.(`finish: proving tree ${tree} at Sprint depth before main moves`);
   const proof = await sprintProof({ tree }, ports);
@@ -463,7 +464,9 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
     await save(state, { exactTree: proof });
     return state.batch.exactTree;
   }
-  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}${redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
+  const barFile = proof.barFile ?? proof.file;
+  const where = proof.failed === 'bar' ? `the frozen bar tests of item #${proof.item}${barFile ? ` (file ${barFile})` : ''}` : proof.failed;
+  const message = `the Sprint proof is red on tree ${tree} in ${where}${proof.barFile ? '' : redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : proof.failed === 'bar' ? `the bar tests of item #${proof.item}` : `the tests of ${proof.failed}`} and resubmit`;
   await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
   state.say?.(`finish: ${message}`);
   throw new Refused('LAND_EXACT_RED', message);
