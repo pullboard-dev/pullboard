@@ -26,19 +26,19 @@ function expectedPlanPaths(plan) {
   return expected;
 }
 
-test('the sensitive list is the fixed boundaries plus exactly the plan-derived cell paths [C7]', () => {
+test('items.sensitive.fixed-plus-plan: the sensitive list is the fixed boundaries plus exactly the plan-derived cell paths [C7]', () => {
   const list = outsideSensitivePaths(PLAN);
   const fixed = OUTSIDE_SENSITIVE_PATHS.length;
   assert.deepEqual(list.slice(0, fixed), [...OUTSIDE_SENSITIVE_PATHS]);
   assert.deepEqual(list.slice(fixed).sort(), [...expectedPlanPaths(PLAN)].sort());
 });
 
-test('gate and landing cells are named by the committed plan, so a move cannot drop them [C7]', () => {
+test('items.sensitive.gate-landing-named: gate and landing cells are named by the committed plan, so a move cannot drop them [C7]', () => {
   for (const name of ['gate', 'landing']) assert.ok(SENSITIVE_CELLS.includes(name));
   for (const name of SENSITIVE_CELLS) assert.ok(PLAN.cells.some(cell => cell.name === name), `${name} is a plan cell`);
 });
 
-test('an outside change touching src/gate/ or src/landing/ is marked sensitive [C7]', () => {
+test('items.sensitive.outside-change-marked: an outside change touching src/gate/ or src/landing/ is marked sensitive [C7]', () => {
   const paths = ['src/gate/anything.js', 'src/landing/anything.js', 'src/gate-submit.js', 'packages/gate/src/io/submit.js', 'packages/landing/src/io/computed/conflict/return.js'];
   const reasons = outsideSensitivity(ROOT, 'HEAD', 'HEAD', paths, { mainPolicy });
   for (const path of paths) {
