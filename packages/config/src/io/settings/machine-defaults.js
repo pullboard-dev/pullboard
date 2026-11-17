@@ -145,6 +145,7 @@ export const MACHINE_DEFAULTS = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.proofOnly': false,
+  'submit.recoverFromJobRow': false,
   'test.inProcessHooks': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
