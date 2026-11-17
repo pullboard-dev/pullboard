@@ -53,7 +53,7 @@ async function fixture(t) {
   return { ids, item, setting };
 }
 
-test('clause 1: with items.typedFields on the item API sends fields and links, and with it off omits both [C7,#9835]', async t => {
+test('api.item-fields.items-typedfields-item-api-sends: clause 1: with items.typedFields on the item API sends fields and links, and with it off omits both [C7,#9835]', async t => {
   const { ids: [a, b], item, setting } = await fixture(t);
   const on = (await item(a)).item;
   assert.deepEqual(on.fields, [{ name: 'points', type: 'number', value: 5 }]);
