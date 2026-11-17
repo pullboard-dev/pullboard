@@ -15,8 +15,8 @@ function loadTransportWith(failure) {
   const module = `data:text/javascript,${encodeURIComponent('export function createTransport() { throw globalThis.__relayFailure; }')}`;
   globalThis.__relayFailure = failure;
   const pageStartup = () => ({ say: (line) => said.push(line), within: (work) => work() });
-  const run = new Function('pageStartup', 'document', 'configuredTransportModule', `let transport = null, transportModule = null, transportLoadError = null; ${script.slice(start, end)}; return loadTransport;`);
-  return { said, load: run(pageStartup, { documentElement: {} }, module) };
+  const run = new Function('pageStartup', 'document', 'configuredTransportModule', 'openApprovedBoard', 'refresh', '$', `let transport = null, transportModule = null, transportLoadError = null; ${script.slice(start, end)}; return loadTransport;`);
+  return { said, load: run(pageStartup, { documentElement: {} }, module, () => {}, () => Promise.resolve(), () => ({})) };
 }
 
 test('clause 1: a load failure carrying relay_off or excluded shows that cause in the startup line [C7,#9457]', async () => {
