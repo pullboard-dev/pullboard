@@ -111,3 +111,34 @@ test('clause 3: the landing stops being offered once it has a verdict [C7,#9863]
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
   assert.equal(await offeredTo(other), null);
 });
+
+test('clause 1: with landed reviews on, a submitted item is offered before any landed item [C7,#9864]', async t => {
+  const box = await fixture(t);
+  await landedBy(box, t, { family: BUILDER, name: 'Landed older' });
+  const newer = await landedBy(box, t, { family: BUILDER, name: 'Landed newer' });
+  const submitted = await landedBy(box, t, { family: BUILDER, name: 'Submitted, not landed', land: false });
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { ...config.verify, landedReviews: true, family: 'require' } } });
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: offer landed reviews to another family');
+  const other = await seatOf(box, OTHER);
+  assert.equal(await offeredTo(other), submitted, 'the submitted item comes before every landed item');
+  const accepted = await other('verify', String(submitted), 'accept', '--no-next', '--note', 'read the diff against the bar', '--json');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  assert.equal(await offeredTo(other), newer, 'the newest landed item is offered once no submitted item waits');
+});
+
+test('clause 2: two landed items are offered newest landing first [C7,#9864]', async t => {
+  const box = await fixture(t);
+  const older = await landedBy(box, t, { family: BUILDER, name: 'Landed older' });
+  const newer = await landedBy(box, t, { family: BUILDER, name: 'Landed newer' });
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  fixtureProjectPolicy(box.repo, { config: { ...config, verify: { ...config.verify, landedReviews: true, family: 'require' } } });
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: offer landed reviews to another family');
+  const other = await seatOf(box, OTHER);
+  assert.equal(await offeredTo(other), newer, 'the newest landing is offered first');
+  const accepted = await other('verify', String(newer), 'accept', '--no-next', '--note', 'read the merge diff against the bar', '--json');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  assert.equal(await offeredTo(other), older, 'the older landing follows');
+});
