@@ -17,7 +17,7 @@ import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 
-test('an old release unpacks even when tar stops reading early [C7]', t => {
+test('git.archive.early-tar-stop: an old release unpacks even when tar stops reading early [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-release-archive-'));
   const stub = join(directory, 'bin');
   const extracted = join(directory, 'actual');
