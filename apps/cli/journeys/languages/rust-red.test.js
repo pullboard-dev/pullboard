@@ -13,6 +13,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { whenRunnerSettles } from '../../tests/fixtures/runner/local-start.js';
 import { verifySettled } from '../../tests/fixtures/submit/settle.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
@@ -111,11 +112,12 @@ async function crateBoard() {
   box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
   const joined = await joinFixtureSeat(box, web, 'web', { run: box.runLocal });
   assert.equal(joined.code, 0, joined.err);
+  Object.assign(box, { repo, web });
   return { box, repo, web };
 }
 
 /** File and claim one item in the seat, then commit a new item test and try to submit it; returns the item id, commit and submit result. */
-async function buildAndSubmit(board, id, itemText) {
+async function buildAndSubmit(board, id, itemText, priorReds = 0) {
   const { box, repo, web } = board;
   const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, check: CHECK, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
   if (!id) assert.equal((await box.runLocal(web, 'claim', item)).code, 0);
@@ -124,21 +126,15 @@ async function buildAndSubmit(board, id, itemText) {
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = await box.runIn(web, 'submit', item, '--no-next');
-  const shown = await box.runIn(web, 'show', item, '--no-next');
-  const status = JSON.parse((await box.runIn(web, 'show', item, '--json', '--no-next')).out).item_status;
-  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, status, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
-}
-
-/** Accept the submitted item as the coordinator at its commit, then land it; returns the settled landing. */
-async function acceptAndLand(board, item, commit) {
-  const { box, repo } = board;
-  box.git(repo, 'switch', '-q', '--detach', commit);
-  try {
-    const verdict = await verifySettled(box, box.runLocal, repo, ['verify', item, 'accept', '--as', 'coordinator', '--note', 'scratch crate gate is green']);
-    assert.equal(verdict.code, 0, verdict.err);
-  } finally { box.git(repo, 'switch', '-q', 'main'); }
-  const landing = await box.runIn(repo, 'land', '--json');
-  return { landing, settled: await settleLand(box, JSON.parse(landing.out)) };
+  // The pulled gate may still be running when submit returns: read the item until it is red again or has left the building state.
+  const reds = text => (text.match(/Gate job \S+ red at/gu) ?? []).length;
+  const read = async () => {
+    const shown = await box.runIn(web, 'show', item, '--no-next');
+    const status = JSON.parse((await box.runIn(web, 'show', item, '--json', '--no-next')).out).item_status;
+    return status !== 'claimed' || reds(shown.out) > priorReds ? { shown, status } : null;
+  };
+  const { shown, status } = await whenRunnerSettles(box.env, read, { deadlineMs: 150_000, what: `the gate of item ${item}` });
+  return { item, reds: reds(shown.out), commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, status, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
 }
 
 test('landing names the failing Rust test when main moved past a green submit and broke it [C7,#10387,#10385]', { timeout: 420_000 }, async (t) => {
