@@ -9,6 +9,11 @@ export const JUNIT_FILE_ROWS = {
     const crate = (row.classname ?? '').split('::')[0];
     return crate ? `${crate}/` : null;
   },
+  // phpunit writes the file attribute (absolute, inside the checkout); when it is absent the class name (Tests\MathTest or Tests.MathTest) maps to tests/MathTest.php.
+  php: row => {
+    const name = (row.classname ?? '').split(/[\\.]/u).pop();
+    return name ? `tests/${name}.php` : null;
+  },
 };
 
 /**
