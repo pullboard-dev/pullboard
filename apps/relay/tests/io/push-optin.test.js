@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-cell apps/relay */
+/** @pullboard-test-input apps/relay/src/io/browser/push-client.js apps/relay/src/io/browser/push-sw.js */
 /** @pullboard-test-gui */
 /** A paired browser opts in to OS notifications per kind through a service worker [C7]. */
 import assert from 'node:assert/strict';
@@ -43,7 +43,7 @@ async function serve(t) {
   return { origin: `http://127.0.0.1:${server.address().port}`, posted };
 }
 
-test('clause 1: in real Chrome the opt-in registers a service worker, subscribes with the relay key and stores the chosen kinds [C7]', {
+test('relay.io-push-optin.in-real-chrome-the-opt-in: clause 1: in real Chrome the opt-in registers a service worker, subscribes with the relay key and stores the chosen kinds [C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const { origin, posted } = await serve(t);
@@ -87,7 +87,7 @@ async function worker(state) {
   };
 }
 
-test('clause 3: the service worker shows a one-line notice from a sealed wake-up and never from plaintext [C7]', async () => {
+test('relay.io-push-optin.the-service-worker-shows-a-one: clause 3: the service worker shows a one-line notice from a sealed wake-up and never from plaintext [C7]', async () => {
   const { shown, push } = await worker({ key: Array.from(deviceKey), kinds: ['alerts'] });
   await push(sealedWakeup(1, 'Item 12 needs you\nsecond line is dropped'));
   assert.deepEqual(shown.map(entry => entry.title), ['Item 12 needs you']);
@@ -98,7 +98,7 @@ test('clause 3: the service worker shows a one-line notice from a sealed wake-up
   assert.equal(shown.length, 1, 'a kind not chosen, plaintext, a wrong seal and an empty push show nothing');
 });
 
-test('clause 3: without an opt-in the worker shows nothing for a sealed wake-up [C7]', async () => {
+test('relay.io-push-optin.without-an-opt-in-the-worker: clause 3: without an opt-in the worker shows nothing for a sealed wake-up [C7]', async () => {
   const { shown, push } = await worker(null);
   await push(sealedWakeup(1, 'Item 12 needs you'));
   assert.equal(shown.length, 0);

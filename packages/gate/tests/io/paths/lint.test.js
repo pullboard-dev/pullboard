@@ -18,7 +18,7 @@ function lint(files, map = {}) {
   return missingPathFindings(tree.root, { map });
 }
 
-test('clause 1: new URL anchored on import.meta.url to a missing file is a finding with file:line [C7]', () => {
+test('gate.io-paths-lint.new-url-anchored-on-import-meta: clause 1: new URL anchored on import.meta.url to a missing file is a finding with file:line [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': "import { x } from './y.js';\nconst gone = new URL('../data/gone.json', import.meta.url);\n",
     'packages/a/src/y.js': 'export const x = 1;\n',
@@ -26,7 +26,7 @@ test('clause 1: new URL anchored on import.meta.url to a missing file is a findi
   assert.deepEqual(found.map(row => `${row.file}:${row.line}:${row.path}`), ['packages/a/src/x.js:2:packages/a/data/gone.json']);
 });
 
-test('clause 1: an existing target is no finding, in new URL, join and resolve [C7]', () => {
+test('gate.io-paths-lint.an-existing-target-is-no-finding: clause 1: an existing target is no finding, in new URL, join and resolve [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': `const a = new URL('../data/here.json', import.meta.url);
 const b = join(import.meta.dirname, '..', 'data', 'here.json');
@@ -36,7 +36,7 @@ const c = resolve(dirname(fileURLToPath(import.meta.url)), '../data/here.json');
   assert.deepEqual(found, []);
 });
 
-test('clause 1: join on dirname(fileURLToPath(import.meta.url)) and import.meta.dirname find missing targets [C7]', () => {
+test('gate.io-paths-lint.join-on-dirname-fileurltopath-import-meta: clause 1: join on dirname(fileURLToPath(import.meta.url)) and import.meta.dirname find missing targets [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': `const a = join(dirname(fileURLToPath(import.meta.url)), '..', 'nope.js');
 const b = resolve(import.meta.dirname, 'also', 'nope.js');\n`,
@@ -44,7 +44,7 @@ const b = resolve(import.meta.dirname, 'also', 'nope.js');\n`,
   assert.deepEqual(found.map(row => `${row.line}:${row.path}`), ['1:packages/a/nope.js', '2:packages/a/src/also/nope.js']);
 });
 
-test('clause 1: segment-built paths on a repo-root variable and array path pieces are findings [C7]', () => {
+test('gate.io-paths-lint.segment-built-paths-on-a-repo: clause 1: segment-built paths on a repo-root variable and array path pieces are findings [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': `const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const a = join(REPO_ROOT, ${quoted('packages', 'gate', 'src', 'old.js')});
@@ -53,7 +53,7 @@ const pieces = ['packages', 'gate', 'src', 'old2.js'];\n`,
   assert.deepEqual(found.map(row => `${row.line}:${row.path}`), ['2:packages/gate/src/old.js', '3:packages/gate/src/old2.js']);
 });
 
-test('clause 1: a missing path that is a path-map key suggests the new path, following chains [C7]', () => {
+test('gate.io-paths-lint.a-missing-path-that-is-a: clause 1: a missing path that is a path-map key suggests the new path, following chains [C7]', () => {
   const found = lint({
     'packages/a/src/x.js': `const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');\nconst a = join(REPO_ROOT, ${quoted('src', 'old.js')});\n`,
     'packages/z/new.js': '\n',
@@ -62,7 +62,7 @@ test('clause 1: a missing path that is a path-map key suggests the new path, fol
   assert.equal(found[0].suggest, 'packages/z/new.js');
 });
 
-test('clause 1: fixture text written into scratch repos and prefix checks are not findings [C7]', () => {
+test('gate.io-paths-lint.fixture-text-written-into-scratch-repos: clause 1: fixture text written into scratch repos and prefix checks are not findings [C7]', () => {
   const found = lint({
     'packages/a/tests/x.test.js': `tree.write('a.js', "const g = new URL('../data/gone.json', import.meta.url);");
 const text = \`join(import.meta.dirname, 'nope.js')\`;
@@ -72,7 +72,7 @@ writeFileSync(join(import.meta.dirname, 'out', 'made.txt'), 'x');\n`,
   assert.deepEqual(found, []);
 });
 
-test('clause 1: the ratchet fails only for files over their recorded count, and counts only fall [C7]', () => {
+test('gate.io-paths-lint.the-ratchet-fails-only-for-files: clause 1: the ratchet fails only for files over their recorded count, and counts only fall [C7]', () => {
   const rows = [{ file: 'a.js', line: 3, path: 'x/y.js', suggest: null }, { file: 'a.js', line: 4, path: 'x/z.js', suggest: 'q/z.js' }];
   assert.deepEqual(missingPathGrowth(rows, { files: { 'a.js': 2 } }), []);
   assert.deepEqual(missingPathGrowth(rows.slice(0, 1), { files: { 'a.js': 2 } }), []);
@@ -82,6 +82,6 @@ test('clause 1: the ratchet fails only for files over their recorded count, and 
   assert.equal(missingPathGrowth(rows, { files: {} }).length, 2);
 });
 
-test('clause 1: the missing-paths class is registered as a static tree check [C7]', () => {
+test('gate.io-paths-lint.the-missing-paths-class-is-registered: clause 1: the missing-paths class is registered as a static tree check [C7]', () => {
   assert.ok(STATIC_TREE_CHECKS.some(check => check.name === 'missing-paths'));
 });

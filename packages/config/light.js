@@ -15,6 +15,7 @@ export {
   boardRemote,
   browserFreeChecksEnabled,
   healthDiskFloorGb,
+  hunkFreshnessEnabled,
   listThinRead,
   loadMachineSettings,
   namedImportSelectionOn,

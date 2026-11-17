@@ -45,7 +45,7 @@ async function relayFixture(t) {
   };
 }
 
-test('clause 1: a renew on day 29 moves a live machine credential to now plus 30 days [C7]', async t => {
+test('relay.io-credential-renew.a-renew-on-day-29-moves: clause 1: a renew on day 29 moves a live machine credential to now plus 30 days [C7]', async t => {
   const box = await relayFixture(t);
   const machine = await box.auth.issueMachine(box.person.token, { board: box.board, machine: 'laptop' });
   box.advance(29 * DAY);
@@ -57,14 +57,14 @@ test('clause 1: a renew on day 29 moves a live machine credential to now plus 30
   await box.auth.renewCredential(machine.token, { board: box.board });
 });
 
-test('clause 1: an unused machine credential still expires at 30 days [C7]', async t => {
+test('relay.io-credential-renew.an-unused-machine-credential-still-expires: clause 1: an unused machine credential still expires at 30 days [C7]', async t => {
   const box = await relayFixture(t);
   const machine = await box.auth.issueMachine(box.person.token, { board: box.board, machine: 'idle' });
   box.advance(MONTH);
   await assert.rejects(box.auth.renewCredential(machine.token, { board: box.board }), { code: 'AUTH_REQUIRED' });
 });
 
-test('clause 1: a rotated root coordinator keeps a 30-day lease while agent tokens keep their short life [C7]', async t => {
+test('relay.io-credential-renew.a-rotated-root-coordinator-keeps-a: clause 1: a rotated root coordinator keeps a 30-day lease while agent tokens keep their short life [C7]', async t => {
   const box = await relayFixture(t);
   const first = await box.auth.issueCoordinator(box.person.token, { board: box.board });
   const rotated = await box.auth.issueToken(first.token, { board: box.board, agent: 'coordinator' });
@@ -73,7 +73,7 @@ test('clause 1: a rotated root coordinator keeps a 30-day lease while agent toke
   assert.equal(agent.expires, box.now() + DAY);
 });
 
-test('clause 1: the renew route extends a machine credential over HTTP [C7]', async t => {
+test('relay.io-credential-renew.the-renew-route-extends-a-machine: clause 1: the renew route extends a machine credential over HTTP [C7]', async t => {
   const box = await relayFixture(t);
   const machine = await box.auth.issueMachine(box.person.token, { board: box.board, machine: 'http' });
   box.advance(10 * DAY);
@@ -83,7 +83,7 @@ test('clause 1: the renew route extends a machine credential over HTTP [C7]', as
   assert.equal((await answer.json()).expires, box.now() + MONTH);
 });
 
-test('clause 2: an expired or revoked credential is refused before any renewal [C7]', async t => {
+test('relay.io-credential-renew.an-expired-or-revoked-credential-is: clause 2: an expired or revoked credential is refused before any renewal [C7]', async t => {
   const box = await relayFixture(t);
   const expired = await box.auth.issueMachine(box.person.token, { board: box.board, machine: 'old', expiresIn: DAY });
   const revoked = await box.auth.issueMachine(box.person.token, { board: box.board, machine: 'gone' });

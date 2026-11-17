@@ -1,3 +1,4 @@
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js */
 /** Only an explicit work-spec version mismatch refreshes the pinned runner tooling once [C7,#2855]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -39,7 +40,7 @@ if (!remoteCommand.includes(' --health ') && !remoteCommand.includes('registrati
   return calls;
 }
 
-test('a mismatched runner refreshes once, a second mismatch names both versions, and malformed specs never retry [C7,#2855]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
+test('runners.refresh.a-mismatched-runner-refreshes-once-a: a mismatched runner refreshes once, a second mismatch names both versions, and malformed specs never retry [C7,#2855]', { skip: 'CONTROLLER_ONLY: deleted with #6579' }, async t => {
   const box = cellSandbox(t);
   const project = join(box.dir, 'project');
   mkdirSync(project);

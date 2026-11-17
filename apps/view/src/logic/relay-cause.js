@@ -1,8 +1,5 @@
 /** Turns the relay status cause into the phone's words and the one command that fixes it, as plain data [H5,H17,N26]. */
 
-/** The name a message uses for a machine: its name when known, else "that computer". */
-const nameOf = (cause) => [cause.label, cause.machine].find((value) => typeof value === 'string' && value) ?? 'that computer';
-
 /**
  * Map one relay-unavailable cause (the shape relayUnavailableCause returns) to what the phone shows. A network failure stays
  * "Check your connection"; sharing off and an excluded board each name their own cause and the one command that fixes it, with
@@ -12,7 +9,8 @@ const nameOf = (cause) => [cause.label, cause.machine].find((value) => typeof va
  * @returns {{message: string, command: string|null}} The message and its fix command, or null when no command helps.
  */
 export function relayCauseMessage(cause = {}) {
-  const machine = nameOf(cause ?? {});
+  // Inline, not a module helper, so the page can embed this function's source on its own [C7].
+  const machine = [cause?.label, cause?.machine].find((value) => typeof value === 'string' && value) ?? 'that computer';
   switch (cause?.cause) {
     case 'relay_off':
       return { message: `Sharing is off on ${machine}.`, command: 'pullboard relay on' };
@@ -44,4 +42,22 @@ export function relayNoticeView(status = null) {
   if (!status || !status.cause) return null;
   const said = relayCauseMessage(status);
   return { tone: status.cause === 'asleep' || status.cause === 'offline' ? 'asleep' : 'trouble', ...said };
+}
+
+/**
+ * The line the page's startup shows when the relay client fails to load. A failure carrying a relayCause of relay_off or excluded
+ * says that cause and its one fix command; any other failure keeps its message and "Check your connection". Self-contained
+ * (the formatter is passed in) so the page embeds it as source [C7,#9457].
+ *
+ * @param {Error & {relayCause?: {cause?: string}}} error - The failure from loading the transport.
+ * @param {(cause: object) => {message: string, command: string|null}} format - relayCauseMessage.
+ * @returns {string} The startup line.
+ */
+export function startupFailureLine(error, format) {
+  const cause = error?.relayCause;
+  if (cause && (cause.cause === 'relay_off' || cause.cause === 'excluded')) {
+    const said = format(cause);
+    return said.message + (said.command ? ' Run ' + said.command + ', then reload this page.' : ' Reload this page.');
+  }
+  return error.message + ' Check your connection, then reload this page.';
 }

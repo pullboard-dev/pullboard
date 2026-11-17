@@ -20,12 +20,12 @@ not ok 1 - node case
   ...
 `;
 
-test('clause 1: landing.junitFailures is a described setting, off by default [C7]', () => {
+test('landing.failures-junit.landing-junitfailures-is-a-described-setting: clause 1: landing.junitFailures is a described setting, off by default [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.junitFailures'], false);
   assert.ok(describeSetting('landing.junitFailures'));
 });
 
-test('clause 2: with the setting on, report failing cases come back as rows; off returns today’s rows [C7]', () => {
+test('landing.failures-junit.with-the-setting-on-report-failing: clause 2: with the setting on, report failing cases come back as rows; off returns today’s rows [C7]', () => {
   const before = landingFailures(TAP, '/repo');
   const on = landingFailures(TAP, '/repo', { junitFailures: true, junitXml: XML });
   assert.deepEqual(on.slice(0, before.length), before);
@@ -36,7 +36,7 @@ test('clause 2: with the setting on, report failing cases come back as rows; off
   assert.equal(landingFailures('', '/repo', { junitFailures: true, junitXml: XML + XML.slice(XML.indexOf('<testsuites>')) }).length, 1);
 });
 
-test('clause 3: Node TAP and spec output with no report text gives the same rows with the setting on [C7]', () => {
+test('landing.failures-junit.node-tap-and-spec-output-with: clause 3: Node TAP and spec output with no report text gives the same rows with the setting on [C7]', () => {
   const spec = `test at /repo/test/x.test.js:3:1\n✖ spec case (1.2ms)\n  boom\n`;
   for (const output of [TAP, spec, '']) {
     assert.deepEqual(landingFailures(output, '/repo', { junitFailures: true }), landingFailures(output, '/repo'));
