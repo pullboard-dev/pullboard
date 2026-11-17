@@ -1,3 +1,4 @@
+/** @pullboard-test-input package.json */
 /** The relay readiness probe reports its build version and highest snapshot API [C7]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
