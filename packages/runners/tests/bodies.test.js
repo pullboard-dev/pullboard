@@ -10,7 +10,7 @@ function frame(object, body, type = 'tag') {
   return Buffer.concat([Buffer.from(`${object} ${type} ${bytes.length}\n`), bytes, Buffer.from('\n')]);
 }
 
-test('tag batch preserves ordered exact UTF-8 annotations and final body newlines [C7]', () => {
+test('runners.bodies.tag-batch-preserves-ordered-exact-utf: tag batch preserves ordered exact UTF-8 annotations and final body newlines [C7]', () => {
   const first = 'object ' + B + '\ntype commit\ntag première\n\nmessage 🧭\n';
   const second = 'object ' + A + '\ntype tag\ntag nested\n\nembedded\nheader-looking text\n';
   const result = tagObjectBodies([A, B], Buffer.concat([frame(A, first), frame(B, second)]));
@@ -20,7 +20,7 @@ test('tag batch preserves ordered exact UTF-8 annotations and final body newline
   assert.equal(tagObjectBodies([sha256], frame(sha256, first)).get(sha256), first);
 });
 
-test('tag batch refuses wrong identity, missing objects, wrong type, order and extra frames [C7]', () => {
+test('runners.bodies.tag-batch-refuses-wrong-identity-missing: tag batch refuses wrong identity, missing objects, wrong type, order and extra frames [C7]', () => {
   for (const bytes of [frame(B, 'one'), Buffer.from(`${A} missing\n`), frame(A, 'one', 'commit'),
     Buffer.concat([frame(B, 'two'), frame(A, 'one')]), Buffer.concat([frame(A, 'one'), frame(B, 'two')]),
     Buffer.concat([frame(A, 'one'), Buffer.from('\n')])]) {
@@ -31,7 +31,7 @@ test('tag batch refuses wrong identity, missing objects, wrong type, order and e
   assert.throws(() => tagObjectBodies([A], 'not raw bytes'));
 });
 
-test('tag batch refuses truncated bodies, invalid sizes and nonexact framing [C7]', () => {
+test('runners.bodies.tag-batch-refuses-truncated-bodies-invalid: tag batch refuses truncated bodies, invalid sizes and nonexact framing [C7]', () => {
   for (const bytes of [Buffer.from(`${A} tag 3\nab`), Buffer.from(`${A} tag 3\nabc`),
     Buffer.from(`${A} tag 3\nabcX`), Buffer.from(`${A} tag 2\n🧭\n`),
     Buffer.from(`${A} tag -1\n\n`), Buffer.from(`${A} tag 01\na\n`),
