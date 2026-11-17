@@ -16,7 +16,7 @@ function pendingItem(t, request) {
   return { board, id, expected };
 }
 
-test('clause 3: a green first baseline under the hold setting holds the item with the named reason, so next never offers it [C7]', t => {
+test('board.hold.green-first-baseline-under-the-hold: clause 3: a green first baseline under the hold setting holds the item with the named reason, so next never offers it [C7]', t => {
   const { board, id, expected } = pendingItem(t, '66666666-6666-4666-8666-666666666666');
   assert.equal(store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected,
     baseline: { command: expected.command, main: MAIN, result: 'green' }, holdProvesNothing: true }), true);
@@ -24,7 +24,7 @@ test('clause 3: a green first baseline under the hold setting holds the item wit
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item, null, 'a held item is not offered');
 });
 
-test('clause 3: without the hold setting, or with a red baseline, the item stays open [C7]', t => {
+test('board.hold.without-the-hold-setting-with-red: clause 3: without the hold setting, or with a red baseline, the item stays open [C7]', t => {
   const quiet = pendingItem(t, '77777777-7777-4777-8777-777777777777');
   store.completeCheckBaseline(quiet.board, quiet.id, { agentId: 'coordinator', expected: quiet.expected,
     baseline: { command: quiet.expected.command, main: MAIN, result: 'green' } });
@@ -35,7 +35,7 @@ test('clause 3: without the hold setting, or with a red baseline, the item stays
   assert.equal(store.getItem(red.board, red.id).item_hold_reason ?? null, null, 'a red baseline proves the check fails first');
 });
 
-test('clause 3: a green baseline that lands after the person accepted that exact check does not hold the item [C7]', t => {
+test('board.hold.green-baseline-that-lands-after-the: clause 3: a green baseline that lands after the person accepted that exact check does not hold the item [C7]', t => {
   const { board, id, expected } = pendingItem(t, '99999999-9999-4999-8999-999999999999');
   store.acceptCheck(board, id, { agentId: 'person', channel: 'terminal', digest: createHash('sha256').update(expected.command).digest('hex') });
   store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected,
@@ -43,7 +43,7 @@ test('clause 3: a green baseline that lands after the person accepted that exact
   assert.equal(store.getItem(board, id).item_hold_reason ?? null, null, 'the person already read and accepted this check');
 });
 
-test('clause 1: a red baseline lifts a proves-nothing hold left by an earlier green check, so next offers the item again [P7]', t => {
+test('board.hold.red-baseline-lifts-proves-nothing-hold: clause 1: a red baseline lifts a proves-nothing hold left by an earlier green check, so next offers the item again [P7]', t => {
   const { board, id, expected } = pendingItem(t, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   store.completeCheckBaseline(board, id, { agentId: 'coordinator', expected,
     baseline: { command: expected.command, main: MAIN, result: 'green' }, holdProvesNothing: true });

@@ -20,7 +20,12 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
   finally { closeBoard(board); }
   let formats = readFileSync(join(root, 'docs', 'formats.md'), 'utf8');
-  for (const [name, table] of Object.entries(blocks)) formats = replaceDocTable(formats, name, table);
+  let spec = readFileSync(join(root, 'docs', 'formats', 'spec.md'), 'utf8');
+  // A table moved to a user page is refreshed there; every other table stays in the guide.
+  for (const [name, table] of Object.entries(blocks)) {
+    if (!formats.includes(`<!-- ${name}:start -->`) && spec.includes(`<!-- ${name}:start -->`)) spec = replaceDocTable(spec, name, table);
+    else formats = replaceDocTable(formats, name, table);
+  }
   let api = readFileSync(join(root, 'docs', 'api.md'), 'utf8');
   const tables = {
     'api-command-shapes': shapeTable(['Command', 'Required top-level fields'], Object.fromEntries(
@@ -31,7 +36,7 @@ export function generatedDocs(root = fileURLToPath(new URL('../../../../../', im
   };
   for (const [name, table] of Object.entries(tables)) api = replaceDocTable(api, name, table);
   return new Map([
-    ['docs/formats.md', formats], ['docs/api.md', api],
+    ['docs/formats.md', formats], ['docs/formats/spec.md', spec], ['docs/api.md', api],
     ['apps/cli/src/logic/help/additions.js', commandHelpModule(root)],
   ]);
 }

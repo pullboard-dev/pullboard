@@ -33,7 +33,7 @@ function fixture(t) {
   return files;
 }
 
-test('the dry run names the file and line of path math that cannot be rewritten, and plans the rest [C7]', t => {
+test('gate.io-test-freeze-paths.the-dry-run-names-the-file: the dry run names the file and line of path math that cannot be rewritten, and plans the rest [C7]', t => {
   const repo = fixture(t);
   const { status, stdout } = runFreezeCommand(['--dry-run', repo.root], { owner });
   assert.equal(status, 0);
@@ -42,7 +42,7 @@ test('the dry run names the file and line of path math that cannot be rewritten,
   assert.match(stdout, /dry run: 0 delete, 1 move, 0 convert, 0 in place, 1 refused\n$/u);
 });
 
-test('a moved test whose new URL target resolves has that path rewritten [C7]', t => {
+test('gate.io-test-freeze-paths.a-moved-test-whose-new-url: a moved test whose new URL target resolves has that path rewritten [C7]', t => {
   const repo = fixture(t);
   const { status, stderr } = runFreezeCommand([repo.root], { owner });
   assert.equal(status, 0, stderr);
