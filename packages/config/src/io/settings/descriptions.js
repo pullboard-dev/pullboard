@@ -132,6 +132,7 @@ const ROWS = [
   ['serve.port', 'Board API port', 'The port pullboard serve listens on; 0 chooses a free one, so set it when runners keep the board URL.', 'Runners', 'port'],
   ['serve.pullRoute', 'Board API answers runner pulls', 'When enabled, pullboard serve also answers /pull/register, /pull/take, /pull/heartbeat and /pull/result for pull runners, over this board\'s job table; off (default), serve answers /pull/ as it did before, with no such route.', 'Runners', 'on/off'],
   ['tests.registryStrict', 'Fail on unregistered tests', 'When enabled, the test registry check fails when a test has no stable ID or registry record; off, it reports the test and passes.', 'Runners', 'on/off'],
+  ['tests.requireDeclaredInputs', 'Report tests with undeclared inputs', 'When enabled, the test-input rule also reports a test file that reads a repo file outside src (fixtures, data, docs) without an input header; off (default), it keeps today\'s exact behaviour.', 'Runners', 'on/off'],
   ['tests.requireJourneyPath', 'Refuse journeys with no user path', 'When enabled, the static check refuses a change that adds a CLI journey no golden user path names (JOURNEY_NO_PATH); off, it prints the finding as a diagnostic line and passes.', 'Runners', 'on/off'],
   ['tests.requireRegistered', 'Refuse unregistered new tests', 'When enabled, the static check refuses a change that adds a test file in a cell with no test registry (TEST_UNREGISTERED); off, it prints the finding as a diagnostic line and passes.', 'Runners', 'on/off'],
   // This machine: Background

@@ -72,6 +72,7 @@ export {
   registryStrictEnabled,
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
+  requireDeclaredInputsEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
   adapterLintFsEnabled,
