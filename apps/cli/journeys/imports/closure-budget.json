@@ -9,7 +9,7 @@
   "hook commit-msg": 39,
   "git-hook --version": 5,
   "hook post-commit": 1,
-  "claim 1": 1140,
-  "release 1 --reason OTHER --note x": 1092,
+  "claim 1": 1050,
+  "release 1 --reason OTHER --note x": 1052,
   "add web Measure-again --criterion x": 1574
 }
