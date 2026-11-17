@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { behindDeviceOptions } from '../../../../packages/link/index.js';
+import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
-import { ENGINE_VERSION } from '../../../../packages/state/src/io/machine.js';
 
 const BOARD = 'a'.repeat(32);
 const NEEDED = ENGINE_VERSION + 50;
