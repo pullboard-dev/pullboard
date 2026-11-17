@@ -30,7 +30,7 @@ function shapedStrong(box) {
 async function offered(box) {
   const answer = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(answer.code, 0, answer.out + answer.err);
-  return answer.document.item?.item_id ?? null;
+  return answer.document.item?.item_id ?? `none: ${answer.out}`;
 }
 
 test('clause 1: with next.lightShapedStrong on and no free light item, the real next from a light seat offers an unheld light-shaped strong item [C7,#9568]', async t => {
@@ -38,7 +38,7 @@ test('clause 1: with next.lightShapedStrong on and no free light item, the real 
   const shaped = shapedStrong(box);
   box.add('Wrong route and not light-shaped', { route: 'strong' });
   nextSettings({ lightShapedStrong: true });
-  assert.equal(await offered(box), shaped);
+  assert.equal(await offered(box), shaped, 'the shaped strong item is offered');
 });
 
 test('clause 2: the light-shaped strong item is not offered while a light item is free [C7,#9568]', async t => {
