@@ -27,7 +27,7 @@ function fingerprint(root) {
   return JSON.stringify(checkCommandDefinition(root, [], [`${root}/a.js`]));
 }
 
-test('the same tree gives the same fingerprint, with or without .git, and a dirty file moves it [C7]', () => {
+test('git.definition.same-tree-same-print: the same tree gives the same fingerprint, with or without .git, and a dirty file moves it [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   assert.equal(fingerprint(graph.root), clean);
@@ -41,7 +41,7 @@ test('the same tree gives the same fingerprint, with or without .git, and a dirt
   assert.equal(fingerprint(graph.root), clean, 'restoring the bytes restores the fingerprint');
 });
 
-test('an untracked file the checker loads is part of the fingerprint [C7]', () => {
+test('git.definition.untracked-loaded-file: an untracked file the checker loads is part of the fingerprint [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   graph.put('c.js', 'export const y = 1;\n');
@@ -51,7 +51,7 @@ test('an untracked file the checker loads is part of the fingerprint [C7]', () =
   assert.notEqual(JSON.stringify(changed), clean);
 });
 
-test('clause 1: the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
+test('git.definition.index-blob-ids: clause 1: the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
   const tool = fixture();
   const project = fixtureCommittedGraph('definition-project-');
   project.put('README.md', 'project\n');
@@ -70,7 +70,7 @@ test('clause 1: the git index of the checkout Pullboard runs from names its clea
   assert.equal(JSON.stringify(walk()), JSON.stringify(clean), 'restoring the bytes restores the fingerprint');
 });
 
-test('clause 1: import edges are saved by blob id in the git directory for the next command [C7]', () => {
+test('git.definition.edges-saved-by-blob: clause 1: import edges are saved by blob id in the git directory for the next command [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   const dir = join(graph.root, '.git', 'pullboard');
@@ -83,7 +83,7 @@ test('clause 1: import edges are saved by blob id in the git directory for the n
   assert.equal(fingerprint(graph.root), clean, 'a walk reading saved edges gives the same fingerprint');
 });
 
-test('clause 2: the bounded look-back before each literal reads every source in the git cell the same as the whole prefix [C7]', () => {
+test('git.definition.lookback-bounded: clause 2: the bounded look-back before each literal reads every source in the git cell the same as the whole prefix [C7]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
   const files = execFileSync('git', ['ls-files', '-z', '--', 'packages/git/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0').filter(Boolean);
@@ -96,7 +96,7 @@ test('clause 2: the bounded look-back before each literal reads every source in 
   }
 });
 
-test('a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
+test('git.definition.concatenated-load: a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
   const graph = fixture();
   graph.put('a.js', "import './b.js';\nexport const load = () => import('./late-' + 'sweep.js');\n");
   assert.ok(checkCommandDefinition(graph.root, [], [`${graph.root}/a.js`]), 'the closure still names its files');
