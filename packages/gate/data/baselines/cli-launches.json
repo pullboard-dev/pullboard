@@ -1200,7 +1200,10 @@
     "launch": 4
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 8
+    "launch": 2
+  },
+  "apps/cli/journeys/resume/flow-upgrade.test.js": {
+    "launch": 6
   },
   "apps/cli/journeys/runner/reuse.test.js": {
     "launch": 1
