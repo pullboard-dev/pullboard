@@ -152,7 +152,7 @@ export function loadMachineSettings() {
   }
   if (value.landing !== undefined && (!value.landing || typeof value.landing !== 'object' || Array.isArray(value.landing)
     // The landing switches sit beside pools, so a machine may set one without a pool [C7,#9102].
-    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'runnerOnlyCompose', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
+    || Object.keys(value.landing).some(key => !['pools', 'adaptiveBatch', 'reofferTrunkBusy', 'squash', 'strictFullSuite', 'reuseGateReceipts', 'runnerOnlyCompose', 'reuseContractResults', 'asyncFetch', 'byHand', 'stallStop', 'parallelGates', 'staticAffectedOnly', 'staticParallelMax', 'junitSignatures', 'junitFailures', 'cargoFailures'].includes(key)) || (value.landing.pools !== undefined && !Array.isArray(value.landing.pools))
     || (value.landing.pools ?? []).some(id => typeof id !== 'string' || !/^[a-f0-9]{32}$/u.test(id)))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.pools in ${file} lists the board identifiers this machine may land`);
   }
@@ -198,7 +198,7 @@ export function loadMachineSettings() {
   if (value.gate?.reofferInfraEnd !== undefined && typeof value.gate.reofferInfraEnd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.reofferInfraEnd in ${file} must be true or false`);
   }
-  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
+  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.localWake', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
   }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
@@ -247,6 +247,9 @@ export function loadMachineSettings() {
   if (value.census?.rerunNonGreen !== undefined && typeof value.census.rerunNonGreen !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunNonGreen in ${file} must be true or false`);
   }
+  if (value.census?.skipUnchanged !== undefined && typeof value.census.skipUnchanged !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.skipUnchanged in ${file} must be true or false`);
+  }
   if (value.census?.rerunOnSettle !== undefined && typeof value.census.rerunOnSettle !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.rerunOnSettle in ${file} must be true or false`);
   }
@@ -285,6 +288,9 @@ export function loadMachineSettings() {
   }
   if (value.census?.soloFileSeconds !== undefined && value.census.soloFileSeconds !== null && !(Number.isSafeInteger(value.census.soloFileSeconds) && value.census.soloFileSeconds >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.soloFileSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
+  }
+  if (value.census?.fileKillSeconds !== undefined && value.census.fileKillSeconds !== null && !(Number.isSafeInteger(value.census.fileKillSeconds) && value.census.fileKillSeconds >= 1)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `census.fileKillSeconds in ${file} must be a whole number of seconds, 1 or more, or null`);
   }
   if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
@@ -420,6 +426,9 @@ export function loadMachineSettings() {
   }
   if (value.landing?.staticAffectedOnly !== undefined && typeof value.landing.staticAffectedOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.staticAffectedOnly in ${file} must be true or false`);
+  }
+  if (value.landing?.cargoFailures !== undefined && typeof value.landing.cargoFailures !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `landing.cargoFailures in ${file} must be true or false`);
   }
   if (value.landing?.junitSignatures !== undefined && typeof value.landing.junitSignatures !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `landing.junitSignatures in ${file} must be true or false`);

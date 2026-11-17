@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand-written in the shape of: node --test --test-reporter=junit (Node 22)
+     A testsuite per describe nests inside the file suite; each testcase carries file, an absolute path inside the checkout.
+     Case names read "clause N: ..." as the test titles would write them. No tool is needed to read it. -->
+<testsuites name="test" time="0.052" tests="3" failures="1" skipped="1">
+  <testsuite name="math" time="0.011" disabled="0" errors="0" tests="3" failures="1" skipped="1" hostname="runner">
+    <testcase name="clause 1: adds two numbers" time="0.001" classname="test" file="/work/repo/test/math.test.js" line="4" column="1"/>
+    <testcase name="clause 2: halves a number" time="0.002" classname="test" file="/work/repo/test/math.test.js" line="9" column="1">
+      <failure type="testCodeFailure" message="Expected values to be strictly equal:&#10;&#10;1 !== 2&#10;">[Error [ERR_TEST_FAILURE]: Expected values to be strictly equal:
+
+1 !== 2
+] { code: 'ERR_TEST_FAILURE' }</failure>
+    </testcase>
+    <testcase name="clause 3: later" time="0.000" classname="test" file="/work/repo/test/math.test.js" line="14" column="1">
+      <skipped type="skipped" message="not yet"/>
+    </testcase>
+  </testsuite>
+</testsuites>
