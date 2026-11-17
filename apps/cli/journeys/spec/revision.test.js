@@ -68,6 +68,7 @@ test('clause 1: a spec revision shows old and proposed rows side by side with pr
       assert.ok(shown.right <= width, `${width}: the comparison stays in the viewport`);
       await press(chrome, `${row}.querySelector('[data-row-decision="approve"]')`);
       await chrome.waitFor(`window.revisionMoves.some(move => move.verb === 'spec-approve' && move.args.ids === '${approve}')`);
+      await chrome.waitFor(`!data.project.specRevisions.some(proposal => proposal.id === '${approve}') && !document.querySelector('#needs [data-spec-revision="${approve}"]')`);
       const declinedRow = `document.querySelector('#needs [data-spec-revision="${decline}"]')`;
       await press(chrome, `${declinedRow}.querySelector('summary')`);
       await chrome.waitFor(`${declinedRow}.querySelector('details').open`);
