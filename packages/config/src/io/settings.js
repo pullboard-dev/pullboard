@@ -266,6 +266,11 @@ export function pushRecordTimingEnabled() {
   return loadMachineSettings().push?.recordTiming === true;
 }
 
+/** Whether push.refuseUnsharded is on: off by default; only an exact `true` makes the pre-push hook refuse a push it cannot shard instead of running the one-command gate [C7,#9369]. */
+export function pushRefuseUnshardedEnabled() {
+  return loadMachineSettings().push?.refuseUnsharded === true;
+}
+
 /** Whether push.rerunFailedShardOnce is on: off by default; only an exact `true` lets the pre-push gate re-offer a failed shard once [C7,#9274]. */
 export function pushRerunFailedShardOnceEnabled() {
   return loadMachineSettings().push?.rerunFailedShardOnce === true;

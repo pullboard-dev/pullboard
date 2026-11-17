@@ -135,6 +135,7 @@ export const MACHINE_DEFAULTS = {
   'next.readinessCheck': false,
   'next.routeByTier': false,
   'push.recordTiming': false,
+  'push.refuseUnsharded': false,
   'push.rerunFailedShardOnce': false,
   'read.thinCommands': false,
   'relay.excludeByBoard': false,
