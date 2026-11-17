@@ -98,6 +98,7 @@ export const MACHINE_DEFAULTS = {
   'holds.requireOwner': false,
   'inspection.clauses': false,
   'items.typedFields': false,
+  'join.coordinatorSeat': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
   'jobs.recordLapse': false,
