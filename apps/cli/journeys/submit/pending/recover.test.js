@@ -1,5 +1,8 @@
 /** A submit whose gate-offer reply was lost recovers the original gate from the runner job row when submit.recoverFromJobRow is on, and not when it is off [C7,P7,#9740]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
@@ -19,6 +22,15 @@ function gateJobs(fixture, item) {
   try { return runs.prepare("SELECT job_id FROM job WHERE job_item = ? AND job_kind = 'gate' ORDER BY job_id").all(item).map(row => row.job_id); } finally { runs.close(); }
 }
 
+/** Forget the offer note the seat held, as a seat that died between offering the gate job and holding the note would: only the job row is left of the offer. */
+function forgetHeldNote(fixture) {
+  const link = join(fixture.commonDir(fixture.clones[0], fixture.envs[0]), 'pullboard', 'relay.json');
+  const state = JSON.parse(readFileSync(link, 'utf8'));
+  assert.ok(state.pending?.move, 'the lost offer left its note held');
+  delete state.pending;
+  writeFileSync(link, JSON.stringify(state) + '\n', { mode: 0o600 });
+}
+
 /** Submit the item again from the seat that lost the offer, under the given submit.recoverFromJobRow. */
 async function submitAgain(fixture, timing, item, recoverFromJobRow) {
   fixtureMachineSettings(fixture.envs[0].PULLBOARD_MACHINE_HOME, { submit: { recoverFromJobRow } });
@@ -31,6 +43,7 @@ test('clause 1 and clause 2: [C7,P7,#9740] a lost gate-offer reply is recovered 
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);
     const { item, job } = await lostGateOffer(fixture, timing);
+    forgetHeldNote(fixture);
     const off = await submitAgain(fixture, timing, item, false);
     assert.notEqual(off.again.document?.recovered, true, off.detail);
     const afterOff = gateJobs(fixture, item);
