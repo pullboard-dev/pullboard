@@ -104,6 +104,11 @@ export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
 }
 
+/** Whether landing.cargoFailures is on (#10384): off by default; only an exact `true` turns it on. */
+export function landingCargoFailures() {
+  return loadMachineSettings().landing?.cargoFailures === true;
+}
+
 /** Whether landing.junitFailures is on (#9763): off by default; only an exact `true` turns it on. */
 export function landingJunitFailures() {
   return loadMachineSettings().landing?.junitFailures === true;
