@@ -28,6 +28,7 @@ const BEFORE = {
   'census.rerunNonGreen': false,
   'census.rerunOnSettle': false,
   'census.selfTune': false,
+  'census.skipUnchanged': false,
   'census.soloFileSeconds': null,
   'claim.keepWhileRunning': false,
   'claim.refuseOffMainHead': false,

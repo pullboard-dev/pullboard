@@ -258,6 +258,11 @@ export function censusJobMinutes() {
   return typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0 ? minutes : null;
 }
 
+/** Whether census.skipUnchanged is on: off by default; only an exact `true` lets a census carry forward the green rows of files whose declared inputs did not change [C7,#10381]. */
+export function censusSkipUnchangedEnabled() {
+  return loadMachineSettings().census?.skipUnchanged === true;
+}
+
 /** Seconds over which a file recorded in an earlier census plans as a census job to itself; null (the default) plans as before [C7,#9499]. */
 export function censusSoloFileSeconds() {
   const secs = loadMachineSettings().census?.soloFileSeconds;
