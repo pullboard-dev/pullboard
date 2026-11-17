@@ -45,19 +45,18 @@ test('clause 1: show --json for a landed item carries landing.phases as {phase, 
   assert.deepEqual(document.landing.phases, PHASES);
 });
 
-test('clause 2: show prints one line per phase, and an item landed with no phases prints none and no error [C7,#9079]', async t => {
-  const first = await verifiedItem(t);
-  await first.land(PHASES);
-  const shown = await first.box.runLocal(first.box.repo, 'show', String(first.entry.item));
+test('clause 2: show prints one line per phase, and an item with no recorded landing phases prints none and no error [C7,#9079]', async t => {
+  const { box, entry, land } = await verifiedItem(t);
+  // Verified but not yet landed, as an item landed before phases were kept: no phase line, no landing document, no error.
+  const plain = await box.runLocal(box.repo, 'show', String(entry.item));
+  assert.equal(plain.code, 0, plain.err);
+  assert.doesNotMatch(plain.out, /landing phase/u);
+  const json = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
+  assert.equal(json.code, 0, json.err);
+  assert.equal(JSON.parse(json.out).landing, undefined);
+  await land(PHASES);
+  const shown = await box.runLocal(box.repo, 'show', String(entry.item));
   assert.equal(shown.code, 0, shown.err);
   assert.deepEqual(shown.out.split('\n').filter(line => line.startsWith('landing phase ')),
     ['landing phase merge: 120 ms', 'landing phase static checks: 4000 ms', 'landing phase cli smoke: 900 ms', 'landing phase push: 700 ms']);
-  const old = await verifiedItem(t);
-  await old.land(null);
-  const plain = await old.box.runLocal(old.box.repo, 'show', String(old.entry.item));
-  assert.equal(plain.code, 0, plain.err);
-  assert.doesNotMatch(plain.out, /landing phase/u);
-  const json = await old.box.runLocal(old.box.repo, 'show', String(old.entry.item), '--json');
-  assert.equal(json.code, 0, json.err);
-  assert.equal(JSON.parse(json.out).landing, undefined);
 });
