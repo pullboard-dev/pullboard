@@ -54,7 +54,7 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--after', '1');
   const second = (await box.runLocal(box.repo, 'worktree', 'web')).out.match(/^made (\S+) /)[1];
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
+  await commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
   assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
   await settledGateJob(box, 1); // under pull the gate settles on the runner; verify before it fails NOT_SUBMITTED [C7,#7283]
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
@@ -62,7 +62,7 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   box.git(box.repo, 'switch', '-q', 'main');
   (await box.runLocal(second, 'claim', '2'));
   box.git(second, 'merge', '-q', '--ff-only', 'web/one');
-  commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
+  await commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
   assert.equal((await box.runLocal(second, 'submit', '2')).code, 0);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_files, 'web/page.html');
 });
@@ -71,7 +71,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', as
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
   await settledGateJob(box, 1);
   const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
@@ -135,7 +135,7 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Second', '--specs', 'G1', '--after', '1');
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
   const idle = (await box.runLocal(box.web, 'next'));
   assert.match(idle.out, /nothing for this seat: end your turn/, JSON.stringify(idle));
@@ -160,7 +160,7 @@ test('submit names the item and the way out when a cited row was retired after t
   assert.equal(added.code, 0, added.err);
   const claimed = await fixtureCommand(box, box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  const built = commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  const built = await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   assert.equal(built.status, 0, built.stderr);
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('- G1 [approved, must] The page renders. | gate: web test', '- G1 [retired] The page renders.'));
   box.git(box.repo, 'commit', '-qam', 'docs(spec): retire G1');

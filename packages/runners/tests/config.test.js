@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { runnerPackage } from '../index.js';
 import { commandDocs } from '../../config/index.js';
 
-test('parallel candidate landing is opt-in and accepts only boolean settings [B3,V4]', () => {
+test('runners.config.parallel-candidate-landing-is-opt-in: parallel candidate landing is opt-in and accepts only boolean settings [B3,V4]', () => {
   assert.notEqual(configFromSource('{}').landing?.parallel, true);
   for (const parallel of [true, false]) {
     assert.equal(configFromSource(JSON.stringify({ landing: { parallel } })).landing.parallel, parallel);
@@ -19,7 +19,7 @@ test('parallel candidate landing is opt-in and accepts only boolean settings [B3
 });
 
 /** Exercise the real worker's source closure rather than a stand-in manifest [C7,O5]. */
-test('the moved config command declarations retain their root and stay out of the real runner capsule [C7,O5]', () => {
+test('runners.config.the-moved-config-command-declarations-retain: the moved config command declarations retain their root and stay out of the real runner capsule [C7,O5]', () => {
   const root = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));
   const capsule = runnerPackage(root);
   assert.equal(capsule.entry, 'apps/runner/src/io/scripts/worker.js');

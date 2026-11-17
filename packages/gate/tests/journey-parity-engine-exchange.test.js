@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/engine/exchange.test.js', cases: ['export and import CLI commands exchange a versioned document between real repos [A7]'] }];
 
-test('clause 1: a sample of the engine/exchange journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.parity-engine-exchange.sample-engine-exchange-journey-gives: clause 1: a sample of the engine/exchange journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the engine/exchange journey keeps all 11 of its cases [C7]', () => {
+test('gate.parity-engine-exchange.engine-exchange-journey-keeps-all: clause 2: the engine/exchange journey keeps all 11 of its cases [C7]', () => {
   const source = readFileSync(resolve(import.meta.dirname, '../../../apps/cli/journeys/engine/exchange.test.js'), 'utf8');
   assert.equal((source.match(/^test\(/gmu) ?? []).length, 11, 'no case is dropped, skipped or merged');
   assert.doesNotMatch(source, /^test\.(?:skip|todo)\(/mu);

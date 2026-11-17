@@ -21,7 +21,7 @@ const rows = [{ file: 'test/red.test.js', name: 'known failure', passed: false, 
 const outcomes = formatTestOutcomes(id, rows);
 const tap = 'TAP version 13\nnot ok 1 - known failure\n  ---\n  location: test/red.test.js:1:1\n  ...\nok 2 - known pass\n1..2\n# tests 2\n# pass 1\n# fail 1\n';
 
-test('canonical native outcomes gain strict accounting only after source-bound timing [C7,H16]', () => {
+test('landing.timing.canonical-native-outcomes-gain-strict-accounting: canonical native outcomes gain strict accounting only after source-bound timing [C7,H16]', () => {
   const raw = tap + outcomes + timing;
   const [stage] = timingAccountingStages([{ status: 1, output: raw }], id, source);
   assert.equal(stage.output, tap + outcomes, 'native outcome bytes remain available for authenticated accounting');
@@ -39,7 +39,7 @@ test('canonical native outcomes gain strict accounting only after source-bound t
   }
 });
 
-test('duplicate malformed foreign and noncanonical outcomes remain visible to waiver accounting [C7,H16]', () => {
+test('landing.timing.duplicate-malformed-foreign-and-noncanonical-outcomes: duplicate malformed foreign and noncanonical outcomes remain visible to waiver accounting [C7,H16]', () => {
   const one = formatTestOutcomes(id, [rows[0]]);
   const broken = [one + one,
     '# pullboard test outcomes {broken}\n',
@@ -59,7 +59,7 @@ test('duplicate malformed foreign and noncanonical outcomes remain visible to wa
   assert.equal(tapFailures(stage.output, '/fixture', { outcomeRunId: stage.testOutcomeRunId }), null);
 });
 
-test('each pipeline component independently authenticates its diagnostic projection [C7,H16]', () => {
+test('landing.timing.each-pipeline-component-independently-authenticates-its: each pipeline component independently authenticates its diagnostic projection [C7,H16]', () => {
   const wrongTiming = formatSuiteTiming({ ...frame, tree: 'c'.repeat(40) });
   const raw = [{ status: 1, output: tap + outcomes + timing,
     pipeline: [{ status: 1, output: tap + outcomes + wrongTiming }] }];

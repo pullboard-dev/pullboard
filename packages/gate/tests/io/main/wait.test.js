@@ -56,10 +56,10 @@ process.stdout.write(JSON.stringify({ waits, actions, receipts, result, error, r
     : { waits: 3, actions: 1, receipts: 1, result: 'completed', error: null, residual: 0 });
 }
 
-test('an awaited gate admission callback survives until its action and receipt complete [C7,Q1]', async t => {
+test('gate.io-main-wait.an-awaited-gate-admission-callback-survives: an awaited gate admission callback survives until its action and receipt complete [C7,Q1]', async t => {
   await admissionCase(t, false);
 });
 
-test('an awaited gate admission refusal is reported without starting its action [C7,Q1]', async t => {
+test('gate.io-main-wait.an-awaited-gate-admission-refusal-is: an awaited gate admission refusal is reported without starting its action [C7,Q1]', async t => {
   await admissionCase(t, true);
 });

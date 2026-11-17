@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/stats packages/kernel */
 /** The stats pure door carries the flow comparison to a browser: its closure holds no node: built-in and no shell file [C7,D3]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

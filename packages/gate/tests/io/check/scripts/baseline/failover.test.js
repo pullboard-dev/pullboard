@@ -77,7 +77,7 @@ process.stdout.write(JSON.stringify({ result, failure, attempts, receipts,
 }
 
 for (const review of [false, true]) {
-  test(`${review ? 'review' : 'submit'} cleanup timeout retries only on another runner [C7]`, t => {
+  test('gate.io-check-scripts-baseline-failover.cleanup-timeout-retries-only-on-another: [C7] ' + `${review ? 'review' : 'submit'} cleanup timeout retries only on another runner`, t => {
     const run = failover(t, { review });
     assert.equal(run.failure, undefined);
     assert.equal(run.result, 'next-runner');
@@ -89,7 +89,7 @@ for (const review of [false, true]) {
   });
 }
 
-test('a dropped submit runner retries remotely and records that runner [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.a-dropped-submit-runner-retries-remotely: a dropped submit runner retries remotely and records that runner [C7]', t => {
   const run = failover(t, { dropped: true });
   assert.equal(run.result, 'next-runner');
   assert.deepEqual(run.attempts, ['failed-runner', 'next-runner']);
@@ -98,7 +98,7 @@ test('a dropped submit runner retries remotely and records that runner [C7]', t 
   assert.equal(run.holders.length, 0);
 });
 
-test('a timed-out remote check result is the check\'s red, returned once and never retried on another runner [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.a-timed-out-remote-check-result: a timed-out remote check result is the check\'s red, returned once and never retried on another runner [C7]', t => {
   // #3301 (9 Nov): a hanging shard ran three times, 13 minutes each, on two runners before its gate ended.
   const run = failover(t, { timedOut: true });
   assert.equal(run.failure, undefined);
@@ -108,7 +108,7 @@ test('a timed-out remote check result is the check\'s red, returned once and nev
   assert.equal(run.holders.length, 0);
 });
 
-test('a runner that cannot clean up after the tests ran refuses RUNNER_TEST_LEAK once, with no retry; before READY it stays infrastructure [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.a-runner-that-cannot-clean-up: a runner that cannot clean up after the tests ran refuses RUNNER_TEST_LEAK once, with no retry; before READY it stays infrastructure [C7]', t => {
   const run = failover(t, { leaked: true });
   assert.equal(run.failure?.code, 'RUNNER_TEST_LEAK');
   assert.match(run.failure.message, /left processes/u);
@@ -122,7 +122,7 @@ test('a runner that cannot clean up after the tests ran refuses RUNNER_TEST_LEAK
 });
 
 for (const dropped of [false, true]) {
-  test(`exhausted ${dropped ? 'dropped' : 'timed-out'} runners refuse by name without a local check [C7]`, t => {
+  test('gate.io-check-scripts-baseline-failover.exhausted-runners-refuse-by-name-without: [C7] ' + `exhausted ${dropped ? 'dropped' : 'timed-out'} runners refuse by name without a local check`, t => {
     const run = failover(t, { exhausted: true, dropped });
     assert.equal(run.failure?.code, 'RUNNER_UNAVAILABLE');
     assert.match(run.failure.message, /failed-runner/u);
@@ -133,7 +133,7 @@ for (const dropped of [false, true]) {
   });
 }
 
-test('clause 1: with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.with-the-default-kept-timing-runner: clause 1: with the default kept timing runner, an ordinary check goes first to the runner not kept [C7]', t => {
   // gate.timingRunner 'auto' keeps failed-runner (no measured headroom or cores, so registration order) for timed checks.
   const run = failover(t, { dropped: true, timingRunner: 'auto' });
   assert.equal(run.failure, undefined);
@@ -144,7 +144,7 @@ test('clause 1: with the default kept timing runner, an ordinary check goes firs
   assert.equal(run.holders.length, 0);
 });
 
-test('runners-first opt-out retains the explicit local check control [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.runners-first-opt-out-retains-the: runners-first opt-out retains the explicit local check control [C7]', t => {
   const run = failover(t, { first: false });
   assert.equal(run.result, 'local');
   assert.deepEqual(run.attempts, ['local']);
@@ -215,7 +215,7 @@ process.stdout.write(JSON.stringify({ code, result, calls, output: readFileSync(
   return JSON.parse(child.stdout);
 }
 
-test('a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
+test('gate.io-check-scripts-baseline-failover.a-remote-proof-refusal-preserves-the: a remote proof refusal preserves the completed frozen-check output [C7,V4]', t => {
   const result = phaseEvidence(t);
   assert.equal(result.code, 'RUNNER_UNAVAILABLE');
   // The frozen check ran once on its own lease and is never rerun; only the refused proof asks the other runner again.
@@ -228,7 +228,7 @@ test('a remote proof refusal preserves the completed frozen-check output [C7,V4]
 });
 
 
-test('runSubmitGate records a timeout in its frozen check as the check\'s red, without a retry on another runner [C7]', t => {
+test('gate.io-check-scripts-baseline-failover.runsubmitgate-records-a-timeout-in-its: runSubmitGate records a timeout in its frozen check as the check\'s red, without a retry on another runner [C7]', t => {
   const run = phaseEvidence(t, { timedOut: true });
   assert.equal(run.code, undefined);
   assert.equal(run.result.isGreen, false);

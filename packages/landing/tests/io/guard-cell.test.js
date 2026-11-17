@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing packages/codemap */
 /** @pullboard-world-pin reads the committed cells plan, the landing sources and the front door to prove the guard.js move. */
 /** The landing guard sits in the shell cell with its importers repointed, and its static import closure reaches no CLI front door [C7]. */
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ const OLD = 'packages/landing/src/logic/land/guard.js';
 const NEW = 'packages/landing/src/io/land/guard.js';
 const read = (base, path) => readFileSync(new URL(path, base), 'utf8');
 
-test('clause 1: the static import closure of the landing guard reaches no CLI front door [C7]', () => {
+test('landing.guard-cell.the-static-import-closure-of-the: clause 1: the static import closure of the landing guard reaches no CLI front door [C7]', () => {
   const seen = new Set();
   const walk = file => {
     if (seen.has(file.href)) return;
@@ -27,7 +28,7 @@ test('clause 1: the static import closure of the landing guard reaches no CLI fr
   assert.ok(seen.size >= 1);
 });
 
-test('clause 2: landing guard.js sits in the shell cell in the cells plan with importers repointed [C7]', () => {
+test('landing.guard-cell.landing-guard-js-sits-in-the: clause 2: landing guard.js sits in the shell cell in the cells plan with importers repointed [C7]', () => {
   assert.ok(existsSync(new URL('src/io/land/guard.js', LANDING)));
   assert.ok(!existsSync(new URL('src/logic/land/guard.js', LANDING)));
   const freeze = JSON.parse(read(PLAN, 'path-map/freeze.json'));

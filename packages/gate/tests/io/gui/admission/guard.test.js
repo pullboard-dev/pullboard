@@ -21,7 +21,7 @@ function trackedFiles(root) {
   return runFixtureGit(['ls-files', '-z'], { cwd: root, stdio: 'pipe' }).split('\0').filter(Boolean);
 }
 
-test('the GUI marker guard follows literal launcher imports without evaluating fixture source [C7,V4]', t => {
+test('gate.io-gui-admission-guard.the-gui-marker-guard-follows-literal: the GUI marker guard follows literal launcher imports without evaluating fixture source [C7,V4]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-gui-guard-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
@@ -44,7 +44,7 @@ test('the GUI marker guard follows literal launcher imports without evaluating f
   assert.deepEqual(launchers.filter(file => !testsNeedGui(root, [file])), [], 'explicit headers satisfy the same guard');
 });
 
-test('every test importing a Chrome launcher explicitly declares its GUI requirement [C7,V4]', () => {
+test('gate.io-gui-admission-guard.every-test-importing-a-chrome-launcher: every test importing a Chrome launcher explicitly declares its GUI requirement [C7,V4]', () => {
   const root = resolve(import.meta.dirname, '../../../../../..');
   const launchers = chromeLaunchingTests(root, trackedFiles(root));
   const missing = launchers.filter(file => !testsNeedGui(root, [file]));

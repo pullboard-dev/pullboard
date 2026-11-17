@@ -9452,7 +9452,7 @@
         "V1",
         "V17"
       ],
-      "coveredBy": "packages/store/tests/io/board/historical-heads.test.js",
+      "coveredBy": "packages/board/tests/from-store/io/board/historical-heads.test.js",
       "because": "a rejected head stays unverified after a sibling resubmission until the latest head is accepted, proven in the store cell on a real board; the refusal on that head is proven in apps/cli/tests/io/submit/stack.test.js"
     },
     {

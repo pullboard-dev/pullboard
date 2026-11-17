@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/flakes */
 /** Failure classification probes a file's failing cases together and records each case's own outcome [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
