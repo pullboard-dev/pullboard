@@ -1,4 +1,5 @@
 /** The controller-side SSH health probe, apart from the transport the worker loads so the worker bundle leaves out its SSH and GUI-session closure [C7]. */
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { isAbsolute } from 'node:path';
 import { spawnSsh } from '../../../transport/index.js';
@@ -31,6 +32,32 @@ export function toolchainVerdict(declared, reported) {
     else verified[name] = want;
   }
   return { verified, problems };
+}
+
+/** The fixed toolchain names a runner is asked about when none are declared by hand. */
+export const DISCOVERABLE_TOOLCHAINS = Object.freeze(['python3', 'go', 'cargo', 'ruby', 'swift', 'java', 'mvn', 'gradle', 'deno', 'bun', 'php', 'mix', 'dotnet', 'cmake', 'ctest']);
+
+/** The flag that prints a version: go and java do not take --version. */
+const VERSION_FLAG = { go: 'version', java: '-version' };
+
+/**
+ * Ask each known toolchain name for its version through the injected spawn and return name to version for those that answer.
+ * Why: toolchains are declared by hand today, so most runners declare none and admission cannot route a Python job to the runner that has python3.
+ * A command that is missing, exits non-zero, times out or prints no version is left out, never recorded empty [C7].
+ *
+ * @param {{ spawn?: (name: string, args: string[], options: object) => { status: number | null, stdout?: string, stderr?: string, error?: Error } }} [options] spawn defaults to child_process.spawnSync
+ * @returns {Record<string, string>}
+ */
+export function discoverToolchains({ spawn = spawnSync } = {}) {
+  const found = {};
+  for (const name of DISCOVERABLE_TOOLCHAINS) {
+    let result;
+    try { result = spawn(name, [VERSION_FLAG[name] ?? '--version'], { encoding: 'utf8', timeout: 1500 }); } catch { continue; }
+    if (!result || result.error || result.status !== 0) continue;
+    const version = /\d+(?:\.\d+)+/u.exec(`${result.stdout ?? ''}\n${result.stderr ?? ''}`)?.[0];
+    if (version) found[name] = version;
+  }
+  return found;
 }
 
 /** Quote one configured executable without interpreting its contents as remote shell code. */
