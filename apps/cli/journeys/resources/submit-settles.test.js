@@ -104,12 +104,13 @@ test('clause 1: the registered-worker submit --wait over the ssh stand-in pull r
     localRunner: tail(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 8) });
   // The stand-in runner is this host, so its load reading is the real runner's: load-aware dispatch would hold every admission.
   succeeded(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off'));
-  succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
-  tick('after runner add');
+  // The item is added before the runner is registered, so its main baseline is measured at once and not over the stand-in.
   const added = succeeded(await step(box, 'add', box.repo, ['add', 'web', 'Registered runner-only submission', '--specs', 'G1',
     '--criterion', 'The native frozen check executes in its admitted registered worker.',
     '--check', 'printf RUNNER_ONLY_FROZEN_BODY', '--route', 'strong', '--wait', '--json'], snapshot));
   tick('after add --wait');
+  succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
+  tick('after runner add');
   const id = JSON.parse(added.out).item.item_id;
   succeeded(box.run(box.web, 'claim', String(id), '--json'));
   tick('after claim');
