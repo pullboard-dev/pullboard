@@ -14,6 +14,7 @@ import { main } from '../../tests/fixtures/native.js';
 import { createLocalApiHandler } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
 import { EVENT_LOG_VERSION } from '../../../../packages/store/index.js';
+import { SIGNED_EVENT_LOG_VERSION } from '../../../../packages/store/index.js';
 import { apiError } from '../../tests/fixtures/api.js';
 import { apiFetch } from '../../tests/fixtures/api.js';
 import { json } from '../../tests/fixtures/api/project.js';
