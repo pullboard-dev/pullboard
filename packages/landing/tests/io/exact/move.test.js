@@ -83,7 +83,7 @@ test('landing.exact.move-restages-on-a-moved-main: clause 1: a main that moved s
   assert.equal(repo.main(), moved, 'restaging does not move main');
   await moveTrunkRef(state);
   assert.equal(repo.main(), state.batch.tip, 'the compare-and-set from the restaged base moves main');
-  assert.equal(git(repo.root, 'show', 'HEAD:packages/alpha/src/a.js'), 'export const a = 2;\n', 'main holds the item');
+  assert.equal(git(repo.root, 'show', 'HEAD:packages/alpha/src/a.js').trim(), 'export const a = 2;', 'main holds the item');
   assert.match(git(repo.root, 'show', 'HEAD:docs/other-1.md'), /other landing 1/u, 'and the landing that moved main first');
 });
 
