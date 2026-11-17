@@ -4,7 +4,7 @@ import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { serveRunner } from '../../../../drive/index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { jobQueueCall } from '../../../index.js';
 import { offerLandingJob } from '../../../index.js';
 import { recordTestResults } from '../../../../store/index.js';

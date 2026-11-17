@@ -8,7 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { jobView } from '../../../jobs/index.js';
 import { jobQueueCall } from '../../index.js';
 import { jobArtifacts } from '../../index.js';
