@@ -16,7 +16,7 @@ export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ens
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
-export { declareItemField, setItemField, itemFields, FIELD_TYPES } from './src/io/board/item/fields.js';
+export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
 export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
@@ -26,7 +26,7 @@ export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
-export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor, rowDecisions } from './src/io/board/query.js';
+export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, itemThreads, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor, rowDecisions } from './src/io/board/query.js';
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
@@ -65,7 +65,7 @@ export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap, provideCoordinatorMilestoneRelease } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort, boardRunsHolder, boardRunsReader } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
-export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt, saveSubmitHandoff, reserveReviewRun, renewReviewRun, reclaimLapsedReviewRuns, releaseReviewRun, reviewLeases } from './src/io/board/run.js';
+export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt, writeVerdictRun, awaitingVerdictRuns, saveSubmitHandoff, reserveReviewRun, renewReviewRun, reclaimLapsedReviewRuns, releaseReviewRun, reviewLeases, cancelGateJob } from './src/io/board/run.js';
 export { RECONCILE_EVERY_MS, LOST_GRACE_MS, RUNAWAY_ATTEMPTS, RUN_LOST, RUN_RUNAWAY, disagreementAction, reconcileTick, pacedReconciler } from './src/io/board/reconcile.js';
 export { RUN_QUEUED_EVENT, RUN_APPLIED_EVENT, runSummary, runRowsFromEvents } from './src/logic/board/runs.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';
@@ -114,7 +114,7 @@ export { RIGOR_NOTICE_ENGINE } from "../state/light.js";
 export { KNOWN_MAIN_RECEIPT_ENGINE } from "../state/light.js";
 export { ENGINE_VERSION } from "../state/light.js";
 
-export { rejectionReturnEnabled } from './src/logic/rework.js';
+export { rejectionReturnEnabled, STUCK_RETURN_MS } from './src/logic/rework.js';
 
 export { createItemSlice } from "./src/io/board/item/slice.js";
 

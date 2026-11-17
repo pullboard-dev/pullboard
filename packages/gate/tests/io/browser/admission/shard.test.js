@@ -48,7 +48,7 @@ function hold(options) {
   return takeResource({ ...options, onWait() { throw new Error('a free browser slot exists; the gate lease must not queue'); } });
 }
 
-test('clause 1: a gate whose shards hold every browser slot on one runner admits its next shards on the runner with free browser slots, planned by browser capacity [C7]', { timeout: 30_000 }, async t => {
+test('gate.io-browser-admission-shard.a-gate-whose-shards-hold-every: clause 1: a gate whose shards hold every browser slot on one runner admits its next shards on the runner with free browser slots, planned by browser capacity [C7]', { timeout: 30_000 }, async t => {
   const box = machine(t);
   const options = gateOptions(box);
   assert.equal(options.runnerDeadlineAt > Date.now() + 25 * 60_000, true, 'the fixture gate carries the submit\'s 30-minute captured deadline');
@@ -82,7 +82,7 @@ test('clause 1: a gate whose shards hold every browser slot on one runner admits
   } finally { for (const lease of own) lease.release(); }
 });
 
-test('clause 2: a gate shard that cannot be placed ends RUNNER_WAIT_DEADLINE within its admission window, not the submit\'s 30-minute deadline, and runs on the gate lane [C7]', { timeout: 30_000 }, async t => {
+test('gate.io-browser-admission-shard.a-gate-shard-that-cannot-be: clause 2: a gate shard that cannot be placed ends RUNNER_WAIT_DEADLINE within its admission window, not the submit\'s 30-minute deadline, and runs on the gate lane [C7]', { timeout: 30_000 }, async t => {
   const box = machine(t);
   const options = gateOptions(box);
   const own = [await hold(options), await hold(options), await hold(options), await hold(options)];

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const FILE = 'packages/gate/src/io/main/audit/worker.js';
 
-test('clause 1: the audit worker names no apps/ path and the ceiling holds no row for it [C7]', () => {
+test('gate.io-main-audit-no-apps.the-audit-worker-names-no-apps: clause 1: the audit worker names no apps/ path and the ceiling holds no row for it [C7]', () => {
   const ceilings = JSON.parse(readFileSync(new URL('../../../../data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   assert.doesNotMatch(readFileSync(new URL(`../../../../../../${FILE}`, import.meta.url), 'utf8'), /apps\//u);
   assert.equal(ceilings.packageApps[FILE], undefined);

@@ -1316,16 +1316,18 @@ export function contains(root, ancestor, descendant) {
 
 /**
  * A path inside this worktree's git dir, for state that must never sit in the tree.
+ * With `files` on, the index is placed from the Git files too, as Git's own rule does (the worktree's dir), with no process to ask; a layout the files cannot place still asks Git [C7,#9853].
  *
  * @param {string} root
  * @param {string} name
+ * @param {{ files?: boolean }} [options]
  * @returns {string}
  */
-export function gitPath(root, name) {
-  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
+export function gitPath(root, name, { files = false } = {}) {
+  return fact(`gitPath:${JSON.stringify([resolve(root), name, files])}`, () => {
     // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
     // Git's own rule places MERGE_HEAD in the worktree's dir and info/grafts in the shared one: no process to ask.
-    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) ? fileLocation(root) : undefined;
+    const location = /^(?:pullboard-[\w.-]+|MERGE_HEAD|info\/grafts)$/u.test(name) || (files && name === 'index') ? fileLocation(root) : undefined;
     return location ? join(name === 'info/grafts' ? location.commonDir : location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
   });
 }

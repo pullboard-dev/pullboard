@@ -338,6 +338,9 @@ export function runsJobs(db, boardFile) {
   return { jobs: runs, close() { try { runs.close(); } catch { /* Already closed. */ } } };
 }
 
+/** The job-table count behind finishedRuns, kept as one string so a test can read its query plan [C7]. */
+export const FINISHED_JOBS_SQL = "SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind";
+
 /**
  * How many pulled jobs finished on this board in the last four hours, by what the Dashboard's runner card names them:
  * gates, landings and tests. Why: the card lists runs in flight, so an idle runner that just ran nine jobs read "No runs" (#7945).
@@ -357,7 +360,7 @@ export function finishedRuns(commonDir, now) {
     const split = (() => { try { return store.runsStoreOn(db); } catch { return false; } })();
     const rows = split
       ? db.prepare("SELECT run_kind AS kind, COUNT(*) AS n FROM run WHERE run_state = 'done' AND run_updated > ? GROUP BY run_kind").all(now - 4 * 3_600_000)
-      : db.prepare("SELECT job_kind AS kind, COUNT(*) AS n FROM job WHERE job_step = 'done' AND job_updated > ? GROUP BY job_kind").all(now - 4 * 3_600_000);
+      : db.prepare(FINISHED_JOBS_SQL).all(now - 4 * 3_600_000);
     for (const { kind, n } of rows) {
       const key = { gate: 'gate', 'gate-shard': 'gate', land: 'landing', landing: 'landing', test: 'test', 'main-test': 'test' }[kind];
       if (key) count[key] += Number(n);
@@ -455,8 +458,9 @@ function withProject(root, read, providedBoard = null, boardOpeners) {
  * How new each row of the spec and doctrine files is, by the commit that added it, and the one commit both were read at
  * (see computeRowAges). A row on disk but not yet committed is missing here, and the state counts it 0, newer than any.
  * Walking a file's history is the slowest read behind a state, so the pair is kept until HEAD moves. With `later`, as
- * the view server asks, a read never walks: it answers the pair it has (none at first, at null) and worker threads
- * refresh both files for HEAD, kept only once both finish, so the next read has them. Why a pair: the page orders spec
+ * the view server asks, a project's first read never walks: it answers no pair (at null) and worker threads
+ * refresh both files for HEAD, kept only once both finish, so the next read has them; once a pair is kept, a read
+ * after HEAD moves walks again, so it never names the previous commit. Why a pair: the page orders spec
  * and doctrine rows together, so both lists name one capture even when HEAD moves while a worker reads; and HEAD moves
  * on every landing, where a walk of SPEC.md on a long-lived repo costs seconds that the board's first paint cannot wait for.
  *
@@ -469,7 +473,9 @@ function withProject(root, read, providedBoard = null, boardOpeners) {
 function rowAges(root, files, head, { later = false } = {}) {
   const key = root + '\0' + files.spec + '\0' + files.doctrine, kept = agesKept.get(key);
   if (kept && kept.at === head) return kept;
-  if (!later || !head) {
+  // A pair kept for an older commit is never answered: the page would show ages that name the previous commit, so a
+  // read after a new commit walks once (the first read of a project, with nothing kept, is the one that goes later).
+  if (!later || !head || kept) {
     const fresh = { spec: computeRowAges(root, files.spec, head, 'spec'), doctrine: computeRowAges(root, files.doctrine, head, 'doctrine'), at: head };
     agesKept.set(key, fresh);
     return fresh;
@@ -481,7 +487,7 @@ function rowAges(root, files, head, { later = false } = {}) {
       if (spec && doctrine) agesKept.set(key, { spec, doctrine, at: head });
     });
   }
-  return kept ?? { spec: new Map(), doctrine: new Map(), at: null };
+  return { spec: new Map(), doctrine: new Map(), at: null };
 }
 /** The history readers by name, so a worker thread can be told which one to run. */
 const HISTORIES = { spec: committedIds, doctrine: doctrineHistory };

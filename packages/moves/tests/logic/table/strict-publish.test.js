@@ -18,7 +18,7 @@ function snapshot(pace = 'strict') {
 }
 const merge = (s, extra = {}) => runTable(ENGINE.tables.merged, ENGINE.rules, structuredClone(s), { name: 'merged', id: ID, actor: 'coordinator', commit: COMMIT, ...extra });
 
-test('clause 1: a verified strict item with a counting suite receipt reads none before the merge and published after it, never landed [M2,#9326]', () => {
+test('moves.strict-publish.a-verified-strict-item-with-a-counting: clause 1: a verified strict item with a counting suite receipt reads none before the merge and published after it, never landed [M2,#9326]', () => {
   const s = snapshot();
   assert.equal(landingOf(s.item, []), 'none');
   const result = merge(s);
@@ -28,7 +28,7 @@ test('clause 1: a verified strict item with a counting suite receipt reads none 
   assert.equal(landingOf({ mergedCommit: COMMIT }, result.events), 'published', 'the one move ends published, with no landed state left to read');
 });
 
-test('clause 2: a strict item without a counting suite receipt is refused LAND_SUITE_PENDING by the merged table [M2,#9326]', () => {
+test('moves.strict-publish.a-strict-item-without-a-counting-suite: clause 2: a strict item without a counting suite receipt is refused LAND_SUITE_PENDING by the merged table [M2,#9326]', () => {
   for (const [why, edit] of [['no receipt', (s) => { s.io.suite = null; }], ['another group', (s) => { s.io.suite.group = 'g2'; }],
     ['older base', (s) => { s.io.suite.base = 'b1'; }], ['red', (s) => { s.io.suite.green = false; }]]) {
     const s = snapshot();
@@ -38,7 +38,7 @@ test('clause 2: a strict item without a counting suite receipt is refused LAND_S
   }
 });
 
-test('clause 3: a steady item, a strict item with the setting off, and a forced merge keep the merged-only outcome [M2,#9326]', () => {
+test('moves.strict-publish.a-steady-item-a-strict-item-with: clause 3: a steady item, a strict item with the setting off, and a forced merge keep the merged-only outcome [M2,#9326]', () => {
   const steady = snapshot('steady');
   steady.io = {};
   assert.deepEqual(merge(steady).events.map(event => event.kind), ['merged'], 'steady');

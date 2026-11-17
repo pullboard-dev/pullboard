@@ -1,9 +1,10 @@
-/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js */
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
+import { nextRouteByTier } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -61,6 +62,7 @@ import { ordered } from '../claim.js';
 import { checkMainVerifier } from '../verify.js';
 import { displayedWait } from '../next.js';
 import { nextOnce } from '../next.js';
+import { loadHold } from '../next.js';
 import { seatClaims } from '../next.js';
 import { topUpClaims } from '../next.js';
 import { whoAmI } from '../join.js';
@@ -241,13 +243,15 @@ async function nextWithProgress(io, values, progress) {
     }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
-    const selectionValues = redClaims.length
-      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+    // next.routeByTier (off by default): open items the project's tiers route to another tier than this seat's are left out of its pick [C7,#8800].
+    const tierLeftOut = nextRouteByTier() && !values.verify ? withBoardRead(ctx, board => requireModule('../../../../../packages/moves/src/io/tier-routing.js').tierOmissions(ctx.config, board, store.listItems(board), whoAmI(ctx, board))) : [];
+    const selectionValues = redClaims.length || tierLeftOut.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims, ...tierLeftOut])] }
       : values;
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
     const takeMainRed = await progress.run('main-red routing', null, () => !selectionValues.take && !selectionValues.build && !selectionValues.verify && selectionValues.verifyId === undefined && mainRedBuildOffer(ctx, selectionValues, takeServices));
-    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues));
+    const found = await progress.run('selection', selectionValues.verifyId === undefined ? null : Number(selectionValues.verifyId), () => loadHold(ctx, selectionValues) ?? (selectionValues.take || takeMainRed ? nextTake(ctx, selectionValues, takeServices) : nextOnce(ctx, selectionValues)));
     if (found.ownershipWaiting?.length) {
       io.result?.({ action: 'ownership', ownershipWaiting: found.ownershipWaiting });
       for (const waiting of found.ownershipWaiting) {

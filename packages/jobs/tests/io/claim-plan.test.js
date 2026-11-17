@@ -37,7 +37,7 @@ function claimPlan(db) {
   return plans;
 }
 
-test('clause 1: the claim query reads job through an index on its step and never scans job_step [C7,#6716]', t => {
+test('jobs.claim-plan.index-no-scan: clause 1: the claim query reads job through an index on its step and never scans job_step [C7,#6716]', t => {
   const db = crowdedBoard(t);
   const plan = claimPlan(db);
   assert.ok(plan.length > 0, 'the claim query was planned');
@@ -45,7 +45,7 @@ test('clause 1: the claim query reads job through an index on its step and never
   assert.ok(!plan.some(line => /^SCAN (job|step|job_step)\b/u.test(line)), `no table scan: ${plan.join('\n')}`);
 });
 
-test('clause 1: the board API answers a health request within 1 s while runners claim from a 33k-row job table [C7,#6716]', { timeout: 60_000 }, // budget: one in-memory board of 33k jobs, no runner.
+test('jobs.claim-plan.health-under-load: clause 1: the board API answers a health request within 1 s while runners claim from a 33k-row job table [C7,#6716]', { timeout: 60_000 }, // budget: one in-memory board of 33k jobs, no runner.
 async t => {
   const db = crowdedBoard(t);
   const server = createServer((request, response) => {

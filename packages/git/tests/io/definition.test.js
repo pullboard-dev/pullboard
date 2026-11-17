@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/git */
 /** A checker's fingerprint comes from the git index: the same tree gives the same one, and a changed or new file moves it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -6,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 import { checkCommandDefinition } from '../../src/io/check/definition.js';
 import { definitionUnchanged } from '../../src/io/check/definition.js';
@@ -26,7 +27,7 @@ function fingerprint(root) {
   return JSON.stringify(checkCommandDefinition(root, [], [`${root}/a.js`]));
 }
 
-test('the same tree gives the same fingerprint, with or without .git, and a dirty file moves it [C7]', () => {
+test('git.definition.same-tree-same-print: the same tree gives the same fingerprint, with or without .git, and a dirty file moves it [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   assert.equal(fingerprint(graph.root), clean);
@@ -40,7 +41,7 @@ test('the same tree gives the same fingerprint, with or without .git, and a dirt
   assert.equal(fingerprint(graph.root), clean, 'restoring the bytes restores the fingerprint');
 });
 
-test('an untracked file the checker loads is part of the fingerprint [C7]', () => {
+test('git.definition.untracked-loaded-file: an untracked file the checker loads is part of the fingerprint [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   graph.put('c.js', 'export const y = 1;\n');
@@ -50,7 +51,7 @@ test('an untracked file the checker loads is part of the fingerprint [C7]', () =
   assert.notEqual(JSON.stringify(changed), clean);
 });
 
-test('clause 1: the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
+test('git.definition.index-blob-ids: clause 1: the git index of the checkout Pullboard runs from names its clean files by blob id, and a change there moves the fingerprint [C7]', () => {
   const tool = fixture();
   const project = fixtureCommittedGraph('definition-project-');
   project.put('README.md', 'project\n');
@@ -69,7 +70,7 @@ test('clause 1: the git index of the checkout Pullboard runs from names its clea
   assert.equal(JSON.stringify(walk()), JSON.stringify(clean), 'restoring the bytes restores the fingerprint');
 });
 
-test('clause 1: import edges are saved by blob id in the git directory for the next command [C7]', () => {
+test('git.definition.edges-saved-by-blob: clause 1: import edges are saved by blob id in the git directory for the next command [C7]', () => {
   const graph = fixture();
   const clean = fingerprint(graph.root);
   const dir = join(graph.root, '.git', 'pullboard');
@@ -82,11 +83,11 @@ test('clause 1: import edges are saved by blob id in the git directory for the n
   assert.equal(fingerprint(graph.root), clean, 'a walk reading saved edges gives the same fingerprint');
 });
 
-test('clause 2: the bounded look-back before each literal reads every Pullboard source the same as the whole prefix [C7]', () => {
+test('git.definition.lookback-bounded: clause 2: the bounded look-back before each literal reads every source in the git cell the same as the whole prefix [C7]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
-  const files = execFileSync('git', ['ls-files', '-z', '--', 'apps/*.js', 'packages/*.js', 'bin/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const files = execFileSync('git', ['ls-files', '-z', '--', 'packages/git/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0').filter(Boolean);
-  assert.ok(files.length > 500, 'the walk covers the repository');
+  assert.ok(files.length > 30, 'the walk covers the git cell');
   for (const file of files) {
     let source;
     try { source = readFileSync(join(root, file), 'utf8'); } catch { continue; }
@@ -95,7 +96,25 @@ test('clause 2: the bounded look-back before each literal reads every Pullboard 
   }
 });
 
-test('a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
+test('git.definition.lookback-walk: clause 1: the bounded look-back scans a long file to the same result as the whole prefix and in less time [C7]', () => {
+  const lines = [];
+  for (let i = 0; i < 1500; i++) lines.push(`const v${i} = 'value-${i}'; import('./m${i}.js');`);
+  const source = `${lines.join('\n')}\n`;
+  const time = size => {
+    const start = process.hrtime.bigint();
+    const result = scanImports(source, true, size);
+    return { result, ms: Number(process.hrtime.bigint() - start) / 1e6 };
+  };
+  time(undefined);
+  const bounded = time(undefined);
+  const whole = time(Infinity);
+  assert.deepEqual(bounded.result, whole.result, 'same specifiers in the same order');
+  // Recorded for the item: a relative comparison in one process, so machine load moves both sides together.
+  console.log(`# lookback-walk: ${source.length} chars, bounded ${bounded.ms.toFixed(1)} ms, whole prefix ${whole.ms.toFixed(1)} ms`);
+  assert.ok(bounded.ms < whole.ms, `the bounded scan (${bounded.ms} ms) is faster than the whole-prefix scan (${whole.ms} ms)`);
+});
+
+test('git.definition.concatenated-load: a concatenated module load leaves a runner closure intact and a strict scan opaque [C7]', () => {
   const graph = fixture();
   graph.put('a.js', "import './b.js';\nexport const load = () => import('./late-' + 'sweep.js');\n");
   assert.ok(checkCommandDefinition(graph.root, [], [`${graph.root}/a.js`]), 'the closure still names its files');

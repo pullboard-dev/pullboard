@@ -7,7 +7,7 @@ import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
 import { boardJobQueueCall } from '../../../index.js';
 import { claimJob } from '../../../index.js';
@@ -39,7 +39,7 @@ function overtakenOnce(t, board, file) {
   return { view: Object.assign(Object.create(board), { db }), state };
 }
 
-test('a green pulled gate is submitted even when another connection writes while its submission is prepared [C7,#8011]', t => {
+test('api.gate-overtaken.green-pulled-gate-submitted-even: a green pulled gate is submitted even when another connection writes while its submission is prepared [C7,#8011]', t => {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;

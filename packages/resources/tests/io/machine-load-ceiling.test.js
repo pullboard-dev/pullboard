@@ -37,7 +37,7 @@ function heavy(kind, settings, memory) {
   return { said, waiting, done, ran: () => ran };
 }
 
-test('clause 1: machine.loadCeiling defaults to 1.5 times the logical cores and a set value replaces it [Q1,C7]', t => {
+test('resources.machine-load-ceiling.machine-loadceiling-defaults-to-1-5: clause 1: machine.loadCeiling defaults to 1.5 times the logical cores and a set value replaces it [Q1,C7]', t => {
   injectLoad(t, { load: 1 });
   assert.equal(loadCeilingOf({}), 6);
   assert.equal(loadCeilingOf({ machine: { loadCeiling: null } }), 6);
@@ -59,7 +59,7 @@ for (const kind of ['cells-plan --moved', 'cells-plan --check', 'pullboard check
   });
 }
 
-test('clause 2: heavy local work also waits under gate.memoryFloorMB while the load is under its ceiling [Q1,C7]', async t => {
+test('resources.machine-load-ceiling.heavy-local-work-also-waits-under: clause 2: heavy local work also waits under gate.memoryFloorMB while the load is under its ceiling [Q1,C7]', async t => {
   injectLoad(t, { load: 1 });
   const memory = { held: true };
   const work = heavy('pullboard check', { gate: { memoryFloorMB: 1024 } },
@@ -71,7 +71,7 @@ test('clause 2: heavy local work also waits under gate.memoryFloorMB while the l
   assert.equal(await work.done, 'done');
 });
 
-test('clause 3: below the load ceiling and the memory floor the same commands proceed at once, silently [Q1,C7]', async t => {
+test('resources.machine-load-ceiling.below-the-load-ceiling-and-the: clause 3: below the load ceiling and the memory floor the same commands proceed at once, silently [Q1,C7]', async t => {
   injectLoad(t, { load: 2 });
   for (const kind of ['cells-plan --moved', 'cells-plan --check', 'pullboard check', 'run-tests local fallback']) {
     const work = heavy(kind, {});
@@ -80,7 +80,7 @@ test('clause 3: below the load ceiling and the memory floor the same commands pr
   }
 });
 
-test('clause 3: work inside an admitted gate run is never held by the load that gate adds [Q1,C7]', async t => {
+test('resources.machine-load-ceiling.work-inside-an-admitted-gate-run: clause 3: work inside an admitted gate run is never held by the load that gate adds [Q1,C7]', async t => {
   injectLoad(t, { load: 30 });
   process.env.PULLBOARD_GATE_SLOT_HELD = '1';
   const work = heavy('run-tests local fallback', {});
