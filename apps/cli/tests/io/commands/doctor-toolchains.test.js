@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/gate packages/config */
+/** @pullboard-test-input source-cell apps/cli */
 /** pullboard doctor names a detected language whose toolchain no registered runner declares [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
