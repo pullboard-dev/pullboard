@@ -46,8 +46,13 @@ test('clause 1: followBoard on a quiet board with watch.quietReads off for 120 s
   const cpu = process.cpuUsage();
   const began = process.hrtime.bigint();
   const window = setTimeout(quiet.resolve, SECONDS * 1000);
-  t.after(() => clearTimeout(window));
+  // A line every 20 s tells the runner the file is alive, not idle-hung; one tiny write costs no measurable CPU.
+  let beat;
+  const alive = () => { console.log('idle watcher measurement running'); beat = setTimeout(alive, 20_000); };
+  beat = setTimeout(alive, 20_000);
+  t.after(() => { clearTimeout(window); clearTimeout(beat); });
   await quiet.promise;
+  clearTimeout(beat);
   const used = process.cpuUsage(cpu);
   const wallMicros = Number(process.hrtime.bigint() - began) / 1000;
   abort.abort();
