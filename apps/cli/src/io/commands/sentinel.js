@@ -13,7 +13,7 @@ import { personCommandContext } from '../context.js';
 import { recordTimeCheckpoint } from '../../../../../packages/stats/index.js';
 import { retainedReceipts } from '../../../../../packages/gate/index.js';
 import { events } from '../../../../../packages/store/index.js';
-import { landingSelfCheckPorts } from './sentinel-landing.js';
+import { landingSelfCheckPorts } from '../landing/sentinel-landing.js';
 
 /** Run `pullboard sentinel` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
