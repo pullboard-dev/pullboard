@@ -53,6 +53,8 @@ export const JUNIT_FILE_ROWS = {
     const name = (row.classname ?? '').split(/[\\.]/u).pop();
     return name ? `tests/${name}.php` : null;
   },
+  // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
 /**
