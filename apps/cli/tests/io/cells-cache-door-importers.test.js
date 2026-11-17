@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/codemap */
+/** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-world-pin: clause 2 reads cells-submit-checks.js itself to prove which module it imports the cache from [C7,#9464]. */
 /** apps/cli reaches the cells inventory cache through one door file; the tool-tree string imports stay as they are [C7,#9464]. */
 import assert from 'node:assert/strict';
