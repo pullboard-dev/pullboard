@@ -19,6 +19,7 @@ import { importStyleViolations } from '../../../index.js';
 import { engineFolderViolations } from '../../../../state/index.js';
 import { doctrineReport } from '../../../../doctrine/index.js';
 import { loadConfig } from '../../../../config/index.js';
+import { loadMachineSettings } from '../../../../config/index.js';
 import { requireJourneyPathEnabled } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { adapterLintClockEnabled } from '../../../../config/index.js';
@@ -48,6 +49,7 @@ import { testWaitGrowth } from '../test/waits.js';
 import { boardWriteIoProblems } from '../board/write.js';
 import { apiRequestIoProblems } from '../board/request.js';
 import { candidateKnownBlockers } from '../board/request.js';
+import { EXTRA_REQUEST_ROOTS } from '../board/request.js';
 import { relayBoundaryProblems } from '../relay.js';
 import { fixtureProblems } from '../test/fixtures.js';
 import { fixtureSites } from '../test/fixtures.js';
@@ -257,9 +259,13 @@ export const STATIC_TREE_CHECKS = Object.freeze([
     .sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line).map(row => `${row.file}:${row.line}: ${row.text}`) },
   { name: 'board-write-io', reads: SOURCE, run: (root, sources, context = MEMORY) => cellRows({ sources: treeSources(root, sources), edgeCache: edgeCacheOf(context), cache: context.cache('board-write-io', 1), compute: reach => boardWriteIoProblems(reach) })
     .map(row => `${row.file}:${row.line}: external I/O inside a board write: ${row.call} (${row.chain.join(' -> ')})`) },
-  // Reach from the API's request handlers; the known-violation set in request.js may only shrink [#6718].
-  { name: 'api-request-io', reads: SOURCE, run: (root, sources) => apiRequestIoProblems(treeSources(root, sources), { known: candidateKnownBlockers(treeSources(root, sources)) })
-    .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`) },
+  // Reach from the API request paths, with the materializer and rule-proof roots available by opt-in [#9678].
+  { name: 'api-request-io', reads: SOURCE, run: (root, sources, context = MEMORY) => {
+    const tree = treeSources(root, sources);
+    const includeExtra = (context.requestIoExtraRoots ?? loadMachineSettings().gate?.requestIoExtraRoots) === true;
+    return apiRequestIoProblems(tree, { known: candidateKnownBlockers(tree, { includeExtra }), extraRoots: includeExtra ? EXTRA_REQUEST_ROOTS : [] })
+      .map(row => `${row.file}:${row.line}: ${row.stale ? 'known request blocker no longer fires; delete its row' : 'synchronous child process reachable from a board API request'}: ${row.call} (${row.chain.join(' -> ')})`);
+  } },
   // Direct node:fs imports outside the kernel; each file's count may only fall, and off (gate.adapterLintFs) it reports nothing (#9449).
   { name: 'adapter-lint-fs', reads: SOURCE, run: (root, sources, context = MEMORY) => fsLintRows(root, { enabled: context.adapterLintFs ?? adapterLintFsEnabled() }) },
   // A statement shape copied into 3 or more files, and named idioms past their ceiling; off (gate.idiomSpread) it reports nothing (#9521).
