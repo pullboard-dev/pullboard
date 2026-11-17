@@ -47,14 +47,14 @@ function metaRows(board) {
   return board.db.prepare('SELECT meta_key FROM board_meta WHERE meta_key GLOB ?').all(`${PREFIX}*`);
 }
 
-test('clause 1: with the setting on, recording events leaves no rigor counter rows in board_meta [C7]', t => {
+test('rigor.derived-db.no-board-meta-rows: clause 1: with the setting on, recording events leaves no rigor counter rows in board_meta [C7]', t => {
   const board = recorded(t, true);
   assert.deepEqual(metaRows(board), [], 'board_meta holds no rigor rows');
   const derived = derivedRows(board);
   assert.ok(derived.length > 8, 'the derived database holds the counters');
 });
 
-test('clause 2: rigor counters read the same per-cause totals from the derived database as from board_meta [C7]', t => {
+test('rigor.derived-db.same-totals: clause 2: rigor counters read the same per-cause totals from the derived database as from board_meta [C7]', t => {
   const state = { spec: [], practice: [] };
   const fromMeta = resumeRigorCounters(recorded(t, false), state);
   const board = recorded(t, true);
@@ -65,7 +65,7 @@ test('clause 2: rigor counters read the same per-cause totals from the derived d
   assert.deepEqual(metaRows(board), []);
 });
 
-test('clause 3: with the setting off, rigor counters stay in board_meta and no derived file is made [C7]', t => {
+test('rigor.derived-db.setting-off-stays: clause 3: with the setting off, rigor counters stay in board_meta and no derived file is made [C7]', t => {
   const board = recorded(t, false);
   assert.ok(metaRows(board).length > 8, 'board_meta holds the counters');
   assert.deepEqual(derivedRows(board), []);

@@ -40,7 +40,7 @@ provideGateHopTable(leaseMs => ({ item, hop, now }, { name, actor }) => {
 const claim = (db, runner, now) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 const step = (db, job) => db.prepare('SELECT job_step FROM job WHERE job_id = ?').get(job).job_step;
 
-test('clause 1: a lapsed gate job whose hop a resubmit ended ends at the next claim, and that claim takes the gate job behind it [C7,#8353]', t => {
+test('api.jobs-over-hop-claim.lapsed-gate-job-whose-hop: clause 1: a lapsed gate job whose hop a resubmit ended ends at the next claim, and that claim takes the gate job behind it [C7,#8353]', t => {
   const db = board(t);
   claim(db, 'r1', 5000);
   endGateHop(db, gateClaimHop(true), { item: 7, candidate: NEW, now: 6000, leaseMs: LEASE });
@@ -56,7 +56,7 @@ test('clause 1: a lapsed gate job whose hop a resubmit ended ends at the next cl
   assert.equal(claim(db, 'r3', later + 1).job, 'gate:9:x', 'the next claim takes the other item\'s gate job');
 });
 
-test('clause 1: a live hop another runner holds still refuses the claim HOP_FENCED, and its job stays open [C7,#8352]', t => {
+test('api.jobs-over-hop-claim.live-hop-another-runner-holds: clause 1: a live hop another runner holds still refuses the claim HOP_FENCED, and its job stays open [C7,#8352]', t => {
   const db = board(t);
   provideGateHopTable(leaseMs => ({ item, hop, now }, { name, actor }) => {
     if (name === 'create') return hop ? { refused: { code: 'HOP_EXISTS', message: 'exists' } } : { patch: { hop: { state: 'queued', owner: null, epoch: 0, leaseUntil: 0, attempts: 0, commit: item.commit, digest: item.digest } } };
