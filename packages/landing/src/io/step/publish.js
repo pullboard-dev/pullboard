@@ -434,6 +434,14 @@ export async function moveTrunkRef(state) {
     : `finish: ${ref} moved from ${base} to ${tip}; the primary checkout's tracked files did not follow (${(tree.stderr || tree.stdout).trim().split('\n')[0]}); run git reset --keep ${tip} there; refreshing the code map`);
 }
 
+/** What a red Sprint proof says about the file it reran once: the file, the rerun and main's receipt for it, or that main has none [V37]. */
+function redFileDetail(proof) {
+  if (!proof.file) return '';
+  const receipt = proof.mainReceipt;
+  const main = receipt ? `main's receipt for it is ${receipt.result}${receipt.main ? ` at ${String(receipt.main).slice(0, 12)}` : ''}` : 'main has no receipt for it';
+  return ` (file ${proof.file} was ${proof.rerun === 'red' ? 'red again on its rerun' : 'green on its rerun'}; ${main})`;
+}
+
 /**
  * Prove the batch's exact tree at Sprint depth before main moves: static checks, then the tests of each cell the batch changes [V37].
  * The record lands on the batch as exactTree.pin, .cells and .result beside exactTree.tree. A red leaves main where it was, records
@@ -455,7 +463,7 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
     await save(state, { exactTree: proof });
     return state.batch.exactTree;
   }
-  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
+  const message = `the Sprint proof is red on tree ${tree} in ${proof.failed}${redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : `the tests of ${proof.failed}`} and resubmit`;
   await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
   state.say?.(`finish: ${message}`);
   throw new Refused('LAND_EXACT_RED', message);
