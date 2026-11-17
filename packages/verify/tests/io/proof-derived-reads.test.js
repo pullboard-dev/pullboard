@@ -11,10 +11,10 @@ import { PROOF_COUNTER_PREFIX } from '../../src/io/proof/counters.js';
 import { DERIVED_SETTING } from '../../src/io/proof/derived.js';
 
 /** A file-backed board with a few items' events and counters rebuilt under the setting; the setting is restored after the test. */
-function recorded(t) {
+function recorded(t, setting = '1') {
   const dir = privateFixtureFiles('pullboard-derived-reads-').root;
   const previous = process.env[DERIVED_SETTING];
-  process.env[DERIVED_SETTING] = '1';
+  if (setting === '1') process.env[DERIVED_SETTING] = '1'; else delete process.env[DERIVED_SETTING];
   const db = new DatabaseSync(join(dir, 'board.sqlite'));
   t.after(() => {
     if (previous === undefined) delete process.env[DERIVED_SETTING]; else process.env[DERIVED_SETTING] = previous;
@@ -52,9 +52,8 @@ test('clause 1: with PULLBOARD_PROOF_DERIVED_DB=1 readCounter, proofCounter and 
 });
 
 test('clause 2: with the setting off the counters read board_meta exactly as today [C7]', t => {
-  const board = recorded(t);
+  const board = recorded(t, 'off');
   const summary = proofCounter(board, 'summary');
-  delete process.env[DERIVED_SETTING];
   assert.deepEqual(proofCounter(board, 'summary'), summary, 'board_meta still holds the rows');
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`);
   assert.equal(proofCounter(board, 'summary'), null, 'off, an emptied board_meta reads empty');
