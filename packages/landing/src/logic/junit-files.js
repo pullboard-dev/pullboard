@@ -4,6 +4,8 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
+  haskell: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null),
 };
 
 /**
