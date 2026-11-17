@@ -12,7 +12,7 @@ import { launchChromeProcess } from '../fixtures/chrome.js';
 /** The com.google.Chrome* names currently in the shared temp directory. */
 function chromeTemps() { return readdirSync(tmpdir()).filter(name => name.startsWith('com.google.Chrome')); }
 
-test('a browser-test run leaves no com.google.Chrome folder in its TMPDIR after it exits [C7]', async () => {
+test('cli.io-chrome-private-tmp.a-browser-test-run-leaves-no-com: a browser-test run leaves no com.google.Chrome folder in its TMPDIR after it exits [C7]', async () => {
   const before = new Set(chromeTemps());
   const script = "const { mkdirSync } = require('node:fs'); const { join } = require('node:path'); mkdirSync(join(process.env.TMPDIR, 'com.google.Chrome.fixture'));"
     + " process.on('SIGTERM', () => process.exit(0)); console.error(process.env.TMPDIR); setInterval(() => {}, 1000);";

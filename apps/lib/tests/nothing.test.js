@@ -12,7 +12,7 @@ function provesNothing(overrides = {}) {
     item_brief: '', item_check_baseline: { result: 'green', main: 'a'.repeat(40), command: 'npm test' }, ...overrides };
 }
 
-test('the green-baseline warning names a check that runs the new test file [V2,C7]', () => {
+test('lib.nothing.the-green-baseline-warning-names-a-check: the green-baseline warning names a check that runs the new test file [V2,C7]', () => {
   const lines = [];
   sayCheckBaseline({ say: (line) => lines.push(line) }, provesNothing());
   const warning = lines.find((line) => line.includes('CRITERION_PROVES_NOTHING'));
@@ -24,7 +24,7 @@ test('the green-baseline warning names a check that runs the new test file [V2,C
   assert.match(named.join('\n'), /--check "node apps\/cli\/src\/io\/run\/tests\.js test\/cart-total\.test\.js"/u, 'the named test file and the project runner are used');
 });
 
-test('a held item leaves the agent one step it can take itself [V2,C7]', (t) => {
+test('lib.nothing.a-held-item-leaves-the-agent-one: a held item leaves the agent one step it can take itself [V2,C7]', (t) => {
   const board = openBoard(':memory:');
   t.after(() => closeBoard(board));
   assert.throws(() => refuseProvesNothing(() => ({ checks: { provesNothing: 'hold' } }), board, provesNothing()), (error) => {

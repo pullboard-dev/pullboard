@@ -22,13 +22,13 @@ function claimedWithShards(t, steps) {
   return { box, id };
 }
 
-test('clause 1: an item whose gate job is still running proof shards is not released when its seat heartbeat lapses [C7,#8342]', t => {
+test('store.gate-shard-claim.an-item-whose-gate-job-is: clause 1: an item whose gate job is still running proof shards is not released when its seat heartbeat lapses [C7,#8342]', t => {
   const { box, id } = claimedWithShards(t, ['done', 'claimed', 'offered']);
   box.advance(10 * 60_000);
   assert.equal(itemWorkInFlight(box.board, getItem(box.board, id)), true);
 });
 
-test('clause 2: an item whose gate job has ended is released as before when its seat heartbeat lapses [C7,#8342]', t => {
+test('store.gate-shard-claim.an-item-whose-gate-job-has: clause 2: an item whose gate job has ended is released as before when its seat heartbeat lapses [C7,#8342]', t => {
   const { box, id } = claimedWithShards(t, ['done', 'done']);
   box.advance(10 * 60_000);
   assert.equal(itemWorkInFlight(box.board, getItem(box.board, id)), false);

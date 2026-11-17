@@ -8,7 +8,6 @@ import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startDetachedCheck } from '../../../../packages/drive/index.js';
 import { storeName } from './store-names.js';
 
 /** The beater's cadence: four beats inside the two-minute seat-gone limit, so one missed beat never costs a claim. */
@@ -84,11 +83,11 @@ function readLock(lock) { try { return JSON.parse(readFileSync(lock, 'utf8')); }
 /**
  * Start the detached beater for `seat` on the board file `board`, bound to the agent session behind this CLI call; it
  * beats every 30 s until the seat holds no claim, the session exits or the seat's worktree is gone. A beater already
- * watching the same session is kept. Returns what it did; it never throws, because the claim is already recorded.
+ * watching the same session is kept. Resolves to what it did; it never throws, because the claim is already recorded.
  * Why: on 11 Nov 43 of 45 live seats lost a claim while editing or running native tests outside the CLI: only CLI
  * writes, hooks and submit's keepalive beat, and Codex seats have no hooks [B3,C7].
  */
-export function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = startDetachedCheck, alive = agentAlive } = {}) {
+export async function startClaimBeater(cwd, { seat, board }, { env = process.env, session = () => agentSession({ env }), launch = null, alive = agentAlive } = {}) {
   try {
     if (env.PULLBOARD_CLAIM_BEATER === '0') return { started: false, reason: 'off' };
     if (typeof seat !== 'string' || !seat || typeof board !== 'string' || !board) return { started: false, reason: 'no seat' };
@@ -103,7 +102,8 @@ export function startClaimBeater(cwd, { seat, board }, { env = process.env, sess
     const args = [JSON.stringify({ cwd, seat, board, lock, agent, everyMs: Number(env.PULLBOARD_BEATER_MS) || BEATER_EVERY_MS })];
     // The beater drops the lock only while it names the beater, so recording it after the launch is safe.
     mkdirSync(dirname(lock), { recursive: true });
-    const pid = launch(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
+    // The drive cell loads here, once a beater really starts, so a claim with no agent session never pays for it [C7].
+    const pid = (launch ?? (await import('../../../../packages/drive/index.js')).startDetachedCheck)(entry, { args, cwd, env: { ...env, PULLBOARD_CLAIM_BEATER: '0' } });
     if (!pid) return { started: false, reason: 'launch failed' };
     writeFileSync(lock, JSON.stringify({ version: 1, pid, agent, seat }) + '\n', { mode: 0o600 });
     return { started: true, pid, agent };

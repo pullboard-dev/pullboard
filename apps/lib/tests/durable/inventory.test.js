@@ -81,7 +81,7 @@ function producer() {
   };
 }
 
-test('clause 1: the cells inventory is a cells-inventory job keyed by the tree id; a gate reads the stored result or enqueues the job and waits on its lease, never on a background producer process [C7]', async () => {
+test('lib.durable-inventory.the-cells-inventory-is-a-cells: clause 1: the cells inventory is a cells-inventory job keyed by the tree id; a gate reads the stored result or enqueues the job and waits on its lease, never on a background producer process [C7]', async () => {
   await withBoard('clause-1', async (db) => {
     const tree = treeOf(fixture.root, fixture.first);
     const port = producer();
@@ -126,7 +126,7 @@ test('clause 1: the cells inventory is a cells-inventory job keyed by the tree i
   });
 });
 
-test('clause 1: a queued gate whose cells inventory is cold gets it through the tree\'s cells-inventory job and runs the same candidate again; no production caller nudges or waits on a producer process [C7]', async () => {
+test('lib.durable-inventory.a-queued-gate-whose-cells-inventory: clause 1: a queued gate whose cells inventory is cold gets it through the tree\'s cells-inventory job and runs the same candidate again; no production caller nudges or waits on a producer process [C7]', async () => {
   await withBoard('clause-1-gate', async (db) => {
     const published = new Set();
     const produced = [];
@@ -181,7 +181,7 @@ await cellsInventoryJob(board.db, { repo, commit, owner: 'driver-a', renewMs: 50
 } });
 `;
 
-test('clause 2: killing the producing driver mid-run loses nothing; the next driver resumes the job and the gate gets the same result [C7]', async () => {
+test('lib.durable-inventory.killing-the-producing-driver-mid-run: clause 2: killing the producing driver mid-run loses nothing; the next driver resumes the job and the gate gets the same result [C7]', async () => {
   const name = 'clause-2';
   const boardFile = join(files.root, `${name}.sqlite`);
   await withBoard(name, async () => {});

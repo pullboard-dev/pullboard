@@ -91,12 +91,12 @@ test('clause 2: asks for the person sit first, unread is bold from the viewer ma
   assert.match(html, /<span class="sx-snd coord"><i class="sx-si coord">/u, 'the coordinator has its own icon');
   const thread = (key) => [...view.needs, ...view.threads, ...view.earlier.threads].find((entry) => entry.key === key);
   assert.equal(thread('item:613').unread, false, 'the person spoke last, so it is read');
-  assert.equal(thread('none').unread, true, 'a notice newer than the mark is unread');
-  assert.equal(thread('none').quiet, true, 'an automated notice is muted');
+  assert.equal(thread('from:sentinel').unread, true, 'a notice newer than the mark is unread');
+  assert.equal(thread('from:sentinel').quiet, true, 'an automated notice is muted');
   assert.match(html, /class="sx-th unread quiet"/u);
   assert.match(html, /<span class="sx-ud" role="img" aria-label="unread">/u);
-  const read = shoutsView({ seen: { base: today + 5e6, read: { none: today + 99e5 } } });
-  assert.equal([...read.threads].find((entry) => entry.key === 'none').unread, false, 'opening a thread moves its own mark');
+  const read = shoutsView({ seen: { base: today + 5e6, read: { 'from:sentinel': today + 99e5 } } });
+  assert.equal([...read.threads].find((entry) => entry.key === 'from:sentinel').unread, false, 'opening a thread moves its own mark');
   assert.equal(shoutsView({ seen: { base: null, read: {} } }).since.unread, 0, 'with no mark yet nothing is unread');
   assert.match(html, /Since you left <time class="long"[^>]*>1m<\/time>: <b>1<\/b> thread with new shouts · <span class="amb">1 ask<\/span> waits for your answer/u);
   assert.match(html, /data-mark-read/u);
