@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",

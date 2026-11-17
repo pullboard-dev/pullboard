@@ -1,3 +1,4 @@
+/** @pullboard-test-input test-tree */
 /** @pullboard-world-pin: reads apps/cli/tests/fixtures/board/submit.js and the tracked package test files, to prove the helper's home is the store package [C7,CD12]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

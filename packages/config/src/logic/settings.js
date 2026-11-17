@@ -206,6 +206,9 @@ export function loadMachineSettings() {
   if (value.spec?.cascadeReject !== undefined && typeof value.spec.cascadeReject !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.cascadeReject in ${file} must be true or false`);
   }
+  if (value.spec?.requireFactQuote !== undefined && typeof value.spec.requireFactQuote !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `spec.requireFactQuote in ${file} must be true or false`);
+  }
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }
@@ -417,6 +420,9 @@ export function loadMachineSettings() {
   if (value.spec?.commitOnApply !== undefined && typeof value.spec.commitOnApply !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `spec.commitOnApply in ${file} must be true or false`);
   }
+  if (value.sentinels?.landingSelfCheck !== undefined && typeof value.sentinels.landingSelfCheck !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.landingSelfCheck in ${file} must be true or false`);
+  }
   if (value.sentinels?.recordWriteHolder !== undefined && typeof value.sentinels.recordWriteHolder !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `sentinels.recordWriteHolder in ${file} must be true or false`);
   }
@@ -527,6 +533,9 @@ export function loadMachineSettings() {
     || !['day', 'week'].includes(workerBudget.window) || Object.keys(workerBudget).some(key => !['spend', 'seatHours', 'window'].includes(key))
     || (workerBudget.spend !== undefined && workerBudget.seatHours !== undefined))) {
     throw new Refused('BAD_MACHINE_SETTINGS', `workers.budget in ${file} must be spend per day or week; run pullboard settings workers.budget 40/day`);
+  }
+  if (value.machine?.holdHeavyAboveLoad !== undefined && typeof value.machine.holdHeavyAboveLoad !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `machine.holdHeavyAboveLoad in ${file} must be true or false`);
   }
   if (value.machine?.loadCeiling !== undefined && value.machine.loadCeiling !== null && (!Number.isFinite(value.machine.loadCeiling) || value.machine.loadCeiling <= 0)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `machine.loadCeiling in ${file} must be a 1-minute load above 0; remove it for the default of 1.5 times the logical cores`);
