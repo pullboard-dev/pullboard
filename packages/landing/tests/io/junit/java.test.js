@@ -17,7 +17,7 @@ test('landing.junit.java-failing-case: clause 1: junitFailures names exactly the
   const { rows, code } = junitFailures(XML, '/work/repo');
   assert.equal(code, null);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].name, 'halvesFour');
+  assert.equal(rows[0].name, 'clause 2: halvesFour');
   assert.match(rows[0].assertion, /expected/u);
   assert.equal(junitFile('java', rows[0]), 'src/test/java/com/example/CalcTest.java');
 });
@@ -25,7 +25,7 @@ test('landing.junit.java-failing-case: clause 1: junitFailures names exactly the
 test('landing.junit.java-clause-ticks: clause 2: junitClauseTicks ticks the passing case clause and leaves the failing one unticked, naming it [C7]', () => {
   const result = junitClauseTicks(junitCases(XML).cases, CLAUSES);
   assert.deepEqual(result.ticked, [1]);
-  assert.deepEqual(result.failed, [{ number: 2, name: 'halvesFour' }]);
+  assert.deepEqual(result.failed, [{ number: 2, name: 'clause 2: halvesFour' }]);
 });
 
 test('landing.junit.java-no-toolchain: clause 3: the report is a checked-in fixture read as text, so no Maven and no child process is needed [C7]', () => {
