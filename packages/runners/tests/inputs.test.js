@@ -31,13 +31,13 @@ function declares(source) {
 
 const readers = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') })).filter(({ source }) => READ.test(source));
 
-test('clause 1: every test file in packages/runners/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('runners.inputs.declared: clause 1: every test file in packages/runners/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   assert.ok(readers.length > 0, 'the scan finds the cell test files that read');
   const bare = readers.filter(({ file, source }) => !declares(source) && !(WHOLE_TREE.has(file.slice(DIR.length + 1)) && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line)))).map(({ file }) => file.slice(DIR.length + 1));
   assert.deepEqual(bare, []);
 });
 
-test('clause 2: with the declared-inputs rule on, no runners-cell reader is reported, and a header names a cell, never the whole tree except the five named whole-repo copiers [C7,U149]', () => {
+test('runners.inputs.no-tree: clause 2: with the declared-inputs rule on, no runners-cell reader is reported, and a header names a cell, never the whole tree except the five named whole-repo copiers [C7,U149]', () => {
   const tree = readers.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1)).filter((name) => !WHOLE_TREE.has(name));
   assert.deepEqual(tree, []);
   const stale = [...WHOLE_TREE].filter((name) => !readers.some(({ file, source }) => file.slice(DIR.length + 1) === name && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))));
