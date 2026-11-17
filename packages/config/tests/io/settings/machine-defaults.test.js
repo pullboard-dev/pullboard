@@ -80,6 +80,7 @@ const BEFORE = {
   'gate.sampleDiskIo': false,
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
+  'gate.staticLoadAdmission': false,
   'gate.staticMemo': false,
   'gate.staticSlots': 2,
   'gate.submitAuthorization': 'runner',
@@ -103,6 +104,7 @@ const BEFORE = {
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.junitFailures': false,
+  'landing.junitSignatures': false,
   'landing.parallelGates': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
@@ -130,6 +132,7 @@ const BEFORE = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.lightShapedStrong': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
@@ -149,6 +152,7 @@ const BEFORE = {
   'runnerRates': {},
   'runners': [],
   'runners.drainOnFetchFailure': false,
+  'runners.fetchConcurrent': false,
   'runners.fetchFailFast': false,
   'runners.postedLineNamesCase': false,
   'runners.requiredToolchains': null,
@@ -248,6 +252,11 @@ test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['next.lightShapedStrong'], false);
+  assert.ok(SETTING_DESCRIPTIONS['next.lightShapedStrong']);
 });
 
 test('clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {

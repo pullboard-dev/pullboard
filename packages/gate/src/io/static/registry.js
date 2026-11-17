@@ -22,6 +22,8 @@ import { loadConfig } from '../../../../config/index.js';
 import { requireJourneyPathEnabled } from '../../../../config/index.js';
 import { requireRegisteredEnabled } from '../../../../config/index.js';
 import { adapterLintClockEnabled } from '../../../../config/index.js';
+import { adapterLintTimersEnabled } from '../../../../config/index.js';
+import { timerLintRows } from '../adapter-lints/timers.js';
 import { clockLintRows } from '../adapter-lints/clock.js';
 import { adapterLintFsEnabled } from '../../../../config/index.js';
 import { fsLintRows } from '../adapter-lints/fs.js';
@@ -228,6 +230,8 @@ export const STATIC_TREE_CHECKS = Object.freeze([
   { name: 'missing-paths', jsonInputs: ['missing-paths'], reads: SOURCE, run: (root, sources, context = MEMORY) => cachedMissingPaths(root, context) },
   // Direct Date.now and timer reads outside the kernel; each file's count may only fall, and off (gate.adapterLintClock) it reports nothing (#9447).
   { name: 'adapter-lint-clock', reads: SOURCE, run: (root, sources, context = MEMORY) => clockLintRows(root, { enabled: context.adapterLintClock ?? adapterLintClockEnabled() }) },
+  // Zero-delay deferrals, polls and timer pauses per file; each file's count per kind may only fall, and off (gate.adapterLintTimers) it reports nothing (#9518).
+  { name: 'adapter-lint-timers', reads: SOURCE, run: (root, sources, context = MEMORY) => timerLintRows(root, { enabled: context.adapterLintTimers ?? adapterLintTimersEnabled() }) },
   // File-local: given the changed paths, only their sources are read.
   { name: 'import-style', reads: SOURCE, run: (root, sources, context = MEMORY) => importStyleRows(context.changed ? sources.filter(row => context.changed.includes(row.file)) : sources, context.cache('import-style', 1)).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // Cell-partitioned: a cell's rows are kept under that cell's blobs plus the cells it imports [5567].
