@@ -48,7 +48,7 @@ function moves(board) {
   return { item, events: store.events(board).map(event => ({ kind: event.event_kind, by: event.event_by, at: event.event_at })) };
 }
 
-test('memory and file boards share the production schema and guarded move contract [C7,B2,M1,H16]', async t => {
+test('store.io-board-sqlite.memory-and-file-boards-share-the: memory and file boards share the production schema and guarded move contract [C7,B2,M1,H16]', async t => {
   let expected;
   for (const storage of ['memory', 'file']) {
     await t.test(`${storage} SQLite runs the same contract [C7,B2,M1,H16]`, subtest => {
@@ -69,7 +69,7 @@ test('memory and file boards share the production schema and guarded move contra
   }
 });
 
-test('memory fixture connections are independent and unsupported storage fails closed [C7,B2]', t => {
+test('store.io-board-sqlite.memory-fixture-connections-are-independent-and: memory fixture connections are independent and unsupported storage fails closed [C7,B2]', t => {
   const one = fixtureBoard(t);
   const two = fixtureBoard(t);
   one.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('fixture_private', 'one');
