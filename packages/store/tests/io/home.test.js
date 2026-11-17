@@ -41,17 +41,17 @@ const RUNNER_HOME = {
   'config.json': '{}\n',
 };
 
-test('syncMayAct is false for a home holding only runner state, so a runner command never loads the sync work [C7,#6085]', t => {
+test('store.io-home.syncmayact-is-false-for-a-home: syncMayAct is false for a home holding only runner state, so a runner command never loads the sync work [C7,#6085]', t => {
   const repo = machine(t, RUNNER_HOME);
   assert.equal(syncMayAct(repo), false);
 });
 
-test('syncMayAct stays true for a home with relay machine state, so real relay use keeps its start-up sync [C7,#6085]', t => {
+test('store.io-home.syncmayact-stays-true-for-a-home: syncMayAct stays true for a home with relay machine state, so real relay use keeps its start-up sync [C7,#6085]', t => {
   const repo = machine(t, { ...RUNNER_HOME, 'relay-machine/state.json': '{}\n' });
   assert.equal(syncMayAct(repo), true);
 });
 
-test('syncMayAct stays true for a runner home in a repository with a relay link [C7,#6085]', t => {
+test('store.io-home.syncmayact-stays-true-for-a-runner: syncMayAct stays true for a runner home in a repository with a relay link [C7,#6085]', t => {
   const repo = machine(t, RUNNER_HOME);
   writeFileSync(join(repo, '.git', 'pullboard', 'relay.json'), '{}\n');
   assert.equal(syncMayAct(repo), true);

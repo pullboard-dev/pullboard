@@ -27,7 +27,7 @@ function leaveRed(board, id, agent, state = 'red') {
   recordSubmitHandoff(board.db, id, { version: 1, id: `job-${id}`, agentId: agent, commit: COMMIT, executionTree: 't'.repeat(40), digest: 'digest', state, gateGreen: false });
 }
 
-test('clause 1: a seat holding a red-gated item gets that item from next before any new build [C7,#4014]', t => {
+test('store.next-own-red-first.a-seat-holding-a-red-gated: clause 1: a seat holding a red-gated item gets that item from next before any new build [C7,#4014]', t => {
   const { board, builder, fresh, red } = fixture(t);
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'digest:bar' });
   store.claim(board, red, { agentId: builder, lane: 'core', leaseMs: 7_200_000, freeze });
@@ -37,20 +37,20 @@ test('clause 1: a seat holding a red-gated item gets that item from next before 
   assert.notEqual(next.item.item_id, fresh);
 });
 
-test('clause 2: a red-gated item with no holder is offered ahead of a never-built item [C7,#4014]', t => {
+test('store.next-own-red-first.a-red-gated-item-with-no: clause 2: a red-gated item with no holder is offered ahead of a never-built item [C7,#4014]', t => {
   const { board, builder, other, fresh, red } = fixture(t);
   assert.equal(store.nextFor(board, { agentId: other, lane: 'core' }).item.item_id, fresh, 'without a red, the lower id leads');
   leaveRed(board, red, builder);
   assert.equal(store.nextFor(board, { agentId: other, lane: 'core' }).item.item_id, red, 'the red item leads once it has a built red gate');
 });
 
-test('clause 2: a gate red only on main reds, or still running, does not jump the queue [C7,#4014]', t => {
+test('store.next-own-red-first.a-gate-red-only-on-main: clause 2: a gate red only on main reds, or still running, does not jump the queue [C7,#4014]', t => {
   const { board, builder, other, fresh, red } = fixture(t);
   leaveRed(board, red, builder, 'running');
   assert.equal(store.nextFor(board, { agentId: other, lane: 'core' }).item.item_id, fresh);
 });
 
-test('clause 3: next answers in under 0.25 s on a board of 4,000 items, some built and red [C7,#4014]', t => {
+test('store.next-own-red-first.next-answers-in-under-0-25: clause 3: next answers in under 0.25 s on a board of 4,000 items, some built and red [C7,#4014]', t => {
   const { board, builder, other, red } = fixture(t);
   leaveRed(board, red, builder);
   for (let n = 0; n < 4000; n++) store.addItem(board, { by: 'coordinator', lane: 'core', title: `Filler ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: `Files: src/filler-${n}.js\nTest: proves it` });

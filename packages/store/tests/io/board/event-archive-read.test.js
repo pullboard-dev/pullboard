@@ -43,7 +43,7 @@ function seededBoard(t) {
   return { board, ids };
 }
 
-test('clause 1: after the archiver ran, the event reader returns an archived item\'s events in order, identical to before archiving [C7,#9335]', t => {
+test('store.io-board-event-archive-read.after-the-archiver-ran-the-event: clause 1: after the archiver ran, the event reader returns an archived item\'s events in order, identical to before archiving [C7,#9335]', t => {
   const { board, ids } = seededBoard(t);
   const before = events(board, { itemId: ids.old });
   assert.equal(before.length, 3);
@@ -57,7 +57,7 @@ test('clause 1: after the archiver ran, the event reader returns an archived ite
   assert.deepEqual(events(board, { itemId: ids.old, since: before[1].event_at }), before.slice(1));
 });
 
-test('clause 2: show, log and export read the same thread for an archived item as for the same item unarchived [C7,#9335]', t => {
+test('store.io-board-event-archive-read.show-log-and-export-read-the: clause 2: show, log and export read the same thread for an archived item as for the same item unarchived [C7,#9335]', t => {
   const { board, ids } = seededBoard(t);
   const before = itemThread(board, ids.old);
   const untouched = itemThread(board, ids.open);

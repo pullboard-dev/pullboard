@@ -32,7 +32,7 @@ function closure(entry) {
   return [...seen];
 }
 
-test('clause 1: the static import closure of packages/store/light.js reaches no module of the config package [C7]', () => {
+test('store.io-light-door.the-static-import-closure-of-packages: clause 1: the static import closure of packages/store/light.js reaches no module of the config package [C7]', () => {
   const modules = closure('packages/store/light.js');
   assert.ok(modules.length > 100, `walked ${modules.length} modules`);
   assert.deepEqual(modules.filter(file => file.startsWith(`${REPO}/packages/config/`)), [], 'the store light door reaches a config module');

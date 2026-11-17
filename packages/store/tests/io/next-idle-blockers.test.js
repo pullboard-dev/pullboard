@@ -29,7 +29,7 @@ function waiting(t, { count = 4, focus = false } = {}) {
   return { board, builder, blocker, followers };
 }
 
-test('clause 1: with idleBlockers on and no free item, nextFor returns at most 3 { item, waitsOn } rows [C7,N2]', t => {
+test('store.io-next-idle-blockers.with-idleblockers-on-and-no-free: clause 1: with idleBlockers on and no free item, nextFor returns at most 3 { item, waitsOn } rows [C7,N2]', t => {
   const { board, builder, blocker, followers } = waiting(t);
   const result = store.nextFor(board, { agentId: builder, lane: 'core', idleBlockers: true });
   assert.equal(result.item, null);
@@ -40,7 +40,7 @@ test('clause 1: with idleBlockers on and no free item, nextFor returns at most 3
   }
 });
 
-test('clause 2: the focus idle answer keeps the blockers with overflow off [C7,N2]', t => {
+test('store.io-next-idle-blockers.the-focus-idle-answer-keeps-the: clause 2: the focus idle answer keeps the blockers with overflow off [C7,N2]', t => {
   const { board, builder, blocker } = waiting(t, { count: 2, focus: true });
   const result = store.nextFor(board, { agentId: builder, lane: 'core', idleBlockers: true });
   assert.equal(result.item, null);
@@ -49,7 +49,7 @@ test('clause 2: the focus idle answer keeps the blockers with overflow off [C7,N
   assert.ok(result.blockers.every(row => row.waitsOn === blocker));
 });
 
-test('clause 3: with the option off the result has no blockers key and is unchanged [C7,N2]', t => {
+test('store.io-next-idle-blockers.with-the-option-off-the-result: clause 3: with the option off the result has no blockers key and is unchanged [C7,N2]', t => {
   for (const focus of [false, true]) {
     const { board, builder } = waiting(t, { count: 2, focus });
     const plain = store.nextFor(board, { agentId: builder, lane: 'core' });

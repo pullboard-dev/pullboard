@@ -18,7 +18,7 @@ function handoff(board, id, job) {
   recordSubmitHandoff(board.db, id, { id: `fixture-${id}`, commit: 'a'.repeat(40), agentId: board.db.prepare('SELECT item_owner FROM item WHERE item_id=?').get(id)?.item_owner, digest: 'stage-fixture', ...job });
 }
 
-test('clause 1: show, list and the board read name building, in the gate, back with builder, in review, accepted and landed [C7]', t => {
+test('store.logic-item-stage.show-list-and-the-board-read: clause 1: show, list and the board read name building, in the gate, back with builder, in review, accepted and landed [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [building, gated, running, red, review, accepted, landed] = ['b', 'g', 'r', 'x', 'v', 'a', 'l'].map(make);
@@ -45,7 +45,7 @@ test('clause 1: show, list and the board read name building, in the gate, back w
   }
 });
 
-test('clause 2: status counts items per stage, not per raw status [C7]', t => {
+test('store.logic-item-stage.status-counts-items-per-stage-not: clause 2: status counts items per stage, not per raw status [C7]', t => {
   const board = fixtureBoard(t);
   const make = title => store.addItem(board, { by: 'coordinator', lane: 'web', title });
   const [a, b, c] = ['a', 'b', 'c'].map(make);
