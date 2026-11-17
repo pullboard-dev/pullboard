@@ -1545,14 +1545,6 @@
       ]
     },
     {
-      "cell": "config",
-      "row": [
-        "test/registry.test.js",
-        "packages/config/tests/registry.test.js",
-        "seed"
-      ]
-    },
-    {
       "cell": "state",
       "row": [
         "test/bar-corrections.test.js",
