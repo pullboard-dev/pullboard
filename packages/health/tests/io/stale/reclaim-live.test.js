@@ -42,7 +42,7 @@ function after(board) {
   return { item: { ...item }, events };
 }
 
-test('clause 1: with moves.live.reclaim on, a pass over a quiet seat releases exactly the item and events the table names, the board the setting off leaves [C7,#9374]', t => {
+test('health.reclaim-live.table-releases: clause 1: with moves.live.reclaim on, a pass over a quiet seat releases exactly the item and events the table names, the board the setting off leaves [C7,#9374]', t => {
   const off = quietSeat(t, { live: false });
   off.pass();
   const on = quietSeat(t, { live: true });
@@ -54,14 +54,14 @@ test('clause 1: with moves.live.reclaim on, a pass over a quiet seat releases ex
   assert.deepEqual(after(on.board), after(off.board), 'the board after equals the board a pass with the setting off leaves');
 });
 
-test('clause 1: with moves.live.reclaim on, a row the table refuses is refused with the table\'s code and changes nothing [C7,#9374]', t => {
+test('health.reclaim-live.refusal-kept: clause 1: with moves.live.reclaim on, a row the table refuses is refused with the table\'s code and changes nothing [C7,#9374]', t => {
   const { board, pass } = quietSeat(t, { live: true, tamper: 60_000 });
   const before = after(board);
   assert.throws(pass, error => error.code === 'BAD_STALE_STATE' || error.code === 'STALE_STATE_CHANGED');
   assert.deepEqual(after(board), before, 'a refused pass writes nothing');
 });
 
-test('clause 2: with moves.live.reclaim unset, the writer\'s own decision stands and the table runs only as the shadow compare [C7,#9374]', t => {
+test('health.reclaim-live.unset-shadow-only: clause 2: with moves.live.reclaim unset, the writer\'s own decision stands and the table runs only as the shadow compare [C7,#9374]', t => {
   const { board, pass } = quietSeat(t, { shadow: true });
   const result = pass();
   assert.deepEqual(result.claims, [7], 'the writer released the item');

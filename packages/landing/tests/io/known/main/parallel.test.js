@@ -51,7 +51,7 @@ function port(base, redOnMain, log) {
 }
 port.open = 0;
 
-test('a red batch starts the base-main comparison of every failing file before any finishes [C7]', async t => {
+test('landing.parallel.a-red-batch-starts-the-base: a red batch starts the base-main comparison of every failing file before any finishes [C7]', async t => {
   const { root, base } = fixture(t), log = [];
   const files = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
   port.open = 0;
@@ -60,7 +60,7 @@ test('a red batch starts the base-main comparison of every failing file before a
   assert.deepEqual(log.map(row => row.open), [1, 2, 3], 'all three comparisons were in flight together (parallel), none waited for another');
 });
 
-test('a batch whose failures are all main reds lands whole without bisecting [C7]', async t => {
+test('landing.parallel.a-batch-whose-failures-are-all: a batch whose failures are all main reds lands whole without bisecting [C7]', async t => {
   const { root, base } = fixture(t), log = [];
   const files = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
   port.open = 0;
@@ -71,7 +71,7 @@ test('a batch whose failures are all main reds lands whole without bisecting [C7
   assert.notEqual(knownMainFields(gate, account).knownMainProof, null, 'the gate carries a known-main proof, so the whole batch lands');
 });
 
-test('a batch with one failure new against main bisects on that failure only [C7]', async t => {
+test('landing.parallel.a-batch-with-one-failure-new: a batch with one failure new against main bisects on that failure only [C7]', async t => {
   const { root, base } = fixture(t), log = [];
   const files = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
   port.open = 0;

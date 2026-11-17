@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads the recorded withdraw and reopen history fixture to replay it through the tables. The withdraw and reopen tables replay moves recorded on a real board with zero disagreements, and refuse what the board refuses [C7,#8258]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -29,7 +30,7 @@ function recordedBoard() {
 
 const records = readWithdrawRecords(recordedBoard(), { since: HISTORY.since, only: [...HISTORY.withdraws, ...HISTORY.reopens] });
 
-test('clause 1: replaying recorded board history through the withdraw and reopen tables gives zero disagreements [C7,#8258]', () => {
+test('moves.withdraw-replay.replaying-recorded-board-history-through-the-withdraw: clause 1: replaying recorded board history through the withdraw and reopen tables gives zero disagreements [C7,#8258]', () => {
   const withdraw = replayTable(WITHDRAW.table, WITHDRAW.rules, records.withdraw, { cut: HISTORY.since });
   const reopen = replayTable(REOPEN.table, REOPEN.rules, records.reopen, { cut: HISTORY.since });
   assert.deepEqual(withdraw.disagreements, []);
@@ -39,7 +40,7 @@ test('clause 1: replaying recorded board history through the withdraw and reopen
   assert.ok(withdraw.agreed >= 30 && reopen.agreed >= 8, 'the fixture holds a few of each recorded path');
 });
 
-test('clause 1: the replay covers every withdraw and reopen path the board used [C7,#8258]', () => {
+test('moves.withdraw-replay.the-replay-covers-every-withdraw-and-reopen: clause 1: the replay covers every withdraw and reopen path the board used [C7,#8258]', () => {
   const via = new Set();
   for (const record of records.withdraw) via.add(runTable(WITHDRAW.table, WITHDRAW.rules, structuredClone(record.snapshot), structuredClone(record.move)).via[0]);
   for (const record of records.reopen) via.add(runTable(REOPEN.table, REOPEN.rules, structuredClone(record.snapshot), structuredClone(record.move)).via[0]);
@@ -47,14 +48,14 @@ test('clause 1: the replay covers every withdraw and reopen path the board used 
   assert.deepEqual([...new Set(records.withdraw.map(record => record.snapshot.item.status))].sort(), ['claimed', 'open', 'submitted']);
 });
 
-test('clause 1: a recorded move replayed with one captured fact broken is a disagreement the replay names [C7,#8258]', () => {
+test('moves.withdraw-replay.a-recorded-move-replayed-with-one-captured: clause 1: a recorded move replayed with one captured fact broken is a disagreement the replay names [C7,#8258]', () => {
   const stranger = { ...structuredClone(records.withdraw[0]), move: { ...structuredClone(records.withdraw[0].move), actor: 'someone-else' } };
   assert.deepEqual(replayTable(WITHDRAW.table, WITHDRAW.rules, [stranger], { cut: HISTORY.since }).disagreements.map(entry => entry.table.code), ['COORDINATOR_ONLY']);
   const merged = { ...structuredClone(records.reopen[0]), snapshot: { ...structuredClone(records.reopen[0].snapshot), item: { ...records.reopen[0].snapshot.item, status: 'merged' } } };
   assert.deepEqual(replayTable(REOPEN.table, REOPEN.rules, [merged], { cut: HISTORY.since }).disagreements.map(entry => entry.table.code), ['NOT_SUBMITTED']);
 });
 
-test('clause 1: the withdraw table refuses in the order the command throws, with its words [C7,#8258]', () => {
+test('moves.withdraw-replay.the-withdraw-table-refuses-in-the-order: clause 1: the withdraw table refuses in the order the command throws, with its words [C7,#8258]', () => {
   const record = records.withdraw[0];
   const refuse = (move, snapshot = record.snapshot) => runTable(WITHDRAW.table, WITHDRAW.rules, structuredClone(snapshot), { ...structuredClone(record.move), ...move }).refused;
   assert.equal(refuse({ actor: 'core-1', reason: ' ' }).code, 'COORDINATOR_ONLY');
@@ -67,7 +68,7 @@ test('clause 1: the withdraw table refuses in the order the command throws, with
   assert.throws(() => reopenEngine({}), { code: 'REOPEN_TABLE_INPUTS' });
 });
 
-test('clause 1: a Main red audit withdrawal writes the cause fact the board derives, and refuses a changed item [C7,#8258]', () => {
+test('moves.withdraw-replay.a-main-red-audit-withdrawal-writes-the: clause 1: a Main red audit withdrawal writes the cause fact the board derives, and refuses a changed item [C7,#8258]', () => {
   const frozen = JSON.stringify({ title: 'Main red: x', check: 'node --test a.js' });
   const digest = createHash('sha256').update(frozen).digest('hex');
   const expected = { status: 'open', title: 'Main red: x', check: 'node --test a.js', frozenDigest: digest, head: 'a'.repeat(40) };
@@ -80,7 +81,7 @@ test('clause 1: a Main red audit withdrawal writes the cause fact the board deri
   assert.equal(run({ ...item, title: 'Main red: y' }).refused.code, 'STALE_MAIN_RED');
 });
 
-test('clause 1: the reopen table refuses in the order the command throws, with its words [C7,#8258]', () => {
+test('moves.withdraw-replay.the-reopen-table-refuses-in-the-order: clause 1: the reopen table refuses in the order the command throws, with its words [C7,#8258]', () => {
   const record = records.reopen.find(entry => entry.snapshot.item.status === 'submitted' && !entry.move.conflict && !entry.move.withdrawVerdict);
   const refuse = (move, snapshot = record.snapshot) => runTable(REOPEN.table, REOPEN.rules, structuredClone(snapshot), { ...structuredClone(record.move), ...move }).refused;
   assert.equal(refuse({ actor: 'core-1' }).code, 'COORDINATOR_ONLY');

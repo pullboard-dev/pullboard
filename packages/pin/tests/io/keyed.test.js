@@ -9,7 +9,7 @@ import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.j
 import { saveKeyedResult } from '../../index.js';
 import { keyedResultPath } from '../../index.js';
 
-test('clause 1: a state-cache partial whose writer pid is dead is removed on the next write, and a live writer\'s partial stays [C7]', () => {
+test('pin.keyed.dead-partial-removed: clause 1: a state-cache partial whose writer pid is dead is removed on the next write, and a live writer\'s partial stays [C7]', () => {
   const folder = privateFixtureFiles('keyed-partial-').root;
   let deadPid = 4_000_000;
   /** Whether a pid is free: signalling it finds no process. */

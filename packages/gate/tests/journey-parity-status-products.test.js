@@ -13,12 +13,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 const SAMPLES = [{ journey: 'apps/cli/journeys/status/products.test.js',
   cases: ['in a real repo, status prints each product, and spec check fails on an entry that names no row [S11, S12]'] }];
 
-test('clause 1: a sample of the status/products journey gives the same exit codes, printed results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-status-products.a-sample-of-the-status-products-journey: clause 1: a sample of the status/products journey gives the same exit codes, printed results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the status/products journey keeps all 5 of its cases [C7]', () => {
+test('gate.journey-parity-status-products.the-status-products-journey-keeps-all-5: clause 2: the status/products journey keeps all 5 of its cases [C7]', () => {
   const source = readFileSync(resolve(import.meta.dirname, '../../../apps/cli/journeys/status/products.test.js'), 'utf8');
   assert.equal((source.match(/^test\(/gmu) ?? []).length, 5, 'no case is dropped, skipped or merged');
   assert.doesNotMatch(source, /^test\.(?:skip|todo)\(/mu);

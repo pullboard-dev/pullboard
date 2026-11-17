@@ -231,21 +231,21 @@ const results = Array.from({ length: CASES }, (_, seed) => {
 const accepted = results.filter(c => !c.spoil);
 const of = (table, outcome) => accepted.filter(c => c.table === table && (outcome === undefined || c.outcome === outcome));
 
-test('moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-rows-fire-generated-every-guard-and-outcome-row: moves.landing.rows-fire: generated: every guard and outcome row of the five landing tables fires on some seeded case [C7,#8561]', () => {
   const fired = new Set(results.map(c => `${c.table}:${c.result.refused ? c.result.refused.row : c.result.via[0]}`));
   const rows = Object.entries(TABLES).flatMap(([name, table]) => [...table.guards, ...table.outcomes].map(row => `${name}:${row.id}`));
   assert.equal(rows.length, 47);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
 });
 
-test('moves.landing.refusal-codes: generated: each case is refused at the row and code its spoiled fact names, or takes the outcome its facts name when nothing is spoiled [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-refusal-codes-generated-each-case-is-refused-at: moves.landing.refusal-codes: generated: each case is refused at the row and code its spoiled fact names, or takes the outcome its facts name when nothing is spoiled [C7,#8561]', () => {
   for (const c of results) {
     if (c.spoil) assert.deepEqual([c.result.refused?.row, c.result.refused?.code], [c.spoil[2], c.spoil[3]], `seed ${c.seed}: ${c.table}: ${c.spoil[0]}`);
     else assert.deepEqual([c.result.refused, c.result.via[0]], [undefined, c.outcome], `seed ${c.seed}: ${c.table} ${c.kind ?? ''}`);
   }
 });
 
-test('moves.landing.refusal-writes-nothing: generated: a refusal writes nothing and names a message and the next step its code has [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-refusal-writes-nothing-generated-a-refusal-writes-nothing-and: moves.landing.refusal-writes-nothing: generated: a refusal writes nothing and names a message and the next step its code has [C7,#8561]', () => {
   for (const c of results.filter(each => each.result.refused)) {
     assert.ok(!('patch' in c.result) && !('events' in c.result), `seed ${c.seed}`);
     assert.ok(c.result.refused.message && c.result.refused.next, `seed ${c.seed}`);
@@ -253,7 +253,7 @@ test('moves.landing.refusal-writes-nothing: generated: a refusal writes nothing 
   }
 });
 
-test('moves.landing.select-candidate: generated: a selected item writes no patch and one candidate event naming its commit, its reviewed commit when that differs, and the withdrawn dependencies it drops [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-select-candidate-generated-a-selected-item-writes-no: moves.landing.select-candidate: generated: a selected item writes no patch and one candidate event naming its commit, its reviewed commit when that differs, and the withdrawn dependencies it drops [C7,#8561]', () => {
   const picked = of('select');
   assert.ok(picked.length > 1000, `only ${picked.length} selections`);
   for (const c of picked) {
@@ -263,7 +263,7 @@ test('moves.landing.select-candidate: generated: a selected item writes no patch
   assert.ok(picked.some(c => c.result.events[0].detail.reviewedCommit) && picked.some(c => c.result.events[0].detail.withdrawnDependencies), 'both optional fields are written on some case');
 });
 
-test('moves.landing.admit-moves: generated: an admitted pass adopts an interrupted batch it was asked to adopt or that is flaky, retries a retryable blocked batch automatically, and otherwise starts a fresh selection [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-admit-moves-generated-an-admitted-pass-adopts-an: moves.landing.admit-moves: generated: an admitted pass adopts an interrupted batch it was asked to adopt or that is flaky, retries a retryable blocked batch automatically, and otherwise starts a fresh selection [C7,#8561]', () => {
   for (const c of of('admit')) {
     const batch = c.s.batches.at(-1);
     const wanted = { select: [{ kind: 'select', detail: {} }], adopt: [{ kind: 'adopt', detail: { batch: batch.id } }], retry: [{ kind: 'adopt', detail: { batch: batch.id, retry: true } }] }[c.outcome];
@@ -272,7 +272,7 @@ test('moves.landing.admit-moves: generated: an admitted pass adopts an interrupt
   for (const row of ['select', 'adopt', 'retry']) assert.ok(of('admit', row).length > 100, `${row}: only ${of('admit', row).length}`);
 });
 
-test('moves.landing.record-merges: generated: a recorded push writes one merged event for each item with no receipt and one main-moved event, and a batch already landed writes nothing [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-record-merges-generated-a-recorded-push-writes-one: moves.landing.record-merges: generated: a recorded push writes one merged event for each item with no receipt and one main-moved event, and a batch already landed writes nothing [C7,#8561]', () => {
   assert.ok(of('record', 'land').length > 1000 && of('record', 'already-landed').length > 400);
   for (const c of of('record', 'already-landed')) assert.deepEqual([c.result.patch, c.result.events], [{}, []], `seed ${c.seed}`);
   for (const c of of('record', 'land')) {
@@ -283,7 +283,7 @@ test('moves.landing.record-merges: generated: a recorded push writes one merged 
   }
 });
 
-test('moves.landing.merged-forced: generated: a merge records the commit, and a forced merge of unfinished work withdraws the item first and says why it went around the gate [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-merged-forced-generated-a-merge-records-the-commit: moves.landing.merged-forced: generated: a merge records the commit, and a forced merge of unfinished work withdraws the item first and says why it went around the gate [C7,#8561]', () => {
   assert.ok(of('merged', 'forced-unfinished').length > 100 && of('merged', 'merge').length > 300);
   for (const c of of('merged')) {
     const reason = typeof c.m.forced === 'string' ? c.m.forced.trim() : '', commit = 'f'.repeat(40);
@@ -294,7 +294,7 @@ test('moves.landing.merged-forced: generated: a merge records the commit, and a 
   }
 });
 
-test('moves.landing.outcome-next: generated: a finished batch blocks, reopens, parks or goes on as the first fact it meets says, and writes what that outcome says [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-outcome-next-generated-a-finished-batch-blocks-reopens: moves.landing.outcome-next: generated: a finished batch blocks, reopens, parks or goes on as the first fact it meets says, and writes what that outcome says [C7,#8561]', () => {
   const REOPEN = [{ kind: 'reopen', item: ID, by: 'coordinator', detail: { landingFailure: true } }];
   const PATCH = { 'lease-lost': {}, fault: { state: 'blocked' }, 'item-refused': { state: 'blocked' }, refused: { state: 'blocked' }, culprit: { state: 'blocked' }, proceed: { state: 'ready' }, 'return-culprit': { state: 'blocked' }, bisect: { state: 'bisecting' } };
   for (const c of of('outcome')) {
@@ -308,7 +308,7 @@ test('moves.landing.outcome-next: generated: a finished batch blocks, reopens, p
   for (const kind of ['lease-lost', 'fault', 'runner-source', 'runner-source-held', 'item-refused', 'refused', 'refused-repeat', 'culprit', 'proceed', 'return-culprit', 'bisect']) assert.ok(of('outcome').filter(c => c.kind === kind).length > 50, kind);
 });
 
-test('moves.landing.park-words: generated: a batch that repeats the cause of the batch before it parks each of its items with a hold whose reason names the cause, the base and the commit [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-park-words-generated-a-batch-that-repeats-the: moves.landing.park-words: generated: a batch that repeats the cause of the batch before it parks each of its items with a hold whose reason names the cause, the base and the commit [C7,#8561]', () => {
   for (const c of of('outcome', 'refused').filter(each => each.kind === 'refused-repeat')) {
     for (const [n, event] of c.result.events.entries()) {
       assert.equal(event.detail.reason, `${INPUTS.repeatHold}${JSON.stringify({ kind: 'refusal', key: c.m.refusal.code, base: 'b1', commit: 'c1' })} landing parked #${c.s.batch.items[n].id}`, `seed ${c.seed}`);
@@ -317,7 +317,7 @@ test('moves.landing.park-words: generated: a batch that repeats the cause of the
   for (const c of of('outcome', 'refused').filter(each => each.kind === 'refused')) assert.deepEqual(c.result.events, [], `seed ${c.seed}: a first red parks nobody`);
 });
 
-test('moves.landing.deterministic: generated: the tables are deterministic and read their snapshot without changing it [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-deterministic-generated-the-tables-are-deterministic-and: moves.landing.deterministic: generated: the tables are deterministic and read their snapshot without changing it [C7,#8561]', () => {
   for (const c of results.slice(0, 3000)) {
     const snapshot = structuredClone(c.s), move = structuredClone(c.m);
     assert.deepEqual(runTable(TABLES[c.table], RULES, snapshot, move), c.result, `seed ${c.seed}`);
@@ -325,7 +325,7 @@ test('moves.landing.deterministic: generated: the tables are deterministic and r
   }
 });
 
-test('moves.landing.spoiled-fact: metamorphic: spoil any one fact of an accepted select, admit, record or merged case and it is refused at the row and code that fact names [C7,#8561]', () => {
+test('moves.landing-generated.moves-landing-spoiled-fact-metamorphic-spoil-any-one-fact-of: moves.landing.spoiled-fact: metamorphic: spoil any one fact of an accepted select, admit, record or merged case and it is refused at the row and code that fact names [C7,#8561]', () => {
   assert.ok(accepted.filter(c => c.table !== 'outcome').length > 4000);
   for (const c of accepted.filter(each => each.table !== 'outcome')) {
     for (const [name, spoil, row, code] of CASES_OF[c.table][1]) {
@@ -337,7 +337,7 @@ test('moves.landing.spoiled-fact: metamorphic: spoil any one fact of an accepted
   }
 });
 
-test('moves.landing.always-rows: clause 3: every landing-select row tagged always appears in the rows of sprint and strict, and steady holds none of them [M2,#8865]', () => {
+test('moves.landing-generated.moves-landing-always-rows-clause-3-every-landing-select-row-tagged: moves.landing.always-rows: clause 3: every landing-select row tagged always appears in the rows of sprint and strict, and steady holds none of them [M2,#8865]', () => {
   const select = TABLES.select.guards;
   const tagged = select.filter(row => row.always);
   assert.deepEqual(tagged.map(row => [row.id, row.always]), [['a6-bar-frozen', 'A6'], ['a8-irreversible', 'A8']]);
