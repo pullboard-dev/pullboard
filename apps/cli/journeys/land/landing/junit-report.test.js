@@ -4,10 +4,10 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { createE2eHelpers } from '../../../../../../apps/cli/tests/fixtures/e2e.js';
-import { landingStep } from '../../../../../../apps/cli/tests/fixtures/landing/step.js';
-import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
-import { fixtureMachineSettings } from '../../../../../gate/tests/fixtures/testkit.js';
+import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { landingStep } from '../../../tests/fixtures/landing/step.js';
+import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../../../packages/gate/tests/fixtures/testkit.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
