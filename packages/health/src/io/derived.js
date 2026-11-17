@@ -15,21 +15,30 @@ function boardFileOf(board) {
 }
 
 /**
- * Replace the derived rows of one main commit and kind, in one transaction.
- * Why: a rerun at the same commit gives the same rows, and another commit's rows are never touched [C7,#8944].
+ * Replace the derived rows of one main commit for each kind given, all in one transaction.
+ * Why: a rerun at the same commit gives the same rows, another commit's rows are never touched, and a sweep of several kinds is all or nothing [C7,#8944].
  */
-function writeRows(boardFile, mainCommit, kind, rows) {
+function writeKinds(boardFile, mainCommit, kinds) {
   const file = derivedStatePath(boardFile);
   const derived = new DatabaseSync(file);
   try {
     derived.exec('CREATE TABLE IF NOT EXISTS derived_state(main_commit TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(main_commit, kind, key)) WITHOUT ROWID');
     derived.exec('BEGIN');
-    derived.prepare('DELETE FROM derived_state WHERE main_commit = ? AND kind = ?').run(mainCommit, kind);
-    const insert = derived.prepare('INSERT INTO derived_state(main_commit, kind, key, value) VALUES (?, ?, ?, ?)');
-    for (const row of rows) insert.run(mainCommit, kind, row.key, row.value);
-    derived.exec('COMMIT');
+    try {
+      const insert = derived.prepare('INSERT INTO derived_state(main_commit, kind, key, value) VALUES (?, ?, ?, ?)');
+      for (const [kind, rows] of Object.entries(kinds)) {
+        derived.prepare('DELETE FROM derived_state WHERE main_commit = ? AND kind = ?').run(mainCommit, kind);
+        for (const row of rows) insert.run(mainCommit, kind, row.key, row.value);
+      }
+      derived.exec('COMMIT');
+    } catch (error) { derived.exec('ROLLBACK'); throw error; }
   } finally { derived.close(); }
-  return { file, kind, rows: rows.length };
+  return file;
+}
+
+/** Replace the derived rows of one main commit and kind, in one transaction. */
+function writeRows(boardFile, mainCommit, kind, rows) {
+  return { file: writeKinds(boardFile, mainCommit, { [kind]: rows }), kind, rows: rows.length };
 }
 
 /**
@@ -74,4 +83,37 @@ export function sweepDerivedVerdicts(board, { mainCommit, enabled, listItems, ve
   const fresh = writeRows(boardFile, mainCommit, 'verdict', freshness);
   writeRows(boardFile, mainCommit, 'accept-order', order);
   return { file: fresh.file, freshness: freshness.length, acceptOrder: order.length };
+}
+
+/**
+ * Write all five derived kinds for one main commit in one transaction: holds, verdict freshness, accept order, seat families and gate-at-head [C7,#8944,#8977].
+ * Why: one sweep gives one consistent snapshot of the commit, so `next` never reads holds from one moment and gate state from another.
+ * Seat families are the family each registered seat recorded on the board. Gate-at-head is whatever the caller's `gateAtHead` returns for each open item
+ * (the store's own function, so this file loads no other cell); only items with a gate covering their head get a row.
+ * With health.derivedState off (`enabled` not true) it writes no file at all.
+ *
+ * @param {any} board - An open file-backed board.
+ * @param {{ mainCommit: string, enabled: boolean, listItems: (board: any) => any[], verdictState: (item: any) => any, gateAtHead: (board: any, item: any) => string | null }} options - The main commit, the health.derivedState setting, the item reader, the verdict freshness reader and the gate-at-head reader.
+ * @returns {{ file: string, counts: Record<string, number> } | null} Row counts per kind, or null when the setting is off or the board is not a file.
+ */
+export function sweepDerivedState(board, { mainCommit, enabled, listItems, verdictState, gateAtHead }) {
+  if (enabled !== true) return null;
+  const boardFile = boardFileOf(board);
+  if (!boardFile) return null;
+  const items = listItems(board);
+  const accepted = items.filter(item => item.item_status === 'verified' && !item.item_merged_commit);
+  const wanted = new Set(accepted.map(item => item.item_id));
+  const kinds = {
+    hold: items.filter(item => item.item_hold_at)
+      .map(item => ({ key: String(item.item_id), value: JSON.stringify({ reason: item.item_hold_reason ?? null, at: item.item_hold_at }) })),
+    verdict: accepted.map(item => ({ key: String(item.item_id), value: JSON.stringify(verdictState(item) ?? null) })),
+    'accept-order': board.db.prepare("SELECT item_id, MAX(event_id) AS event_id FROM event WHERE event_kind = 'accept' GROUP BY item_id ORDER BY MAX(event_id)").all()
+      .filter(row => wanted.has(row.item_id)).map(row => ({ key: String(row.item_id), value: String(row.event_id) })),
+    'seat-family': board.db.prepare('SELECT agent_id, agent_family FROM agent WHERE agent_family IS NOT NULL ORDER BY agent_id').all()
+      .map(row => ({ key: row.agent_id, value: row.agent_family })),
+    'gate-at-head': items.filter(item => item.item_status === 'open')
+      .map(item => ({ key: String(item.item_id), value: gateAtHead(board, item) })).filter(row => row.value),
+  };
+  const file = writeKinds(boardFile, mainCommit, kinds);
+  return { file, counts: Object.fromEntries(Object.entries(kinds).map(([kind, rows]) => [kind, rows.length])) };
 }
