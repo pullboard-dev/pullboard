@@ -114,6 +114,11 @@ export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;
 }
 
+/** Name the worker's error in a gate red that printed no receipt only when this machine opted in; off, the part text is unchanged [C7,#9925]. */
+export function receiptMissingCauseEnabled() {
+  return loadMachineSettings().gate?.receiptMissingCause === true;
+}
+
 /** Name the file:line a static check reported in a pulled gate's red fact only when this machine opted in; off, the fact is unchanged [C7,#9083]. */
 export function redFactLocationEnabled() {
   return loadMachineSettings().gate?.redFactLocation === true;

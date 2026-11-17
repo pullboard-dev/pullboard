@@ -67,6 +67,7 @@ export {
   endStaleJobsEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
+  receiptMissingCauseEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   movesShadowEnabled,
