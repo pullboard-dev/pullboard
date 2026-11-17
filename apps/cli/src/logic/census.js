@@ -308,11 +308,18 @@ export function timeBoundJobs(files, times, limitMs) {
  * @param {number} count
  * @param {Record<string, number>} times
  * @param {boolean} balanceByTime - The census.balanceByTime setting.
- * @param {() => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times.
+ * @param {(files?: string[]) => { files: string[], weight: number }[]} base - The landing planner, already bound to these files, count and times; given the files left after solo ones are cut out.
  * @param {number|null} [jobMinutes] - The census.jobMinutes setting; when set it decides the plan, and `count` is ignored.
+ * @param {number|null} [soloSeconds] - The census.soloFileSeconds setting; when set, each file recorded slower than this is a one-file job and the rest plan as above (why: a slow file inside a mixed job set the census's end).
  * @returns {{ files: string[], weight: number }[]}
  */
-export function censusPlan(files, count, times, balanceByTime, base, jobMinutes = null) {
-  if (jobMinutes) return timeBoundJobs(files, times, jobMinutes * 60_000);
-  return balanceByTime ? balancedJobs(files, count, times) : base();
+export function censusPlan(files, count, times, balanceByTime, base, jobMinutes = null, soloSeconds = null) {
+  const solo = soloSeconds ? files.filter(file => Number.isFinite(times[file]) && times[file] > soloSeconds * 1000) : [];
+  const rest = solo.length ? files.filter(file => !solo.includes(file)) : files;
+  const alone = [...solo].sort((a, b) => times[b] - times[a] || a.localeCompare(b)).map(file => ({ files: [file], weight: times[file] }));
+  let jobs;
+  if (!rest.length) jobs = [];
+  else if (jobMinutes) jobs = timeBoundJobs(rest, times, jobMinutes * 60_000);
+  else jobs = balanceByTime ? balancedJobs(rest, count, times) : base(rest);
+  return solo.length ? [...alone, ...jobs].sort((a, b) => b.weight - a.weight || a.files[0].localeCompare(b.files[0])) : jobs;
 }

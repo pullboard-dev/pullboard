@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { MACHINE } from '../../../../state/light.js';
 import { BACKBONE_RULES } from '../../../index.js';
 import { BACKBONE_TABLE } from '../../../index.js';
@@ -39,7 +39,7 @@ const LIFECYCLE = [
   ['2026-11-10T04:00:00.000Z', 'core-3', 'claim', 2, { leaseUntil: '2026-11-10T09:00:00.000Z' }],
 ];
 
-test('clause 1: every backbone row whose declared move has a guard names each guard as a rule fact [C7,#8100]', () => {
+test('moves.backbone-replay.every-backbone-row-whose-declared-move-has: clause 1: every backbone row whose declared move has a guard names each guard as a rule fact [C7,#8100]', () => {
   const guarded = BACKBONE_TABLE.items.filter(row => row.guards.length);
   assert.ok(guarded.length >= 10);
   MACHINE.moves.forEach((move, index) => {
@@ -49,20 +49,20 @@ test('clause 1: every backbone row whose declared move has a guard names each gu
   assert.ok(BACKBONE_TABLE.guards.length > 10 && BACKBONE_TABLE.outcomes.length === 1);
 });
 
-test('clause 2: replaying a fixture board\'s recorded add, claim, submit and accept moves reports zero disagreements [C7,#8100]', () => {
+test('moves.backbone-replay.replaying-a-fixture-board-s-recorded-add: clause 2: replaying a fixture board\'s recorded add, claim, submit and accept moves reports zero disagreements [C7,#8100]', () => {
   const records = readMoveRecords(board(LIFECYCLE), { since: CUT });
   assert.deepEqual(records.map(record => record.move.name), ['claim', 'submit', 'accept', 'claim']);
   const report = replayTable(BACKBONE_TABLE, BACKBONE_RULES, records, { cut: CUT });
   assert.deepEqual([report.agreed, report.disagreed, report.notReplayable], [4, 0, 0]);
 });
 
-test('clause 2: a move the board accepted but a guard refuses is reported as a disagreement with its event id [C7,#8100]', () => {
+test('moves.backbone-replay.a-move-the-board-accepted-but-a: clause 2: a move the board accepted but a guard refuses is reported as a disagreement with its event id [C7,#8100]', () => {
   const rows = [...LIFECYCLE.slice(0, 4), ['2026-11-10T01:30:00.000Z', 'core-9', 'claim', 2, { leaseUntil: '2026-11-10T09:00:00.000Z' }], ['2026-11-10T02:00:00.000Z', 'core-1', 'accept', 1, {}]];
   const report = replayTable(BACKBONE_TABLE, BACKBONE_RULES, readMoveRecords(board(rows), { since: CUT }), { cut: CUT });
   assert.deepEqual(report.disagreements.map(entry => [entry.event, entry.table.code]), [[5, 'BLOCKED'], [6, 'SELF_VERIFY']]);
 });
 
-test('clause 3: a record built by readMoveRecords is matched by runTable on the field it was written with [C7,#8100]', () => {
+test('moves.backbone-replay.a-record-built-by-readmoverecords-is-matched: clause 3: a record built by readMoveRecords is matched by runTable on the field it was written with [C7,#8100]', () => {
   const [claim] = readMoveRecords(board(LIFECYCLE), { since: CUT });
   assert.equal(claim.move.name, 'claim');
   const answer = runTable(BACKBONE_TABLE, BACKBONE_RULES, structuredClone(claim.snapshot), structuredClone(claim.move));

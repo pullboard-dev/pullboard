@@ -2,7 +2,6 @@ import { REJECT_OPEN_ENGINE } from '../../../../state/index.js';
 import { prepareEngineMove } from '../../../../state/index.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
 import { MOVE_REGISTRY } from '../../../index.js';
-import { requireFixtureReviewFamilies } from "../../../../../apps/cli/tests/fixtures/review/family.js";
 /** @pullboard-test-loads packages/store/src/io/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
 import assert from 'node:assert/strict';
@@ -30,7 +29,9 @@ function fixture(t) {
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', family: 'Fixture Clock Builder Vendor', route: 'mid' });
   const other = store.register(board, { lane: 'core', path: '/other', family: 'Fixture Clock Reviewer Vendor', route: 'mid' });
-  requireFixtureReviewFamilies(board);
+  store.setLineSetting(board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: true,
+    reason: 'Private fixture explicitly requires declared vendor pairs; this changes no operational board.',
+    window: { syntheticPolicy: 1 } });
   return { board, directory, builder, other, advance: (minutes) => { at += minutes * 60_000; } };
 }
 /** Claim the item with a frozen bar and a bounded lease. */

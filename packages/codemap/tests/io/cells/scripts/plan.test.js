@@ -30,7 +30,7 @@ function run(root, label, code, counter, options = { enabled: true }) {
   return { result, out, error };
 }
 
-test('a repeat on the same state replays the output and exit code without running the check [C7]', t => {
+test('codemap.plan.a-repeat-on-the-same: a repeat on the same state replays the output and exit code without running the check [C7]', t => {
   const { root } = fixture(t), counter = { n: 0 };
   const first = run(root, ['--check'], 1, counter), second = run(root, ['--check'], 1, counter);
   assert.equal(counter.n, 1);
@@ -38,7 +38,7 @@ test('a repeat on the same state replays the output and exit code without runnin
   assert.deepEqual(second, { result: 1, out: ['note'], error: ['problem'] });
 });
 
-test('changing a tracked file, an untracked file or the commit misses the cache [C7]', t => {
+test('codemap.plan.changing-a-tracked-file-an: changing a tracked file, an untracked file or the commit misses the cache [C7]', t => {
   const { root, put } = fixture(t), counter = { n: 0 };
   run(root, ['--check'], 0, counter);
   put('src/stats.js', 'export const stats = 2;\n');
@@ -55,7 +55,7 @@ test('changing a tracked file, an untracked file or the commit misses the cache 
   assert.equal(counter.n, 4, 'a new commit misses');
 });
 
-test('another mode or argument is its own entry, and a refusal is never saved [C7]', t => {
+test('codemap.plan.another-mode-or-argument-is: another mode or argument is its own entry, and a refusal is never saved [C7]', t => {
   const { root } = fixture(t), counter = { n: 0 };
   run(root, ['--cuts', 'a'], 0, counter);
   run(root, ['--cuts', 'b'], 0, counter);
@@ -65,7 +65,7 @@ test('another mode or argument is its own entry, and a refusal is never saved [C
   assert.equal(counter.n, 3, 'the run after a refusal executes');
 });
 
-test('with the setting off the check always runs and nothing is saved [C7]', t => {
+test('codemap.plan.with-the-setting-off-the: with the setting off the check always runs and nothing is saved [C7]', t => {
   const { root } = fixture(t), counter = { n: 0 };
   run(root, ['--check'], 0, counter, { enabled: false });
   run(root, ['--check'], 0, counter, { enabled: false });
@@ -76,13 +76,13 @@ test('with the setting off the check always runs and nothing is saved [C7]', t =
   assert.throws(() => readdirSync(join(root, dir)), /ENOENT/u);
 });
 
-test('the cache setting is off by default and described [C7]', () => {
+test('codemap.plan.the-cache-setting-is-off: the cache setting is off by default and described [C7]', () => {
   const config = spawnSync(process.execPath, ['-e', "import('./packages/config/index.js').then(m => console.log(JSON.stringify(m.defaults().cells)))"], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(config.stdout.trim(), '{"cache":false,"shimMaxAgeDays":7}');
 });
 
 
-test('clean lint receipts survive a same-tree commit and another worktree [V4,C7]', t => {
+test('codemap.plan.clean-lint-receipts-survive-a: clean lint receipts survive a same-tree commit and another worktree [V4,C7]', t => {
   const { root } = fixture(t), counter = { n: 0 };
   run(root, ['cell-lints', '--check'], 0, counter);
   git(root, 'commit', '--allow-empty', '-q', '-m', 'same tree');
@@ -98,7 +98,7 @@ test('clean lint receipts survive a same-tree commit and another worktree [V4,C7
 });
 
 
-test('lint checker entry modules and their transitive helpers invalidate receipts [V4,C7]', t => {
+test('codemap.plan.lint-checker-entry-modules-and: lint checker entry modules and their transitive helpers invalidate receipts [V4,C7]', t => {
   const { root } = fixture(t), counter = { n: 0 };
   const entry = `${root}-checker.js`, helper = `${root}-helper.js`;
   t.after(() => { rmSync(entry, { force: true }); rmSync(helper, { force: true }); });
@@ -116,12 +116,12 @@ test('lint checker entry modules and their transitive helpers invalidate receipt
   assert.equal(counter.n, 3, 'a changed entry misses both caches');
 });
 
-test('clause 1: src/cells-cache.js is gone and its leaf sits in the codemap cell [C7]', () => {
+test('codemap.plan.src-cells-cache-js-is: clause 1: src/cells-cache.js is gone and its leaf sits in the codemap cell [C7]', () => {
   assert.equal(existsSync(join(ROOT, 'src/cells-cache.js')), false);
   assert.equal(existsSync(join(ROOT, 'packages/codemap/src/io/cells/cache.js')), true);
 });
 
-test('clause 2: the cells plan check and the cells edges check both pass [C7]', () => {
+test('codemap.plan.the-cells-plan-check-and: clause 2: the cells plan check and the cells edges check both pass [C7]', () => {
   for (const args of [['packages/codemap/src/io/cells/scripts/plan.js', '--check'], ['packages/gate/src/io/edges.js']]) {
     const run = spawnSync(process.execPath, args, { cwd: ROOT, encoding: 'utf8' });
     assert.equal(run.status, 0, `${args.join(' ')} exited ${run.status}: ${run.stderr}`);

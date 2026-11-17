@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-queue-records.json */
 /** @pullboard-world-pin reads the recorded queue moves fixture to drive the queue writer with it. The store submit writer applies the SUBMIT table and agrees on every replayed move [C7,#8280]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

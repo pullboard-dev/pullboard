@@ -2,7 +2,7 @@
 export * from './src/logic/discovery.js';
 export * from './src/logic/lex.js';
 export * from './src/logic/words.js';
-export { Refused, repoPath } from './light.js';
+export { Refused, repoPath, writeFileAtomic } from './light.js';
 export * from './src/logic/registry.js';
 export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/logic/cause.js';
 export { decodedProofEvent, proofEventDetail } from './src/logic/detail.js';
