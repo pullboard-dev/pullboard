@@ -27,7 +27,7 @@ async function seatOf(box, family) {
 /** The item id `next --verify` offers a seat, or null when it offers none. */
 async function offeredTo(cli) {
   const result = await cli('next', '--verify', '--json');
-  try { return JSON.parse(result.out).item?.item_id ?? null; } catch { return null; }
+  try { return JSON.parse(result.out).item?.item_id ?? `none: ${result.out}${result.err}`.slice(0, 600); } catch { return `unparsed: ${result.out}${result.err}`.slice(0, 600); }
 }
 
 /** Commit verify.landedReviews on with verify.family require to the box's main. */
