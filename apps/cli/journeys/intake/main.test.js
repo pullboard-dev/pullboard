@@ -12,6 +12,7 @@ import {
   calls,
   configureFixtureSandbox,
   fixtureJSON,
+  fixtureJSONIn,
   intakeFixture,
 } from "../../tests/fixtures/intake.js";
 
@@ -23,10 +24,10 @@ function refusal(result, expected) {
 
 test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
   const box = intakeFixture(t);
-  const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url,
+  const filed = await fixtureJSONIn(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item?.item_id ?? filed.id);
-  let item = fixtureJSON(box, box.repo, 'show', id);
+  let item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_commit, box.commit);
   assert.equal(item.item_tree, box.tree);
@@ -43,9 +44,9 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
 
   // These simulated image versions/TAP rows prove adapter/receipt protocol only, never real containment.
   const provider = configureFixtureSandbox(box);
-  const verdict = fixtureJSON(box, box.web, 'verify', id, 'accept', '--sandbox', '--note', 'private stand-in provider protocol');
+  const verdict = await fixtureJSONIn(box, box.web, 'verify', id, 'accept', '--sandbox', '--note', 'private stand-in provider protocol');
   assert.equal(verdict.decision, 'ACCEPT');
-  item = fixtureJSON(box, box.repo, 'show', id);
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'verified');
   assert.equal(item.outside.sandbox.commit, box.commit);
   assert.equal(item.outside.sandbox.tree, box.tree);
@@ -54,7 +55,7 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
   // Landing is a runner job now: `land` only offers it, and the job's publish step refuses an unapproved outside item (publish.js publicationInputs) [C7].
   await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
-  fixtureJSON(box, box.repo, 'intake', 'approve', id);
+  await fixtureJSONIn(box, box.repo, 'intake', 'approve', id);
   item = fixtureJSON(box, box.repo, 'show', id);
   assert.equal(item.outside.ownerApproval.commit, box.commit, 'person approval binds this exact outside commit');
   assert.equal(item.outside.ownerApproval.by, 'person');
