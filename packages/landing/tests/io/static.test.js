@@ -35,7 +35,7 @@ function repository(t) {
 
 const RED = new Refused('GATE_RED', 'static checks are red; fix the named source before running proof:\nweb/b.txt:1: collides with web/a.txt\nweb/main.txt:4: inherited row');
 
-test('clause 1: a static row green on main and red in a file the batch changed refuses with a code naming the check, file and line [C7]', t => {
+test('landing.static.a-static-row-green-on-main: clause 1: a static row green on main and red in a file the batch changed refuses with a code naming the check, file and line [C7]', t => {
   const { root, base } = repository(t);
   const refusal = landingStaticRefusal(root, base, RED, 'node apps/cli/src/io/static/checks.js');
   assert.ok(refusal instanceof Refused);
@@ -47,13 +47,13 @@ test('clause 1: a static row green on main and red in a file the batch changed r
   assert.equal(itemRefusalText(refusal.code, refusal.message), true);
 });
 
-test('clause 1: a red static check whose rows are all in untouched files keeps the plain refusal [C7]', t => {
+test('landing.static.a-red-static-check-whose-rows: clause 1: a red static check whose rows are all in untouched files keeps the plain refusal [C7]', t => {
   const { root, base } = repository(t);
   const inherited = new Refused('GATE_RED', 'static checks are red; fix the named source before running proof:\nweb/main.txt:4: inherited row');
   assert.equal(landingStaticRefusal(root, base, inherited), inherited);
 });
 
-test('clause 2: only the item that changed the red file is charged, so the rest of the batch can land without it [C7]', t => {
+test('landing.static.only-the-item-that-changed-the: clause 2: only the item that changed the red file is charged, so the rest of the batch can land without it [C7]', t => {
   const { root, base, first, second } = repository(t);
   const entries = [{ id: 1, commit: first }, { id: 2, commit: second }];
   assert.deepEqual(entriesTouching(root, base, entries, ['web/b.txt']).map(entry => entry.id), [2]);
@@ -68,18 +68,18 @@ function seenScope(root, config) {
 
 const PROBE = { staticChecks: `node -e "process.stdout.write(process.env.PULLBOARD_STATIC_SCOPE ? process.env.PULLBOARD_STATIC_SCOPE : 'unset')" && true` };
 
-test('clause 1: a one-item batch hands the static run the merged tree\'s changed paths through PULLBOARD_STATIC_SCOPE, nothing more [C7]', t => {
+test('landing.static.a-one-item-batch-hands-the: clause 1: a one-item batch hands the static run the merged tree\'s changed paths through PULLBOARD_STATIC_SCOPE, nothing more [C7]', t => {
   const { root, base, first } = repository(t);
   git(root, 'checkout', '-q', first);
   assert.deepEqual(seenScope(root, scopedStaticConfig(root, base, PROBE)), ['web/a.txt']);
 });
 
-test('clause 1: a two-item merged tree lists both items\' paths, sorted [C7]', t => {
+test('landing.static.a-two-item-merged-tree-lists: clause 1: a two-item merged tree lists both items\' paths, sorted [C7]', t => {
   const { root, base } = repository(t);
   assert.deepEqual(seenScope(root, scopedStaticConfig(root, base, PROBE)), ['web/a.txt', 'web/b.txt']);
 });
 
-test('clause 1: a changed input every rule reads keeps the whole static run [C7]', t => {
+test('landing.static.a-changed-input-every-rule-reads: clause 1: a changed input every rule reads keeps the whole static run [C7]', t => {
   const { root, base } = repository(t);
   git(root, 'checkout', '-q', '-b', 'json', base);
   writeFileSync(join(root, 'web/data.json'), '{}\n');

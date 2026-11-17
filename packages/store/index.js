@@ -16,7 +16,7 @@ export { JOB_SCHEMA_SQL, RUN_SCHEMA_SQL, RUN_OBJECT_NAMES, missingJobTables, ens
 export { LEDGER_SCHEMA_SQL, ledgerFiles, ledgerHits, ledgerMainReds, ledgerRecentFiles, missingLedgerTable, recordTestResults, testResults } from './src/io/board/ledger.js';
 export { ensureHotIndexes, costEvents, costLandedIds, costKindEvents, costMoveEvents, costItemEvents, costItems, costRevision, missingAdditiveIndexes, ensureAdditiveIndexes, eventsOfKinds, submitInvariantEvents, recentEvents, recentShouts, lastMoves, decisionAndEvidenceShouts } from './src/io/board/indexes.js';
 export { localBoardInventory, resolveLocalBoard, resolveLocalItemReference } from './src/io/board/inventory.js';
-export { declareItemField, setItemField, itemFields, FIELD_TYPES } from './src/io/board/item/fields.js';
+export { declareItemField, setItemField, itemFields, fieldIndex, FIELD_TYPES } from './src/io/board/item/fields.js';
 export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
@@ -65,7 +65,7 @@ export { boardEnginePorts } from './src/io/board/ports.js';
 export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, shipMilestone, roadmap, provideCoordinatorMilestoneRelease } from './src/io/board/milestones.js';
 export { requireRuntimePorts, openBoardStore, boardFilePath, RUNS_FILE, RUNS_SCHEMA, RUNS_STORE_KEY, runsFilePath, runsStoreOn, openRunsStore, boardRunsPort, boardRunsHolder, boardRunsReader } from './src/io/board/sqlite.js';
 export { RUNS_PORT_CALLS, PENDING_STEP, runsPort } from './src/io/board/runs.js';
-export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt, writeVerdictRun, awaitingVerdictRuns, saveSubmitHandoff, reserveReviewRun, renewReviewRun, reclaimLapsedReviewRuns, releaseReviewRun, reviewLeases } from './src/io/board/run.js';
+export { INTENT_GRACE_MS, boardRun, recordQueuedRun, queueRun, reconcileQueued, applyRunReceipt, applyReceipts, settleRunWithoutReceipt, writeVerdictRun, awaitingVerdictRuns, saveSubmitHandoff, reserveReviewRun, renewReviewRun, reclaimLapsedReviewRuns, releaseReviewRun, reviewLeases, cancelGateJob } from './src/io/board/run.js';
 export { RECONCILE_EVERY_MS, LOST_GRACE_MS, RUNAWAY_ATTEMPTS, RUN_LOST, RUN_RUNAWAY, disagreementAction, reconcileTick, pacedReconciler } from './src/io/board/reconcile.js';
 export { RUN_QUEUED_EVENT, RUN_APPLIED_EVENT, runSummary, runRowsFromEvents } from './src/logic/board/runs.js';
 export { AUTHORITY, AUTHORITY_TRIGGERS, exportedMeta } from './src/logic/board/authority.js';

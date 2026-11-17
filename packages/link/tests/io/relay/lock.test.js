@@ -67,19 +67,19 @@ async function round(root, index, { deadLease = false } = {}) {
   assert.equal(lines.filter(line => line.startsWith('enter')).length, 6, `round ${index}: every waiter held the lock once`);
 }
 
-test('waiters on a dead owner leave exactly one holder at a time [H5]', async (t) => {
+test('link.lock.dead-owner-one-holder: waiters on a dead owner leave exactly one holder at a time [H5]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-relay-lock-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (let index = 0; index < 15; index += 1) await round(root, index);
 });
 
-test('a lease left by a dead holder is taken over by one waiter at a time [H5]', async (t) => {
+test('link.lock.dead-lease-one-taker: a lease left by a dead holder is taken over by one waiter at a time [H5]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-relay-lock-lease-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (let index = 0; index < 10; index += 1) await round(root, index, { deadLease: true });
 });
 
-test('a lock left with no owner by a command that died making it is recovered once it is old [H5]', async (t) => {
+test('link.lock.ownerless-recovered-when-old: a lock left with no owner by a command that died making it is recovered once it is old [H5]', async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-relay-lock-unowned-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const file = join(root, 'relay.json');

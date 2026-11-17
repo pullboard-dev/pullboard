@@ -28,6 +28,7 @@ import {
 import {
   COORDINATOR,
   cascadeRejectEnabled,
+  requireFactQuoteEnabled,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from '../../../../../packages/config/index.js';
@@ -466,7 +467,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     const messages = [...baselineNotes];
     for (const [name, parsed] of files) {
       const findings = [
-        ...lintSpec(parsed).filter((finding) => !finding.message.startsWith('duplicate id;')),
+        ...lintSpec(parsed, { requireFactQuote: requireFactQuoteEnabled() }).filter((finding) => !finding.message.startsWith('duplicate id;')),
         ...(name === ctx.config.spec && parsed.rows.some(row => row.verify !== undefined)
           ? verifierFindings(ctx, parsed) : []),
         ...(name === ctx.config.spec ? reviewFindings(ctx, parsed) : []),

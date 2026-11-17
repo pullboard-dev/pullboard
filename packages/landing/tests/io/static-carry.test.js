@@ -36,7 +36,7 @@ function counted() {
   return { runs, run: context => { runs.push(context.base); return { ok: true, detail: null }; } };
 }
 
-test('clause 1: with landing.reofferTrunkBusy on, a retry on a tip whose new commits touch none of the item\'s files skips the static checks [C7,#9103]', async t => {
+test('landing.static-carry.with-landing-reoffertrunkbusy-on-a-retry: clause 1: with landing.reofferTrunkBusy on, a retry on a tip whose new commits touch none of the item\'s files skips the static checks [C7,#9103]', async t => {
   const { root, base, land, move } = repository(t);
   const carry = staticCarry({ enabled: true });
   const check = counted();
@@ -54,7 +54,7 @@ test('clause 1: with landing.reofferTrunkBusy on, a retry on a tip whose new com
   assert.deepEqual(check.runs, [base]);
 });
 
-test('clause 2: the static checks run again when trunk\'s new commits touch an item\'s file, and every attempt with landing.reofferTrunkBusy off [C7,#9103]', async t => {
+test('landing.static-carry.the-static-checks-run-again-when: clause 2: the static checks run again when trunk\'s new commits touch an item\'s file, and every attempt with landing.reofferTrunkBusy off [C7,#9103]', async t => {
   const { root, base, land, move } = repository(t);
   const carry = staticCarry({ enabled: true });
   const check = counted();

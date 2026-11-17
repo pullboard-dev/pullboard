@@ -48,7 +48,7 @@ function slowWrite(t, settings) {
   return { board, live, record };
 }
 
-test('clause 1: with sentinels.recordWriteHolder on, a board write held past boardWriteMs records the holder and each waiter [C7,#9118]', async t => {
+test('sentinels.write-holder.setting-on-records-holder: clause 1: with sentinels.recordWriteHolder on, a board write held past boardWriteMs records the holder and each waiter [C7,#9118]', async t => {
   const m = slowWrite(t, { sentinels: { recordWriteHolder: true } });
   await m.record();
   const lines = readWriteHolders(m.board.db);
@@ -64,7 +64,7 @@ test('clause 1: with sentinels.recordWriteHolder on, a board write held past boa
   assert.equal(readWriteHolders(m.board.db).length, 1, 'the same holder is not recorded twice');
 });
 
-test('clause 2: with sentinels.recordWriteHolder off (the default) nothing is recorded, and the setting is described [C7,#9118]', async t => {
+test('sentinels.write-holder.setting-off-records-nothing: clause 2: with sentinels.recordWriteHolder off (the default) nothing is recorded, and the setting is described [C7,#9118]', async t => {
   const m = slowWrite(t, {});
   await m.record();
   assert.deepEqual(readWriteHolders(m.board.db), []);

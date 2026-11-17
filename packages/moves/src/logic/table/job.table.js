@@ -22,7 +22,7 @@ export const releaseBackoff = (attempt) => Math.min(BACKOFF_FIRST_MS * 2 ** Math
 const step = (name, more = {}) => ({ kind: 'job.step', step: name, ...more });
 
 /**
- * Snapshot: `{ job: null | { kind, step: 'queued'|'offered'|'claimed'|'done', attempt, owner, leaseUntil, claim: null | { runner, token } }, now }`.
+ * Snapshot: `{ job: null | { kind, step: 'queued'|'offered'|'claimed'|'done'|'cancelled', attempt, owner, leaseUntil, claim: null | { runner, token } }, now }`.
  * `owner` and `leaseUntil` are the row's lease; `claim` is the current attempt's claimed step, which outlives a release.
  * Move: `{ name, runner, token, kind?, free? }`; `token` is the token the caller holds, or for a claim the one it is handed; `free` is a release that leaves no backoff.
  * Why: the facts are the job queue's rules in words, so a refusal and its explanation come from the same row.
@@ -34,7 +34,7 @@ const jobRules = ({ maxAttempts }) => defineRules({
   present: { says: 'the move is an offer, or the job exists', reads: ['exists'], holds: (s, m, fact) => m.name === 'offer' || fact('exists') },
   holdsClaim: { says: 'the caller is the runner and token of the job\'s current claim', reads: ['exists'], holds: (s, m, fact) => fact('exists') && Boolean(s.job.claim) && s.job.claim.runner === m.runner && s.job.claim.token === m.token },
   fenced: { says: 'the move is not made by a claim\'s runner, or the caller holds the current claim', reads: ['holdsClaim'], holds: (s, m, fact) => !HELD_MOVES.includes(m.name) || fact('holdsClaim') },
-  over: { says: 'the job is done', reads: ['exists'], holds: (s, m, fact) => fact('exists') && s.job.step === 'done' },
+  over: { says: 'the job is done or cancelled', reads: ['exists'], holds: (s, m, fact) => fact('exists') && ['done', 'cancelled'].includes(s.job.step) },
   unfinished: { says: 'the move is not a claim or progress post, or the job is not done', reads: ['over'], holds: (s, m, fact) => !['claim', 'progress'].includes(m.name) || !fact('over') },
   offered: { says: 'the move is not a claim, or the job was offered', holds: (s, m) => m.name !== 'claim' || s.job.step === 'offered' || s.job.step === 'claimed' },
   free: { says: 'the move is not a claim, or no live lease holds the job', holds: (s, m) => m.name !== 'claim' || s.job.leaseUntil < s.now },
