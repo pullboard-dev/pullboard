@@ -68,6 +68,7 @@ import { gateJunitReport } from '../../../../config/index.js';
 import { landingJunitFailures } from '../../../../config/index.js';
 import { landingCargoFailures } from '../../../../config/index.js';
 import { readJunitReport } from './junit-report.js';
+import { carriedMainOutcome } from '../main/red.js';
 
 /** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
 const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
@@ -81,6 +82,15 @@ export function sprintPorts(state) {
   const root = state.batch.root;
   const directory = join(dirname(root), 'logs');
   let plan;
+  /** Run the tests of these files under the guard's slot: a cell with no test file has nothing to run and is green. */
+  const runFiles = async (files, label) => {
+    const command = plan?.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
+    if (!command) return { isGreen: true };
+    mkdirSync(directory, { recursive: true });
+    const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label,
+      onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
+    return { isGreen: run.isGreen === true, output: run.output };
+  };
   return {
     changedFiles: () => git(root, ['diff', '--no-renames', '--name-only', state.batch.base, state.batch.tip]).split('\n').filter(Boolean),
     pin: () => headCommit(state.root),
@@ -91,13 +101,14 @@ export function sprintPorts(state) {
       // The change's own cells are the units the tier plan selects for the changed packages; a repository without tiers selects by import reach [V37].
       plan ??= { tiers: selectTestTiers(root, { base: state.batch.base, commit: state.batch.tip, runner: state.config.affectedTests, componentTier: gateComponentTier() }) };
       const named = plan.tiers ? plan.tiers.units : (plan.reach ??= selectAffectedTests(root, { base: state.batch.base, commit: state.batch.tip, suites: state.config.affectedSuites }).files);
-      const files = named.filter(file => file.startsWith(`${cell}/`));
-      const command = plan.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
-      if (!command) return { isGreen: true };
-      mkdirSync(directory, { recursive: true });
-      const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label: `sprint-${cell.replace('/', '-')}`,
-        onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
-      return { isGreen: run.isGreen === true, output: run.output };
+      const run = await runFiles(named.filter(file => file.startsWith(`${cell}/`)), `sprint-${cell.replace('/', '-')}`);
+      return run.isGreen ? run : { ...run, files: [...new Set(landingFailures(run.output ?? '', root).map(failure => failure.file).filter(Boolean))] };
+    },
+    // One rerun of a red file on the same tree, and main's own receipt for that file: the flake rule of the Sprint proof [V37].
+    rerunFile: file => runFiles([file], `sprint-rerun-${file.replace(/[^a-z0-9]+/giu, '-').slice(-40)}`),
+    mainReceipt: file => {
+      const outcome = carriedMainOutcome(state.root, file)?.files[0];
+      return outcome ? { result: outcome.result, main: outcome.main, receiptId: outcome.receiptId } : null;
     },
   };
 }
