@@ -131,6 +131,7 @@ const BEFORE = {
   'next.holdAboveLoad': false,
   'next.idleBlockers': false,
   'next.itemNotices': false,
+  'next.lightShapedStrong': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
   'push.recordTiming': false,
@@ -249,6 +250,11 @@ test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7
 test('clause 1: landing.asyncFetch is a machine setting, false by default, with a description [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['landing.asyncFetch'], false);
   assert.ok(SETTING_DESCRIPTIONS['landing.asyncFetch']);
+});
+
+test('clause 1: next.lightShapedStrong is a machine setting, false by default, with a description [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['next.lightShapedStrong'], false);
+  assert.ok(SETTING_DESCRIPTIONS['next.lightShapedStrong']);
 });
 
 test('clause 1: gate.overlapStaticProof is a machine setting, false by default, with a description [C7]', () => {
