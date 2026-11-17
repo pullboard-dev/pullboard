@@ -36,6 +36,7 @@ import { censusRecordFileTimesEnabled } from '../../../../../packages/config/ind
 import { censusRerunNonGreenEnabled } from '../../../../../packages/config/index.js';
 import { censusRerunOnSettleEnabled } from '../../../../../packages/config/index.js';
 import { censusBalanceByTimeEnabled } from '../../../../../packages/config/index.js';
+import { censusFileKillSeconds } from '../../../../../packages/config/index.js';
 import { censusSoloFileSeconds } from '../../../../../packages/config/index.js';
 import { censusJobMinutes } from '../../../../../packages/config/index.js';
 import { censusSelfTuneEnabled } from '../../../../../packages/config/index.js';
@@ -52,7 +53,9 @@ import { pulledTimeLines } from '../../logic/census.js';
 import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
+import { censusVerdictLists } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
+import { shardFileKillMs } from '../../logic/census.js';
 import { previousShardMs } from '../../logic/census.js';
 import { selfTunedJobMinutes } from '../../logic/census-tune.js';
 import { storeName } from '../store-names.js';
@@ -178,12 +181,12 @@ function pulledCensus(ctx, io, values = {}) {
     if (typeof command !== 'string' || !command.trim()) throw new Refused('NO_TEST_RUNNER', 'a pulled census runs each shard with "affectedTests" from pullboard.json, and it is unset', 'set "affectedTests" to the command that runs named test files, then run the census again');
     const { mainPolicy } = await import('../../../../../packages/sandbox/index.js');
     const commit = headCommit(root), main = mainPolicy(root).commit ?? commit;
-    const plan = cutPlan(root, files, count), perRunner = censusJobsPerRunner(), quiet = censusJobsPerRunnerQuiet();
+    const plan = cutPlan(root, files, count), killSeconds = censusFileKillSeconds(), times = killSeconds ? readFileTimes(root) : {}, perRunner = censusJobsPerRunner(), quiet = censusJobsPerRunnerQuiet();
     await Promise.all(plan.map(async (shard, index) => {
       const label = `${index + 1}/${plan.length}`, started = Date.now();
       const shell = `${LANDING_COLLECT_ALL_ENV}=1 ${LANDING_SHARD_ENV}=${word(label)} ${command.trimEnd()} ${shard.files.map(file => word(`./${file}`)).join(' ')}`;
       try {
-        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : fileBudgetField(values)), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
+        const ran = await runPulledComparison(ctx, { commit, main, command: shell, files: shard.files, runId: randomUUID(), ...(fileLimit === false ? {} : { ...fileBudgetField(values), ...(shardFileKillMs(shard.files, times, killSeconds) ? { fileBudgetMs: shardFileKillMs(shard.files, times, killSeconds) } : {}) }), ...(perRunner ? { censusPerRunner: perRunner } : {}), ...(perRunner && quiet ? { censusPerRunnerQuiet: quiet } : {}) });
         write(`# landing shard ${label} attempt 1 on ${ran.runner ?? 'pulled'}: ${ran.green ? 'green' : 'red'} in ${Date.now() - started} ms\n`);
         // The receipt's tail is clipped, so each file's own time line comes from the runner's whole-output record [C7,#8576].
         write(`# census-times ${JSON.stringify({ claimedAt: ran.claimedAt, startedAt: ran.startedAt, endedAt: ran.endedAt, load1: ran.loadAtStart })}\n`);
@@ -286,6 +289,8 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run } 
     // Opt-in: each non-green file runs once more, alone, before the census calls it red; this replaces a separate pass 2 [C7,#9138].
     if (settleReruns) writeFileSync(out, [...rows.values()].map(row => `${JSON.stringify(row)}\n`).join(''));
     else if (censusRerunNonGreenEnabled()) await rerunNonGreen({ rows, out, sha, run, base, pulled });
+    // With reruns on the rows are the confirmed verdict, so the census writes the reds and slow lists pass 2 used to [C7,#10348].
+    if (settleReruns || censusRerunNonGreenEnabled()) { const lists = censusVerdictLists(rows.values()); writeFileSync(`${out}.reds.txt`, lists.reds); writeFileSync(`${out}.slow.txt`, lists.slow); }
   } finally {
     if (env.collect === undefined) delete process.env[LANDING_COLLECT_ALL_ENV]; else process.env[LANDING_COLLECT_ALL_ENV] = env.collect;
     if (env.collection === undefined) delete process.env[COLLECTION_ID_ENV]; else process.env[COLLECTION_ID_ENV] = env.collection;

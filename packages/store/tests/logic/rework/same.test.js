@@ -63,7 +63,7 @@ function route(board, id, agentId, policy) {
     policy, now: board.clock.now().getTime() });
 }
 
-test('[H16] returned work waits for its builder until gone, then prefers live same-family work and records portable fallback', t => {
+test('store.logic-rework-same.h16-returned-work-waits-for-its: [H16] returned work waits for its builder until gone, then prefers live same-family work and records portable fallback', t => {
   const f = fixture(t);
   const id = returned(f);
   assert.deepEqual(route(f.board, id, f.peer, f.windows).allowed, [f.builder], 'the recent builder event keeps first refusal');
@@ -109,7 +109,7 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   assert.match(fact.text, /checked families: anthropic, openai/u);
 });
 
-test('[H16] an unknown recorded family returns to the ordinary queue without a family fact', t => {
+test('store.logic-rework-same.h16-an-unknown-recorded-family-returns: [H16] an unknown recorded family returns to the ordinary queue without a family fact', t => {
   const f = fixture(t, { builderFamily: null });
   const id = returned(f);
   f.advance(f.windows.graceMs + 1);
@@ -125,7 +125,7 @@ test('[H16] an unknown recorded family returns to the ordinary queue without a f
     'unknown family uses ordinary routing and does not invent a family fallback fact');
 });
 
-test('[H16] enabling family routing does not change an already sealed legacy claim', t => {
+test('store.logic-rework-same.h16-enabling-family-routing-does-not: [H16] enabling family routing does not change an already sealed legacy claim', t => {
   const f = fixture(t, { enabled: false });
   const id = returned(f);
   f.advance(2 * 60 * 60_000);
