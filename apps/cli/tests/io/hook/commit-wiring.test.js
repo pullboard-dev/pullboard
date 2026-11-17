@@ -84,6 +84,7 @@ test('clause 2: with the setting off a commit starts the real hooks, and --amend
     assert.equal(plainCommitArgs(args), null, `${args.join(' ')} keeps the real hooks`);
   }
   const on = await project(true);
+  mkdirSync(join(on.box.web, 'web'), { recursive: true });
   writeFileSync(join(on.box.web, 'web', 'amend.txt'), 'x\n');
   on.box.git(on.box.web, 'add', '-A');
   assert.equal(on.box.tryGit(on.box.web, 'commit', '-q', '--amend', '-m', 'feat(web): amend the page [G1]').status, 0);
