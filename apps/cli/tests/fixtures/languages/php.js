@@ -57,7 +57,7 @@ const BRIEF = 'Files:\n- tests/ItemTest.php\nChange:\n- Add the item test.\nTest
 /** An item check that fails on main and passes once the item's test is committed; it avoids the test name, so only the gate output can name it. */
 const CHECK = "grep -q 'add(1, 2)' tests/ItemTest.php";
 /** The test script installs phpunit first: the gate's fresh checkout holds no vendor folder. */
-const COMPOSER_JSON = `${JSON.stringify({ name: 'scratch/calc', require: { php: '>=8.1' }, 'require-dev': { 'phpunit/phpunit': '*' }, autoload: { classmap: ['src/'] }, scripts: { test: ['@composer install --no-interaction --no-progress --quiet', 'phpunit --bootstrap vendor/autoload.php tests'] } }, null, 2)}\n`;
+const COMPOSER_JSON = `${JSON.stringify({ name: 'scratch/calc', 'require': { php: '>=8.1' }, 'require-dev': { 'phpunit/phpunit': '*' }, autoload: { classmap: ['src/'] }, scripts: { test: ['@composer install --no-interaction --no-progress --quiet', 'phpunit --bootstrap vendor/autoload.php tests'] } }, null, 2)}\n`;
 const CALC = '<?php\n\nfinal class Calc\n{\n    public static function add(int $a, int $b): int\n    {\n        return $a + $b;\n    }\n}\n';
 const HEADER = '<?php\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class ItemTest extends TestCase\n{\n';
 export const PASSING = `${HEADER}    public function testAddsSmallNumbers(): void\n    {\n        $this->assertSame(3, Calc::add(1, 2));\n    }\n}\n`;
