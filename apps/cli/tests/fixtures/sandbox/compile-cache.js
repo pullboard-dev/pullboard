@@ -7,6 +7,11 @@
 import { rmSync } from 'node:fs';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 
+/** Remove the cache folder; a detached process can still be writing into it, so retry, and leave it when it stays busy: a leftover temp folder is harmless [C7]. */
+function removeCache(folder) {
+  try { rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch (error) { if (error.code !== 'ENOTEMPTY') throw error; }
+}
+
 /**
  * Make one private compile-cache folder, readable and writable by this user only, as the CLI requires of a cache folder.
  *
@@ -14,5 +19,5 @@ import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures
  */
 export function sharedCompileCache() {
   const folder = privateFixtureFiles('pullboard-compile-cache-').root;
-  return { folder, remove: () => rmSync(folder, { recursive: true, force: true }) };
+  return { folder, remove: () => removeCache(folder) };
 }
