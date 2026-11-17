@@ -69,7 +69,7 @@ test('the view fixture opts out of the background view [N26]', () => {
     'later copied or hooked CLI commands retain the effective machine opt-out');
 });
 
-test('borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', async () => {
+test('clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', async () => {
   const box = machine();
   const p = project(box, 'projector');
   await box.runIn(p.repo, 'add', 'web', 'Existing projection row', '--criterion', 'same native data');

@@ -35,7 +35,7 @@ test('the cockpit fixture inits its board without a model [N26]', () => {
   assert.equal(join.model, 'Test Model');
 });
 
-test('the view reads its release notes once, not on every state [N26]', async () => {
+test('clause 1: the view reads its release notes once, not on every state [N26]', async () => {
   const box = machine();
   const p = project(box, 'release-note-cache');
   await box.runIn(p.repo, 'add', 'web', 'A real board row', '--specs', 'G1');
