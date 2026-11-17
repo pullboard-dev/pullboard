@@ -9,7 +9,7 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('clause 1: a version cut walks the CLI from a clean board to a recorded release at main [C7]', async () => {
+test('cli.journeys-release-cut.a-version-cut-walks-the-cli: clause 1: a version cut walks the CLI from a clean board to a recorded release at main [C7]', async () => {
   const box = e2e.project();
   const run = (...args) => box.runIn(box.repo, ...args);
   const json = async (...args) => {
