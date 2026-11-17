@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { sourceFacts } from './fixtures/functions.js';
 import { withoutStringText } from './fixtures/functions.js';
 
-test('clause 1: a template string holding an import line records no identity, while real imports stay [M1,C7]', () => {
+test('gate.machine-source-facts.template-string-holding-import-line: clause 1: a template string holding an import line records no identity, while real imports stay [M1,C7]', () => {
   const source = [
     "import { real } from './real.js';",
     "import * as space from './space.js';",
@@ -22,7 +22,7 @@ test('clause 1: a template string holding an import line records no identity, wh
   assert.equal(facts.source, source, 'the original source bytes are kept');
 });
 
-test('clause 1: blanking keeps line count and leaves specifier strings of real imports [M1,C7]', () => {
+test('gate.machine-source-facts.blanking-keeps-line-count-leaves: clause 1: blanking keeps line count and leaves specifier strings of real imports [M1,C7]', () => {
   const source = "import { a } from './a.js';\nconst t = `x\n${1 + 2}\ny`;\nexport { b } from \"./b.js\";\n";
   const masked = withoutStringText(source);
   assert.equal(masked.split('\n').length, source.split('\n').length);

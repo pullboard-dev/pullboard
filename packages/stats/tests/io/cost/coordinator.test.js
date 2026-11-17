@@ -17,7 +17,7 @@ function board() {
   return { db, events, nativePorts: { atomic: (_board, run) => run(), logEvent: (_board, by, kind, item, detail) => events.push({ by, kind, item, detail }) } };
 }
 
-test('coordinator usage is stored under coordinator:<session> with all token kinds and no item [C7]', () => {
+test('stats.coordinator.coordinator-usage-is-stored-under-coordinator: coordinator usage is stored under coordinator:<session> with all token kinds and no item [C7]', () => {
   const b = board();
   assert.deepEqual(recordCoordinatorUsage(b, { session: 's-1', records: RECORDS, observedAt: 5 }), { recorded: true });
   const row = JSON.parse(b.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='coordinator:s-1'").get().meta_value);
@@ -30,7 +30,7 @@ test('coordinator usage is stored under coordinator:<session> with all token kin
   assert.deepEqual(b.events.map(event => [event.kind, event.item, event.detail.session]), [['coordinator-usage', null, 's-1']]);
 });
 
-test('repeating a payload changes nothing and a changed payload refuses USAGE_CHANGED [C7]', () => {
+test('stats.coordinator.repeating-a-payload-changes-nothing-and: repeating a payload changes nothing and a changed payload refuses USAGE_CHANGED [C7]', () => {
   const b = board();
   recordCoordinatorUsage(b, { session: 's-1', records: RECORDS, observedAt: 5 });
   const before = b.db.prepare('SELECT * FROM board_meta').all();
@@ -40,7 +40,7 @@ test('repeating a payload changes nothing and a changed payload refuses USAGE_CH
   assert.throws(() => recordCoordinatorUsage(b, { session: 's-1', records: [{ ...RECORDS[0], outputTokens: 5, knownOutputTokens: 5 }], observedAt: 5 }), { code: 'USAGE_CHANGED' });
 });
 
-test('recording below the coordinator usage engine refuses ENGINE_VERSION and stores nothing [C7]', () => {
+test('stats.coordinator.recording-below-the-coordinator-usage-engine: recording below the coordinator usage engine refuses ENGINE_VERSION and stores nothing [C7]', () => {
   const b = { ...board(), executionEngineVersion: COORDINATOR_USAGE_ENGINE - 1 };
   assert.throws(() => recordCoordinatorUsage(b, { session: 's-1', records: RECORDS, observedAt: 5 }), { code: 'ENGINE_VERSION' });
   assert.equal(b.db.prepare('SELECT COUNT(*) AS n FROM board_meta').get().n, 0);

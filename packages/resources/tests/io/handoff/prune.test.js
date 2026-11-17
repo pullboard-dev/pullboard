@@ -28,7 +28,7 @@ function folder(root, name, result, ageMs) {
   return directory;
 }
 
-test('clause 1: A submit-handoffs folder whose gate ended (green, red or infra) more than 30 minutes ago is removed by the board\'s sweep, and a queued or running one is never removed [C7,#3292]', t => {
+test('resources.prune.a-submit-handoffs-folder-whose-gate: clause 1: A submit-handoffs folder whose gate ended (green, red or infra) more than 30 minutes ago is removed by the board\'s sweep, and a queued or running one is never removed [C7,#3292]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pb-prune-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const old = HANDOFF_FOLDER_KEEP_MS + 60_000;

@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto';
 import {
   setResourceCapacity,
   updateRunnerSettings,
-} from '../../../resources/index.js';
+} from '../../../resources/light.js';
 import { validateRunner } from '../logic/settings.js';
 import { PERSON_SET } from '../logic/settings.js';
 import { parsePersonSet } from '../logic/settings.js';
@@ -41,8 +41,8 @@ import {
   readGateQueueSettings,
   readMachineSettingsFile,
 } from '../../../queue/index.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { machineHome } from '../../../resources/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { machineHome } from '../../../resources/light.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };
@@ -94,9 +94,25 @@ export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
 }
 
+/** Whether landing.junitFailures is on (#9763): off by default; only an exact `true` turns it on. */
+export function landingJunitFailures() {
+  return loadMachineSettings().landing?.junitFailures === true;
+}
+
+/** The path gate.junitReport names (#9700), or null when it is blank or not a string. */
+export function gateJunitReport() {
+  const path = loadMachineSettings().gate?.junitReport;
+  return typeof path === 'string' && path.trim() ? path.trim() : null;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
+}
+
+/** Whether moves.judgeByRelease is on (U150): off by default; only an exact `true` turns it on, so replay judges by the last release only when asked. */
+export function judgeByReleaseEnabled() {
+  return loadMachineSettings().moves?.judgeByRelease === true;
 }
 
 /** Whether gate.recaptureHandoff is on (#8989): off by default; nothing reads it yet, and only an exact `true` turns it on. */
@@ -441,6 +457,11 @@ export function testStatusOutcomesEnabled() {
   return group?.statusOutcomes === true;
 }
 
+/** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
+export function requireFactQuoteEnabled() {
+  return loadMachineSettings().spec?.requireFactQuote === true;
+}
+
 /** Whether spec.cascadeReject is on (#9341): off by default; only an exact `true` turns it on. */
 export function cascadeRejectEnabled() {
   return loadMachineSettings().spec?.cascadeReject === true;
@@ -469,6 +490,11 @@ export function reofferTrunkBusyEnabled() {
 /** Whether landing.adaptiveBatch is on (#9017): off by default; only an exact `true` turns it on. */
 export function adaptiveBatchEnabled() {
   return loadMachineSettings().landing?.adaptiveBatch === true;
+}
+
+/** Whether the sentinel checks landing's own comparisons and stops (#10125): off by default; only an exact `true` turns it on. */
+export function landingSelfCheckEnabled() {
+  return loadMachineSettings().sentinels?.landingSelfCheck === true;
 }
 
 /** Whether the wait audit records who held a slow board write (#9118): off by default; only an exact `true` turns it on. */
@@ -545,6 +571,11 @@ export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
 }
 
+/** Whether next fills a label below its declared minimum first (#9164): off by default; only an exact `true` turns it on. */
+export function nextLabelBounds() {
+  return loadMachineSettings().next?.labelBounds === true;
+}
+
 /**
  * Whether an idle next lists the waiting items and what each waits on (#2958): off by default, so an idle answer prints
  * exactly what it did before; only an exact `true` turns it on.
@@ -560,6 +591,15 @@ export function nextIdleBlockers() {
 export function nextCapBuilders() {
   const cap = loadMachineSettings().next?.capBuilders;
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
+ * Whether heavy local commands (cells-plan --moved/--check, pullboard check, the run-tests local fallback) wait in the local
+ * resource line above machine.loadCeiling (#10139): off by default; only an exact `true` turns it on. Callers pass the settings
+ * to withHeavyLocalWork because packages/resources cannot import this cell.
+ */
+export function heavyLocalHoldEnabled() {
+  return loadMachineSettings().machine?.holdHeavyAboveLoad === true;
 }
 
 /**

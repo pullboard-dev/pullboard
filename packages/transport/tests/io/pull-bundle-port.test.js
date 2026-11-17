@@ -2,6 +2,7 @@
 /** @pullboard-world-pin: clause 2 reads the committed bundle-port.js source to prove it imports no synchronous child. */
 /** The tree bundle port serves a tree's tar from async git plumbing, cached by tree id [C7]. */
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -14,6 +15,8 @@ import { makeTreeBundlePort } from '../../index.js';
 
 const root = privateFixtureFiles('pullboard-bundle-port-').root;
 after(() => rmSync(root, { recursive: true, force: true }));
+/** The streaming Git launcher a caller hands the port (production passes packages/git gitSpawn). */
+const spawnGit = (args, options) => spawn(process.env.GIT_EXEC_BIN ?? 'git', args, options);
 const IDENTITY = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null'];
 
 /** Run git in the fixture repository and return its trimmed output. */
@@ -32,9 +35,9 @@ async function fixtureTree() {
   return git('rev-parse', 'HEAD^{tree}');
 }
 
-test('clause 1: the port returns the same tar bytes for one tree twice and null for an unknown tree [C7]', async () => {
+test('transport.pull-bundle-port.the-port-returns-the-same-tar: clause 1: the port returns the same tar bytes for one tree twice and null for an unknown tree [C7]', async () => {
   const tree = await fixtureTree();
-  const port = makeTreeBundlePort(join(root, 'repo'), { dir: join(root, 'tars') });
+  const port = makeTreeBundlePort(join(root, 'repo'), { dir: join(root, 'tars'), spawnGit });
   const [first, concurrent] = await Promise.all([port(tree), port(tree)]);
   const second = await port(tree);
   assert.equal(first, second);
@@ -45,8 +48,8 @@ test('clause 1: the port returns the same tar bytes for one tree twice and null 
   assert.equal(await port('not-a-tree'), null);
 });
 
-test('clause 2: bundle-port.js reads the repository through async git and imports no synchronous child [C7]', () => {
+test('transport.pull-bundle-port.bundle-port-js-reads-the-repository: clause 2: bundle-port.js reads the repository through async git and imports no synchronous child [C7]', () => {
   const source = readFileSync(new URL('../../src/io/pull/bundle-port.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /execFileSync|spawnSync|execSync/u);
-  assert.match(source, /\bspawn\b/u);
+  assert.match(source, /\bspawnGit\b/u);
 });
