@@ -24,7 +24,7 @@ const ANALYZER = 'packages/codemap/src/io/cells-move-fixtures.js';
  * the memo. A main whose tooling lacks a part returns an empty result rather than failing.
  */
 const WARM_ENTRY = `import * as codemap from './packages/codemap/index.js';
-import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
+import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import * as gate from './packages/gate/index.js';
 import { readFileSync } from 'node:fs';
 const root = process.argv[2];
