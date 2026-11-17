@@ -1384,6 +1384,19 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
   assert.equal(split.children.length, 2, 'one child per numbered clause');
 }, ['add', 'init', 'split']);
 
+catalogCase('[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON', [], async () => {
+  const box = await project();
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(settings, 'utf8')); } catch { /* A fixture box with no settings file starts empty. */ }
+  writeFileSync(settings, JSON.stringify({ ...saved, items: { ...saved.items, typedFields: true } }));
+  const item = (await json(box, box.repo, 'add', ['coordinator', 'Field parent', '--criterion', 'It holds a field.', '--check', 'true', '--accept-green', 'catalog fixture'], 'add')).item;
+  const declared = await uncataloguedRootJSON(box, box.repo, 'field', ['declare', 'priority', 'choice', '--choices', 'low,high']);
+  assert.equal(declared.field.name, 'priority');
+  const set = await uncataloguedRootJSON(box, box.repo, 'field', ['set', String(item.item_id), 'priority', 'high']);
+  assert.equal(set.field.value, 'high');
+}, ['add', 'field', 'init']);
+
 /**
  * The four run files' cases, by case name: each case is in exactly one group, and a run file runs its group alone [A1,C7,#9675].
  * Why: one file ran all 28 cases in one process, so the slowest chain set the file's time; four files run on four runners.
@@ -1425,6 +1438,7 @@ const CATALOG_GROUPS = {
     '[A1,C7,#8515] coordinate resumes the coordinator through real CLI JSON and writes nothing',
     '[A1,C7,#8378] moves reports each move table state through real CLI JSON',
     '[A1,C7,#8916] split files one child per numbered clause through real CLI JSON',
+    '[A1,C7,#9351] field declares a typed field and sets it through real CLI JSON',
   ],
 };
 
