@@ -18,7 +18,7 @@ import { project } from '../../tests/fixtures/api/project.js';
 import { runLocal } from '../../tests/fixtures/api/milestone.js';
 import { startLocalHandler } from '../../tests/fixtures/api/milestone.js';
 
-test('apiBoardListing is exported and matches the board list [A2]', async (t) => {
+test('cli.journeys-milestone-api.apiboardlisting-is-exported-and-matches-the: apiBoardListing is exported and matches the board list [A2]', async (t) => {
   const apiBoardListing = apiExports.apiBoardListing;
   assert.equal(typeof apiBoardListing, 'function', 'the existing API listing classifier is exported');
   const box = project();
@@ -38,10 +38,10 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
-test('[A5] append-only event records expose format version one', () => {
+test('cli.journeys-milestone-api.append-only-event-records-expose-format: [A5] append-only event records expose format version one', () => {
   assert.equal(EVENT_LOG_VERSION, 1);
 });
-test('[O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
+test('cli.journeys-milestone-api.authenticated-api-state-exposes-model-labels: [O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
   const box = project();
   const created = await runLocal(box, box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
   assert.equal(created.status, 0, created.stderr || created.stdout);

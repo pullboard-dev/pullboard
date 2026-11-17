@@ -88,12 +88,14 @@ const ROWS = Object.freeze({
   elixir: { command: 'mix test', report: `${DIR}/elixir.xml`, needs: `the junit_formatter dependency as an ExUnit formatter, with report_dir "${DIR}" and report_file "elixir.xml"` },
   go: { command: `gotestsum --junitfile ${DIR}/go.xml -- ./...`, report: `${DIR}/go.xml`, needs: 'gotestsum (go install gotest.tools/gotestsum@latest)' },
   gradle: { command: './gradlew test', report: 'build/test-results/test', needs: null },
+  haskell: { command: `JUNIT_ENABLED=1 JUNIT_OUTPUT_DIRECTORY=${DIR} JUNIT_OUTPUT_NAME=haskell.xml cabal test`, report: `${DIR}/haskell.xml`, needs: 'the hspec-junit-formatter package in the test suite, run through hspec-discover' },
   maven: { command: 'mvn test', report: 'target/surefire-reports', needs: null },
   node: { command: nodeJunitCommand(`${DIR}/node.xml`), report: `${DIR}/node.xml`, needs: null },
   php: { command: `vendor/bin/phpunit --log-junit ${DIR}/php.xml`, report: `${DIR}/php.xml`, needs: null },
   python: { command: `pytest --junitxml=${DIR}/python.xml`, report: `${DIR}/python.xml`, needs: null },
   ruby: { command: `bundle exec rspec --format RspecJunitFormatter --out ${DIR}/ruby.xml`, report: `${DIR}/ruby.xml`, needs: 'the rspec_junit_formatter gem in the Gemfile test group' },
   rust: { command: 'cargo nextest run --profile ci', report: 'target/nextest/ci/junit.xml', needs: 'cargo-nextest and a [profile.ci.junit] path = "junit.xml" entry in .config/nextest.toml' },
+  sbt: { command: 'sbt test', report: 'target/test-reports', needs: null },
   swift: { command: `swift test --xunit-output ${DIR}/swift.xml`, report: `${DIR}/swift.xml`, needs: null },
 });
 
