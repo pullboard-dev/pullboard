@@ -121,9 +121,9 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     /** The phases of each part: together they are the original single sequence, on separate boards. */
     const phases = {
-      studyA: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedMilestones(context), () => seedLifecycle(context)],
+      studyA: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedMilestones(context), () => seedLifecycle(context), () => seedPublishFinding(context)],
       studyB: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedWatchReceipts(context), () => seedObservationReceipts(context),
-        () => seedPublishFinding(context), () => seedBaselineReceipts(context), () => seedActivityReceipts(context), () => seedSpecAndHandoff(context)],
+        () => seedBaselineReceipts(context), () => seedActivityReceipts(context), () => seedSpecAndHandoff(context)],
       restA: [seedSeats,
         () => seedItemPatches(context),
         async () => {
