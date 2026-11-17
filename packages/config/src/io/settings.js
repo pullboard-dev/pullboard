@@ -80,6 +80,11 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
+/** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
+export function excuseMainTimingReds() {
+  return loadMachineSettings().gate?.excuseMainTimingReds === true;
+}
+
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
@@ -128,6 +133,11 @@ export function hunkFreshnessEnabled() {
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
+}
+
+/** Whether canary.directPush is on (#9746): off by default; only an exact `true` turns it on. */
+export function canaryDirectPushEnabled() {
+  return loadMachineSettings().canary?.directPush === true;
 }
 
 /** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
