@@ -1349,11 +1349,15 @@
       "deep": 0
     },
     "apps/view/src/io/serve.js": {
-      "cells": 14,
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/io/session.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/view/src/io/state.js": {
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/logic/main.js": {
