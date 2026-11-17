@@ -1,4 +1,5 @@
 // pullboard: browser
+/** @pullboard-test-input apps/cli/tests/fixtures/person/trusted.js */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads apps/relay/src/io/browser/passkeys.js apps/relay/src/io/browser/client.js apps/relay/src/io/passkeys.js src/person-signing.js apps/cli/tests/fixtures/person/trusted.js */
 /** A real browser passkey confirms a person move a terminal started, with the person present, once [E22,H16]. */
