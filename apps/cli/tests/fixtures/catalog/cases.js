@@ -622,7 +622,7 @@ catalogCase('[A1] command results match the catalog across roots: items, shouts 
   assert.ok(tourRepo && existsSync(tourRepo), 'the reported tour repo exists until the test cleans it up');
   assert.match(basename(dirname(tourRepo)), /^pullboard-tour-/, 'cleanup is confined to the generated tour folder');
   TEMP_DIRS.push(dirname(tourRepo));
-}, ['add', 'answer', 'check', 'claim', 'decisions', 'done', 'edit', 'escalate', 'fact', 'forget', 'hold', 'inbox', 'init', 'join', 'list', 'merged', 'next', 'pass', 'patch', 'refreeze', 'release', 'run', 'shout', 'show', 'spec', 'submit', 'sweep', 'tour', 'verify', 'why', 'withdraw', 'worktree']);
+}, ['add', 'answer', 'check', 'claim', 'decisions', 'done', 'edit', 'escalate', 'fact', 'forget', 'hold', 'inbox', 'init', 'join', 'list', 'merged', 'next', 'pass', 'patch', 'refreeze', 'release', 'run', 'shout', 'show', 'spec', 'submit', 'sweep', 'tour', 'verify', 'whoami', 'why', 'withdraw', 'worktree']);
 
 
 catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', [
