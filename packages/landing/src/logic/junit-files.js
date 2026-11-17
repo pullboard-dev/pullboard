@@ -2,6 +2,8 @@
 
 /** Language to a function from a case row ({ classname, file }) to a repo-relative path, or null when it cannot say. */
 export const JUNIT_FILE_ROWS = {
+  // rspec_junit_formatter writes classname as the dotted spec path (spec.calc_spec) and usually a file attribute too.
+  ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
 };
