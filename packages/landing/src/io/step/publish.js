@@ -28,6 +28,7 @@ import { exactTreeRecord } from './merge.js';
 import { landingRunObserver } from './gate.js';
 import { sprintPorts } from './gate.js';
 import { sprintProof } from '../exact.js';
+import { stageUntilCurrent } from '../exact.js';
 import { spawn } from 'node:child_process';
 import { refreshSource } from '../main/red.js';
 import { fileURLToPath } from 'node:url';
@@ -460,6 +461,58 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   throw new Refused('LAND_EXACT_RED', message);
 }
 
+/** The trunk branch's ref name and its current commit, read the way moveTrunkRef reads them. */
+function trunkRefState(state) {
+  const branch = (mainCheckout(state.root)?.branch ?? 'main').replace(/^refs\/heads\//u, '');
+  const ref = `refs/heads/${branch}`;
+  return { branch, ref, current: tryGit(state.root, ['rev-parse', '--verify', '-q', ref]).stdout.trim() };
+}
+
+/**
+ * The ports of the restage loop for this batch: the same compare moveTrunkRef's update-ref makes, a merge of the staged tip onto the new main, the Sprint proof, and the yield [V35].
+ * A restage merges the old tip into the current main in the batch's checkout, so the item merges stay in history and only the new tip is proved;
+ * a merge that conflicts is abandoned and refuses LAND_ITEM_MOVED so the batch is rebuilt from current verified work.
+ */
+function restagePorts(state) {
+  const verify = async () => {
+    const { branch, current } = trunkRefState(state);
+    if (current === state.batch.base || current === state.batch.tip) return;
+    throw new Refused('LAND_MAIN_MOVED', `${branch} is at ${current || 'missing'}, no longer the batch base ${state.batch.base}; restaging the batch on it`);
+  };
+  const restage = async () => {
+    const { current: main } = trunkRefState(state);
+    const { root, tip, id } = state.batch;
+    const who = ['-c', `user.name=${tryGit(root, ['config', 'user.name']).stdout.trim() || 'pullboard'}`, '-c', `user.email=${tryGit(root, ['config', 'user.email']).stdout.trim() || 'pullboard@localhost'}`];
+    git(root, ['checkout', '--detach', '--quiet', main]);
+    const merged = tryGit(root, [...who, 'merge', '--no-ff', '--no-edit', '-m', `chore(merge): restage batch ${id} on ${main.slice(0, 12)} [C7]`, tip]);
+    if (merged.status !== 0) {
+      tryGit(root, ['merge', '--abort']);
+      git(root, ['checkout', '--detach', '--quiet', tip]);
+      throw new Refused('LAND_ITEM_MOVED', `main moved to ${main.slice(0, 12)} and the batch does not merge onto it cleanly; rebuild the batch from current verified work: pullboard land`);
+    }
+    await save(state, { base: main, tip: headCommit(root) });
+    state.say?.(`finish: main moved to ${main.slice(0, 12)}; restaged the batch on it at ${state.batch.tip}`);
+  };
+  const yieldTurn = async restages => {
+    const message = `main moved ${restages + 1} times while batch ${state.batch.id} was staged; its items yield their turn and land behind the others`;
+    await save(state, { state: 'blocked', yielded: { restages, at: state.board.clock.now().toISOString() },
+      refusal: { code: 'LAND_YIELDED', message, at: state.board.clock.now().toISOString() } });
+    for (const entry of state.batch.items) while (store.stepAsideCount(state.board, entry.id) < 2) store.countLeaseLapse(state.board, entry.id);
+    state.say?.(`finish: ${message}`);
+  };
+  return { verify, restage, prove: () => requireSprintProof(state), yieldTurn };
+}
+
+/**
+ * Stage, prove, then check the move is still a compare-and-set from the base the batch was staged on, restaging up to RESTAGE_LIMIT times; a batch that keeps losing yields and refuses LAND_YIELDED [V35].
+ * Why before the receipts: the store records the landing before the ref moves, so a restage after that would leave receipts naming a tip that never lands.
+ */
+export async function settleOnMain(state, ports = state.restagePorts ?? restagePorts(state)) {
+  const settled = await stageUntilCurrent(ports);
+  if (settled.yielded) throw new Refused('LAND_YIELDED', state.batch.refusal.message);
+  return settled;
+}
+
 /** Record a tier-1 batch's merged receipts and move the local trunk to it; an adopted 'trunk' batch resumes here (#801). */
 export function finishTrunk(state) {
   return landingSpan('record', () => finishTrunkSteps(state));
@@ -474,6 +527,7 @@ async function finishTrunkSteps(state) {
   publicationInputs(state, state.batch);
   state.say?.('finish: module resolution checked; proving the exact tree');
   await requireSprintProof(state);
+  await settleOnMain(state);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
     : await state.write('finishLandingBatch', [{ agentId: 'coordinator', id: state.batch.id, tip: state.batch.tip }]);
