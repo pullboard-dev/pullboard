@@ -54,7 +54,7 @@ function laneLine(stderr) {
   return /^ {2}- outside the app lane: .*$/mu.exec(stderr)?.[0];
 }
 
-test("cli.io-remote-lane-hook.a-boardless-clone-commits-files-in-the: a boardless clone commits files in the seat's lane through the pre-commit hook [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and a hooked commit, not a throughput claim.
+test('cli.io-remote-lane-hook.a-boardless-clone-commits-files-in-the: a boardless clone commits files in the seat\'s lane through the pre-commit hook [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and a hooked commit, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   await linkBoard(seat);

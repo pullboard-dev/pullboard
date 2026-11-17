@@ -53,7 +53,7 @@ async (t) => {
   assert.equal(cloneBoard(seat.clone), false, 'show opened no local board');
 });
 
-test("cli.io-remote-board.whoami-prints-the-named-agent-s-lane: whoami prints the named agent's lane from the served board with no board.sqlite [P7]", { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and three CLI calls, not a throughput claim.
+test('cli.io-remote-board.whoami-prints-the-named-agent-s-lane: whoami prints the named agent\'s lane from the served board with no board.sqlite [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and three CLI calls, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   assert.equal((await seat.run('settings', 'board.url', `${seat.box.origin}${seat.box.path}`)).status, 0);

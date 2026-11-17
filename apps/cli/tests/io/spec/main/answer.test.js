@@ -16,7 +16,7 @@ import { runInProcessAt } from '../../../fixtures/spec/box.js';
 import { viewMove } from '../../../fixtures/spec/box.js';
 import { boardRowDecisions } from '../../../fixtures/spec/box.js';
 
-test("cli.io-spec-main-answer.spec-answer-records-the-person-s-choice: spec answer records the person's choice [S1,E3,P6]", async (t) => {
+test('cli.io-spec-main-answer.spec-answer-records-the-person-s-choice: spec answer records the person\'s choice [S1,E3,P6]', async (t) => {
   const box = specBox(t, { specSource: QUESTION_SPEC });
   const file = join(box.root, box.specName);
   const line = (id) => readFileSync(file, 'utf8').split('\n').find((text) => text.startsWith(`- ${id} `));

@@ -112,7 +112,7 @@ onRemoteSeats(async (seats) => {
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
 }));
 
-test("cli.io-remote-moves.submit-and-verify-post-through-moves-and: submit and verify post through /moves and print the served board's result [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
+test('cli.io-remote-moves.submit-and-verify-post-through-moves-and: submit and verify post through /moves and print the served board\'s result [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
 onRemoteSeats(async (seats) => {
   const id = await seats.add('Remote reviewed item');
   await moved(seats, seats.builder, 'claim', String(id));
