@@ -42,7 +42,7 @@ async function closedWithin(child, milliseconds) {
   } finally { clearTimeout(timeout); }
 }
 
-test('invalid framed specs exit promptly with a named refusal while controller stdin stays open [C7]', { timeout: 20000 }, async t => { // budget: three real worker startups and five-second refusal bounds, not a performance benchmark.
+test('landing.spec.invalid-framed-specs-exit-promptly-with: invalid framed specs exit promptly with a named refusal while controller stdin stays open [C7]', { timeout: 20000 }, async t => { // budget: three real worker startups and five-second refusal bounds, not a performance benchmark.
   const f = fixture(t);
   for (const input of ['2\n{}', 'not-a-frame\n', '1\n{']) {
     const worker = startFixtureChild(process.execPath, [resolve(import.meta.dirname, '../../../../../apps/runner/src/io/scripts/worker.js')], {

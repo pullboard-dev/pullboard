@@ -8,12 +8,12 @@ import * as door from '../index.js';
 
 const CORE = fileURLToPath(new URL('../light.js', import.meta.url));
 
-test('clause 1: core.js exports landWhy, landWhyLines, landingLine, localReleaseRank, requirePreparedComputedConflict and the two batch-root checks, the same functions index.js carries [C7]', () => {
+test('landing.door.core-js-exports-landwhy-landwhylines-landingline: clause 1: core.js exports landWhy, landWhyLines, landingLine, localReleaseRank, requirePreparedComputedConflict and the two batch-root checks, the same functions index.js carries [C7]', () => {
   assert.deepEqual(Object.keys(core).sort(), ['landWhy', 'landWhyLines', 'landingBatchItemsAtRoot', 'landingBatchOwnsRoot', 'landingLine', 'localReleaseRank', 'requirePreparedComputedConflict']);
   for (const name of Object.keys(core)) assert.equal(door[name], core[name], name);
 });
 
-test('clause 2: loading core.js loads no landing file outside src/logic and the computed conflict receipt module [C7]', () => {
+test('landing.door.loading-core-js-resolves-no-shell: clause 2: loading core.js loads no landing file outside src/logic and the computed conflict receipt module [C7]', () => {
   const script = `
     import { registerHooks } from 'node:module';
     const seen = [];

@@ -55,7 +55,7 @@ async function landOne(t, squash) {
   return { root, id: item.item_id, tip, trunk, result, parents, head: git(root, 'rev-parse', 'HEAD'), message: git(root, 'log', '-1', '--format=%B') };
 }
 
-test('clause 1: with landing.squash on, the land step merges an item as one single-parent commit with the landing message and an item ref [C7,#9220]', async t => {
+test('landing.merge-squash.with-landing-squash-on-the-land: clause 1: with landing.squash on, the land step merges an item as one single-parent commit with the landing message and an item ref [C7,#9220]', async t => {
   const landed = await landOne(t, true);
   assert.deepEqual(landed.parents, [landed.trunk], 'one parent: the trunk the batch was built on');
   assert.equal(landed.result.tip, landed.head);
@@ -65,7 +65,7 @@ test('clause 1: with landing.squash on, the land step merges an item as one sing
   assert.ok(git(landed.root, 'ls-tree', '-r', '--name-only', 'HEAD').includes('web/more.txt'));
 });
 
-test('clause 2: with landing.squash off (the default), the land step merges with --no-ff as before [C7,#9220]', async t => {
+test('landing.merge-squash.with-landing-squash-off-the-default: clause 2: with landing.squash off (the default), the land step merges with --no-ff as before [C7,#9220]', async t => {
   const landed = await landOne(t, false);
   assert.equal(landed.parents.length, 2, 'a merge commit with two parents');
   assert.equal(landed.parents[0], landed.trunk);
