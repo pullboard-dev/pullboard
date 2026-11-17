@@ -13,6 +13,7 @@ const BEFORE = {
   'add.warnUnnamedTest': false,
   'api.codeStampCache': false,
   'board.archiveEvents': false,
+  'board.compactShouts': false,
   'board.crossProcessWrites': false,
   'board.hotState': false,
   'browserSlots': 1,
