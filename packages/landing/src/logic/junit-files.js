@@ -4,11 +4,15 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
+  dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
   // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
   rust: row => {
     const crate = (row.classname ?? '').split('::')[0];
     return crate ? `${crate}/` : null;
   },
+  // ctest --output-junit writes the test name as classname and no file attribute; the name is the test binary selection unit. C uses this row.
+  cpp: row => row.classname || null,
 };
 
 /**
