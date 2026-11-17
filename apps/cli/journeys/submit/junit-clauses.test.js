@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/gate packages/state */
+/** @pullboard-test-input source-cell apps/cli */
 /** With gate.junitReport set, submit ticks the [test] clauses a JUnit report proves; unset, it selects gate files as before (#9727) [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
