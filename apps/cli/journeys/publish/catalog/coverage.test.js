@@ -41,8 +41,8 @@ test('clause 2: a catalog case fails if it adds a root it did not declare [A1,C7
   } finally { coveredRoots.delete(probe); }
 });
 
-test('clause 1: every catalog case appears in exactly one of the six groups exported from cases.js [A1,C7,#9675]', () => {
-  assert.deepEqual(Object.keys(catalogGroups).sort(), ['commands', 'exercises', 'lanes', 'results', 'results-a1', 'results-a2'], 'six groups, one per run file');
+test('clause 1: every catalog case appears in exactly one of the seven groups exported from cases.js [A1,C7,#9675]', () => {
+  assert.deepEqual(Object.keys(catalogGroups).sort(), ['commands', 'exercises', 'lanes', 'results-a1', 'results-a2', 'results-b1', 'results-b2'], 'seven groups, one per run file');
   const grouped = Object.values(catalogGroups).flat().map(({ name }) => name);
   assert.deepEqual([...grouped].sort(), catalogCases.map(({ name }) => name).sort(), 'the groups hold every case once and nothing else');
   assert.equal(new Set(grouped).size, grouped.length, 'no case sits in two groups');

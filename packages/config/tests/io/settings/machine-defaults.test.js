@@ -32,9 +32,11 @@ const BEFORE = {
   'claim.refuseOffMainHead': false,
   'docs.regenerateOnCommit': false,
   'engine.nameBehindDevice': false,
+  'flakes.rereadRatchet': false,
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,
+  'gate.adapterLintTimers': false,
   'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
@@ -49,6 +51,7 @@ const BEFORE = {
   'gate.idiomSpread': false,
   'gate.jobReserve': null,
   'gate.junitReport': null,
+  'gate.literalPins': false,
   'gate.loadAwareDispatch': true,
   'gate.localLoadShare': 1,
   'gate.localRunner': true,
@@ -84,6 +87,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.viewTimerLayout': false,
   'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
@@ -98,6 +102,7 @@ const BEFORE = {
   'jobs.handBackUnrunnable': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
+  'landing.junitFailures': false,
   'landing.parallelGates': false,
   'landing.pools': [],
   'landing.reofferTrunkBusy': false,
@@ -105,6 +110,7 @@ const BEFORE = {
   'landing.reuseGateReceipts': false,
   'landing.squash': false,
   'landing.stallStop': false,
+  'landing.staticAffectedOnly': false,
   'landing.strictFullSuite': false,
   'list.thinRead': false,
   'machine.loadCeiling': null,
@@ -126,12 +132,14 @@ const BEFORE = {
   'next.itemNotices': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
+  'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
   'read.thinCommands': false,
   'relay.excludeByBoard': false,
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'relay.queueOnFailure': false,
   'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
@@ -225,6 +233,11 @@ test('clause 3: removing a BEFORE key or changing its value fails the check [O6]
   const loud = { ...MACHINE_DEFAULTS, 'brand.new': true };
   assert.deepEqual(defaultsProblems(loud), ['brand.new is new and not off']);
   assert.deepEqual(defaultsProblems({ ...MACHINE_DEFAULTS, 'brand.new': false }), []);
+});
+
+test('clause 1: gate.adapterLintTimers is in the BEFORE list and defaults to false [C7]', () => {
+  assert.equal(BEFORE['gate.adapterLintTimers'], false);
+  assert.equal(MACHINE_DEFAULTS['gate.adapterLintTimers'], false);
 });
 
 test('clause 1: gate.idiomSpread is in the BEFORE list and defaults to false [C7]', () => {
