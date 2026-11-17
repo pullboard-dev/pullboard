@@ -13,7 +13,7 @@ const EMPTY = {
   '/api/v1/devices/exclusions': { version: 1, exclusions: [] },
 };
 
-test('clause 1: createTransport resolves against stubbed fetch, localStorage and IndexedDB with no real network [H5,C7]', async () => {
+test('relay.io-browser-transport-harness.createtransport-resolves-against-stubbed-fetch-localstorage: clause 1: createTransport resolves against stubbed fetch, localStorage and IndexedDB with no real network [H5,C7]', async () => {
   const stand = installBrowserTransport({ responses: EMPTY });
   try {
     const transport = await createTransport();
@@ -24,7 +24,7 @@ test('clause 1: createTransport resolves against stubbed fetch, localStorage and
   assert.equal(typeof globalThis.indexedDB, 'undefined', 'restore removes the stand-ins');
 });
 
-test('clause 2: after one inventory load the stubbed fetch saw the exclusion list request [H5,C7]', async () => {
+test('relay.io-browser-transport-harness.after-one-inventory-load-the-stubbed: clause 2: after one inventory load the stubbed fetch saw the exclusion list request [H5,C7]', async () => {
   const stand = installBrowserTransport({ responses: EMPTY });
   try {
     await createTransport();
