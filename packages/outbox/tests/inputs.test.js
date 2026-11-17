@@ -30,7 +30,7 @@ const read = (path) => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines among a file's leading lines, as the text after the tag. */
 const headers = (source) => source.split(/\r?\n/u).slice(0, 5).map((line) => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every outbox test file that reads source files carries an input header naming the cells it reads, and none declares the whole tree [C7,U149]', () => {
+test('outbox.inputs.declared: clause 1: every outbox test file that reads source files carries an input header naming the cells it reads, and none declares the whole tree [C7,U149]', () => {
   const files = cellTests();
   assert.ok(files.includes(SELF), 'the outbox cell has this test among its files');
   const undeclared = files.filter((file) => READS.test(read(file)) && ANCHOR.test(read(file)) && headers(read(file)).length === 0);
@@ -39,7 +39,7 @@ test('clause 1: every outbox test file that reads source files carries an input 
   for (const file of files) {
     for (const header of headers(read(file))) {
       assert.notEqual(header.trim(), 'source-tree', `${file} declares source-tree`);
-      assert.match(header, /^source-cell [a-z/]+(?: [a-z/]+)*$/u, `${file} names cells`);
+      assert.match(header, /^(?:source-cell [a-z/]+(?: [a-z/]+)*|packages\/\S+(?: packages\/\S+)*)$/u, `${file} names cells or the exact files it reads`);
     }
   }
 });
