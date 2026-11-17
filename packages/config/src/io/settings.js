@@ -18,7 +18,7 @@ import { randomUUID } from 'node:crypto';
 import {
   setResourceCapacity,
   updateRunnerSettings,
-} from '../../../resources/index.js';
+} from '../../../resources/light.js';
 import { validateRunner } from '../logic/settings.js';
 import { PERSON_SET } from '../logic/settings.js';
 import { parsePersonSet } from '../logic/settings.js';
@@ -41,8 +41,8 @@ import {
   readGateQueueSettings,
   readMachineSettingsFile,
 } from '../../../queue/index.js';
-import { machineSettingsFile } from '../../../resources/index.js';
-import { machineHome } from '../../../resources/index.js';
+import { machineSettingsFile } from '../../../resources/light.js';
+import { machineHome } from '../../../resources/light.js';
 
 // The gate queue's settings live in the queue cell so the runner runtime can read them too.
 export { machineSettingsFile };
@@ -92,6 +92,17 @@ export function recoverFromJobRow() {
 /** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
 export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
+}
+
+/** Whether landing.junitFailures is on (#9763): off by default; only an exact `true` turns it on. */
+export function landingJunitFailures() {
+  return loadMachineSettings().landing?.junitFailures === true;
+}
+
+/** The path gate.junitReport names (#9700), or null when it is blank or not a string. */
+export function gateJunitReport() {
+  const path = loadMachineSettings().gate?.junitReport;
+  return typeof path === 'string' && path.trim() ? path.trim() : null;
 }
 
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
@@ -543,6 +554,11 @@ export function nextAdoptPreserved() {
  */
 export function nextItemNotices() {
   return loadMachineSettings().next?.itemNotices === true;
+}
+
+/** Whether next fills a label below its declared minimum first (#9164): off by default; only an exact `true` turns it on. */
+export function nextLabelBounds() {
+  return loadMachineSettings().next?.labelBounds === true;
 }
 
 /**

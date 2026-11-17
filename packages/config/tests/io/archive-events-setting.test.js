@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'board.archiveEvents'));
 }
 
-test('clause 1: board.archiveEvents is a described setting, off by default, on only for an exact true [C7,#9334]', () => {
+test('config.io-archive-events-setting.clause-1-board-archiveevents-is-a: clause 1: board.archiveEvents is a described setting, off by default, on only for an exact true [C7,#9334]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

@@ -559,7 +559,7 @@ for (const inProcessHooks of [false, true]) {
     const { box, root } = await hookedRepo(inProcessHooks);
     writeFileSync(join(root, '.env'), 'TOKEN=not-a-real-token\n');
     box.git(root, 'add', '-f', '--', '.env');
-    const refused = box.tryGit(root, 'commit', '-q', '-m', 'chore: add the env file');
+    const refused = await box.tryGit(root, 'commit', '-q', '-m', 'chore: add the env file');
     assert.notEqual(refused.status, 0, 'the real pre-commit hook blocks the commit');
     assert.match(refused.stderr, /\.env is a blocked file/u, 'the refusal is the hook process own output');
   });
@@ -568,9 +568,9 @@ for (const inProcessHooks of [false, true]) {
     const { box, root } = await hookedRepo(inProcessHooks);
     writeFileSync(join(root, 'notes.txt'), 'notes\n');
     box.git(root, 'add', '--', 'notes.txt');
-    const refused = box.tryGit(root, 'commit', '-q', '-m', 'Added some notes');
+    const refused = await box.tryGit(root, 'commit', '-q', '-m', 'Added some notes');
     assert.notEqual(refused.status, 0, 'the real commit-msg hook blocks the commit');
-    const allowed = box.tryGit(root, 'commit', '-q', '-m', 'chore: add some notes');
+    const allowed = await box.tryGit(root, 'commit', '-q', '-m', 'chore: add some notes');
     assert.equal(allowed.status, 0, allowed.failure || allowed.stderr || allowed.stdout);
   });
 }

@@ -14,7 +14,7 @@ async function threeDevices() {
   return { devices, roster: devices.map(({ deviceId, publicKey }) => ({ deviceId, publicKey })) };
 }
 
-test('clause 1: wrapBoardKeyToRoster given a board key and a roster of three devices returns one envelope per device, keyed by deviceId [E16]', async () => {
+test('keys.roster.wrapboardkeytoroster-given-a-board-key-and: clause 1: wrapBoardKeyToRoster given a board key and a roster of three devices returns one envelope per device, keyed by deviceId [E16]', async () => {
   const { roster } = await threeDevices();
   const key = crypto.getRandomValues(new Uint8Array(32));
   const envelopes = await wrapBoardKeyToRoster(key, roster, { board: BOARD, engine: ENGINE });
@@ -27,7 +27,7 @@ test('clause 1: wrapBoardKeyToRoster given a board key and a roster of three dev
   await assert.rejects(wrapBoardKeyToRoster(key, [roster[0], roster[0]], { board: BOARD, engine: ENGINE }), { code: 'DEVICE_WRAP_BINDING' });
 });
 
-test('clause 2: each roster envelope unwraps to the board key only with its own device private key; another roster device key refuses DEVICE_WRAP_AUTH [E16]', async () => {
+test('keys.roster.each-roster-envelope-unwraps-to-the: clause 2: each roster envelope unwraps to the board key only with its own device private key; another roster device key refuses DEVICE_WRAP_AUTH [E16]', async () => {
   const { devices, roster } = await threeDevices();
   const key = crypto.getRandomValues(new Uint8Array(32));
   const envelopes = await wrapBoardKeyToRoster(key, roster, { board: BOARD, engine: ENGINE });
