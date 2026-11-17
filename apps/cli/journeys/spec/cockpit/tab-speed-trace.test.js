@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-cell apps/cli */
+/** @pullboard-test-gui */
 /** The tab-speed fixture prints each stage's elapsed milliseconds only when PULLBOARD_TAB_SPEED_TRACE is set, using a stub board and stub Chrome [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
