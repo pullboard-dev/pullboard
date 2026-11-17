@@ -10,6 +10,11 @@ import { requireAgentGrant } from "../../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../state/index.js";
 import { REVIEW_GATE_RECEIPT_ENGINE } from "../../../../state/light.js";
 import { Refused } from "../../../../kernel/index.js";
+import { processMachineHome } from "../../../../kernel/light.js";
+import { readCrossProcessWrites } from "../../../../config/index.js";
+import { createFileWriteQueue } from "../write-queue-file.js";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { requireFileLease } from "../../../../items/index.js";
 
 const PREPARE_ATTEMPTS = 4;
@@ -87,15 +92,48 @@ function warmHistories(board) {
   board.enginePorts.store.flakeLedger(board);
 }
 
+/** One file queue handle per queue folder for this process, so every claim shares its pending records and drain lock. */
+const FILE_QUEUES = new Map();
+
 /**
- * Preserve native authority before preparation and revalidate it under the actual writer lock.
+ * The write id of a queued claim: the caller's own move id when its options carry one, else a digest of the board, the
+ * operation and the arguments. Why args and never time or pid: a caller that crashed and retries the same claim must
+ * reach the same result file, so it gets the first answer and never a second claim event (#9816, #8163).
+ */
+function queuedWriteId(board, operation, args) {
+  const moveId = typeof args[1]?.moveId === 'string' && args[1].moveId ? args[1].moveId : null;
+  return createHash('sha256').update(JSON.stringify([store.boardId(board), operation, moveId ?? args])).digest('hex').slice(0, 40);
+}
+
+/**
+ * Submit a claim to the machine's shared file write queue and give back what its result file holds.
+ * With board.crossProcessWrites on this returns a promise; the queue answers across processes, so it cannot be synchronous.
+ */
+async function writeThroughFileQueue(board, operation, args, actor, options) {
+  const dir = join(processMachineHome(), 'board-write-queue');
+  if (!FILE_QUEUES.has(dir)) FILE_QUEUES.set(dir, createFileWriteQueue(dir));
+  const outcome = await FILE_QUEUES.get(dir).submit({ id: queuedWriteId(board, operation, args), run: () => writeBoardDirect(board, operation, args, actor, options) });
+  if (outcome.ok) return outcome.value;
+  throw new Refused(outcome.error.code, outcome.error.message.replace(new RegExp(`^\\[${outcome.error.code}\\] `, 'u'), ''));
+}
+
+/**
+ * Preserve native authority before preparation and revalidate it under the actual writer lock. With
+ * board.crossProcessWrites on, a claim goes through the machine's file write queue instead and the call returns a promise;
+ * every other operation, and every operation with the setting off, writes directly as before.
  * @param {any} board
  * @param {string} operation
  * @param {any[]} args
  * @param {string|undefined} actor
  * @returns {any}
  */
-export function writeBoardCommand(board, operation, args, actor, { prepareInWriter } = {}) {
+export function writeBoardCommand(board, operation, args, actor, options = {}) {
+  if (operation === 'claim' && readCrossProcessWrites()) return writeThroughFileQueue(board, operation, args, actor, options);
+  return writeBoardDirect(board, operation, args, actor, options);
+}
+
+/** The direct write: guards, preparation and the one ordered writer transaction. */
+function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {}) {
   requireHandoffActive(board, actor, operation, args);
   requireExitActive(board, actor, operation, args);
   // claims.fileLease (off by default): a live claim's predicted files are leased to it; a refusal writes nothing [C7,#8521].

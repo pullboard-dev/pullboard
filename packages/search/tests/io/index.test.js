@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** The search cell indexes item title, criterion and brief from a real SQLite board; its sidecar is derived and rebuildable [C7]. */
 /** @pullboard-world-pin: clause 3 reads every tracked source file to prove no other cell imports packages/search. */
 import assert from 'node:assert/strict';

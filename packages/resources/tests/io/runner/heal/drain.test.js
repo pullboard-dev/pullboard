@@ -50,7 +50,7 @@ finally { for(const child of children) if(child.exitCode===null && child.signalC
   assert.equal(result.status, 0, `${result.context}\n${result.stdout}\n${result.stderr}`);
 }
 
-test('an aged timing request drains the fewest-job host while ordinary jobs flow elsewhere [C7,Q1]', async t => {
+test('resources.drain.an-aged-timing-request-drains-the: an aged timing request drains the fewest-job host while ordinary jobs flow elsewhere [C7,Q1]', async t => {
   await scenario(t, `
 const a=await hold('drain-a','a-holder'); connect(a);
 await hold('flow-b','b-one'); await hold('flow-b','b-two');
@@ -82,7 +82,7 @@ assert.ok(events.every(row=>row.host==='drain-a' && row.agent==='exclusive' && r
 `);
 });
 
-test('two timing requests retain one durable drain until the first exclusive holder leaves [C7,Q1]', async t => {
+test('resources.drain.two-timing-requests-retain-one-durable: two timing requests retain one durable drain until the first exclusive holder leaves [C7,Q1]', async t => {
   await scenario(t, `
 const a=await hold('drain-a','a-holder'); connect(a);
 await hold('flow-b','b-one'); await hold('flow-b','b-two');
@@ -102,7 +102,7 @@ two.release(); await ordinary('cleanup');
 `);
 });
 
-test('drain cancellation preserves unavailable, browser and exact executor restrictions [C7,Q1]', async t => {
+test('resources.drain.drain-cancellation-preserves-unavailable-browser-and: drain cancellation preserves unavailable, browser and exact executor restrictions [C7,Q1]', async t => {
   await scenario(t, `
 const a=await hold('drain-a','a-holder'); connect(a);
 await hold('flow-b','b-holder'); await hold('guard-c','c-holder');
@@ -123,7 +123,7 @@ assert.ok(db.prepare("SELECT count(*) AS n FROM runner_timing_event WHERE kind='
 });
 
 
-test('an old unfenced holder remains authoritative and prevents a false quiet receipt [C7,Q1]', async t => {
+test('resources.drain.an-old-unfenced-holder-remains-authoritative: an old unfenced holder remains authoritative and prevents a false quiet receipt [C7,Q1]', async t => {
   await scenario(t, `
 const {takeResource:legacyTake}=await import(${JSON.stringify(new URL('../../../../../../apps/cli/tests/fixtures/runners.js', import.meta.url).href)});
 const old=await legacyTake({name:'runner:drain-a',capacity:2,scope:'machine',root,agent:'old-client'}); leases.push(old); connect(old);
@@ -142,7 +142,7 @@ lease.release(); await ordinary('finalize-old');
 `);
 });
 
-test('a dead private drain owner releases its reservation before ordinary admission [C7,Q1]', async t => {
+test('resources.drain.a-dead-private-drain-owner-releases: a dead private drain owner releases its reservation before ordinary admission [C7,Q1]', async t => {
   await scenario(t, `
 const a=await hold('drain-a','a-holder'); connect(a);
 await hold('flow-b','b-one'); await hold('flow-b','b-two');

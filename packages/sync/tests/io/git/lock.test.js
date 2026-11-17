@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/sync */
 /** Private coordination databases exercise real Git lease fencing, never a board database [H11,C7]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

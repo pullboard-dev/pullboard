@@ -14,14 +14,14 @@ function view(leaseOwner, leaseUntil) {
     steps: [{ name: 'queued', payload: { files: ['a.test.js'], log: null, agent: 'seat' } }] };
 }
 
-test('clause 1: a posted receipt with a live worker lease reads as being recorded, not stopped [C7]', () => {
+test('drive.recording.a-posted-receipt-with-a: clause 1: a posted receipt with a live worker lease reads as being recorded, not stopped [C7]', () => {
   const run = testRunState(view('test-run:1', now + 60_000), now, { pulled });
   assert.equal(run.status, 'green');
   assert.match(run.result.notices[0], /the worker is still recording it/u);
   assert.doesNotMatch(run.result.notices[0], /stopped/u);
 });
 
-test('clause 2: a posted receipt whose worker lease lapsed still reads the stopped-worker notice [C7]', () => {
+test('drive.recording.a-posted-receipt-whose-worker: clause 2: a posted receipt whose worker lease lapsed still reads the stopped-worker notice [C7]', () => {
   for (const lapsed of [view('test-run:1', now - 1000), view(null, 0)]) {
     const run = testRunState(lapsed, now, { pulled });
     assert.match(run.result.notices[0], /the worker stopped before recording it/u);

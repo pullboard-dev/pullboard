@@ -16,7 +16,7 @@ function card() {
   return roadmap({ clock: { now: () => new Date('2026-11-15T00:00:00Z') } }, null, ports)[0];
 }
 
-test('clause 1: an item landed by hand keeps its milestone and counts as landed in the milestone progress [C7]', () => {
+test('roadmap.logic-hand-landing.clause-1-an-item-landed-by-hand-keeps: clause 1: an item landed by hand keeps its milestone and counts as landed in the milestone progress [C7]', () => {
   const release = card();
   assert.deepEqual(release.items.filter(entry => entry.state === 'landed').map(entry => entry.id).sort(), [1, 2]);
   assert.equal(release.landed, 2);
@@ -24,7 +24,7 @@ test('clause 1: an item landed by hand keeps its milestone and counts as landed 
   assert.equal(release.total, 3);
 });
 
-test('clause 2: a withdrawn item that never landed still leaves its milestone as before [C7]', () => {
+test('roadmap.logic-hand-landing.clause-2-a-withdrawn-item-that-never: clause 2: a withdrawn item that never landed still leaves its milestone as before [C7]', () => {
   const release = card();
   assert.equal(release.items.some(entry => entry.id === 3), false);
   assert.equal(release.withdrawn, 1);
@@ -44,7 +44,7 @@ function onMainBoard() {
   return { board: { clock, db }, ports, onMain };
 }
 
-test('clause 1: an item whose commit is on main is landed in its progress, its milestone entry and the milestone count, with no merge recorded [C7]', () => {
+test('roadmap.logic-hand-landing.clause-1-an-item-whose-commit-is-on-main: clause 1: an item whose commit is on main is landed in its progress, its milestone entry and the milestone count, with no merge recorded [C7]', () => {
   const { board, ports, onMain } = onMainBoard();
   assert.equal(isLanded({ item_commit: 'c'.repeat(40) }, onMain), true);
   assert.equal(workProgress(board, { onMain }).get(5).stage, 'landed');
@@ -53,7 +53,7 @@ test('clause 1: an item whose commit is on main is landed in its progress, its m
   assert.equal(release.landed, 1);
 });
 
-test('clause 2: an item whose recorded merge commit is not on main is not landed in its progress, milestone entry or count [C7]', () => {
+test('roadmap.logic-hand-landing.clause-2-an-item-whose-recorded-merge: clause 2: an item whose recorded merge commit is not on main is not landed in its progress, milestone entry or count [C7]', () => {
   const { board, ports, onMain } = onMainBoard();
   assert.equal(workProgress(board, { onMain }).get(6).stage, 'accepted');
   const release = roadmap(board, null, { ...ports, onMain })[0];
@@ -61,7 +61,7 @@ test('clause 2: an item whose recorded merge commit is not on main is not landed
   assert.deepEqual(release.items.filter(entry => entry.state === 'landed').map(entry => entry.id), [5]);
 });
 
-test('clause 3: with no main reader, landed reads the recorded merge commit as before [C7]', () => {
+test('roadmap.logic-hand-landing.clause-3-with-no-main-reader-landed: clause 3: with no main reader, landed reads the recorded merge commit as before [C7]', () => {
   const { board, ports } = onMainBoard();
   assert.equal(workProgress(board).get(5).stage, 'withdrawn');
   assert.equal(workProgress(board).get(6).stage, 'landed');
