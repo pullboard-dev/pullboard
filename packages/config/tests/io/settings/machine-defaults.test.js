@@ -151,6 +151,7 @@ const BEFORE = {
   'submit.proofOnly': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
+  'tests.requireDeclaredInputs': false,
   'tests.requireJourneyPath': false,
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
@@ -234,4 +235,32 @@ test('clause 1: gate.overlapStaticProof is a machine setting, false by default, 
 test('clause 1: review.relaxRequiredFamily is a machine setting, false by default, with a description [V1]', () => {
   assert.equal(MACHINE_DEFAULTS['review.relaxRequiredFamily'], false);
   assert.ok(SETTING_DESCRIPTIONS['review.relaxRequiredFamily']);
+});
+
+/** Read tests.requireDeclaredInputs through a private machine home holding the given settings. */
+async function declaredInputsWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { requireDeclaredInputsEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-declared-inputs-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return requireDeclaredInputsEnabled();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('clause 1: tests.requireDeclaredInputs is listed with a description and defaults to false [C7,#9799]', async () => {
+  assert.equal(MACHINE_DEFAULTS['tests.requireDeclaredInputs'], false);
+  assert.ok(SETTING_DESCRIPTIONS['tests.requireDeclaredInputs']);
+  assert.equal(await declaredInputsWith({}), false);
+});
+
+test('clause 2: only the exact value true turns tests.requireDeclaredInputs on [C7,#9799]', async () => {
+  assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: true } }), true);
+  assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: false } }), false);
 });
