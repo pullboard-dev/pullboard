@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** A move table loads from a release tag into a private folder and answers as the released rules did, whatever the working tree says now [C7,R4,U150]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

@@ -1,6 +1,6 @@
 {
   "name": "replay",
-  "help": "  pullboard replay <table> [--days N]  how often a move table agrees with the moves the board recorded, with each disagreement's event id; read-only\n",
+  "help": "  pullboard replay <table> [--days N] [--against <tag>]  how often a move table agrees with the moves the board recorded, with each disagreement's event id; with --against, also how the release tag's table and the current one each fared; read-only\n",
   "required": {
     "table": "string",
     "days": "number",

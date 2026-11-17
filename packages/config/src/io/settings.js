@@ -140,10 +140,7 @@ export function registryStrictEnabled() {
   return loadMachineSettings().tests?.registryStrict === true;
 }
 
-/** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on [C7,#9438]. */
-export function hunkFreshnessEnabled() {
-  return loadMachineSettings().verify?.hunkFreshness === true;
-}
+export { hunkFreshnessEnabled } from '../logic/settings.js';
 
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
@@ -616,6 +613,11 @@ export function nextHoldAboveLoad() {
  */
 export function nextReadinessCheck() {
   return loadMachineSettings().next?.readinessCheck === true;
+}
+
+/** Whether a claiming next reads the seat's index path from facts it already holds, not from a Git launch (#9853): off by default; only an exact `true` turns it on. */
+export function nextOneGitRead() {
+  return loadMachineSettings().next?.oneGitRead === true;
 }
 
 /**
