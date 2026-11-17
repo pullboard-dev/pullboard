@@ -23,7 +23,7 @@ function succeeded(result) {
   return result;
 }
 
-test('opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', async t => {
+test('clause 1: opt-in native submit uses a real registered worker even with free local capacity [C7,V4]', async t => {
   const t0 = Date.now(), tick = label => process.stderr.write(`TIMING ${((Date.now() - t0) / 1000).toFixed(1)}s ${label}\n`);
   const box = helpers.project('true');
   const requests = join(box.dir, 'runner-only-requests.jsonl');
