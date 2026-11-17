@@ -25,12 +25,12 @@ function fixture(t) {
   return { board, seat, edit };
 }
 
-test('clause 1: a seat whose item is in the gate can change another item when itemsInGate is sealed on [C7]', t => {
+test('store.io-queued-red-items-in-gate.a-seat-whose-item-is-in: clause 1: a seat whose item is in the gate can change another item when itemsInGate is sealed on [C7]', t => {
   const { board, edit } = fixture(t);
   assert.doesNotThrow(() => requireAgentGrant(board, edit({ itemsInGate: 3 })));
 });
 
-test('clause 2: the same change is refused AGENT_GRANT_ITEM when the setting is off [C7]', t => {
+test('store.io-queued-red-items-in-gate.the-same-change-is-refused-agent: clause 2: the same change is refused AGENT_GRANT_ITEM when the setting is off [C7]', t => {
   const { board, edit } = fixture(t);
   assert.throws(() => requireAgentGrant(board, edit()), { code: 'AGENT_GRANT_ITEM' });
 });

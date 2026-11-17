@@ -20,7 +20,7 @@ const FIXTURE_MODEL = ['fixture', 'model'].join('-');
 const ports = { reviewerChecks: store.reviewerChecks, reviewHolder, reviewReleaseCooldown: store.reviewReleaseCooldown,
   listItems, getItem, seatFamily, familiesDiffer, itemReviewPolicy };
 
-test('clause 1: relaxationWitness and confirmRelaxation run with waiting submitted items and free seats [C7]', t => {
+test('store.io-relaxation.relaxationwitness-and-confirmrelaxation-run-with-waiting: clause 1: relaxationWitness and confirmRelaxation run with waiting submitted items and free seats [C7]', t => {
   const board = fixtureBoard(t);
   let now = new Date('2026-01-01T00:00:00.000Z');
   board.clock = { now: () => new Date(now) };

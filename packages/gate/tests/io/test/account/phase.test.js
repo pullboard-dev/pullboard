@@ -28,7 +28,7 @@ async function ranFrames() {
   } finally { rmSync(store, { recursive: true, force: true }); }
 }
 
-test('clause 1: a red phase\'s frames give one ledger row per run file at its inputKey and context class, the green file of the red phase passing [P7]', { timeout: 120_000 }, // budget: two files' import closures keyed at HEAD.
+test('gate.io-test-account-phase.a-red-phase-s-frames-give: clause 1: a red phase\'s frames give one ledger row per run file at its inputKey and context class, the green file of the red phase passing [P7]', { timeout: 120_000 }, // budget: two files' import closures keyed at HEAD.
 async () => {
   const { text, keys } = await ranFrames();
   // The proof phase was red in one file's case only: the other file's green still counts (313 of 386 wasted reruns, 11 Nov).
@@ -40,7 +40,7 @@ async () => {
   assert.equal(ledger.omitted, 0);
 });
 
-test('clause 1: a red phase with no case account writes no row, and a keyless file is never a ledger row [P7]', () => {
+test('gate.io-test-account-phase.a-red-phase-with-no-case: clause 1: a red phase with no case account writes no row, and a keyless file is never a ledger row [P7]', () => {
   const key = 'a'.repeat(64), context = 'b'.repeat(64);
   const frames = ['x.test.js', 'y.test.js'].map(file => `# pullboard test cache ${JSON.stringify({ file, outcome: 'ran', key: 'c'.repeat(64), missed: null, inputKey: key, context })}`).join('\n');
   assert.equal(phaseLedger(frames, { status: 1, failures: null }), null, 'no row is guessed for a red phase that names no case');

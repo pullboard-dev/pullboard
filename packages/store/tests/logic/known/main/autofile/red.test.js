@@ -6,7 +6,7 @@ import { mainRedItemCases } from '../../../../../index.js';
 
 const CHECK = 'node test/runner.js test/affected.test.js';
 
-test('a Main red baseline with no case names, names without files, or from another main is re-taken before use [C7]', () => {
+test('store.logic-known-main-autofile-red.a-main-red-baseline-with-no: a Main red baseline with no case names, names without files, or from another main is re-taken before use [C7]', () => {
   const main = 'a'.repeat(40);
   const repairItem = (id, baseline) => ({ item_id: id, item_status: 'open', item_title: 'Main red: x case', item_check: CHECK, item_check_baseline: baseline });
   const evidence = { failed: ['x case [G1]'], passed: [], failedCases: [{ file: 'test/affected.test.js', name: 'x case [G1]' }], noTestsMatched: false };
@@ -23,7 +23,7 @@ test('a Main red baseline with no case names, names without files, or from anoth
     { owned: [{ ...failure, item: 1 }], rest: [{ ...failure, name: 'y case [G1]' }] });
 });
 
-test('the same case name in another file is not known main: A/X red on main, B/X green, a candidate breaking B/X is refused [C7]', () => {
+test('store.logic-known-main-autofile-red.the-same-case-name-in-another: the same case name in another file is not known main: A/X red on main, B/X green, a candidate breaking B/X is refused [C7]', () => {
   const main = 'a'.repeat(40);
   const check = 'node test/runner.js test/a.test.js test/b.test.js';
   // The repair's check runs both files on main: X fails in A and passes in B.
