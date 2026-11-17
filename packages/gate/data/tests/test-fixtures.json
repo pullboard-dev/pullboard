@@ -1649,6 +1649,12 @@
     "model": 1,
     "hand-policy": 2
   },
+  "packages/gate/tests/io/scripts/release-loop.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "model": 1,
+    "hand-policy": 2
+  },
   "apps/lib/tests/logic/native/releases.test.js": {
     "tempdir": 2,
     "raw-board": 1,
