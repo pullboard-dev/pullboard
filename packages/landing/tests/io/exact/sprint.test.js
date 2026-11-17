@@ -1,5 +1,6 @@
 /** The Sprint proof runs on the exact tree before main moves: RFC 0011 ET6 at Sprint, narrowed and approved 17 Nov 2026 [V16,V37]. */
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { changedCells } from '../../../src/io/exact.js';
 import { finishTrunk } from '../../../src/io/step/publish.js';
@@ -22,16 +23,18 @@ function repository(t) {
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '-m', 'feat: item 7');
   const tip = git(root, 'rev-parse', 'HEAD').trim();
-  // The checkout stays on the tip, detached, while main waits at the base: the batch root holds the composed tree and main has not moved.
-  git(root, 'checkout', '-q', '--detach', tip);
-  git(root, 'update-ref', 'refs/heads/main', base);
+  // The batch root is a second checkout of the tip, as in a landing; the primary checkout goes back to main at the base, so main has not moved.
+  const batchRoot = `${root}-batch`;
+  git(root, 'worktree', 'add', '-q', '--detach', batchRoot, tip);
+  t.after(() => rmSync(batchRoot, { recursive: true, force: true }));
+  git(root, 'reset', '-q', '--hard', base);
   const treeOf = commit => git(root, 'rev-parse', `${commit}^{tree}`).trim();
-  return { root, base, tip, treeOf, main: () => git(root, 'rev-parse', 'refs/heads/main').trim() };
+  return { root, batchRoot, base, tip, treeOf, main: () => git(root, 'rev-parse', 'refs/heads/main').trim() };
 }
 
 /** A landing state on a real repository: its board write validates and numbers each batch revision, and it counts the writes by name. */
-async function landingState(root, base, tip, ports) {
-  const batch = { version: 1, id: 'batch-7', state: 'gating', base, tip, root, branch: 'refs/heads/main',
+async function landingState({ root, batchRoot, base, tip }, ports) {
+  const batch = { version: 1, id: 'batch-7', state: 'gating', base, tip, root: batchRoot, branch: 'refs/heads/main',
     items: [], owner: 'coordinator', logPath: '/dev/null', conflicts: [], resolutions: [], revision: 0 };
   const writes = [];
   const said = [];
@@ -62,9 +65,10 @@ function runners(root, base, tip, { red = [], staticRed = false } = {}) {
 }
 
 test('landing.exact.sprint-records-pin-cells-result: clause 1: the lander runs the static stage then the tests of each changed cell on the composed tip and records exactTree.pin, cells and result with exactTree.tree equal to that tip tree [V16,V37]', async t => {
-  const { root, base, tip, treeOf } = repository(t);
+  const repo = repository(t);
+  const { root, base, tip, treeOf } = repo;
   const { ports, calls } = runners(root, base, tip);
-  const { state } = await landingState(root, base, tip, ports);
+  const { state } = await landingState(repo, ports);
   const record = await requireSprintProof(state);
   assert.deepEqual(calls, ['static', 'apps/beta', 'packages/alpha'], 'static first, then each changed cell once, sorted');
   assert.deepEqual(state.batch.exactTree, { tree: treeOf(tip), pin: 'tooling-pin-0123456789abcdef0123456789abcdef0123', cells: ['apps/beta', 'packages/alpha'], result: 'green' });
@@ -77,10 +81,11 @@ test('landing.exact.sprint-records-pin-cells-result: clause 1: the lander runs t
 });
 
 test('landing.exact.sprint-red-leaves-main: clause 2: a red cell in the proof leaves main where it was and records the batch blocked with the failing cell named [V16,V37]', async t => {
-  const { root, base, tip, main } = repository(t);
+  const repo = repository(t);
+  const { root, base, tip, main } = repo;
   for (const red of [['packages/alpha'], ['apps/beta', 'packages/alpha']]) {
     const { ports, calls } = runners(root, base, tip, { red });
-    const { state, writes, said } = await landingState(root, base, tip, ports);
+    const { state, writes, said } = await landingState(repo, ports);
     await assert.rejects(() => finishTrunk(state), error => error.code === 'LAND_EXACT_RED' && /apps\/beta|packages\/alpha/u.test(error.message));
     assert.equal(main(), base, 'main did not move');
     assert.equal(state.batch.state, 'blocked');
@@ -93,7 +98,7 @@ test('landing.exact.sprint-red-leaves-main: clause 2: a red cell in the proof le
     assert.ok(said.some(line => line.includes('Sprint proof is red')));
   }
   const failed = runners(root, base, tip, { staticRed: true });
-  const { state } = await landingState(root, base, tip, failed.ports);
+  const { state } = await landingState(repo, failed.ports);
   await assert.rejects(() => requireSprintProof(state), error => error.code === 'LAND_EXACT_RED' && /static/u.test(error.message));
   assert.equal(state.batch.exactTree.failed, 'static');
   assert.deepEqual(failed.calls, ['static'], 'a red static stage runs no cell');
