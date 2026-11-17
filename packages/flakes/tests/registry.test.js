@@ -8,8 +8,8 @@ import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 
 const TITLE_ID = /^test\('([^':\s]+): /gmu;
 const TESTS = /^test\(/gmu;
-/** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
-const TEMPLATES = /`[^`]*`/gu;
+/** Written with \x60 so this file holds no backtick of its own to confuse the strip. Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
+const TEMPLATES = /\x60[^\x60]*\x60/gu;
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
 function registryFindings(files, records) {
