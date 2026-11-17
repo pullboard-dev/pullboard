@@ -125,6 +125,7 @@ export const MACHINE_DEFAULTS = {
   'relay.offerAtInit': true,
   'relay.pruneReceipts': false,
   'relay.push': false,
+  'relay.queueOnFailure': false,
   'release.rerouteUntouched': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
