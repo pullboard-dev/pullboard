@@ -135,7 +135,12 @@ export function detectGate(root) {
 export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
   const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
   const prefix = (entry) => (entry.folder ? `${entry.folder}/` : '');
-  return [...new Set(detectLanguages(root, rows).flatMap((entry) => (LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []).map((glob) => `${prefix(entry)}${glob}`)))];
+  // A row's tests may be a function of the folder's entry names (ruby picks rspec or rake globs by what the folder holds).
+  const globs = (entry) => {
+    const tests = LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? [];
+    return typeof tests === 'function' ? tests(readdirSync(entry.folder ? join(root, entry.folder) : root)) : tests;
+  };
+  return [...new Set(detectLanguages(root, rows).flatMap((entry) => globs(entry).map((glob) => `${prefix(entry)}${glob}`)))];
 }
 
 /** Read literal rule target lists without executing Makefile parsing, includes or recipes. */

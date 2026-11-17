@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../index.js';
-import { recordKnownMainStatic } from '../../src/logic/known/main/static.js';
+import { recordKnownMainStatic } from '../../index.js';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
 
 const MAIN = 'a'.repeat(40);
