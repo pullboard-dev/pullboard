@@ -125,6 +125,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether canary.directPush is on (#9746): off by default; only an exact `true` turns it on. */
+export function canaryDirectPushEnabled() {
+  return loadMachineSettings().canary?.directPush === true;
+}
+
 /** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
 export function requireDeclaredInputsEnabled() {
   return loadMachineSettings().tests?.requireDeclaredInputs === true;

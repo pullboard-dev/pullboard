@@ -42,6 +42,7 @@ const ROWS = [
   ['board.hotState', 'Keep hot board state', 'When enabled, the state build keeps the open and recent items as a hot state and counts the finished ones instead of reading every item; off (default), the state build reads every item as before.', 'Order', 'on/off'],
   ['budget.dailyUsd', 'Daily spend ceiling', 'Off by default; the most model dollars this computer may spend in one day, refused when not a positive amount.', 'Spending', 'USD'],
   ['budget.totalUsd', 'Total spend ceiling', 'Off by default; the most model dollars this computer may spend in all, refused when not a positive amount.', 'Spending', 'USD'],
+  ['canary.directPush', 'Canary alerts push straight to subscribers', 'When enabled, a relay canary alert also sends Web Push directly to each stored subscription from this machine, even when the relay is unreachable; off (default), alerts travel only as native notices, as before.', 'Relay', 'on/off'],
   ['gate.jobReserve', 'Runner job classes', 'Off by default; when set, a runner takes interactive runs, then gates, then landings, then background sweeps, while each class keeps this share of every runner\'s slots.', 'Order', 'share'],
   ['gate.queue.agingMinutes', 'Waiting bonus', 'A waiting check moves up one class every this many minutes, so nothing waits forever; used only while an order setting above is on.', 'Order', 'minutes'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
