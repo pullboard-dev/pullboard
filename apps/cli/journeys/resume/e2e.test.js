@@ -192,7 +192,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.equal(added.code, 0, added.err);
   const claimed = await fixtureCommand(box, web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
+  const built = await commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
   assert.equal(built.status, 0, built.stderr);
   // Under pull dispatch the submit returns queued; the red verdict arrives on the settled gate job's receipt [P7,C7].
   const queued = await fixtureCommand(box, web, 'submit', '1', '--no-next', '--json');
@@ -214,7 +214,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.equal((await box.runLocal(box.repo, 'spec', 'approve', 'G1')).code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   const refused = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed, so no verifier could judge it; the coordinator runs pullboard refreeze 1, then you claim it and submit again/);

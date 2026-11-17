@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.reuseGateReceipts'));
 }
 
-test('clause 1: landing.reuseGateReceipts is a described setting, off by default, on only for an exact true [C7,#9243]', () => {
+test('config.io-reuse-gate-receipts-setting.clause-1-landing-reusegatereceipts-is-a: clause 1: landing.reuseGateReceipts is a described setting, off by default, on only for an exact true [C7,#9243]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
