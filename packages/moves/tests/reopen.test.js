@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-test-loads packages/store/src/io/board.js src/claims.js packages/state/src/io/engine.js src/exchange.js packages/state/src/io/machine.js */
 /** Real Git, SQLite and ordered-engine coverage for coordinator criterion reopen, called as the board move [V2,V6,H16]. */
 import assert from 'node:assert/strict';
