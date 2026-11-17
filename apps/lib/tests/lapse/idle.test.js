@@ -103,7 +103,7 @@ function rejectedReturned(f, pinned) {
   return id;
 }
 
-test('a pinned claim whose gate went red lapses at 30 minutes after the return with nothing since [B4,C7]', t => {
+test('lib.lapse-idle.a-pinned-claim-whose-gate-went: a pinned claim whose gate went red lapses at 30 minutes after the return with nothing since [B4,C7]', t => {
   const f = fixture(t);
   const a = redReturned(f, true);
   f.advance(29);
@@ -114,7 +114,7 @@ test('a pinned claim whose gate went red lapses at 30 minutes after the return w
   assert.equal(store.getItem(f.board, a).item_status, 'open', '31 minutes after the red return the pinned item lapses to open');
 });
 
-test('an unpinned claim whose gate went red lapses at 40 minutes after the return with nothing since [B4,C7]', t => {
+test('lib.lapse-idle.an-unpinned-claim-whose-gate-went: an unpinned claim whose gate went red lapses at 40 minutes after the return with nothing since [B4,C7]', t => {
   const f = fixture(t);
   const a = redReturned(f, false);
   f.advance(35);
@@ -125,7 +125,7 @@ test('an unpinned claim whose gate went red lapses at 40 minutes after the retur
   assert.equal(store.getItem(f.board, a).item_status, 'open', '41 minutes after the red return the claim lapses to open');
 });
 
-test('a pinned claim rejected back to its builder lapses at 30 minutes after the return [B4,C7]', t => {
+test('lib.lapse-idle.a-pinned-claim-rejected-back-to: a pinned claim rejected back to its builder lapses at 30 minutes after the return [B4,C7]', t => {
   const f = fixture(t);
   const a = rejectedReturned(f, true);
   f.advance(29);
@@ -136,7 +136,7 @@ test('a pinned claim rejected back to its builder lapses at 30 minutes after the
   assert.equal(store.getItem(f.board, a).item_status, 'open', '31 minutes after the rejection the pinned item lapses to open');
 });
 
-test('an unpinned claim rejected back to its builder lapses at 40 minutes after the return [B4,C7]', t => {
+test('lib.lapse-idle.an-unpinned-claim-rejected-back-to: an unpinned claim rejected back to its builder lapses at 40 minutes after the return [B4,C7]', t => {
   const f = fixture(t);
   const a = rejectedReturned(f, false);
   f.advance(35);

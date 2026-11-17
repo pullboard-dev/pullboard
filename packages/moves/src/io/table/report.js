@@ -7,6 +7,7 @@ import { judgeByReleaseEnabled } from '../../../../config/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { explainTable } from '../../logic/table/explain.js';
 import { judgeRecords } from '../../logic/table/judge.js';
+import { judgeSummary } from '../../logic/table/judge.js';
 import { recordedOutcome } from '../../logic/table/replay.js';
 import { replayTable } from '../../logic/table/replay.js';
 import { runTable } from '../../logic/table/run.js';
@@ -120,6 +121,36 @@ export async function replayReport({ root, boardFile, name, days = 7, now = Date
   const out = { table: name, days, since, cut: new Date(Date.parse(cutAt)).toISOString(), ...report };
   if (against === undefined) return out;
   return { ...out, judge: await judgeAgainst(root, name, against, loaded, records, Date.parse(cutAt)) };
+}
+
+/**
+ * Judge every current move table against one release and fold the answers into a verdict [U150].
+ * A table the release did not have is listed as new, never refused; any other refusal propagates. Read-only, and off unless moves.judgeByRelease is on.
+ * Why: a release has about 15 tables, and the question is whether any of them drifted from the last release.
+ *
+ * @param {{ root: string, boardFile: string, against: string, days?: number, now?: number, cut?: string }} options - `against` is a release tag, or `last`.
+ * @returns {Promise<{ against: string, days: number, since: string, rows: object[], newTables: string[], drifted: string[], clean: boolean }>}
+ */
+export async function judgeAllReport({ root, boardFile, against, days = 7, now = Date.now(), cut }) {
+  if (!Number.isFinite(days) || days <= 0) throw new Refused('REPLAY_DAYS', 'replay looks back a number of days, and got none', 'pass --days 7');
+  if (!judgeByReleaseEnabled()) {
+    throw new Refused('JUDGE_OFF', 'judging by a release is off on this machine', 'turn on the machine setting moves.judgeByRelease, or replay without a release tag');
+  }
+  const since = new Date(now - days * DAY_MS).toISOString();
+  const cutAt = Date.parse(cut ?? tagCut(root) ?? since);
+  const records = readMoveRecords(boardFile, { since });
+  const tables = [];
+  for (const path of listMoveTables(root)) {
+    const name = nameOf(path);
+    const loaded = await loadMoveTable(root, name, 'REPLAY_TABLE');
+    try { tables.push({ table: name, judge: await judgeAgainst(root, name, against, loaded, records, cutAt) }); }
+    catch (error) {
+      if (!((error?.code === 'JUDGE_TABLE' && /holds no move table/u.test(error.message)) || (error?.code === 'JUDGE_TAG' && /no release tag holds move table/u.test(error.message)))) throw error;
+      tables.push({ table: name, missing: true });
+    }
+  }
+  const resolved = tables.find((entry) => entry.judge)?.judge.against ?? against;
+  return { against: resolved, days, since, ...judgeSummary(tables) };
 }
 
 /**

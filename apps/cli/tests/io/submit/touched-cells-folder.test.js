@@ -1,4 +1,5 @@
-/** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. @pullboard-test-input source-cell apps/cli packages/codemap/data/plan */
+/** @pullboard-test-input packages/codemap/data/plan/** */
+/** touchedCells names the same cells from folders as from the plan's path rows [C7,#8555]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';

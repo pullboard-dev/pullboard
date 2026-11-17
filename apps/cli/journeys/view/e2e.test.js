@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/cli/tests/fixtures/view/pty.py */
 import { cliCockpitRenderer$cockpitPage as cockpitSource } from '../../index.js';
 /**
  * End to end on real repos: the CLI runs as its own process, git runs the installed hooks, and
