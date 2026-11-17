@@ -379,7 +379,7 @@ const sentStates = new Map();
 const applyStateDelta = (${applyStateDelta.toString()});
 // state.milestoneDelta (#9849): with it on, a milestone's forecast is derived here from its count left and the pace the page holds.
 const MILESTONE_DELTA = ${JSON.stringify(typeof milestoneForecast === 'function')};
-const deriveMilestoneForecasts = (${deriveMilestoneForecasts.toString()});
+const deriveMilestoneForecasts = ${typeof deriveMilestoneForecasts === 'function' ? '(' + deriveMilestoneForecasts.toString() + ')' : '(state) => state'};
 const milestoneForecast = ${typeof milestoneForecast === 'function' ? '(' + milestoneForecast.toString() + ')' : 'null'};
 // Expand the opt-in wire dictionary before holding a delta base or rendering any item.
 const expandItemSummaries = (${expandItemSummaries.toString()});
