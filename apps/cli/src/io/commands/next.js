@@ -5,7 +5,6 @@ import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
 import { nextRouteByTier } from '../../../../../packages/config/index.js';
-import { tierOmissions } from '../../../../../packages/moves/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -245,7 +244,7 @@ async function nextWithProgress(io, values, progress) {
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
     // next.routeByTier (off by default): open items the project's tiers route to another tier than this seat's are left out of its pick [C7,#8800].
-    const tierLeftOut = nextRouteByTier() && !values.verify ? withBoardRead(ctx, board => tierOmissions(ctx.config, board, store.listItems(board), whoAmI(ctx, board))) : [];
+    const tierLeftOut = nextRouteByTier() && !values.verify ? withBoardRead(ctx, board => requireModule('../../../../../packages/moves/src/io/tier-routing.js').tierOmissions(ctx.config, board, store.listItems(board), whoAmI(ctx, board))) : [];
     const selectionValues = redClaims.length || tierLeftOut.length
       ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims, ...tierLeftOut])] }
       : values;

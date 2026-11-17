@@ -5,7 +5,6 @@ export * from "./src/io/freezer.js";
 export { offMainHeadRefusal } from "./src/io/claim-head.js";
 export { PACES, admittedPace, itemPace } from "./src/logic/pace.js";
 export { nextOnce, nextSelection } from "./src/io/selection.js";
-export { tierOmissions } from "./src/io/tier-routing.js";
 export { LANDINGS, defineRules, deriveFact, landingOf } from "./src/logic/table/rules.js";
 export { runTable } from "./src/logic/table/run.js";
 export { explainTable, tableCoverage } from "./src/logic/table/explain.js";
