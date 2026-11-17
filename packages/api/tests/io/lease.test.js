@@ -14,7 +14,7 @@ import { offerJob } from '../../index.js';
 
 const KEY = 'fixture-board-key-0123456789';
 
-test('clause 1: a receipt posted with the board key but not the job\'s lease token is refused, and the holder\'s is recorded [P7]', async t => {
+test('api.lease.receipt-posted-board-key-but: clause 1: a receipt posted with the board key but not the job\'s lease token is refused, and the holder\'s is recorded [P7]', async t => {
   const { root } = privateFixtureFiles('pullboard-jobs-lease-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   offerJob(db, { id: 'gate:lease', kind: 'gate', needs: ['node22'] });

@@ -46,7 +46,7 @@ async function everyPath({ board, runs, home }) {
   return { code: driven.code, lapsed: lapsed.map(job => job.id), ended: ended.map(job => job.ended), lost: lost.map(run => run.id), view: jobView(home, 'gate:once') };
 }
 
-test('clause 1: with a runs handle given (runs_store on), the keyed, once, queue and reclaim jobs write job rows only to the runs file [P7,C7]', async t => {
+test('drive.jobs-runs.with-a-runs-handle-given: clause 1: with a runs handle given (runs_store on), the keyed, once, queue and reclaim jobs write job rows only to the runs file [P7,C7]', async t => {
   const given = pair(t, true);
   const answer = await everyPath(given);
   assert.deepEqual([answer.code, answer.lapsed, answer.ended, answer.lost], ['GATE_STALE', ['gate:lapsed'], ['stale'], ['run:1']]);
@@ -54,7 +54,7 @@ test('clause 1: with a runs handle given (runs_store on), the keyed, once, queue
   assert.deepEqual(jobs(given.board.db), [], 'the board holds no job row');
 });
 
-test('clause 2: with no runs handle (runs_store off), those jobs write the same board job rows as on main [P7,C7]', async t => {
+test('drive.jobs-runs.with-no-runs-handle-runs: clause 2: with no runs handle (runs_store off), those jobs write the same board job rows as on main [P7,C7]', async t => {
   const off = pair(t, false);
   const answer = await everyPath(off);
   assert.deepEqual([answer.code, answer.lapsed, answer.ended, answer.lost], ['GATE_STALE', ['gate:lapsed'], ['stale'], ['run:1']]);
