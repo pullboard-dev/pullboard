@@ -381,6 +381,15 @@ function outboxEnabled(io) {
   try { return io?.relayQueueOnFailure?.() === true; } catch { return false; }
 }
 
+/** Codes of a stale or missing relay key and a needed sign-in: queueable only with the machine's relay.queueOnFailure on (#9892). */
+const KEY_FAILURE_CODES = ['SEAL_AUTH_FAILED', 'SEAL_KEY', 'RELAY_KEY_MISSING', 'RELAY_KEY_FILE_ENV_MISMATCH', 'AUTH_REQUIRED'];
+
+/** Whether relay.queueOnFailure is on and the error is a key or sign-in failure, which the user fixes later while the move waits. */
+function queueableKeyFailure(error, io) {
+  if (!KEY_FAILURE_CODES.includes(error?.code)) return false;
+  try { return io?.relayQueueOnFailure?.() === true; } catch { return false; }
+}
+
 /**
  * Whether a failure on an accepted link may queue the move instead of refusing it (#922): the relay said nothing
  * definite, and the move needs no relay answer to exist. Ephemeral sessions cannot retain an outbox, while
@@ -390,7 +399,7 @@ export function outboxQueueable(state, error, operation, io, args = []) {
   return state.mode === 'ordered' && state.baselineAccepted === true && !state.baselineConflict && !state.environment
     && process.env.PULLBOARD_RELAY_TOKEN === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
     && !ACKNOWLEDGED_OPERATIONS.includes(operation)
-    && !args.some(arg => arg?.landingFence !== undefined) && transientRelayFailure(error) && outboxEnabled(io);
+    && !args.some(arg => arg?.landingFence !== undefined) && (transientRelayFailure(error) && outboxEnabled(io) || queueableKeyFailure(error, io));
 }
 
 /** Keep the key-free outbox summary beside the link, or drop it once the outbox is empty. */

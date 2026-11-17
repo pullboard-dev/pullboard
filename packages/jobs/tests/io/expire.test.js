@@ -11,7 +11,7 @@ import { writeStep } from '../../index.js';
 
 const HOUR = 3_600_000;
 
-test('clause 1: a queued job older than its kind limit with no waiter is expired with a recorded reason [C7]', t => {
+test('jobs.expire.queued-over-limit: clause 1: a queued job older than its kind limit with no waiter is expired with a recorded reason [C7]', t => {
   const db = cellBoard(t, ':memory:').db;
   const now = 100 * HOUR;
   createJob(db, { id: 'old-flake', kind: 'flake-diagnose', now: now - QUEUED_EXPIRY_MS['flake-diagnose'] - 1 });

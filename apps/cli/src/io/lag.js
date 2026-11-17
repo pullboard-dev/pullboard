@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../../../../packages/git/index.js';
 import { trunkBranch } from './item/folder.js';
 
 /** Run Git in `root` for one value, or null when Git refuses (no trunk branch, unborn HEAD). */
 function read(root, args) {
-  try { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  try { return gitExecFileSync(args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
   catch { return null; }
 }
 

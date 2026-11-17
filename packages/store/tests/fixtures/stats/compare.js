@@ -6,9 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../../index.js';
-import { openBoard } from '../../../../../apps/lib/index.js';
+import { openCellBoard as openBoard } from '../cell.js';
+import { runFixtureGit } from '../cell.js';
 import { NEXT_IDLE_ENGINE } from '../../../../state/light.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
 
 export const BASE = Date.parse('2026-10-10T00:00:00Z');
 /** Exact minute offsets avoid timing margins in every expected interval. */
