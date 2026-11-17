@@ -1,5 +1,5 @@
-/** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-input apps/runner/index.js packages/resources/index.js packages/runners/index.js */
+/** @pullboard-test-loads packages/resources/index.js */
 /** Exact started requests without completion need an idle proof, while live or foreign custody stays held [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
