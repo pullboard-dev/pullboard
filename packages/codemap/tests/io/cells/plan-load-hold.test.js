@@ -31,11 +31,12 @@ function runPlan(home, args, until) {
     for (const key of ['NODE_TEST_CONTEXT', 'PULLBOARD_TEST_FILE_POOL', 'PULLBOARD_GATE_SLOT_HELD']) delete env[key];
     const worker = new Worker(BIN, { argv: args, stdout: true, stderr: true, env, execArgv: [] });
     const seen = { stdout: '', stderr: '', exited: false };
-    const settle = () => { worker.terminate().finally(() => done(seen)); };
+    let stopping = false;
+    const settle = () => { stopping = true; worker.terminate().finally(() => done(seen)); };
     worker.stdout.on('data', chunk => { seen.stdout += chunk; if (until(seen)) settle(); });
     worker.stderr.on('data', chunk => { seen.stderr += chunk; if (until(seen)) settle(); });
     worker.on('error', error => { seen.stderr += error.stack ?? String(error); });
-    worker.on('exit', () => { seen.exited = true; done(seen); });
+    worker.on('exit', () => { if (!stopping) { seen.exited = true; done(seen); } });
     worker.on('messageerror', fail);
   });
 }
