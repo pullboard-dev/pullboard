@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/board */
 /** Job steps of items finished over 30 days ago move to a gzip archive beside the board and stay readable [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

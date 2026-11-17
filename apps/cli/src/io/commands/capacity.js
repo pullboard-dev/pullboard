@@ -19,6 +19,8 @@ import { withBoardRead } from '../entry.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { testCapacityReport } from '../../../../../packages/gate/index.js';
 import { readFileTimes } from '../../../../../packages/gate/index.js';
+import { fileTimesCoverage } from '../../../../../packages/gate/index.js';
+import { fileTimesCoverageNote } from '../../../../../packages/gate/index.js';
 import { trackedDefaultTestFiles } from '../../../../../packages/gate/index.js';
 import { pushGateReport } from '../hook/push.js';
 import { liveRunnerCount } from './runner.js';
@@ -28,7 +30,7 @@ function pushGateView(ctx) {
   let files = null;
   let times = {};
   try { files = trackedDefaultTestFiles(ctx.info.root, process.env); times = readFileTimes(ctx.info.root); } catch { /* files stay unknown */ }
-  return pushGateReport(files, times, ctx.config, liveRunnerCount(ctx));
+  return { ...pushGateReport(files, times, ctx.config, liveRunnerCount(ctx)), ...(files ? { timeCoverage: fileTimesCoverage(ctx.info.root, files, times) } : {}) };
 }
 
 /** Keep missing evidence visible in text just as null remains visible in JSON. */
@@ -67,7 +69,7 @@ export async function run(io, { first, second, rest, values }) {
     io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} samples`);
     for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
     io.say(`test-work: suite ${minutes(report.suite.minutes)}; per landing ${minutes(report.perLanding.minutes)}; ${report.perLanding.missingExecutions} missing executions, ${report.perLanding.unknownReceipts} unknown receipts`);
-    io.say(`push gate: ${report.pushGate.shards ?? 'unknown'} shards (${report.pushGate.why})`);
+    io.say(`push gate: ${report.pushGate.shards ?? 'unknown'} shards (${report.pushGate.why})${report.pushGate.timeCoverage ? `; ${fileTimesCoverageNote(report.pushGate.timeCoverage)}` : ''}`);
     io.say(`file classes: ${report.files.pure} pure, ${report.files.contract} contract, ${report.files.unknown} unknown; assumptions and cost details: --detail`);
     return 0;
   }
