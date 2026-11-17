@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellSandbox } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { applyLandingReceipt } from '../../../src/io/gate.js';
 import { offerLandingJob } from '../../../index.js';
 
@@ -14,6 +15,7 @@ const CONFIG = { trunk: { remote: '/trunk.git' } };
 /** A file board with item 7 accepted and one landing offered for it, the receipt applied, and the reopen note the builder reads. */
 function noteAfter(t, receipt) {
   const board = cellBoard(t, join(cellSandbox(t).dir, 'board.sqlite'), undefined, { real: true });
+  cellSeat(board, { lane: 'coordinator', path: '/fixture/coordinator' });
   board.db.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'landed', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
   board.db.prepare(`INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at)
     VALUES (7, 'core-2', 'ACCEPT', 'CRITERION_MET', 'fixture', ?, ?, ?, ?)`).run(MAIN, 'd'.repeat(64), MAIN, STAMP);
