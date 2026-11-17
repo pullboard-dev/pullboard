@@ -58,6 +58,8 @@ export const JUNIT_FILE_ROWS = {
     return name ? `tests/${name}.php` : null;
   },
   // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  // nim unittest's JUnit output names the test file module in classname (tcalc) and no file attribute; nimble keeps tests in tests/<name>.nim.
+  nim: row => (row.classname ? `tests/${row.classname.replace(/\.nim$/u, '')}.nim` : null),
   // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
   clojure: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null),
   perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
