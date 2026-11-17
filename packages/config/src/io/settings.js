@@ -80,6 +80,21 @@ export function overlapStaticProofEnabled() {
   return loadMachineSettings().gate?.overlapStaticProof === true;
 }
 
+/** Whether gate.excuseMainTimingReds is on (#9753): off by default; only an exact `true` turns it on. */
+export function excuseMainTimingReds() {
+  return loadMachineSettings().gate?.excuseMainTimingReds === true;
+}
+
+/** Whether submit.recoverFromJobRow is on (#9824): off by default; only an exact `true` turns it on. */
+export function recoverFromJobRow() {
+  return loadMachineSettings().submit?.recoverFromJobRow === true;
+}
+
+/** Whether gate.componentTier is on (#9786): off by default; only an exact `true` turns it on. */
+export function gateComponentTier() {
+  return loadMachineSettings().gate?.componentTier === true;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;
@@ -123,6 +138,11 @@ export function hunkFreshnessEnabled() {
 /** Whether the static check refuses a change that adds an unregistered test: off by default; only an exact `true` turns it on [C7,#9402]. */
 export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
+}
+
+/** Whether canary.directPush is on (#9746): off by default; only an exact `true` turns it on. */
+export function canaryDirectPushEnabled() {
+  return loadMachineSettings().canary?.directPush === true;
 }
 
 /** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
@@ -968,6 +988,11 @@ export function stallStopEnabled() {
 /** Whether landing.parallelGates is on (#9747): off by default; only an exact `true` turns it on. */
 export function parallelGatesEnabled() {
   return loadMachineSettings().landing?.parallelGates === true;
+}
+
+/** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
+export function asyncFetchEnabled() {
+  return loadMachineSettings().landing?.asyncFetch === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
