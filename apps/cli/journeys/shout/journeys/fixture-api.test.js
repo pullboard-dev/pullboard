@@ -17,15 +17,15 @@ import {
   boardOf,
 } from '../../../tests/fixtures/cockpit/harness.js';
 
-test('the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
+test('clause 1: the page uses only API v1 for state, code and every offered move [A3,N26,N27]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
-  box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
+  await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   build(box, alpha, 1, 'greeting.html');
   const commit = box.git(alpha.web, 'rev-parse', 'HEAD');
   const ref = `web/greeting.html:1@${commit}`;
-  box.run(alpha.web, 'shout', 'all', ref);
-  const ask = JSON.parse(box.run(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision', '--json')).id;
+  await box.inProcess(alpha.web, 'shout', 'all', ref);
+  const ask = JSON.parse(await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision', '--json')).id;
   const view = await startView(box);
   try {
     const page = await openPage(view);

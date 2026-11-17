@@ -42,7 +42,10 @@ import {
 import { refuseHeldElsewhere } from '../../../../../packages/seats/index.js';
 import {
   browserFreeChecksEnabled,
+  heavyLocalHoldEnabled,
+  loadMachineSettings,
 } from '../../../../../packages/config/index.js';
+import { withHeavyLocalWork } from '../../../../../packages/resources/index.js';
 import {
   frozenCheck,
   itemPolicy,
@@ -99,7 +102,9 @@ export async function run(io, { first, second, rest, values }) {
   await runStaticChecks(ctx.info.root, (item.item_claim_head ? itemPolicy(ctx.info.root, item) : mainPolicy(ctx.info.root)).config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, agent: caller, item: String(item.item_id), onWait: queuedItemLease(ctx, item, caller, 'build'), onBrowserFallback: browserAdmissionReporter(io, values.json) });
   const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(ctx.info.root, check, { onFallback: browserAdmissionReporter(io, values.json) });
   const shortEligible = Boolean(await explicitCheckFiles(ctx.info.root, check));
-  const run = await withGateSlot(ctx.info.root, flakeCheck(ctx, item, check, { ordered, withBoard, resourceAgent, checkAtCommit }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, agent: caller, item: String(item.item_id), kind: 'check', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, caller, 'build') });
+  const runCheck = () => withGateSlot(ctx.info.root, flakeCheck(ctx, item, check, { ordered, withBoard, resourceAgent, checkAtCommit }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, agent: caller, item: String(item.item_id), kind: 'check', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, caller, 'build') });
+  // With machine.holdHeavyAboveLoad on the whole check, runner or local, waits in the local resource line while this machine is over its load ceiling and says so; off, it runs as before [C7,#10078].
+  const run = heavyLocalHoldEnabled() ? await withHeavyLocalWork('pullboard check', runCheck, { settings: loadMachineSettings, root: ctx.info.root, agent: caller }) : await runCheck();
   refuseSandboxBlocked(run);
   io.result?.({ id: item.item_id, green: run.isGreen, seconds: run.seconds, check, by, receipt: run.profile?.receipt, report: run.isGreen ? '' : digestOf(run.output) });
   const timings = timingDigest(run.profile);

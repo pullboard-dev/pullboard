@@ -30,7 +30,7 @@ import { waitForFixtureMarker } from '../../../fixtures/landing-run.js';
 import { readFixtureJournalTail } from '../../../fixtures/landing-run.js';
 import { makeShardFixture } from '../../../fixtures/landing-run.js';
 
-test('a green landing run retries transient process snapshot timeouts [C7,V4]', async t => {
+test('runners.snapshot.a-green-landing-run-retries-transient: a green landing run retries transient process snapshot timeouts [C7,V4]', async t => {
   const fixture = makeShardFixture(t);
   const ready = join(fixture.root, 'snapshot-ready');
   const sampled = join(fixture.root, 'sample-timeout');
@@ -100,7 +100,7 @@ test('green file waits for the injected observation', async () => {
   assert.ok(await waitForFixtureIdentityDrain(JSON.parse(readFileSync(childIdentity, 'utf8'))), 'the owned detached child stopped before the gate returned');
 });
 
-test('a landing worker retries its startup identity snapshot timeout [C7,V4]', t => {
+test('runners.snapshot.a-landing-worker-retries-its-startup: a landing worker retries its startup identity snapshot timeout [C7,V4]', t => {
   const fixture = makeShardFixture(t);
   const injected = join(fixture.root, 'worker-snapshot-timeout');
   const ran = join(fixture.root, 'worker-test-ran');
@@ -161,7 +161,7 @@ if (process.argv[1] !== ${JSON.stringify(fixture.runner)}) {
   assert.match(result.stdout, /# fail 0/u);
 });
 
-test('a landing worker runs after persistent identity snapshot errors [C7,V4]', async t => {
+test('runners.snapshot.a-landing-worker-runs-after-persistent: a landing worker runs after persistent identity snapshot errors [C7,V4]', async t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-worker-identity-')));
   const bin = join(root, 'bin');
   const tests = join(root, 'test');

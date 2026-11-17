@@ -16,8 +16,8 @@ function giveBack(box, id, seat, reason) {
   store.release(box.board, id, seat.id, 'The fixture seat cannot build this item as scoped', reason);
 }
 
-for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
-  test(`clause 1 and clause 2: ${reason} stops next offering the item to the same lane and route; health names it [C7]`, async t => {
+test('moves.release-rescope.blocked-routed-elsewhere-ineligible-stop-offer-and-health-names-it: clause 1 and clause 2: BLOCKED, ROUTED_ELSEWHERE and INELIGIBLE each stop next offering the item to the same lane and route; health names it [C7]', async t => {
+  for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) await t.test(reason, async t => {
     const box = fixture(t);
     const id = box.add('Item that needs re-scope');
     giveBack(box, id, box.seats.actor, reason);
@@ -42,10 +42,10 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
     const again = await take(box);
     assert.equal(again.item.item_id, id, 'after the edit next offers the item again');
   });
-}
+});
 
-for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) {
-  test(`clause 3: ${reason} keeps today's behaviour and never marks the item for re-scope [C7]`, async t => {
+test('moves.release-rescope.other-budget-taken-over-keep-behaviour-and-never-mark-rescope: clause 3: OTHER, BUDGET and TAKEN_OVER keep the old behaviour and never mark the item for re-scope [C7]', async t => {
+  for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) await t.test(reason, async t => {
     const box = fixture(t);
     const id = box.add('Item given back for another reason');
     box.claim(id, box.seats.actor);
@@ -56,10 +56,10 @@ for (const reason of ['OTHER', 'BUDGET', 'TAKEN_OVER']) {
     const sibling = await take(box);
     assert.equal(sibling.item.item_id, id, `${reason} leaves the item offered to the same lane and route`);
   });
-}
+});
 
-for (const reset of ['refreeze', 'reroute']) {
-  test(`clause 1: ${reset} restores a scoped-out item through next [C7]`, async t => {
+test('moves.release-rescope.refreeze-and-reroute-restore-a-scoped-out-item-through-next: clause 1: refreeze and reroute each restore a scoped-out item through next [C7]', async t => {
+  for (const reset of ['refreeze', 'reroute']) await t.test(reset, async t => {
     const box = fixture(t);
     const id = box.add('Scope reset fixture');
     giveBack(box, id, box.seats.actor, 'ROUTED_ELSEWHERE');
@@ -73,9 +73,9 @@ for (const reset of ['refreeze', 'reroute']) {
     const selected = await next(box, { build: true });
     assert.equal(selected.item.item_id, id);
   });
-}
+});
 
-test('clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
+test('moves.release-rescope.a-named-blocker-must-land-before-its: clause 1: a named blocker must land before its blocked scope is offered again [C7]', async t => {
   const box = fixture(t, { reviewers: true });
   const blocker = box.add('Named blocker');
   const id = box.add('Waits for the blocker');
@@ -97,7 +97,7 @@ test('clause 1: a named blocker must land before its blocked scope is offered ag
   assert.equal(selected.item.item_id, id);
 });
 
-test('clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
+test('moves.release-rescope.scope-health-bounds-long-release-text-while: clause 2: scope health bounds long release text while retaining its complete detail [C7]', t => {
   const box = fixture(t);
   const id = box.add('Long scope explanation');
   box.claim(id, box.seats.actor);

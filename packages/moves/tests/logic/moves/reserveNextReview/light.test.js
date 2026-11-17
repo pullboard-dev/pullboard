@@ -22,7 +22,7 @@ async function lightSeatRunsNext(box) {
   return task;
 }
 
-test('active light work stays behind ready mid and strong work even when light is prioritized [N2,B13]', async t => {
+test('moves.reserve-next-review-light.active-light-work-stays-behind-ready-mid: active light work stays behind ready mid and strong work even when light is prioritized [N2,B13]', async t => {
   const box = fixture(t, { route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   const strong = box.add('Strong work', { route: 'strong', brief: brief('strong-work') });
@@ -43,7 +43,7 @@ test('active light work stays behind ready mid and strong work even when light i
   assert.equal(result.lightReserved?.item_id, light, 'the prioritized light item is kept for active light seats');
 });
 
-test('an active light seat does not block fallback when no strong work is ready [N2,B13]', async t => {
+test('moves.reserve-next-review-light.an-active-light-seat-does-not-block: an active light seat does not block fallback when no strong work is ready [N2,B13]', async t => {
   const box = fixture(t, { route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   const light = box.add('Only ready light work', { route: 'light', brief: brief('only-light') });
@@ -54,7 +54,7 @@ test('an active light seat does not block fallback when no strong work is ready 
   assert.ok(!result.lightReserved, 'nothing is kept back for active light seats');
 });
 
-test('light work is available freely after the light seat has been quiet for 30 minutes [N2,B13]', async t => {
+test('moves.reserve-next-review-light.light-work-is-available-freely-after-the: light work is available freely after the light seat has been quiet for 30 minutes [N2,B13]', async t => {
   const box = fixture(t, { route: 'light', reviewers: true });
   await lightSeatRunsNext(box);
   box.advance(31 * 60_000);
@@ -66,7 +66,7 @@ test('light work is available freely after the light seat has been quiet for 30 
   assert.ok(!result.lightReserved, 'nothing is kept back for active light seats');
 });
 
-test('a light seat review reservation also counts as next activity [N2,B13]', t => {
+test('moves.reserve-next-review-light.a-light-seat-review-reservation-also-counts: a light seat review reservation also counts as next activity [N2,B13]', t => {
   const box = fixture(t, { route: 'light', reviewers: true });
   const reviewerPath = join(box.root, 'light-review-seat');
   const reviewer = store.register(box.board, { lane: 'review', path: reviewerPath, route: 'light', family: 'Family Beta' });

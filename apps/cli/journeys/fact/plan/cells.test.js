@@ -23,6 +23,7 @@ import { refreshPlanCuts } from '../../../../../packages/codemap/index.js';
 import { checkMoved } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { itemCommands } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { readPlan } from '../../../../../packages/codemap/index.js';
+import { retiredProblems } from '../../../../../packages/codemap/index.js';
 import { stalePlanRows } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { orphanCutEdges } from '../../../../../packages/codemap/src/io/cells/scripts/plan.js';
 import { importCuts } from '../../../../../packages/codemap/index.js';
@@ -93,6 +94,10 @@ test('every moved path in the committed plan is in exactly one cell, with one ta
 test('no active plan row names a file deleted since the plan, so a later move never looks for it [C7,D3]', () => {
   const stale = stalePlanRows(ROOT, PLAN).map(({ file, row }) => `${file}: ${row[0]}`);
   assert.deepEqual(stale, [], 'retire each deleted file in the item that deletes it: node packages/codemap/src/io/cells/scripts/plan.js --retire <path>');
+});
+
+test('clause 1: no retired historical path exists or is imported on the committed tree, so main never refuses a submit CELLS_PLAN_RETIRED [C7,D3]', () => {
+  assert.deepEqual(retiredProblems(ROOT, PLAN), [], 'a file re-created at a retired target drops its retired row: edit packages/codemap/data/plan/cells.json');
 });
 
 test('no cut edge names a file without a plan row, so the cut reader and the submit gate never refuse main [C7,D3]', () => {

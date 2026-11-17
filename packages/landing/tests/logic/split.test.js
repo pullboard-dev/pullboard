@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { redBatchCosts } from '../../index.js';
 import { splitBeatsBisect } from '../../index.js';
 
-test('clause 1: with half the gate fixed and a small focus, a pair splits and four bisect [C7]', () => {
+test('landing.split.with-half-the-gate-fixed-and: clause 1: with half the gate fixed and a small focus, a pair splits and four bisect [C7]', () => {
   const pair = splitBeatsBisect({ items: 2, gateMs: 8 * 60_000 });
   assert.equal(pair.split, true, `pair: split ${pair.splitMs} vs bisect ${pair.bisectMs}`);
   const four = splitBeatsBisect({ items: 4, gateMs: 8 * 60_000 });
@@ -12,7 +12,7 @@ test('clause 1: with half the gate fixed and a small focus, a pair splits and fo
   assert.equal(four.levels, 2);
 });
 
-test('clause 2: the costs follow the measured fixed part and focus share [C7]', () => {
+test('landing.split.the-costs-follow-the-measured-fixed: clause 2: the costs follow the measured fixed part and focus share [C7]', () => {
   // No fixed cost and a tiny focus make focused halves nearly free, so even a pair bisects.
   assert.equal(splitBeatsBisect({ items: 2, gateMs: 600_000, fixedMs: 0, focusShare: 0.01 }).split, false);
   // A focus that is the whole plan makes a half cost a full gate, so a pair splits and so do four.
