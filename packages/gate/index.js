@@ -127,4 +127,3 @@ export { acceptedCellsIdentity, toolingIsPinned, readAcceptedCells, warmAccepted
 export { deriveTestRegistries } from './src/io/test/derived.js';
 export { runJourneyCheck } from "./src/io/test/journey-check.js";
 export { unregisteredNewTests } from "./src/logic/test-registry.js";
-export { evaluate as evaluateCla, appendSignatures as appendClaSignatures, readSignatures as readClaSignatures } from './src/io/check/cla.js';

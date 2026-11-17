@@ -1,7 +1,7 @@
 /** The landing step that records each new CLA signer of a landed pull request in the signatures file [C7,#3308]. */
-import { appendClaSignatures } from '../../../../gate/index.js';
-import { evaluateCla } from '../../../../gate/index.js';
-import { readClaSignatures } from '../../../../gate/index.js';
+import { appendClaSignatures } from '../../../../gate/light.js';
+import { evaluateCla } from '../../../../gate/light.js';
+import { readClaSignatures } from '../../../../gate/light.js';
 
 /**
  * Append one signature entry for each new signer of a landed pull request.
