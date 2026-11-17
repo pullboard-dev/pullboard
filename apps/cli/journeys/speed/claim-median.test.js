@@ -12,10 +12,11 @@ import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 const RUNS = 5;
 /**
  * The most the claim median may be, in ms. Audited exception to the 170 ms goal: the median measured on a runner at
- * machine load 3.5 was 720 ms (run 79965546-1d26-4c7a-b55d-384153b27c7b), 935 ms (run 30b2bd19-9095-422f-95ca-6311460d6d2f) and 1092 ms
- * (run aeb950fc-00c0-43b3-a9c9-a78426194033), so the bar keeps headroom over a loaded runner; the next cut is a new item (#5331).
+ * low load was 230 ms (run f8482834-2334-4d6a-8bc3-41072978eb56), so the bar is the audited low-load value of about
+ * 300 ms, as #10279 did for release. The earlier 2000 ms was a loaded-runner number and held nothing; the next cut is
+ * a new item (#5331).
  */
-const BAR_MS = 2000;
+const BAR_MS = 300;
 /** The median measured on a runner at low load (run f8482834-2334-4d6a-8bc3-41072978eb56), in ms, written in the case title. */
 const MEASURED_MS = 230;
 
