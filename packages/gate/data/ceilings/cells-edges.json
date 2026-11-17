@@ -5983,10 +5983,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/lease.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
     ],
