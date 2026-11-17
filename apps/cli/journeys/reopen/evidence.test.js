@@ -27,7 +27,7 @@ import {
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
+const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(e2e);
 
 test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
@@ -50,7 +50,12 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   await acceptItemLocal(box, entry);
   delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
-  moveMainPastSubmit(box);
+  // moveMainPastSubmit awaited: with in-process hooks on, the commit answers as a promise [C7,#10463].
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    const moved = await e2e.commitFile(box, box.repo, 'web/main-moved-0.txt', 'main moved past submit 0\n', 'chore(web): main moves past the submit 0 [G1]');
+    assert.equal(moved.status, 0, moved.stderr);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
   const base = box.git(box.repo, 'rev-parse', 'main');
   const landing = await box.runIn(box.repo, 'land', '--json');
   // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
