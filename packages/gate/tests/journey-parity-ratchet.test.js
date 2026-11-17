@@ -10,7 +10,7 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/merged/ratchet.test.js', cases: ['manual merged records quarantine count without refusing historical publication [C7,T12]'] }];
 
-test('clause 1: a sample of the ratchet journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-ratchet.a-sample-of-the-ratchet-journey-gives: clause 1: a sample of the ratchet journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
