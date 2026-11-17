@@ -183,6 +183,7 @@ export const MACHINE_DEFAULTS = {
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
+  'submit.composeAsObject': false,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
