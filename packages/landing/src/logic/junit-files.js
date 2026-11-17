@@ -37,6 +37,8 @@ export const JUNIT_FILE_ROWS = {
     const dir = (row.classname ?? '').split('/').slice(2).join('/');
     return dir ? `${dir}/` : null;
   },
+  // gradle test writes a dotted class in classname (com.example.CalcTest) and no file attribute; Kotlin sources sit under src/test/kotlin.
+  kotlin: row => (row.classname ? `src/test/kotlin/${row.classname.replace(/\./gu, '/')}.kt` : null),
 };
 
 /**
