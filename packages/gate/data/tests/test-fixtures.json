@@ -100,7 +100,7 @@
     "hand-policy": 1,
     "raw-board": 3
   },
-  "apps/cli/journeys/baseline/check-part2.test.js": {
+  "apps/cli/tests/fixtures/check-mask.js": {
     "raw-board": 1
   },
   "packages/gate/tests/io/admission/cpu/load.test.js": {

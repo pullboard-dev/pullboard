@@ -1,18 +1,7 @@
 /** Coordinator-owned check commands and explicit caller consent [V2,N23]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeBoard } from '../../../../packages/store/index.js';
-import { validateItemAddition } from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
-
-/** Return the refusal code a check gets from the same validator add and edit use, or null when it passes [C7,V4]. */
-function maskRefusal(check) {
-  const board = openBoard(':memory:');
-  try {
-    validateItemAddition(board, { by: 'coordinator', lane: 'core', title: 'Mask probe', criterion: 'the proof passes', route: 'strong', check });
-    return null;
-  } catch (error) { return error.code; } finally { closeBoard(board); }
-}
+import { maskRefusal } from '../../tests/fixtures/check-mask.js';
 
 test('a bare pipefail mention in an echo does not stop a masked pipe being refused [C7,V4]', () => {
   assert.equal(maskRefusal('echo pipefail; node -e "process.exit(1)" | tail -5'), 'CHECK_MASKS_EXIT');

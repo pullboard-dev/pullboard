@@ -26,6 +26,7 @@ import { addItem } from '../../../../packages/store/index.js';
 import { closeBoard } from '../../../../packages/store/index.js';
 import { validateItemAddition } from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
+import { maskRefusal } from '../../tests/fixtures/check-mask.js';
 import { prepareCheckBaseline } from '../../../../packages/gate/src/io/check/baseline.js';
 import { removeFixtureDirectory } from '../../../../packages/gate/tests/fixtures/diagnostics.js';
 
@@ -350,15 +351,6 @@ test('a captured-output check is accepted [C7,V4]', () => {
     assert.doesNotThrow(() => validateItemAddition(board, { by: 'coordinator', lane: 'core', title: 'Captured proof', criterion: 'the proof passes', route: 'strong', check: captured }));
   } finally { closeBoard(board); }
 });
-
-/** Return the refusal code a check gets from the same validator add and edit use, or null when it passes [C7,V4]. */
-function maskRefusal(check) {
-  const board = openBoard(':memory:');
-  try {
-    validateItemAddition(board, { by: 'coordinator', lane: 'core', title: 'Mask probe', criterion: 'the proof passes', route: 'strong', check });
-    return null;
-  } catch (error) { return error.code; } finally { closeBoard(board); }
-}
 
 test('an uncaptured grep that decides the exit is refused [C7,V4]', () => {
   assert.equal(maskRefusal('node -e "process.exit(1)" | grep -q x'), 'CHECK_MASKS_EXIT');
