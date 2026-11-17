@@ -1193,9 +1193,6 @@
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/assumptions.test.js": {
     "launch": 1
   },
