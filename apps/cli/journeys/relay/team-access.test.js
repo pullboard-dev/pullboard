@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import {
+  existsSync,
+  mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -38,6 +40,11 @@ test('clause 1: a used machine stays signed in, and clause 2: health warns befor
   const box = await relayClientFixture(t);
   await box.link();
   const { auth, root } = box;
+  // Renewal after a sync is behind relay.renewAfterSync, default off; this machine opts in.
+  const machineSettings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  const saved = existsSync(machineSettings) ? JSON.parse(readFileSync(machineSettings, 'utf8')) : {};
+  writeFileSync(machineSettings, JSON.stringify({ ...saved, relay: { ...saved.relay, renewAfterSync: true } }));
   const DAY = 86_400_000;
   let offset = 0;
   /** The relay auth clock: real time plus every advance this case applies. */
@@ -169,7 +176,7 @@ test('clause 1: successful sync tolerates the legacy relay renewal endpoint refu
   const state = { url, board, machine: 'legacy-machine', token: machine.token, tokenId: machine.id, tokenExpires: machine.expires };
   writeFileSync(file, JSON.stringify(state), { mode: 0o600 });
   const before = readFileSync(file);
-  await assert.doesNotReject(renewAfterSync(file, state, { err() {} }), 'post-sync maintenance must not turn an old relay successful sync into a failure');
+  await assert.doesNotReject(renewAfterSync(file, state, { err() {}, renewAfterSync: true }), 'post-sync maintenance must not turn an old relay successful sync into a failure');
   assert.ok(paths.includes('/auth/credentials/renew'));
   assert.equal(verified, 2, 'both old-server calls verified the real private machine credential');
   assert.deepEqual(readFileSync(file), before, 'unsupported renewal cannot invent expiry or replace credentials');
