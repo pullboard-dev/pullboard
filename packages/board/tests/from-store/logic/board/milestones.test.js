@@ -82,7 +82,7 @@ function milestone(document, name) {
   return document.find((entry) => entry.name === name);
 }
 
-test('[N26] a milestone ships what landed and moves the rest', (t) => {
+test('board.milestones.milestone-ships-what-landed-and-moves: [N26] a milestone ships what landed and moves the rest', (t) => {
   const box = fixture(t);
   const landed = box.item('Landed work', 'landed');
   const accepted = box.item('Accepted work', 'accepted');
@@ -165,7 +165,7 @@ test('[N26] a milestone ships what landed and moves the rest', (t) => {
   assert.equal(replicas[0], replicas[1], `every replica stores the same target: ${JSON.stringify(replicas)}`);
 });
 
-test('[N26] milestone ship --next names where the unlanded items go', (t) => {
+test('board.milestones.milestone-ship-next-names-where-the: [N26] milestone ship --next names where the unlanded items go', (t) => {
   const box = fixture(t);
   const open = box.item('Open work', 'open');
   box.add('A', [open]);
@@ -179,7 +179,7 @@ test('[N26] milestone ship --next names where the unlanded items go', (t) => {
   assert.equal(box.moves(open)[0].detail.to, 'C', 'the thread names the --next milestone');
 });
 
-test('[N26] milestone ship leaves external references in place and names them as not moved', (t) => {
+test('board.milestones.milestone-ship-leaves-external-references-place: [N26] milestone ship leaves external references in place and names them as not moved', (t) => {
   const box = fixture(t);
   box.add('JSON release', ['other-repo#17', 'third-repo#29']);
   const shipped = box.ship('JSON release');
@@ -192,7 +192,7 @@ test('[N26] milestone ship leaves external references in place and names them as
   assert.deepEqual(box.ship('Text release').notMoved, ['other-repo#31', 'third-repo#33'], 'every foreign reference that stayed in place is named');
 });
 
-test('[N26,H16] engine 44 cannot ship a milestone or set its target', (t) => {
+test('board.milestones.engine-44-cannot-ship-milestone-set: [N26,H16] engine 44 cannot ship a milestone or set its target', (t) => {
   const box = fixture(t);
   box.add('A');
   box.add('B');
@@ -217,7 +217,7 @@ test('[N26,H16] engine 44 cannot ship a milestone or set its target', (t) => {
 });
 
 /** Supported older clients can add before shipment, then obey the receiver's shipped state. */
-test('[N26,H16] an older-engine client cannot add work after a milestone ships', (t) => {
+test('board.milestones.older-engine-client-cannot-add-work: [N26,H16] an older-engine client cannot add work after a milestone ships', (t) => {
   const board = cellBoard(t, ':memory:');
   store.board_ensureCoordinator(board, '/milestone-legacy');
   const id = cellItem(board, { lane: 'core', title: 'Still owed', criterion: 'An obligation remains recorded', specIds: [] }).item_id;
@@ -245,7 +245,7 @@ test('[N26,H16] an older-engine client cannot add work after a milestone ships',
   assert.deepEqual(store.milestones(board)[1].items, [id], 'the legacy addition before shipment remains');
 });
 
-test('[N22,B13] ordering three of a hundred items leads both queue and roadmap after named pins', t => {
+test('board.milestones.ordering-three-hundred-items-leads-both: [N22,B13] ordering three of a hundred items leads both queue and roadmap after named pins', t => {
   const box = fixture(t);
   const ids = Array.from({ length: 100 }, (_, n) => box.item('Ranked item ' + n, 'open'));
   box.add('hundred', ids);
@@ -272,7 +272,7 @@ test('[N22,B13] ordering three of a hundred items leads both queue and roadmap a
   assert.equal(new Set(box.queueIds()).size, 100, 'ranking and pinning preserve every milestone member');
 });
 
-test('[N22,B13] old recorded pin moves retain append semantics and current pins lead', t => {
+test('board.milestones.old-recorded-pin-moves-retain-append: [N22,B13] old recorded pin moves retain append semantics and current pins lead', t => {
   const box = fixture(t), ids = ['first', 'second', 'third'].map(title => box.item(title, 'open'));
   addMilestone(box.board, { agentId: 'coordinator', name: 'replay-pins', items: ids, reason: 'Fixture replay coverage' });
   box.board.executionEngineVersion = MILESTONE_QUEUE_ORDER_ENGINE - 1;

@@ -32,7 +32,7 @@ function fixture(t) {
   };
 }
 
-test('clause 1: next --take offers an item whose files overlap another claim, with an overlap note [C7]', t => {
+test('board.overlapping.next-take-offers-item-whose-files: clause 1: next --take offers an item whose files overlap another claim, with an overlap note [C7]', t => {
   const box = fixture(t);
   const held = box.add('Held by the builder');
   box.claim(held);
@@ -42,7 +42,7 @@ test('clause 1: next --take offers an item whose files overlap another claim, wi
   assert.match(pick.reasons.join('\n'), /overlap/);
 });
 
-test('clause 2: next never returns nothing-eligible while an unheld item claim would accept exists [C7]', t => {
+test('board.overlapping.next-never-returns-nothing-eligible-while: clause 2: next never returns nothing-eligible while an unheld item claim would accept exists [C7]', t => {
   const box = fixture(t);
   box.claim(box.add('First held'));
   const open = box.add('Still claimable');

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -48,7 +49,7 @@ export function submitGatePlan(root, config, options) {
 export async function submitGateAdmission(root) { record(root, 'admission'); return { browser: false, gui: false }; }
 `,
   'packages/landing/index.js': 'export function withMainCheckout() {}\n',
-  'packages/codemap/src/io/cells/scripts/cache.js': 'export function transferredCellsInventories() { return null; }\n',
+  'apps/cli/src/io/cells/cache.js': 'export function transferredCellsInventories() { return null; }\n',
   'bin/cells-submit-checks.js': `import { record } from './record.js';
 export async function requireSubmitCells(root) { record(root, 'cells'); return { cells: ['fixture'], existingCuts: [] }; }
 `,
@@ -61,13 +62,23 @@ export async function holdDoctrineAsync(root) { record(root, 'doctrine'); return
   'apps/cli/src/io/static/checks.js': `import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static');
 `,
-  // The proof holds its job open a moment, so the host is sampled while all the gates run at once.
+  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only under a loopback runner's job, so an item add or inline gate leaves no file [C7,#7301].
+  'bin/profile.js': `import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+export function writeProfile(role) { if (process.env.PULLBOARD_FIXTURE_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
+`,
+  // The proof holds its job open a moment, so the host is sampled while all the gates run at once; it writes the ACCEPT timing profile.
   'bin/proof.js': `import { record } from './record.js';
+import { writeProfile } from './profile.js';
 record(process.cwd(), 'proof');
+writeProfile('proof');
 Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
 `,
   'DOCTRINE.md': '# Doctrine\n\n## D · Rules\n- D1 [approved, must] The fixture rule holds. | gate: check true | count: 0\n',
 };
+
+/** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. Why inline: a bar naming a file path must be one a lane owns, so the check names none. */
+export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_FIXTURE_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
 
 /** Processes on this host whose command line names the board's sandbox: a dispatcher, driver or worker the submit left behind. */
 export function hostProcesses(dir) {
@@ -131,7 +142,7 @@ function quick(box, cwd, ...args) {
  */
 export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
   const claimed = quick(box, box.web, 'claim', String(id), '--json');
-  assert.equal(claimed.code, 0, claimed.err);
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   if (compose) assert.equal(quick(box, box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
@@ -237,6 +248,23 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
 }
 
 /**
+ * A gate receipt's phase rows with `profileKept` on each row whose timing profile sits beside its kept log in `folder`:
+ * `<kept>.profile.json`, as the gate writes it. A row with no kept log, or no profile there, comes back unchanged.
+ * Why: the shipped runner names the profiles it kept the same way, and the board reads them back by role [C7,#7301].
+ *
+ * @param {string} folder - The job's kept folder.
+ * @param {{ phases?: object[] }} gate - The parsed gate receipt.
+ * @returns {object} The receipt, with profileKept on the rows whose profile is in the folder.
+ */
+function keepProfiles(folder, gate) {
+  if (!Array.isArray(gate?.phases)) return gate;
+  return { ...gate, phases: gate.phases.map(phase => {
+    const name = typeof phase?.kept === 'string' ? `${phase.kept}.profile.json` : null;
+    return name && existsSync(join(folder, name)) ? { ...phase, profileKept: name } : phase;
+  }) };
+}
+
+/**
  * The board's job queue served on loopback, as the board API serves it, and a small runner client of it: claim, read the
  * request, fetch the candidate from the trunk remote into its own cache, run the job's argv with the request's input
  * on stdin, and post one receipt. Why in the fixture: the shipped runner loop is #5690's; the pull journeys share this one client and stay off it.
@@ -260,7 +288,8 @@ export async function loopbackRunner(t, box) {
   /** Run a taken job's argv in its checkout and post its one receipt; observe() runs on each event the job's process emits. */
   const run = async ({ held, input, folder }, observe = () => {}) => {
     const { run: argv, input: stdin } = input.request;
-    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job }, stdio: ['pipe', 'pipe', 'pipe'] });
+    // The job's kept folder is its checkout, so each phase's sanitized log and timing profile land beside each other there [C7,#7301].
+    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job, PULLBOARD_RUNNER_OUTPUT: folder }, stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
     // Each step a part records is written while the job's processes are alive, so a sample there sees them running.
     const steps = watch(join(folder, '.git'), observe);
@@ -271,9 +300,10 @@ export async function loopbackRunner(t, box) {
     const status = await new Promise(done => child.once('close', done)).finally(() => steps.close());
     const line = Buffer.concat(out).toString('utf8').split('\n').find(row => row.startsWith(GATE_RECEIPT));
     assert.ok(line, `job ${held.job} printed no receipt:\n${Buffer.concat(out).toString('utf8').slice(-4000)}`);
-    const gate = JSON.parse(line.slice(GATE_RECEIPT.length));
-    await call({ action: 'receipt', ...held, receipt: { status, gate } });
-    return { job: held.job, folder, status, gate };
+    const gate = keepProfiles(folder, JSON.parse(line.slice(GATE_RECEIPT.length)));
+    const receipt = { status, gate, output: { runner: held.runner, folder } };
+    await call({ action: 'receipt', ...held, receipt });
+    return { job: held.job, folder, status, gate, receipt };
   };
   return { board, take, run };
 }

@@ -50,7 +50,7 @@ function verdictAt(seed, id, engine) {
   return { ...prepareEngineMove(seed, 'verify', [id, verdict], { id: `cross-lane-verdict-${engine}` }), engine };
 }
 
-test('an unreserved cross-lane verdict is review from its engine on, and older ones replay refused [E21,V2,H16]', (t) => {
+test('board.review-grant-replay.unreserved-cross-lane-verdict-review-from: an unreserved cross-lane verdict is review from its engine on, and older ones replay refused [E21,V2,H16]', (t) => {
   const { board: seed, id } = submitted(t);
   const order = { sequence: 1, at: AT };
 

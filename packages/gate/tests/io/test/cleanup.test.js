@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { removeTestSandbox } from '../../../index.js';
 
-test('a sandbox whose removal fails is reported, not thrown, so the run stays green [C7]', t => {
+test('gate.io-test-cleanup.a-sandbox-whose-removal-fails-is: a sandbox whose removal fails is reported, not thrown, so the run stays green [C7]', t => {
   const sandbox = mkdtempSync(join(tmpdir(), 'pb-sandbox-cleanup-'));
   const locked = join(sandbox, 'locked');
   mkdirSync(locked);
@@ -27,7 +27,7 @@ test('a sandbox whose removal fails is reported, not thrown, so the run stays gr
   assert.ok(existsSync(sandbox), 'the leftover stays for the sweep');
 });
 
-test('a removable sandbox is removed and nothing is logged [C7]', () => {
+test('gate.io-test-cleanup.a-removable-sandbox-is-removed-and: a removable sandbox is removed and nothing is logged [C7]', () => {
   const sandbox = mkdtempSync(join(tmpdir(), 'pb-sandbox-cleanup-'));
   const lines = [];
   assert.equal(removeTestSandbox(sandbox, line => lines.push(line)), true);

@@ -1,6 +1,6 @@
 /** Relay text output stays separate from CLI dispatch and encrypted transport [H15,H17]. */
 import { formatSnapshotLimit } from '../relay.js';
-import { relayStorageLine } from '../../logic/relay/storage.js';
+import { relayStorageLine } from './pause.js';
 import { RECOVER_COMMAND } from '../../logic/relay/fields.js';
 
 /** Preserve status's short relay summary, any pending-size finding and the authenticated account quota. */

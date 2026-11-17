@@ -62,7 +62,9 @@ export {
   tableReplayEnabled,
   overlapStaticProofEnabled,
   excuseMainTimingReds,
+  pendingFromJobRow,
   recoverFromJobRow,
+  residentChecks,
   gateComponentTier,
   landingJunitFailures,
   gateJunitReport,
@@ -86,6 +88,7 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  adapterLintEnvEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
@@ -266,7 +269,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
+export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, reachableDispatcherOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';
