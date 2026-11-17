@@ -62,6 +62,7 @@ export {
   tableReplayEnabled,
   overlapStaticProofEnabled,
   excuseMainTimingReds,
+  pendingFromJobRow,
   recoverFromJobRow,
   gateComponentTier,
   landingJunitFailures,

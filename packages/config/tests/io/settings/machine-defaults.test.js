@@ -180,6 +180,7 @@ const BEFORE = {
   'stats.recordCoordinatorUsage': false,
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
+  'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
   'test.inProcessHooks': false,
