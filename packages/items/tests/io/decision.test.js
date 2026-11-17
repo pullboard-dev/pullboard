@@ -20,7 +20,7 @@ function signature(value) {
   return createHmac('sha256', 'private-fixture-authority').update(JSON.stringify(canonical(body))).digest('hex');
 }
 
-test('a decision hand-off returns one matching answer to its source board, once [B21,H16]', async t => {
+test('items.decision.handoff-once: a decision hand-off returns one matching answer to its source board, once [B21,H16]', async t => {
   assert.equal(existsSync(new URL('../../src/io/decision.js', import.meta.url)), true,
     'the durable decision hand-off contract must exist');
   const { decisionHandoffs, optionsDigest } = await import("../../src/io/decision.js");

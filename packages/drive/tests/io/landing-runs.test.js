@@ -7,7 +7,7 @@ import { driveLanding } from '../../index.js';
 /** The job ids and the step each is at, in a database. */
 const jobs = db => db.prepare('SELECT job_id, job_step FROM job').all().map(row => `${row.job_id}:${row.job_step}`);
 
-test('clause 1: with a runs handle given (runs_store on), driveLanding writes its job rows only to the runs file [P7,C7,#9081]', async t => {
+test('drive.landing-runs.with-a-runs-handle-given: clause 1: with a runs handle given (runs_store on), driveLanding writes its job rows only to the runs file [P7,C7,#9081]', async t => {
   const board = fixtureBoard(t);
   // A second database with the same job tables stands in for the runs file, held the way boardRunsHolder holds it.
   const runs = { db: fixtureBoard(t).db };
@@ -17,7 +17,7 @@ test('clause 1: with a runs handle given (runs_store on), driveLanding writes it
   assert.deepEqual(jobs(board.db), [], 'the board holds no landing job row');
 });
 
-test('clause 2: with no runs handle (runs_store off), driveLanding writes the same board job rows as on main [P7,C7,#9081]', async t => {
+test('drive.landing-runs.with-no-runs-handle-runs: clause 2: with no runs handle (runs_store off), driveLanding writes the same board job rows as on main [P7,C7,#9081]', async t => {
   const board = fixtureBoard(t);
   await driveLanding(board.db, { owner: 'lander', id: 'land:run:off', runs: null, run: async () => ({ landed: [] }) });
   await driveLanding(board.db, { owner: 'lander', id: 'land:run:default', run: async () => ({ landed: [] }) });

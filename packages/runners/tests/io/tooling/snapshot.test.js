@@ -23,7 +23,7 @@ function tree(t, files) {
   return { root: scratch.root, write: scratch.write };
 }
 
-test('a 0.9.3-layout tree holding src/runners.js and src/runner-worker.js pins both as before [C7,V32]', t => {
+test('runners.snapshot.a-0-9-3-layout-tree: a 0.9.3-layout tree holding src/runners.js and src/runner-worker.js pins both as before [C7,V32]', t => {
   const f = tree(t, {
     'src/runner-worker.js': "import '../packages/leaf/src/value.js';\n",
     'src/runners.js': 'export const controller = true;\n',
@@ -38,7 +38,7 @@ test('a 0.9.3-layout tree holding src/runners.js and src/runner-worker.js pins b
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED');
 });
 
-test('a tree without the old paths pins the controller from packages/runners and the worker from its cell [C7,V32]', t => {
+test('runners.snapshot.a-tree-without-the-old-paths: a tree without the old paths pins the controller from packages/runners and the worker from its cell [C7,V32]', t => {
   const f = tree(t, {
     'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
     'packages/runners/index.js': 'export const door = true;\n',
@@ -52,7 +52,7 @@ test('a tree without the old paths pins the controller from packages/runners and
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED');
 });
 
-test('the controller providers are the packages its real imports reach, and their bytes move the pin [C7,V32]', t => {
+test('runners.snapshot.the-controller-providers-are-the-packages: the controller providers are the packages its real imports reach, and their bytes move the pin [C7,V32]', t => {
   const f = tree(t, {
     'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
     'apps/runner/src/io/controller.js': "import '../../../../packages/runners/index.js';\nimport '../../../../packages/provider/index.js';\n",
@@ -66,7 +66,7 @@ test('the controller providers are the packages its real imports reach, and thei
   assert.throws(() => currentRunnerTooling(f.root, loaded), error => error.code === 'RUNNER_TOOLING_CHANGED', 'a provider body the controller imports changes the pin');
 });
 
-test('a directory URL in the controller closure is skipped, not refused as RUNNER_TOOLING_FILES on . [C7,V32]', t => {
+test('runners.snapshot.a-directory-url-in-the-controller: a directory URL in the controller closure is skipped, not refused as RUNNER_TOOLING_FILES on . [C7,V32]', t => {
   const f = tree(t, {
     'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
     'packages/runners/index.js': "export const own = new URL('../..', import.meta.url);\nexport const src = new URL('../leaf/src', import.meta.url);\n",
@@ -76,13 +76,13 @@ test('a directory URL in the controller closure is skipped, not refused as RUNNE
   assert.ok(currentRunnerTooling(f.root, loaded));
 });
 
-test('capture succeeds on the real tree [C7,V32]', () => {
+test('runners.snapshot.capture-succeeds-on-the-real-tree: capture succeeds on the real tree [C7,V32]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const loaded = captureRunnerTooling(root);
   assert.ok(loaded.controller.length > 0 && loaded.files);
 });
 
-test('dynamic-base URLs, computed requires and runtime-only files are skipped, literal ones kept [C7,V32]', t => {
+test('runners.snapshot.dynamic-base-urls-computed-requires-and: dynamic-base URLs, computed requires and runtime-only files are skipped, literal ones kept [C7,V32]', t => {
   const f = tree(t, {
     'apps/runner/runner-worker.js': "import '../../packages/leaf/src/value.js';\n",
     'packages/runners/index.js': "import { createRequire } from 'node:module';\nimport { pathToFileURL } from 'node:url';\nconst r = createRequire(import.meta.url);\nr('../leaf/src/value.js');\nexport const a = new URL('x.js', pathToFileURL('/tmp/'));\nexport const m = new URL('../../.pullboard-runner-source.json', import.meta.url);\nexport const c = (n) => r(n);\n",

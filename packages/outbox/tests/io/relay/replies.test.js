@@ -18,7 +18,7 @@ function lostReply(t, relay, lost) {
   return machine;
 }
 
-test('lost-reply recovery: a move the relay took is recovered from the ordered log, never posted again [H3,H16,V1,V17]', async t => {
+test('outbox.replies.lost-reply-recovered: lost-reply recovery: a move the relay took is recovered from the ordered log, never posted again [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const machine = lostReply(t, relay, move('lost-add', 'addItem', 'web', 'Lost clone reply'));
@@ -35,7 +35,7 @@ test('lost-reply recovery: a move the relay took is recovered from the ordered l
   assert.equal(machine.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key LIKE 'relay_receipt_%'").get().n, 1);
 });
 
-test('lost-reply recovery: every operation whose reply is lost is recovered once, so submit, verify, edit and merge replies are not re-sent [H3,H16,V1,V17]', async t => {
+test('outbox.replies.every-lost-reply-once: lost-reply recovery: every operation whose reply is lost is recovered once, so submit, verify, edit and merge replies are not re-sent [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const operations = [['appendFact', 2, 'Gate job g1 offered for #2'], ['verify', 2, 'accept'], ['editItem', 1, 'brief'], ['merged', 2, 'lost-merge-reference']];
@@ -49,7 +49,7 @@ test('lost-reply recovery: every operation whose reply is lost is recovered once
   }
 });
 
-test('outcome ordering: the lost reply of a refused claim surfaces the relay\'s original rule after the winner, once [H3,H16,V1,V17]', async t => {
+test('outbox.replies.refused-claim-surfaces-rule: outcome ordering: the lost reply of a refused claim surfaces the relay\'s original rule after the winner, once [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const winner = replica(t, relay);
@@ -71,7 +71,7 @@ test('outcome ordering: the lost reply of a refused claim surfaces the relay\'s 
   assert.deepEqual(winner.refusals, loser.refusals, 'both replicas record the same refusal at the same sequence');
 });
 
-test('outcome ordering: three replicas fed one relay order apply the same prefix and agree on every receipt [H3,H16,V1,V17]', async t => {
+test('outbox.replies.replicas-agree: outcome ordering: three replicas fed one relay order apply the same prefix and agree on every receipt [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const replicas = [replica(t, relay), replica(t, relay), replica(t, relay)];
@@ -90,7 +90,7 @@ test('outcome ordering: three replicas fed one relay order apply the same prefix
   assert.deepEqual(replicas[0].refusals.map(entry => [entry.id, entry.error.code]), [['m2', 'HELD']], 'the second claim of the item is the one refused');
 });
 
-test('receipt replay: a recovered descriptor with no durable receipt stays pending and is never taken as an outcome [H3,H16,V1,V17]', async t => {
+test('outbox.replies.no-receipt-stays-pending: receipt replay: a recovered descriptor with no durable receipt stays pending and is never taken as an outcome [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const machine = replica(t, relay);
@@ -105,7 +105,7 @@ test('receipt replay: a recovered descriptor with no durable receipt stays pendi
   assert.equal(relay.posts, 0);
 });
 
-test('receipt replay: a receipt for a different sealed record is not this move\'s reply, so a refusal of the same id is not recovered [H3,H16,V1,V17]', async t => {
+test('outbox.replies.other-record-receipt-ignored: receipt replay: a receipt for a different sealed record is not this move\'s reply, so a refusal of the same id is not recovered [H3,H16,V1,V17]', async t => {
   useBoardKey(t);
   const relay = standInRelay();
   const machine = replica(t, relay);

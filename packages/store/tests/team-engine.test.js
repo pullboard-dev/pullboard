@@ -27,7 +27,7 @@ import {
   ENGINE_VERSION,
   VERDICT_REVIEW_ENGINE,
 } from '../../state/index.js';
-import { unpackRelease } from '../../../apps/cli/tests/fixtures/release/archive.js';
+import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
 import { AGENT_GRANT_ENGINE } from '../../state/index.js';
 
 const BASE = 'a'.repeat(40);

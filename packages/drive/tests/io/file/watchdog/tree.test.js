@@ -10,8 +10,8 @@ import { after } from 'node:test';
 import { driveOnce } from '../../../../index.js';
 import { createJob } from '../../../../../jobs/index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
-import { privateFixtureFiles } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { listTreeObjects } from '../../../../../pin/index.js';
 import { packObjects } from '../../../../../pin/index.js';
 import { treeOf } from '../../../../../pin/index.js';
@@ -54,7 +54,7 @@ function localRunner(name) {
   return { transport, runner: { host: name, root } };
 }
 
-test('clause 1: a gate sends the candidate tree id and the runner materialises only the objects it lacks, a second gate on the same base sending only the changed objects [C7]', async () => {
+test('drive.tree.a-gate-sends-the-candidate: clause 1: a gate sends the candidate tree id and the runner materialises only the objects it lacks, a second gate on the same base sending only the changed objects [C7]', async () => {
   const { repo, first, second } = repoWithTwoBases();
   const { transport, runner } = localRunner('runner-a');
   try {
@@ -86,7 +86,7 @@ test('clause 1: a gate sends the candidate tree id and the runner materialises o
   } finally { transport.close(); }
 });
 
-test('clause 1: a bad tree id or a tree the sender does not hold is refused with a code [C7]', async () => {
+test('drive.tree.a-bad-tree-id-or: clause 1: a bad tree id or a tree the sender does not hold is refused with a code [C7]', async () => {
   const { repo } = repoWithTwoBases();
   const { transport, runner } = localRunner('runner-b');
   try {
@@ -103,7 +103,7 @@ async function resultWritten(transport, runner, job, shard) {
   assert.equal(reply.status, 0, `no result file at ${file}`);
 }
 
-test('clause 1: the production driver driveOnce runs real gates that send source by tree id, the second gate on the same base sending only the changed objects [C7]', async t => {
+test('drive.tree.the-production-driver-driveonce-runs: clause 1: the production driver driveOnce runs real gates that send source by tree id, the second gate on the same base sending only the changed objects [C7]', async t => {
   const { repo, firstCommit, secondCommit, first, second } = repoWithTwoBases();
   const { transport, runner } = localRunner('runner-c');
   const board = fixtureBoard(t);
