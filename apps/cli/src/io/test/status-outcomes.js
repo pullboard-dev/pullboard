@@ -3,7 +3,7 @@ import { closeSync } from 'node:fs';
 import { fstatSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
-import { allTestOutcomes } from '../../../../../packages/gate/index.js';
+import { allTestOutcomes } from '../../../../../packages/gate/light.js';
 
 /** The most of a log's end that is read: the outcome frames sit at the end, so a long log is never read whole. */
 const READ_BYTES = 4 * 1024 * 1024;
