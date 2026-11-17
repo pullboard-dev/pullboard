@@ -3,7 +3,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { cachedAffectedGraph } from './graph/cache.js';
 import { DOCS_TREE_INPUT } from './inputs.js';
 import { isSourceCellLine } from './inputs.js';
@@ -677,16 +676,21 @@ export function selectDeclaredSuites(changed, suites) {
  * @param {string} root
  * @param {string} unit - The gate.selectionUnit value.
  * @param {string[]} changed - Repo-relative changed paths.
- * @returns {{full:boolean, reason:string, files:string[]}} `files` holds the units.
+ * @returns {Promise<{full:boolean, reason:string, files:string[]}>} `files` holds the units.
  */
-function selectUnits(root, unit, changed) {
-  // Loaded here, never at import: only a non-file selection unit needs it, so a cold read command skips the module [C7].
-  const { changedUnitManifest, selectionUnits } = createRequire(import.meta.url)('../../logic/selection-unit.js');
-  if (!changed.length) return { full: true, reason: 'no changed path to select units for', files: [] };
-  const manifest = changedUnitManifest(changed);
-  if (manifest) return { full: true, reason: `SELECTION_UNIT_MANIFEST: ${manifest} changes how every unit builds`, files: [] };
-  const picked = selectionUnits(unit, changed, selectionGit(root, ['ls-files', '-z']).split('\0').filter(Boolean));
-  return { full: picked.full, reason: picked.reason ?? '', files: picked.units };
+async function selectUnits(root, unit, changed) {
+  try {
+    // Loaded here, never at import: only a non-file selection unit needs it, so a cold read command skips the module [C7].
+    const { changedUnitManifest, selectionUnits } = await import('../../logic/selection-unit.js');
+    if (!changed.length) return { full: true, reason: 'no changed path to select units for', files: [] };
+    const manifest = changedUnitManifest(changed);
+    if (manifest) return { full: true, reason: `SELECTION_UNIT_MANIFEST: ${manifest} changes how every unit builds`, files: [] };
+    const picked = selectionUnits(unit, changed, selectionGit(root, ['ls-files', '-z']).split('\0').filter(Boolean));
+    return { full: picked.full, reason: picked.reason ?? '', files: picked.units };
+  } catch (error) {
+    if (error?.code === 'MAIN_FACTS_BUSY') throw error;
+    return { full: true, reason: `import selection could not be computed: ${error.message}`, files: [] };
+  }
 }
 
 /**
@@ -696,8 +700,8 @@ function selectUnits(root, unit, changed) {
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean, unit?:string}} options - namedImports defaults to gate.namedImportSelection; unit is gate.selectionUnit, and any value but file returns units from the changed paths instead of test files [C7].
- * @returns {{full:boolean, reason:string, files:string[]}}
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean, unit?:string}} options - namedImports defaults to gate.namedImportSelection; unit is gate.selectionUnit, and any value but file returns units from the changed paths instead of test files, as a Promise because the unit module loads lazily [C7].
+ * @returns {{full:boolean, reason:string, files:string[]}|Promise<{full:boolean, reason:string, files:string[]}>}
  */
 export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports, unit = 'file' }) {
   let files = [];

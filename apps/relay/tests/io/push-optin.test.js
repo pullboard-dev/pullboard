@@ -1,5 +1,5 @@
 // pullboard: browser
-/** @pullboard-test-input source-cell apps/relay */
+/** @pullboard-test-input apps/relay/src/io/browser/push-client.js apps/relay/src/io/browser/push-sw.js */
 /** @pullboard-test-gui */
 /** A paired browser opts in to OS notifications per kind through a service worker [C7]. */
 import assert from 'node:assert/strict';
