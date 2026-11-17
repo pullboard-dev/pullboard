@@ -17,7 +17,7 @@ import { offerJob } from '../../index.js';
 
 const refusal = call => { try { call(); } catch (error) { return error.code; } return null; };
 
-test('clause 1: a log and a binary artifact posted by the runner outlive its deleted folder, and only the holder may post [P7]', t => {
+test('api.artifacts.log-binary-artifact-posted-runner: clause 1: a log and a binary artifact posted by the runner outlive its deleted folder, and only the holder may post [P7]', t => {
   const { root } = privateFixtureFiles('pullboard-jobs-artifacts-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   const call = body => jobQueueCall(db, body, { mode: 'pull' });
