@@ -43,3 +43,15 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
     assert.equal(run.status === 0 ? 0 : 1, status, `${command} in ${Object.keys(files).join(',')}: ${run.stderr}`);
   }
 });
+
+test('gate.config.crystal-detected: #10512 clause 1: a root holding shard.yml detects crystal with crystal spec [C7]', (t) => {
+  const root = rootWith(t, { 'shard.yml': 'name: app\nversion: 0.1.0\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'crystal', command: 'crystal spec' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.cr': '' })), []);
+});
+
+test('gate.config.crystal-globs: #10512 clause 2: detectTestGlobs for a shard.yml root returns the Crystal spec globs of the crystal row, and the crystal toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'shard.yml': '' });
+  assert.deepEqual(detectTestGlobs(root), ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['crystal'], unknown: [] });
+});

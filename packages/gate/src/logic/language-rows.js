@@ -41,6 +41,7 @@ const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
 export const LANGUAGE_ROWS = Object.freeze([
   { language: 'bun', markers: ['bun.lock', 'bun.lockb', 'bunfig.toml'], command: bunCommand, tests: ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts'] },
   { language: 'deno', markers: ['deno.json', 'deno.jsonc'], command: 'deno test', tests: ['**/*_test.ts', '**/*.test.ts', '**/*_test.js'] },
+  { language: 'crystal', markers: ['shard.yml'], command: 'crystal spec', tests: ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr'] },
   { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
   { language: 'haskell', markers: ['stack.yaml', 'cabal.project'], pattern: /\.cabal$/u, command: (names) => (names.includes('stack.yaml') ? 'stack test' : 'cabal test'), tests: ['**/test/**/*.hs', '**/*Spec.hs'] },
   { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },

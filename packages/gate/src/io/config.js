@@ -156,6 +156,7 @@ export const TOOLCHAIN_NAME = /^[a-z][a-z0-9+_-]{0,31}$/u;
 const ROWS = Object.freeze({
   bun: ['bun'],
   cmake: ['cmake', 'ctest'],
+  crystal: ['crystal'],
   csharp: ['dotnet'],
   dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
   deno: ['deno'],
