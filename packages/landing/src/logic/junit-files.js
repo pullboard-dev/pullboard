@@ -6,6 +6,10 @@ export const JUNIT_FILE_ROWS = {
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
+  // bun test writes the test file as the top-level classname (calc.test.ts) and no file attribute on the case.
+  bun: row => row.classname || null,
+  // Surefire writes a dotted class in classname (com.example.CalcTest), no file attribute; Maven's source layout holds the test.
+  java: row => (row.classname ? `src/test/java/${row.classname.split('$')[0].replace(/\./gu, '/')}.java` : null),
   // cargo nextest writes the crate in classname (mycrate, or mycrate::bin/mycrate for a binary) and no file attribute.
   rust: row => {
     const crate = (row.classname ?? '').split('::')[0];
@@ -26,6 +30,12 @@ export const JUNIT_FILE_ROWS = {
   swift: row => {
     const [module, cls] = (row.classname || '').split('.');
     return module && cls ? `Tests/${module}/${cls}.swift` : null;
+  },
+  // gotestsum writes the import path (example.com/m/pkg) in classname and no file attribute; the first two segments are
+  // the module (host and name), the rest is the package directory.
+  go: row => {
+    const dir = (row.classname ?? '').split('/').slice(2).join('/');
+    return dir ? `${dir}/` : null;
   },
 };
 
