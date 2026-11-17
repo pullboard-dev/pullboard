@@ -21,8 +21,6 @@
   "config/tests/logic/settings/dispatch.test.js",
   "config/tests/logic/settings/door.test.js",
   "config/tests/logic/settings/require-runner-attribution.test.js",
-  "config/tests/submit/guards.test.js",
-  "config/tests/submit/infra.test.js",
   "gate/tests/io/static/style.test.js",
   "items/tests/logic/submit/preflight.test.js",
   "items/tests/way.test.js",
