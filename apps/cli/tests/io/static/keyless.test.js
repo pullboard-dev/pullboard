@@ -17,7 +17,7 @@ function stage(command) {
 const KEYLESS = 'keyless:packages/runners/tests/fixtures/trusted-tooling.js: non-literal dynamic import';
 const KEYED = 'packages/api/tests/io/ledger.test.js:8: new test finding exceeds the ratchet';
 
-test('clause 1: a keyless row prints as STATIC_RED path: text and the no-finding line is gone [C7]', () => {
+test('cli.io-static-keyless.a-keyless-row-prints-as-static-red: clause 1: a keyless row prints as STATIC_RED path: text and the no-finding line is gone [C7]', () => {
   const { code, said, results } = stage(printing(['TRIP_OVERHEAD report line', KEYLESS], 1));
   assert.equal(code, 1);
   assert.deepEqual(said, ['STATIC_RED packages/runners/tests/fixtures/trusted-tooling.js: non-literal dynamic import']);
@@ -25,12 +25,12 @@ test('clause 1: a keyless row prints as STATIC_RED path: text and the no-finding
   assert.doesNotMatch(said.join('\n'), /no file:line finding/u);
 });
 
-test('clause 2: file:line rows still print as before beside a keyless row [C7]', () => {
+test('cli.io-static-keyless.file-line-rows-still-print-as-before: clause 2: file:line rows still print as before beside a keyless row [C7]', () => {
   const { said } = stage(printing([KEYED, KEYLESS], 1));
   assert.deepEqual(said, [`STATIC_RED ${KEYED}`, 'STATIC_RED packages/runners/tests/fixtures/trusted-tooling.js: non-literal dynamic import']);
 });
 
-test('clause 3: a failing stage with no finding row still prints the no-finding line [C7]', () => {
+test('cli.io-static-keyless.a-failing-stage-with-no-finding-row: clause 3: a failing stage with no finding row still prints the no-finding line [C7]', () => {
   const { code, said } = stage(printing(['TRIP_OVERHEAD report line only'], 1));
   assert.equal(code, 1);
   assert.match(said.join('\n'), /failed with no file:line finding/u);

@@ -36,20 +36,20 @@ run-tests: phases selection 1.0s, tests 60.0s, total 61.0s
 `;
 const times = { 'a/one.test.js': 12000, 'a/two.test.js': 3000 };
 
-test('clause 1: shardRows gives setupSecs as the file wall seconds minus the sum of its top-level test duration_ms read from TAP [C7,#9028]', () => {
+test('cli.logic-census-setup.shardrows-gives-setupsecs-as-the-file-wall: clause 1: shardRows gives setupSecs as the file wall seconds minus the sum of its top-level test duration_ms read from TAP [C7,#9028]', () => {
   assert.deepEqual(tapCaseMs(TAP, outcomes), { 'a/one.test.js': 2000, 'a/two.test.js': 250 });
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output: TAP, outcomes, times }, 'sha');
   assert.deepEqual(rows.map(row => row.setupSecs), [10, 2.8]);
   assert.deepEqual(rows.map(row => row.secs), [12, 3]);
 });
 
-test('clause 1: a pulled shard whose tail lost its TAP takes each file case time from the runner record lines, and a file with none reads null [C7,#9028]', () => {
+test('cli.logic-census-setup.a-pulled-shard-whose-tail-lost-its: clause 1: a pulled shard whose tail lost its TAP takes each file case time from the runner record lines, and a file with none reads null [C7,#9028]', () => {
   const output = `${FILE_CASE_LINE}2000 a/one.test.js\nrun-tests: phases selection 1.0s, tests 60.0s, total 61.0s\n`;
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output, outcomes, times }, 'sha');
   assert.deepEqual(rows.map(row => row.setupSecs), [10, null]);
 });
 
-test('clause 1: setup scales with the wall time when overlapping files are scaled to the shard tests phase, and is never negative [C7,#9028]', () => {
+test('cli.logic-census-setup.setup-scales-with-the-wall-time-when: clause 1: setup scales with the wall time when overlapping files are scaled to the shard tests phase, and is never negative [C7,#9028]', () => {
   const output = `${FILE_CASE_LINE}50000 a/two.test.js\nrun-tests: phases selection 1.0s, tests 7.5s, total 8.5s\n`;
   const rows = shardRows({ files: FILES, status: 'green', host: 'h', label: '1/1', output, outcomes, times }, 'sha');
   assert.deepEqual(rows.map(row => row.secs), [6, 1.5]);

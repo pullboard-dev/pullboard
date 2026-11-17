@@ -27,7 +27,7 @@ function outcome(board, shout) {
   return undefined;
 }
 
-test('clause 1: [C7] a report right after the same agent accept is refused naming the event, by text or by --item; questions, blockers and old reports are delivered', () => {
+test('cli.logic-shout-restated-report.c7-a-report-right-after-the-same: clause 1: [C7] a report right after the same agent accept is refused naming the event, by text or by --item; questions, blockers and old reports are delivered', () => {
   withBoard(({ board, id, at }) => {
     const report = { from: 'web-1', to: 'coordinator', kind: 'idea', text: `Item #${id} is done` };
     assert.equal(outcome(board, report), undefined, 'a report with no recent event is delivered');
@@ -45,7 +45,7 @@ test('clause 1: [C7] a report right after the same agent accept is refused namin
   });
 });
 
-test('[C7] the refusal covers only the sender, only the last ten minutes and only submit, accept and reject events', () => {
+test('cli.logic-shout-restated-report.c7-the-refusal-covers-only-the-sender: [C7] the refusal covers only the sender, only the last ten minutes and only submit, accept and reject events', () => {
   withBoard(({ board, id, at }) => {
     const shout = { from: 'web-1', to: 'coordinator', kind: 'idea', text: `reported #${id}` };
     store.logEvent(board, 'web-1', 'reject', id, {}, at(11));
@@ -60,7 +60,7 @@ test('[C7] the refusal covers only the sender, only the last ten minutes and onl
   });
 });
 
-test('[C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', () => {
+test('cli.logic-shout-restated-report.c7-b22-validated-integration-purposes-pass-while: [C7,B22] validated integration purposes pass while plain reports and unbound receipts still refuse', () => {
   withBoard(({ board, id, at }) => {
     store.logEvent(board, 'web-1', 'submit', id, {}, at(1));
     /** A shout carrying evidence of the given kind and outcome on item 1. */
@@ -83,7 +83,7 @@ test('[C7,B22] validated integration purposes pass while plain reports and unbou
   });
 });
 
-test('[B22] evidence names a real commit of the repo: a missing or unknown revision is refused BAD_EVIDENCE', () => {
+test('cli.logic-shout-restated-report.b22-evidence-names-a-real-commit-of: [B22] evidence names a real commit of the repo: a missing or unknown revision is refused BAD_EVIDENCE', () => {
   // A read-only rev-parse in this checkout: no repository is created.
   const ctx = { info: { root: resolve(import.meta.dirname, '../../../../..') } };
   for (const commit of [undefined, '', 'missing-integration-commit'])

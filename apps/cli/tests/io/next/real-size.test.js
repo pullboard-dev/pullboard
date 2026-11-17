@@ -23,7 +23,7 @@ async function takeOnRealSizeBoard(t) {
   }
 }
 
-test('cli.next.real-size.a-seeded-board-of-230-000: clause 1: a seeded board of 230,000 events and 1,800 agents has mid-route open items for next to hand out [N2]', async t => {
+test('cli.io-next-real-size.cli-next-real-size-a-seeded-board: cli.next.real-size.a-seeded-board-of-230-000: clause 1: a seeded board of 230,000 events and 1,800 agents has mid-route open items for next to hand out [N2]', async t => {
   const box = await fixture(t, { route: 'light' });
   const seeded = seedRealSize(box);
   assert.deepEqual(seeded, { events: REAL_SIZE.events, agents: REAL_SIZE.agents, buildItems: REAL_SIZE.buildItems, reviewItems: REAL_SIZE.reviewItems });
@@ -33,7 +33,7 @@ test('cli.next.real-size.a-seeded-board-of-230-000: clause 1: a seeded board of 
   assert.ok(mid > 0, 'the seed files mid-route open build items');
 });
 
-test('cli.next.real-size.next-take-on-that-board-prints: clause 2: next --take on that board prints a per-read-path wall time and finishes under 2 s [N2]', async t => {
+test('cli.io-next-real-size.cli-next-real-size-next-take-on: cli.next.real-size.next-take-on-that-board-prints: clause 2: next --take on that board prints a per-read-path wall time and finishes under 2 s [N2]', async t => {
   const { taken, seconds } = await takeOnRealSizeBoard(t);
   assert.equal(taken.code, 0, taken.out + taken.err);
   const profile = taken.err.split('\n').filter(line => line.startsWith('next profile: '));

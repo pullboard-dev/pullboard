@@ -43,6 +43,7 @@ import {
 import { createServer } from 'node:http';
 import { brotliCompressSync } from 'node:zlib';
 import { gzipSync } from 'node:zlib';
+import { constants as zlibConstants } from 'node:zlib';
 import {
   basename,
   dirname,

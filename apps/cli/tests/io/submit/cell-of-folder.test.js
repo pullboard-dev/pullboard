@@ -11,7 +11,7 @@ import { cellOfFolder } from '../../../src/logic/cell-of-folder.js';
 
 const PLAN = join(import.meta.dirname, '../../../../../packages/codemap/data/plan');
 
-test('clause 1: [C7] the cell derived from a folder matches the plan cell for every row on main', () => {
+test('cli.io-submit-cell-of-folder.c7-the-cell-derived-from-a-folder: clause 1: [C7] the cell derived from a folder matches the plan cell for every row on main', () => {
   let rows = 0;
   for (const file of readdirSync(PLAN).filter(name => /^\d+-.*\.json$/.test(name))) {
     const cell = JSON.parse(readFileSync(join(PLAN, file), 'utf8'));

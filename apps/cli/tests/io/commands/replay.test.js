@@ -76,13 +76,13 @@ async function replay(on, args, drift = true) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('cli.replay.all-prints-lines-and-verdict: clause 1: replay --all --against v1.0.0 prints a heading, one line per table with its four class counts and a final drifted verdict, exit 0 [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-all-prints-lines-and-verdict: cli.replay.all-prints-lines-and-verdict: clause 1: replay --all --against v1.0.0 prints a heading, one line per table with its four class counts and a final drifted verdict, exit 0 [C7,R4,U150]', async () => {
   const { code, said } = await replay(true, { values: { all: true, against: 'v1.0.0' } });
   assert.equal(code, 0);
   assert.deepEqual(said, ['judge against v1.0.0: 1 tables', '  demo: same 3, current-drifted 1, released-wrong 0, both-differ 0', 'verdict: drifted demo']);
 });
 
-test('cli.replay.all-json-holds-summary-and-last: clause 2: the same command with --json holds rows, newTables, drifted and clean, and --against last reports against v1.0.0 [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-all-json-holds-summary-and: cli.replay.all-json-holds-summary-and-last: clause 2: the same command with --json holds rows, newTables, drifted and clean, and --against last reports against v1.0.0 [C7,R4,U150]', async () => {
   const { result } = await replay(true, { values: { all: true, against: 'last', json: true } });
   assert.equal(result.against, 'v1.0.0');
   assert.deepEqual(result.drifted, ['demo']);
@@ -91,19 +91,19 @@ test('cli.replay.all-json-holds-summary-and-last: clause 2: the same command wit
   assert.deepEqual(result.rows.map(row => row.table), ['demo']);
 });
 
-test('cli.replay.all-misuse-and-off-are-refused: clause 3: --all without --against, and --all with a table name, are refused USAGE, and with the setting off the --all form is refused JUDGE_OFF [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-all-misuse-and-off-are: cli.replay.all-misuse-and-off-are-refused: clause 3: --all without --against, and --all with a table name, are refused USAGE, and with the setting off the --all form is refused JUDGE_OFF [C7,R4,U150]', async () => {
   await assert.rejects(replay(true, { values: { all: true } }), error => error.code === 'USAGE');
   await assert.rejects(replay(true, { first: 'demo', values: { all: true, against: 'v1.0.0' } }), error => error.code === 'USAGE');
   await assert.rejects(replay(false, { values: { all: true, against: 'v1.0.0' } }), error => error.code === 'JUDGE_OFF' && String(error.next ?? error.message).includes('moves.judgeByRelease'));
 });
 
-test('cli.replay.fail-on-drift-exits-1-naming-tables: clause 1: replay --all --against v1.0.0 --fail-on-drift exits 1 with output naming the drifted table demo [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-fail-on-drift-exits-1: cli.replay.fail-on-drift-exits-1-naming-tables: clause 1: replay --all --against v1.0.0 --fail-on-drift exits 1 with output naming the drifted table demo [C7,R4,U150]', async () => {
   const { code, said } = await replay(true, { values: { all: true, against: 'v1.0.0', 'fail-on-drift': true } });
   assert.equal(code, 1);
   assert.ok(said.some(line => line === 'drift: demo decide moves differently than v1.0.0'));
 });
 
-test('cli.replay.fail-on-drift-clean-exits-0-read-only: clause 2: --fail-on-drift exits 0 and prints verdict: clean when the tables match the tag, and the board file is byte for byte unchanged after either run [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-fail-on-drift-clean-exits: cli.replay.fail-on-drift-clean-exits-0-read-only: clause 2: --fail-on-drift exits 0 and prints verdict: clean when the tables match the tag, and the board file is byte for byte unchanged after either run [C7,R4,U150]', async () => {
   const clean = await replay(true, { values: { all: true, against: 'v1.0.0', 'fail-on-drift': true } }, false);
   assert.equal(clean.code, 0);
   assert.ok(clean.said.includes('verdict: clean'));
@@ -112,6 +112,6 @@ test('cli.replay.fail-on-drift-clean-exits-0-read-only: clause 2: --fail-on-drif
   assert.equal(drifted.unchanged, true);
 });
 
-test('cli.replay.fail-on-drift-needs-all: clause 3: replay demo --against v1.0.0 --fail-on-drift without --all is refused USAGE [C7,R4,U150]', async () => {
+test('cli.io-commands-replay.cli-replay-fail-on-drift-needs-all: cli.replay.fail-on-drift-needs-all: clause 3: replay demo --against v1.0.0 --fail-on-drift without --all is refused USAGE [C7,R4,U150]', async () => {
   await assert.rejects(replay(true, { first: 'demo', values: { against: 'v1.0.0', 'fail-on-drift': true } }), error => error.code === 'USAGE');
 });

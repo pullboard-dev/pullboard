@@ -42,7 +42,7 @@ const split = (header, times) => async ({ write }) => {
 
 const rowsOf = out => Object.fromEntries(readFileSync(out, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)).map(row => [row.file, row]));
 
-test('clause 1: a shard whose census-times line is its own write still gets every file\'s verdict and secs from the body [C7,#9404]', async (t) => {
+test('cli.io-test-census-times-split.a-shard-whose-census-times-line-is: clause 1: a shard whose census-times line is its own write still gets every file\'s verdict and secs from the body [C7,#9404]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: split('# landing shard 1/1 attempt 1 on host-a: red in 9000 ms\n', TIMES) });
   const rows = rowsOf(out);
@@ -52,7 +52,7 @@ test('clause 1: a shard whose census-times line is its own write still gets ever
   assert.equal(rows['red.test.js'].secs, 2.5);
 });
 
-test('clause 2: the same split shard still puts claimedAt, startedAt, endedAt and load1 on both rows [C7,#9404]', async (t) => {
+test('cli.io-test-census-times-split.the-same-split-shard-still-puts-claimedat: clause 2: the same split shard still puts claimedAt, startedAt, endedAt and load1 on both rows [C7,#9404]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: split('# landing shard 1/1 attempt 1 on host-a: red in 9000 ms\n', TIMES) });
   for (const row of Object.values(rowsOf(out))) {
@@ -60,7 +60,7 @@ test('clause 2: the same split shard still puts claimedAt, startedAt, endedAt an
   }
 });
 
-test('clause 3: a one-file rerun answered in the same two-write shape keeps its verdict, secs and times [C7,#9404]', async (t) => {
+test('cli.io-test-census-times-split.a-one-file-rerun-answered-in-the: clause 3: a one-file rerun answered in the same two-write shape keeps its verdict, secs and times [C7,#9404]', async (t) => {
   const repo = fixture(t, { census: { rerunOnSettle: true } }), out = join(repo, '..', 'census.jsonl');
   let calls = 0;
   const run = async ({ files, write }) => {

@@ -30,7 +30,7 @@ async function listening(t, handler) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-test('clause 1: a replayed signed take against the served pull route is refused PULL_REPLAY and a fresh nonce is accepted [C7,#8766]', async t => {
+test('cli.io-serve-pull-replay.a-replayed-signed-take-against-the-served: clause 1: a replayed signed take against the served pull route is refused PULL_REPLAY and a fresh nonce is accepted [C7,#8766]', async t => {
   const folder = folders(t);
   const key = issueRunnerKey(folder, 'r1');
   const origin = await listening(t, pullRouteHandler({ folder, openDb: () => new DatabaseSync(':memory:'), enabled: true }));
