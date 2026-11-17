@@ -18,6 +18,7 @@
   "gate.refuseMissingCheckFile",
   "gate.localLoadShare",
   "gate.staticSlots",
+  "gate.staticLoadAdmission",
   "gate.staticMemo",
   "gate.namedImportSelection",
   "gate.localRunner",

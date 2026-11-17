@@ -78,6 +78,7 @@ const BEFORE = {
   'gate.sampleDiskIo': false,
   'gate.settleOnMainReceipt': false,
   'gate.shortSlots': 0,
+  'gate.staticLoadAdmission': false,
   'gate.staticMemo': false,
   'gate.staticSlots': 2,
   'gate.submitAuthorization': 'runner',

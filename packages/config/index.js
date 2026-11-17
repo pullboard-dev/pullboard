@@ -98,6 +98,7 @@ export {
   localRunnerEnabled,
   localLoadShare,
   staticCheckSlots,
+  staticLoadAdmissionOn,
   staticMemoOn,
   boardOpensCheckOn,
   serveListen,
