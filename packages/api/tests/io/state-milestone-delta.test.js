@@ -42,7 +42,7 @@ async function served(t, milestoneDelta) {
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
   let now = Date.now() + 8 * HOUR;
   let at = now - 8 * HOUR;
-  const board = cellBoard(t, project.boardFile, () => new Date(at), { real: true });
+  const board = cellBoard(t, project.boardFile, { now: () => new Date(at) }, { real: true });
   const ids = [];
   const agents = [0, 1].map(index => cellSeat(board, { lane: 'web', path: join(project.dir, `seat-${index}`) }));
   atomic(board, () => {
