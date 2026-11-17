@@ -51,6 +51,14 @@ function bundle(overrides = {}) {
   };
 }
 
+/** Read relay-owned files only; local device homes intentionally retain their own keys. */
+function relayFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? relayFiles(path) : [readFileSync(path)];
+  });
+}
+
 test('[H15,H17] pairing HTTP authenticates repository access before publishing or consuming', async (t) => {
   let allowed = true;
   const checks = [];
