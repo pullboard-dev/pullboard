@@ -1711,9 +1711,13 @@
   },
   "apps/cli/journeys/resume/flow.test.js": {
     "tempdir": 2,
-    "hand-policy": 4,
-    "model": 2,
-    "raw-board": 5
+    "hand-policy": 2,
+    "raw-board": 5,
+    "model": 1
+  },
+  "apps/cli/journeys/resume/flow-upgrade.test.js": {
+    "hand-policy": 2,
+    "model": 1
   },
   "apps/cli/journeys/resume/flow/setup.test.js": {
     "hand-policy": 1,
