@@ -125,7 +125,7 @@ import {
 } from '../../../../relay/index.js';
 import {
   unpackRelease,
-} from '../release/archive.js';
+} from '../../../../../packages/gate/tests/fixtures/release/archive.js';
 import {
   decodeBoardKey,
   seal,

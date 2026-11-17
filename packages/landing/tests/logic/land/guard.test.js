@@ -37,7 +37,7 @@ test('local-trunk attribution holds unknown diagnostics and preserves rerun-off 
 });
 
 test('clause 1: a guard run red only on SLOT_DB_LOCKED with no failing case refuses SLOT_DB_LOCKED, never LAND_DIAGNOSTIC [C7,#3314]', async () => {
-  const { requireNoLockOnlyRed } = await import('../../../src/logic/land/guard.js');
+  const { requireNoLockOnlyRed } = await import('../../../src/io/land/guard.js');
   const { landingFault } = await import('../../../src/io/step/diagnose.js');
   const log = 'run-tests: [SLOT_DB_LOCKED] never ran: resources.sqlite stayed locked for 10002ms';
   assert.throws(() => requireNoLockOnlyRed({ isGreen: false, failures: [], logPath: 'x.log' }, () => log),

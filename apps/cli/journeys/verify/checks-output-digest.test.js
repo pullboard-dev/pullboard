@@ -32,6 +32,7 @@ test('private check digest keeps install and noisy check output in separate sect
     install: 'echo install-marker',
     check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',
   });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test reads that same file.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 1); }

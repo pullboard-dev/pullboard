@@ -1,6 +1,8 @@
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../../items/index.js';
+import { milestoneRanks } from '../../../../items/index.js';
+import { milestones } from '../../../../store/light.js';
 import { landingChangedFiles } from '../../logic/land/collisions.js';
 import { publishRedTouched } from '../pause.js';
 import { runnerSourceHold } from '../../logic/hold.js';
@@ -184,8 +186,30 @@ export function dependencySatisfied(dependency) {
   return Boolean(dependency?.item_merged_commit) || dependency?.item_status === 'withdrawn';
 }
 
-/** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null } = {}) {
+/**
+ * The order `next` uses for accepted work, as a comparator over items: a person-urgent or pinned item first, then its
+ * milestone position, then its place inside that milestone. Equal items compare 0, so the caller's accept order stays
+ * the tie-break.
+ * Why: the lander took the oldest accept, so a person's reprioritisation moved building and never landing [C7,#3157].
+ *
+ * @param {any} board
+ * @returns {(left: {item_id: number}, right: {item_id: number}) => number}
+ */
+export function landingPriorityCompare(board) {
+  const position = store.milestonePriorities(board);
+  const rank = milestoneRanks(board, position, { milestones });
+  const isUrgent = entry => store.itemUrgent(board, entry.item_id);
+  return (left, right) => Number(isUrgent(right)) - Number(isUrgent(left)) || position(left) - position(right) || rank(left) - rank(right);
+}
+
+/**
+ * Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. With `priority`
+ * (landing.priorityOrder on), accepted items go in the order `next` uses before accept order. A held or stale item is
+ * still skipped below, so it never changes the order of the rest [C7,#3157]. With `stepAside` (a count of 2 or more),
+ * a head item that has met that many infrastructure failures (lapsed leases, lost CAS) goes behind every other accepted
+ * item, keeping its accept and its place among its peers; 0 leaves the order as it was [C7,#3118].
+ */
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems, first = [], redFiles = [], named = null, priority = false, stepAside = 0 } = {}) {
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
@@ -207,8 +231,12 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // picking take turns and cannot starve the queue (#2911).
   const failed = landingTurns(batches, roundFailures(batches), pending);
   const namedOrder = proven ? [...proven.keys()] : null;
+  // Why read once: the sort compares each item many times, and each count is a board_meta read.
+  const aside = new Set(stepAside > 0 && !proven ? pending.filter((item) => store.stepAsideCount(board, item.item_id) >= stepAside).map((item) => item.item_id) : []);
+  const byPriority = priority && !proven ? landingPriorityCompare(board) : null;
   pending.sort((left, right) => {
     if (namedOrder) return namedOrder.indexOf(left.item_id) - namedOrder.indexOf(right.item_id);
+    if (aside.has(left.item_id) !== aside.has(right.item_id)) return aside.has(left.item_id) ? 1 : -1;
     if (failed.has(left.item_id) || failed.has(right.item_id)) {
       if (!failed.has(left.item_id)) return -1;
       if (!failed.has(right.item_id)) return 1;
@@ -227,7 +255,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
       if (rightPriority === undefined) return -1;
       if (leftPriority !== rightPriority) return leftPriority - rightPriority;
     }
-    return (order.get(left.item_id) ?? Infinity) - (order.get(right.item_id) ?? Infinity) || left.item_id - right.item_id;
+    return (byPriority ? byPriority(left, right) : 0) || (order.get(left.item_id) ?? Infinity) - (order.get(right.item_id) ?? Infinity) || left.item_id - right.item_id;
   });
   const ready = [];
   const blocked = [];
