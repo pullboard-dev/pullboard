@@ -83,6 +83,7 @@ const DIR = '.pullboard/junit';
 const ROWS = Object.freeze({
   bun: { command: `bun test --reporter=junit --reporter-outfile=${DIR}/bun.xml`, report: `${DIR}/bun.xml`, needs: null },
   cmake: { command: `cmake -S . -B build && cmake --build build && ctest --test-dir build --output-junit ../${DIR}/cmake.xml`, report: `${DIR}/cmake.xml`, needs: null },
+  crystal: { command: `crystal spec --junit_output ${DIR}/crystal.xml`, report: `${DIR}/crystal.xml`, needs: null },
   csharp: { command: `dotnet test --logger "junit;LogFilePath=$PWD/${DIR}/csharp.xml"`, report: `${DIR}/csharp.xml`, needs: 'the JunitXml.TestLogger package in each test project' },
   deno: { command: `deno test --reporter=junit --junit-path=${DIR}/deno.xml`, report: `${DIR}/deno.xml`, needs: null },
   elixir: { command: 'mix test', report: `${DIR}/elixir.xml`, needs: `the junit_formatter dependency as an ExUnit formatter, with report_dir "${DIR}" and report_file "elixir.xml"` },

@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit.js';
+import { junitCommand as lightJunitCommand } from '../../light.js';
 
-const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'maven', 'node', 'php', 'python', 'ruby', 'rust', 'swift'];
+const LANGUAGES = ['bun', 'cmake', 'crystal', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'maven', 'node', 'php', 'python', 'ruby', 'rust', 'swift'];
 const TOOL_FOLDERS = { gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };
 const NEEDS = ['csharp', 'elixir', 'go', 'ruby', 'rust'];
 
@@ -39,4 +40,16 @@ test('gate.junit-commands.needs: clause 3: rows that need an extra package name 
     if (NEEDS.includes(language)) assert.match(needs, named[language], `${language} names its package`);
     else assert.equal(needs, null, `${language} needs nothing extra`);
   }
+});
+
+test('gate.junit-commands.crystal-row: clause 1: junitCommand(crystal) returns its report command and needs, and JUNIT_LANGUAGES includes crystal [C7]', () => {
+  const row = junitCommand('crystal');
+  assert.ok(row.command.startsWith('crystal spec --junit_output'));
+  assert.equal(row.report, '.pullboard/junit/crystal.xml');
+  assert.equal(row.needs, null);
+  assert.ok(JUNIT_LANGUAGES.includes('crystal'));
+});
+
+test('gate.junit-commands.crystal-door: clause 2: junitCommand(crystal) from the gate light door returns the same row init reads [C7]', () => {
+  assert.deepEqual(lightJunitCommand('crystal'), junitCommand('crystal'));
 });
