@@ -54,6 +54,8 @@ const CARGO = cargoEnvironment();
 const UNAVAILABLE = 'cargo unavailable on this machine';
 
 const BRIEF = 'Files:\n- src/item.rs\nChange:\n- Add the item test.\nTest:\n- cargo test passes.';
+/** An item check that fails on main and passes once the item's test is committed. */
+const CHECK = 'grep -q adds_small_numbers src/item.rs';
 const MANIFEST = '[package]\nname = "scratch_crate"\nversion = "0.1.0"\nedition = "2021"\n';
 const MATH = 'pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n';
 const LIB = 'pub mod math;\n\n#[cfg(test)]\nmod item;\n';
@@ -115,7 +117,7 @@ async function crateBoard() {
 /** File and claim one item in the seat, then commit a new item test and try to submit it; returns the item id, commit and submit result. */
 async function buildAndSubmit(board, id, itemText) {
   const { box, repo, web } = board;
-  const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
+  const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, check: CHECK, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
   if (!id) assert.equal((await box.runLocal(web, 'claim', item)).code, 0);
   writeFileSync(join(web, 'src', 'item.rs'), itemText);
   box.git(web, 'add', '-A');
@@ -123,7 +125,8 @@ async function buildAndSubmit(board, id, itemText) {
   assert.equal(committed.status, 0, committed.stderr);
   const submitted = await box.runIn(web, 'submit', item, '--no-next');
   const shown = await box.runIn(web, 'show', item, '--no-next');
-  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
+  const status = JSON.parse((await box.runIn(web, 'show', item, '--json', '--no-next')).out).item_status;
+  return { item, commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, status, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
 }
 
 /** Accept the submitted item as the coordinator at its commit, then land it; returns the settled landing. */
@@ -142,7 +145,7 @@ test('landing names the failing Rust test when main moved past a green submit an
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard();
   const built = await buildAndSubmit(board, null, PASSING);
-  assert.doesNotMatch(built.shown.out, /^#\d+ +open /mu, built.text);
+  assert.equal(built.status, 'submitted', built.text);
   const { box, repo } = board;
   box.git(repo, 'switch', '-q', '--detach', built.commit);
   const verdict = await verifySettled(box, box.runLocal, repo, ['verify', built.item, 'accept', '--as', 'coordinator', '--note', 'scratch crate gate is green']);
