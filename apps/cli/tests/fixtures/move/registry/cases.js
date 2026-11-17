@@ -127,7 +127,7 @@ export async function registryMergeProof() {
   const started = Date.now();
   const phases = [];
   /** Record elapsed seconds at a named step; past 150 s the proof fails with the table instead of being killed silent [C7]. */
-  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 170000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
+  const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 60000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-merge-'));
   try {
     const root = join(directory, 'repo');
@@ -135,11 +135,13 @@ export async function registryMergeProof() {
     unpackRelease('HEAD', root);
     mark('unpack');
     run(root, 'git', ['init', '-b', 'main']);
+    mark('init');
     // The fixture repo is throwaway: storing the whole tree uncompressed and unsynced makes its adds and commits several times faster [C7].
     for (const [key, value] of [['core.compression', '0'], ['core.looseCompression', '0'], ['core.fsync', 'none'], ['gc.auto', '0']]) run(root, 'git', ['config', key, value]);
     // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
     run(root, process.execPath, ['--input-type=module', '-e',
       "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; assignEngineNumbers(process.cwd());"]);
+    mark('assign');
     commit(root, 'fixture base');
     mark('base');
     run(root, 'git', ['checkout', '-b', 'alpha']);
