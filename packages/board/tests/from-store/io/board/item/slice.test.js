@@ -13,7 +13,7 @@ import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 import { FIXTURE_MODEL_EARLIER } from '../../../../../../store/tests/fixtures/cell.js';
 
-test('holder and coordinator create slices, others are refused, and old engines cannot replay them [C7,B26,H16]', t => {
+test('board.slice.holder-and-coordinator-create-slices-others: holder and coordinator create slices, others are refused, and old engines cannot replay them [C7,B26,H16]', t => {
   const project = cellProject(t, { real: true });
   const web = join(project.dir, 'web');
   project.git(project.repo, 'worktree', 'add', '-q', web, '-b', 'web/one');

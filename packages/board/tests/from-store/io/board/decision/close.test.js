@@ -30,7 +30,7 @@ function fixture(t) {
   return { board, builder, file, ask, verify, open, reply };
 }
 
-test('landing an item closes every open ask on it with that reason [B21,C7]', (t) => {
+test('board.close.landing-item-closes-every-open-ask: landing an item closes every open ask on it with that reason [B21,C7]', (t) => {
   const { board, builder, file, ask, verify, open, reply } = fixture(t);
   const id = file('Landed with asks');
   const other = file('Still open');
@@ -45,7 +45,7 @@ test('landing an item closes every open ask on it with that reason [B21,C7]', (t
   assert.equal(store.openDecisions(board, 'coordinator').some(row => row.shout_id === direct), false);
 });
 
-test('withdrawing an item closes every open ask on it with the withdrawal reason [B21,C7]', (t) => {
+test('board.close.withdrawing-item-closes-every-open-ask: withdrawing an item closes every open ask on it with the withdrawal reason [B21,C7]', (t) => {
   const { board, file, ask, open, reply } = fixture(t);
   const id = file('Withdrawn with asks');
   const lead = ask(id);
@@ -54,7 +54,7 @@ test('withdrawing an item closes every open ask on it with the withdrawal reason
   assert.match(reply(lead), /withdrawn: duplicate of #5/u);
 });
 
-test('the sweep closes asks already open on finished items once and never a live item\'s [B21,C7,H16]', (t) => {
+test('board.close.the-sweep-closes-asks-already-open: the sweep closes asks already open on finished items once and never a live item\'s [B21,C7,H16]', (t) => {
   const { board, file, ask, verify, open, reply } = fixture(t);
   const landed = file('Landed first');
   const withdrawn = file('Withdrawn first');

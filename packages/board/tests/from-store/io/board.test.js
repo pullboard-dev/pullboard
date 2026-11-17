@@ -18,7 +18,7 @@ function boardFile() {
   return { directory, file: join(directory, 'board.sqlite') };
 }
 
-test('[A2] fresh boards receive distinct 128-bit identities', () => {
+test('board.board.fresh-boards-receive-distinct-128-bit: [A2] fresh boards receive distinct 128-bit identities', () => {
   const first = boardFile();
   const second = boardFile();
   try {
@@ -40,7 +40,7 @@ test('[A2] fresh boards receive distinct 128-bit identities', () => {
   }
 });
 
-test('[A2] board identity survives connection reopen and moving its directory', () => {
+test('board.board.board-identity-survives-connection-reopen-and: [A2] board identity survives connection reopen and moving its directory', () => {
   const box = boardFile();
   const movedDirectory = `${box.directory}-moved`;
   try {
@@ -65,7 +65,7 @@ test('[A2] board identity survives connection reopen and moving its directory', 
   }
 });
 
-test('[A2] an older board gains one identity during in-place upgrade without losing rows', () => {
+test('board.board.older-board-gains-one-identity-during: [A2] an older board gains one identity during in-place upgrade without losing rows', () => {
   const box = boardFile();
   try {
     const board = openBoard(box.file);

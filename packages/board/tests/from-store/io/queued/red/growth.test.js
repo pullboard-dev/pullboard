@@ -41,7 +41,7 @@ function edit(box, brief, engine = undefined) {
   assert.equal(result.error, undefined, JSON.stringify(result.error));
 }
 
-test('historical brief edits stay silent while current overlap notices survive board export [N2,B7,H16]', t => {
+test('board.growth.historical-brief-edits-stay-silent-while: historical brief edits stay silent while current overlap notices survive board export [N2,B7,H16]', t => {
   const box = fixture(t);
   edit(box, 'Files: web/y.js, web/x.js', FILE_GROWTH_NOTICE_ENGINE - 1);
   assert.match(store.getItem(box.board, box.b).item_brief, /web\/x\.js/u, 'legacy edit still takes effect');
@@ -58,7 +58,7 @@ test('historical brief edits stay silent while current overlap notices survive b
   for (const id of [box.a, box.b]) assert.deepEqual(store.itemThread(copy, id), store.itemThread(box.board, id));
 });
 
-test('one holder of both overlapping items gets one message linked to both threads [N2,B7,B13]', t => {
+test('board.growth.one-holder-both-overlapping-items-gets: one holder of both overlapping items gets one message linked to both threads [N2,B7,B13]', t => {
   const box = fixture(t, { sameHolder: true });
   edit(box, 'Files: web/y.js, web/x.js');
   const notices = store.allShouts(box.board);
@@ -68,7 +68,7 @@ test('one holder of both overlapping items gets one message linked to both threa
     .some(event => event.kind === 'shout' && event.detail.shout === notices[0].shout_id));
 });
 
-test('a brief growth does not notify an expired claim as work in flight [N2,B4,N20]', t => {
+test('board.growth.brief-growth-does-not-notify-expired: a brief growth does not notify an expired claim as work in flight [N2,B4,N20]', t => {
   const box = fixture(t, { expiredPeer: true });
   assert.equal(store.getItem(box.board, box.a).item_status, 'open', 'the existing lease boundary is respected');
   edit(box, 'Files: web/y.js, web/x.js');
