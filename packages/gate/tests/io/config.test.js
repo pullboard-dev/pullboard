@@ -46,6 +46,30 @@ test('gate.config.python-unittest-runs: #10366 clause 3: the detected command ex
   }
 });
 
+test('gate.config.zig-detected: #10509 clause 1: a root holding build.zig detects zig with zig build test [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': 'const std = @import("std");\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'zig', command: 'zig build test' }]);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'main.zig': '' })), []);
+});
+
+test('gate.config.zig-globs: #10509 clause 2: detectTestGlobs for a build.zig root returns the Zig test globs of the zig row, and the zig toolchain is known [C7]', (t) => {
+  const root = rootWith(t, { 'build.zig': '' });
+  assert.deepEqual(detectTestGlobs(root), ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['zig'], unknown: [] });
+});
+
+test('gate.config.julia-detected: #10513 clause 1: a root holding Project.toml and test/runtests.jl detects julia with a Pkg.test command [C7]', (t) => {
+  const root = rootWith(t, { 'Project.toml': 'name = "App"\n', 'test/runtests.jl': 'using Test\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'julia', command: "julia --project -e 'using Pkg; Pkg.test()'" }]);
+  assert.deepEqual(detectTestGlobs(root), ['test/**/*.jl', '**/runtests.jl']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['julia'], unknown: [] });
+});
+
+test('gate.config.julia-no-tests: #10513 clause 2: a root holding Project.toml with no test folder detects nothing [C7]', (t) => {
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': 'name = "App"\n' })), []);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': '', 'test/other.jl': '' })), []);
+});
+
 test('gate.config.ocaml-detected: #10510 clause 1: a root holding dune-project detects ocaml with dune test [C7]', (t) => {
   const root = rootWith(t, { 'dune-project': '(lang dune 3.0)\n' });
   assert.deepEqual(detectLanguages(root), [{ language: 'ocaml', command: 'dune test' }]);

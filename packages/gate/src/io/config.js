@@ -84,7 +84,10 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
   if (existsSync(join(root, 'CMakeLists.txt'))) add('cmake', 'cmake -S . -B build && cmake --build build && ctest --test-dir build');
   if (rows.length) {
     const names = readdirSync(root);
-    const contents = (name) => (names.includes(name) ? readFileSync(join(root, name), 'utf8') : null);
+    // A name may reach into a folder (test/runtests.jl), so a missing or unreadable path is null rather than a throw.
+    const contents = (name) => {
+      try { return readFileSync(join(root, name), 'utf8'); } catch { return null; }
+    };
     for (const row of rows) {
       if (rowMatches(row, names, contents)) add(row.language, typeof row.command === 'function' ? row.command(names, contents) : row.command);
     }
@@ -163,6 +166,7 @@ const ROWS = Object.freeze({
   go: ['go'],
   gradle: command => (/^\s*gradle\s/u.test(command) ? ['gradle', 'java'] : ['java']),
   haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
+  julia: ['julia'],
   make: ['make'],
   maven: ['java', 'mvn'],
   node: ['node'],
@@ -174,6 +178,7 @@ const ROWS = Object.freeze({
   rust: ['cargo'],
   sbt: ['java', 'sbt'],
   swift: ['swift'],
+  zig: ['zig'],
 });
 
 /**
