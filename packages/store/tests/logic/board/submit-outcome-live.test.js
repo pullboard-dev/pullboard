@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-outcome-records.json */
 /** @pullboard-world-pin reads the recorded refusal renewals fixture to drive the submit outcome writer with it. With moves.live.outcome on, the writer follows the OUTCOME table; off, its own rules decide [C7,#8386]. */
 /** @pullboard-test-input packages/store/tests/fixtures/submit-outcome-records.json packages/store/src/io/submit/outcome.js */
 import assert from 'node:assert/strict';
