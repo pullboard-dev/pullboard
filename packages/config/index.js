@@ -82,6 +82,7 @@ export {
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
   censusRerunOnSettleEnabled,
+  censusSkipUnchangedEnabled,
   registryStrictEnabled,
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
