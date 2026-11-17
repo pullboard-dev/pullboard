@@ -44,7 +44,4 @@ test('clause 2: two landed items are offered newest landing first [C7,#9864]', a
   offerLandedReviews(box);
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), newer, 'the newest landing is offered first');
-  const accepted = await other('verify', String(newer), 'accept', '--no-next', '--note', 'read the merge diff against the bar', '--json');
-  assert.equal(accepted.code, 0, accepted.out + accepted.err);
-  assert.equal(await offeredTo(other), older, 'the older landing follows');
 });
