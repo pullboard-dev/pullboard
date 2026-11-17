@@ -137,6 +137,27 @@ description: 'Run the worker loop on a Pullboard seat: take the next build or ve
 ${body}`;
 }
 
+/** Where init writes the Codex automation template, relative to the repo root. */
+export const CODEX_AUTOMATION_FILE = '.codex/automations/pullboard-worker.toml';
+
+/**
+ * A Codex automation for the worker loop, generated from SEAT_LOOP so it cannot drift from the AGENTS.md
+ * block [#8534]. It starts paused: the person unpauses it, so init never starts unattended work.
+ *
+ * @returns {string}
+ */
+export function renderCodexAutomation() {
+  const prompt = `Run the Pullboard worker loop on this seat.\n\n${SEAT_LOOP}`;
+  return `version = 1
+id = "pullboard-worker"
+kind = "heartbeat"
+name = "Pullboard worker"
+prompt = ${JSON.stringify(prompt)}
+status = "PAUSED"
+rrule = "FREQ=MINUTELY;INTERVAL=15"
+`;
+}
+
 /** The most words the seat loop may hold; a longer loop is one agents skim past, so trim before raising this. */
 export const SEAT_LOOP_WORD_BUDGET = 160;
 

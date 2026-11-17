@@ -9,7 +9,7 @@
   ["src/computed-conflict-receipt.js","packages/landing/src/io/computed/conflict/receipt.js","seed"],
   ["src/computed-conflict-return.js","packages/landing/src/io/computed/conflict/return.js","seed"],
   ["src/land-collisions.js","packages/landing/src/logic/land/collisions.js","seed"],
-  ["src/land-local-guard.js","packages/landing/src/logic/land/guard.js","rule"],
+  ["src/land-local-guard.js","packages/landing/src/io/land/guard.js","rule"],
   ["src/land.js","packages/landing/src/io/land.js","seed"],
   ["src/landing-batch-history.js","packages/landing/src/logic/batch/history.js","seed"],
   ["src/landing-cadence.js","packages/landing/src/logic/cadence.js","rule"],

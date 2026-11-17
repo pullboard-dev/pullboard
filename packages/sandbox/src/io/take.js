@@ -52,7 +52,7 @@ function selected(ctx, board, values, services) {
   }
   return withCover(dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
-    skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
+    skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle, idleBlockers: values.idleBlockers === true,
     assignedIds: omitted, workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board), board),
     reviewHeartbeats: new Map(store.listAgents(board).map(({ agent_id, heartbeatAt }) => [agent_id, heartbeatAt])),
     releaseCooldown: { minutes: ctx.config.claims?.releaseCooldownMinutes ?? 30, now: ctx.clock.now().getTime() },

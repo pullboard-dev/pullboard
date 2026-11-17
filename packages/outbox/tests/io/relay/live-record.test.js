@@ -19,7 +19,7 @@ function provided(t, { live, decide = table }) {
   t.after(() => provideOutboxTable(null));
 }
 
-test('clause 1: with moves.live.outbox on, a queue and a park leave the outbox in the state the outbox table decides [C7,#8391]', t => {
+test('outbox.live-record.table-decides-state: clause 1: with moves.live.outbox on, a queue and a park leave the outbox in the state the outbox table decides [C7,#8391]', t => {
   provided(t, { live: true });
   const queued = doc(false);
   assert.equal(liveOutbox('queue', doc(), queued), true);
@@ -29,14 +29,14 @@ test('clause 1: with moves.live.outbox on, a queue and a park leave the outbox i
   assert.equal(parked.state, 'parked');
 });
 
-test('clause 2: with moves.live.outbox on, a move the table refuses is refused with the table\'s code and next step and changes nothing [C7,#8391]', t => {
+test('outbox.live-record.table-refusal: clause 2: with moves.live.outbox on, a move the table refuses is refused with the table\'s code and next step and changes nothing [C7,#8391]', t => {
   provided(t, { live: true, decide: () => ({ refused: { code: 'OUTBOX_ILLEGAL_MOVE', message: 'an outbox that is undone cannot queue', next: 'from undone the legal moves are: apply, resume' } }) });
   const after = doc(false);
   assert.throws(() => liveOutbox('queue', doc(), after), error => error.code === 'OUTBOX_ILLEGAL_MOVE' && error.next === 'from undone the legal moves are: apply, resume');
   assert.equal('state' in after, false, 'a refused move leaves the document as it was');
 });
 
-test('clause 3: with moves.live.outbox off (the default) the writer\'s own rules decide and the table is never run [C7,#8391]', t => {
+test('outbox.live-record.off-writer-decides: clause 3: with moves.live.outbox off (the default) the writer\'s own rules decide and the table is never run [C7,#8391]', t => {
   provided(t, { live: false, decide: () => { throw new Error('the table must not run'); } });
   const after = doc(false);
   assert.equal(liveOutbox('queue', doc(), after), false);

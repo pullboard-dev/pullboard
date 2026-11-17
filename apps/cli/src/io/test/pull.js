@@ -215,7 +215,7 @@ export function testJobData({ main, commit, command, files, runId = null, fileBu
  * Pin a commit under refs/pullboard/test and name the one test job row for it, without writing the row.
  * Why a ref: the trunk remote serves only reachable commits, and an agent's commit is reachable from nothing else yet.
  */
-async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null }) {
+async function testJobRow(ctx, { item, commit, main, command, files, runId = null, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
   const { root } = ctx.info;
   const [{ GATE_NEEDS, GATE_RECEIPT, gateJobRun }, { PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX }, { FAILURE_DIAGNOSTICS_SOURCE }] = await Promise.all([import('../submit/pull.js'),
     import('../../../../../packages/gate/index.js'), import('../../../../../packages/kernel/index.js')]);
@@ -224,7 +224,7 @@ async function testJobRow(ctx, { item, commit, main, command, files, runId = nul
   git(root, ['update-ref', ref, commit]);
   const request = { run: gateJobRun(), input: { main, entry: testJobEntry(GATE_RECEIPT, PULLED_JOB_ENV, TIMING_RUN_ID_ENV, TEST_OUTCOMES_PREFIX, FAILURE_DIAGNOSTICS_SOURCE), data: testJobData({ main, commit, command, files, runId, fileBudgetMs }) }, commits: [main] };
   return { ref, row: { id: `test:${commit.slice(0, 12)}:${tag}`, kind: TEST_JOB_KIND, priority: 'interactive', needs: GATE_NEEDS,
-    item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}) } };
+    item: item === undefined ? null : Number(item), candidate: commit, base: main, request, ...(censusPerRunner ? { censusPerRunner } : {}), ...(censusPerRunner && censusPerRunnerQuiet ? { censusPerRunnerQuiet } : {}) } };
 }
 
 /** Start this machine's loopback runner when it has no registered one, as a pull submit does: otherwise the job waits unclaimed [P7,C7]. */
@@ -375,8 +375,8 @@ export async function probeTestAt(ctx, { commit, file, say }) {
  * @param {{ item: number, commit: string, main: string, command: string, files: string[], runId: string, say?: (line: string) => void, fileBudgetMs?: number | null }} fields
  * @returns {Promise<{ job: string, runner: string | null, green: boolean, output: string, outcomes: { file: string, name: string, passed: boolean, skipped: boolean }[] | null, verdicts: Record<string, 'green' | string[]> | null, times: Record<string, number> | null, caseMs: Record<string, number> | null }>}
  */
-export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null }) {
-  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner }, { say });
+export async function runPulledComparison(ctx, { item, commit, main, command, files, runId, say, fileBudgetMs = null, censusPerRunner = null, censusPerRunnerQuiet = null }) {
+  return runJobFor(ctx, { item, commit, main, command, files, runId, fileBudgetMs, censusPerRunner, censusPerRunnerQuiet }, { say });
 }
 
 /**
