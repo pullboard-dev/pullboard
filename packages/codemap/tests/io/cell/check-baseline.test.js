@@ -13,7 +13,7 @@ import { cellLintReport } from '../../../index.js';
 import { planCellLintBaseline } from '../../../index.js';
 import { writeCellLintBaseline } from '../../../index.js';
 
-test('--check exits 1 and names the cycle edge when main holds a cycle its committed baseline never allowed [C7,CD23]', t => {
+test('codemap.check-baseline.check-exits-1-and-names: --check exits 1 and names the cycle edge when main holds a cycle its committed baseline never allowed [C7,CD23]', t => {
   const { root, put, commit } = fixtureCommittedGraph('pullboard-check-baseline-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const run = () => { const lines = []; let status; withCellLintParser(compile => { status = checkCellLints(root, cellLintParsers(compile), line => lines.push(line)); }); return { status, stderr: lines.join('\n') }; };

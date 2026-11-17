@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** @pullboard-world-pin reads every tracked file under packages/moves to prove none names a machine host [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

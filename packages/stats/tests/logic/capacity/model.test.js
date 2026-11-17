@@ -30,7 +30,7 @@ function fit(rows = samples()) { return fitCapacity(rows, { from: FROM, to: NOW 
 /** Project a deterministic seed and explicit live staffing. */
 function plan(items, fitted = fit(), extra = {}) { return planCapacity({ items, fit: fitted, liveSeats: 4, now: NOW, sequence: 17, seed: 39, ...extra }); }
 
-test('capacity fits use only seven-day measured samples and retain zero versus unknown [R1,R2]', () => {
+test('stats.model.capacity-fits-use-only-seven-day: capacity fits use only seven-day measured samples and retain zero versus unknown [R1,R2]', () => {
   const fitted = fit([...samples(),
     { at: '2026-10-17T23:59:59.999Z', kind: 'build', route: 'strong', hours: 900 },
     { at: '2026-10-26T00:00:00.000Z', kind: 'build', route: 'strong', hours: 900 },
@@ -47,7 +47,7 @@ test('capacity fits use only seven-day measured samples and retain zero versus u
   assert.deepEqual(JSON.parse(JSON.stringify(fitted)), fitted);
 });
 
-test('capacity work is agent labor while dependency bounds include queue waits [R1,R2]', () => {
+test('stats.model.capacity-work-is-agent-labor-while: capacity work is agent labor while dependency bounds include queue waits [R1,R2]', () => {
   const result = plan([item(1), item(2, { after: [1] })]);
   assert.equal(result.available, true);
   assert.equal(result.workHours, 6, 'two builds and two active reviews, without waiting labor');
@@ -62,7 +62,7 @@ test('capacity work is agent labor while dependency bounds include queue waits [
   assert.deepEqual(plan([item(1), item(2, { after: [1] })]), result, 'the same seed has no ambient randomness');
 });
 
-test('capacity distinguishes observed file collision waves and actual landing service [R1,R2]', () => {
+test('stats.model.capacity-distinguishes-observed-file-collision-waves: capacity distinguishes observed file collision waves and actual landing service [R1,R2]', () => {
   const parallel = plan([item(1), item(2)], fit(samples({ build: 2, review: 1, wait: 0, cycle: 3 })));
   const collision = plan([item(1), item(2, { files: ['src/1.js'] })], fit(samples({ build: 2, review: 1, wait: 0, cycle: 3 })));
   assert.equal(parallel.agents.recommended, 2);
@@ -77,7 +77,7 @@ test('capacity distinguishes observed file collision waves and actual landing se
   assert.equal(accepted.finishHours.upper, 0.25);
 });
 
-test('capacity preserves blocked graphs, missing fits and empty work as different states [R1,R2]', () => {
+test('stats.model.capacity-preserves-blocked-graphs-missing-fits: capacity preserves blocked graphs, missing fits and empty work as different states [R1,R2]', () => {
   for (const rows of [[item(1, { after: [900] })], [item(1, { after: [2] }), item(2, { after: [1] })]]) {
     const result = plan(rows);
     assert.equal(result.available, false);
@@ -105,7 +105,7 @@ test('capacity preserves blocked graphs, missing fits and empty work as differen
   assert.deepEqual(empty.finishHours, { lower: 0, upper: 0 });
 });
 
-test('capacity includes geometric rework labor without treating idle rework gaps as labor [R1,R2]', () => {
+test('stats.model.capacity-includes-geometric-rework-labor-without: capacity includes geometric rework labor without treating idle rework gaps as labor [R1,R2]', () => {
   const result = plan([item(1)], fit(samples({ reject: true, cycle: 17 })));
   assert.equal(result.workHours, 6, 'q=.5 doubles observed three-hour active attempts');
   assert.equal(result.bounds.criticalPathHours, 17, 'two seven-hour attempts plus one three-hour idle rework gap');
@@ -117,7 +117,7 @@ test('capacity includes geometric rework labor without treating idle rework gaps
   assert.match(capacityLines(result).join('\n'), /0 items lack recorded approval evidence/u);
 });
 
-test('capacity finish quantiles simulate shared service, independent review and a single lander [R1,R2]', () => {
+test('stats.model.capacity-finish-quantiles-simulate-shared-service: capacity finish quantiles simulate shared service, independent review and a single lander [R1,R2]', () => {
   const fitted = fit(samples({ wait: 0, cycle: 3 }));
   const result = plan([item(1), item(2)], fitted, { liveSeats: 2 });
   assert.equal(result.agents.recommended, 2);
@@ -132,7 +132,7 @@ test('capacity finish quantiles simulate shared service, independent review and 
 });
 
 
-test('capacity straggler p90 comes from observed whole cycles and does not multiply recorded rework twice [R1,R2]', () => {
+test('stats.model.capacity-straggler-p90-comes-from-observed: capacity straggler p90 comes from observed whole cycles and does not multiply recorded rework twice [R1,R2]', () => {
   const result = plan([item(1)], fit(samples({ reject: true, cycle: 40 })));
   assert.equal(result.workHours, 6, 'active work still uses the observed rejection probability');
   assert.equal(result.bounds.criticalPathHours, 17, 'component latency retains its distinct expected-attempt model');
@@ -145,7 +145,7 @@ test('capacity straggler p90 comes from observed whole cycles and does not multi
   assert.equal(missing.routes[0].durations.cycle.n, 0);
 });
 
-test('one hundred seeded capacity replicates finish under one second on a fifty-item board [R1,R2]', t => {
+test('stats.model.one-hundred-seeded-capacity-replicates-finish: one hundred seeded capacity replicates finish under one second on a fifty-item board [R1,R2]', t => {
   const items = Array.from({ length: 50 }, (_, index) => item(index + 1, {
     after: index > 4 && index % 5 === 0 ? [index - 4] : [],
   }));
@@ -158,7 +158,7 @@ test('one hundred seeded capacity replicates finish under one second on a fifty-
   assert.ok(elapsed < 1_000, `100 replicates exceeded one second: ${elapsed} ms`); // budget: declared by frozen item #1212, 100 replicates under one second on the seeded board.
 });
 
-test('submitted items preserve their shared builder identity in independent review capacity [R1,R2]', () => {
+test('stats.model.submitted-items-preserve-their-shared-builder: submitted items preserve their shared builder identity in independent review capacity [R1,R2]', () => {
   const items = [item(1, { state: 'submitted', builderId: 'builder' }), item(2, { state: 'submitted', builderId: 'builder' })];
   const fitted = fit(samples({ wait: 0, cycle: 3 }));
   const result = plan(items, fitted, { liveSeats: { total: 2, ids: ['builder', 'reviewer'] } });
@@ -169,7 +169,7 @@ test('submitted items preserve their shared builder identity in independent revi
 });
 
 
-test('a submitted item that needs only its review keeps its forecast without a build sample [R1,R2]', () => {
+test('stats.model.a-submitted-item-that-needs-only: a submitted item that needs only its review keeps its forecast without a build sample [R1,R2]', () => {
   const items = [item(1, { state: 'submitted', builderId: 'builder' })];
   const seats = { liveSeats: { total: 2, ids: ['builder', 'reviewer'] } };
   const measured = plan(items, fit(samples()), seats);
@@ -184,7 +184,7 @@ test('a submitted item that needs only its review keeps its forecast without a b
   assert.equal(reworked.tInfinityHours, null, 'with observed rejects a missing build sample still leaves the span unknown');
 });
 
-test('accepted work includes known typed landing-return repair labor and a failed landing still yields a number [R1,R2]', () => {
+test('stats.model.accepted-work-includes-known-typed-landing: accepted work includes known typed landing-return repair labor and a failed landing still yields a number [R1,R2]', () => {
   const rows = samples({ reject: true, wait: 0 });
   rows.push({ at: AT, kind: 'landingOutcome', route: 'strong', sourceCommit: 'b'.repeat(40), acceptEvent: 2, failed: true, cause: 'conflict' },
     { at: AT, kind: 'build', route: 'strong', attempt: 'conflict', hours: 10 },
@@ -206,7 +206,7 @@ test('accepted work includes known typed landing-return repair labor and a faile
   assert.match(noAnyBuild.unknown.join('; '), /repair build service is missing/);
 });
 
-test('accepted zero labor requires genuinely observed zero landing-return outcomes [R1,R2]', () => {
+test('stats.model.accepted-zero-labor-requires-genuinely-observed: accepted zero labor requires genuinely observed zero landing-return outcomes [R1,R2]', () => {
   const missing = plan([item(1, { state: 'accepted', files: [] })], fit(samples().filter(row => row.kind !== 'landingOutcome')));
   assert.equal(missing.workHours, null);
   assert.equal(missing.finishHours.upper, null);
@@ -217,7 +217,7 @@ test('accepted zero labor requires genuinely observed zero landing-return outcom
 });
 
 
-test('malformed landing provenance is right-censored, never counted as an outcome [R1,R2]', () => {
+test('stats.model.malformed-landing-provenance-is-right-censored: malformed landing provenance is right-censored, never counted as an outcome [R1,R2]', () => {
   for (const invalid of [{ sourceCommit: 'not-a-commit' }, { acceptEvent: 0 }]) {
     const rows = [...samples(), { at: AT, kind: 'landingOutcome', route: 'strong',
       sourceCommit: 'b'.repeat(40), acceptEvent: 2, failed: false, cause: 'merged', ...invalid }];

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/landing packages/state */
 /** A named landing's engine numbers are built by a runner job and applied by the coordinator as a patch [C7,#5568]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
