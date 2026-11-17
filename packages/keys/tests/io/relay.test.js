@@ -57,7 +57,7 @@ function privateFallback(t) {
   return { home, pullboardHome, keyDirectory: join(pullboardHome, 'relay-keys') };
 }
 
-test('file fallback stores a generated board key privately and reads it independently of keyRef [H1,H15,H17]', async (t) => {
+test('keys.relay.file-fallback-stores-a-generated-board: file fallback stores a generated board key privately and reads it independently of keyRef [H1,H15,H17]', async (t) => {
   const box = privateFallback(t);
   const boardId = 'a'.repeat(32);
   const raw = await generateBoardKey();
@@ -84,7 +84,7 @@ test('file fallback stores a generated board key privately and reads it independ
     'a different device key cannot open this board record');
 });
 
-test('fallback refuses missing or wrong board identities, invalid/corrupt keys, and forget removes only that key [H1,H15,H17]', async (t) => {
+test('keys.relay.fallback-refuses-missing-or-wrong-board: fallback refuses missing or wrong board identities, invalid/corrupt keys, and forget removes only that key [H1,H15,H17]', async (t) => {
   const box = privateFallback(t);
   const boardId = 'b'.repeat(32);
   const otherBoardId = 'c'.repeat(32);
@@ -108,7 +108,7 @@ test('fallback refuses missing or wrong board identities, invalid/corrupt keys, 
   assert.throws(() => readBoardKey(boardId), { code: 'RELAY_KEY_MISSING' });
 });
 
-test('PULLBOARD_RELAY_KEY is a canonical device-only fallback when no stored key exists [H1,H15,H17]', async (t) => {
+test('keys.relay.pullboard-relay-key-is-a-canonical: PULLBOARD_RELAY_KEY is a canonical device-only fallback when no stored key exists [H1,H15,H17]', async (t) => {
   const box = privateFallback(t);
   const boardId = 'd'.repeat(32);
   const raw = await generateBoardKey();
@@ -129,7 +129,7 @@ test('PULLBOARD_RELAY_KEY is a canonical device-only fallback when no stored key
 });
 
 
-test('owner-only key file refuses mismatched environment keys without exposing either source [H15,H17]', async (t) => {
+test('keys.relay.owner-only-key-file-refuses-mismatched: owner-only key file refuses mismatched environment keys without exposing either source [H15,H17]', async (t) => {
   const box = privateFallback(t);
   const boardId = 'e'.repeat(32);
   const raw = await generateBoardKey();
