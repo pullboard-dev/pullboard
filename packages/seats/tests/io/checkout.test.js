@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell seats */
 /**
  * Board writes never queue behind a slow command or a dead holder [B3,C7]. On 9 Nov the coordinator's hold, add and
  * edit waited over ten minutes: each held the checkout's lease for its whole run, so all of them queued behind a
