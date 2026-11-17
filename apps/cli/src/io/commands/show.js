@@ -14,7 +14,7 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
-import { landingPhaseLines } from '../../logic/show/landing.js';
+import { landingPhaseLines } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
