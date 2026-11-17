@@ -69,10 +69,10 @@ test('the view fixture opts out of the background view [N26]', () => {
     'later copied or hooked CLI commands retain the effective machine opt-out');
 });
 
-test('borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', () => {
+test('clause 1: borrowed board presentation keeps parity, shows staged rows, and leaves the caller connection open [N26,H16]', async () => {
   const box = machine();
   const p = project(box, 'projector');
-  box.run(p.repo, 'add', 'web', 'Existing projection row', '--criterion', 'same native data');
+  await box.runIn(p.repo, 'add', 'web', 'Existing projection row', '--criterion', 'same native data');
   // @pullboard-board-file journey: opens the project board file read-only to compare its presentation with a staged copy.
   const source = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
   const staged = openBoard(':memory:');

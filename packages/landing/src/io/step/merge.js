@@ -12,6 +12,9 @@ import { isClean } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { hunkFreshnessEnabled } from '../../../../config/index.js';
+import { landingSquashEnabled } from '../../../../config/index.js';
+import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
 import { landingContext } from '../../logic/message.js';
 import { tightenLandingDoctrine } from '../doctrine.js';
@@ -59,7 +62,7 @@ async function resetDirtyOnce(state) {
 function baseVerdicts(state, base) {
   state.baseVerdicts ??= new Map();
   if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
-    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }));
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() }));
   return state.baseVerdicts.get(base);
 }
 
@@ -80,6 +83,8 @@ export async function mergeGroup(state, items) {
   const resolutions = [];
   // A per-item landing merges the reviewed commit with repository hooks off: they ran when the item was built [C7,#2901].
   const hooks = landingHooks(state.config);
+  // With landing.squash on, an item lands as one single-parent commit and its branch stays under refs/pullboard/items/<id> [C7,#9220].
+  const squash = landingSquashEnabled();
   const onRunner = deriveRidesRunner(state);
   // A named batch's merges, gate repoints and derived files are built by one runner job; this checkout only takes its commit [C7,#5585].
   const composed = onRunner && items.length ? await composeOnRunner(state, items.map(entry => {
@@ -114,7 +119,10 @@ export async function mergeGroup(state, items) {
     // merge.log is switched off on this call, so a local Git config cannot append a shortlog to the body.
     const trunk = headCommit(batch.root);
     const message = messages.get(item.item_id);
-    const result = tryGit(batch.root, [...hooks, '-c', 'merge.log=false', 'merge', '--no-ff', '--no-log', checked, '-m', message.header, '-m', message.trailers]);
+    // A squash that conflicts writes nothing, so the merge below runs as with the setting off and keeps its mechanical resolution.
+    const squashed = squash ? squashOnto(batch.root, { base: trunk, tip: checked, message: `${message.header}\n\n${message.trailers}`, item: item.item_id }) : null;
+    if (squashed?.commit) git(batch.root, ['reset', '-q', '--hard', squashed.commit]);
+    const result = squashed?.commit ? { status: 0 } : tryGit(batch.root, [...hooks, '-c', 'merge.log=false', 'merge', '--no-ff', '--no-log', checked, '-m', message.header, '-m', message.trailers]);
     if (result.status !== 0) {
       const files = tryGit(batch.root, ['diff', '--name-only', '--diff-filter=U']).stdout.split('\n').filter(Boolean);
       if (!files.length) throw new Refused('LAND_MERGE', `merge of #${item.item_id} failed outside a conflict: ${result.stderr || result.stdout}; inspect ${batch.root} and its hooks before adopting`);
@@ -146,7 +154,7 @@ export async function mergeGroup(state, items) {
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
     // A named batch derives once after its last merge, on a runner (below), so the coordinator spends no CPU on it [C7,#5568].
     if (!onRunner) for (const engine of amendLandingEngines(batch.root, hooks).assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
-    const first = firstContainingCommit(batch.root, checked);
+    const first = squashed?.commit ? headCommit(batch.root) : firstContainingCommit(batch.root, checked);
     const commit = proven ? checked : item.item_commit;
     merged.push({ id: item.item_id, commit, ...(checked !== commit ? { reviewedCommit: checked } : {}), merge: first });
   }
@@ -162,7 +170,7 @@ export async function mergeGroup(state, items) {
       git(batch.root, ['add', '--', ...changed]);
       const tip = headCommit(batch.root);
       const parents = git(batch.root, ['rev-list', '--parents', '-n', '1', tip]).split(' ');
-      if (tip !== batch.base && parents.length === 3 && merged.some(entry => entry.merge === tip)) {
+      if (tip !== batch.base && parents.length === (squash ? 2 : 3) && merged.some(entry => entry.merge === tip)) {
         // Badges belong to the final item merge, preserving its parents/trailer and first-containing receipt.
         git(batch.root, [...hooks, 'commit', '--amend', '--no-edit']);
         const refreshed = headCommit(batch.root);

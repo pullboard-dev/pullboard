@@ -6,7 +6,7 @@ import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
 import { testResults } from '../../../../store/index.js';
 import { boardJobQueueCall } from '../../../index.js';
@@ -36,7 +36,7 @@ const LEDGER = { contexts: ['e'.repeat(64)], files: [['web/page.test.js', '1'.re
 const green = head => ({ version: 1, status: 0, gate: { source: head, green: true, phases: [{ role: 'proof', status: 0, ledger: LEDGER }] } });
 const red = head => ({ version: 1, status: 1, gate: { source: head, green: false, phases: [{ role: 'proof', status: 1, failures: [{ file: 'web/page.test.js', name: 'the page renders' }] }] } });
 
-test('clause 1: on a linked board a green pulled gate hands its submit to the relay, and the relay\'s order submits the item [C7,H16]', t => {
+test('api.gate-ordered.linked-board-green-pulled-gate: clause 1: on a linked board a green pulled gate hands its submit to the relay, and the relay\'s order submits the item [C7,H16]', t => {
   const { board, seat, id, head, job, post } = pulledSubmit(t);
   const ordered = [];
   const posted = post(green(head), { ordered });
@@ -60,7 +60,7 @@ test('clause 1: on a linked board a green pulled gate hands its submit to the re
   assert.equal(after.item_commit, head);
 });
 
-test('clause 1: on a linked board a red pulled gate hands its failing parts to the relay and leaves the item claimed [C7,H16]', t => {
+test('api.gate-ordered.linked-board-red-pulled-gate: clause 1: on a linked board a red pulled gate hands its failing parts to the relay and leaves the item claimed [C7,H16]', t => {
   const { board, id, head, job, post } = pulledSubmit(t);
   const ordered = [];
   const posted = post(red(head), { ordered });
@@ -72,7 +72,7 @@ test('clause 1: on a linked board a red pulled gate hands its failing parts to t
   assert.ok(!store.itemThread(board, id).some(row => row.text?.startsWith(`Gate job ${job} red`)), 'the red note waits for the relay\'s order');
 });
 
-test('clause 1: a local board applies a green pulled gate at once, as before [C7]', t => {
+test('api.gate-ordered.local-board-applies-green-pulled: clause 1: a local board applies a green pulled gate at once, as before [C7]', t => {
   const { board, id, head, job, post } = pulledSubmit(t);
   const posted = post(green(head));
   assert.equal(posted.applied.outcome, 'review', JSON.stringify(posted.applied));

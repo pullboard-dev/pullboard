@@ -64,7 +64,7 @@ const results = Array.from({ length: CASES }, (_, seed) => {
   return { seed: seed + 1, s, holds: serves(s, s.job.kind) };
 });
 
-test('moves.backbone.kinds-complete: generated: every job kind has one serves rule, in the table, in the kinds list and in the states list, with no kind left out [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-kinds-complete-generated-every-job-kind-has-one: moves.backbone.kinds-complete: generated: every job kind has one serves rule, in the table, in the kinds list and in the states list, with no kind left out [C7,#8328]', () => {
   assert.equal(new Set(KINDS).size, KINDS.length);
   assert.deepEqual(BACKBONE_TABLE.jobs.map(row => [row.kind, row.serves]), KINDS.map(kind => [kind, servesRule(kind)]));
   for (const kind of KINDS) assert.equal(BACKBONE_RULES[servesRule(kind)].says, JOB_KINDS.find(job => job.kind === kind).serves);
@@ -74,7 +74,7 @@ test('moves.backbone.kinds-complete: generated: every job kind has one serves ru
   assert.equal(new Set(BACKBONE_STATES).size, BACKBONE_STATES.length);
 });
 
-test('moves.backbone.served-by-needs: generated: a job is served exactly when its kind needs say it is, for every kind, on seeded states [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-served-by-needs-generated-a-job-is-served-exactly: moves.backbone.served-by-needs: generated: a job is served exactly when its kind needs say it is, for every kind, on seeded states [C7,#8328]', () => {
   for (const kind of KINDS) {
     const mine = results.filter(c => c.s.job.kind === kind);
     assert.ok(mine.some(c => c.holds) && mine.some(c => !c.holds), `${kind}: only ${mine.filter(c => c.holds).length} of ${mine.length} served`);
@@ -82,7 +82,7 @@ test('moves.backbone.served-by-needs: generated: a job is served exactly when it
   }
 });
 
-test('moves.backbone.serves-trace: generated: a serves fact traces only facts it reads, ending on itself, each once [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-serves-trace-generated-a-serves-fact-traces-only: moves.backbone.serves-trace: generated: a serves fact traces only facts it reads, ending on itself, each once [C7,#8328]', () => {
   for (const c of results.slice(0, 3000)) {
     const { trace, fact, holds } = deriveFact(BACKBONE_RULES, servesRule(c.s.job.kind), structuredClone(c.s));
     assert.deepEqual([trace.at(-1).fact, trace.at(-1).holds, fact], [servesRule(c.s.job.kind), holds, servesRule(c.s.job.kind)], `seed ${c.seed}`);
@@ -90,14 +90,14 @@ test('moves.backbone.serves-trace: generated: a serves fact traces only facts it
   }
 });
 
-test('moves.backbone.one-kind-served: metamorphic: a job of one kind is never served as another kind, so at most one serves fact holds per state [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-one-kind-served-metamorphic-a-job-of-one-kind: moves.backbone.one-kind-served: metamorphic: a job of one kind is never served as another kind, so at most one serves fact holds per state [C7,#8328]', () => {
   for (const c of results.slice(0, 4000)) {
     const held = KINDS.filter(kind => serves(c.s, kind));
     assert.deepEqual(held, c.holds ? [c.s.job.kind] : [], `seed ${c.seed}`);
   }
 });
 
-test('moves.backbone.moved-job-unserved: metamorphic: move the item off the job commit, digest or status, or take away what it serves, and a served job stops being served [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-moved-job-unserved-metamorphic-move-the-item-off-the: moves.backbone.moved-job-unserved: metamorphic: move the item off the job commit, digest or status, or take away what it serves, and a served job stops being served [C7,#8328]', () => {
   const breaks = {
     gate: [s => ({ ...s, item: { ...s.item, owner: 'z' } }), s => ({ ...s, item: { ...s.item, status: 'submitted' } })],
     'gate-drive': [s => ({ ...s, job: { ...s.job, status: 'done' } }), s => ({ ...s, item: { ...s.item, status: 'verified' } })],
@@ -125,7 +125,7 @@ test('moves.backbone.moved-job-unserved: metamorphic: move the item off the job 
   }
 });
 
-test('moves.backbone.read-is-pure: generated: reading a state never changes it and gives the same answer twice [C7,#8328]', () => {
+test('moves.backbone-generated.moves-backbone-read-is-pure-generated-reading-a-state-never-changes: moves.backbone.read-is-pure: generated: reading a state never changes it and gives the same answer twice [C7,#8328]', () => {
   for (const c of results.slice(0, 2000)) {
     const before = structuredClone(c.s);
     assert.equal(deriveFact(BACKBONE_RULES, servesRule(c.s.job.kind), c.s).holds, c.holds, `seed ${c.seed}`);
@@ -175,7 +175,7 @@ const rowResults = Array.from({ length: GENERATED }, (_, seed) => {
 });
 const unknown = run({ item: { status: 'open', owner: null, after: [] }, items: new Map(), facts: {} }, { name: 'nap', actor: 'coordinator', at: NOW });
 
-test('moves.backbone.rows-fire: generated: every guard and outcome row of the backbone table fires on some seeded case [C7,#8558]', () => {
+test('moves.backbone-generated.moves-backbone-rows-fire-generated-every-guard-and-outcome-row: moves.backbone.rows-fire: generated: every guard and outcome row of the backbone table fires on some seeded case [C7,#8558]', () => {
   const fired = new Set([...rowResults.map(c => (c.result.refused ? c.result.refused.row : c.result.via[0])), unknown.refused.row]);
   const rows = [...BACKBONE_TABLE.guards.map(row => row.id), ...BACKBONE_TABLE.outcomes.map(row => row.id)];
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
@@ -195,7 +195,7 @@ const pairAfter = (item, result) => {
   return [after.status, landingOf(after)];
 };
 
-test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move table over generated snapshots writes only a legal status and landing pair [M1,M4]', () => {
+test('moves.backbone-generated.moves-backbone-legal-landing-pair-clause-3-every-outcome-of-every: moves.backbone.legal-landing-pair: clause 3: every outcome of every move table over generated snapshots writes only a legal status and landing pair [M1,M4]', () => {
   const writes = [];
   // Every declared item move, from every legal start pair it can meet.
   for (let seed = 1; seed <= GENERATED; seed++) {
@@ -220,7 +220,7 @@ test('moves.backbone.legal-landing-pair: clause 3: every outcome of every move t
   assert.deepEqual(illegal.slice(0, 5), [], `${illegal.length} writes left an illegal pair`);
 });
 
-test('moves.backbone.job-kinds-created: clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
+test('moves.backbone-generated.every-declared-job-kind-is-created-by: clause 2: every declared job kind is created by code, pull-out by the lander, so none waits for a runner [M2,R3,#9100]', () => {
   assert.deepEqual(CREATED_JOB_KINDS, KINDS);
   assert.equal(JOB_KINDS.some(job => job.created === false), false);
 });

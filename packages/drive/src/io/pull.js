@@ -75,6 +75,19 @@ const RUNNER_TOOLS = fileURLToPath(new URL('../../../../', import.meta.url));
 /** The release tags every store refresh fetches, which proofs that unpack an old release read. */
 const RELEASE_TAGS = '+refs/tags/v*:refs/tags/v*';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+/**
+ * Why a land job cannot start on this runner, or null when it can: its shardProof run was moved to the request and never came back, or has no argv or entry [C7,#9249].
+ *
+ * @param {Record<string, any> | undefined} payload
+ * @returns {string | null}
+ */
+export function unrunnableLandReason(payload) {
+  const proof = payload?.shardProof;
+  if (!proof) return Array.isArray(payload?.requested) && payload.requested.includes('shardProof') ? 'shardProof was moved to the job request and the request did not carry it back' : null;
+  if (!Array.isArray(proof.run) || !proof.run.length || !proof.run.every(word => typeof word === 'string')) return 'shardProof.run is not a non-empty argv of strings';
+  return typeof proof.entry === 'string' && proof.entry ? null : 'shardProof.entry is missing';
+}
+
 // The ref a land job pins its merged commit under on the trunk remote (packages/landing's landingRef).
 const LANDING_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
@@ -264,6 +277,23 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
 }
 
 /**
+ * A turn runner that lets up to `limit` works run at once and queues the rest in order.
+ * Why: with runners.fetchConcurrent on, N slots wanting N different commits fetch together instead of each waiting for every fetch before its own [#9884].
+ *
+ * @param {number} limit
+ * @returns {(work: () => Promise<any>) => Promise<any>}
+ */
+export function countingTurns(limit) {
+  let running = 0;
+  const waiting = [];
+  const next = () => { while (running < limit && waiting.length) { running += 1; waiting.shift()(); } };
+  return work => new Promise((resolve, reject) => {
+    waiting.push(() => { Promise.resolve().then(work).then(resolve, reject).finally(() => { running -= 1; next(); }); });
+    next();
+  });
+}
+
+/**
  * Fetch one commit from the trunk remote into the runner's cache and check it out in the named folder. Every commit in
  * `also` is fetched into the same cache, so a job that reads another commit's objects (a gate archives accepted main
  * from its checkout's own objects) finds them there.
@@ -281,10 +311,11 @@ async function pruneFetched(git, store, keep = FETCHED_REFS) {
  * @param {{ ref?: string | null, main?: string | null, pack?: ((commit: string) => Promise<{ file: string } | null>) | null, git?: PullGit | null }} [options] - main: the
  *   commit the primary's main branch names; default none. pack: a shared trunk pack a cold store takes before fetching.
  *   git: the Git launches the caller hands in, since drive launches no git of its own [C7]; ref: the landing ref a land shard's candidate sits under, fetched by name when the commit is absent [#7818].
+ *   fetchTurn: runs the fetch turn when it is not the same as exclusive; with runners.fetchConcurrent on, serveRunner hands in countingTurns so fetches of different commits overlap [#9884].
  *   fetchGate: asked inside the fetch turn before each fetch; a reason it returns ends the checkout without fetching. onFetch: told each fetch's reason, or null once it worked [#9024].
  * @returns {Promise<{ ok: true, folder: string, primary: string, reused: boolean } | { ok: false, reason: string }>}
  */
-export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
+export async function checkoutCandidate(cache, trunk, commit, name, also = [], { main = null, pack = null, exclusive = work => work(), fetchTurn = null, git = null, ref = null, fetchGate = null, onFetch = null } = {}) {
   if (!git) return { ok: false, reason: 'this runner was given no git launcher; pass serveRunner its git option' };
   if (!SHA.test(String(commit ?? ''))) return { ok: false, reason: `the job names no commit (${commit})` };
   if (typeof trunk !== 'string' || !trunk) return { ok: false, reason: 'the board named no trunk remote' };
@@ -304,7 +335,7 @@ export async function checkoutCandidate(cache, trunk, commit, name, also = [], {
   const present = await Promise.all(wanted.map(async one => SHA.test(String(one ?? '')) && (await git.run(store, ['cat-file', '-e', `${one}^{commit}`])).status === 0));
   const absent = wanted.filter((_, index) => !present[index]);
   if (absent.length) {
-    const missing = await exclusive(async () => {
+    const missing = await (fetchTurn ?? exclusive)(async () => {
       for (const one of absent) {
         const refused = fetchGate?.(); if (refused) return refused;
         const reason = await fetchCommit(git, store, trunk, one, pack, one === commit ? ref : null);
@@ -631,7 +662,7 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -720,6 +751,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         const asked = await reliably({ action: 'request', ...held });
         claim = { ...claim, payload: { ...claim.payload, ...asked?.request?.land } };
       }
+      // jobs.handBackUnrunnable: a land job whose shardProof run is missing goes back at once with that reason, before any fetch, not to a lapsed lease [C7,#9249].
+      const unrunnable = handBackUnrunnable && claim.kind === 'land' ? unrunnableLandReason(claim.payload) : null;
+      if (unrunnable) throw new Error(`[LAND_UNRUNNABLE] this runner cannot run the land job: ${unrunnable}; next: the board offers it again once the request is whole`);
       // The runner's own install rides as PULLBOARD_RUNNER_TOOLS, as a gate job's does, so a proof's trusted step judges a non-Pullboard fixture the same way (#7816).
       environment = jobEnvironment(cache, name, claim.job);
       receipt = await handlers[claim.kind](claim, { cache: workCache, renew, env: { ...environment.env, PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS } });
@@ -753,6 +787,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Hand checkout work to the shared object cache one job at a time: concurrent fetches into one bare store race on its refs. */
   let cacheLock = Promise.resolve();
   const serially = work => { const turn = cacheLock.then(work, work); cacheLock = turn.catch(() => {}); return turn; };
+  // With runners.fetchConcurrent on, fetches of different missing commits take up to 4 turns at once; the object store is still made, and checkouts dropped, one at a time [#9884].
+  const fetchTurns = fetchConcurrent ? countingTurns(4) : null;
   /**
    * Run one claimed job in its slot and say how it ended; null when the runner stopped before it held anything.
    * Why a slot: concurrent jobs each own a checkout and, for handled kinds, a working folder, so no two share files.
@@ -816,7 +852,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const name = `${claim.job.replace(/[^A-Za-z0-9._-]/gu, '-')}-${claim.attempt}`;
     // Each slot reuses its own folder: concurrent jobs never share one, and only the shared object store's writes take turns.
     let late = false, deadline = null;
-    const fetching = checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, git, ref,
+    const fetching = checkoutCandidate(cache, trunk, claim.candidate, `${folders}-${slot}`, also, { main: claim.base ?? null, pack, exclusive: serially, ...(fetchTurns ? { fetchTurn: fetchTurns } : {}), git, ref,
       ...(fetchFailFast || drainOnFetchFailure ? { onFetch } : {}), ...(fetchFailFast ? { fetchGate: () => late ? 'the claim already went back to the queue' : recentFetchFailure() } : {}) });
     // With runners.fetchFailFast on, a fetch still running 120 s after the claim sends the job back naming that, and a fetch queued behind it never starts for this job [#9024].
     const checkout = await (fetchFailFast ? Promise.race([fetching, new Promise(resolve => {

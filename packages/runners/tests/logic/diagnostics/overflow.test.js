@@ -92,7 +92,7 @@ function scenario(t, mode) {
   });
 }
 
-test('a spawn burst past one journal file rotates, so cleanup is certain and reaps the child that never exits [C7]', { timeout: 120_000 }, async t => {
+test('runners.overflow.a-spawn-burst-past-one-journal: a spawn burst past one journal file rotates, so cleanup is certain and reaps the child that never exits [C7]', { timeout: 120_000 }, async t => {
   const run = await scenario(t, 'burst');
   assert.equal(run.tracked, true, 'custody proved the detached sleeper through the burst');
   assert.equal(run.overflow, false, 'a burst must not write the overflow marker');
@@ -102,7 +102,7 @@ test('a spawn burst past one journal file rotates, so cleanup is certain and rea
   assert.equal(run.sleeperAlive, false, 'the child that never exits is stopped');
 });
 
-test('a job shell whose child never exits is stopped with its whole group and leaves no stray /bin/sh [C7]', { timeout: 60_000 }, async t => {
+test('runners.overflow.a-job-shell-whose-child-never: a job shell whose child never exits is stopped with its whole group and leaves no stray /bin/sh [C7]', { timeout: 60_000 }, async t => {
   const run = await scenario(t, 'shell');
   assert.equal(run.tracked, true);
   assert.equal(run.budgetSpent, false);
@@ -111,7 +111,7 @@ test('a job shell whose child never exits is stopped with its whole group and le
   assert.equal(run.sleeperAlive, false, 'no stray sleeper');
 });
 
-test('a renewal beat thread started under --input-type=module survives instead of respawning at every renewal [C7]', { timeout: 60_000 }, async t => {
+test('runners.overflow.a-renewal-beat-thread-started-under: a renewal beat thread started under --input-type=module survives instead of respawning at every renewal [C7]', { timeout: 60_000 }, async t => {
   const directory = privateFixtureFiles('pullboard-beat-module-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const database = join(directory, 'slots.sqlite');

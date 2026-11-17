@@ -53,3 +53,20 @@ export function maxUsefulBuilders(history, { now, windowMs = USEFUL_WINDOW_MS, m
   }
   return { max, window: { from, to }, inputs, curve };
 }
+
+/**
+ * Print the max useful builder answer with its window and inputs.
+ *
+ * Why: a bare number hides how little it rests on; the line names the window, the hours read and the seat counts seen.
+ *
+ * @param {ReturnType<typeof maxUsefulBuilders>} result
+ * @returns {string[]}
+ */
+export function usefulBuilderLines(result) {
+  const day = ms => new Date(ms).toISOString().slice(0, 10);
+  const inputs = `${result.inputs.rows} observed hours at seat counts ${result.inputs.counts.length ? result.inputs.counts.join(', ') : 'none'}`;
+  const window = `${day(result.window.from)} to ${day(result.window.to)}`;
+  return [result.max === null
+    ? `Max useful builders: unknown (needs two observed seat counts; window ${window}; ${inputs}).`
+    : `Max useful builders: ${result.max} (window ${window}; ${inputs}).`];
+}

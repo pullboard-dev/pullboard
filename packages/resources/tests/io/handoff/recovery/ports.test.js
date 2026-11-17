@@ -31,14 +31,14 @@ function due(db, { legacy = false } = {}) {
   return recovery;
 }
 
-test('resource recovery has no implicit healthy observation when its caller supplies no probe [C7,Q1]', async t => {
+test('resources.ports.resource-recovery-has-no-implicit-healthy: resource recovery has no implicit healthy observation when its caller supplies no probe [C7,Q1]', async t => {
   const db = queue(t);
   due(db);
   assert.equal(await recoverUnavailableRunners(db, [{ host: 'private-runner' }]), false);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable').get().n, 1);
 });
 
-test('a supplied observation receives exact custody and clears only its claimed resource generation [C7,Q2]', async t => {
+test('resources.ports.a-supplied-observation-receives-exact-custody: a supplied observation receives exact custody and clears only its claimed resource generation [C7,Q2]', async t => {
   const db = queue(t);
   const recovery = due(db);
   let calls = 0;
@@ -57,7 +57,7 @@ test('a supplied observation receives exact custody and clears only its claimed 
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM runner_recovery_event WHERE kind='available'").get().n, 1);
 });
 
-test('a newer resource failure survives an older supplied healthy observation [C7,Q2]', async t => {
+test('resources.ports.a-newer-resource-failure-survives-an: a newer resource failure survives an older supplied healthy observation [C7,Q2]', async t => {
   const db = queue(t);
   const recovery = due(db);
   const changed = await recoverUnavailableRunners(db, [{ host: 'private-runner' }], {
@@ -73,7 +73,7 @@ test('a newer resource failure survives an older supplied healthy observation [C
   assert.equal(JSON.parse(retained.failure).original.reason, 'new uncertainty');
 });
 
-test('legacy custody and draining resources never reach the supplied observer [C7,Q2]', async t => {
+test('resources.ports.legacy-custody-and-draining-resources-never: legacy custody and draining resources never reach the supplied observer [C7,Q2]', async t => {
   for (const mode of ['legacy', 'draining']) {
     const db = queue(t);
     due(db, { legacy: mode === 'legacy' });
@@ -89,7 +89,7 @@ test('legacy custody and draining resources never reach the supplied observer [C
   }
 });
 
-test('wait projections read only the pool facts and name the recovery step without a probe [C7,Q2]', t => {
+test('resources.ports.wait-projections-read-only-the-pool: wait projections read only the pool facts and name the recovery step without a probe [C7,Q2]', t => {
   const db = queue(t);
   db.exec('CREATE TABLE runner_gui(host TEXT PRIMARY KEY,gui INTEGER NOT NULL); CREATE TABLE holder(name TEXT,agent TEXT,item TEXT,browser INTEGER,timing INTEGER); CREATE TABLE runner_timing_drain(singleton INTEGER,host TEXT,token TEXT,agent TEXT,item TEXT)');
   due(db);

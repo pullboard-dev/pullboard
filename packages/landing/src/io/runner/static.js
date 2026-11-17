@@ -5,6 +5,7 @@ import { tryGit } from '../../../../git/index.js';
 // the runner bundle stays free of the gate package, which reaches the CLI.
 const STATIC_SCOPE_ENV = 'PULLBOARD_STATIC_SCOPE';
 const WHOLE_REPO_INPUT = /^(?:pullboard\.json|package\.json|DOCTRINE\.md)$|\.json$/u;
+const DATA_FILE = /^packages\/gate\/data\/.+\.json$/u;
 // A scope list longer than this is not exported into a shell command line; the guard runs whole instead.
 const SCOPE_PATH_LIMIT = 1000;
 
@@ -15,14 +16,22 @@ function staticRows(output) {
 }
 
 /**
+ * Whether a changed path makes the static run whole. With landing.staticAffectedOnly on, a JSON data file under
+ * packages/gate/data does not: the registry classes that declare it in jsonInputs run, and no others [C7,#9077].
+ */
+function wholeInput(path, affectedOnly) {
+  return WHOLE_REPO_INPUT.test(path) && !(affectedOnly && DATA_FILE.test(path));
+}
+
+/**
  * The guard command handed the merged tree's changed paths, as submit scopes its static run; the whole command when a
  * path was deleted, is an input every rule reads, or the diff cannot be read.
  */
-function scopedGuard(root, base, command) {
+function scopedGuard(root, base, command, affectedOnly = false) {
   const ran = tryGit(root, ['--no-replace-objects', 'diff', '--no-renames', '--name-status', base, 'HEAD']);
   if (ran.status !== 0) return command;
   const changes = ran.stdout.split('\n').filter(Boolean).map(row => { const [status, ...path] = row.split('\t'); return { status: status[0], path: path.join('\t') }; });
-  if (changes.some(change => change.status === 'D' || WHOLE_REPO_INPUT.test(change.path)) || changes.length > SCOPE_PATH_LIMIT) return command;
+  if (changes.some(change => change.status === 'D' || wholeInput(change.path, affectedOnly)) || changes.length > SCOPE_PATH_LIMIT) return command;
   const files = changes.map(change => change.path).sort();
   return `export ${STATIC_SCOPE_ENV}='${JSON.stringify(files).replaceAll("'", "'\\''")}'; ${command}`;
 }
@@ -36,14 +45,15 @@ function scopedGuard(root, base, command) {
  * @param {unknown} command - The board config's staticChecks command, carried on the job.
  * @param {(argv: string[]) => (context: { root: string }) => Promise<{ ok: boolean, detail: string | null, output?: string }>} commandCheck - job.js's
  *   command runner, passed in so this module reaches nothing job.js loads.
+ * @param {{ affectedOnly?: boolean }} [options] - affectedOnly: the job carried landing.staticAffectedOnly.
  * @returns {((context: { root: string, base: string }) => Promise<{ ok: boolean, detail: string | null, guard?: string }>) | null} null when the job names no guard;
  *   guard: the config row that went red, so the board returns the item to its builder even under separate publish.
  */
-export function staticGuardCheck(command, commandCheck) {
+export function staticGuardCheck(command, commandCheck, { affectedOnly = false } = {}) {
   const guard = typeof command === 'string' && command.trim() && !/\0/u.test(command) ? command.trim() : null;
   if (!guard) return null;
   return async ({ root, base }) => {
-    const scoped = scopedGuard(root, base, guard);
+    const scoped = scopedGuard(root, base, guard, affectedOnly);
     const result = await commandCheck(['sh', '-c', scoped])({ root });
     if (result.ok) return { ok: true, detail: null };
     const changed = new Set(tryGit(root, ['diff', '--no-renames', '--name-only', base, 'HEAD']).stdout.split('\n').filter(Boolean));
