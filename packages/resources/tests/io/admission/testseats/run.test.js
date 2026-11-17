@@ -41,7 +41,7 @@ function queued(options, stop, onQueued = () => {}) {
     .then(lease => lease, error => { if (error !== left) throw error; return 'left'; });
 }
 
-test('clause 1: a test run is admitted within 60 s when a runner has a free slot [C7]', async t => {
+test('resources.run.a-test-run-is-admitted-within: clause 1: a test run is admitted within 60 s when a runner has a free slot [C7]', async t => {
   const root = fixture(t);
   const runners = [{ host: 'busy-runner', slots: 1, browser: 0 }, { host: 'free-runner', slots: 2, browser: 0 }];
   const base = pool(root, runners);
@@ -78,7 +78,7 @@ test('clause 1: a test run is admitted within 60 s when a runner has a free slot
   }
 });
 
-test('clause 2: test runs and gate runs share free slots fairly [C7]', async t => {
+test('resources.run.test-runs-and-gate-runs-share: clause 2: test runs and gate runs share free slots fairly [C7]', async t => {
   const root = fixture(t);
   const runner = { host: 'fixture-runner', slots: 2, browser: 0 };
   const base = pool(root, [runner]);
