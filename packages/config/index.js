@@ -54,8 +54,10 @@ export {
   censusJobsPerRunner,
   censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
+  pushPinToolingEnabled,
   flakesRereadRatchetEnabled,
   pushRecordTimingEnabled,
+  pushRefuseUnshardedEnabled,
   pushRerunFailedShardOnceEnabled,
   tableReplayEnabled,
   overlapStaticProofEnabled,
@@ -66,11 +68,13 @@ export {
   gateJunitReport,
   testNiceEnabled,
   fencedHopEnabled,
+  judgeByReleaseEnabled,
   endStaleJobsEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
+  recordLapseEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
@@ -124,8 +128,11 @@ export {
   reviewStarveShout,
   nextLabelBounds,
   nextCapBuilders,
+  nextRouteByTier,
   nextHoldAboveLoad,
+  heavyLocalHoldEnabled,
   nextReadinessCheck,
+  nextOneGitRead,
   nextReadinessCache,
   refuseTempWorktree,
   claimKeepWhileRunning,
@@ -140,9 +147,11 @@ export {
   derivedStateEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
+  requireFactQuoteEnabled,
   typedFieldsEnabled,
   nameBehindDeviceEnabled,
   recordWriteHolderEnabled,
+  landingSelfCheckEnabled,
   adaptiveBatchEnabled,
   landingSquashEnabled,
   strictFullSuiteEnabled,
@@ -155,12 +164,15 @@ export {
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   parallelGatesEnabled,
+  staticParallelMax,
   reuseGateReceiptsEnabled,
   asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,
   relayQueueOnFailureEnabled,
+  pulledProfilePathsEnabled,
+  renewAfterSyncEnabled,
   setRelayCanary,
   setLandingPool,
   setGateSlots,
@@ -253,7 +265,7 @@ export {
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
+export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';

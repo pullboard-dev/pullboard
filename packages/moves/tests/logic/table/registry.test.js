@@ -31,3 +31,11 @@ test('moves.registry.generated-complete: clause 3: every generated table test ha
   assert.ok(files.length >= 10, 'the generated table test files were found');
   assert.deepEqual(tableTestRegistryProblems(files, all), []);
 });
+
+test('moves.registry.two-id-titles: clause 4: a title with the cell registry ID first reads the table registry ID after it, and a lone cell ID is read as is [C7,U148,#9269]', () => {
+  const two = [{ file: 'hop-generated.test.js', source: "test('moves.hop-generated.every-row: moves.hop.rows-fire: generated: every row fires', () => {});\n" }];
+  assert.deepEqual(tableTestRegistryProblems(two, records), []);
+  assert.match(tableTestRegistryProblems(two, {})[0], /moves\.hop\.rows-fire has no registry record/u);
+  const lone = [{ file: 'hop-generated.test.js', source: "test('moves.hop-generated.only: clause 1: x', () => {});\n" }];
+  assert.deepEqual(tableTestRegistryProblems(lone, { 'moves.hop-generated.only': { proves: { move: 'hop:*' } } }), []);
+});
