@@ -919,6 +919,11 @@ export function archiveEventsEnabled() {
   return loadMachineSettings().board?.archiveEvents === true;
 }
 
+/** Whether board.hotState is on (#9338): off by default; only an exact `true` turns it on. */
+export function hotStateEnabled() {
+  return loadMachineSettings().board?.hotState === true;
+}
+
 /** Whether api.codeStampCache is on (#9679): off by default; only an exact `true` turns it on. */
 export function codeStampCacheEnabled() {
   return loadMachineSettings().api?.codeStampCache === true;
