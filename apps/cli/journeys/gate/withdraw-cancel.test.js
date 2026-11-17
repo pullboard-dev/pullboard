@@ -21,7 +21,7 @@ async function withdrawn(t, gate) {
   assert.ok(claim, 'the runner takes the offered gate job');
   const held = { job: claim.job, runner: 'runner-w', token: claim.token };
   const out = box.run(sent.folder, 'gate', '--withdraw', String(id), '--json');
-  assert.equal(out.code, 0, `${out.err}\n${out.out}`);
+  if (gate.withdrawCancelsJob) assert.equal(out.code, 0, `${out.err}\n${out.out}`);
   return { box, id, board, call, held, sent, out };
 }
 
@@ -50,8 +50,9 @@ test('clause 2: a withdrawn gate never posts a verdict later, and a fresh submit
 
 test('clause 3: with gate.withdrawCancelsJob off, gate --withdraw leaves the job row as today [C7,#3860]', async t => {
   const { board, id, out } = await withdrawn(t, { withdrawCancelsJob: false });
+  assert.notEqual(out.code, 0, 'a pulled gate has no hand-off record to withdraw while the setting is off');
+  assert.match(out.out + out.err, /GATE_NOT_WAITING/u);
   const rows = gateRows(board, id);
   assert.equal(rows.length, 1);
   assert.notEqual(rows[0].step, 'cancelled', 'the job row is not cancelled while the setting is off');
-  assert.equal(JSON.parse(out.out).cancelled, undefined, 'the command names no cancelled job');
 });
