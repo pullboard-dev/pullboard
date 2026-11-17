@@ -65,7 +65,7 @@ function runnerCache(t) {
   return root;
 }
 
-test('#6546 clause 1: a job whose handler throws is released with its reason, not re-claimed within 30 s, and backs off longer on each repeat [C7]', async t => {
+test('drive.claims.c-6546-clause-1-a-job: #6546 clause 1: a job whose handler throws is released with its reason, not re-claimed within 30 s, and backs off longer on each repeat [C7]', async t => {
   const board = boardBehindFetch(t, { id: 'land:5888', kind: 'land' });
   const handlers = { land: async () => { throw new Error('git fetch failed: no such ref'); } };
   const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-throw', capabilities: [], cache: runnerCache(t), once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {} });
@@ -85,7 +85,7 @@ test('#6546 clause 1: a job whose handler throws is released with its reason, no
   assert.deepEqual([1, 2, 3, 4, 5, 50].map(releaseBackoffMs), [30_000, 60_000, 120_000, 240_000, 300_000, 300_000], 'doubling per attempt, capped at 5 minutes');
 });
 
-test('#6546 clause 2: a runner running a long job renews its lease, keeps it through a board outage longer than the lease, and no other runner takes it [C7]', { timeout: 60_000 }, // budget: one 2 s job and a git checkout.
+test('drive.claims.c-6546-clause-2-a-runner: #6546 clause 2: a runner running a long job renews its lease, keeps it through a board outage longer than the lease, and no other runner takes it [C7]', { timeout: 60_000 }, // budget: one 2 s job and a git checkout.
 async t => {
   const { root: trunk } = privateFixtureFiles('pullboard-claims-trunk-');
   t.after(() => rmSync(trunk, { recursive: true, force: true }));
@@ -121,7 +121,7 @@ async t => {
   assert.ok(renewalsBefore() >= 3, `the runner renewed its lease while the job ran: ${renewalsBefore()} renewals`);
 });
 
-test('#7815 clause 1: a land job keeps its lease through a board outage under a minute, renews when the board answers, and no second runner claims it [C7]', { timeout: 30_000 }, // budget: one handler held through a 0.4 s outage, no git.
+test('drive.claims.c-7815-clause-1-a-land: #7815 clause 1: a land job keeps its lease through a board outage under a minute, renews when the board answers, and no second runner claims it [C7]', { timeout: 30_000 }, // budget: one handler held through a 0.4 s outage, no git.
 async t => {
   // The first renewal starts an outage of renewals 50 s long on the board's clock; the handler never renews on its own
   // until its proof is done, as a land job's proof does not, and the proof runs on past the lease its claim was given.
@@ -149,7 +149,7 @@ async t => {
   assert.equal(board.attempt, 1, 'one claim');
 });
 
-test('#6680 clause 1: a serve with a free slot claims an offered job within one idle poll, and a second claim never waits for the first job to end [C7]', { timeout: 30_000 }, // budget: two handler jobs on a stand-in board, no git, the sleep injected.
+test('drive.claims.c-6680-clause-1-a-serve: #6680 clause 1: a serve with a free slot claims an offered job within one idle poll, and a second claim never waits for the first job to end [C7]', { timeout: 30_000 }, // budget: two handler jobs on a stand-in board, no git, the sleep injected.
 async t => {
   // The board answers empty once, then offers two jobs; the first job cannot end until the second has started in its own slot.
   const naps = [], claimedAfterNaps = [], posted = [];

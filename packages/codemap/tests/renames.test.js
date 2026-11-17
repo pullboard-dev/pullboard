@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell codemap */
 /** @pullboard-world-pin reads the committed rename table to prove it is complete and clean under the layout rules. */
 /**
  * The rename table for the layout freeze keeps its promises [V32,V33]: one row per old path, no two files mapped to one

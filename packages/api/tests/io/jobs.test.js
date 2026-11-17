@@ -18,7 +18,7 @@ function refusalDocument(error) {
   return { error: { code: error.code ?? 'INTERNAL', message: String(error.message) } };
 }
 
-test('clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', async (t) => {
+test('api.jobs.clauses-over-loopback-api-runner: clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', async (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-api-');
   const home = join(root, 'machine-home');
   mkdirSync(home, { recursive: true });
@@ -64,7 +64,7 @@ test('clauses 1-3: over the loopback API a runner claims by capability, a rival 
   assert.deepEqual(view.steps.find(step => step.name === 'receipt').payload, { runner: 'r-a', attempt: 1, receipt: { status: 0, digest: 'f00d' } });
 });
 
-test('clause 1: a large-change gate request over 60 KiB is offered with its big parts named, and the runner holding it reads it back whole [P7]', (t) => {
+test('api.jobs.large-change-gate-request-over: clause 1: a large-change gate request over 60 KiB is offered with its big parts named, and the runner holding it reads it back whole [P7]', (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-large-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   // Shaped as submit's gate request (#5417): inlined entry code, a config whose lanes block grew (#6150), and a change of 2,000 files.
