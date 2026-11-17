@@ -27,7 +27,7 @@ function runPlan(...args) {
   });
 }
 
-test('clause 1: --cuts-all runs the strict check for every cell and prints every hidden edge by file [C7,D3]', async t => {
+test('codemap.cuts-all.cuts-all-runs-the-strict: clause 1: --cuts-all runs the strict check for every cell and prints every hidden edge by file [C7,D3]', async t => {
   const { root, put } = fixture(t);
   writePlan(root, computePlan(root));
   git(root, 'add', '-A');
