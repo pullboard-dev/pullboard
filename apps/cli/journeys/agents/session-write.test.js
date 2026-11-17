@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/resources packages/person */
+/** @pullboard-test-input source-cell apps/cli packages/resources */
 /** Takeover waits for an active write, then refuses the old session; split from session.test.js so its held gate has its own file budget [B3,B7]. */
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from "../../tests/fixtures/child.js";

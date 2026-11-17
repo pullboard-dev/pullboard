@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/resources packages/person */
+/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/person */
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
 import { fixtureChildMessage } from "../../tests/fixtures/child.js";
