@@ -6,8 +6,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import * as store from '../../../index.js';
-import { openBoard } from '../../../../board/tests/fixtures/board.js';
-import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { openCellBoard as openBoard } from '../cell.js';
+import { runFixtureGit } from '../cell.js';
 
 /** Two days back from now: the CLI report's default 7-day window must still hold every landing, whatever day the test runs. */
 export const BASE = Math.floor((Date.now() - 2 * 86_400_000) / 60_000) * 60_000;
