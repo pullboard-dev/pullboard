@@ -490,6 +490,9 @@ export function loadMachineSettings() {
   if (value.submit?.recoverFromJobRow !== undefined && typeof value.submit.recoverFromJobRow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.recoverFromJobRow in ${file} must be true or false`);
   }
+  if (value.submit?.residentChecks !== undefined && typeof value.submit.residentChecks !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.residentChecks in ${file} must be true or false`);
+  }
   if (value.gate?.namedImportSelection !== undefined && typeof value.gate.namedImportSelection !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.namedImportSelection in ${file} must be true or false`);
   }
