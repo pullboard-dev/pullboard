@@ -114,10 +114,12 @@ export async function resolve(specifier, context, next) {
  * Let node import the browser client, whose modules are served under public relay aliases (./seal.js and the like) that
  * have no file beside it. The alias table is read from page.js, so it cannot drift from what a real browser is served.
  */
-export function registerBrowserAliases() {
+export function registerBrowserAliases({ engine = 1 } = {}) {
   const aliases = {};
   for (const [, name, path] of readFileSync(PAGE, 'utf8').matchAll(/'\/relay\/([\w.-]+)': new URL\('([^']+)', import\.meta\.url\)/gu)) {
     aliases[name] = new URL(path, PAGE).href;
   }
+  // page.js generates engine.js from the state door, which a relay-cell fixture may not import; the caller names the engine a test needs (an empty inventory reads none).
+  aliases['engine.js'] = 'data:text/javascript,' + encodeURIComponent(`export const ENGINE_VERSION = ${engine};`);
   register('data:text/javascript,' + encodeURIComponent(ALIAS_HOOKS), { parentURL: import.meta.url, data: aliases });
 }
