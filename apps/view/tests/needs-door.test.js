@@ -17,7 +17,7 @@ const viewDir = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = fileURLToPath(new URL('../../..', import.meta.url));
 const doorUrl = pathToFileURL(join(viewDir, 'needs.js')).href;
 
-test('clause 3: loading apps/view/needs.js loads no io file but needs.js, state.js and its readers, and no logic file outside needs, resume and four pure files [C7]', async () => {
+test('view.x-needs-door.clause-3-loading-apps-view-needs-js: clause 3: loading apps/view/needs.js loads no io file but needs.js, state.js and its readers, and no logic file outside needs, resume and four pure files [C7]', async () => {
   // Declared first: the hook sees only modules this process has not loaded yet, so nothing may import the door before it.
   const logFile = join(privateFixtureFiles('needs-door-').root, 'loaded.txt');
   writeFileSync(logFile, '');
@@ -47,7 +47,7 @@ export async function load(url, context, next) {
   }
 });
 
-test('clause 1: apps/view/needs.js exports only personNeedsSummary, the same one index.js exports [C7]', async () => {
+test('view.x-needs-door.clause-1-apps-view-needs-js-exports: clause 1: apps/view/needs.js exports only personNeedsSummary, the same one index.js exports [C7]', async () => {
   const door = await import(doorUrl);
   const index = await import(pathToFileURL(join(viewDir, 'index.js')).href);
   assert.deepEqual(Object.keys(door), ['personNeedsSummary']);

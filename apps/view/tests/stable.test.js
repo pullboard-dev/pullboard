@@ -77,3 +77,11 @@ test('view.stable.records-complete: clause 2: [C7,U148] every registered view te
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
 });
+
+test('view.stable.logic-render-summary-registered: clause 1: [C7,U148,#10638] every test under logic render and summary, cockpit, doctrine, needs-door and state-door carries a view.<area>.<slug> title ID and a record', () => {
+  const records = loadRecords();
+  const slice = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') })).filter(({ file }) => /^(?:logic\/(?:render|summary)\/|cockpit\/|doctrine\.test\.js$|needs-door\.test\.js$|state-door\.test\.js$)/u.test(file.slice(DIR.length + 1)));
+  assert.ok(slice.length > 0, 'the slice has test files');
+  const { findings } = registryFindings(slice, records);
+  assert.deepEqual(findings.filter((finding) => !finding.startsWith('registry:')), [], 'a test in the slice lacks an ID or a record');
+});
