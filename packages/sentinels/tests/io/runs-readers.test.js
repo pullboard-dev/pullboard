@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell sentinels */
 /** With runs_store on, the sentinels job reader reads the runs file read-only and writes nothing to it; off, it reads the board as on main [B2,#9014]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
