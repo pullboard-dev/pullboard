@@ -56,25 +56,28 @@ export const GATE = 'composer test';
 const BRIEF = 'Files:\n- tests/ItemTest.php\nChange:\n- Add the item test.\nTest:\n- composer test passes.';
 /** An item check that fails on main and passes once the item's test is committed; it avoids the test name, so only the gate output can name it. */
 const CHECK = "grep -q 'add(1, 2)' tests/ItemTest.php";
-/** The test script installs phpunit first: the gate's fresh checkout holds no vendor folder. */
-const COMPOSER_JSON = `${JSON.stringify({ name: 'scratch/calc', 'require': { php: '>=8.1' }, 'require-dev': { 'phpunit/phpunit': '*' }, autoload: { classmap: ['src/'] }, scripts: { test: ['@composer install --no-interaction --no-progress --quiet', 'phpunit --bootstrap vendor/autoload.php tests'] } }, null, 2)}\n`;
+/** The test script installs phpunit from the lock first: the gate's fresh checkout holds no vendor folder. */
+const COMPOSER_JSON = `${JSON.stringify({ name: 'scratch/calc', 'require': { php: '>=8.1' }, 'require-dev': { 'phpunit/phpunit': '*' }, scripts: { test: ['@composer install --no-interaction --no-progress --quiet', 'phpunit tests'] } }, null, 2)}\n`;
 const CALC = '<?php\n\nfinal class Calc\n{\n    public static function add(int $a, int $b): int\n    {\n        return $a + $b;\n    }\n}\n';
-const HEADER = '<?php\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class ItemTest extends TestCase\n{\n';
+const HEADER = '<?php\n\nrequire_once __DIR__ . \'/../src/Calc.php\';\n\nuse PHPUnit\\Framework\\TestCase;\n\nfinal class ItemTest extends TestCase\n{\n';
 export const PASSING = `${HEADER}    public function testAddsSmallNumbers(): void\n    {\n        $this->assertSame(3, Calc::add(1, 2));\n    }\n}\n`;
 export const BROKEN = `${HEADER}    public function testAddsSmallNumbers(): void\n    {\n        $this->assertSame(4, Calc::add(1, 2));\n    }\n}\n`;
 const BASE_ITEM = `${HEADER}    public function testAddsNothing(): void\n    {\n        $this->assertSame(0, Calc::add(0, 0));\n    }\n}\n`;
 
-/** A sandbox whose gate and runner see php, and find composer through a wrapper that reuses the account's composer cache: set before the first command starts the runner. */
+/**
+ * A sandbox whose gate and runner see php, and find composer through a wrapper that reuses the account's composer cache and one vendor folder
+ * for every checkout of the board, as the Rust journeys share one cargo target folder: set before the first command starts the runner.
+ */
 export function composerSandbox(helpers, settings = {}) {
   const box = helpers.sandbox();
-  if (COMPOSER) box.env.PATH = [wrapperFolder(box, 'composer', { COMPOSER_CACHE_DIR: REAL_COMPOSER_CACHE, COMPOSER_NO_AUDIT: '1' }, COMPOSER.composer), COMPOSER.php, box.env.PATH].join(':');
+  if (COMPOSER) box.env.PATH = [wrapperFolder(box, 'composer', { COMPOSER_CACHE_DIR: REAL_COMPOSER_CACHE, COMPOSER_NO_AUDIT: '1', COMPOSER_VENDOR_DIR: join(box.dir, 'vendor') }, COMPOSER.composer), COMPOSER.php, box.env.PATH].join(':');
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   return box;
 }
 
 /** Write the scratch composer project's files into a folder: composer.json is the PHP signal. */
 export function writeProject(root) {
-  const files = [['composer.json', COMPOSER_JSON], ['src/Calc.php', CALC], ['.gitignore', 'vendor/\ncomposer.lock\n.phpunit.cache/\n.phpunit.result.cache\n.pullboard/junit/\n'], ['tests/ItemTest.php', BASE_ITEM]];
+  const files = [['composer.json', COMPOSER_JSON], ['src/Calc.php', CALC], ['.gitignore', 'vendor/\n.phpunit.cache/\n.phpunit.result.cache\n.pullboard/junit/\n'], ['tests/ItemTest.php', BASE_ITEM]];
   for (const [path, text] of files) {
     mkdirSync(join(root, path, '..'), { recursive: true });
     writeFileSync(join(root, path), text);
@@ -90,6 +93,9 @@ export async function composerBoard(helpers) {
   box.git(repo, 'config', 'user.name', 'Test Agent');
   box.git(repo, 'config', 'user.email', 'agent@example.com');
   writeProject(repo);
+  // Lock phpunit once over the network, so each gate installs from the lock into the shared vendor folder without resolving again.
+  const locked = spawnSync(join(box.dir, 'toolchain-bin', 'composer'), ['update', '--no-interaction', '--no-progress', '--quiet'], { cwd: repo, env: box.env, encoding: 'utf8', timeout: 150_000 });
+  assert.equal(locked.status, 0, `composer update: ${locked.stderr}${locked.error ?? ''}`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: the scratch project');
   const initialized = await box.runLocal(repo, 'init');
@@ -97,7 +103,7 @@ export async function composerBoard(helpers) {
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
   assert.equal(String(config.gate?.command ?? config.gate), GATE, 'init recorded the detected gate');
   fixtureProjectPolicy(repo, {
-    config: { ...config, verify: 'any', lanes: { web: { owns: ['composer.json', 'src/', 'tests/', '.gitignore'], specs: ['G1'] } }, landing: { ...(config.landing ?? {}), perItem: false, manualOverride: true, splitRed: false } },
+    config: { ...config, verify: 'any', lanes: { web: { owns: ['composer.json', 'composer.lock', 'src/', 'tests/', '.gitignore'], specs: ['G1'] } }, landing: { ...(config.landing ?? {}), perItem: false, manualOverride: true, splitRed: false } },
     spec: '# Scratch spec\n\n## G · Goals\n- G1 [approved, must] The project adds. | gate: composer test\n',
   });
   box.git(repo, 'add', '-A');
