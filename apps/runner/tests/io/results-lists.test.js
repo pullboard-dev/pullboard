@@ -24,7 +24,7 @@ function list(root, repo, name, kilobytes, ageMs, now) {
   return file;
 }
 
-test('clause 1: lists entries past the age limit and size cap are removed, oldest first [C7]', () => {
+test('runner.results-lists.lists-entries-past-the-age-limit-and: clause 1: lists entries past the age limit and size cap are removed, oldest first [C7]', () => {
   const now = Date.now();
   const { root } = privateFixtureFiles('pb-results-lists-');
   const old = list(root, REPO, 'old.json', 8, 7 * HOUR, now);
@@ -39,7 +39,7 @@ test('clause 1: lists entries past the age limit and size cap are removed, oldes
   assert.equal(existsSync(fresh), true, 'the newer entry fits under the cap and stays');
 });
 
-test('clause 2: a list inside a repo store held by a live job is kept [C7]', () => {
+test('runner.results-lists.a-list-inside-a-repo-store-held: clause 2: a list inside a repo store held by a live job is kept [C7]', () => {
   const now = Date.now();
   const { root } = privateFixtureFiles('pb-results-lists-held-');
   const held = list(root, HELD, 'held-old.json', 8, 9 * HOUR, now);

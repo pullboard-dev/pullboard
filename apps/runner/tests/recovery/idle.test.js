@@ -47,7 +47,7 @@ function control(t, body) {
   return { actual: JSON.parse(result.stdout), probes: readFileSync(requests + '.health-probes', 'utf8').trim().split('\n').length };
 }
 
-test('a valid started request without completion recovers only after fencing and fresh idle proof [C7]', t => {
+test('runner.idle.a-valid-started-request-without-completion-recovers: a valid started request without completion recovers only after fencing and fresh idle proof [C7]', t => {
   const { actual } = control(t, `
     claimRunnerLaunch(root, identity);
     recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'lost completion', recovery: identity });
@@ -66,7 +66,7 @@ test('a valid started request without completion recovers only after fencing and
   assert.equal(actual.events[1].detail.probe.writable, true);
 });
 
-test('a matching started request with a live job stays unavailable and its health reason names the pid [C7]', t => {
+test('runner.idle.a-matching-started-request-with-a-live: a matching started request with a live job stays unavailable and its health reason names the pid [C7]', t => {
   const { actual } = control(t, `
     const { spawn } = await import('node:child_process');
     const { existsSync, mkdirSync } = await import('node:fs');
@@ -95,7 +95,7 @@ test('a matching started request with a live job stays unavailable and its healt
   assert.match(actual.reason, new RegExp(`\\b${actual.pid}\\b`, 'u'));
 });
 
-test('a foreign launch identity never gains idle recovery authority from a quiet host [C7]', t => {
+test('runner.idle.a-foreign-launch-identity-never-gains-idle: a foreign launch identity never gains idle recovery authority from a quiet host [C7]', t => {
   const { actual, probes } = control(t, `
     claimRunnerLaunch(root, { ...identity, nonce: randomUUID() });
     recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'foreign launch claim', recovery: identity });
@@ -107,7 +107,7 @@ test('a foreign launch identity never gains idle recovery authority from a quiet
   assert.equal(probes, 1, 'foreign custody cannot request an idle fallback');
 });
 
-test('the existing legacy idle path remains a discriminating control for missing completion recovery [C7]', t => {
+test('runner.idle.the-existing-legacy-idle-path-remains-a: the existing legacy idle path remains a discriminating control for missing completion recovery [C7]', t => {
   const { actual, probes } = control(t, `
     recordRunnerFailure(db, runner.host, 'cleanup-unverified', { reason: 'legacy missing identity' });
     const first = await recoverUnavailableRunners(db, [runner], { ...options, now: Date.now() + 2000 });
@@ -118,7 +118,7 @@ test('the existing legacy idle path remains a discriminating control for missing
   assert.equal(probes, 1);
 });
 
-test('a worker paused after startup admission prevents idle recovery before any job or lease exists [C7]', t => {
+test('runner.idle.a-worker-paused-after-startup-admission-prevents: a worker paused after startup admission prevents idle recovery before any job or lease exists [C7]', t => {
   const { actual } = control(t, `
     const { spawn } = await import('node:child_process');
     const { existsSync, writeFileSync } = await import('node:fs');
