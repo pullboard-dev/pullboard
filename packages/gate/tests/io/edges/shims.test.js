@@ -20,7 +20,7 @@ function fixture(files) {
   return inputs.root;
 }
 
-test('clause 1: a file importing a shim in its own cell that forwards into cell b src is a deep import into b [C7]', () => {
+test('gate.io-edges-shims.a-file-importing-a-shim-in: clause 1: a file importing a shim in its own cell that forwards into cell b src is a deep import into b [C7]', () => {
   const root = fixture({
     'packages/a/src/shim.js': "export { real } from '../../b/src/real.js';\n",
     'packages/a/src/use.js': "import { real } from './shim.js';\nexport const x = real;\n",
@@ -30,7 +30,7 @@ test('clause 1: a file importing a shim in its own cell that forwards into cell 
   assert.equal(report.files['packages/a/src/use.js'].deep, 1);
 });
 
-test('clause 1: a shim that stays inside its own cell is not reported [C7]', () => {
+test('gate.io-edges-shims.a-shim-that-stays-inside-its: clause 1: a shim that stays inside its own cell is not reported [C7]', () => {
   const root = fixture({
     'packages/a/src/inner.js': 'export const inner = 1;\n',
     'packages/a/src/shim.js': "export { inner } from './inner.js';\n",
@@ -39,7 +39,7 @@ test('clause 1: a shim that stays inside its own cell is not reported [C7]', () 
   assert.deepEqual(cellsEdgeReport(root).files['packages/a/src/use.js'], undefined);
 });
 
-test('clause 1: a forwarder that holds other code is not followed [C7]', () => {
+test('gate.io-edges-shims.a-forwarder-that-holds-other-code: clause 1: a forwarder that holds other code is not followed [C7]', () => {
   const root = fixture({
     'packages/a/src/mixed.js': "export { real } from '../../b/src/real.js';\nexport const own = 1;\n",
     'packages/a/src/use.js': "import { own } from './mixed.js';\nexport const x = own;\n",
