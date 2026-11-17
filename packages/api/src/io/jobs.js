@@ -253,7 +253,7 @@ export function offeredRequest(db, job, { runs = null } = {}) {
 export function openJob(db, { kind, item, candidate }, { runs = null } = {}) {
   if (runs) db = runs.db;
   const row = db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
-    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step <> 'done' ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
+    WHERE job.job_kind = ? AND job.job_item = ? AND job.job_candidate = ? AND job.job_step NOT IN ('done', 'cancelled') ORDER BY job.job_created DESC LIMIT 1`).get(kind, item, candidate);
   return row ? jobView(db, row.job_id) : null;
 }
 
