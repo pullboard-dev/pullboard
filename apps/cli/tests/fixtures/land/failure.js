@@ -127,6 +127,8 @@ export async function landedBy(box, t, { family, name = `Landed by ${family}` })
   const pending = await whenRunnerSettles(box.env, () => { const row = onBoard(box, board => getItem(board, item)); return row.item_status === 'claimed' ? null : row; },
     { deadlineMs: 60_000, what: `#${item} leaving claimed after its gate` });
   assert.equal(pending.item_status, 'submitted', `#${item} settled its gate but is ${pending.item_status}`);
+  // A forced merge records only a commit already on main, as the blitz lander leaves it.
+  box.git(box.repo, 'merge', '-q', '--no-edit', `web/${slug}`);
   const merged = await cli(box.repo, 'merged', String(item), pending.item_commit, '--forced', 'blitz lander landed it before review', '--waive-proof', 'fixture', '--json');
   assert.equal(merged.code, 0, merged.out + merged.err);
   return item;
