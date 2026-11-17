@@ -795,7 +795,10 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/e2e/tour.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/fact/e2e/tour-agent-session.test.js": {
+    "launch": 1
   },
   "packages/landing/tests/logic/failures.test.js": {
     "launch": 1
