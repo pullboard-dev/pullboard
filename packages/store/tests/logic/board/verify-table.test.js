@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/verify-records.json */
 /** @pullboard-world-pin reads the recorded verdict records fixture to replay each verdict through the store verify writer. The store verify writer agrees with the verify table on every replayed verdict [C7,#8272]. */
 /** @pullboard-test-input packages/store/tests/fixtures/verify-records.json */
 import assert from 'node:assert/strict';

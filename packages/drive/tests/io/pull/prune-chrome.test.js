@@ -23,7 +23,7 @@ function leaveChrome(dir, name, ageMs) {
   return path;
 }
 
-test('the runner prune removes Chrome temp folders older than 1 h and keeps newer ones [C7]', t => {
+test('drive.prune-chrome.the-runner-prune-removes-chrome: the runner prune removes Chrome temp folders older than 1 h and keeps newer ones [C7]', t => {
   const { root: dir } = privateFixtureFiles('pullboard-prune-chrome-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const old = leaveChrome(dir, 'com.google.Chrome.old', 2 * HOUR);

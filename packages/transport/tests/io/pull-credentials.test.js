@@ -33,7 +33,7 @@ function board(credentials) {
 }
 
 /** Each runner pulls with a credential issued to it alone [C7]. */
-test('a key is one runner\'s credential: a second runner cannot register with it [C7]', () => {
+test('transport.pull-credentials.a-key-is-one-runner-s: a key is one runner\'s credential: a second runner cannot register with it [C7]', () => {
   const [one, two] = [credential(), credential()];
   const { register, take, offer } = board([one, two]);
   register('r1', one);
@@ -45,7 +45,7 @@ test('a key is one runner\'s credential: a second runner cannot register with it
 });
 
 /** Revoking one runner's credential stops its pulls and leaves the others working [C7]. */
-test('revoking one runner stops its pulls and leaves the others working [C7]', () => {
+test('transport.pull-credentials.revoking-one-runner-stops-its-pulls: revoking one runner stops its pulls and leaves the others working [C7]', () => {
   const [one, two] = [credential(), credential()];
   const { adapter, register, take, offer } = board([one, two]);
   register('r1', one);

@@ -102,6 +102,8 @@ import {
 } from '../../../../../packages/commits/index.js';
 import {
   checkImplies,
+  checklistEvidenceProblem,
+  checklistReceipt,
   parseImplies,
 } from '../../../../../packages/state/index.js';
 import * as itemSessions from '../../../../../packages/items/index.js';
@@ -168,6 +170,7 @@ import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
@@ -274,6 +277,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let verificationProfile = null;
   let verificationOutput = null;
   let verificationQuarantine = null;
+  let checklistNote = null;
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
@@ -319,7 +323,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         ...(decision === 'REJECT' && rejectKeepsCheck() ? { keepCheck: true } : {}) }]);
     }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
-    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
+    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
@@ -331,6 +335,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
+    // An item with no test check is verified only against its review checklist: the board refuses a line that names
+    // no file, link or quoted passage before any accept, and the reviewer judges only what the lines show (#996).
+    const thread = decision === 'ACCEPT' ? store.itemThread(board, id) : [];
+    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread); if (problem) throw problem; }
+    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread) : null;
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
@@ -485,7 +494,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
-        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
         if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
           `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
         if (moved && !knownMain) {
@@ -524,7 +533,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + readNote + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + readNote + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (checklistNote ? `\n${checklistNote}` : '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -554,7 +563,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     ctx.io.say(`#${id} accept queued: the frozen check is runner job ${result.checkJob}; the review is reserved to ${result.reservedTo}, and the verdict records when the check finishes.`);
     return 0;
   }
-  const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  const primary = { id, ...result, ...(checklistNote ? { reviewEvidence: checklistNote } : {}), ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
   if (result.decision === 'SELECTOR_GAP') {
     ctx.io.say(`Recorded a selector gap for #${id}; repair item #${result.repairItem} is open. #${id} remains submitted for review.`);
@@ -564,7 +573,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
-    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${result.decision === 'ACCEPT' && checklistNote ? '; review evidence proved it' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) {
     let automatic = true;

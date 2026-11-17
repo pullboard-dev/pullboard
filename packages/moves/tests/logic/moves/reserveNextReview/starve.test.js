@@ -17,7 +17,7 @@ function health(box, config = box.config) {
     dispatchHealth: () => ({ findings: [] }) });
 }
 
-test('an eligible idle agent gets an eleven-minute strict review before a build while its builder gets the build [C7,N2,V1]', async t => {
+test('moves.reserve-next-review-starve.an-eligible-idle-agent-gets-an-eleven-minute: an eligible idle agent gets an eleven-minute strict review before a build while its builder gets the build [C7,N2,V1]', async t => {
   const box = fixture(t, { reviewers: true });
   const waiting = box.add('Strict review waiting eleven minutes', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
@@ -39,7 +39,7 @@ test('an eligible idle agent gets an eleven-minute strict review before a build 
   assert.equal(builder.item.item_id, build, 'canonical self-review exclusion is preserved');
 });
 
-test('clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
+test('moves.reserve-next-review-starve.a-free-seat-takes-the-oldest-eligible: clause 1: a free seat takes the oldest eligible review after two minutes regardless of the build ratio [C7,#3077]', async t => {
   const box = fixture(t, { reviewers: true });
   const oldest = box.add('Oldest review waiting two minutes');
   box.submit(oldest);
@@ -55,7 +55,7 @@ test('clause 1: a free seat takes the oldest eligible review after two minutes r
   assert.equal(store.getItem(box.board, build).item_status, 'open');
 });
 
-test('health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', t => {
+test('moves.reserve-next-review-starve.health-names-the-exact-native-check-when: health names the exact native check when every joined seat is excluded from a starved review [C7,A6,V1]', t => {
   const box = fixture(t, { reviewers: true });
   const waiting = box.add('Strict review with policy blocking its outside seats', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
@@ -69,7 +69,7 @@ test('health names the exact native check when every joined seat is excluded fro
   assert.match(finding.why, /COORDINATOR_VERIFIES/u, 'the report names the failing native check rather than inventing a reviewer');
 });
 
-test('clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the 8192 receipt cap and states the omitted seats [C7,A6,V1]', t => {
+test('moves.reserve-next-review-starve.a-review-starved-finding-listing-500-seats-keeps: clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the 8192 receipt cap and states the omitted seats [C7,A6,V1]', t => {
   const box = fixture(t, { reviewers: true });
   const waiting = box.add('Strict review with five hundred excluded seats', { reviewFamily: 'Family Beta' });
   box.submit(waiting);
@@ -90,7 +90,7 @@ test('clause 1: a REVIEW_STARVED finding listing 500 seats keeps a why under the
   assert.equal(store.normalizedHealthFindings([finding]).length, 1, 'the receipt accepts the truncated finding');
 });
 
-test('configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', t => {
+test('moves.reserve-next-review-starve.configured-starvation-waits-select-the-oldest-eligible: configured starvation waits select the oldest eligible review for a held builder after a reservation expires [C7,N2,V1]', t => {
   const box = fixture(t, { reviewers: true });
   const oldest = box.add('Oldest strict review', { reviewFamily: 'Family Beta' });
   box.submit(oldest);

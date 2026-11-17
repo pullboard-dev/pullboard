@@ -21,63 +21,17 @@ import { fixture as planFixture } from '../../landing/tests/fixtures/plan.js';
 import { importsIn } from '../../gate/index.js';
 import { commonJsIn } from '../../gate/index.js';
 import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
-import { mkdtempSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname } from 'node:path';
 import { cellLintReport } from '../../codemap/index.js';
-/** Create actual files and an explicit root import map; no source modules execute during reports. */
-function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-cell-lints-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Cell fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Cell fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
-  const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  /** The cell inventory reads tracked files only, so each fixture change is staged; a git-ignored path stays untracked on purpose. */
-  const stage = file => runFixtureChild('git', ['add', '-A', '--', file], { cwd: root, env, encoding: 'utf8' });
-  git('init', '-q', '-b', 'main');
-  /** Write one private source or asset beneath this fixture. */
-  function put(file, source) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); stage(file); }
-  /** Write many private files, then stage them with one Git call: hundreds of single-file stages cost one process each. */
-  function putAll(files) {
-    for (const [file, source] of files) { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), source); }
-    runFixtureChild('git', ['add', '-A', '--', ...files.map(([file]) => file)], { cwd: root, env, encoding: 'utf8' });
-  }
-  /** Remove only the named private fixture entity. */
-  function remove(file) { rmSync(join(root, file), { recursive: true, force: true }); stage(file); }
-  put('package.json', JSON.stringify({ type: 'module', imports: { '#*': './packages/*/index.js', '#*.js': './packages/*.js' } }));
-  put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n");
-  put('packages/sample/index.js', 'export const value = 1;\n');
-  return { root, put, putAll, remove, git, stage, report: () => cellLintReport(root, { importsIn, commonJsIn }) };
-}
-
-const BIN = fileURLToPath(new URL('../../codemap/src/io/cell/scripts/lints.js', import.meta.url));
-const PLAN_BIN = fileURLToPath(new URL('../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
-const BASELINE_DIRECTORY = 'packages/codemap/data/baselines/lints';
-const TRANSITION_FILE = 'packages/codemap/data/plan/transition.json';
-/** Build a report-shaped value for exact identity-collision controls without filesystem side effects. */
-function identityReport(pathMap, { boundaries = [], unreachableExports = [] } = {}) {
-  const selected = { boundaries, unreachableExports };
-  const metrics = Object.fromEntries(CELL_METRICS.map(metric => {
-    const findings = selected[metric] ?? [];
-    return [metric, { count: findings.reduce((sum, finding) => sum + finding.count, 0), findings }];
-  }));
-  return { pathMap, metrics };
-}
-
-const FAMILIES = [
-  { name: 'boundaries', rise: box => box.put('apps/demo/index.js', "import { value } from '../../packages/sample/index.js'; console.log(value);\n"), fall: box => box.put('apps/demo/index.js', "import { value } from '#sample'; console.log(value);\n") },
-  { name: 'cycles', rise: box => { box.put('packages/sample/index.js', "import '#other'; export const value = 1;\n"); box.put('packages/other/index.js', "import '#sample';\n"); }, fall: box => box.put('packages/other/index.js', 'void 0;\n') },
-  { name: 'shims', rise: box => box.put('src/old.js', "export { value } from '../packages/sample/index.js';\n"), fall: box => box.remove('src/old.js') },
-  { name: 'legacySource', rise: box => box.put('src/legacy.js', 'void 0;\n'), fall: box => box.remove('src/legacy.js') },
-  { name: 'fileSize', rise: box => box.put('packages/sample/index.js', 'export const value = 1;\n' + '\n'.repeat(1501)), fall: box => box.put('packages/sample/index.js', 'export const value = 1;\n') },
-  { name: 'strays', rise: box => box.put('unexpected.js', 'void 0;\n'), fall: box => box.remove('unexpected.js') },
-  { name: 'documents', rise: box => box.put('packages/sample/src/core/note.md', '# Duplicate description\n'), fall: box => box.remove('packages/sample/src/core/note.md') },
-  { name: 'unknown', rise: box => box.put('packages/sample/src/core/loader.js', 'import(process.env.UNKNOWN_TARGET);\n'), fall: box => box.remove('packages/sample/src/core/loader.js') },
-  { name: 'unreachablePackages', rise: box => box.put('packages/orphan/index.js', 'void 0;\n'), fall: box => box.remove('packages/orphan') },
-  { name: 'unreachable', rise: box => box.put('packages/sample/src/core/orphan.js', 'void 0;\n'), fall: box => box.remove('packages/sample/src/core/orphan.js') },
-];
+import { fixture } from './fixtures/lints-kit.js';
+import { identityReport } from './fixtures/lints-kit.js';
+import { provideHelpers } from './fixtures/lints-kit.js';
+import { FAMILIES } from './fixtures/lints-kit.js';
+import { BIN } from './fixtures/lints-kit.js';
+import { PLAN_BIN } from './fixtures/lints-kit.js';
+import { BASELINE_DIRECTORY } from './fixtures/lints-kit.js';
+import { TRANSITION_FILE } from './fixtures/lints-kit.js';
+import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
+provideHelpers({ runFixtureGit, runFixtureChild, cellLintReport, importsIn, commonJsIn, CELL_METRICS, privateFixtureFiles });
 for (const family of FAMILIES) test(`cell ${family.name} debt refuses a rise and explicitly records a fall [C7,CD64]`, t => {
   const box = fixture(t), before = box.report(), baseline = cellLintBaseline(before);
   family.rise(box);
@@ -92,7 +46,7 @@ for (const family of FAMILIES) test(`cell ${family.name} debt refuses a rise and
   assert.equal(JSON.stringify(acceptedDebt), immutable, 'only the returned snapshot changes');
 });
 
-test('a named unused export in an already reached file creates distinct falling debt [C7,CD62]', t => {
+test('runners.lints.a-named-unused-export-in-an: a named unused export in an already reached file creates distinct falling debt [C7,CD62]', t => {
   const box = fixture(t), baseline = cellLintBaseline(box.report());
   box.put('packages/sample/index.js', 'export const value = 1, unused = 2;\n');
   const raised = box.report();
@@ -107,7 +61,7 @@ test('a named unused export in an already reached file creates distinct falling 
   assert.equal(lowerCellLintBaseline(box.report(), debt).metrics.unreachableExports.count, 0, 'removing the unused export also lowers the same debt');
 });
 
-test('named and star re-exports propagate only the particular exports reached by an app [C7,CD62]', t => {
+test('runners.lints.named-and-star-re-exports-propagate: named and star re-exports propagate only the particular exports reached by an app [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', "export { value } from './src/core/values.js'; export * from './src/core/extra.js';\n");
   box.put('packages/sample/src/core/values.js', 'export const value = 1; export const unused = 2;\n');
@@ -121,7 +75,7 @@ test('named and star re-exports propagate only the particular exports reached by
   assert.ok(lowered.metrics.unreachableExports.allowances['packages/sample/src/core/values.js#unused']);
 });
 
-test('namespace members and namespace re-exports retain per-export unknown debt for opaque uses [C7,CD62]', t => {
+test('runners.lints.namespace-members-and-namespace-re-exports: namespace members and namespace re-exports retain per-export unknown debt for opaque uses [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', "export * as api from './src/core/values.js';\n");
   box.put('packages/sample/src/core/values.js', 'export const used = 1; export const unused = 2;\n');
@@ -137,7 +91,7 @@ test('namespace members and namespace re-exports retain per-export unknown debt 
   assert.ok(cellLintGrowth(box.report(), before).some(row => row.key.endsWith('#added')));
 });
 
-test('tests and fixture strings never seed app reach; unknown loaders and missing inputs remain named debt [C7,CD62]', t => {
+test('runners.lints.tests-and-fixture-strings-never-seed: tests and fixture strings never seed app reach; unknown loaders and missing inputs remain named debt [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/src/core/alone.js', 'export const alone = 1;\n');
   box.put('packages/sample/tests/alone.test.js', "import { alone } from '../src/core/alone.js'; console.log(alone);\n");
@@ -150,7 +104,7 @@ test('tests and fixture strings never seed app reach; unknown loaders and missin
   assert.ok(!report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#fake')));
 });
 
-test('report is read-only, initialization is explicit and check/update cannot raise or offset a finding [C7,CD64]', t => {
+test('runners.lints.report-is-read-only-initialization-is: report is read-only, initialization is explicit and check/update cannot raise or offset a finding [C7,CD64]', t => {
   const box = fixture(t), run = (mode, root = box.root) => runFixtureChild(process.execPath, [BIN, mode, root], { encoding: 'utf8', maxBuffer: 256 * 1024 ** 2 });
   box.put('path-map.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   box.git('add', '-A'); box.git('commit', '-qm', 'test: accepted first package migration');
@@ -180,7 +134,7 @@ test('report is read-only, initialization is explicit and check/update cannot ra
 });
 
 
-test('Git ignored transient files do not change reports while tracked ignored strays still count [C7,CD61]', t => {
+test('runners.lints.git-ignored-transient-files-do-not: Git ignored transient files do not change reports while tracked ignored strays still count [C7,CD61]', t => {
   const box = fixture(t);
   box.put('.gitignore', 'work/\ncoverage/\n*.log\n');
   const before = box.report();
@@ -193,7 +147,7 @@ test('Git ignored transient files do not change reports while tracked ignored st
   assert.ok(after.metrics.strays.findings.some(row => row.key === 'work/machine.js'));
 });
 
-test('a committed src-to-cell path map preserves existing debt identities while genuine migration lowers counts [C7,CD60,CD64]', t => {
+test('runners.lints.a-committed-src-to-cell-path: a committed src-to-cell path map preserves existing debt identities while genuine migration lowers counts [C7,CD60,CD64]', t => {
   const box = fixture(t);
   box.remove('packages/sample');
   box.put('src/value.js', 'export const value = 1; export const unused = 2;\n' + '\n'.repeat(505));
@@ -215,7 +169,7 @@ test('a committed src-to-cell path map preserves existing debt identities while 
     && row.key === 'packages/sample/index.js#newlyUnused'));
 });
 
-test('normalized aliases preserve collision growth and keep unrelated identities separate [C7,CD64]', () => {
+test('runners.lints.normalized-aliases-preserve-collision-growth-and: normalized aliases preserve collision growth and keep unrelated identities separate [C7,CD64]', () => {
   const map = { 'src/legacy-edge.js': 'packages/sample/index.js', 'src/legacy.js': 'packages/sample/index.js' };
   const before = identityReport(map, {
     boundaries: [{ key: 'apps/demo/index.js->src/legacy-edge.js', count: 1 }],
@@ -253,7 +207,7 @@ test('normalized aliases preserve collision growth and keep unrelated identities
     && row.key === 'packages/sample/index.js#newName' && row.allowed === 0));
 });
 
-test('sharded committed path maps activate ratchets while absent maps remain advisory [C7]', t => {
+test('runners.lints.sharded-committed-path-maps-activate-ratchets: sharded committed path maps activate ratchets while absent maps remain advisory [C7]', t => {
   const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
   const before = box.report(), baseline = cellLintBaseline(before);
   assert.equal(before.transition.active, true, 'a repository with no committed map stays in the advisory transition');
@@ -279,7 +233,7 @@ test('sharded committed path maps activate ratchets while absent maps remain adv
   assert.notEqual(run('--check').status, 0, 'the actual CLI refuses a rise with only a committed shard map');
 });
 
-test('a committed #1781 marker makes new debt advisory until #1770 deletes it, but never cycles or the hard cap [C7,CD64]', t => {
+test('runners.lints.a-committed-1781-marker-makes-new: a committed #1781 marker makes new debt advisory until #1770 deletes it, but never cycles or the hard cap [C7,CD64]', t => {
   const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
   box.put('packages/codemap/data/plan/path-map/sample.json', JSON.stringify({ 'src/previous.js': 'packages/sample/index.js' }));
   box.git('add', '-A'); box.git('commit', '-qm', 'test: accept a package migration');
@@ -328,7 +282,7 @@ test('a committed #1781 marker makes new debt advisory until #1770 deletes it, b
   assert.ok(malformed.metrics.unknown.findings.some(row => row.key.includes(TRANSITION_FILE)), 'invalid marker remains named debt');
 });
 
-test('the actual plan --write preserves only the named transition marker beside generated shards [C7,CD64]', t => {
+test('runners.lints.the-actual-plan-write-preserves-only: the actual plan --write preserves only the named transition marker beside generated shards [C7,CD64]', t => {
   const { root, put } = planFixture(t);
   const bytes = '{"version":1,"deleteItem":1770}\n';
   put(TRANSITION_FILE, bytes);
@@ -339,7 +293,7 @@ test('the actual plan --write preserves only the named transition marker beside 
   assert.throws(() => readFileSync(join(root, 'packages/codemap/data/plan/stale.json')), { code: 'ENOENT' }, 'unrelated metadata is not exempted');
 });
 
-test('property keys and member spellings never prove imported binding reads; shorthand and calls do [C7,CD62]', t => {
+test('runners.lints.property-keys-and-member-spellings-never: property keys and member spellings never prove imported binding reads; shorthand and calls do [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export function hidden() { return 1; }\n');
   const debt = () => box.report().metrics.unreachableExports.findings.filter(row => row.key === 'packages/sample/index.js#hidden');
@@ -357,7 +311,7 @@ test('property keys and member spellings never prove imported binding reads; sho
   assert.equal(debt().length, 1, 'an assignment target does not prove a value read');
 });
 
-test('shadowed named and namespace bindings retain individual opaque export debt [C7,CD62]', t => {
+test('runners.lints.shadowed-named-and-namespace-bindings-retain: shadowed named and namespace bindings retain individual opaque export debt [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export const hidden = 1; export const extra = 2;\n');
   box.put('apps/demo/index.js', "import { hidden } from '#sample'; function f(hidden) { return hidden; } console.log(f(1));\n");
@@ -373,7 +327,7 @@ test('shadowed named and namespace bindings retain individual opaque export debt
   assert.ok(report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#extra')));
 });
 
-test('a package containing only tests is distinct package debt while an app-reached front door is live [C7,CD62]', t => {
+test('runners.lints.a-package-containing-only-tests-is: a package containing only tests is distinct package debt while an app-reached front door is live [C7,CD62]', t => {
   const box = fixture(t);
   assert.equal(box.report().metrics.unreachablePackages.count, 0, 'the real app import reaches the initial package front door');
   box.put('packages/orphan/tests/only.test.js', "import { value } from '#sample'; console.log(value);\n");
@@ -385,7 +339,7 @@ test('a package containing only tests is distinct package debt while an app-reac
   assert.equal(lowerCellLintBaseline(box.report(), debt).metrics.unreachablePackages.count, 0, 'real app reach lowers package debt');
 });
 
-test('bounded hash-bound baseline shards count their own files and refuse missing, partial or failed generations [C7,CD64]', t => {
+test('runners.lints.bounded-hash-bound-baseline-shards-count: bounded hash-bound baseline shards count their own files and refuse missing, partial or failed generations [C7,CD64]', t => {
   const box = fixture(t);
   box.putAll(Array.from({ length: 405 }, (_, index) => [`stray-${index}.txt`, 'actual private file\n']));
   const plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
@@ -411,7 +365,7 @@ test('bounded hash-bound baseline shards count their own files and refuse missin
 });
 
 
-test('transitional roots follow real package CLI/browser declarations and never arbitrary fixture HTML [C7,CD62]', t => {
+test('runners.lints.transitional-roots-follow-real-package-cli: transitional roots follow real package CLI/browser declarations and never arbitrary fixture HTML [C7,CD62]', t => {
   const box = fixture(t);
   box.remove('apps');
   box.put('package.json', JSON.stringify({ type: 'module', bin: { real: 'bin/real.js' }, browser: 'web/index.html', imports: { '#*': './packages/*/index.js' } }));
@@ -430,7 +384,7 @@ test('transitional roots follow real package CLI/browser declarations and never 
   assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'bin/not-an-entry.js'));
 });
 
-test('real apps replace transitional roots without letting test programs seed application reach [C7,CD62]', t => {
+test('runners.lints.real-apps-replace-transitional-roots-without: real apps replace transitional roots without letting test programs seed application reach [C7,CD62]', t => {
   const box = fixture(t);
   box.remove('apps');
   box.put('package.json', JSON.stringify({ type: 'module', bin: 'bin/old.js', browser: 'test/fixture.html', imports: { '#*': './packages/*/index.js' } }));
@@ -451,7 +405,7 @@ test('real apps replace transitional roots without letting test programs seed ap
   assert.ok(!box.report().metrics.unreachableExports.findings.some(row => row.key.endsWith('#value')));
 });
 
-test('audited browser serving roots require real entry URLs, not every served browser asset or embedded example [C7,CD62]', t => {
+test('runners.lints.audited-browser-serving-roots-require-real: audited browser serving roots require real entry URLs, not every served browser asset or embedded example [C7,CD62]', t => {
   const box = fixture(t);
   box.remove('apps');
   box.put('apps/relay/src/io/deploy/browser-page.js', "import { readFileSync } from 'node:fs';\nconst assets = new Map([['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]], ['/service-worker.js', ['text/javascript', readFileSync(new URL('./service-worker.js', import.meta.url), 'utf8')]], ['/relay/not-an-entry.js', ['text/javascript', readFileSync(new URL('./not-an-entry.js', import.meta.url), 'utf8')]]]);\nconst options = { transportModule: '/relay/client.js' };\nconst example = `const ignored = { transportModule: '/relay/not-an-entry.js' };`;\n''.replace('</body>', '<script src=\"/relay/generated.js\"></script>');\n");
@@ -466,7 +420,7 @@ test('audited browser serving roots require real entry URLs, not every served br
   assert.ok(!report.metrics.unreachableExports.findings.some(row => row.key.endsWith('#value')));
 });
 
-test('baseline initialization preserves unowned colliding shard bytes and leaves its descriptor absent [C7,CD64]', t => {
+test('runners.lints.baseline-initialization-preserves-unowned-colliding-shard: baseline initialization preserves unowned colliding shard bytes and leaves its descriptor absent [C7,CD64]', t => {
   const box = fixture(t), plan = planCellLintBaseline(box.report()), files = cellLintFiles(plan.baseline);
   const shard = [...files.keys()].find(file => file.includes('/strays-'));
   assert.ok(shard, 'the real planned metadata inventory has its own stray shard');
@@ -480,7 +434,7 @@ test('baseline initialization preserves unowned colliding shard bytes and leaves
 });
 
 
-test('the pre-cell transition reports size, files and edges while keeping baseline updates falling-only [C7,CD64]', t => {
+test('runners.lints.the-pre-cell-transition-reports-size: the pre-cell transition reports size, files and edges while keeping baseline updates falling-only [C7,CD64]', t => {
   const box = fixture(t), run = mode => runFixtureChild(process.execPath, [BIN, mode, box.root], { encoding: 'utf8' });
   const initial = run('--init');
   assert.equal(initial.status, 0, initial.stderr);
@@ -523,7 +477,7 @@ test('the pre-cell transition reports size, files and edges while keeping baseli
   assert.doesNotMatch(strict.stderr, /advisory item/u);
 });
 
-test('the pre-cell transition keeps real cycles strict and reports every other family [C7,CD64]', t => {
+test('runners.lints.the-pre-cell-transition-keeps-real: the pre-cell transition keeps real cycles strict and reports every other family [C7,CD64]', t => {
   const box = fixture(t), baseline = cellLintBaseline(box.report());
   box.put('packages/sample/index.js', "import '#other'; export const value = 1;\n");
   box.put('packages/other/index.js', "import '#sample';\n");
@@ -543,7 +497,7 @@ test('the pre-cell transition keeps real cycles strict and reports every other f
 });
 
 
-test('literal native worker URLs and native data reads count as reach while unused and shadowed URLs do not [C7,CD62]', t => {
+test('runners.lints.literal-native-worker-urls-and-native: literal native worker URLs and native data reads count as reach while unused and shadowed URLs do not [C7,CD62]', t => {
   const box = fixture(t);
   box.put('apps/demo/index.js', `import { Worker } from 'node:worker_threads';
 import { readFileSync } from 'node:fs';
@@ -569,7 +523,7 @@ example(class {});
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/worker.js'), 'a shadowed worker binding is not proven to launch the file');
 });
 
-test('literal Node process worker arguments reach their file but computed and test-only input declarations stay unproven [C7,CD62]', t => {
+test('runners.lints.literal-node-process-worker-arguments-reach: literal Node process worker arguments reach their file but computed and test-only input declarations stay unproven [C7,CD62]', t => {
   const box = fixture(t);
   box.put('apps/demo/index.js', `import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -633,7 +587,7 @@ for (const file of ['src/oversized.js', 'test/oversized.test.js', 'src/oversized
   assert.ok(cellLintGrowth(box.report(), edge, { enforcedOnly: true }).some(row => row.key === file));
 });
 
-test('hard file cap excludes data and Markdown while preserving their advisory debt [C7]', t => {
+test('runners.lints.hard-file-cap-excludes-data-and: hard file cap excludes data and Markdown while preserving their advisory debt [C7]', t => {
   const box = fixture(t), baseline = cellLintBaseline(box.report());
   for (const file of ['test/golden.json', 'test/golden.txt', 'docs/guide.md']) box.put(file, '\n'.repeat(1501));
   const report = box.report();

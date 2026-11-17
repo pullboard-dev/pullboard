@@ -24,7 +24,7 @@ const select = (s) => runTable(ENGINE.tables.select, ENGINE.rules, structuredClo
 const merge = (pace, status, forced) => runTable(ENGINE.tables.merged, ENGINE.rules, { item: { id: ID, status, mergedCommit: null }, pace },
   { name: 'merged', id: ID, actor: 'coordinator', commit: 'f'.repeat(40), ...(forced ? { forced } : {}) });
 
-test('clause 2: a submitted item frozen at pace sprint, with no landing receipt, passes landing-select [M2]', () => {
+test('moves.landing-pace.a-submitted-item-frozen-at-pace-sprint: clause 2: a submitted item frozen at pace sprint, with no landing receipt, passes landing-select [M2]', () => {
   const s = selectSnapshot('sprint');
   assert.equal(s.item.pace, 'sprint', 'the frozen bar reads as sprint');
   const out = select(s);
@@ -35,7 +35,7 @@ test('clause 2: a submitted item frozen at pace sprint, with no landing receipt,
   assert.equal(select({ ...s, item: { ...s.item, status: 'claimed' } }).refused.row, 'pending-submitted', 'unsubmitted work is not pending under sprint');
 });
 
-test('clause 3: the same item frozen at pace steady is refused with NOT_PENDING [M2]', () => {
+test('moves.landing-pace.the-same-item-frozen-at-pace-steady: clause 3: the same item frozen at pace steady is refused with NOT_PENDING [M2]', () => {
   const s = selectSnapshot('steady');
   assert.equal(s.item.pace, 'steady', 'a bar frozen with no pace reads as steady');
   const out = select(s);
@@ -46,7 +46,7 @@ test('clause 3: the same item frozen at pace steady is refused with NOT_PENDING 
   assert.deepEqual(select(selectSnapshot('steady', 'verified')).via, ['ready'], 'verified work still lands under steady');
 });
 
-test('#8863: an unforced sprint merge of submitted work records it landed, while steady still merges verified work only [M2]', () => {
+test('moves.landing-pace.case-8863-an-unforced-sprint-merge-of-submitted: #8863: an unforced sprint merge of submitted work records it landed, while steady still merges verified work only [M2]', () => {
   assert.deepEqual(merge('sprint', 'submitted').patch, { mergedCommit: 'f'.repeat(40) }, 'landed, not withdrawn');
   assert.deepEqual(merge('sprint', 'submitted').events.map(event => event.kind), ['merged']);
   assert.equal(merge('sprint', 'claimed').refused.row, 'submitted');

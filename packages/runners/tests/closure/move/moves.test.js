@@ -38,7 +38,7 @@ function engineTree(t, shims) {
   return root;
 }
 
-test('engine numbers and their frozen history are the same with or without the src/moves shims [C7,H16]', t => {
+test('runners.moves.engine-numbers-and-their-frozen-history: engine numbers and their frozen history are the same with or without the src/moves shims [C7,H16]', t => {
   const results = [true, false].map(shims => {
     const root = engineTree(t, shims);
     const { assigned } = assignEngineNumbers(root);
@@ -50,7 +50,7 @@ test('engine numbers and their frozen history are the same with or without the s
     'the record freezes the packaged bodies, never the shims');
 });
 
-test('the real move closure without src/moves is the shimmed closure minus its shims [C7,H16]', t => {
+test('runners.moves.the-real-move-closure-without-src: the real move closure without src/moves is the shimmed closure minus its shims [C7,H16]', t => {
   const root = join(import.meta.dirname, '../../../../..');
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-moves-cell-closure-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));

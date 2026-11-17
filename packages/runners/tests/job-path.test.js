@@ -11,7 +11,7 @@ function resolves(tool, path) {
   return path.split(delimiter).filter(Boolean).some(directory => { try { accessSync(`${directory}/${tool}`, constants.X_OK); return true; } catch { return false; } });
 }
 
-test('clause 1: a runner test job environment keeps a PATH on which git resolves [C7,#8245]', () => {
+test('runners.job-path.a-runner-test-job-environment-keeps: clause 1: a runner test job environment keeps a PATH on which git resolves [C7,#8245]', () => {
   for (const service of [undefined, '', '/nonexistent/bin', '/usr/local/bin:/nonexistent/bin']) {
     const path = jobPath(service, delimiter);
     assert.ok(resolves('git', path), `git resolves on the job PATH made from ${JSON.stringify(service)}`);

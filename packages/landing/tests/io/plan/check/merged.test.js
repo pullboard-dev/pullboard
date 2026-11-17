@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/landing */
 /** A hand-landed commit meets the engine-numbering check that automatic landing applies [C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -44,7 +45,7 @@ function fixture() {
   return root;
 }
 
-test('landing checks refuse an unnumbered engine leaf in the engines folder [C7]', () => {
+test('landing.merged.landing-checks-refuse-an-unnumbered-engine: landing checks refuse an unnumbered engine leaf in the engines folder [C7]', () => {
   const root = fixture();
   const bad = commit(root, {
     'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n",
@@ -53,7 +54,7 @@ test('landing checks refuse an unnumbered engine leaf in the engines folder [C7]
   assert.throws(() => requireLandingPlanCheck(root, bad), error => /engines\/new-rule-engine\.js/u.test(error.message) && /amendLandingEngines/u.test(error.message));
 });
 
-test('landing checks read the recorded numbered leaf despite dirty working bytes [C7]', () => {
+test('landing.merged.landing-checks-read-the-recorded-numbered: landing checks read the recorded numbered leaf despite dirty working bytes [C7]', () => {
   const root = fixture();
   const good = commit(root, {
     'packages/state/src/logic/engines/new-rule-engine.js': 'export const NEW_RULE_ENGINE = 1;\n',
@@ -66,7 +67,7 @@ test('landing checks read the recorded numbered leaf despite dirty working bytes
   assert.equal(git(root, 'worktree', 'list').split('\n').length, 1);
 });
 
-test('an unnumbered engine is refused even without a placement plan [C7]', () => {
+test('landing.merged.an-unnumbered-engine-is-refused-even: an unnumbered engine is refused even without a placement plan [C7]', () => {
   const { root } = privateFixtureFiles('merged-engine-no-plan-');
   roots.push(root);
   git(root, ...INIT);

@@ -16,7 +16,7 @@ const refusal = options => {
 };
 const devices = [{ device: 'studio-mac', seat: 'core-12', engine: 20 }, { device: 'laptop', seat: 'core-3', engine: 10 }, { device: 'current', seat: 'core-4', engine: needed }];
 
-test('clause 1: with the setting on the refusal keeps ENGINE_VERSION and names the device with the lowest engine below the needed one [C7,#9418]', () => {
+test('state.io-engine-behind-refusal.clause-1-with-the-setting-on-the-refusal: clause 1: with the setting on the refusal keeps ENGINE_VERSION and names the device with the lowest engine below the needed one [C7,#9418]', () => {
   const error = refusal({ nameBehindDevice: true, behindDevices: devices, releases });
   assert.equal(error.code, 'ENGINE_VERSION');
   assert.match(error.message, /laptop \(seat core-3\)/u);
@@ -25,7 +25,7 @@ test('clause 1: with the setting on the refusal keeps ENGINE_VERSION and names t
   assert.doesNotMatch(error.message, /studio-mac|current/u);
 });
 
-test('clause 2: with the setting off, or no device below the needed engine, the refusal text is unchanged [C7,#9418]', () => {
+test('state.io-engine-behind-refusal.clause-2-with-the-setting-off-or-no: clause 2: with the setting off, or no device below the needed engine, the refusal text is unchanged [C7,#9418]', () => {
   const plain = refusal({});
   assert.equal(plain.code, 'ENGINE_VERSION');
   assert.equal(plain.message, `[ENGINE_VERSION] probe requires engine version ${needed}; this pullboard uses engine ${ENGINE_VERSION}; upgrade before sending it`);
