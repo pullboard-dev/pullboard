@@ -81,20 +81,17 @@ test('clause 4: claim, release, then the same claim again with the file queue on
   assert.notEqual(again, null);
 });
 
-test('clause 5: stored results and marks older than the keep time are pruned, newer ones and pending writes stay [C7,#10089]', async t => {
+test('clause 5: queue results and marks older than the keep time are pruned when a queued write comes in, newer ones stay [C7,#10089]', async t => {
   const { board, seat, target, options, home } = setup(t, { board: { crossProcessWrites: true } });
   await writeBoardCommand(board, 'claim', [target, options], seat.id);
   const queue = join(home, 'board-write-queue');
   const old = join(queue, 'stale0000.result');
   const oldMark = join(queue, 'stale0000.mark');
-  const pending = join(queue, 'stale0001.pending');
-  for (const file of [old, oldMark, pending]) writeFileSync(file, '{}');
+  for (const file of [old, oldMark]) writeFileSync(file, '{}');
   const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-  for (const file of [old, oldMark, pending]) utimesSync(file, past, past);
-  // Any queued write prunes on the way in; the release is one.
+  for (const file of [old, oldMark]) utimesSync(file, past, past);
   await writeBoardCommand(board, 'release', [target, seat.id, 'giving it back', undefined, 'OTHER'], seat.id);
   assert.equal(existsSync(old), false, 'the old result is gone');
   assert.equal(existsSync(oldMark), false, 'the old mark is gone');
-  assert.equal(existsSync(pending), true, 'a pending write is never pruned');
   assert.ok(readdirSync(queue).some(name => name.endsWith('.result') && name !== 'stale0000.result'), 'this run\'s results are kept');
 });

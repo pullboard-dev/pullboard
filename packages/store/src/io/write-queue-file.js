@@ -26,7 +26,8 @@ function readRecord(file) {
 
 /** True when the lock's owning process is gone, or the lock never got an owner record and is a few seconds old. */
 function lockIsStale(lock) {
-  const held = readdirSync(lock).map(name => Number.parseInt(name, 10)).find(Number.isInteger);
+  let held;
+  try { held = readdirSync(lock).map(name => Number.parseInt(name, 10)).find(Number.isInteger); } catch { return false; /* the holder released it between our look and our read */ }
   if (held !== undefined) {
     try { process.kill(held, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
   }
