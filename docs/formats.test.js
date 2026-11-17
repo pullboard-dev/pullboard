@@ -55,6 +55,16 @@ const resumeNotesPage = readFileSync(new URL('./formats/resume-notes.md', import
 /** The static-view-export section lives on its own page; its snapshot table and sentences are read there. */
 const staticViewPage = readFileSync(new URL('./formats/static-view.md', import.meta.url), 'utf8');
 
+/** The recorded-board-line-settings section lives on its own page; its table and sentences are read there. */
+const settingsPage = readFileSync(new URL('./formats/settings.md', import.meta.url), 'utf8');
+
+test('clause 1: formats.md links the settings page and the line settings sentences are read from it [I1]', () => {
+  assert.match(guide, /## Recorded board line settings\n\n[^\n]*\]\(formats\/settings\.md\)/u);
+  assert.doesNotMatch(guide, /`pullboard settings line --json` reads eight board-owned controller inputs/u);
+  assert.match(settingsPage, /`pullboard settings line --json` reads eight board-owned controller inputs/u);
+  assert.match(settingsPage, /\| `collisionFreeBatch` \|/u);
+});
+
 test('clause 1: formats.md links the static view page and its snapshot table is read from it [I1]', () => {
   assert.match(guide, /## Static view export\n\n[^\n]*\]\(formats\/static-view\.md\)/u);
   assert.doesNotMatch(guide, /snapshot-files:start/u);
