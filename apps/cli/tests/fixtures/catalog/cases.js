@@ -621,10 +621,9 @@ catalogCase('[A1] command results match the catalog across roots: shouts, runs a
   await json(box, secondPath, 'join', ['review']);
   await json(box, repo, 'add', ['coordinator', 'API item', '--specs', 'G1', '--criterion', 'the API item is verified', '--check', 'true']);
   const first = await json(box, secondPath, 'shout', ['First ask', '--decision', '--kind', 'question']);
-  const second = await json(box, secondPath, 'shout', ['Second ask', '--decision', '--kind', 'question']);
   await json(box, repo, 'decisions');
-  await json(box, repo, 'pass', [String(first.id), 'The test run is complete']);
-  await json(box, repo, 'answer', [String(second.id), 'Yes, keep the change', '--as', 'person']);
+  const passed = await json(box, repo, 'pass', [String(first.id), 'The test run is complete']);
+  await json(box, repo, 'answer', [String(passed.id), 'Yes, keep the change', '--as', 'person']);
   await json(box, secondPath, 'inbox');
   await json(box, repo, 'sweep', ['--run', 'true', '--check', 'true {file}']);
 
