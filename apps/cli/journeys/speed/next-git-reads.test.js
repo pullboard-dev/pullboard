@@ -26,10 +26,12 @@ const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exe
 async function recordingReads(work) {
   const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
   const reads = [];
+  const all = (globalThis.__allSpawns = []);
   for (const api of APIS) {
     childProcess[api] = function recorded(...args) {
       const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
       const rest = Array.isArray(args[1]) ? args[1].map(String) : typeof args[0] === 'string' ? args[0].trim().split(/\s+/u).slice(1) : [];
+      all.push(`${api} ${command} ${rest.slice(0, 5).join(' ')}`);
       if (command.endsWith('git')) {
         const own = [...rest];
         while (own[0] === '-c' || own[0] === '-C') own.splice(0, 2);
@@ -63,6 +65,7 @@ test('clause 1: with next.oneGitRead on, next spawns fewer status, rev-parse and
   const off = await measured(t, false);
   const on = await measured(t, true);
   console.log(`# next git reads off: ${off.reads.length}; on: ${on.reads.length}`);
+  console.log(`# all spawns: ${JSON.stringify(globalThis.__allSpawns)}`);
   console.log(`# off reads: ${JSON.stringify(off.reads)}; on reads: ${JSON.stringify(on.reads)}`);
   assert.ok(on.reads.length <= off.reads.length, 'the setting never adds a read');
   assert.ok(on.reads.length < off.reads.length, `fewer reads with it on (${on.reads.length}) than off (${off.reads.length})`);
