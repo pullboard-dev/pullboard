@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** A pull job queued from a locally staged folder: row.json is written by a JS call, and the shipped folder matches the one the remote printf made [C7,#8820]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

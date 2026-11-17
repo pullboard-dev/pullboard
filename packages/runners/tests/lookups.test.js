@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/gate packages/resources packages/runners packages/sentinels */
+/** @pullboard-test-input packages/resources/src/io/admission/memory.js packages/gate/tests/fixtures/diagnostics.js packages/sentinels/src/io/cpu.js */
 /** Nonblocking process diagnostics preserve their target and safe failure information [C7,N26]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

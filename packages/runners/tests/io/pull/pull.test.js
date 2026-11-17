@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** Pull-mode runner scripts, status mirror and waiter, run through the ssh stand-in against a real runner folder [5465,5468,C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

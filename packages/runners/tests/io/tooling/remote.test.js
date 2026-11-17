@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/runner packages/runners */
 /** The runner tooling capsule travels on stdin, never in the SSH exec command, whose size OpenSSH bounds at 256 KiB [C7]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

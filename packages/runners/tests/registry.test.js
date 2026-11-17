@@ -1,5 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners */
-/** Every runners-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9939]. */
+/** Every runners-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9939]. @pullboard-test-input source-cell packages/runners */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

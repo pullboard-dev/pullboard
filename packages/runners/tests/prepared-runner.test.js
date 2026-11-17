@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** Runner journey cases in one test process reuse one prepared runner, reset between cases [C7,#8262]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

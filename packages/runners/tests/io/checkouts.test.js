@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** Warm checkout loans preserve exact trees without carrying writable job Git state [C7,P3]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

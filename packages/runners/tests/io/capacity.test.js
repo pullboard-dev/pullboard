@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** Capacity reads retain real private SQLite state and unknown evidence without admission side effects [C7,O5]. */
 import assert from 'node:assert/strict';
 import {

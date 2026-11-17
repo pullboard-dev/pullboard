@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell packages/runners */
 /** install-serve writes a full system PATH and reloads the service with bootout then bootstrap, never kickstart alone [6070]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,45 +1,64 @@
-/** @pullboard-test-input source-cell packages/runners */
-/** Every runners-cell test that reads files declares the cells it reads in a header line [C7,U149,#9981]. */
+/** @pullboard-test-input packages/runners/tests/** */
+/** The runners cell's tests name the exact files they read, so affected-test selection can see them [C7,U149,#9981]. */
+/** @pullboard-world-pin: the clauses read the runners cell's own test files, which are the subject of the declared-inputs rule. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { relative } from 'node:path';
 import { test } from 'node:test';
+import { declaresSource } from '../../gate/src/io/test/inputs.js';
+import { testInputProblems } from '../../gate/src/io/test/inputs.js';
 
 const DIR = import.meta.dirname;
-const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
-const CELL_HEADER = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
-const TREE_HEADER = /^\/\*\* @pullboard-test-input source-tree \*\/$/u;
-// These five copy or walk the whole repository into a fixture runner, so they truly read every cell and keep the whole-tree header [C7,U149].
-const WHOLE_TREE = new Set(['merge.test.js', 'io/pack/clean.test.js', 'io/run/tests.test.js', 'io/run/tests/snapshot.test.js', 'io/run/tests/landing.test.js']);
-const OTHER = new Set(['// pullboard: browser', '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */']);
+const ROOT = join(DIR, '..', '..', '..');
+const SELF = 'packages/runners/tests/inputs.test.js';
+// The tests that read repo files by path, and the header each carries: exact files (or one folder glob), never a cell and never the whole tree.
+const READERS = {
+  'packages/runners/tests/fixture-copiers.test.js': ['packages/runners/tests/**'],
+  'packages/runners/tests/io/main.test.js': ['package.json', 'apps/runner/src/io/scripts/worker.js', 'packages/runners/src/io/policy.js', 'packages/sandbox/src/io/trusted/policy/committed.js'],
+  'packages/runners/tests/io/package/closure.test.js': ['packages/resources/src/io/handoff/prune.js'],
+  'packages/runners/tests/io/service/bundle.test.js': ['packages/state/src/logic/engines/**'],
+  'packages/runners/tests/io/tooling/bundle.test.js': ['package.json', 'apps/runner/src/io/scripts/worker.js', 'packages/runners/src/io/tooling/remote.js'],
+  'packages/runners/tests/io/tooling/trusted-cache-export.test.js': ['package.json', 'apps/runner/src/io/scripts/worker.js', 'packages/runners/src/io/tooling/remote.js'],
+  'packages/runners/tests/lookups.test.js': ['packages/resources/src/io/admission/memory.js', 'packages/gate/tests/fixtures/diagnostics.js', 'packages/sentinels/src/io/cpu.js'],
+  'packages/runners/tests/neutral-host.test.js': ['packages/runners/**'],
+  'packages/runners/tests/refresh.test.js': ['package.json', 'apps/runner/src/io/scripts/worker.js'],
+  'packages/runners/tests/version.test.js': ['package.json', 'apps/cli/pullboard.js', 'packages/store/src/io/board/schema/source.js', 'packages/pages/src/io/relay/presentation.js'],
+  'packages/runners/tests/io/dispatch/bridge-module.test.js': ['packages/runners/src/io/bridge.js', 'packages/runners/src/io/dispatch.js'],
+  'packages/runners/tests/io/dispatch/pull-front.test.js': ['packages/runners/src/io/pull/delegate.js', 'packages/runners/src/io/health.js'],
+};
 
-/** Every test file under the runners cell's tests folder, nested folders included. */
-function testFiles(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
+/** Every test file under the runners cell's tests folder, as repo-relative paths. */
+function runnersTests(dir = DIR) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return runnersTests(path);
+    return /\.test\.js$/u.test(entry.name) ? [relative(ROOT, path)] : [];
+  });
 }
 
-/** True when the leading declaration lines carry a source-cell header; a source-tree header does not count, it reads every cell. */
-function declares(source) {
-  for (const line of source.split(/\r?\n/u)) {
-    if (CELL_HEADER.test(line)) return true;
-    if (TREE_HEADER.test(line)) return false;
-    if (!OTHER.has(line) && !/^\/\*\* @pullboard-/u.test(line)) return false;
+const read = path => readFileSync(join(ROOT, path), 'utf8');
+
+test('runners.inputs.declared: clause 1: every runners test that reads repo files carries @pullboard-test-input lines naming the exact files it reads, never a whole cell [C7,U149]', () => {
+  const files = runnersTests();
+  assert.ok(files.length > 50, 'the runners cell has test files to check');
+  for (const [file, tokens] of Object.entries(READERS)) {
+    const [first] = read(file).split(/\r?\n/u);
+    assert.equal(first, `/** @pullboard-test-input ${tokens.join(' ')} */`, `${file} names exactly the files it reads`);
+    assert.ok(declaresSource(read(file)), `${file} declares its inputs`);
+    for (const token of tokens) {
+      assert.ok(!/^source-(?:cell|tree)$/u.test(token) && !token.startsWith('/') && !token.includes('..'), `${file}: ${token} is a repo path`);
+      assert.ok(existsSync(join(ROOT, token.replace(/\/\*\*$/u, ''))), `${file}: ${token} exists`);
+    }
   }
-  return false;
-}
-
-const readers = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') })).filter(({ source }) => READ.test(source));
-
-test('runners.inputs.declared: clause 1: every test file in packages/runners/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
-  assert.ok(readers.length > 0, 'the scan finds the cell test files that read');
-  const bare = readers.filter(({ file, source }) => !declares(source) && !(WHOLE_TREE.has(file.slice(DIR.length + 1)) && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line)))).map(({ file }) => file.slice(DIR.length + 1));
-  assert.deepEqual(bare, []);
 });
 
-test('runners.inputs.no-tree: clause 2: with the declared-inputs rule on, no runners-cell reader is reported, and a header names a cell, never the whole tree except the five named whole-repo copiers [C7,U149]', () => {
-  const tree = readers.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1)).filter((name) => !WHOLE_TREE.has(name));
-  assert.deepEqual(tree, []);
-  const stale = [...WHOLE_TREE].filter((name) => !readers.some(({ file, source }) => file.slice(DIR.length + 1) === name && source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))));
-  assert.deepEqual(stale, [], 'every allowed whole-tree file still declares it');
+test('runners.inputs.rule-clean: clause 1: with the outside-src rule on, the reader rule reports none in packages/runners/tests, and none of the named readers carries a source-cell header [C7,U149]', () => {
+  const files = runnersTests();
+  assert.ok(files.includes(SELF));
+  assert.deepEqual(testInputProblems(ROOT, files, read, true), []);
+  const cells = Object.keys(READERS).filter(file => /@pullboard-test-input source-cell/u.test(read(file)));
+  assert.deepEqual(cells, []);
 });
