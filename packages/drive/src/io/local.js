@@ -20,8 +20,6 @@ import { resolve } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { spawnReachable } from '../../../jobs/index.js';
 import { serveRunner } from './pull.js';
-import { WAKE_FILE } from './wake.js';
-import { watchWake } from './wake.js';
 
 /** The capability only a runner on the board host has: it reaches the board host's own repository by its path. */
 export const BOARD_HOST = 'board-host';
@@ -30,6 +28,8 @@ const HEARTBEAT_MS = 5_000;
 const STALE_MS = 30_000;
 // Budget: a board the runner cannot serve yet (no board file, a refusal) is tried again after 1 s, doubling to a minute.
 const RETRY = { firstMs: 1_000, maxMs: 60_000 };
+// The file an offering command touches in the runner folder; wake.js, which watches it, loads only when runners.localWake is on [#10409].
+export const WAKE_FILE = 'wake';
 
 /** Read a JSON file, or the fallback when it is missing or damaged. */
 function readJson(file, fallback) {
@@ -130,7 +130,7 @@ function takeLock(folder) {
 async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, git, signal, say, wakeOnOffer }) {
   const cache = join(folder, 'cache', createHash('sha256').update(root).digest('hex').slice(0, 16));
   // With runners.localWake on, an offering command's touch of the wake file ends this board's idle wait at once [#10409].
-  const wake = wakeOnOffer ? watchWake(folder) : null;
+  const wake = wakeOnOffer ? (await import('./wake.js')).watchWake(folder) : null;
   for (let wait = RETRY.firstMs; !signal.aborted; wait = Math.min(wait * 2, RETRY.maxMs)) {
     try {
       say(`serving ${root} as board ${id}`);
