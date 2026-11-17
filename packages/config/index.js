@@ -126,6 +126,7 @@ export {
   reviewStarveShout,
   nextLabelBounds,
   nextCapBuilders,
+  nextRouteByTier,
   nextHoldAboveLoad,
   heavyLocalHoldEnabled,
   nextReadinessCheck,

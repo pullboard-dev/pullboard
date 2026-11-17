@@ -595,6 +595,11 @@ export function nextCapBuilders() {
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
 }
 
+/** Whether next offers an item only to a seat on the tier the project's tiers route it to (#8800): off by default; only an exact `true` turns it on. */
+export function nextRouteByTier() {
+  return loadMachineSettings().next?.routeByTier === true;
+}
+
 /**
  * Whether heavy local commands (cells-plan --moved/--check, pullboard check, the run-tests local fallback) wait in the local
  * resource line above machine.loadCeiling (#10139): off by default; only an exact `true` turns it on. Callers pass the settings
