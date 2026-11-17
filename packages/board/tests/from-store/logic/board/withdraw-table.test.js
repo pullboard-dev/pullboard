@@ -4,11 +4,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { withdraw } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { withdraw } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 /** The board's recorded withdrawals, each with the item state it saw and the events the withdraw table answered; built from the moves cell's withdraw replay, whose own test proves the table agrees with the board's record. */
-const RECORDS = JSON.parse(readFileSync(new URL('../../fixtures/withdraw-records.json', import.meta.url), 'utf8'));
+const RECORDS = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/withdraw-records.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** A real board holding one item in the state the record found it, walked there under the move token a board move holds while it writes. */

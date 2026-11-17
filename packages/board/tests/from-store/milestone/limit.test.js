@@ -1,19 +1,19 @@
 /** Optional release size is enforced by real board moves over Git and SQLite [N26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../../index.js';
-import { editMilestone } from '../../index.js';
-import { editMilestoneItems } from '../../index.js';
-import { roadmap } from '../../index.js';
-import { workQueue } from '../../../items/index.js';
-import { milestoneRoadmap } from '../../../roadmap/index.js';
-import { listApiProjects } from '../../../seats/index.js';
-import { submitFixture } from '../fixtures/submit.js';
-import { cellBoard } from '../fixtures/cell.js';
-import { cellItem } from '../fixtures/cell.js';
-import { cellProject } from '../fixtures/cell.js';
-import { cellSeat } from '../fixtures/cell.js';
-import { openCellBoard } from '../fixtures/cell.js';
+import * as store from '../../../../store/index.js';
+import { editMilestone } from '../../../../store/index.js';
+import { editMilestoneItems } from '../../../../store/index.js';
+import { roadmap } from '../../../../store/index.js';
+import { workQueue } from '../../../../items/index.js';
+import { milestoneRoadmap } from '../../../../roadmap/index.js';
+import { listApiProjects } from '../../../../seats/index.js';
+import { submitFixture } from '../../../../store/tests/fixtures/submit.js';
+import { cellBoard } from '../../fixtures/cell-board.js';
+import { cellItem } from '../../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../fixtures/cell-board.js';
 
 const HOUR = 3_600_000;
 const SETUP = 'fixture release setup';

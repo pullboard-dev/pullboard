@@ -3,11 +3,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { queueSubmitHandoff } from '../../../index.js';
-import { cellBoard } from '../../fixtures/cell.js';
+import { queueSubmitHandoff } from '../../../../../store/index.js';
+import { cellBoard } from '../../../fixtures/cell-board.js';
 
 /** The queue moves the board recorded, each with the state it saw; built from the submit history by the moves cell's replay. */
-const queues = JSON.parse(readFileSync(new URL('../../fixtures/submit-queue-records.json', import.meta.url), 'utf8'));
+const queues = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/submit-queue-records.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
 
 /** A real board holding the one item a recorded move saw and the hand-off record it found, on a clock at the move's own instant. */
