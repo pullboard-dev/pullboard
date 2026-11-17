@@ -1397,9 +1397,6 @@
   "apps/cli/journeys/relay/person/requests.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/release/model-idle.test.js": {
-    "launch": 1
-  },
   "apps/cli/journeys/release/model-tour.test.js": {
     "launch": 1
   },
