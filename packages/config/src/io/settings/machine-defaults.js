@@ -107,6 +107,7 @@ export const MACHINE_DEFAULTS = {
   'landing.reofferTrunkBusy': false,
   'landing.reuseContractResults': false,
   'landing.reuseGateReceipts': false,
+  'landing.runnerOnlyCompose': false,
   'landing.squash': false,
   'landing.stallStop': false,
   'landing.staticAffectedOnly': false,
