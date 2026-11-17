@@ -70,7 +70,7 @@ async function countFor(on) {
   return new Set(files.read('seen.txt').toString('utf8').split('\n').filter(Boolean)).size;
 }
 
-test('clause 1: with list.thinRead on, pullboard list prints the same output and exit code as with it off [C7]', async () => {
+test('cli.io-commands-list-thin-read.with-list-thinread-on-pullboard-list-prints: clause 1: with list.thinRead on, pullboard list prints the same output and exit code as with it off [C7]', async () => {
   for (const args of [[], ['--all'], ['--json'], ['web']]) {
     setThinRead(false);
     const off = await listOnce(...args);
@@ -84,13 +84,13 @@ test('clause 1: with list.thinRead on, pullboard list prints the same output and
   setThinRead(null);
 });
 
-test('clause 2: with list.thinRead on, pullboard list loads fewer than 300 modules [C7]', async () => {
+test('cli.io-commands-list-thin-read.with-list-thinread-on-pullboard-list-loads: clause 2: with list.thinRead on, pullboard list loads fewer than 300 modules [C7]', async () => {
   const loaded = await countFor(true);
   setThinRead(null);
   assert.ok(loaded < 300, `list loaded ${loaded} modules with list.thinRead on`);
 });
 
-test('clause 2: with list.thinRead on, list never loads more modules than with it off [C7]', async () => {
+test('cli.io-commands-list-thin-read.with-list-thinread-on-list-never-loads: clause 2: with list.thinRead on, list never loads more modules than with it off [C7]', async () => {
   const off = await countFor(false);
   const on = await countFor(true);
   setThinRead(null);
