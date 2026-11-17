@@ -41,7 +41,7 @@ test('clause 1: show --json for a landed item carries landing.phases as {phase, 
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);
   const document = JSON.parse(shown.out);
-  assert.equal(document.item_status, 'merged', shown.out);
+  assert.ok(document.item_merged_commit, shown.out);
   assert.deepEqual(document.landing.phases, PHASES);
 });
 
