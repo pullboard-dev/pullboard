@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { currentGitAdapter } from '../../git/index.js';
-import { headCommit } from '../../git/index.js';
-import { realGitAdapter } from '../../git/index.js';
-import { cellBoard } from './fixtures/cell.js';
-import { cellProject } from './fixtures/cell.js';
-import { cellRepo } from './fixtures/cell.js';
+import { currentGitAdapter } from '../../../git/index.js';
+import { headCommit } from '../../../git/index.js';
+import { realGitAdapter } from '../../../git/index.js';
+import { cellBoard } from '../fixtures/cell-board.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 
 test('clause 1: a fixture project built without asking for real git gets the in-memory git adapter [C7]', t => {
   const project = cellProject(t);
