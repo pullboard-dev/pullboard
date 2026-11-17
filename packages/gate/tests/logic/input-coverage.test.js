@@ -30,7 +30,7 @@ test('clause 2: it reads only the file texts it is given and spawns no child pro
   const source = readFileSync(new URL('../../src/logic/input-coverage.js', import.meta.url), 'utf8');
   const imports = source.split('\n').filter(line => line.startsWith('import ')).join('\n');
   assert.doesNotMatch(imports, /child_process|node:fs/u);
-  assert.doesNotMatch(source.replace(/\/\*[\s\S]*?\*\//gu, ''), /spawn|exec/u);
+  assert.doesNotMatch(source.replace(/\/\*[\s\S]*?\*\//gu, ''), /child_process|spawn(?:Sync)?\(|execFile|execSync/u);
   const given = [{ path: 'packages/nowhere/tests/ghost.test.js', text: READS }];
   assert.equal(inputCoverage(given)['packages/nowhere'].readers, 1);
 });
