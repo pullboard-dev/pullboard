@@ -40,7 +40,7 @@ async function served(t, milestoneDelta) {
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
   t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
-  let now = Date.now() + 8 * HOUR;
+  const now = Date.now() + 8 * HOUR;
   let at = now - 8 * HOUR;
   const board = cellBoard(t, project.boardFile, { now: () => new Date(at) }, { real: true });
   const ids = [];
@@ -73,7 +73,7 @@ async function served(t, milestoneDelta) {
   }
   const listing = await request('/api/v1/boards');
   const path = '/api/v1/boards/' + encodeURIComponent(listing.document.boards[0].id);
-  return { request, path, board, project, ids, agents, tick: ms => { at += ms; now += ms; } };
+  return { request, path, board, project, ids, agents, tick: ms => { at += ms; } };
 }
 
 /** The delta a read since `base` answers after `change` runs on the board. */
@@ -99,13 +99,13 @@ test('clause 1: with state.milestoneDelta on, a delta after one event on one ite
 
 test('clause 2: a pace count change alone does not make a milestone part of the delta [C7,#9846]', async (t) => {
   const box = await served(t, true);
-  const delta = await deltaAfter(box, () => { box.tick(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'coordinator', text: 'An event that touches no item', lanes: ['web'] }); });
+  const delta = await deltaAfter(box, () => { box.tick(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones, undefined, 'a moved pace, and the estimate derived from it, resend no milestone');
   assert.equal(delta.milestonePace.last2h, 0, 'the pace travels once beside the delta');
 });
 
 test('clause 3: with the setting off the whole milestone list is sent as today [C7,#9846]', async (t) => {
   const box = await served(t, false);
-  const delta = await deltaAfter(box, () => { box.tick(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'coordinator', text: 'An event that touches no item', lanes: ['web'] }); });
+  const delta = await deltaAfter(box, () => { box.tick(3 * HOUR); shout(box.board, { from: box.agents[0].id, to: 'all', text: 'An event that touches no item', lanes: ['web'] }); });
   assert.equal(delta.merge.milestones.set.length, MILESTONES, 'every milestone is sent again once the pace moved');
 });
