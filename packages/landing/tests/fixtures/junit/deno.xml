@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: deno test --junit-path=report.xml. Assumption: testsuite name and testcase classname
+     both carry the test module path; deno writes no file attribute here. No tool is needed to read it. -->
+<testsuites name="deno test" tests="3" failures="1" errors="0" time="0.012">
+  <testsuite name="calc_test.ts" tests="3" disabled="1" errors="0" failures="1">
+    <testcase name="adds two numbers" classname="calc_test.ts" time="0.001"/>
+    <testcase name="halves a number" classname="calc_test.ts" time="0.002">
+      <failure message="AssertionError: Values are not equal: expected 2, got 1">AssertionError: Values are not equal: expected 2, got 1
+    at calc_test.ts:9:3</failure>
+    </testcase>
+    <testcase name="runs later" classname="calc_test.ts" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

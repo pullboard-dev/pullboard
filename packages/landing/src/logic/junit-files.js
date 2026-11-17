@@ -4,6 +4,8 @@
 export const JUNIT_FILE_ROWS = {
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
+  // deno test writes the module path in classname (calc_test.ts) and no file attribute.
+  deno: row => row.classname || null,
 };
 
 /**
