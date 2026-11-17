@@ -22,7 +22,7 @@ test('clause 1: apps/view/needs.js exports only personNeedsSummary, the same one
   assert.equal(door.personNeedsSummary, index.personNeedsSummary);
 });
 
-test('clause 3: loading apps/view/needs.js loads no src/logic file outside needs and resume [C7]', () => {
+test('clause 3: loading apps/view/needs.js loads no io file but needs.js, state.js and its readers, and no logic file outside needs, resume and four pure files [C7]', () => {
   const logFile = join(privateFixtureFiles('needs-door-').root, 'loaded.txt');
   const hook = `
 import { appendFileSync } from 'node:fs';
@@ -43,9 +43,15 @@ await import(${JSON.stringify(doorUrl)});`;
     const logic = ['apps', 'view', 'src', 'logic'].join(sep) + sep;
     const rels = loaded.map((u) => relative(repoRoot, fileURLToPath(u)));
     assert.ok(rels.some((r) => r.endsWith(join('src', 'io', 'needs.js'))), 'the hook saw the needs reader load');
-    const stray = rels.filter((r) => r.startsWith(logic)
+    const io = ['apps', 'view', 'src', 'io'].join(sep) + sep;
+    const pure = ['counts.js', 'stale.js', join('live', 'runners.js'), 'public.js'].map((name) => logic + name);
+    // state.js reads the dashboard and live-runner state through these three io readers; none is a server module.
+    const stateReaders = ['needs.js', 'state.js', join('dashboard', 'recent.js'), join('dashboard', 'gates.js'), join('live', 'read.js')].map((name) => io + name);
+    const stray = rels.filter((r) => (r.startsWith(logic)
       && !r.startsWith(logic + 'needs' + sep)
-      && r !== logic + 'resume.js');
+      && r !== logic + 'resume.js'
+      && !pure.includes(r))
+      || (r.startsWith(io) && !stateReaders.includes(r)));
     assert.deepEqual(stray, []);
   }
 });
