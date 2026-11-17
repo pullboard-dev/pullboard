@@ -16,7 +16,7 @@ const contract = {
   exports: [{ name: 'seal', params: ['key', 'text'], returns: 'string' }],
 };
 
-test('clause 1: writing then reading a contract file returns the same consumer, provider and export shapes [C7]', t => {
+test('codemap.contract-file.writing-then-reading-a-contract: clause 1: writing then reading a contract file returns the same consumer, provider and export shapes [C7]', t => {
   const fixture = privateFixtureFiles('pullboard-contract-file-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
   const path = join(fixture.root, 'contract.json');
@@ -24,7 +24,7 @@ test('clause 1: writing then reading a contract file returns the same consumer, 
   assert.deepEqual(readContractFile(path), contract);
 });
 
-test('clause 1: a malformed file refuses CONTRACT_MALFORMED with its next step [C7]', t => {
+test('codemap.contract-file.a-malformed-file-refuses-contract: clause 1: a malformed file refuses CONTRACT_MALFORMED with its next step [C7]', t => {
   const fixture = privateFixtureFiles('pullboard-contract-bad-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
   fixture.write('bad.json', '{"consumer": 1}');

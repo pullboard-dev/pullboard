@@ -678,7 +678,7 @@ function pulledProfilePaths(receipt) {
 }
 
 /** applyGateReceipt's body; its mainPolicy reads fall back to the retained trunk tip while the primary is detached. */
-function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false, receiptMissingCause = false } = {}) {
+function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null, redLocation = false, receiptMissingCause = false, queue = null } = {}) {
   const offered = offeredGate(board.db, job);
   if (!offered || offered.kind !== 'gate' || !Number.isSafeInteger(offered.item)) return { applied: false, outcome: 'not-gate' };
   const { item: id, candidate, main, submit } = offered;
@@ -696,7 +696,7 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
     if (sharded) return sharded;
   }
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
-  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];

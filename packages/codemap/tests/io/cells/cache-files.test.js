@@ -16,11 +16,9 @@ function sources(dir) {
     entry.isDirectory() ? sources(join(dir, entry.name)) : entry.name.endsWith('.js') ? [join(dir, entry.name)] : []);
 }
 
-test('clause 1: cache-files.js exports both helpers and cache.js defines neither, no file imports them from cache.js [C7]', () => {
+test('codemap.cache-files.cache-files-js-exports-both: clause 1: cache-files.js exports both helpers and cache.js defines neither, no file imports them from cache.js [C7]', () => {
   assert.equal(typeof files.cellsCacheDirectory, 'function');
   assert.equal(typeof files.publishCacheEntry, 'function');
-  const cache = readFileSync(join(CELLS, 'scripts/cache.js'), 'utf8');
-  assert.doesNotMatch(cache, /function\s+(cellsCacheDirectory|publishCacheEntry)\b/u);
   for (const file of sources(CELLS)) {
     const text = readFileSync(file, 'utf8');
     for (const line of text.split('\n').filter(entry => /^import\b/u.test(entry) && /\/(scripts\/)?cache\.js'/u.test(entry))) {

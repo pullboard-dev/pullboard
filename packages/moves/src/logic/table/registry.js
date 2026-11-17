@@ -5,6 +5,23 @@ const ID = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/u;
 const MOVE = /^[a-z]+:(\*|[a-z][a-z0-9-]*)$/u;
 
 /**
+ * Pick this registry's own ID from a test title's leading ID chain. A title may carry several stable IDs, the cell registry's first
+ * (`moves.<file>.<slug>`, named for the test file) and then this registry's (`moves.<table>.<name>`), so the reader skips an ID in the file's own cell namespace.
+ * When the title carries only the cell-namespace ID, that one is this registry's too. Why: both registries must see their own ID without renaming either's records.
+ *
+ * @param {string} title the test title
+ * @param {string} file the test file name, whose part before the first dot names the cell-namespace ID
+ * @returns {string} the chosen ID, or the first token when the title starts with no ID
+ */
+function ownId(title, file) {
+  const chain = [];
+  for (const token of title.split(': ')) { if (!ID.test(token)) break; chain.push(token); }
+  if (chain.length === 0) return title.split(': ')[0];
+  const cellPrefix = `moves.${file.split('.')[0]}.`;
+  return chain.find((id) => !id.startsWith(cellPrefix)) ?? chain[0];
+}
+
+/**
  * Find what is wrong with the registry of generated table tests: a test whose title does not start with a stable ID,
  * an ID with no record, a record whose proves.move is not `<table>:<row>` (or `<table>:*` for the whole table),
  * a record naming no test, and an ID used by two tests.
@@ -18,7 +35,7 @@ export function tableTestRegistryProblems(files, records) {
   const seen = new Set();
   for (const { file, source } of files) {
     for (const match of source.matchAll(TITLE)) {
-      const id = match[1].split(': ')[0];
+      const id = ownId(match[1], file);
       if (!ID.test(id)) { problems.push(`${file}: test "${match[1].slice(0, 40)}" has no stable ID before its first colon`); continue; }
       if (seen.has(id)) problems.push(`${file}: ID ${id} is used by two tests`);
       seen.add(id);

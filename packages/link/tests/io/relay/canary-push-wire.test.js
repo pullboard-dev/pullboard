@@ -47,7 +47,7 @@ function runDown(root, directPush) {
     notify: async () => { throw new Error('relay unreachable'); }, directPush });
 }
 
-test('clause 1: with canary.directPush on and the relay unreachable, a canary alert calls sendCanaryPush with the stored subscriptions [C7]', async t => {
+test('link.canary-push-wire.on-sends-stored-subscriptions: clause 1: with canary.directPush on and the relay unreachable, a canary alert calls sendCanaryPush with the stored subscriptions [C7]', async t => {
   await withAlert(t, { canary: { directPush: true } }, async root => {
     assert.ok(pendingRelayCanaryNotices(root).length > 0, 'the fixture holds a pending alert');
     const posts = [];
@@ -60,7 +60,7 @@ test('clause 1: with canary.directPush on and the relay unreachable, a canary al
   });
 });
 
-test('clause 2: with canary.directPush off the alert path is identical to today and nothing is posted [C7]', async t => {
+test('link.canary-push-wire.off-posts-nothing: clause 2: with canary.directPush off the alert path is identical to today and nothing is posted [C7]', async t => {
   await withAlert(t, {}, async root => {
     const posts = [];
     await assert.rejects(runDown(root, ports(posts)), /relay unreachable/u);

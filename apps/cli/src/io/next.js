@@ -1,6 +1,8 @@
 /** @pullboard-module-loads packages/moves/src/io/selection.js */
 /** The command line side of `pullboard next`'s selection: its wait labels and the ports the moves cell selects through [C7]. */
 import { claimWorktreeSnapshot } from '../../../../packages/seats/index.js';
+import { firstUnderLabelMax } from '../../../../packages/queue/index.js';
+import { pickForLabelMinimum } from '../../../../packages/queue/index.js';
 import { createRequire } from 'node:module';
 import { mainLaneWork } from './next/steps.js';
 import { withBoardRead } from './context.js';
@@ -31,7 +33,7 @@ export function displayedWait(reason, agents, config) {
 
 /** The board access, seat lookup, claim and item-folder helpers the moves cell's next loop calls, so it never loads the CLI. */
 export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
-  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot });
+  MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
 
 /**
  * One loop of `next` through the moves cell: claim the next free item, or reserve the next review (V15).

@@ -10,7 +10,7 @@ import { landingStallExpired } from '../../src/io/progress.js';
 
 const batch = { id: 'b1', revision: 4, state: 'gating', logPath: '/log' };
 
-test('clause 1: the stall limit is two minutes, and a batch is stopped at the limit but not a millisecond before [B3,R3,C7]', () => {
+test('landing.progress.the-stall-limit-is-two-minutes: clause 1: the stall limit is two minutes, and a batch is stopped at the limit but not a millisecond before [B3,R3,C7]', () => {
   assert.equal(LANDING_STALL_MS, 120_000);
   const start = 1_000_000;
   assert.equal(landingStallExpired(start, start + 119_999), false, 'one millisecond short of two minutes keeps the batch');
@@ -21,13 +21,13 @@ test('clause 1: the stall limit is two minutes, and a batch is stopped at the li
   assert.equal(landingStallExpired(start, Number.NaN), false, 'an unreadable clock never stalls');
 });
 
-test('clause 1: an explanation names the limit in minutes, the recorded state and the latest step [B3,R3,C7]', () => {
+test('landing.progress.an-explanation-names-the-limit-in: clause 1: an explanation names the limit in minutes, the recorded state and the latest step [B3,R3,C7]', () => {
   assert.equal(landingStallDescription(batch, 'gate'), 'batch b1 made no progress for 2 minutes in state gating; last step gate');
   assert.match(landingStallDescription(batch, 'gate', 60_000), /for 1 minute in state/u);
   assert.match(landingStallDescription(batch, 'gate', 90_000), /for 90 s in state/u);
 });
 
-test('clause 1: a board advance, new log bytes, a new runner job or more CPU time reset the stall; an identical snapshot does not [B3,R3,C7]', () => {
+test('landing.progress.a-board-advance-new-log-bytes: clause 1: a board advance, new log bytes, a new runner job or more CPU time reset the stall; an identical snapshot does not [B3,R3,C7]', () => {
   const before = landingProgressSnapshot(batch, { logBytes: 10, runnerJobs: ['j2', 'j1'], cpuMs: 5 });
   assert.deepEqual(before.runnerJobs, ['j1', 'j2'], 'jobs are compared as a sorted set');
   assert.equal(landingProgressed(before, landingProgressSnapshot(batch, { logBytes: 10, runnerJobs: ['j1', 'j2'], cpuMs: 5 })), false, 'nothing moved');
