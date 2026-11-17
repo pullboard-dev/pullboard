@@ -57,3 +57,15 @@ test('gate.config.zig-globs: #10509 clause 2: detectTestGlobs for a build.zig ro
   assert.deepEqual(detectTestGlobs(root), ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig']);
   assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['zig'], unknown: [] });
 });
+
+test('gate.config.julia-detected: #10513 clause 1: a root holding Project.toml and test/runtests.jl detects julia with a Pkg.test command [C7]', (t) => {
+  const root = rootWith(t, { 'Project.toml': 'name = "App"\n', 'test/runtests.jl': 'using Test\n' });
+  assert.deepEqual(detectLanguages(root), [{ language: 'julia', command: "julia --project -e 'using Pkg; Pkg.test()'" }]);
+  assert.deepEqual(detectTestGlobs(root), ['test/**/*.jl', '**/runtests.jl']);
+  assert.deepEqual(languageToolchains(detectLanguages(root)), { toolchains: ['julia'], unknown: [] });
+});
+
+test('gate.config.julia-no-tests: #10513 clause 2: a root holding Project.toml with no test folder detects nothing [C7]', (t) => {
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': 'name = "App"\n' })), []);
+  assert.deepEqual(detectLanguages(rootWith(t, { 'Project.toml': '', 'test/other.jl': '' })), []);
+});
