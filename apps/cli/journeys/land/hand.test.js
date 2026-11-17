@@ -23,7 +23,7 @@ test('clause 1: with landing.byHand on, land --item N lands one accepted item wh
   box.git(box.repo, 'commit', '-q', '-m', 'chore: add the held test');
   box.git(box.repo, 'push', '-q', 'origin', 'main');
   onBoard(box, board => store.recordLandingTestDefect(board, { agentId: 'coordinator', test: 'test/held.test.js', hash: 'a'.repeat(64),
-    blob: box.git(box.repo, 'rev-parse', 'main:test/held.test.js'), trunkBlob: null, names: ['held case'], lane: 'web', batchId: randomUUID(), branch: 'main' }));
+    blob: box.git(box.repo, 'rev-parse', 'main:test/held.test.js'), trunkBlob: null, names: ['held case'], lane: 'web', batchId: randomUUID(), branch: 'refs/heads/main' }));
   const id = accepted(box, 1, { 'docs/landed-by-hand.md': '# Landed by hand\n' });
   const before = box.git(box.repo, 'rev-parse', 'main');
   const run = await box.runLocal(box.repo, 'land', '--item', String(id), '--reason', 'the held test is unrelated to this item');
