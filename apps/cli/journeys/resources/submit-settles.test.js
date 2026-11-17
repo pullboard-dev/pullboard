@@ -1,10 +1,9 @@
 /** @pullboard-test-input source-cell apps/cli packages/gate */
-/** The registered-worker submit against the ssh stand-in pull runner settles in bounded time, or names where it stands [C7,V4]. */
+/** A runner-only submit with the ssh stand-in registered settles its pulled gate in bounded time, or names where it stands; before #10303 it sat queued to the 180 s kill [C7,V4]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
@@ -13,11 +12,9 @@ import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
-import { startFixtureLocalRunner } from '../../tests/fixtures/runner/local-start.js';
+import { registerStandInAfterAdd } from '../../tests/fixtures/runner/registered.js';
+import { serveBoardQueue } from '../../tests/fixtures/runner/registered.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
-import { CLI_ENTRY } from '../../tests/fixtures/runner/entry.js';
-import { HOST } from '../../../../packages/gate/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../packages/gate/tests/fixtures/runner/ssh.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -88,48 +85,39 @@ function succeeded(result) {
   return result;
 }
 
-test('clause 1: the registered-worker submit --wait over the ssh stand-in pull runner returns with its gate in under 60 s [C7,V4]', async () => {
+test('clause 1: a runner-only submit --wait with the ssh stand-in registered returns and its pulled gate settles green in under 60 s each [C7,V4]', async () => {
   const t0 = Date.now(), tick = label => process.stderr.write(`TIMING ${((Date.now() - t0) / 1000).toFixed(1)}s ${label}\n`);
   const box = helpers.project('true');
-  const paths = Object.fromEntries(['bin', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(box.dir, name)]));
-  for (const path of Object.values(paths)) mkdirSync(path, { recursive: true });
   const requests = join(box.dir, 'runner-only-requests.jsonl');
-  installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths.remoteHome, machineHome: paths.remoteMachine, requests });
-  box.env.PATH = `${paths.bin}:${box.env.PATH}`;
-  const root = join(paths.remoteHome, '.pullboard-runner');
-  mkdirSync(root, { recursive: true });
+  let root = join(box.dir, 'remoteHome', '.pullboard-runner');
   const tail = (file, lines) => existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).slice(-lines).map(line => line.slice(0, 400)) : [];
   const snapshot = () => ({ jobs: jobRows(box), runner: runnerFolders(root), ps: boxProcesses(box),
     requests: Object.fromEntries(readdirSync(box.dir).filter(name => name.startsWith('runner-only-requests')).map(name => [name, tail(join(box.dir, name), 3)])),
     localRunner: tail(join(box.env.PULLBOARD_MACHINE_HOME, 'local-runner', 'runner.log'), 8) });
-  // The stand-in runner is this host, so its load reading is the real runner's: load-aware dispatch would hold every admission.
-  succeeded(box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off'));
-  // The item is added before the runner is registered, so its main baseline is measured at once and not over the stand-in.
-  const added = succeeded(await step(box, 'add', box.repo, ['add', 'web', 'Registered runner-only submission', '--specs', 'G1',
-    '--criterion', 'The native frozen check executes in its admitted registered worker.',
-    '--check', 'printf RUNNER_ONLY_FROZEN_BODY', '--route', 'strong', '--wait', '--json'], snapshot));
-  tick('after add --wait');
-  succeeded(box.run(box.repo, 'runner', 'add', HOST, '--slots', '1', '--browser', '1'));
-  tick('after runner add');
-  const id = JSON.parse(added.out).item.item_id;
+  const registered = await registerStandInAfterAdd(box, { requests, add: async () => succeeded(await step(box, 'add', box.repo, ['add', 'web', 'Registered runner-only submission',
+    '--specs', 'G1', '--criterion', 'The native frozen check executes in its admitted registered worker.',
+    '--check', 'printf RUNNER_ONLY_FROZEN_BODY', '--route', 'strong', '--wait', '--json'], snapshot)) });
+  root = registered.root;
+  tick('after add --wait and runner add');
+  const id = JSON.parse(registered.added.out).item.item_id;
   succeeded(box.run(box.web, 'claim', String(id), '--json'));
-  tick('after claim');
   const built = helpers.commitFile(box, box.web, 'web/registered.txt', 'actual worker control\n', 'feat(web): registered runner-only control [G1]');
   assert.equal(built.status, 0, built.failure ?? built.stderr);
-  tick('after commit');
   succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
-  tick('after settings');
-  // Under pull dispatch a submit offers its gate as a job row; with a runner registered, the CLI starts no local runner to take it.
-  const local = startFixtureLocalRunner(box.env, box.repo, { entry: CLI_ENTRY });
-  tick(`after local runner ${JSON.stringify(local)}`);
+  serveBoardQueue(box);
+  tick('after claim, commit, settings and local runner');
   const submitted = await step(box, 'submit', box.web, ['submit', String(id), '--wait', '--no-next', '--json'], snapshot);
   tick('after submit --wait');
   assert.equal(submitted.signal, null, `submit --wait did not return in ${STEP_MS} ms`);
-  succeeded(submitted);
-  // The submit returns once its gate is offered; the board's local runner takes the job and the check runs on the registered worker.
+  const queued = JSON.parse(succeeded(submitted).out);
+  assert.equal(queued.queued, true, 'a pulled submit returns once its gate job is offered');
   let job;
   try { job = await settledGateJob(box, id, { deadlineMs: STEP_MS }); }
   catch (error) { process.stderr.write(`STATE settle at cap ${JSON.stringify(snapshot())}\n`); throw error; }
   tick('after gate settled');
-  process.stderr.write(`GATE ${JSON.stringify(job).slice(0, 4000)}\n`);
+  assert.equal(job.id, queued.gateJob, 'the job the submit offered is the one that settled');
+  assert.equal(job.gate?.green, true, JSON.stringify(job).slice(0, 2000));
+  assert.equal(job.gate.check?.command, 'printf RUNNER_ONLY_FROZEN_BODY');
+  assert.ok(job.gate.phases.some(phase => phase.role === 'check' && phase.tail.includes('RUNNER_ONLY_FROZEN_BODY')), 'the frozen check body ran');
+  assert.deepEqual(jobRows(box).filter(row => row.job_step !== 'done'), [], 'no job row is left for the fixture settle to wait on');
 });
