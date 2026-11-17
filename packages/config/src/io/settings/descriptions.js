@@ -10,6 +10,7 @@ const ROWS = [
   ['exitRules.tokens', 'Tokens per claim', 'Input plus output tokens, including cached reads as recorded; unknown usage never triggers a stop.', 'Order', 'count'],
   // This machine: Capacity
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],
+  ['gate.boardOpensCheck', 'Refuse new file-board opens', 'Off (default) refuses nothing. On, a changed test that adds a file-board open without naming why is refused by the static checks on every gate, even when no test is selected.', 'Capacity', 'on/off'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
   ['gate.contractAudit', 'Audit contract gaps and mismatches', 'Off (default) audits nothing. On, an export whose shape differs from its declared contract is refused CONTRACT_SHAPE_MISMATCH, and an export with no declared contract gets a draft contract file for its owner to review.', 'Capacity', 'on/off'],

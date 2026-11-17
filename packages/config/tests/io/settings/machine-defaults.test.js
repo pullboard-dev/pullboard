@@ -33,6 +33,7 @@ const BEFORE = {
   'freeze.refuseEmptyBar': false,
   'gate.adapterLintClock': false,
   'gate.adapterLintFs': false,
+  'gate.boardOpensCheck': false,
   'gate.browserByLaunch': false,
   'gate.browserFreeChecks': false,
   'gate.contractAudit': false,
