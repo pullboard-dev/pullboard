@@ -65,8 +65,8 @@ function sentinelBox(t, { on }) {
   try { settings = JSON.parse(readFileSync(file, 'utf8')); } catch { /* an empty machine home */ }
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   writeFileSync(file, JSON.stringify({ ...settings, ...(on ? { sentinels: { landingSelfCheck: true } } : {}) }));
-  // @pullboard-board-file journey: this is the same durable board.sqlite opened by the fixture's real CLI.
   // fixture-subject: addItem (the real CLI's durable board, read and seeded with landing batch events; no kit seam builds that)
+  // @pullboard-board-file journey: this is the same durable board.sqlite opened by the fixture's real CLI.
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   return { box, board };

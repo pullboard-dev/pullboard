@@ -227,16 +227,17 @@ export async function runnerCommand(io, { first, second, rest, values }) {
   if (first !== 'add' || !second || rest.length || slotsGiven && !/^[1-9]\d*$/u.test(values.slots)
     || values.browser !== undefined && !/^(?:0|[1-9]\d*)$/u.test(values.browser)
     || slotsGiven && values.browser === undefined || !slotsGiven && values.browser !== undefined && Number(values.browser) !== 0) {
-    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12] | pullboard runner measure [<ssh-host>]');
+    throw new Refused('USAGE', 'pullboard runner add <ssh-host> [--slots <positive integer>] [--browser <integer from zero through slots>] [--toolchain node=22,python=3.12|auto] | pullboard runner measure [<ssh-host>]');
   }
   const prior = (loadMachineSettings().runners ?? []).find(runner => runner.host === second);
   const node = values.node ?? prior?.node;
   const root = values.root ?? prior?.root;
   // A re-registration keeps the declared toolchains unless it declares new ones.
-  const toolchains = values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
+  const auto = values.toolchain === 'auto';
+  const toolchains = auto ? undefined : values.toolchain !== undefined ? parseToolchains(values.toolchain) : prior?.toolchains;
   const probed = validateRunner({ host: second, slots: 1, browser: 0,
     ...(node !== undefined ? { node } : {}), ...(root !== undefined ? { root } : {}) });
-  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, ...(toolchains ? { toolchains } : {}) });
+  const observation = await probeRunnerTransport(probed, { observeGui: true, discoverNode: node === undefined, enrollSigningKey: true, ...(toolchains ? { toolchains } : {}), ...(auto ? { discover: true } : {}) });
   if (!observation.healthy) throw new Refused('RUNNER_SETUP', `runner ${second} did not complete its registration probe; fix the SSH connection or configured Node, then run pullboard runner add again`);
   if (typeof observation.publicKey !== 'string') throw new Refused('RUNNER_SETUP', `runner ${second} did not enroll its result signing key; check its Pullboard home permissions, then run pullboard runner add again`);
   if (node === undefined && !observation.nodePath) throw new Refused('RUNNER_SETUP', `runner ${second} did not report an absolute Node path from its login shell; install Node or pass --node <absolute-path>`);
@@ -248,7 +249,8 @@ export async function runnerCommand(io, { first, second, rest, values }) {
     : { ...computeRunnerSlots(measuredSize), ...(values.browser === '0' ? { browser: 0 } : {}) };
   if (sized.slots === 0) throw new Refused('BAD_RUNNER', `runner ${second} has no capacity after the core and memory reserves; use a larger runner or an explicit fixed count`);
   // Only the toolchains the runner's own probe answered are recorded; each one it could not verify is named and left out.
-  const verified = toolchains ? observation.toolchains?.verified ?? {} : undefined;
+  const verified = auto ? observation.discovered ?? {} : toolchains ? observation.toolchains?.verified ?? {} : undefined;
+  if (auto) io.say(Object.keys(verified).length ? `runner ${second}: found toolchains ${Object.entries(verified).map(([name, version]) => `${name} ${version}`).join(', ')}` : `runner ${second}: --toolchain auto found no toolchain; none recorded`);
   for (const problem of toolchains ? observation.toolchains?.problems ?? Object.keys(toolchains).map(name => ({ name, problem: 'missing', declared: toolchains[name], found: null })) : []) io.say(toolchainLine(second, problem));
   const configured = validateRunner({ ...probed, ...sized, ...measuredSize, publicKey: observation.publicKey, ...(verified && Object.keys(verified).length ? { toolchains: verified } : {}) });
   const runner = addRunner({ ...configured, gui: observation.gui });
