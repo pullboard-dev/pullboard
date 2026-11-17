@@ -6,7 +6,6 @@ import { test } from 'node:test';
 import { join } from 'node:path';
 import { barTestPort } from '../../../src/io/step/gate.js';
 import { sprintPorts } from '../../../src/io/step/gate.js';
-import { finishTrunk } from '../../../src/io/step/publish.js';
 import { requireSprintProof } from '../../../src/io/step/publish.js';
 import { save } from '../../../src/io/step/merge.js';
 import { validateLandingBatch } from '../../../../items/index.js';
@@ -82,11 +81,11 @@ test('landing.exact.sprint-bar-runs-items-bar-files: clause 1: with landing.spri
   const repo = repository(t);
   const { state, calls } = await landing(repo);
   const record = await requireSprintProof(state);
-  assert.deepEqual(calls, ['static', `bar:sprint-bar:${ALPHA},${BETA}`, 'packages/alpha'], 'static, one bar run of both items\' files, then the changed cell');
+  assert.deepEqual(calls, ['static', `bar:sprint-bar:${ALPHA},${BETA}`, 'packages/alpha', 'packages/beta'], 'static, one bar run of both items\' files, then each changed cell');
   assert.equal(record.result, 'green');
   assert.equal(record.tree, repo.treeOf(repo.tip), 'the record names the staged tree');
   assert.deepEqual(state.batch.exactTree.barTests, [{ item: 7, files: [ALPHA] }, { item: 8, files: [BETA] }]);
-  assert.deepEqual(state.batch.exactTree.cells, ['packages/alpha']);
+  assert.deepEqual(state.batch.exactTree.cells, ['packages/alpha', 'packages/beta']);
   calls.length = 0;
   assert.equal((await requireSprintProof(state)).result, 'green');
   assert.deepEqual(calls, [], 'an adopted batch whose green proof carries its bar record runs nothing again');
@@ -95,7 +94,7 @@ test('landing.exact.sprint-bar-runs-items-bar-files: clause 1: with landing.spri
 test('landing.exact.sprint-bar-red-or-missing-refuses: clause 2: with the setting on a red or missing bar test file leaves main where it was and refuses LAND_EXACT_RED naming the item and the file, though the changed cell selects no test file [C7,V16]', async t => {
   const repo = repository(t);
   const red = await landing(repo, { redFiles: [BETA] });
-  await assert.rejects(() => finishTrunk(red.state), error => error.code === 'LAND_EXACT_RED' && /item #8/u.test(error.message) && error.message.includes(BETA) && !error.message.includes(ALPHA));
+  await assert.rejects(() => requireSprintProof(red.state), error => error.code === 'LAND_EXACT_RED' && /item #8/u.test(error.message) && error.message.includes(BETA) && !error.message.includes(ALPHA));
   assert.equal(repo.main(), repo.base, 'main did not move');
   assert.equal(red.state.batch.state, 'blocked');
   assert.equal(red.state.batch.refusal.code, 'LAND_EXACT_RED');
@@ -117,8 +116,8 @@ test('landing.exact.sprint-bar-off-unchanged: clause 3: with the setting off the
   const repo = repository(t);
   const off = await landing(repo, { on: false });
   const record = await requireSprintProof(off.state);
-  assert.deepEqual(off.calls, ['static', 'packages/alpha']);
-  assert.deepEqual(record, { tree: repo.treeOf(repo.tip), pin: PIN, cells: ['packages/alpha'], result: 'green' }, 'no barTests field');
+  assert.deepEqual(off.calls, ['static', 'packages/alpha', 'packages/beta']);
+  assert.deepEqual(record, { tree: repo.treeOf(repo.tip), pin: PIN, cells: ['packages/alpha', 'packages/beta'], result: 'green' }, 'no barTests field');
   const base = { batch: { root: repo.batchRoot, base: repo.base, tip: repo.tip, items: [] } };
   assert.equal('runBar' in sprintPorts({ ...base, config: {} }), false, 'the real ports carry no bar port by default');
   assert.equal('runBar' in sprintPorts({ ...base, config: { landing: { sprintBarTests: false } } }), false);
