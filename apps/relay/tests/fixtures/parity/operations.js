@@ -119,7 +119,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
       context.claim = { agentId: context.agent, lane, leaseMs: 3600000,
         freeze: () => ({ text: '{"rows":[],"criterion":"A seeded lifecycle."}', digest: 'study-frozen' }) };
     }
-    /** The phases of each part: together they are the original single sequence, on separate boards. */
+    /** The phases of each part: together they are the original single sequence, on separate boards, so the four parts run at once. A part repeats only the setup it reads (seat and item, or the lifecycle a finding needs). */
     const phases = {
       studyA: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedMilestones(context), () => seedLifecycle(context), () => seedPublishFinding(context)],
       studyB: [() => seedIdentity(context), () => seedOrdinaryWork(context), () => seedWatchReceipts(context), () => seedObservationReceipts(context),
@@ -162,9 +162,8 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
         () => seedPersonSigning(context)],
     };
     if (!phases[part]) throw new TypeError(`unknown operation part ${part}`);
-    const timings = [];
-    for (const phase of phases[part]) { const t0 = Date.now(); await phase(); timings.push(Date.now() - t0); process.stderr.write(`parity phase ${part} #${timings.length} ${Date.now() - t0} ms\n`); }
-    return { timings, covered: [...tracking.covered].sort(), declared: [...MOVE_OPERATIONS].sort(), setupRefusals: tracking.setupRefusals };
+    for (const phase of phases[part]) await phase();
+    return { covered: [...tracking.covered].sort(), declared: [...MOVE_OPERATIONS].sort(), setupRefusals: tracking.setupRefusals };
   } catch (error) {
     error.message = `while observing ${observing}: ${error.message}; covered=${JSON.stringify([...tracking.covered])}; setupRefusals=${JSON.stringify(tracking.setupRefusals)}`;
     throw error;
