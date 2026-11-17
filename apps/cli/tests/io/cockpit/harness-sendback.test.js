@@ -23,16 +23,16 @@ let launches;
 async function submitted() {
   const box = machine();
   const demo = project(box, 'demo');
-  // The machine's run returns stdout and refuses a non-zero status, so it is shaped as the testkit's result.
-  fileFixtureItem(box, demo.repo, { lane: 'web', title: 'Greeting', criterion: 'greets', args: ['--specs', 'G1'], run: (cwd, ...args) => ({ status: 0, stdout: box.run(cwd, ...args) }) });
+  // The machine's inProcess returns stdout and refuses a non-zero status, so it is shaped as the testkit's result.
+  await fileFixtureItem(box, demo.repo, { lane: 'web', title: 'Greeting', criterion: 'greets', args: ['--specs', 'G1'], run: async (cwd, ...args) => ({ status: 0, stdout: await box.inProcess(cwd, ...args) }) });
   await buildLocal(box, demo, 1, 'greeting.html', { queued: true });
   box.settled(demo.repo, 1);
   return { box, demo };
 }
 
 /** The item as the board shows it after the send-back: its settled state and whether the reject note reached it, without ids, times or paths. */
-function afterwards({ box, demo }) {
-  const shown = box.run(demo.repo, 'show', '1', '--json');
+async function afterwards({ box, demo }) {
+  const shown = await box.inProcess(demo.repo, 'show', '1', '--json');
   const item = JSON.parse(shown);
   return { status: item.item_status, title: item.item_title, builtBy: item.item_built_by, criterion: item.item_criterion, noted: shown.includes(NOTE) };
 }
@@ -46,10 +46,10 @@ before(async () => {
   };
 });
 
-test('clause 1: sendBack as a real process and sendBackLocal in this process both exit clean and leave the same item and board state [C7,U149]', () => {
+test('clause 1: sendBack as a real process and sendBackLocal in this process both exit clean and leave the same item and board state [C7,U149]', async () => {
   // Each helper's box refuses a non-zero exit, so reaching this point is the equal exit code.
-  const real = afterwards(viaProcess);
-  assert.deepEqual(afterwards(viaLocal), real);
+  const real = await afterwards(viaProcess);
+  assert.deepEqual(await afterwards(viaLocal), real);
   assert.equal(real.noted, true, 'the reject note is on the item');
 });
 
