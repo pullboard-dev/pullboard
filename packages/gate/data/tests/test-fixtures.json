@@ -12,9 +12,13 @@
   },
   "docs/formats.test.js": {
     "repo-read": 1,
-    "tempdir": 6,
+    "tempdir": 5,
     "hand-policy": 3,
-    "raw-board": 8,
+    "raw-board": 3
+  },
+  "apps/cli/journeys/formats/live.test.js": {
+    "tempdir": 1,
+    "raw-board": 5,
     "model": 4
   },
   "docs/readme-badges.test.js": {
@@ -140,7 +144,7 @@
     "repo-read": 1,
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/item/baseline/offer.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/offer.test.js": {
     "tempdir": 2,
     "raw-board": 4
   },
@@ -239,17 +243,17 @@
   "packages/sandbox/tests/io/trusted/policy/ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/corrections.test.js": {
+  "packages/board/tests/from-store/corrections.test.js": {
     "raw-board": 3
   },
-  "packages/store/tests/check-baseline-worker.test.js": {
+  "packages/board/tests/from-store/check-baseline-worker.test.js": {
     "raw-board": 4
   },
-  "packages/store/tests/io/board/decision/answer.test.js": {
+  "packages/board/tests/from-store/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
-  "packages/store/tests/engine-replay.test.js": {
+  "packages/board/tests/from-store/engine-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -260,13 +264,13 @@
     "env-spread": 1,
     "model": 1
   },
-  "packages/store/tests/io/queued/red/growth.test.js": {
+  "packages/board/tests/from-store/io/queued/red/growth.test.js": {
     "raw-board": 4
   },
   "packages/flakes/tests/io/main.test.js": {
     "raw-board": 5
   },
-  "packages/store/tests/implies.test.js": {
+  "packages/board/tests/from-store/implies.test.js": {
     "raw-board": 8
   },
   "packages/landing/tests/io/replay.test.js": {
@@ -278,7 +282,7 @@
     "hand-policy": 2,
     "raw-board": 2
   },
-  "packages/store/tests/relay-activation.test.js": {
+  "packages/board/tests/from-store/relay-activation.test.js": {
     "raw-board": 6,
     "tempdir": 1
   },
@@ -286,10 +290,10 @@
     "tempdir": 3,
     "raw-board": 4
   },
-  "packages/store/tests/review-grant-replay.test.js": {
+  "packages/board/tests/from-store/review-grant-replay.test.js": {
     "raw-board": 6
   },
-  "packages/store/tests/review-queue-replay.test.js": {
+  "packages/board/tests/from-store/review-queue-replay.test.js": {
     "raw-board": 4
   },
   "apps/cli/journeys/engine/settings.test.js": {
@@ -302,7 +306,7 @@
   "packages/state/tests/logic/engines/core-engine.test.js": {
     "repo-read": 1
   },
-  "packages/store/tests/team-engine.test.js": {
+  "packages/board/tests/from-store/team-engine.test.js": {
     "raw-board": 11,
     "tempdir": 2,
     "model": 1
@@ -329,11 +333,11 @@
   "packages/gate/tests/logic/test/budget/time.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/io/board.test.js": {
+  "packages/board/tests/from-store/io/board.test.js": {
     "tempdir": 1,
     "raw-board": 10
   },
-  "packages/store/tests/io/board/capture.test.js": {
+  "packages/board/tests/from-store/io/board/capture.test.js": {
     "tempdir": 3,
     "raw-board": 4
   },
@@ -341,7 +345,7 @@
     "tempdir": 1,
     "raw-board": 8
   },
-  "packages/store/tests/logic/board/release.test.js": {
+  "packages/board/tests/from-store/logic/board/release.test.js": {
     "tempdir": 1,
     "raw-board": 5
   },
@@ -361,7 +365,7 @@
   "packages/store/tests/io/relaxation.test.js": {
     "raw-board": 2
   },
-  "packages/store/tests/logic/board/item/baseline/shout.test.js": {
+  "packages/board/tests/from-store/logic/board/item/baseline/shout.test.js": {
     "raw-board": 3
   },
   "apps/cli/journeys/verify/check.test.js": {
@@ -404,9 +408,17 @@
     "hand-policy": 2
   },
   "apps/cli/journeys/shout/http.test.js": {
-    "tempdir": 4,
-    "hand-policy": 3,
+    "tempdir": 1,
+    "hand-policy": 1,
     "raw-board": 3
+  },
+  "apps/cli/journeys/shout/http-cache-miss.test.js": {
+    "tempdir": 2,
+    "hand-policy": 1
+  },
+  "apps/cli/journeys/shout/http-repeated-read.test.js": {
+    "tempdir": 1,
+    "hand-policy": 1
   },
   "apps/cli/tests/fixtures/cadence.js": {
     "raw-board": 1
@@ -675,13 +687,18 @@
   "apps/cli/journeys/spec/revision.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
-    "repo-read": 2,
-    "tempdir": 6
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
+    "tempdir": 1
+  },
+  "apps/cli/journeys/spec/cockpit/boards.test.js": {
+    "tempdir": 2
   },
   "apps/cli/journeys/spec/cockpit/shared.test.js": {
     "tempdir": 1,
     "raw-cli": 1
+  },
+  "apps/cli/journeys/spec/cockpit/list.test.js": {
+    "tempdir": 1
   },
   "apps/cli/journeys/spec/cockpit/rows.test.js": {
     "tempdir": 2
@@ -809,9 +826,6 @@
   "apps/cli/journeys/verify/checks-output-digest.test.js": {
     "raw-board": 1
   },
-  "apps/cli/journeys/verify/checks-large-output.test.js": {
-    "raw-board": 1
-  },
   "apps/cli/journeys/verify/checks-timeouts.test.js": {
     "hand-policy": 1
   },
@@ -840,7 +854,7 @@
     "tempdir": 1,
     "env-spread": 1
   },
-  "packages/store/tests/logic/rework/once.test.js": {
+  "packages/board/tests/from-store/logic/rework/once.test.js": {
     "tempdir": 2,
     "raw-board": 5,
     "model": 3
@@ -865,11 +879,6 @@
   },
   "apps/cli/journeys/merged/ratchet-landing.test.js": {
     "raw-board": 5
-  },
-  "apps/cli/journeys/flow/replay.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 7
   },
   "apps/lib/tests/flow/report/cache.test.js": {
     "tempdir": 2,
@@ -986,14 +995,17 @@
   "apps/cli/tests/fixtures/style.js": {
     "tempdir": 1
   },
-  "packages/store/tests/logic/board/inbox.test.js": {
+  "packages/board/tests/from-store/logic/board/inbox.test.js": {
     "raw-board": 3
   },
   "packages/gate/tests/io/requeue/retry.test.js": {
     "hand-policy": 1
   },
   "apps/cli/journeys/init/gate.test.js": {
-    "hand-policy": 4
+    "hand-policy": 2
+  },
+  "apps/cli/journeys/init/gate-makefile.test.js": {
+    "hand-policy": 2
   },
   "apps/cli/journeys/init/gate-set.test.js": {
     "hand-policy": 1
@@ -1457,9 +1469,6 @@
   "apps/cli/journeys/doctrine/readme.test.js": {
     "repo-read": 17
   },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "raw-board": 2
-  },
   "apps/lib/tests/lapse/idle.test.js": {
     "tempdir": 2,
     "raw-board": 4
@@ -1467,7 +1476,7 @@
   "apps/cli/journeys/submit/steps.test.js": {
     "model": 5
   },
-  "packages/store/tests/any.test.js": {
+  "packages/board/tests/from-store/any.test.js": {
     "raw-board": 5
   },
   "apps/lib/tests/fixtures/rejected.js": {
@@ -1644,6 +1653,12 @@
     "raw-board": 20
   },
   "packages/gate/tests/io/scripts/release.test.js": {
+    "tempdir": 2,
+    "env-spread": 1,
+    "model": 1,
+    "hand-policy": 2
+  },
+  "packages/gate/tests/io/scripts/release-loop.test.js": {
     "tempdir": 2,
     "env-spread": 1,
     "model": 1,
@@ -2084,7 +2099,7 @@
     "raw-board": 3
   },
   "apps/cli/journeys/submit/handoff.test.js": {
-    "raw-board": 3
+    "raw-board": 2
   },
   "packages/gate/tests/io/submit/line.test.js": {
     "repo-read": 1

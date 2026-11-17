@@ -70,7 +70,7 @@ function offFixture(t) {
   return { boardFile, db };
 }
 
-test('clause 1: with runs_store on, readPulledCapacity reads runner jobs from a read-only runs handle [B2,#9014]', t => {
+test('runners.runs-readers.with-runs-store-on-readpulledcapacity-reads: clause 1: with runs_store on, readPulledCapacity reads runner jobs from a read-only runs handle [B2,#9014]', t => {
   const { db, boardFile } = fixture(t);
   const runs = boardRunsReader({ db }, boardFile);
   t.after(() => runs.db?.close());
@@ -80,7 +80,7 @@ test('clause 1: with runs_store on, readPulledCapacity reads runner jobs from a 
   assert.deepEqual(readPulledCapacity(db, { now: NOW, runs: { db: null } }).totals, { claimed: 0, jobs: 0, serves: 0 }, 'a missing runs file reads as no jobs');
 });
 
-test('clause 3: with runs_store off, readPulledCapacity reads the board job rows as on main [B2,#9014]', t => {
+test('runners.runs-readers.with-runs-store-off-readpulledcapacity-reads: clause 3: with runs_store off, readPulledCapacity reads the board job rows as on main [B2,#9014]', t => {
   const { db, boardFile } = offFixture(t);
   const onMain = readPulledCapacity(db, { now: NOW });
   assert.deepEqual(readPulledCapacity(db, { now: NOW, runs: null }), onMain);

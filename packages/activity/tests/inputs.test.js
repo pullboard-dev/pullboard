@@ -29,7 +29,7 @@ function declares(source) {
 const files = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
 const readers = files.filter(({ source }) => READ.test(source));
 
-test('clause 1: every test file in packages/activity/tests that reads files carries an input header naming the cells it reads, and none names the whole tree [C7,U149]', () => {
+test('activity.inputs.every-reader-declares-its-inputs: clause 1: every test file in packages/activity/tests that reads files carries an input header naming the cells it reads, and none names the whole tree [C7,U149]', () => {
   assert.ok(files.length >= 5, 'the scan finds the cell test files');
   const bare = readers.filter(({ source }) => !declares(source)).map(({ file }) => file.slice(DIR.length + 1));
   assert.deepEqual(bare, []);

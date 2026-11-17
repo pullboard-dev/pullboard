@@ -19,8 +19,8 @@ async function readySubmit(t) {
   const claimed = await box.runLocal(box.web, 'claim', String(id), '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
-  assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): fast submit ${id} [G1]`).status, 0);
-  assert.equal(box.helpers.commitFile(box, box.repo, 'web/newer-main.txt', 'newer\n', 'feat(web): main moved on [G1]').status, 0);
+  assert.equal((await box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): fast submit ${id} [G1]`)).status, 0);
+  assert.equal((await box.helpers.commitFile(box, box.repo, 'web/newer-main.txt', 'newer\n', 'feat(web): main moved on [G1]')).status, 0);
   return { box, id, folder, claim: claimed };
 }
 

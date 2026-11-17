@@ -24,18 +24,18 @@ function ceilingAtMergeBase() {
   return null;
 }
 
-test('clause 1: the runner keyed module exports the pin cell\'s loadKeyedResult and defines no function of that name [C7]', () => {
+test('runners.keyed-load.the-runner-keyed-module-exports-the: clause 1: the runner keyed module exports the pin cell\'s loadKeyedResult and defines no function of that name [C7]', () => {
   assert.equal(runners, pinned, 'the runner export is the pin function itself');
   assert.doesNotMatch(read('packages/runners/src/io/keyed.js'), /function\s+loadKeyedResult\b|loadKeyedResult\s*=/u);
 });
 
-test('clause 2: keyed.js and scan.js import no file under packages/pin [C7]', () => {
+test('runners.keyed-load.keyed-js-and-scan-js-import: clause 2: keyed.js and scan.js import no file under packages/pin [C7]', () => {
   for (const file of ['packages/runners/src/io/keyed.js', 'packages/runners/src/io/source/scan.js']) {
     assert.doesNotMatch(read(file), /from\s+'[^']*\bpin\//u, `${file} reaches pin only through the transport cell`);
   }
 });
 
-test('clause 3: cells-edges.json is byte-identical to the merge base, so no ceiling rose [C7]', () => {
+test('runners.keyed-load.cells-edges-json-is-byte-identical: clause 3: cells-edges.json is byte-identical to the merge base, so no ceiling rose [C7]', () => {
   const base = ceilingAtMergeBase();
   if (base !== null) assert.equal(read(CEILING), base, 'the ceiling file is unchanged from the merge base');
   assert.ok(!JSON.parse(read(CEILING)).cells.runners.imports.includes('pin'), 'runners must not list pin');

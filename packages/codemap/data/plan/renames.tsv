@@ -748,7 +748,7 @@ bin/cell-lints.js	packages/codemap/src/io/cell/scripts/lints.js
 bin/cells-audit-backlog.js	packages/codemap/src/io/cells/backlog.js
 bin/cells-data-reads.js	packages/codemap/src/io/cells/reads.js
 bin/cells-engine-stays.js	packages/codemap/src/io/cells/retain.js
-bin/cells-inventory-cache.js	packages/codemap/src/io/cells/scripts/cache.js
+bin/cells-inventory-cache.js	apps/cli/src/io/cells/cache.js
 bin/cells-move-fixtures.js	packages/codemap/src/io/cells/move/fixtures.js
 bin/cells-move-mentions.js	packages/codemap/src/io/cells/move/mentions.js
 bin/cells-move-tool.js	packages/codemap/src/io/cells/move/tool.js

@@ -51,7 +51,7 @@ for (const outcome of ['foreign', 'unreadable', 'owned', 'later-foreign']) {
   });
 }
 
-test('an unrelated process started during a real job survives and the same runner accepts its next job [C7]', async t => {
+test('runner.process.an-unrelated-process-started-during-a-real: an unrelated process started during a real job survives and the same runner accepts its next job [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-foreign-runner-'));
   const paths = Object.fromEntries(['repo', 'bin', 'home', 'machine', 'worker', 'remoteHome', 'remoteMachine'].map(name => [name, join(directory, name)]));
   for (const path of Object.values(paths)) mkdirSync(path);

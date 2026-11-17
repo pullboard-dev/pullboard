@@ -25,7 +25,7 @@ function repository(t) {
   return { root, base, put, commit: () => { git('add', '-A'); git('commit', '-qm', 'candidate'); } };
 }
 
-test('clause 1: a change under api/ passes only the api suite, and two folders pass both suites [C7]', t => {
+test('gate.io-affected-suites.a-change-under-api-passes-only: clause 1: a change under api/ passes only the api suite, and two folders pass both suites [C7]', t => {
   const box = repository(t);
   box.put('api/src/Handler.php', '<?php // changed\n');
   box.commit();
@@ -37,7 +37,7 @@ test('clause 1: a change under api/ passes only the api suite, and two folders p
   assert.deepEqual({ full: two.full, files: two.files }, { full: false, files: ['api/tests', 'web/test'] });
 });
 
-test('clause 2: a changed path no glob covers makes the landing run the full gate, naming the path [C7]', t => {
+test('gate.io-affected-suites.a-changed-path-no-glob-covers: clause 2: a changed path no glob covers makes the landing run the full gate, naming the path [C7]', t => {
   const box = repository(t);
   box.put('api/src/Handler.php', '<?php // changed\n');
   box.put('README.md', 'changed\n');
@@ -47,7 +47,7 @@ test('clause 2: a changed path no glob covers makes the landing run the full gat
   assert.match(result.reason, /no affectedSuites glob covers README\.md/u);
 });
 
-test('clause 3: with no affectedSuites key selection is exactly as before [C7]', t => {
+test('gate.io-affected-suites.with-no-affectedsuites-key-selection-is: clause 3: with no affectedSuites key selection is exactly as before [C7]', t => {
   const box = repository(t);
   box.put('api/src/Handler.php', '<?php // changed\n');
   box.commit();

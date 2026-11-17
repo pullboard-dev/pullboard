@@ -91,7 +91,7 @@ async function fixture(t, accountStorageBytes) {
     advance(ms) { clock += ms; } };
 }
 
-test('API2 reads legacy heads and publishes opaque pages while old clients explicitly upgrade [H15,H17]', async t => {
+test('relay.io-pages.api2-reads-legacy-heads-and-publishes: API2 reads legacy heads and publishes opaque pages while old clients explicitly upgrade [H15,H17]', async t => {
   const box = await fixture(t);
   const capabilities = await box.call('GET', '/api/v2');
   assert.equal(capabilities.document.apiVersion, 2);
@@ -114,7 +114,7 @@ test('API2 reads legacy heads and publishes opaque pages while old clients expli
   assert.equal((await box.call('PUT', '/api/v1/boards/' + BOARD + '/state', { sequence: 0, sealed: legacy })).document.error.code, 'RELAY_API_VERSION');
 });
 
-test('a pinned HTTP reader survives replacement and staged ids are not public read authority [H15,H17,H18]', async t => {
+test('relay.io-pages.a-pinned-http-reader-survives-replacement: a pinned HTTP reader survives replacement and staged ids are not public read authority [H15,H17,H18]', async t => {
   const box = await fixture(t);
   const first = await box.stage({ marker: 'first complete head' });
   assert.equal((await box.publish(first, true)).status, 200);
@@ -131,7 +131,7 @@ test('a pinned HTTP reader survives replacement and staged ids are not public re
   assert.equal(stolen.status, 403); assert.equal(stolen.document.error.code, 'BAD_PAGE_PATH');
 });
 
-test('an account quota refusal preserves the readable head and is named in phone-facing APIs [H15,H17]', async t => {
+test('relay.io-pages.an-account-quota-refusal-preserves-the: an account quota refusal preserves the readable head and is named in phone-facing APIs [H15,H17]', async t => {
   const box = await fixture(t, 2_000);
   const first = await box.stage({ marker: 'readable before quota' });
   assert.equal((await box.publish(first)).status, 200);
@@ -155,7 +155,7 @@ test('an account quota refusal preserves the readable head and is named in phone
     'unlink clears the prior failed-upload notice before a fresh link has its first snapshot');
 });
 
-test('all page reads reauthorize the board and a readable agent cannot replace a snapshot [H15,H17]', async t => {
+test('relay.io-pages.all-page-reads-reauthorize-the-board: all page reads reauthorize the board and a readable agent cannot replace a snapshot [H15,H17]', async t => {
   const box = await fixture(t);
   const staged = await box.stage({ marker: 'authorized page' });
   assert.equal((await box.publish(staged)).status, 200);
@@ -170,7 +170,7 @@ test('all page reads reauthorize the board and a readable agent cannot replace a
   assert.equal(after.status, 401, 'a previously issued read pin never bypasses revocation');
 });
 
-test('a consistent journal backup carries every opaque page and unlink removes the complete copy [H15,H18]', async t => {
+test('relay.io-pages.a-consistent-journal-backup-carries-every: a consistent journal backup carries every opaque page and unlink removes the complete copy [H15,H18]', async t => {
   const box = await fixture(t);
   const staged = await box.stage({ marker: 'BACKUP_HAS_SEALED_HISTORY', text: 'b'.repeat(600_000) });
   assert.equal((await box.publish(staged)).status, 200);
@@ -187,7 +187,7 @@ test('a consistent journal backup carries every opaque page and unlink removes t
 });
 
 
-test('small authenticated storage probes collect expired staging across the account without downloading a snapshot [H15,H17,H18]', async t => {
+test('relay.io-pages.small-authenticated-storage-probes-collect-expired: small authenticated storage probes collect expired staging across the account without downloading a snapshot [H15,H17,H18]', async t => {
   const box = await fixture(t, 12_000);
   const empty = await box.call('GET', '/api/v2/boards/' + BOARD + '/storage');
   assert.equal(empty.status, 200); assert.equal(empty.document.storage.usedBytes, 0);
@@ -213,7 +213,7 @@ test('small authenticated storage probes collect expired staging across the acco
 });
 
 
-test('API2 root reads count account storage once and observe fresh changes [H5,H17]', async t => {
+test('relay.io-pages.api2-root-reads-count-account-storage: API2 root reads count account storage once and observe fresh changes [H5,H17]', async t => {
   const box = await fixture(t);
   const first = await box.stage({ marker: 'first counted root' });
   assert.equal((await box.publish(first)).status, 200);

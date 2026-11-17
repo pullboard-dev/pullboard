@@ -54,7 +54,7 @@ function item(claim, policy = claim) {
   return { item_lane: 'web', item_claim_head: claim, item_frozen: JSON.stringify({ policy: { commit: policy } }) };
 }
 
-test('merging authenticated main then reverting its foreign bytes cannot hide behind an older claim [L3,V4]', t => {
+test('sandbox.policy.ancestry.revert-of-main-visible: merging authenticated main then reverting its foreign bytes cannot hide behind an older claim [L3,V4]', t => {
   const box = ancestry(t);
   const main = box.commit([box.base], 'new coordinator bytes\n');
   const branch = box.commit([box.base], undefined, 'owned change\n');
@@ -66,7 +66,7 @@ test('merging authenticated main then reverting its foreign bytes cannot hide be
     'an actual main-merge resolution restoring old foreign bytes is an item edit');
 });
 
-test('foreign edits before the claim remain visible through frozen coordinator policy [L3,V4]', t => {
+test('sandbox.policy.ancestry.edits-before-claim-visible: foreign edits before the claim remain visible through frozen coordinator policy [L3,V4]', t => {
   const box = ancestry(t);
   const beforeClaim = box.commit([box.base], 'unauthorized pre-claim bytes\n');
   const candidate = box.commit([beforeClaim], 'unauthorized pre-claim bytes\n', 'owned change\n');
@@ -74,7 +74,7 @@ test('foreign edits before the claim remain visible through frozen coordinator p
     error => error.code === 'OUTSIDE_LANE' && error.message.includes('coordinator.txt'));
 });
 
-test('missing objects and unrelated ancestry fail closed as missing policy [L3,V4]', t => {
+test('sandbox.policy.ancestry.missing-objects-fail-closed: missing objects and unrelated ancestry fail closed as missing policy [L3,V4]', t => {
   const box = ancestry(t);
   const orphan = box.commit([], undefined, 'unrelated owned change\n');
   assert.equal(box.git('rev-list', '--max-parents=0', orphan), orphan, 'the candidate really has an unrelated root');
@@ -83,7 +83,7 @@ test('missing objects and unrelated ancestry fail closed as missing policy [L3,V
   }
 });
 
-test('every crisscross merge base contributes foreign paths while exact main objects remain allowed [L3,V4]', t => {
+test('sandbox.policy.ancestry.crisscross-bases-contribute-paths: every crisscross merge base contributes foreign paths while exact main objects remain allowed [L3,V4]', t => {
   const box = ancestry(t);
   const p = box.commit([box.base], 'first ancestor bytes\n');
   const q = box.commit([box.base], 'second ancestor bytes\n');

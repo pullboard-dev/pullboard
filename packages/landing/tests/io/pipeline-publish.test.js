@@ -58,7 +58,7 @@ function pipeline(t, { pipeline: on, startedA, startedB }) {
   return { run, trunk, landed, recorded, stateOf, base, tipA, tipB, main: () => runFixtureGit(['rev-parse', 'HEAD'], { cwd: repo.root }) };
 }
 
-test('clause 1: with landing.pipeline on and two batches in flight, the earlier-started batch publishes first [C7]', async t => {
+test('landing.pipeline-publish.with-landing-pipeline-on-and-two: clause 1: with landing.pipeline on and two batches in flight, the earlier-started batch publishes first [C7]', async t => {
   const p = pipeline(t, { pipeline: true, startedA: FIRST_AT, startedB: LATER_AT });
   const seen = [p.trunk()];
   await p.run('B').then(() => assert.fail('the later batch must not publish first'), error => assert.equal(error.code, 'LAND_MOVED'));
@@ -72,7 +72,7 @@ test('clause 1: with landing.pipeline on and two batches in flight, the earlier-
   assert.equal(p.main(), p.tipB, 'the primary checkout followed each publish');
 });
 
-test('clause 2: with landing.pipeline on, the later batch never publishes while the earlier one is in flight [C7]', async t => {
+test('landing.pipeline-publish.with-landing-pipeline-on-the-later: clause 2: with landing.pipeline on, the later batch never publishes while the earlier one is in flight [C7]', async t => {
   for (const flying of ['merging', 'gating', 'ready', 'pushed']) {
     const p = pipeline(t, { pipeline: true, startedA: FIRST_AT, startedB: LATER_AT });
     p.recorded.set('A', { ...p.recorded.get('A'), state: flying });
@@ -88,7 +88,7 @@ test('clause 2: with landing.pipeline on, the later batch never publishes while 
   assert.doesNotThrow(() => requirePublishTurn(done.stateOf('B'), done.recorded.get('B'), { batches: () => [...done.recorded.values()] }), 'once the earlier batch landed, the later one may go');
 });
 
-test('clause 3: with landing.pipeline off the publish path is unchanged from main [C7]', async t => {
+test('landing.pipeline-publish.with-landing-pipeline-off-the-publish: clause 3: with landing.pipeline off the publish path is unchanged from main [C7]', async t => {
   // Here A started after B, so the pipeline on would hold A behind B; the same scene with it off or unset publishes A at once.
   const on = pipeline(t, { pipeline: true, startedA: LATER_AT, startedB: FIRST_AT });
   await on.run('A').then(() => assert.fail('with the pipeline on, A waits for the earlier-started B'), error => assert.equal(error.code, 'LAND_MOVED'));

@@ -34,7 +34,7 @@ function lostFence(t) {
   return { board, lose };
 }
 
-test('clause 1: a lost compare-and-set in the fence adds one to the step-aside count of the head item [C7]', t => {
+test('landing.step-aside-cas.a-lost-compare-and-set-in: clause 1: a lost compare-and-set in the fence adds one to the step-aside count of the head item [C7]', t => {
   const { board, lose } = lostFence(t);
   assert.equal(store.stepAsideCount(board, HEAD), 0);
   lose();
@@ -42,7 +42,7 @@ test('clause 1: a lost compare-and-set in the fence adds one to the step-aside c
   assert.equal(store.stepAsideCount(board, ITEM), 0, 'the hop item is not the head item, so it gains no count');
 });
 
-test('clause 2: one lapse plus one CAS loss reads as count 2 [C7]', t => {
+test('landing.step-aside-cas.one-lapse-plus-one-cas-loss: clause 2: one lapse plus one CAS loss reads as count 2 [C7]', t => {
   const { board, lose } = lostFence(t);
   store.countLeaseLapse(board, HEAD);
   lose();

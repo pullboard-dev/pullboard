@@ -51,10 +51,10 @@ function assertIgnoredWorkerEvidence(probe, { status, signal }) {
   }
 }
 
-test('an ignored-stderr IPC fixture worker reports its nonzero exit without losing its cause [C7]', () => {
+test('gate.io-journal-preload-ignored.an-ignored-stderr-ipc-fixture-worker: an ignored-stderr IPC fixture worker reports its nonzero exit without losing its cause [C7]', () => {
   assertIgnoredWorkerEvidence(ignoredWorkerProbe('nonzero'), { status: 17, signal: null });
 });
 
-test('an ignored-stderr IPC fixture worker reports its signal without losing its cause [C7]', () => {
+test('gate.io-journal-preload-ignored.an-ignored-stderr-ipc-fixture-worker-2: an ignored-stderr IPC fixture worker reports its signal without losing its cause [C7]', () => {
   assertIgnoredWorkerEvidence(ignoredWorkerProbe('signal'), { status: null, signal: 'SIGTERM' });
 });

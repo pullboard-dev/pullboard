@@ -1,7 +1,7 @@
 /** drive front door: continue a durable job from its last written step [C7]. */
 export { driveOnce, GATE_STALL_MS, GATE_STALL_RETRIES } from './src/io/once.js';
 export { PHASES, phaseOf, owedShards, shardSections, gateSections } from './src/logic/phase.js';
-export { startDetachedCheck } from './src/io/detached.js';
+export { startDetachedCheck, startReachableCheck } from './src/io/detached.js';
 export { mainRedLookup, classifyGateRed, MAIN_TEST_JOB, mainOwnedVerdictPorts } from './src/io/main/red.js';
 export { drainLoop, DRAIN_INTERVAL_MS } from './src/io/drain.js';
 export { rowSink, boardRows, recordJobRow, isJobRows } from './src/io/once.js';

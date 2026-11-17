@@ -294,7 +294,10 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
 /** The generated fixture registry: one row per test file naming the fixtures it uses. */
 const [FIXTURE_REGISTRY] = BASELINE_TABLES;
-const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE, FIXTURE_REGISTRY]);
+/** The per-file cross-cell import ceilings, a committed listing this module owns. */
+export const CELLS_EDGES_CEILINGS = 'packages/gate/data/ceilings/cells-edges.json';
+
+const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', CELLS_EDGES_CEILINGS, TEST_TIERS_FILE, FIXTURE_REGISTRY]);
 /** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
 const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 /**
@@ -303,7 +306,7 @@ const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
  * a change to them hides no test from selection. The rest, such as journey reasons, audited helpers and plan shards,
  * are policy a person writes, so only a changed cell's own rows count as part of its change (#4633).
  */
-const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), 'packages/gate/data/ceilings/cells-edges.json': true, [TEST_TIERS_FILE]: true };
+const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), [CELLS_EDGES_CEILINGS]: true, [TEST_TIERS_FILE]: true };
 
 /** Whether a changed path is a listing file a cell's work regenerates beside its code. */
 function isListing(file) { return COMMITTED_LISTINGS.has(file) || PLAN_SHARD.test(file); }

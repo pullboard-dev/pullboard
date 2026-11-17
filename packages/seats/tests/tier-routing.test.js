@@ -9,7 +9,7 @@ const TIERS = JSON.parse(`{
   "escalation": { "endpoint": "http://gpu-c.lan:8000/v1", "model": "house-large" }
 }`);
 
-test('clause 1: a project whose tiers name only self-hosted endpoints routes a routine item to the routine tier and an escalation item to the escalation tier [C7]', () => {
+test('seats.tier.self-hosted-routing: clause 1: a project whose tiers name only self-hosted endpoints routes a routine item to the routine tier and an escalation item to the escalation tier [C7]', () => {
   assert.deepEqual(routeByTier(TIERS, {}), { tier: 'routine', ...TIERS.routine });
   assert.deepEqual(routeByTier(TIERS, { escalation: true }), { tier: 'escalation', ...TIERS.escalation });
   assert.deepEqual(routeByTier(TIERS, { bounces: 2 }), { tier: 'escalation', ...TIERS.escalation });
