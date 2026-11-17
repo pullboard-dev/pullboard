@@ -73,3 +73,22 @@ test('landing.junit-files.nim-registry-records: clause 3: every nim title in thi
   const titles = [...readFileSync(import.meta.filename, 'utf8').matchAll(/^test\('(landing\.junit-files\.nim[^':\s]*): /gmu)].map(m => m[1]);
   assert.deepEqual(titles.filter(id => !Object.hasOwn(records, id)), []);
 });
+
+test('landing.junit-files.deno-classname-is-the-test-file: clause 1: junitFile deno returns the path in classname after any file:// prefix and the checkout-root part is removed [C7]', () => {
+  assert.equal(junitFile('deno', { classname: 'file:///work/repo/tests/calc_test.ts', root: '/work/repo' }), 'tests/calc_test.ts');
+  assert.equal(junitFile('deno', { classname: 'tests/calc_test.ts' }), 'tests/calc_test.ts');
+  assert.equal(junitFile('deno', { classname: 'file:///elsewhere/calc_test.ts', root: '/work/repo' }), null);
+});
+
+test('landing.junit-files.deno-no-classname-is-null: clause 2: junitFile deno returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('deno', {}), null);
+  assert.equal(junitFile('deno', { classname: '' }), null);
+});
+
+test('landing.junit-files.deno-titles-registered: clause 3: every deno test title here carries an ID starting landing.junit-files.deno with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.deno-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
