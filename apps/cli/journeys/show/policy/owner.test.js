@@ -19,7 +19,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { attackCommit, project } = e2e;
 
-test('foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', async t => {
+test('cli.journeys-show-policy-owner.foreign-changes-before-claiming-and-cross: foreign changes before claiming and cross-lane renames cannot hide from submit [L3,V4]', async t => {
   for (const mode of ['before-claim', 'rename', 'delete']) {
     const box = project('true');
     writeFileSync(join(box.repo, 'foreign file.txt'), 'coordinator-owned');

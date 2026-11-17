@@ -228,9 +228,9 @@ test('gate.io-static-operations.case-8055-the-mutation-adapter-is-the: #8055 [C7
 
 const WRITE_RENAME = "import { renameSync, writeFileSync } from 'node:fs';\nexport function save(file, text) {\n  writeFileSync(`${file}.tmp`, text);\n  renameSync(`${file}.tmp`, file);\n}\n";
 
-test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 clause 2: write-state-file is entered at the kernel writeFileAtomic, and a private write-then-rename outside it is a known violation [C7]', () => {
+test('gate.io-static-operations.case-6740-clause-2-write-state-file: #6740 clause 2: write-state-file is entered at the store writeFileAtomic, and a private write-then-rename outside it is a known violation [C7]', () => {
   const entry = OPERATIONS.find(row => row.name === 'write-state-file');
-  assert.equal(entry?.entry, 'packages/kernel/src/logic/atomic.js');
+  assert.equal(entry?.entry, 'packages/store/src/io/atomic.js');
   assert.match(readFileSync(new URL(entry.entry, ROOT), 'utf8'), /export function writeFileAtomic/u);
   assert.deepEqual(operationSites(WRITE_RENAME, 'packages/demo/src/io/save.js').map(row => [row.operation, row.line]), [['write-state-file', 3]]);
   assert.deepEqual(operationSites(WRITE_RENAME, entry.entry), [], 'the entry itself is not a second path');
