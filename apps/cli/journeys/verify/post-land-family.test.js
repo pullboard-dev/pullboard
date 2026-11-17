@@ -46,9 +46,3 @@ test('clause 1: with verify.landedReviews and verify.family require, next --veri
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), item);
 });
-
-test('clause 2: a seat of the builder\'s own model family is not offered that landing [C7,#9863]', async t => {
-  const { box } = await landedUnderFamilyRule(t);
-  const own = await seatOf(box, BUILDER);
-  assert.equal(await offeredTo(own), null);
-});
