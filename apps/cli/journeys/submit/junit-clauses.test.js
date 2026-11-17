@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { fileFixtureItem } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
 const helpers = createE2eHelpers();
@@ -17,7 +18,7 @@ const REPORT = cases => `<?xml version="1.0"?>\n<testsuites><testsuite name="pyt
 /** Add, claim and commit one item with a [test] clause pair, leave the report beside it, and submit; returns the submit result and the thread. */
 async function submitWith(cases, { setting }) {
   const box = helpers.project('true');
-  if (setting) assert.equal((await box.runIn(box.repo, 'settings', 'gate.junitReport', 'junit.xml')).code, 0);
+  if (setting) fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { gate: { junitReport: 'junit.xml' } });
   const item = await fileFixtureItem(box, box.repo, { lane: 'web', title: 'JUnit fixture', criterion: CRITERION, check: null, run: box.runIn });
   const id = String(item.item_id);
   assert.equal((await box.runIn(box.web, 'claim', id)).code, 0);
