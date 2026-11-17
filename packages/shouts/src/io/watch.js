@@ -23,6 +23,9 @@ import { Refused } from '../../../kernel/index.js';
 /** The kinds that carry a shout, so --to can match their addressee. */
 const SHOUT_KINDS = new Set(['shout', 'shout_news', 'answer', 'pass']);
 
+/** How long a quiet watch reuses its last read of main's head (watch.quietReads). */
+const QUIET_READ_MS = 1000;
+
 /** How long to wait before following the stream again after it drops. */
 const RECONNECT_MS = 200;
 
@@ -205,11 +208,13 @@ function laneWork(file, lane, reviewWaitMs, nowMs) {
  * Follow the board's live events until the signal aborts, printing each one as it arrives.
  * A dropped stream is followed again from the last sequence handled, so nothing is missed or repeated.
  *
- * @param {{ file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
+ * With `quietReads` on (watch.quietReads, #9843), main's head read is reused for one second; off, it is read after every event.
+ *
+ * @param {{ quietReads?: boolean, readHead?: Function, file: string, mainRoot: string, commonDir: string, config: any, isMain: boolean, runCommand: Function,
  *   serveApi: Function, refusalDocument: Function, options: ReturnType<typeof watchOptions>, start: ReturnType<typeof watchStart>,
  *   write: (text: string) => void, note: (text: string) => void, signal: AbortSignal, now?: () => number, runningView: Function }} watch
  */
-export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, write, note, signal, runningView, now = Date.now }) {
+export async function followBoard({ file, mainRoot, commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, write, note, signal, runningView, now = Date.now, quietReads = false, readHead = headCommit }) {
   if (typeof runningView !== 'function') throw new TypeError('watch requires the caller-owned runningView operation');
   let cursor = options.since ?? start.sequence;
   const direct = directSource({ mainRoot, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts });
@@ -226,13 +231,16 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
 
   let work = null;
   let mainHead = null;
+  let headReadAt = null;
   let wakeTimer = null;
   /** Recheck the lane's work and main, printing what changed; quiet the first time, when it sets the baseline. */
   const checkWork = async () => {
     if (options.work === null || signal.aborted) return;
     clearTimeout(wakeTimer);
     const current = laneWork(file, options.work, options.reviewWaitMs, now());
-    const head = await withGitFacts(() => headCommit(mainRoot));
+    const reuse = quietReads && headReadAt !== null && now() - headReadAt < QUIET_READ_MS;
+    const head = reuse ? mainHead : await withGitFacts(() => readHead(mainRoot));
+    if (!reuse) headReadAt = now();
     if (work) {
       for (const [id, item] of current.claimable) {
         if (!work.claimable.has(id) && (options.item === null || id === options.item)) {
@@ -324,7 +332,7 @@ export async function followBoard({ file, mainRoot, commonDir, config, isMain, r
  * Run pullboard watch for one checkout until Ctrl-C (SIGINT or SIGTERM), or until `io.signal` aborts.
  * Each line is its own document, so --json never adds an end-of-command envelope.
  */
-export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot, runCommand, runningView, refusalDocument, boardOpeners, viewPorts }) {
+export async function watchCommand({ quietReads = false, io, values, words, ctx, primaryCheckoutRoot, runCommand, runningView, refusalDocument, boardOpeners, viewPorts }) {
   const { info, config, file, allowSchemaUpgrade: isMain } = ctx;
   const mainRoot = primaryCheckoutRoot(info) ?? info.root;
   if (words.some((word) => word !== undefined)) throw new Refused('USAGE', 'pullboard watch takes flags only, such as pullboard watch --to core; run pullboard help watch');
@@ -344,7 +352,7 @@ export async function watchCommand({ io, values, words, ctx, primaryCheckoutRoot
   if (io.signal?.aborted) stop();
   io.jsonMode?.(false);
   try {
-    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, runningView,
+    return await followBoard({ file, mainRoot, commonDir: info.commonDir, config, isMain, runCommand, serveApi, refusalDocument, boardOpeners, viewPorts, options, start, runningView, quietReads,
       write: (text) => io.stdout.write(text), note: (text) => io.stderr.write(text + '\n'), signal: abort.signal });
   } finally {
     process.off('SIGINT', stop);
