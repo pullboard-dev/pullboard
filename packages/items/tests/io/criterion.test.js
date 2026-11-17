@@ -26,7 +26,7 @@ test('items.criterion.handoff-passes-placement: a handoff whose source lacks the
 });
 
 test('items.criterion.infra-read-not-red: an infrastructure Git read stopping the queued gate is never returned to the builder as red [C7]', () => {
-  const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=never returned to the builder as red', 'apps/cli/journeys/submit/handoff.test.js'],
+  const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=never returned to the builder as red', 'apps/cli/journeys/submit/handoff/red-and-stop.test.js'],
     { cwd: join(import.meta.dirname, '../../../..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_TEST_CONTEXT')) });
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /^# pass 1$/mu, 'the handoff completion fixture really ran');

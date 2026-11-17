@@ -62,7 +62,7 @@ function assertReleaseDecisions(t, script) {
   }
 }
 
-test('a tag publishes only a commit main CI passed [C7]', (t) => {
+test('gate.ci.tag-publishes-only-commit-main: a tag publishes only a commit main CI passed [C7]', (t) => {
   assert.doesNotMatch(RELEASE, /npm\s+(?:run\s+gate|test)\b/u, 'a release reuses main CI instead of starting a different gate');
   assert.match(RELEASE, /\n  actions: read\n/u, 'the workflow can read the exact gate run');
   assert.match(RELEASE, /gh run list[^\n]*--workflow gate\.yml[^\n]*--branch main[^\n]*--event push[^\n]*--commit "\$GITHUB_SHA"/u,
@@ -113,7 +113,7 @@ function decisionStep(t, outcome) {
   return { ...result, approved: readFileSync(output, 'utf8'), ghCalled: existsSync(join(directory, 'gh-calls')) };
 }
 
-test('clause 1: release.yml publishes on a green recorded receipt for its exact commit without reading gate.yml [C7,I15]', (t) => {
+test('gate.ci.release-yml-publishes-green-recorded: clause 1: release.yml publishes on a green recorded receipt for its exact commit without reading gate.yml [C7,I15]', (t) => {
   assert.match(RELEASE, /id: receipt\n\s+continue-on-error: true\n[\s\S]*?run: node packages\/landing\/src\/io\/verify\/release\.js --repository "\$GITHUB_REPOSITORY" --head "\$GITHUB_SHA"/u,
     'the receipt is asked for the tagged commit itself');
   assert.ok(RELEASE.indexOf('id: receipt') < RELEASE.indexOf('id: main-ci') && RELEASE.indexOf('id: main-ci') < RELEASE.indexOf('run: npm publish'),
@@ -124,7 +124,7 @@ test('clause 1: release.yml publishes on a green recorded receipt for its exact 
   assert.equal(accepted.ghCalled, false, 'gate.yml and GitHub CI are never read when the receipt is accepted');
 });
 
-test('clause 2: a receipt for a different commit does not publish on its own [C7,I15]', (t) => {
+test('gate.ci.receipt-different-commit-does-not: clause 2: a receipt for a different commit does not publish on its own [C7,I15]', (t) => {
   assert.doesNotMatch(RELEASE, /--head "\$\{?(?!GITHUB_SHA)/u, 'the receipt check never names any commit but the tagged one');
   const refused = decisionStep(t, 'failure');
   assert.equal(refused.approved, '', 'a refused receipt approves nothing by itself');
@@ -132,7 +132,7 @@ test('clause 2: a receipt for a different commit does not publish on its own [C7
   assert.equal(refused.ghCalled, true, 'the decision falls back to the main CI evidence for the exact commit');
 });
 
-test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux [C7]', () => {
+test('gate.ci.ci-runs-gate-push-pull: CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux [C7]', () => {
   assert.match(WORKFLOW, /\non:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n/, 'pushes to main and pull requests');
   for (const [name, system] of [['linux', 'ubuntu-latest']]) {
     const text = job(name);
@@ -150,7 +150,7 @@ test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Lin
   assert.doesNotMatch(job('linux'), /\n {4}if:/, 'Linux runs every time');
 });
 
-test("the README header shows the board's own badges, not the CI status badge [C7]", () => {
+test('gate.ci.readme-header-shows-board-s: the README header shows the board\'s own badges, not the CI status badge [C7]', () => {
   // Drop the gate badge from the header: a live red CI badge says less than the board's verified record.
   const readme = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
   const section = readme.search(/^## /mu);
@@ -160,7 +160,7 @@ test("the README header shows the board's own badges, not the CI status badge [C
   for (const badge of ['pullboard', 'npm']) assert.match(header, new RegExp(`alt="${badge}(?:: [^"]+)?"`, 'u'), `the header shows the ${badge} badge`);
 });
 
-test('a proven tag publishes by hand without the GitHub CI gate, with the tag job\'s own notes [C7,I15]', (t) => {
+test('gate.ci.proven-tag-publishes-hand-without: a proven tag publishes by hand without the GitHub CI gate, with the tag job\'s own notes [C7,I15]', (t) => {
   const start = RELEASE.indexOf('\n  publish-proven:\n');
   assert.ok(start > RELEASE.indexOf('id: main-ci'), 'the tag job keeps its CI gate and comes first');
   const proven = RELEASE.slice(start);
