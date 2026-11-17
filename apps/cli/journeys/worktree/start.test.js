@@ -48,7 +48,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Coordinator Session Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator', '--model', 'Coordinator Session Model');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator', '--model', 'Coordinator Session Model');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
 
   box.env.PULLBOARD_MODEL = 'Session Worktree Model';
@@ -84,7 +84,7 @@ test("the README's worktree command works in a fresh repo [I1,I2]", async () => 
   box.env.PULLBOARD_MODEL = 'Session Join Model';
   const envJoin = join(box.dir, 'env-join');
   box.git(repo, 'worktree', 'add', '-q', '--detach', envJoin, 'HEAD');
-  const joined = fixtureJoin(box.run, envJoin, 'api');
+  const joined = fixtureJoin(setupRun(box), envJoin, 'api');
   assert.equal(joined.code, 0, joined.err || joined.out);
   assert.match(joined.out, /joined as api-1 \(Session Join Model\)/,
     'join takes the model from PULLBOARD_MODEL');
@@ -236,7 +236,7 @@ test('worktree suggests no install for a zero-dependency project [I1,L3]', async
   const { repo } = project('true', box);
   box.env.CODEX_THREAD_ID = 'main-owner-session';
   box.env.PULLBOARD_MODEL = 'Install Step Model';
-  const coordinator = fixtureJoin(box.run, repo, 'coordinator');
+  const coordinator = fixtureJoin(setupRun(box), repo, 'coordinator');
   assert.equal(coordinator.code, 0, coordinator.err || coordinator.out);
   /** Commit files on main as the coordinator, then make a web worktree and return its output. */
   const worktreeAfter = async (files) => {
