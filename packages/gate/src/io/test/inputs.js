@@ -27,6 +27,7 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
+import { requireDeclaredInputsEnabled } from '../../../../config/index.js';
 import { isSourceCellLine } from '../affected/inputs.js';
 import { sourceCellPrefixes } from '../affected/inputs.js';
 import {
@@ -43,6 +44,8 @@ const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '// pullboard: browser', '/** @
 const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
 const ANCHOR = /(?<![\w$])import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const SOURCE_PATH = /(?:^|\/)src(?:\/|$)/u;
+// With tests.requireDeclaredInputs on, a path under tests/fixtures, data or docs is an input too [C7,#9801].
+const OUTSIDE_SRC_PATH = /(?:^|\/)(?:tests\/fixtures|data|docs)(?:\/|$)/u;
 // A header naming the exact files a test reads, such as `/** @pullboard-test-input packages/gate/src/io/run/slots.js */`, also declares it.
 const NAMED_INPUTS = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
 const OPENERS = '([{';
@@ -123,12 +126,13 @@ function moduleUrl(code, open, close) {
  *
  * @param {string} source
  * @param {ReturnType<typeof lex>} lexed
+ * @param {boolean} [outsideSrc] - also count paths under tests/fixtures, data and docs
  * @returns {number}
  */
-function firstAnchoredSourcePath(source, { code, strings }) {
+function firstAnchoredSourcePath(source, { code, strings }, outsideSrc = false) {
   for (const literal of strings) {
     const text = source[literal.start] === '`' ? literal.text.split('${')[0] : literal.text;
-    if (!SOURCE_PATH.test(text)) continue;
+    if (!SOURCE_PATH.test(text) && !(outsideSrc && OUTSIDE_SRC_PATH.test(text))) continue;
     const open = enclosing(code, literal.start);
     if (open === -1 || code[open] !== '(') continue;
     const close = closing(code, open);
@@ -139,19 +143,21 @@ function firstAnchoredSourcePath(source, { code, strings }) {
 }
 
 /**
- * One problem per test file that reads source files without the declaration.
+ * One problem per test file that reads source files without the declaration. With
+ * tests.requireDeclaredInputs on (the default of `outsideSrc`, read here at the io edge), reads of
+ * paths under tests/fixtures, data or docs count too; off keeps the source-tree rule alone.
  *
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path)) {
+export function testInputProblems(root, files = walk(root, TEST_FILE), read = path => readText(root, path), outsideSrc = requireDeclaredInputsEnabled()) {
   const problems = [];
   for (const path of files.filter(path => TEST_FILE.test(path))) {
     const source = read(path);
     if (declaresSource(source)) continue;
     const lexed = lex(source);
     if (!READ.test(lexed.code)) continue;
-    const at = firstAnchoredSourcePath(source, lexed);
+    const at = firstAnchoredSourcePath(source, lexed, outsideSrc);
     if (at !== -1) problems.push({ path, line: lineAt(source, at), text: `reads source files without ${SOURCE_TREE_INPUT} at the top` });
   }
   return problems;
