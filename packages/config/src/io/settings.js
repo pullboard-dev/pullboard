@@ -125,6 +125,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
+export function requireDeclaredInputsEnabled() {
+  return loadMachineSettings().tests?.requireDeclaredInputs === true;
+}
+
 /** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
 export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
