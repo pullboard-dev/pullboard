@@ -18,13 +18,13 @@ const say = line => { lines.push(line); process.stderr.write(`${Math.round((Date
 const ASKED = journeySampleAsked();
 const sample = !ASKED ? null : runJourneyCheck(['--limit', '4', '--cells', '2', '--faults', '3', ROOT], { mutate: mutateCell, say, trace: say }).then(result => ({ ...result, took: Date.now() - started }));
 
-test('clause 1: [C7] a 4-journey sample of the delete-tag check ends within 10 minutes', { timeout: TEN_MINUTES_MS, skip: !ASKED && 'set PULLBOARD_JOURNEY_SAMPLE=1 to run the 9-minute sample' }, async () => {
+test('cli.journey-check-sample.a-4-journey-sample-of-the-delete: clause 1: [C7] a 4-journey sample of the delete-tag check ends within 10 minutes', { timeout: TEN_MINUTES_MS, skip: !ASKED && 'set PULLBOARD_JOURNEY_SAMPLE=1 to run the 9-minute sample' }, async () => {
   const { status, took } = await sample;
   assert.equal(status, 0);
   assert.ok(took < TEN_MINUTES_MS, 'the sample took over 10 minutes');
 });
 
-test('clause 2: [C7] the sample prints the share of sampled delete tags that hold', { timeout: TEN_MINUTES_MS, skip: !ASKED && 'set PULLBOARD_JOURNEY_SAMPLE=1 to run the 9-minute sample' }, async () => {
+test('cli.journey-check-sample.the-sample-prints-the-share-of-sampled: clause 2: [C7] the sample prints the share of sampled delete tags that hold', { timeout: TEN_MINUTES_MS, skip: !ASKED && 'set PULLBOARD_JOURNEY_SAMPLE=1 to run the 9-minute sample' }, async () => {
   const { stdout } = await sample;
   const last = stdout.trimEnd().split('\n').pop();
   assert.match(last, /^\d+ of \d+ sampled delete tags hold \(\d+%\)/u);

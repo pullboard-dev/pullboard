@@ -8,12 +8,12 @@ import * as door from '../index.js';
 
 const CORE = fileURLToPath(new URL('../light.js', import.meta.url));
 
-test('core.js exports selectedToolEntry and asksVersion, the same functions index.js carries [C7]', () => {
+test('cli.door.core-js-exports-selectedtoolentry-and-asksversion-the: core.js exports selectedToolEntry and asksVersion, the same functions index.js carries [C7]', () => {
   assert.deepEqual(Object.keys(core).sort(), ['asksVersion', 'selectedToolEntry']);
   for (const name of Object.keys(core)) assert.equal(door[name], core[name], name);
 });
 
-test('loading core.js resolves neither the command table nor cli-main, in under 100 ms of module work [C7]', () => {
+test('cli.door.loading-core-js-resolves-neither-the-command: loading core.js resolves neither the command table nor cli-main, in under 100 ms of module work [C7]', () => {
   const script = `
     import { registerHooks } from 'node:module';
     const seen = [];
