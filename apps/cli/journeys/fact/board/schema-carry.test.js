@@ -34,7 +34,9 @@ async function succeeds(box, cwd, ...args) {
 
 /** Commit one real source change in the private Git fixture. */
 function choice(box, cwd, value) {
+  const tc = Date.now();
   const result = e2e.commitFile(box, cwd, 'web/feature.js', `export const choice = '${value}';\n`, 'feat(web): fixture choice [G1]');
+  console.log(`TIMING commit ${Date.now() - tc} ms`);
   assert.equal(result.status, 0, result.stderr);
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
@@ -53,6 +55,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   await succeeds(box, box.web, 'submit', String(id));
   // A pulled submit returns queued; the item is submitted only once the gate job's receipt lands, so wait on the item itself [P7,C7].
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  console.log('TIMING waitstart ' + (Date.now() - T0));
   await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'submitted', `the pulled gate submits #${id}`, { signal: AbortSignal.timeout(150_000) });
   box.git(box.repo, 'switch', '-q', '--detach', accepted);
   try { await succeeds(box, box.repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the accepted choice'); }
@@ -79,6 +82,7 @@ test('a stamped pre-carry board upgrades on main open and completes a native mer
   assert.ok(observe(file).schema.find(row => row.name === 'machine_item_move').sql.includes("'claimed>verified'"));
   await succeeds(box, box.web, 'submit', String(id));
   // The carry completes with the pulled gate job's receipt, which can land just after the settled command returns [P7,C7].
+  console.log('TIMING waitstart ' + (Date.now() - T0));
   await waitForCondition(() => observe(file).items.find(row => row.item_id === id)?.item_status === 'verified', `the pulled gate carries #${id}`, { signal: AbortSignal.timeout(150_000) });
   console.log(`TIMING total ${Date.now() - T0} ms`);
   const db = openRawBoard(file, { readOnly: true });
