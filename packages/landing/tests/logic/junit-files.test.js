@@ -57,6 +57,22 @@ test('landing.junit-files.clojure-registry-records: clause 3: every clojure titl
   assert.deepEqual(titles.filter(id => !Object.hasOwn(records, id)), []);
 });
 
+test('landing.junit-files.julia-runtests-file: clause 1: junitFile(julia, row) returns test/runtests.jl for a row with any classname [C7]', () => {
+  assert.equal(junitFile('julia', { classname: 'MyPkg' }), 'test/runtests.jl');
+});
+
+test('landing.junit-files.julia-no-classname: clause 2: junitFile(julia, row) returns null for a row without a classname [C7]', () => {
+  assert.equal(junitFile('julia', {}), null);
+});
+
+test('landing.junit-files.julia-registry-records: clause 3: every julia title in this file has an ID starting landing.junit-files.julia and a record in registry.json [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const own = Object.keys(records).filter(id => id.startsWith('landing.junit-files.julia'));
+  assert.ok(own.length >= 3);
+  const titles = [...readFileSync(import.meta.filename, 'utf8').matchAll(/^test\('(landing\.junit-files\.julia[^':\s]*): /gmu)].map(m => m[1]);
+  assert.deepEqual(titles.filter(id => !Object.hasOwn(records, id)), []);
+});
+
 test('landing.junit-files.nim-test-file: clause 1: junitFile(nim, row) returns the classname with the .nim extension under the tests folder [C7]', () => {
   assert.equal(junitFile('nim', { classname: 'tcalc' }), 'tests/tcalc.nim');
   assert.equal(junitFile('nim', { classname: 'tcalc.nim' }), 'tests/tcalc.nim');
