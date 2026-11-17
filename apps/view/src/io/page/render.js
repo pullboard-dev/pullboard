@@ -280,6 +280,15 @@ function paintItemsWindow() {
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
 const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'insights-pipeline', 'cost'];
 /**
+ * Run fn once, after the browser has painted the change just made: on the next frame, then on a fresh turn. Why: a press
+ * should show its result at once and let the heavier redraw follow; a page with no frames runs it on the next turn.
+ */
+function afterPaint(fn) {
+  const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next();
+  frame(() => setTimeout(fn, 0));
+}
+
+/**
  * Draw the page from the store (#6613). The sidebar and the chrome are drawn on every call; the shown tab's pane is
  * drawn unless this is a tab switch and the pane still shows what it was drawn from. Every part is written through
  * store.paint, so a live update rewrites only the parts whose markup changed, and each scrolled part keeps its place.
@@ -361,7 +370,7 @@ function render({ tab: switching = false } = {}) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (roadmapBehind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'roadmap') render(); }, 0));
+  if (roadmapBehind) afterPaint(() => { if (view.tab === 'roadmap') render(); });
   if (draw && !roadmapBehind && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
@@ -423,7 +432,7 @@ function render({ tab: switching = false } = {}) {
       quick: switching,
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
-    if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
+    if (behind) afterPaint(() => { if (view.tab === 'dashboard') render(); });
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
