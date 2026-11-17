@@ -11,7 +11,6 @@ import {
   advanceOutsideFixture,
   calls,
   configureFixtureSandbox,
-  fixtureJSON,
   fixtureJSONIn,
   intakeFixture,
 } from "../../tests/fixtures/intake.js";
@@ -56,7 +55,7 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
   await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
   await fixtureJSONIn(box, box.repo, 'intake', 'approve', id);
-  item = fixtureJSON(box, box.repo, 'show', id);
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.outside.ownerApproval.commit, box.commit, 'person approval binds this exact outside commit');
   assert.equal(item.outside.ownerApproval.by, 'person');
 
