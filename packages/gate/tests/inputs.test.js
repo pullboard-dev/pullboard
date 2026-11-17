@@ -55,6 +55,6 @@ test('clause 2: with tests.requireDeclaredInputs on, no gate test reads fixtures
   const undeclared = cellTests().filter(file => readsRepo(read(file), true) && headers(read(file)).length === 0);
   assert.deepEqual(undeclared, [], 'readers without a header with the outside-src rule on');
   for (const file of cellTests()) {
-    for (const header of headers(read(file))) assert.match(header, /^(?:source-tree|source-cell [\w/ -]+|test-tree|docs-tree|[^ ]+)$/u, `${file} header is well formed`);
+    for (const header of headers(read(file))) assert.match(header, /^(?:source-tree|source-cell [\w/ -]+|test-tree|docs-tree|[\w./-]+\.\w+(?: [\w./-]+\.\w+)*)$/u, `${file} header is well formed`);
   }
 });
