@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell codemap runners gate drive cli store */
 /** @pullboard-world-pin reads the real command modules to walk their static import graph. */
 /** Test command modules defer their heavy gate execution imports [C7,#3054]. */
 import assert from 'node:assert/strict';
