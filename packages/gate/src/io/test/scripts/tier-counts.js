@@ -42,19 +42,33 @@ export function tierCounts(root, { door } = {}) {
   return out;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
+/**
+ * The report the command prints for `[--door <door>] [root]`, and the exit code it ends with.
+ *
+ * Why: the work runs in this process so a test calls it without starting node; the command below only prints it.
+ *
+ * @param {string[]} args - The command's arguments.
+ * @param {string} [cwd] - The folder a missing root resolves against.
+ * @returns {{ code: number, stdout: string, stderr: string }}
+ */
+export function tierCountsReport(args, cwd = '.') {
   const at = args.indexOf('--door');
   const door = at >= 0 ? args[at + 1] : undefined;
   const rest = at < 0 ? args : args.filter((_, i) => i !== at && i !== at + 1);
   if (rest.some(arg => arg.startsWith('-')) || rest.length > 1 || (at >= 0 && !door)) {
-    process.stderr.write('usage: node packages/gate/src/io/test/scripts/tier-counts.js [--door <packages/x/index.js>] [project-root]\n');
-    process.exitCode = 1;
-  } else {
-    const result = tierCounts(resolve(rest[0] ?? '.'), { door });
-    for (const [setting, { counts, selected }] of Object.entries(result)) {
-      process.stdout.write(`componentTier ${setting}: T1 ${counts.T1}, T2 ${counts.T2}, T3 ${counts.T3}\n`);
-      if (selected) process.stdout.write(`componentTier ${setting}: ${door} change selects ${selected.length} files\n${selected.map(file => `  ${file}\n`).join('')}`);
-    }
+    return { code: 1, stdout: '', stderr: 'usage: node packages/gate/src/io/test/scripts/tier-counts.js [--door <packages/x/index.js>] [project-root]\n' };
   }
+  let stdout = '';
+  for (const [setting, { counts, selected }] of Object.entries(tierCounts(resolve(cwd, rest[0] ?? '.'), { door }))) {
+    stdout += `componentTier ${setting}: T1 ${counts.T1}, T2 ${counts.T2}, T3 ${counts.T3}\n`;
+    if (selected) stdout += `componentTier ${setting}: ${door} change selects ${selected.length} files\n${selected.map(file => `  ${file}\n`).join('')}`;
+  }
+  return { code: 0, stdout, stderr: '' };
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const { code, stdout, stderr } = tierCountsReport(process.argv.slice(2));
+  process.stdout.write(stdout);
+  process.stderr.write(stderr);
+  process.exitCode = code;
 }

@@ -1,13 +1,12 @@
 /** @pullboard-test-input source-cell gate landing */
 /** The tier-counts script reports T1, T2 and T3 counts and what one front door change selects [C7,#9789]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { writeTestTiers } from '../../../../index.js';
+import { tierCountsReport } from '../../../../src/io/test/scripts/tier-counts.js';
 import { fixture as repository } from '../../../../../landing/tests/fixtures/plan.js';
 import { git } from '../../../../../landing/tests/fixtures/plan.js';
 
-const SCRIPT = new URL('../../../../src/io/test/scripts/tier-counts.js', import.meta.url).pathname;
 const sources = {
   'packages/math/index.js': 'export { add } from "./src/add.js";\n',
   'packages/math/src/add.js': 'export const add = (a, b) => a + b;\n',
@@ -29,7 +28,10 @@ function committed(t) {
 }
 
 /** Run the script against a root with extra arguments. */
-function run(root, ...args) { return spawnSync(process.execPath, [SCRIPT, ...args, root], { encoding: 'utf8' }); }
+function run(root, ...args) {
+  const { code, stdout, stderr } = tierCountsReport([...args, root]);
+  return { status: code, stdout, stderr };
+}
 
 test('clause 1: the script prints the T1, T2 and T3 counts of a fixture tree, componentTier off and on [C7,#9789]', t => {
   const result = run(committed(t));
