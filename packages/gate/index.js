@@ -22,7 +22,8 @@ export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseChec
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
-export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere } from "./src/io/config.js";
+export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages } from "./src/io/config.js";
+export { languageToolchains } from "./src/logic/language-toolchains.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { runClauseBaseComparison } from "./src/io/clause-base.js";
@@ -76,7 +77,7 @@ export { runFullSuite, testFiles, runTestFiles, inCleanCheckout, uncommittedNoti
 export { readTestFileBudgets, testFileBudgetPath } from "./src/io/test/file/policy.js";
 export { DEFAULT_TEST_FILE_BUDGET_MS, requireTestFileRatchet, testFileBudgetFailure, testFileLoadScale } from "./src/logic/test/budget/file.js";
 export { testSelectionPatterns, narrowsSelection, landingShardOptions, landingFanOutFiles, shardSelectionMatched, SHARD_SELECTED_LINE, selectedTestResult, isGitWorkTree, trackedDefaultTestFiles, shardArguments, hasTestFiles, explicitTestFiles, isDefaultTestFile, default as testSelectionDefault } from "./src/io/test/selection.js";
-export { readTestValueTimings, retainTestValueTimings, fileTimesPath, readFileTimes, readFileSamples } from "./src/io/test/value/timing.js";
+export { readTestValueTimings, retainTestValueTimings, fileTimesPath, fileTimesCoverage, fileTimesCoverageNote, readFileTimes, readFileSamples } from "./src/io/test/value/timing.js";
 export { testValueReport } from "./src/io/test/value.js";
 export { runTimedShell } from "./src/io/timed.js";
 export { timingRunner, timingFromOutput, logLines, timingFromLog, runnerPhaseFields, runnerPhaseLine, startRunnerPhases } from "./src/io/timing.js";

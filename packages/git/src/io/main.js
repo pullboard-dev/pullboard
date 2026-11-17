@@ -1074,7 +1074,7 @@ function readRepoInfo(cwd, env) {
       : fields.length === 6 || fields.length === 7) && (branch === undefined || branch.startsWith('refs/'));
     if (!suffixValid) return readRepoInfo(cwd, process.env);
     const facts = scopedFacts();
-    facts.set(`gitPath:${JSON.stringify([resolve(root), 'hooks'])}`, resolve(root, hooks));
+    facts.set(`gitPath:${JSON.stringify([resolve(root), 'hooks', false])}`, resolve(root, hooks));
     facts.set(`headCommit:${resolve(root)}`, head);
     if (!missingOptional) facts.set(`mainCheckout:${resolve(root)}`, branch?.startsWith('refs/') ? { branch, commit } : null);
     if (oid(config) && oid(doctrine)) facts.set(`mainSourceBlobs:${resolve(root)}`, { commit, config, doctrine });
