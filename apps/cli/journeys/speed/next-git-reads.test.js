@@ -63,6 +63,7 @@ test('clause 1: with next.oneGitRead on, next spawns fewer status, rev-parse and
   const off = await measured(t, false);
   const on = await measured(t, true);
   console.log(`# next git reads off: ${off.reads.length}; on: ${on.reads.length}`);
+  console.log(`# off reads: ${JSON.stringify(off.reads)}; on reads: ${JSON.stringify(on.reads)}`);
   assert.ok(on.reads.length <= off.reads.length, 'the setting never adds a read');
   assert.ok(on.reads.length < off.reads.length, `fewer reads with it on (${on.reads.length}) than off (${off.reads.length})`);
 });
