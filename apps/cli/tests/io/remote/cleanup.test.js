@@ -27,7 +27,7 @@ function racedRemoval(directory, racesLeft) {
   return { remove, attempts: () => attempts };
 }
 
-test('clause 1: the served-board fixture cleanup of moves.test.js removes its folder while a writer is still adding files [C7]', t => {
+test('cli.io-remote-cleanup.the-served-board-fixture-cleanup-of-moves: clause 1: the served-board fixture cleanup of moves.test.js removes its folder while a writer is still adding files [C7]', t => {
   const directory = privateFixtureFiles('pullboard-http-race-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   mkdirSync(join(directory, 'machine-home'));
@@ -37,7 +37,7 @@ test('clause 1: the served-board fixture cleanup of moves.test.js removes its fo
   assert.equal(raced.attempts(), 3, 'two writer races were retried within the bounded wait');
 });
 
-test('clause 2: the background-writer fixture folder of baseline/check.test.js is removed the same way under a concurrent writer [C7]', t => {
+test('cli.io-remote-cleanup.the-background-writer-fixture-folder-of-baseline: clause 2: the background-writer fixture folder of baseline/check.test.js is removed the same way under a concurrent writer [C7]', t => {
   const directory = privateFixtureFiles('pullboard-writer-race-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const raced = racedRemoval(directory, 1);
@@ -46,7 +46,7 @@ test('clause 2: the background-writer fixture folder of baseline/check.test.js i
   assert.equal(raced.attempts(), 2);
 });
 
-test('clause 1: a writer that never stops still fails the removal after the bounded wait, loudly [C7]', t => {
+test('cli.io-remote-cleanup.a-writer-that-never-stops-still-fails: clause 1: a writer that never stops still fails the removal after the bounded wait, loudly [C7]', t => {
   const directory = privateFixtureFiles('pullboard-writer-stuck-').root;
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const raced = racedRemoval(directory, 99);

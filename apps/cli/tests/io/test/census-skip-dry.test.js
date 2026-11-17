@@ -26,7 +26,7 @@ function repo(t) {
 const TESTS = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'];
 const rows = (sha, status = 'green') => TESTS.map(file => `${JSON.stringify({ file, status, sha })}\n`).join('');
 
-test('clause 1: the dry run lists as skipped only the green files whose declared inputs did not change between the two shas, and reports the share [C7,#10379]', (t) => {
+test('cli.io-test-census-skip-dry.the-dry-run-lists-as-skipped-only: clause 1: the dry run lists as skipped only the green files whose declared inputs did not change between the two shas, and reports the share [C7,#10379]', (t) => {
   const box = repo(t);
   const first = box.commit();
   box.put('src/a.js', 'export const a = 2;\n');
@@ -41,7 +41,7 @@ test('clause 1: the dry run lists as skipped only the green files whose declared
   assert.equal(result.to, second);
 });
 
-test('clause 1: a file not green in the earlier census, or a selection that is full, is never skipped [C7,#10379]', () => {
+test('cli.io-test-census-skip-dry.a-file-not-green-in-the-earlier: clause 1: a file not green in the earlier census, or a selection that is full, is never skipped [C7,#10379]', () => {
   const previousRows = [{ file: 'a', status: 'green' }, { file: 'b', status: 'red' }, { file: 'c', status: 'hung' }];
   const part = skipSplit({ files: ['a', 'b', 'c', 'd'], previousRows, selection: { full: false, files: [] } });
   assert.deepEqual(part.skip, ['a']);
