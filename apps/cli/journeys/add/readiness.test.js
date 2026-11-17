@@ -10,7 +10,7 @@ async function json(box, ...args) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: add --readiness stores the command on the item and show --json reports it [C7]', async t => {
+test('cli.journeys-add-readiness.add-readiness-stores-the-command-on: clause 1: add --readiness stores the command on the item and show --json reports it [C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const added = (await json(box, 'add', 'web', 'Ready check', '--criterion', 'the handler returns the canonical result [test]', '--readiness', 'node --version')).item;
@@ -20,7 +20,7 @@ test('clause 1: add --readiness stores the command on the item and show --json r
   assert.equal((await json(box, 'show', String(plain.item_id))).item_readiness_command, '');
 });
 
-test('clause 2: edit --readiness replaces the command and an empty string clears it [C7]', async t => {
+test('cli.journeys-add-readiness.edit-readiness-replaces-the-command-and: clause 2: edit --readiness replaces the command and an empty string clears it [C7]', async t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const added = (await json(box, 'add', 'web', 'Ready check', '--criterion', 'the handler returns the canonical result [test]', '--readiness', 'node --version')).item;

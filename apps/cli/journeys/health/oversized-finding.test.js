@@ -13,7 +13,7 @@ import { submitFixture } from '../../tests/fixtures/board/submit.js';
 
 const MINUTE = 60_000;
 
-test('clause 2: sentinel run --health-only finishes and records a health-scan event when a REVIEW_STARVED finding lists 500 seats [C7,#3113]', async t => {
+test('cli.journeys-health-oversized-finding.sentinel-run-health-only-finishes-and: clause 2: sentinel run --health-only finishes and records a health-scan event when a REVIEW_STARVED finding lists 500 seats [C7,#3113]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', undefined, { withWorktree: false });
