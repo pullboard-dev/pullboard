@@ -600,7 +600,7 @@
     },
     "cells-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/test/tier/selection.js"
+      "owner": "packages/gate/src/io/edges.js"
     },
     "cells-test-batches.json": {
       "kind": "json",
