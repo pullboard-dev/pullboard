@@ -9,8 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import * as store from "../../src/io/board.js";
-import { openCellBoard as openBoard } from "../fixtures/cell.js";
+import * as store from "../../../../store/src/io/board.js";
+import { openCellBoard as openBoard } from "../../fixtures/cell-board.js";
 
 /** Make a unique directory for a real SQLite board file. */
 function boardFile() {

@@ -239,17 +239,17 @@
   "packages/sandbox/tests/io/trusted/policy/ancestry.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/corrections.test.js": {
+  "packages/board/tests/from-store/corrections.test.js": {
     "raw-board": 3
   },
-  "packages/store/tests/check-baseline-worker.test.js": {
+  "packages/board/tests/from-store/check-baseline-worker.test.js": {
     "raw-board": 4
   },
   "packages/store/tests/io/board/decision/answer.test.js": {
     "tempdir": 1,
     "raw-board": 4
   },
-  "packages/store/tests/engine-replay.test.js": {
+  "packages/board/tests/from-store/engine-replay.test.js": {
     "tempdir": 1,
     "raw-board": 2
   },
@@ -266,7 +266,7 @@
   "packages/flakes/tests/io/main.test.js": {
     "raw-board": 5
   },
-  "packages/store/tests/implies.test.js": {
+  "packages/board/tests/from-store/implies.test.js": {
     "raw-board": 8
   },
   "packages/landing/tests/io/replay.test.js": {
@@ -329,11 +329,11 @@
   "packages/gate/tests/logic/test/budget/time.test.js": {
     "tempdir": 2
   },
-  "packages/store/tests/io/board.test.js": {
+  "packages/board/tests/from-store/io/board.test.js": {
     "tempdir": 1,
     "raw-board": 10
   },
-  "packages/store/tests/io/board/capture.test.js": {
+  "packages/board/tests/from-store/io/board/capture.test.js": {
     "tempdir": 3,
     "raw-board": 4
   },
@@ -1473,7 +1473,7 @@
   "apps/cli/journeys/submit/steps.test.js": {
     "model": 5
   },
-  "packages/store/tests/any.test.js": {
+  "packages/board/tests/from-store/any.test.js": {
     "raw-board": 5
   },
   "apps/lib/tests/fixtures/rejected.js": {
