@@ -39,6 +39,11 @@ export const JUNIT_FILE_ROWS = {
   },
   // gradle test writes a dotted class in classname (com.example.CalcTest) and no file attribute; Kotlin sources sit under src/test/kotlin.
   kotlin: row => (row.classname ? `src/test/kotlin/${row.classname.replace(/\./gu, '/')}.kt` : null),
+  // dotnet test (JunitXml.TestLogger) writes namespace.Class in classname and no file attribute; the first segment names the test project directory.
+  csharp: row => {
+    const project = (row.classname ?? '').split('.')[0];
+    return project ? `${project}/` : null;
+  },
 };
 
 /**
