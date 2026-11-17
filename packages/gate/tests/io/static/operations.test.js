@@ -242,7 +242,7 @@ test('#6740 clause 2: write-state-file is entered at the kernel writeFileAtomic,
 test('#6740 clause 2: the baseline records every private write-then-rename as a known violation, and the list can only shrink [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL(BASELINE, ROOT), 'utf8'));
   assert.deepEqual(baseline['write-state-file'], operationEntryFiles(operationReport(fileURLToPath(ROOT)))['write-state-file']);
-  assert.equal(baseline['write-state-file'].length, 92, 'measured: 89 private helpers at claim, 4 added and 1 removed on main since, the bar said 59');
+  assert.equal(baseline['write-state-file'].length, 93, 'measured: 89 private helpers at claim, 5 added and 1 removed on main since (publishCacheEntry in codemap, #9883 removes it), the bar said 59');
   const grown = { ...baseline, 'write-state-file': [...baseline['write-state-file'], 'packages/demo/src/io/save.js'] };
   assert.match(operationRatchetGrowth(grown, baseline)[0]?.text ?? '', /write-state-file gains a second entry point/u);
   const { 'write-state-file': recorded, ...before } = baseline;
