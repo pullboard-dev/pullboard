@@ -83,6 +83,7 @@ const BEFORE = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10000,
+  'gate.withdrawCancelsJob': false,
   'gateSlots': 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
