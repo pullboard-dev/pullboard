@@ -66,7 +66,7 @@ async function fixture(t, count = 8) {
   return { box, runnerRoot, cache, commits, repoId, lease, git: nativeGit };
 }
 
-test('legacy bootstrap uses declared commit-date order, with held/published roots and complete objects retained [C7]', async (t) => {
+test('lib.runner-prune.legacy-bootstrap-uses-declared-commit-date: legacy bootstrap uses declared commit-date order, with held/published roots and complete objects retained [C7]', async (t) => {
   const box = await fixture(t), held = box.commits[0], published = box.commits[1], requested = box.commits.at(-1);
   const job = join(box.runnerRoot, 'jobs', 'held');
   mkdirSync(job);
@@ -98,7 +98,7 @@ test('legacy bootstrap uses declared commit-date order, with held/published root
   assert.ok(next.pruned.includes(`refs/pullboard/candidates/${held}`), 'a completed job no longer pins its old ref');
 });
 
-test('legacy leftovers cannot veto pruning, while every current spec root survives in addition to newest refs [C7]', async (t) => {
+test('lib.runner-prune.legacy-leftovers-cannot-veto-pruning-while: legacy leftovers cannot veto pruning, while every current spec root survives in addition to newest refs [C7]', async (t) => {
   const box = await fixture(t, 8), jobs = join(box.runnerRoot, 'jobs');
   const legacy = join(jobs, 'old-unpinned'), invalid = join(jobs, 'old-invalid'), held = join(jobs, 'held');
   for (const directory of [legacy, invalid, held]) mkdirSync(directory);
@@ -129,7 +129,7 @@ test('legacy leftovers cannot veto pruning, while every current spec root surviv
     'a requested root without a Git ref is not invented in the negotiation inventory');
 });
 
-test('native cache lease serializes peers and Git CAS refuses a changed ref without partial pruning [C7]', async (t) => {
+test('lib.runner-prune.native-cache-lease-serializes-peers-and: native cache lease serializes peers and Git CAS refuses a changed ref without partial pruning [C7]', async (t) => {
   const box = await fixture(t, 6);
   let notify;
   const waiting = new Promise(resolve => { notify = resolve; });
