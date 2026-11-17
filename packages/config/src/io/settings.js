@@ -9,6 +9,8 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { availableParallelism } from 'node:os';
+import { loadavg } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -617,10 +619,22 @@ export function localLoadShare() {
 /**
  * How many local `pullboard gate --static` runs this machine admits at once: gate.staticSlots, default 2. Why: each run
  * is about a minute of full-CPU tree work, and 14 at once drove a Mac to load 104; a waiting run queues instead [C7,#8501].
+ * With gate.staticLoadAdmission on it is 1 while `load` (1-minute average) is above twice `cores`; both default to this machine's.
+ *
+ * @param {{ load?: number, cores?: number }} [machine] - Injected load and core count, for tests.
  */
-export function staticCheckSlots() {
+export function staticCheckSlots({ load = loadavg()[0], cores = availableParallelism() } = {}) {
   const slots = loadMachineSettings().gate?.staticSlots;
-  return Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+  const configured = Number.isSafeInteger(slots) && slots > 0 ? slots : 2;
+  return staticLoadAdmissionOn() && load > 2 * cores ? 1 : configured;
+}
+
+/**
+ * Whether local static admission drops to one slot while machine load is above twice the core count: gate.staticLoadAdmission, default off.
+ * Why: slots cap concurrent runs but not the load others already put on the machine, and a pool hold ran 3 min past its budget under load [C7,#8735].
+ */
+export function staticLoadAdmissionOn() {
+  return loadMachineSettings().gate?.staticLoadAdmission === true;
 }
 
 /**
