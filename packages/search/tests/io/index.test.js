@@ -36,7 +36,7 @@ function seeded(t) {
   return { board, ids, sidecar: join(directory, 'search', 'index.json') };
 }
 
-test('the search cell builds a TF-IDF index over item title, criterion and brief from the board [C7]', t => {
+test('search.index.builds-tfidf: the search cell builds a TF-IDF index over item title, criterion and brief from the board [C7]', t => {
   const { board, ids, sidecar } = seeded(t);
   const index = buildSearchIndex(board, { sidecar });
   assert.deepEqual([...index.ids].sort((a, b) => a - b), Object.values(ids).sort((a, b) => a - b));
@@ -48,7 +48,7 @@ test('the search cell builds a TF-IDF index over item title, criterion and brief
   assert.ok(!searchItems(board, 'runner quarantine', { sidecar, exclude: [ids.title] }).some(hit => hit.id === ids.title));
 });
 
-test('deleting the sidecar and rebuilding from the board gives the same ranking [C7]', t => {
+test('search.index.rebuild-same-ranking: deleting the sidecar and rebuilding from the board gives the same ranking [C7]', t => {
   const { board, ids, sidecar } = seeded(t);
   const queries = ['runner quarantine stalls the landing queue', 'search index sidecar rebuilds', 'relay sleep link', 'lane header'];
   buildSearchIndex(board, { sidecar });
@@ -67,7 +67,7 @@ test('deleting the sidecar and rebuilding from the board gives the same ranking 
   assert.ok(readSearchIndex(sidecar).ids.includes(added));
 });
 
-test('only the search and add commands import the search cell [C7]', () => {
+test('search.index.only-search-and-add-import: only the search and add commands import the search cell [C7]', () => {
   const files = execFileSync('git', ['ls-files', '-z', '--', '*.js', '*.mjs', '*.cjs'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
   const importers = [];
   for (const file of files) {

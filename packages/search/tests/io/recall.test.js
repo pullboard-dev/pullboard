@@ -30,7 +30,7 @@ function recall(pairs) {
   return { found, missed };
 }
 
-test('clause 3: the fixture holds the texts of every labelled item, so the test never reads the live board [C7]', () => {
+test('search.recall.fixture-holds-texts: clause 3: the fixture holds the texts of every labelled item, so the test never reads the live board [C7]', () => {
   const ids = new Set(FIXTURE.items.map(item => item.id));
   assert.equal(Object.keys(FIXTURE.reworded).length, 13);
   assert.equal(Object.keys(FIXTURE.refiles).length, 16);
@@ -41,12 +41,12 @@ test('clause 3: the fixture holds the texts of every labelled item, so the test 
   assert.ok(FIXTURE.items.every(item => item.title && typeof item.criterion === 'string' && typeof item.brief === 'string'));
 });
 
-test('clause 1: at least 12 of the 13 reworded duplicates rank in the top 3 [C7]', () => {
+test('search.recall.reworded-top3: clause 1: at least 12 of the 13 reworded duplicates rank in the top 3 [C7]', () => {
   const { found, missed } = recall(FIXTURE.reworded);
   assert.ok(found >= 12, `${found} of 13 found; missed ${missed.join('; ')}`);
 });
 
-test('clause 2: all 16 near-verbatim refiles rank in the top 3 [C7]', () => {
+test('search.recall.refiles-top3: clause 2: all 16 near-verbatim refiles rank in the top 3 [C7]', () => {
   const { found, missed } = recall(FIXTURE.refiles);
   assert.equal(found, 16, `missed ${missed.join('; ')}`);
 });
