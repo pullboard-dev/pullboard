@@ -48,6 +48,17 @@ export function pulledWaitingLines(gateJob, item) {
   return [`GATE_WAITING: gate job ${gateJob.id} passed its checks; its proof waits on its shard jobs, so do not resubmit #${item.item_id}`];
 }
 
+/**
+ * The one line naming the seconds a done pulled gate job waited for a runner; none when its receipt recorded no wait [C7].
+ *
+ * @param {{ step: string, gate: Record<string, any> | null } | null} gateJob - show's newest gate job.
+ * @returns {string[]}
+ */
+export function queueWaitLines(gateJob) {
+  const seconds = gateJob?.gate?.queueWaitSeconds;
+  return gateJob?.step === 'done' && Number.isFinite(seconds) ? [`queueWaitSeconds: ${seconds}`] : [];
+}
+
 /** Budget: a red pulled gate prints at most 10 failing cases, and 10 tail lines for a phase that names none. */
 const RED_ROWS = 10;
 /** Budget: one failing case's error is one line of at most 240 characters; the full log keeps the rest. */
