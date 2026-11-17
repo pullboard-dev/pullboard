@@ -40,7 +40,8 @@ export function exactTreeRecord(root, tip, previous) {
   const read = tryGit(root, ['rev-parse', '--verify', '-q', `${tip}^{tree}`]);
   const tree = read.status === 0 ? read.stdout.trim() : '';
   if (!/^[a-f0-9]{40,64}$/u.test(tree)) return undefined;
-  return previous?.tree === tree ? previous : { ...(previous ?? {}), tree };
+  // A proof recorded for another tree is dropped with it: only the tree id carries over to a new tip [V16,V37].
+  return previous?.tree === tree ? previous : { tree };
 }
 
 /** Append a durable snapshot before or after each external side effect; every snapshot carries the tree id of its tip [V16]. */

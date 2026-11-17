@@ -72,7 +72,7 @@ function handlers({ repo, base, candidate }, { failAt = null, verdict = 'green' 
   return { steps, calls, seen };
 }
 
-test('clause 1: the six landing steps are job steps written in order, merge writes the tooling pin and prove reuses a keyed receipt [C7]', async () => {
+test('lib.durable-land.the-six-landing-steps-are-job: clause 1: the six landing steps are job steps written in order, merge writes the tooling pin and prove reuses a keyed receipt [C7]', async () => {
   const fixture = landingRepo();
   const { repo, base, candidate } = fixture;
   await withBoard(async db => {
@@ -103,7 +103,7 @@ test('clause 1: the six landing steps are job steps written in order, merge writ
   });
 });
 
-test('clause 1: a resumed landing continues from its last written step and never reruns a written one [C7]', async () => {
+test('lib.durable-land.a-resumed-landing-continues-from-its: clause 1: a resumed landing continues from its last written step and never reruns a written one [C7]', async () => {
   const fixture = landingRepo();
   const { repo, candidate } = fixture;
   await withBoard(async db => {
@@ -127,7 +127,7 @@ test('clause 1: a resumed landing continues from its last written step and never
   });
 });
 
-test('a proof that is not green stops the landing before merge, and a resumed landing stays stopped [C7]', async () => {
+test('lib.durable-land.a-proof-that-is-not-green: a proof that is not green stops the landing before merge, and a resumed landing stays stopped [C7]', async () => {
   const fixture = landingRepo();
   const { repo, base } = fixture;
   await withBoard(async db => {
@@ -171,7 +171,7 @@ async function withBoardPart2(body) {
   try { return await body(board.db); } finally { closeBoard(board); }
 }
 
-test('clause 1: a hand landing runs the six finish steps once, and a repeat answers the same commit without recording again [C7]', async () => {
+test('lib.durable-land.a-hand-landing-runs-the-six: clause 1: a hand landing runs the six finish steps once, and a repeat answers the same commit without recording again [C7]', async () => {
   const { repo, base, commit } = landedRepo();
   await withBoardPart2(async db => {
     const records = [];
@@ -191,7 +191,7 @@ test('clause 1: a hand landing runs the six finish steps once, and a repeat answ
   });
 });
 
-test('clause 1: a hand landing killed in record resumes from its saved steps and merge answers the same commit [C7]', async () => {
+test('lib.durable-land.a-hand-landing-killed-in-record: clause 1: a hand landing killed in record resumes from its saved steps and merge answers the same commit [C7]', async () => {
   const { repo, base, commit } = landedRepo();
   await withBoardPart2(async db => {
     const checks = [];
@@ -206,7 +206,7 @@ test('clause 1: a hand landing killed in record resumes from its saved steps and
   });
 });
 
-test('clause 1: land writes a landed batch through the same finish sequence; a repeat or an unlanded batch writes nothing [C7]', async () => {
+test('lib.durable-land.land-writes-a-landed-batch-through: clause 1: land writes a landed batch through the same finish sequence; a repeat or an unlanded batch writes nothing [C7]', async () => {
   const { repo, base, commit } = landedRepo();
   await withBoardPart2(async db => {
     const batch = { id: 'batch-19', state: 'landed', tip: commit, base, items: [{ id: 3 }, { id: 4 }] };
@@ -222,7 +222,7 @@ test('clause 1: land writes a landed batch through the same finish sequence; a r
   });
 });
 
-test('clause 1: pullboard merged and pullboard land merged calls the land cell, land only offers the land job, and merged records only inside its record step [C7]', () => {
+test('lib.durable-land.pullboard-merged-and-pullboard-land-merged: clause 1: pullboard merged and pullboard land merged calls the land cell, land only offers the land job, and merged records only inside its record step [C7]', () => {
   const source = name => readFileSync(new URL(`../../../cli/src/io/commands/${name}.js`, import.meta.url), 'utf8');
   const merged = source('merged');
   const land = source('land');
