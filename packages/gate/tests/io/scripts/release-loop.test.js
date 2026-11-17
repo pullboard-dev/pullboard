@@ -29,7 +29,7 @@ after(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
 });
 
-test('clause 2: a packed release runs the builder commit, submit, settle, verify, merge and show loop through the installed bin [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async (t) => {
+test('gate.io-scripts-release-loop.a-packed-release-runs-the-builder: clause 2: a packed release runs the builder commit, submit, settle, verify, merge and show loop through the installed bin [P2, I1]', { skip: process.platform === 'win32' && 'the installed bin layout differs on Windows' }, async (t) => {
   // Each step's milliseconds are printed as a diagnostic so a slow run names its slow step (#9540).
   const sums = { pack: 0, install: 0, launch: 0 };
   /** Time one step of the release run, print it, and add it to its kind's sum. */
