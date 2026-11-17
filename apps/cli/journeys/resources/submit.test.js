@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell apps/cli */
 /** @pullboard-test-loads apps/cli/src/io/entry.js */
 /** The registered-worker submit case against a fixture runner, alone in its file so its add and submit gate runs get a file budget of their own; its submit settles through the registered pull runner [C7,V4]. */
 import assert from 'node:assert/strict';
