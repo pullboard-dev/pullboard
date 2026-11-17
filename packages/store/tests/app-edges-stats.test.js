@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { cellsEdgeReport } from '../../gate/src/io/edges.js';
 
 const REPO = join(import.meta.dirname, '../../..');
-const FILES = ['packages/store/tests/fixtures/stats/compare.js', 'packages/store/tests/fixtures/stats/time.js'];
+const FILES = ['packages/store/tests/fixtures/stats/compare.js', 'packages/board/tests/fixtures/stats/time.js'];
 
 test('clause 1: cellsEdgeReport(repo).packageApps has no row for stats/compare.js or stats/time.js [C7]', () => {
   const live = cellsEdgeReport(REPO, { files: FILES }).packageApps;

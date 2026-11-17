@@ -4252,10 +4252,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/store/tests/fixtures/stats/time.js": {
-      "cells": 3,
-      "deep": 0
-    },
     "packages/sync/src/io/git/lock.js": {
       "cells": 1,
       "deep": 0

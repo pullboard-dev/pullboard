@@ -2266,7 +2266,7 @@
   "apps/cli/journeys/worktree/start.test.js": {
     "model": 8
   },
-  "packages/store/tests/fixtures/stats/time.js": {
+  "packages/board/tests/fixtures/stats/time.js": {
     "tempdir": 2,
     "hand-policy": 1,
     "raw-board": 4
