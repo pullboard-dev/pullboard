@@ -13,7 +13,7 @@ import { runLandingJob } from '../../../index.js';
 
 const ITEM = 52;
 
-test('clause 1: a trunk pre-receive hook refusing the push returns the item with the hook\'s refusal and moves nothing [C7,P7]', async t => {
+test('landing.hook-refused.a-trunk-pre-receive-hook-refusing: clause 1: a trunk pre-receive hook refusing the push returns the item with the hook\'s refusal and moves nothing [C7,P7]', async t => {
   const { root: dir } = privateFixtureFiles('pullboard-land-hook-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const { root: work, put } = fixture(t);
@@ -40,7 +40,7 @@ test('clause 1: a trunk pre-receive hook refusing the push returns the item with
   assert.equal(tip(), before, 'the refused push moved nothing');
 });
 
-test('clause 1: a push refused for any other reason is no hook refusal [C7,P7]', () => {
+test('landing.hook-refused.a-push-refused-for-any-other: clause 1: a push refused for any other reason is no hook refusal [C7,P7]', () => {
   assert.equal(hookRefusal({ stderr: 'fatal: unable to access remote', stdout: '' }), null);
   assert.match(hookRefusal({ stderr: 'remote: nope\n ! [remote rejected] x -> main (pre-receive hook declined)', stdout: '' }), /nope/u);
 });

@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/store/tests/fixtures/submit-outcome-records.json */
 /** @pullboard-world-pin reads the recorded refusal renewals fixture to drive the submit outcome writer with it. With moves.shadow on, the outcome compare is recorded on the board when its claim commits; off, nothing is [C7,#8380]. */
 /** @pullboard-test-input packages/store/tests/fixtures/submit-outcome-records.json packages/store/src/io/submit/outcome.js */
 import assert from 'node:assert/strict';

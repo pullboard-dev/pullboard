@@ -13,7 +13,7 @@ function jsonl(rows) {
   return Buffer.from(rows.map(row => JSON.stringify(row)).join('\n') + '\n');
 }
 
-test('Claude session tokens retain fresh, cached-read, cached-write and output counts [N2]', () => {
+test('stats.activity.claude-session-tokens-retain-fresh-cached: Claude session tokens retain fresh, cached-read, cached-write and output counts [N2]', () => {
   const [usage] = nativeUsage({ provider: 'claude', file: 'fixture.jsonl' }, jsonl([
     { type: 'assistant', timestamp: '2026-11-05T12:00:00.000Z', message: {
       id: 'message-1', model: 'fixture-sonnet', usage: {
@@ -28,7 +28,7 @@ test('Claude session tokens retain fresh, cached-read, cached-write and output c
   });
 });
 
-test('Codex session tokens retain fresh, cached-read and output counts [N2]', () => {
+test('stats.activity.codex-session-tokens-retain-fresh-cached: Codex session tokens retain fresh, cached-read and output counts [N2]', () => {
   const [usage] = nativeUsage({ provider: 'codex', file: 'fixture.jsonl' }, jsonl([
     { type: 'turn_context', timestamp: '2026-11-05T12:00:00.000Z', payload: { model: 'fixture-gpt' } },
     { type: 'event_msg', timestamp: '2026-11-05T12:01:00.000Z', payload: { type: 'token_count', info: {
@@ -42,7 +42,7 @@ test('Codex session tokens retain fresh, cached-read and output counts [N2]', ()
   });
 });
 
-test('a claim without a readable native session records unknown counts and their reason [N2]', t => {
+test('stats.activity.a-claim-without-a-readable-native: a claim without a readable native session records unknown counts and their reason [N2]', t => {
   const commonDir = mkdtempSync(join(tmpdir(), 'pullboard-session-tokens-'));
   t.after(() => rmSync(commonDir, { recursive: true, force: true }));
   const changes = usageCheckpoint({ commonDir }, {

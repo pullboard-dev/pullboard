@@ -46,7 +46,7 @@ function landWith(box, squash) {
   return runLandingJob(squash ? { ...box.payload, squash: true } : box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) });
 }
 
-test('clause 1: with landing.squash on, a land job for two items leaves two single-parent commits with their trailers, and refs/pullboard/items/<id> reaches each item commit [C7,#9219]', async t => {
+test('landing.job-squash.with-landing-squash-on-a-land: clause 1: with landing.squash on, a land job for two items leaves two single-parent commits with their trailers, and refs/pullboard/items/<id> reaches each item commit [C7,#9219]', async t => {
   const box = landFixture(t);
   const receipt = await landWith(box, true);
   assert.equal(receipt.outcome, 'landed');
@@ -62,7 +62,7 @@ test('clause 1: with landing.squash on, a land job for two items leaves two sing
   }
 });
 
-test('clause 2: with landing.squash off, the same two items land with --no-ff merge commits [C7,#9219]', async t => {
+test('landing.job-squash.with-landing-squash-off-the-same: clause 2: with landing.squash off, the same two items land with --no-ff merge commits [C7,#9219]', async t => {
   const box = landFixture(t);
   const receipt = await landWith(box, false);
   assert.equal(receipt.outcome, 'landed');

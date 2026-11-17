@@ -19,7 +19,7 @@ import { copyRunnerPackage } from '../../fixtures/package.js';
 import { toolSourcePath } from '../../../index.js';
 import { fixture } from '../../fixtures/package-files.js';
 
-test('clause 1: runner closure retains the 4096 file cap independently of byte accounting [C7,P3]', t => {
+test('runners.files-closure.runner-closure-retains-the-4096-file: clause 1: runner closure retains the 4096 file cap independently of byte accounting [C7,P3]', t => {
   const f=fixture(t,['src']);
   const names=Array.from({length:4094},(_,i)=>`data-${i}.txt`);
   for(const name of names) f.write('src/'+name,'');
@@ -31,7 +31,7 @@ test('clause 1: runner closure retains the 4096 file cap independently of byte a
   assert.throws(()=>runnerPackage(f.root,'src/entry.js'),error=>error.code==='RUNNER_TOOLING_FILES'&&error.message.includes('file-count bound'));
 });
 
-test('clause 2: committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
+test('runners.files-closure.committed-tooling-binds-literal-unicode-blobs: clause 2: committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
   const box = cellSandbox(t);
   const installed = join(box.dir, 'tooling'), project = join(box.dir, 'project');
   copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);

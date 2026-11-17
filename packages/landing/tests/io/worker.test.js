@@ -45,7 +45,7 @@ function shard(box, browser) {
     { executionServices, landing: true, remote: false, browser, kind: 'landing', agent: 'landing-shard', item: 'shard 2/6' });
 }
 
-test('a landing shard inside a runner job takes that runner\'s recorded gate and browser capacity [B35,B3,R3]', async t => {
+test('landing.worker.a-landing-shard-inside-a-runner: a landing shard inside a runner job takes that runner\'s recorded gate and browser capacity [B35,B3,R3]', async t => {
   const box = machine(t, { gate: { browserByLaunch: true } });
   const job = await runnerJob(box);
   try {
@@ -54,7 +54,7 @@ test('a landing shard inside a runner job takes that runner\'s recorded gate and
   } finally { job.release(); }
 });
 
-test('a declared slot count still refuses a pool sized differently [B35,B3]', async t => {
+test('landing.worker.a-declared-slot-count-still-refuses: a declared slot count still refuses a pool sized differently [B35,B3]', async t => {
   const box = machine(t, { gateSlots: 4, browserSlots: 1 });
   const job = await runnerJob(box);
   try {

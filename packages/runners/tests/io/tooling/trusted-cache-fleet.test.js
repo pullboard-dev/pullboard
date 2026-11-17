@@ -25,7 +25,7 @@ function savedFile() {
   return names.map(name => join(tmpdir(), name)).sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
 }
 
-test('#8291 clause 1: a second fleet trip with an unchanged package reuses the saved capture instead of rescanning [C7]', async t => {
+test('runners.trusted-cache-fleet.n8291-clause-1-a-second-fleet: #8291 clause 1: a second fleet trip with an unchanged package reuses the saved capture instead of rescanning [C7]', async t => {
   const { graph, trustedTooling } = await committedTooling(t, fixtureCommittedGraph('pullboard-trusted-cache-'));
   const first = trustedTooling();
   const file = savedFile();
@@ -41,7 +41,7 @@ test('#8291 clause 1: a second fleet trip with an unchanged package reuses the s
   assert.equal(second.tooling.sha256, first.tooling.sha256, 'it is the same tooling bytes');
 });
 
-test('#8291 clause 2: a saved capture whose sha256 no longer matches is ignored and recaptured [C7]', async t => {
+test('runners.trusted-cache-fleet.n8291-clause-2-a-saved-capture: #8291 clause 2: a saved capture whose sha256 no longer matches is ignored and recaptured [C7]', async t => {
   const { graph, trustedTooling } = await committedTooling(t, fixtureCommittedGraph('pullboard-trusted-cache-'));
   const first = trustedTooling();
   const file = savedFile();

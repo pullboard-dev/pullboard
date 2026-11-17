@@ -111,21 +111,21 @@ process.stdout.write(JSON.stringify({ late }));`;
   return JSON.parse(child.stdout).late;
 }
 
-test('clause 1: a lease admitted after its queue deadline gets the fixed 90 s startup budget, whatever runnerWaitMs says [C7]', () => {
+test('gate.runner-probe.late-lease-fixed-startup: clause 1: a lease admitted after its queue deadline gets the fixed 90 s startup budget, whatever runnerWaitMs says [C7]', () => {
   const late = lateBudget({ waitMs: 100 });
   assert.ok(late, 'the second request was admitted late');
   assert.equal(late.budgetMs, 90_000);
   assert.equal(late.startupDeadlineAt - late.admittedAt, 90_000);
 });
 
-test('clause 2: a proof batch lane admission window does not set its startup budget [C7]', () => {
+test('gate.runner-probe.proof-batch-window-no-startup: clause 2: a proof batch lane admission window does not set its startup budget [C7]', () => {
   const late = lateBudget({ lane: true, waitMs: 100 });
   assert.ok(late, 'the lane request was admitted late');
   assert.equal(late.budgetMs, 90_000, 'the lane gets the same startup budget as a submit lease');
   assert.notEqual(late.budgetMs, 100);
 });
 
-test('clause 1, clause 3, clause 4: with one runner, a coordinator-side slowdown that misses the deadline leaves that runner in service [C7]', () => {
+test('gate.runner-probe.single-runner-stays-in-service: clause 1, clause 3, clause 4: with one runner, a coordinator-side slowdown that misses the deadline leaves that runner in service [C7]', () => {
   const run = deadline();
   assert.equal(run.failure, undefined, JSON.stringify(run.failure));
   assert.equal(run.probes, 1, 'the missed deadline ran the same load-tolerant confirming probe');
@@ -140,7 +140,7 @@ test('clause 1, clause 3, clause 4: with one runner, a coordinator-side slowdown
   assert.equal(run.holders.length, 0);
 });
 
-test('clause 1, clause 4: an answering runner that misses its deadline again refuses only the job as a wait-deadline failure [C7]', () => {
+test('gate.runner-probe.repeat-miss-refuses-job-only: clause 1, clause 4: an answering runner that misses its deadline again refuses only the job as a wait-deadline failure [C7]', () => {
   const run = deadline({ drops: 2 });
   assert.equal(run.failure?.code, 'RUNNER_WAIT_DEADLINE');
   assert.match(run.failure.message, /only-runner answers SSH and Node but missed its admission deadline again/u);
@@ -151,7 +151,7 @@ test('clause 1, clause 4: an answering runner that misses its deadline again ref
   assert.equal(run.holders.length, 0);
 });
 
-test('clause 2, clause 3: a runner whose confirming probe fails after a missed deadline is still quarantined [C7]', () => {
+test('gate.runner-probe.failed-confirm-quarantines: clause 2, clause 3: a runner whose confirming probe fails after a missed deadline is still quarantined [C7]', () => {
   const run = deadline({ gateSlots: 1, drops: 99, answers: false });
   assert.equal(run.probes, 4, 'the probe and its three retries all failed first');
   assert.equal(run.waits[0].probe, false);
@@ -164,7 +164,7 @@ test('clause 2, clause 3: a runner whose confirming probe fails after a missed d
   assert.equal(run.holders.length, 0);
 });
 
-test('clause 4: without runners the run executes locally and no probe or quarantine exists [C7]', () => {
+test('gate.runner-probe.no-runners-runs-locally: clause 4: without runners the run executes locally and no probe or quarantine exists [C7]', () => {
   const run = deadline({ runners: 0, gateSlots: 1 });
   assert.equal(run.failure, undefined, JSON.stringify(run.failure));
   assert.equal(run.result, 'local');

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { planBatches } from '../../src/logic/queue.js';
 import { planQueue } from '../../src/logic/queue.js';
 
-test('clause 1: three batches chain on main, then on each candidate before them, each carrying the items below it [C7]', () => {
+test('landing.queue.three-batches-chain-on-main-then: clause 1: three batches chain on main, then on each candidate before them, each carrying the items below it [C7]', () => {
   const { candidates, waiting } = planBatches([[1], [2], [3]]);
   assert.deepEqual(candidates.map(c => [c.id, c.parent, c.items, c.below]), [
     ['candidate-1', null, [1], []],
@@ -14,7 +14,7 @@ test('clause 1: three batches chain on main, then on each candidate before them,
   assert.deepEqual(waiting, []);
 });
 
-test('clause 1: every arrival since the last candidate joins one batch, and past four candidates arrivals wait [C7]', () => {
+test('landing.queue.every-arrival-since-the-last-candidate: clause 1: every arrival since the last candidate joins one batch, and past four candidates arrivals wait [C7]', () => {
   assert.deepEqual(planQueue({ arrivals: [4, 5, 4] }).candidates[0].items, [4, 5]);
   const full = planBatches([[1], [2], [3], [4], [5, 6]]);
   assert.equal(full.candidates.length, 4);
