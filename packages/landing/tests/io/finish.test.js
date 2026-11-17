@@ -10,14 +10,14 @@ function recording(calls, names = LANDING_FINISH_STEPS) {
   return Object.fromEntries(names.map(name => [name, async () => { calls.push(name); return `${name} done`; }]));
 }
 
-test('clause 1: finishLanding calls amendLandingEngines, the gate, the main move, the main-red refresh, postLandSuite, the audits and the stale-verdict return in order [C7]', async () => {
+test('landing.finish.finishlanding-calls-amendlandingengines-the-gate-the: clause 1: finishLanding calls amendLandingEngines, the gate, the main move, the main-red refresh, postLandSuite, the audits and the stale-verdict return in order [C7]', async () => {
   const calls = [];
   await finishLanding({}, { steps: recording(calls) });
   assert.deepEqual(calls, ['amendLandingEngines', 'gate', 'moveMain', 'refreshMainReds', 'refreshLandedMain', 'postLandSuite', 'activateMainAudits', 'returnStaleVerdicts']);
   assert.ok(calls.indexOf('gate') < calls.indexOf('moveMain') && calls.indexOf('moveMain') < calls.indexOf('refreshMainReds') && calls.indexOf('refreshMainReds') < calls.indexOf('postLandSuite'));
 });
 
-test('clause 2: each step result comes back in one record, with earlier steps named [C7]', async () => {
+test('landing.finish.each-step-result-comes-back-in: clause 2: each step result comes back in one record, with earlier steps named [C7]', async () => {
   const calls = [];
   const names = LANDING_FINISH_STEPS.filter(name => name !== 'gate');
   const record = await finishLanding({}, { steps: recording(calls, names), earlier: ['gate'] });
@@ -28,7 +28,7 @@ test('clause 2: each step result comes back in one record, with earlier steps na
   assert.ok(!calls.includes('gate'));
 });
 
-test('clause 2: a refusing step stops the sequence and is named in the record and on the error [C7]', async () => {
+test('landing.finish.a-refusing-step-stops-the-sequence: clause 2: a refusing step stops the sequence and is named in the record and on the error [C7]', async () => {
   const calls = [];
   const steps = recording(calls);
   steps.moveMain = async () => { throw new Refused('LAND_MAIN_MOVED', 'main moved'); };

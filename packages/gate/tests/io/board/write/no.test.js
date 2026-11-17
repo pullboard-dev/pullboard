@@ -23,7 +23,7 @@ function relocate(box, source, name) {
   return destination;
 }
 
-test('clause 1: status completes on a read-only board open without ReadNeedsWrite [C7]', async () => {
+test('gate.io-board-write-no.status-completes-on-a-read-only: clause 1: status completes on a read-only board open without ReadNeedsWrite [C7]', async () => {
   const box = e2e.project(undefined, e2e.sandbox(), { withWorktree: false });
   const statusRoot = relocate(box, box.repo, 'status-root');
   const status = await box.runLocal(statusRoot, 'status', '--json');
@@ -31,7 +31,7 @@ test('clause 1: status completes on a read-only board open without ReadNeedsWrit
   assert.doesNotMatch(`${status.out}\n${status.err}`, /ReadNeedsWrite/u);
 });
 
-test('clause 2: resume --diagnostics recovers coordinator identity through the writable fallback, not the read store [C7]', async () => {
+test('gate.io-board-write-no.resume-diagnostics-recovers-coordinator-identity-through: clause 2: resume --diagnostics recovers coordinator identity through the writable fallback, not the read store [C7]', async () => {
   const box = e2e.project(undefined, e2e.sandbox(), { withWorktree: false });
   const resumeRoot = relocate(box, box.repo, 'resume-root');
   const resume = await box.runLocal(resumeRoot, 'resume', '--diagnostics', '--json');

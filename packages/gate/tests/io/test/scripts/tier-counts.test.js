@@ -33,7 +33,7 @@ function run(root, ...args) {
   return { status: code, stdout, stderr };
 }
 
-test('clause 1: the script prints the T1, T2 and T3 counts of a fixture tree, componentTier off and on [C7,#9789]', t => {
+test('gate.io-test-scripts-tier-counts.the-script-prints-the-t1-t2: clause 1: the script prints the T1, T2 and T3 counts of a fixture tree, componentTier off and on [C7,#9789]', t => {
   const result = run(committed(t));
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /componentTier off: T1 \d+, T2 0, T3 \d+/u);
@@ -42,7 +42,7 @@ test('clause 1: the script prints the T1, T2 and T3 counts of a fixture tree, co
   assert.equal(on[2], '1', 'only the two-door test is T2');
 });
 
-test('clause 2: the script prints the files a one-line change to one named front door selects [C7,#9789]', t => {
+test('gate.io-test-scripts-tier-counts.the-script-prints-the-files-a: clause 2: the script prints the files a one-line change to one named front door selects [C7,#9789]', t => {
   const result = run(committed(t), '--door', 'packages/math/index.js');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /componentTier off: packages\/math\/index\.js change selects \d+ files/u);
