@@ -4,11 +4,11 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { REJECT_OPEN_ENGINE } from '../../state/index.js';
-import { cellBoard } from './fixtures/cell.js';
-import { cellProject } from './fixtures/cell.js';
-import { submitFixture } from './fixtures/submit.js';
+import * as store from '../../../store/index.js';
+import { REJECT_OPEN_ENGINE } from '../../../state/index.js';
+import { cellBoard } from '../fixtures/cell-board.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
+import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 
 /** Write one file in a checkout and commit it, as a seat building in its own worktree does. */
 function commitFile(project, cwd, path, text, message) {

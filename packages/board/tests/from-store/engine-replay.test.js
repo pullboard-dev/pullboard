@@ -10,19 +10,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import * as store from '../index.js';
-import { openCellBoard as openBoard } from './fixtures/cell.js';
+import * as store from '../../../store/index.js';
+import { openCellBoard as openBoard } from '../fixtures/cell-board.js';
 import {
   appliedSequence,
   applyRelayMove,
   engineReceipt,
   prepareEngineMove,
-} from '../../state/index.js';
+} from '../../../state/index.js';
 import {
   exportBoard,
   importBoard,
-} from '../index.js';
-import { unpackRelease } from '../../gate/tests/fixtures/release/archive.js';
+} from '../../../store/index.js';
+import { unpackRelease } from '../../../gate/tests/fixtures/release/archive.js';
 
 // The immutable v0.8.6 release, rather than current source with an old engine tag.
 const RELEASE = '0f86cb6cd615200a91b9aa8d79b86841f3045ca3';

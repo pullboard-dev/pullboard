@@ -1,12 +1,12 @@
 /** Two ordinary claims retain independent owners and frozen bars [B5,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getItem } from '../index.js';
-import { cellBoard } from './fixtures/cell.js';
-import { cellClaim } from './fixtures/cell.js';
-import { cellItem } from './fixtures/cell.js';
-import { cellProject } from './fixtures/cell.js';
-import { cellSeat } from './fixtures/cell.js';
+import { getItem } from '../../../store/index.js';
+import { cellBoard } from '../fixtures/cell-board.js';
+import { cellClaim } from '../../../store/tests/fixtures/cell.js';
+import { cellItem } from '../../../store/tests/fixtures/cell.js';
+import { cellProject } from '../../../store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 
 test('one seat claims and renews two separate items [B5,H16]', t => {
   const project = cellProject(t, { real: true });
