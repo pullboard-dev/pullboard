@@ -62,7 +62,7 @@ test('the source-read rigor check accepts a source-cell header and refuses a mal
   assert.equal(declaresSource('/** @pullboard-test-input source-cell */\nx\n'), false);
 });
 
-const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('./fixtures/a.json', import.meta.url));\n";
+const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('../tests/fixtures/a.json', import.meta.url));\n";
 const DOCS_READ = "import { readFileSync } from 'node:fs';\nconst x = 1;\nreadFileSync(new URL('../../docs/a.md', import.meta.url));\n";
 
 test('clause 1: with the setting on, an undeclared read under tests/fixtures, data or docs is reported at its first such line [C7,#9801]', () => {
