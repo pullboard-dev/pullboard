@@ -59,16 +59,17 @@ test('clause 2: every read command keeps a startup ceiling row, none above its a
   for (const [command, limit] of Object.entries(audited)) assert.ok(ceilings[command] <= limit, `${command} ceiling ${ceilings[command]} ms is above its audited ${limit} ms`);
 });
 
-// 'list thin' is an audited exception: the 100 ms target is out of reach for now, so the row sits at 200 ms against the measured
-// median of 182 ms (run 91c72d73-2ba5-49e3-bff6-359ea1541783); the cut toward 100 is a follow-up item, and the row never rises [C7,#9090].
+// 'list thin' is an audited exception (median 182 ms, run 91c72d73-2ba5-49e3-bff6-359ea1541783); its measurement and exception case live in
+// read-startup-list-thin.test.js, and the row never rises [C7,#9090].
 test('clause 2: the list thin row is 200 ms and the list row stays at its audited 1500 ms [C7,#9090]', () => {
   assert.equal(ceilings['list thin'], 200);
   assert.equal(ceilings.list, 1500);
 });
 
 const startupReport = {};
-test('clause 1: list with list.thinRead on holds its 200 ms list thin row, and the list row is unchanged [C7,#9090]', async (t) => {
-  await assertStartupBudgets(t, startupReport);
+test('clause 1: version, show, status and list hold their rows; list thin is measured in read-startup-list-thin.test.js [C7,#9090,#10293]', async (t) => {
+  await assertStartupBudgets(t, startupReport, { only: ['version', 'show', 'status', 'list'] });
+  assert.deepEqual(Object.keys(startupReport.mediansMs), ['version', 'show', 'status', 'list']);
 });
 
 test('clause 1: the version row reports its median, the bare node median and the overhead as a diagnostic line [C7]', () => {
@@ -76,8 +77,4 @@ test('clause 1: the version row reports its median, the bare node median and the
   const line = startupReport.floorLines.find(text => text.startsWith('version median '));
   assert.match(line, /^version median \d+\.\d\d ms, bare node median \d+\.\d\d ms, overhead -?\d+\.\d\d ms$/u);
   assert.equal(startupReport.floorLines.length, Object.keys(startupReport.mediansMs).length);
-});
-
-test('clause 3: list thin is an audited exception at 200 ms over its measured median of 182 ms, run 91c72d73-2ba5-49e3-bff6-359ea1541783 [C7,#9090]', () => {
-  assert.ok(182 < ceilings['list thin'] && ceilings['list thin'] === 200);
 });
