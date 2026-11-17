@@ -7,7 +7,7 @@ import { freshIdentity } from '../../../src/io/identities.js';
 import { processIdentity } from '../../../src/io/identities.js';
 import { refreshIdentitiesAsync } from '../../../src/io/identities.js';
 
-test('clause 1: a ps that is still running leaves the event loop free, so other callbacks keep running while it runs [C7]', async () => {
+test('resources.probe.a-ps-that-is-still-running: clause 1: a ps that is still running leaves the event loop free, so other callbacks keep running while it runs [C7]', async () => {
   let turns = 0, stopped = false;
   /** Another part of the process asking for the loop: it only advances while nothing blocks it. */
   const spin = () => { turns += 1; if (!stopped) setImmediate(spin); };
@@ -24,14 +24,14 @@ test('clause 1: a ps that is still running leaves the event loop free, so other 
   assert.ok(turnsDuringPs >= 3, 'the loop turned while ps was pending');
 });
 
-test('clause 1: the real batched ps runs as a child process and caches an identity for a live process [C7]', async () => {
+test('resources.probe.the-real-batched-ps-runs-as: clause 1: the real batched ps runs as a child process and caches an identity for a live process [C7]', async () => {
   await refreshIdentitiesAsync([process.pid]);
   const identity = processIdentity(process.pid);
   assert.equal(typeof identity?.started, 'string');
   assert.equal(identity.zombie, false);
 });
 
-test('clause 2: the asynchronously cached identity equals the synchronous read for a live process, a live child and an exited process [C7]', async () => {
+test('resources.probe.the-asynchronously-cached-identity-equals-the: clause 2: the asynchronously cached identity equals the synchronous read for a live process, a live child and an exited process [C7]', async () => {
   await refreshIdentitiesAsync([process.pid]);
   assert.deepEqual(processIdentity(process.pid), freshIdentity(process.pid), 'this process');
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
