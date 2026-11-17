@@ -19,7 +19,7 @@ function repo(t) {
   return { git: args => sandbox.tryGit(box.root, ...args), main, head };
 }
 
-test('[C7] a green run of a file at a main commit closes its open Main red item', () => {
+test('runners.run-updates-main-reds.a-green-run-of-a-file: [C7] a green run of a file at a main commit closes its open Main red item', () => {
   const items = [red(7, 't/a.test.js'), red(8, 't/c.test.js'), red(9, 't/a.test.js', 'claimed')];
   const out = mainRedUpdates({ items: [items[0], items[1]], files: ['t/a.test.js'], green: true, qualified: ['t/a.test.js'], main: MAIN });
   assert.deepEqual(out.close, [{ item: 7, file: 't/a.test.js' }]);
@@ -28,14 +28,14 @@ test('[C7] a green run of a file at a main commit closes its open Main red item'
   assert.deepEqual(mainRedUpdates({ items: [items[2]], files: ['t/a.test.js'], green: true, qualified: ['t/a.test.js'], main: MAIN }).close, []);
 });
 
-test('[C7] a red run of a file with no open Main red item files one naming the failing cases', () => {
+test('runners.run-updates-main-reds.a-red-run-of-a-file: [C7] a red run of a file with no open Main red item files one naming the failing cases', () => {
   const failing = [{ file: 't/a.test.js', name: 'case one' }, { file: 't/a.test.js', name: 'case two' }, { file: 't/c.test.js', name: 'owned' }];
   const out = mainRedUpdates({ items: [red(8, 't/c.test.js')], files: ['t/a.test.js', 't/c.test.js'], green: false, failing, qualified: ['t/a.test.js', 't/c.test.js'], main: MAIN });
   assert.deepEqual(out.file, [{ file: 't/a.test.js', names: ['case one', 'case two'] }]);
   assert.deepEqual(out.close, []);
 });
 
-test('[C7] a run on unlanded item code never closes or files for a file its diff touches', t => {
+test('runners.run-updates-main-reds.a-run-on-unlanded-item-code: [C7] a run on unlanded item code never closes or files for a file its diff touches', t => {
   const { git, main, head } = repo(t);
   {
     const files = ['t/a.test.js', 't/b.test.js'];
