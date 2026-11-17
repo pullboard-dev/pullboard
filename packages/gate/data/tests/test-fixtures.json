@@ -10,10 +10,6 @@
   "docs/api.test.js": {
     "repo-read": 3
   },
-  "docs/architecture.test.js": {
-    "repo-read": 4,
-    "tempdir": 1
-  },
   "docs/formats.test.js": {
     "repo-read": 1,
     "tempdir": 6,
@@ -1747,10 +1743,6 @@
     "raw-board": 3,
     "model": 4
   },
-  "apps/cli/journeys/status/counts.test.js": {
-    "hand-policy": 4,
-    "raw-board": 1
-  },
   "apps/cli/tests/fixtures/owner.js": {
     "hand-policy": 1
   },
@@ -2069,24 +2061,9 @@
   "packages/runners/tests/style.test.js": {
     "tempdir": 1
   },
-  "apps/cli/journeys/stats/main.test.js": {
-    "tempdir": 1,
-    "hand-policy": 1,
-    "raw-board": 8
-  },
   "apps/lib/tests/stats/counts.test.js": {
     "raw-board": 4,
     "tempdir": 1
-  },
-  "apps/cli/journeys/stats/moves.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
-  },
-  "apps/cli/journeys/stats/pipeline.test.js": {
-    "tempdir": 2,
-    "hand-policy": 1,
-    "raw-board": 4
   },
   "apps/lib/tests/stats/ports.test.js": {
     "raw-board": 1
