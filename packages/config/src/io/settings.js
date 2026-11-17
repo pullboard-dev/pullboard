@@ -125,6 +125,11 @@ export function requireRegisteredEnabled() {
   return loadMachineSettings().tests?.requireRegistered === true;
 }
 
+/** Whether the test-input rule reports tests that read repo files outside src without an input header: off by default; only an exact `true` turns it on [C7,#9799]. */
+export function requireDeclaredInputsEnabled() {
+  return loadMachineSettings().tests?.requireDeclaredInputs === true;
+}
+
 /** Whether the static check refuses an added journey that names no golden user path: off by default; only an exact `true` turns it on [C7,#9403]. */
 export function requireJourneyPathEnabled() {
   return loadMachineSettings().tests?.requireJourneyPath === true;
@@ -516,6 +521,14 @@ export function nextIdleBlockers() {
 export function nextCapBuilders() {
   const cap = loadMachineSettings().next?.capBuilders;
   return Number.isInteger(cap) && cap > 0 ? cap : 0;
+}
+
+/**
+ * Whether next hands no new claim while the machine load is above machine.loadCeiling (#9703): off by default, so next hands
+ * claims as before; only an exact `true` turns it on.
+ */
+export function nextHoldAboveLoad() {
+  return loadMachineSettings().next?.holdAboveLoad === true;
 }
 
 /**
@@ -945,6 +958,11 @@ export function reuseContractResultsEnabled() {
 /** Whether landing.stallStop is on (#8749): off by default; only an exact `true` turns it on. */
 export function stallStopEnabled() {
   return loadMachineSettings().landing?.stallStop === true;
+}
+
+/** Whether landing.parallelGates is on (#9747): off by default; only an exact `true` turns it on. */
+export function parallelGatesEnabled() {
+  return loadMachineSettings().landing?.parallelGates === true;
 }
 
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */

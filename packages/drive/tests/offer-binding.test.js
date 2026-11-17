@@ -7,8 +7,8 @@ import { test } from 'node:test';
 import { driveOnce } from '../index.js';
 import { createJob } from '../../jobs/index.js';
 import { fixtureBoard } from '../../board/tests/fixtures/board.js';
-import { privateFixtureFiles } from '../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../gate/tests/fixtures/child.js';
 
 const files = privateFixtureFiles('pullboard-offer-binding-');
 after(() => rmSync(files.root, { recursive: true, force: true }));

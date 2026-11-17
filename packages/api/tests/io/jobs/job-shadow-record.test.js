@@ -59,3 +59,27 @@ test('clause 1: a job table that throws is recorded as a disagreement and never 
   assert.equal(counts.disagreed, 1);
   assert.match(counts.last[0].differs, /^threw /u);
 });
+
+test('clause 1: a job table row the writer refuses is recorded as a disagreement with the writer\'s refusal code [C7,#9803]', t => {
+  // The table yields a row for the stranger where the writer refuses JOB_LEASE_MOVED: the compare row names the writer's code.
+  const { db, id, token } = claimed(t, true, (snapshot) => ({ patch: { job: snapshot.job } }));
+  assert.throws(() => renewJob(db, { job: id, runner: 'r-other', token, now: T0 + 1_000 }), { code: 'JOB_LEASE_MOVED' });
+  const counts = readShadow({ db }, 'job');
+  assert.equal(counts.disagreed, 1);
+  assert.equal(counts.last[0].refusal, 'JOB_LEASE_MOVED');
+  assert.equal(counts.last[0].id, id);
+});
+
+test('clause 2: an agreeing compare and a row-for-row disagreement record no refusal field [C7,#9803]', t => {
+  const { db, id, token } = claimed(t, true, holderRenews());
+  renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
+  assert.throws(() => renewJob(db, { job: id, runner: 'r-other', token, now: T0 + 2_000 }), { code: 'JOB_LEASE_MOVED' });
+  const agreed = readShadow({ db }, 'job');
+  assert.equal(agreed.disagreed, 0);
+  assert.deepEqual(agreed.last, []);
+  const other = claimed(t, true, holderRenews(T0 + 7));
+  renewJob(other.db, { job: other.id, runner: 'r-holder', token: other.token, now: T0 + 1_000 });
+  const differ = readShadow({ db: other.db }, 'job');
+  assert.equal(differ.disagreed, 1);
+  assert.equal('refusal' in differ.last[0], false);
+});
