@@ -79,8 +79,23 @@ function boardDigest(db) {
 }
 
 
-/** Measure complete fresh CLI processes without a module hook, warmup, or output shortcut. */
-export async function assertStartupBudgets(t, sink = {}) {
+/** Every command the startup budgets measure, in measuring order. */
+export const STARTUP_COMMANDS = ['version', 'show', 'status', 'list', 'list thin'];
+
+/** The commands one call measures: all five by default, or the ones `options.only` names (an unknown name is refused, not skipped). */
+export function startupCommands(options = {}) {
+  const only = options.only ?? STARTUP_COMMANDS;
+  const unknown = only.filter(name => !STARTUP_COMMANDS.includes(name));
+  if (unknown.length) throw new Error(`assertStartupBudgets: unknown command ${unknown.join(', ')}; choose from ${STARTUP_COMMANDS.join(', ')}`);
+  return STARTUP_COMMANDS.filter(name => only.includes(name));
+}
+
+/**
+ * Measure complete fresh CLI processes without a module hook, warmup, or output shortcut.
+ * `options.only` names the commands to measure (the bare node floor is always timed); no option measures all five, because one call over all
+ * of them outran its file timeout on an 800-seat board and a row needs a file of its own [C7,#9477].
+ */
+export async function assertStartupBudgets(t, sink = {}, options = {}) {
   const cleanups=[];
   const {root,db}=fixture({after(fn){cleanups.push(fn);}});
   try {
@@ -100,7 +115,7 @@ export async function assertStartupBudgets(t, sink = {}) {
       authorParents:[{parent:'unknown',seats:['core-4','core-204']}]};
     const expectedShow=JSON.parse(JSON.stringify({version:1,...store.getItem(board,4),verdicts:store.verdictsFor(board,4),
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
-    const samples={version:[],show:[],status:[],list:[],'list thin':[]};
+    const samples=Object.fromEntries(startupCommands(options).map(name=>[name,[]]));
     // 'list thin' is list with list.thinRead on in the child's machine settings; the file exists only while that child runs [C7,#9090].
     const settingsFile=join(root,'private-machine','settings.json');
     const childEnvironment={...process.env,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
