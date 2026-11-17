@@ -12,7 +12,7 @@ import { test } from 'node:test';
 const LEGACY_ENTRY = fileURLToPath(new URL('../index.js', import.meta.url));
 const ENTRY = fileURLToPath(new URL('../../../apps/runner/src/io/controller.js', import.meta.url));
 
-test('the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {
+test('runners.runner-controller.the-shipped-controller-entry-is-inert: the shipped controller entry is inert without its exact direct-entry flag [C7,P3]', () => {
   for (const entry of [ENTRY, LEGACY_ENTRY]) for (const flags of [[], ['--unrelated-entry']]) {
     const child = spawnSync(process.execPath, [entry, ...flags], { input: 'untrusted input is not a controller request', encoding: 'utf8' });
     assert.equal(child.status, 0, child.stderr);
@@ -21,7 +21,7 @@ test('the shipped controller entry is inert without its exact direct-entry flag 
   }
 });
 
-test('a controller started without a pull mode refuses and never executes a command or policy from its JSON [C7,V4]', t => {
+test('runners.runner-controller.a-controller-started-without-a-pull: a controller started without a pull mode refuses and never executes a command or policy from its JSON [C7,V4]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-controller-entry-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const marker = join(directory, 'must-not-execute');
@@ -37,7 +37,7 @@ test('a controller started without a pull mode refuses and never executes a comm
   assert.equal(existsSync(marker), false);
 });
 
-test('the compatibility facade stays inert when given the retired self-spawn flag [C7,P3]', () => {
+test('runners.runner-controller.the-compatibility-facade-stays-inert-when: the compatibility facade stays inert when given the retired self-spawn flag [C7,P3]', () => {
   const child = spawnSync(process.execPath, [LEGACY_ENTRY, '--pullboard-runner-controller'], {
     input: 'not a request; must never be parsed or executed', encoding: 'utf8',
   });

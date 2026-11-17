@@ -29,7 +29,7 @@ import { makeLandingStopFixture } from '../../../fixtures/landing-run.js';
 import { installLandingPidReusePsShim } from '../../../fixtures/landing-run.js';
 import { installLandingSignalFailureShim } from '../../../fixtures/landing-run.js';
 
-test('a failed test completion without a type still stops a landing run [C7,V4]', async t => {
+test('runners.landing.a-failed-test-completion-without-a: a failed test completion without a type still stops a landing run [C7,V4]', async t => {
   const fixture = makeLandingStopFixture(t);
   const preload = join(fixture.root, 'untyped-completion.mjs');
   const delivered = join(fixture.root, 'untyped-completion-delivered');
@@ -99,7 +99,7 @@ if (process.argv[1] === ${JSON.stringify(fixture.runner)}) {
   assert.match(`${result.stdout ?? ''}\n${result.stderr ?? ''}`, /Landing gate stopped early after .*02-failing\.test\.js/u);
 });
 
-test('a landing run stops at the first failing file [C7,V4]', async t => {
+test('runners.landing.a-landing-run-stops-at-the: a landing run stops at the first failing file [C7,V4]', async t => {
   const unrelatedRoot = mkdtempSync(join(tmpdir(), 'pullboard-landing-unrelated-'));
   const unrelatedReady = join(unrelatedRoot, 'ready');
   const unrelatedDrained = join(unrelatedRoot, 'drained');

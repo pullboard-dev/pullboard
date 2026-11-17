@@ -12,7 +12,7 @@ const ROOT = dirname(fileURLToPath(new URL('../../../package.json', import.meta.
 /** The gate modules the worker closure reached before the move, by their old paths. */
 const BEFORE = ['src/audit-coverage-reporter.js', 'src/child-journal-preload.js', 'src/chrome-clone-check.js',
   'src/gate-stages.js', 'src/gui-session.js', 'src/test-outcomes.js', 'src/test-result-store.js', 'src/timing.js'];
-test('the runner worker closure holds the same gate modules after the move, without the front door [C7,doctrine:CD60]', () => {
+test('runners.closure.the-runner-worker-closure-holds-the: the runner worker closure holds the same gate modules after the move, without the front door [C7,doctrine:CD60]', () => {
   const files = Object.keys(runnerPackage(ROOT).files);
   const moved = JSON.parse(readFileSync(join(ROOT, 'packages/codemap/data/plan/path-map/gate.json'), 'utf8'));
   const bodies = BEFORE.map(file => moved[file]);
@@ -26,7 +26,7 @@ test('the runner worker closure holds the same gate modules after the move, with
 });
 
 /** The store body replaces only its old forwarding shim in the runner closure [C7]. */
-test('runner reads the native user directory body without widening its closure [C7]', () => {
+test('runners.closure.runner-reads-the-native-user-directory: runner reads the native user directory body without widening its closure [C7]', () => {
   const files = Object.keys(runnerPackage(ROOT).files);
   assert.ok(files.includes('packages/gate/src/io/directory.js'));
   assert.deepEqual(files.filter(file => file.endsWith('/directory.js')), ['packages/gate/src/io/directory.js']);
