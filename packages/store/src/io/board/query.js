@@ -17,6 +17,7 @@ import {
   activityInterests,
   isActivityNews,
   archivedItemEvents,
+  hasEventArchive,
   itemActivity,
   projectAgentActivity,
 } from "../../logic/board/activity/feed.js";
@@ -309,6 +310,17 @@ export function itemThreads(board, ids, history) {
       if (event.event_kind !== 'usage' && event.event_kind !== 'shared-usage') events.get(event.item_id)?.push(event);
     } else if (event.event_kind === 'main-moved') {
       for (const id of new Set(movedItems(event))) events.get(id)?.push(event);
+    }
+  }
+  // The archiver moved a finished item's events out of the hot list the history holds; they read back in their place, as itemThread's do [#9335].
+  const wanted = [...events.keys()];
+  if (wanted.length > 0 && hasEventArchive(board.db)) {
+    const archived = board.db.prepare("SELECT event_id, event_at, event_by, event_kind, item_id, event_detail FROM event_archive WHERE item_id IN (SELECT value FROM json_each(?)) ORDER BY event_id").all(JSON.stringify(wanted));
+    for (const event of archived) {
+      const own = events.get(event.item_id);
+      if (event.event_kind === 'usage' || event.event_kind === 'shared-usage' || own.some(seen => seen.event_id === event.event_id)) continue;
+      own.push(event);
+      own.sort((a, b) => a.event_id - b.event_id);
     }
   }
   const threads = new Map();
