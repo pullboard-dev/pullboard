@@ -20,19 +20,33 @@ import { fixtureSettledMachine } from '../../../../../packages/gate/tests/fixtur
 const REAL_COMPOSER_CACHE = join(userInfo().homedir || homedir(), 'Library', 'Caches', 'composer');
 
 /**
- * The folders a gate needs to run composer and php, or null when this machine lacks either.
- * Why: a runner job's PATH may lack the toolchain's folder, so the sandbox adds the folders composer and php were found in [#10618].
+ * The php folder and composer binary, or null when this machine lacks either.
+ * Why: a runner job's PATH may lack their folders and its fresh HOME starts an empty composer cache, so a composer wrapper on PATH carries the account's cache [#10618].
  */
 function composerEnvironment() {
-  const folders = [];
+  const found = {};
   for (const tool of ['php', 'composer']) {
     const probe = spawnSync(tool, ['--version'], { encoding: 'utf8', timeout: 30_000 });
     if (probe.error || probe.status !== 0) return null;
-    const found = String(spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8', timeout: 5000 }).stdout).trim();
-    if (!found.startsWith('/')) return null;
-    folders.push(dirname(found));
+    found[tool] = String(spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8', timeout: 5000 }).stdout).trim();
+    if (!found[tool].startsWith('/')) return null;
   }
-  return { folders: [...new Set(folders)] };
+  return { php: dirname(found.php), composer: found.composer };
+}
+
+/** Single-quote one shell word. */
+const quoted = (text) => `'${String(text).replaceAll("'", "'\\''")}'`;
+
+/**
+ * Write an executable wrapper named after the tool into the sandbox and return its folder.
+ * Why: a gate job keeps only PATH from the sandbox's variables, so the wrapper carries the variables the tool needs [#10618].
+ */
+function wrapperFolder(box, name, variables, target, args = '') {
+  const folder = join(box.dir, 'toolchain-bin');
+  mkdirSync(folder, { recursive: true });
+  const assignments = Object.entries(variables).map(([key, value]) => `${key}=${quoted(value)}`).join(' ');
+  writeFileSync(join(folder, name), `#!/bin/sh\n${assignments} exec ${quoted(target)}${args} "$@"\n`, { mode: 0o755 });
+  return folder;
 }
 
 export const COMPOSER = composerEnvironment();
@@ -50,11 +64,10 @@ export const PASSING = `${HEADER}    public function testAddsSmallNumbers(): voi
 export const BROKEN = `${HEADER}    public function testAddsSmallNumbers(): void\n    {\n        $this->assertSame(4, Calc::add(1, 2));\n    }\n}\n`;
 const BASE_ITEM = `${HEADER}    public function testAddsNothing(): void\n    {\n        $this->assertSame(0, Calc::add(0, 0));\n    }\n}\n`;
 
-/** A sandbox whose gate and runner see php and composer and reuse the account's composer cache: set before the first command starts the runner. */
+/** A sandbox whose gate and runner see php, and find composer through a wrapper that reuses the account's composer cache: set before the first command starts the runner. */
 export function composerSandbox(helpers, settings = {}) {
   const box = helpers.sandbox();
-  box.env.PATH = [...(COMPOSER?.folders ?? []), box.env.PATH].join(':');
-  box.env.COMPOSER_CACHE_DIR = REAL_COMPOSER_CACHE;
+  if (COMPOSER) box.env.PATH = [wrapperFolder(box, 'composer', { COMPOSER_CACHE_DIR: REAL_COMPOSER_CACHE, COMPOSER_NO_AUDIT: '1' }, COMPOSER.composer), COMPOSER.php, box.env.PATH].join(':');
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, settings);
   return box;
 }
