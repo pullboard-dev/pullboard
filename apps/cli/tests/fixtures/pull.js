@@ -146,7 +146,7 @@ function quick(box, cwd, ...args) {
  */
 export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
   const claimed = quick(box, box.web, 'claim', String(id), '--json');
-  assert.equal(claimed.code, 0, claimed.err);
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
   if (compose) assert.equal(quick(box, box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
