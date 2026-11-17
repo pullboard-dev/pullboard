@@ -183,11 +183,14 @@ describe('branch-independent trunk and lane merge cases [B34,P2,L3,V6]', { concu
     advanceMergeTrunk(box, false);
     const before = [checkoutState(box, box.repo), checkoutState(box, box.web)];
     const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
-    await submitSettled(box);
-    // Submit composes clean main into the builder's own checkout as a merge commit (4d18c3c77d); the primary checkout is untouched.
+    const submitted = await submitSettled(box);
+    // Submit composes clean main as a merge commit that exists only as objects (#2966): no checkout, index or HEAD moves.
     assert.deepEqual(checkoutState(box, box.repo), before[0]);
     const composed = checkoutState(box, box.web);
-    assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', 'HEAD').split(' '), [before[1].head, trunk], 'the builder head merges the builder source with the exact trunk tip');
+    assert.equal(composed.head, before[1].head, 'the builder checkout head stays on the builder source');
+    const [, composedCommit] = /into the builder source as ([0-9a-f]{12,40})/.exec(`${submitted.out}${submitted.err}`) ?? [];
+    assert.ok(composedCommit, `submit names the composed commit: ${submitted.out}${submitted.err}`);
+    assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', composedCommit).split(' '), [before[1].head, trunk], 'the composed commit merges the builder source with the exact trunk tip');
     assert.deepEqual({ status: composed.status, staged: composed.staged, work: composed.work, result: composed.result },
       { status: before[1].status, staged: before[1].staged, work: before[1].work, result: before[1].result }, 'the composed builder checkout is clean and keeps its content');
     const after = [checkoutState(box, box.repo), composed];
