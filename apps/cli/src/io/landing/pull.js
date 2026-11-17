@@ -36,6 +36,7 @@ import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
+import { wakeRunnerForOffer } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { landingShardGate } from '../submit/pull.js';
 import { openLandJobs } from './waiting.js';
@@ -192,7 +193,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const remote = configured ?? root;
   // A trunk remote of record that is a checkout here with trunk checked out (pb-trunk links to this one) takes its push in place [C7,#7951].
   const intoCheckout = Boolean(configured) && trunkCheckedOut(configured, root, trunkRef(root));
-  return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
+  const result = await (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
@@ -265,4 +266,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       return { offered: jobs[0], items: free.map(entry => entry.id), waiting: false, ...(jobs.length > 1 ? { jobs } : {}), ...(forced ? { forced } : {}) };
     });
   });
+  // The offer is committed: with runners.localWake on, an idle local runner claims it now, not at its next poll [C7,#10409].
+  if (result?.offered && hosted) wakeRunnerForOffer();
+  return result;
 }
