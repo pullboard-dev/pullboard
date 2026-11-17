@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { registryStrictEnabled as registryStrict } from '../../../packages/config/index.js';
 
-const TITLE_ID = /^test\('([^':\s]+): /gmu;
+/** An ID is dotted (cli.area.slug); other `word:` titles in this wide cell are not IDs. */
+const TITLE_ID = /^test\('([a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+): /gmu;
 const TESTS = /^test\(/gmu;
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
@@ -50,7 +51,7 @@ test('cli.stable.complete: clause 1: [C7,U148] every registered test has a stabl
   const { ids, findings } = registryFindings(files, records);
   assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
   // A file that already carries an ID title is covered: it may not leave one test without an ID or record, strict mode or not.
-  const covered = files.filter(({ source }) => /^test\('[^':\s]+: /mu.test(source));
+  const covered = files.filter(({ source }) => /^test\('[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+: /mu.test(source));
   const uncoveredInCovered = findings.filter((finding) => covered.some(({ file }) => finding.startsWith(`${file}:`)));
   assert.deepEqual(uncoveredInCovered, [], 'a covered file leaves a test without an ID or record');
   const outcome = registryOutcome(findings, registryStrict());
