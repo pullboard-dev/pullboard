@@ -2,6 +2,8 @@
 
 /** Language to a function from a case row ({ classname, file }) to a repo-relative path, or null when it cannot say. */
 export const JUNIT_FILE_ROWS = {
+  // rspec_junit_formatter writes classname as the dotted spec path (spec.calc_spec) and usually a file attribute too.
+  ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
@@ -51,6 +53,8 @@ export const JUNIT_FILE_ROWS = {
     const name = (row.classname ?? '').split(/[\\.]/u).pop();
     return name ? `tests/${name}.php` : null;
   },
+  // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
+  perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
 };
 
 /**

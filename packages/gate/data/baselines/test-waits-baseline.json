@@ -2,7 +2,7 @@
   "docs/shots/capture-browser.test.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/baseline/check.test.js": {
+  "apps/cli/journeys/baseline/check-part2.test.js": {
     "sleep": 1
   },
   "packages/gate/tests/io/browser/admission/resources.test.js": {
@@ -223,7 +223,7 @@
   "apps/relay/tests/fixtures/relay-phone-fixture.js": {
     "sleep": 1
   },
-  "apps/cli/journeys/relay/main-pairing.test.js": {
+  "apps/cli/journeys/relay/main-pairing-part2.test.js": {
     "sleep": 2
   },
   "apps/cli/tests/fixtures/init/shards.js": {

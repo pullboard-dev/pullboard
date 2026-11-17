@@ -957,6 +957,17 @@ export function setClauseInspection(enabled) {
   return next;
 }
 
+/**
+ * Turn runners.localWake on or off, keeping every other machine setting.
+ * Why a writer: the key is stored flat ("runners" is the runner list), so setPersonSetting's nested path cannot write it [C7,#10418].
+ */
+export function setLocalWake(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'runners.localWake must be true or false');
+  const next = { ...loadMachineSettings(), 'runners.localWake': enabled };
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Opt in to runner slots computed from each runner's measured cores and memory, preserving other gate settings. */
 export function setGateMeasuredSlots(enabled) {
   if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.measuredSlots must be true or false; run pullboard settings gate.measuredSlots on|off');
