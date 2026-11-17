@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit.js';
+import { junitCommand as lightJunitCommand } from '../../light.js';
 
-const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'maven', 'node', 'php', 'python', 'ruby', 'rust', 'swift'];
-const TOOL_FOLDERS = { gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };
+const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'maven', 'node', 'php', 'python', 'ruby', 'rust', 'sbt', 'swift'];
+const TOOL_FOLDERS = { sbt: 'target/test-reports', gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };
 const NEEDS = ['csharp', 'elixir', 'go', 'ruby', 'rust'];
 
 test('gate.junit-commands.rows: clause 1: junitCommand returns command, report and needs for every detected language, the report under .pullboard/junit or the tool folder [C7]', () => {
@@ -39,4 +40,16 @@ test('gate.junit-commands.needs: clause 3: rows that need an extra package name 
     if (NEEDS.includes(language)) assert.match(needs, named[language], `${language} names its package`);
     else assert.equal(needs, null, `${language} needs nothing extra`);
   }
+});
+
+test('gate.junit-commands.sbt-row: clause 1: junitCommand(sbt) returns its report command and needs, and JUNIT_LANGUAGES includes sbt [C7]', () => {
+  const row = junitCommand('sbt');
+  assert.equal(row.command, 'sbt test');
+  assert.equal(row.report, 'target/test-reports');
+  assert.equal(row.needs, null);
+  assert.ok(JUNIT_LANGUAGES.includes('sbt'));
+});
+
+test('gate.junit-commands.sbt-door: clause 2: junitCommand(sbt) from the gate light door returns the same row init reads [C7]', () => {
+  assert.deepEqual(lightJunitCommand('sbt'), junitCommand('sbt'));
 });
