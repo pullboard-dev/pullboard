@@ -5,9 +5,9 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import * as store from '../../../index.js';
-import { openCellBoard as openBoard } from '../cell.js';
-import { runFixtureGit } from '../cell.js';
+import * as store from '../../../../store/index.js';
+import { openBoard } from '../board.js';
+import { git } from '../../../../git/light.js';
 import { NEXT_IDLE_ENGINE } from '../../../../state/light.js';
 
 export const BASE = Date.parse('2026-10-10T00:00:00Z');
@@ -42,7 +42,7 @@ export function entries() {
 /** Import only native event rows into a real private board, leaving all mutable item rows open. */
 export function fixture(t, changes = entries()) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-stats-compare-')));
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
+  git(root, ['init', '-q', '-b', 'main']);
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
   const clock = { now: () => new Date(at(120)) };

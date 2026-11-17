@@ -9,18 +9,18 @@ const COMMIT = 'a'.repeat(40);
 const cause = { key: 'test:x.test.js::fails', items: [{ id: 12, commits: [COMMIT] }, { id: 30, commits: [] }], occurrences: 2, neverAgain: false };
 const stored = `Review how to prevent repeats. Source: ${automaticRigorSource(cause, [5, 6])}`;
 
-test('the trailing rigor-auto source becomes one readable line naming key, count and items [D1]', () => {
+test('store.logic-board-rigor-readable.the-trailing-rigor-auto-source-becomes: the trailing rigor-auto source becomes one readable line naming key, count and items [D1]', () => {
   const shown = readableRigorText(stored);
   assert.equal(shown, 'Review how to prevent repeats. Source: Rigor evidence for test:x.test.js::fails, 2 occurrences across #12, #30.');
   assert.equal(shown.includes('%7B'), false);
 });
 
-test('other text is returned unchanged [D1]', () => {
+test('store.logic-board-rigor-readable.other-text-is-returned-unchanged: other text is returned unchanged [D1]', () => {
   for (const text of ['A plain row.', 'A row. Source: rigor-auto:%7Bnot-valid', 'Source: elsewhere', '']) assert.equal(readableRigorText(text), text);
   assert.equal(readableRigorText(undefined), undefined);
 });
 
-test('the stored text is untouched and still parses with the existing reader [S1]', () => {
+test('store.logic-board-rigor-readable.the-stored-text-is-untouched-and: the stored text is untouched and still parses with the existing reader [S1]', () => {
   const before = stored;
   readableRigorText(stored);
   assert.equal(stored, before);

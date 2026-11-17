@@ -34,7 +34,7 @@ function jobRows(board) {
   };
 }
 
-test('clause 1: an export without the job tables imports into a board that has them [C7]', (t) => {
+test('store.io-exchange.an-export-without-the-job-tables: clause 1: an export without the job tables imports into a board that has them [C7]', (t) => {
   const source = fixtureBoard(t);
   const document = exportWithoutJobTables(source);
   assert.equal(Object.hasOwn(document.tables, 'job'), false);
@@ -45,7 +45,7 @@ test('clause 1: an export without the job tables imports into a board that has t
   assert.deepEqual(jobRows(target), { job: [], job_step: [] }, 'the left-out job tables import as empty');
 });
 
-test('clause 1: an export missing any other table, or with an extra table, still refuses IMPORT_SCHEMA [C7]', (t) => {
+test('store.io-exchange.an-export-missing-any-other-table: clause 1: an export missing any other table, or with an extra table, still refuses IMPORT_SCHEMA [C7]', (t) => {
   const source = fixtureBoard(t);
   const missing = exportWithoutJobTables(source);
   delete missing.tables.item;
@@ -55,7 +55,7 @@ test('clause 1: an export missing any other table, or with an extra table, still
   assert.throws(() => importBoard(fixtureBoard(t), extra), (error) => error.code === 'IMPORT_SCHEMA');
 });
 
-test('clause 2: an export from a board with job tables round-trips [C7]', (t) => {
+test('store.io-exchange.an-export-from-a-board-with: clause 2: an export from a board with job tables round-trips [C7]', (t) => {
   const source = fixtureBoard(t);
   seedJob(source);
   const document = exportBoard(source);
@@ -66,7 +66,7 @@ test('clause 2: an export from a board with job tables round-trips [C7]', (t) =>
   assert.deepEqual(jobRows(target), jobRows(source), 'job and job_step rows survive export and import');
 });
 
-test('clause 1: an empty-job export lists no job tables [C7]', (t) => {
+test('store.io-exchange.an-empty-job-export-lists-no: clause 1: an empty-job export lists no job tables [C7]', (t) => {
   const source = fixtureBoard(t);
   const document = exportBoard(source);
   assert.equal(Object.hasOwn(document.tables, 'job'), false, 'an empty job table is left out');

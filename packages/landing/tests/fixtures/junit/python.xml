@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand-written in the shape of: pytest --junitxml=report.xml (xunit2, the default family).
+     Case names read "clause N: ..." as a conftest hook that sets item.name would write them. No tool is needed to read it. -->
+<testsuites name="pytest tests">
+  <testsuite name="pytest" errors="0" failures="1" skipped="1" tests="3" time="0.021" timestamp="2026-11-17T12:00:00.000000" hostname="runner">
+    <testcase classname="tests.test_math" name="clause 1: adds two numbers" time="0.001"/>
+    <testcase classname="tests.test_math" name="clause 2: halves a number" time="0.002">
+      <failure message="assert 1 == 2">def test_half():
+&gt;       assert half(4) == 2
+E       assert 1 == 2
+tests/test_math.py:9: AssertionError</failure>
+    </testcase>
+    <testcase classname="tests.test_math" name="clause 3: later" time="0.000">
+      <skipped type="pytest.skip" message="not yet">tests/test_math.py:14: not yet</skipped>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -55,7 +55,7 @@ function proof(fx, hits) {
   return { status: ran.status, text, refused };
 }
 
-test('clause 1: a selection reused from the ledger gets a verdict with each file counted from its result, never TEST_SELECTION_UNVERIFIED [C7,#7937]', { timeout: 300_000 }, // budget: key two files, run them, then reuse them.
+test('gate.io-test-action-account.a-selection-reused-from-the-ledger: clause 1: a selection reused from the ledger gets a verdict with each file counted from its result, never TEST_SELECTION_UNVERIFIED [C7,#7937]', { timeout: 300_000 }, // budget: key two files, run them, then reuse them.
 async t => {
   const fx = fixture(t), hits = await ledgerHitFile(fx);
   // An empty store holds no outcome for the ledger's hits: the files run, so their account is real.
@@ -69,7 +69,7 @@ async t => {
   assert.equal(second.refused, null, `a wholly reused selection keeps its account: ${second.refused?.message}`);
 });
 
-test('clause 2: resubmitting the same commit twice gives the same green verdict [C7,#7937]', { timeout: 300_000 }, // budget: key two files, run them three times.
+test('gate.io-test-action-account.resubmitting-the-same-commit-twice-gives: clause 2: resubmitting the same commit twice gives the same green verdict [C7,#7937]', { timeout: 300_000 }, // budget: key two files, run them three times.
 async t => {
   const fx = fixture(t), hits = await ledgerHitFile(fx);
   const verdicts = [proof(fx, hits), proof(fx, hits), proof(fx, hits)].map(run => ({ status: run.status, refused: run.refused?.code ?? null }));
