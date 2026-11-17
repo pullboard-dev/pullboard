@@ -1,5 +1,4 @@
 /** The view's sign-in names each excluded board and the exact command that relinks it, and says nothing for a board that is not excluded [H5,H17]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { relayNoticeMarkup } from '../../src/logic/notice.js';

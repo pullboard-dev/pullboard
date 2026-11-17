@@ -1,5 +1,4 @@
 /** The hosted sidebar merges local and relay boards by machine name, with no duplicates [N26,H5]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mergeBoards } from '../../src/logic/hosted.js';

@@ -1,5 +1,4 @@
 /** The view filters the item list and roadmap by a typed field, and clearing the filter restores everything [C7,#1321]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { selectItemsView } from '../../src/logic/selection.js';

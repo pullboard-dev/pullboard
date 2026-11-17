@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/logic/needs/summary.js apps/view/src/logic/resume.js */
 /** @pullboard-world-pin reads the two summary sources to prove neither imports the person package. */
 /** The needs summary takes an injected passkey decision, and only the io wrappers bind the person's [N26]. */
 import assert from 'node:assert/strict';
