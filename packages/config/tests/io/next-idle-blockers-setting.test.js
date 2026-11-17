@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'next.idleBlockers'));
 }
 
-test('clause 1: next.idleBlockers is in the settings inventory with default false [C7,#2958]', () => {
+test('config.io-next-idle-blockers-setting.clause-1-next-idleblockers-is-in-the: clause 1: next.idleBlockers is in the settings inventory with default false [C7,#2958]', () => {
   const unset = row({});
   assert.ok(unset, 'the inventory lists next.idleBlockers');
   assert.equal(unset.default, false);
@@ -33,7 +33,7 @@ test('clause 1: next.idleBlockers is in the settings inventory with default fals
   assert.equal(unset.origin, 'default');
 });
 
-test('clause 2: next.idleBlockers has a described row that pullboard settings prints [C7,#2958]', () => {
+test('config.io-next-idle-blockers-setting.clause-2-next-idleblockers-has-a: clause 2: next.idleBlockers has a described row that pullboard settings prints [C7,#2958]', () => {
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /waiting items/u);

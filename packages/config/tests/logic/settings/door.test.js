@@ -9,11 +9,11 @@ import { machineSettingsFile } from '../../../../resources/index.js';
 import { DEFAULT_QUEUE_AGING_MINUTES } from '../../../../queue/index.js';
 import { gateQueueSettings } from '../../../index.js';
 
-test('[O5,C7] the config cell resolves the machine settings file the queue cell is handed', () => {
+test('config.logic-settings-door.the-config-cell-resolves-the-machine: [O5,C7] the config cell resolves the machine settings file the queue cell is handed', () => {
   assert.equal(machineSettingsFile(), join(machineHome(), 'settings.json'));
 });
 
-test('[O5,O6] the settings front door still reads the machine home settings file', () => {
+test('config.logic-settings-door.the-settings-front-door-still-reads-the: [O5,O6] the settings front door still reads the machine home settings file', () => {
   const files = privateFixtureFiles('pullboard-queue-port-');
   files.write('settings.json', JSON.stringify({ gate: { queue: { reviewsFirst: true, agingMinutes: 12 } } }));
   files.write('empty/.keep', '');
