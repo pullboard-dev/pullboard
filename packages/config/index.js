@@ -133,6 +133,7 @@ export {
   commitOnApplyEnabled,
   reofferTrunkBusyEnabled,
   archiveEventsEnabled,
+  hotStateEnabled,
   codeStampCacheEnabled,
   reuseContractResultsEnabled,
   reuseGateReceiptsEnabled,
