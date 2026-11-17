@@ -53,7 +53,7 @@ function scratch(t) {
   return dir;
 }
 
-test('current code opens the 0.9.3 board and replays its recorded moves with identical results [R4,I1]', t => {
+test('cli.journeys-upgrade-previous-release.current-code-opens-the-0-9: current code opens the 0.9.3 board and replays its recorded moves with identical results [R4,I1]', t => {
   const file = join(scratch(t), 'board.sqlite');
   copyFileSync(join(FIXTURE, 'board.sqlite'), file);
   const recorded = JSON.parse(readFileSync(join(FIXTURE, 'moves.json'), 'utf8'));
@@ -143,7 +143,7 @@ function project(t) {
 /** One shell-free command line split on spaces: a refusal's `Run:` step is a plain command. */
 const words = line => line.trim().split(/\s+/u);
 
-test('a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', async t => {
+test('cli.journeys-upgrade-previous-release.a-seat-commits-through-the-hooks: a seat commits through the hooks 0.9.3 installed, or is told one command that clears it from its worktree [R4,I1]', async t => {
   const box = project(t);
   writeFileSync(join(box.worktree, 'src/web/index.js'), "export const y = 1;\nexport function footer() { return '<p>bye</p>'; }\n");
   assert.equal(box.git(box.worktree, 'add', '-A').status, 0);
@@ -160,7 +160,7 @@ test('a seat commits through the hooks 0.9.3 installed, or is told one command t
   assert.equal(committed.status, 0, committed.stderr + committed.stdout);
 });
 
-test('doctor on the upgraded board ends clean after the steps it names [R4,A5]', async t => {
+test('cli.journeys-upgrade-previous-release.doctor-on-the-upgraded-board-ends: doctor on the upgraded board ends clean after the steps it names [R4,A5]', async t => {
   const box = project(t);
   const repairs = problems => problems.map(problem => /^(?:run )?(pullboard [^;\n]+)/u.exec(problem.next ?? '')?.[1]).filter(Boolean);
   const found = await box.cli(box.repo, box.coordinator, 'doctor', '--json');

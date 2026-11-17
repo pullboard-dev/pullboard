@@ -6,7 +6,10 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/index.js';
 import { NEXT_STEPS } from '../../src/logic/step/words.js';
-import { successfulNext } from '../../../../packages/config/index.js';
+import {
+  SEAT_LOOP,
+  successfulNext,
+} from '../../../../packages/config/index.js';
 import { requireManualLanding } from '../../../../packages/merge/index.js';
 import {
   fixture,
@@ -36,6 +39,11 @@ test('clause 1: defaults, move refusals and the init loop never suggest a timed 
     assert.doesNotMatch(error.next, /--wait|\bwait\b/iu);
     return true;
   });
+});
+
+test('clause 1: worker loop step 2 says next printed the bar and show is for thread and history [N41,C7]', () => {
+  assert.match(SEAT_LOOP, /\n2\. .next. printed your bar; .pullboard show <id>. only for the thread and history\.\n/u);
+  assert.doesNotMatch(SEAT_LOOP, /your bar, frozen at claim/u);
 });
 
 test('native held item and lane claim messages offer work without telling the seat to wait [N42,C7]', async t => {
