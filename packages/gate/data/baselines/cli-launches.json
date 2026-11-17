@@ -449,9 +449,6 @@
   "packages/landing/tests/io/docs.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/speed/spawns-client.test.js": {
-    "launch": 3
-  },
   "apps/cli/journeys/lifecycle/chart.test.js": {
     "launch": 10
   },
@@ -540,9 +537,6 @@
     "launch": 1
   },
   "apps/cli/journeys/submit/wire.test.js": {
-    "launch": 1
-  },
-  "apps/cli/journeys/speed/spawns-freeze.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/relay/hosted/boards.test.js": {
@@ -1309,9 +1303,6 @@
   },
   "apps/cli/journeys/fact/main/comparison/checkout.test.js": {
     "launch": 1
-  },
-  "apps/cli/journeys/status/counts.test.js": {
-    "launch": 3
   },
   "apps/cli/journeys/bar/session.test.js": {
     "launch": 2
