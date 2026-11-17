@@ -15,6 +15,8 @@ function gateRows(box) {
 
 test('clause 1: a submit leaves exactly one gate job row for the item, through the pull path [C7,V4,#6489]', async t => {
   const box = fixture(t);
+  // The submit must not wait for the held gate to settle, or it would never return before the release file is written.
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   // The gate holds on its release file, so the count is read while the one job is still the item's whole gate history.
   assert.equal(gateRows(box).length, 0, 'no gate job exists before the submit');
   const queued = document(await box.runLocal(box.web, 'submit', String(box.id), '--no-next', '--json'));
