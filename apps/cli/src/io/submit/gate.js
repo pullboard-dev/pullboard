@@ -96,7 +96,7 @@ process.exitCode = status;
 export const ANALYSIS_ENTRY = `import * as items from './packages/items/index.js';
 import * as gate from './packages/gate/index.js';
 import * as landing from './packages/landing/index.js';
-import * as cellsCache from './packages/codemap/src/io/cells/scripts/cache.js';
+import * as cellsCache from './apps/cli/src/io/cells/cache.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
