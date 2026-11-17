@@ -143,6 +143,38 @@ export function fetchItem(root, remote, entry) {
   return commit === entry.commit ? { moved: null } : { moved: `${entry.ref} is at ${commit.slice(0, 12)}, not the accepted ${entry.commit.slice(0, 12)}` };
 }
 
+/**
+ * Run git fetch with the async spawn, so the event loop (the lease renewal, the stall watch) keeps running while it works.
+ * Why: one synchronous fetch on a cold workdir outlasts the 2-minute lease, and git blocks the process that spawned it [C7,#9516].
+ */
+function fetchAsync(root, args) {
+  return new Promise(resolve => {
+    const { GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE, ...env } = process.env;
+    let stderr = '', child;
+    try { child = spawn('git', ['-C', root, 'fetch', '--no-tags', '--quiet', ...args], { stdio: ['ignore', 'ignore', 'pipe'], env }); }
+    catch (error) { resolve({ status: 1, stderr: String(error.message) }); return; }
+    child.stderr.on('data', chunk => { if (stderr.length < 4000) stderr += chunk.toString('utf8'); });
+    child.on('error', error => resolve({ status: 1, stderr: String(error.message) }));
+    child.on('close', code => resolve({ status: code ?? 1, stderr: stderr.trim() }));
+  });
+}
+
+/** fetchTrunk without blocking the event loop, behind landing.asyncFetch [C7,#9516]. */
+export async function fetchTrunkAsync(root, remote, trunk) {
+  const fetched = await fetchAsync(root, [remote, `+${trunk}:${TRUNK_CACHE}`, RELEASE_TAGS]);
+  if (fetched.status !== 0) throw new Error(`git fetch of ${trunk} failed: ${fetched.stderr.slice(0, 300)}`);
+  return must(root, ['rev-parse', '--verify', `${TRUNK_CACHE}^{commit}`]);
+}
+
+/** fetchItem without blocking the event loop, behind landing.asyncFetch [C7,#9516]. */
+export async function fetchItemAsync(root, remote, entry) {
+  const local = `refs/pullboard/landing/item/${entry.id}`;
+  const fetched = await fetchAsync(root, [remote, `+${entry.ref ?? entry.commit}:${local}`]);
+  if (fetched.status !== 0) return { moved: `the trunk remote does not serve ${entry.ref ?? entry.commit}` };
+  const commit = tryGit(root, ['rev-parse', '--verify', `${local}^{commit}`]).stdout;
+  return commit === entry.commit ? { moved: null } : { moved: `${entry.ref} is at ${commit.slice(0, 12)}, not the accepted ${entry.commit.slice(0, 12)}` };
+}
+
 /** The spec ids an item's own subject cites: the merge's fallback for a job offered without a landing message. */
 export function citedIds(root, commit) {
   const subject = tryGit(root, ['log', '-1', '--format=%s', commit]).stdout;
@@ -413,8 +445,11 @@ function firstMerges(root, base, tip, pending, squash = false) {
  *   returned: { id: number, reason: 'red' | 'conflict' | 'hook', detail: string }[] }>} returned: the items the board sends back to their builders, or parks
  *   under separate publish (payload.publish), as 0.9.3's landing did; a red outcome lands nothing.
  */
-export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null, clock = Date.now, stallPollMs = 1000 }) {
+export async function runLandingJob(payload, { workdir, checks = null, renew = () => true, attempts = PUSH_ATTEMPTS, pushOptions = () => [], env = process.env, diagnose = null, shards = null, clock = Date.now, stallPollMs = 1000, asyncFetch = false }) {
   const { remote, trunk, expect, items } = payload;
+  // asyncFetch (landing.asyncFetch, off by default; the runner's caller reads the setting): the fetches below run without blocking the event loop, so the lease renews while they work [C7,#9516].
+  const fetchOne = (...args) => asyncFetch ? fetchItemAsync(...args) : fetchItem(...args);
+  const fetchTip = (...args) => asyncFetch ? fetchTrunkAsync(...args) : fetchTrunk(...args);
   if (Number.isSafeInteger(payload.shape) && payload.shape > LANDING_PAYLOAD_SHAPE) {
     // A plain coded error: this cell takes no kernel import, and the runner releases the job with this message, which names the code.
     throw Object.assign(new Error(`[LANDING_PAYLOAD_VERSION] land job payload shape ${payload.shape} is newer than this runner's code (shape ${LANDING_PAYLOAD_SHAPE}); next: update this runner's pullboard checkout and restart it`), { name: 'Refused', code: 'LANDING_PAYLOAD_VERSION' });
@@ -433,13 +468,13 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
   // while one runs, and a fetch pair longer than the 2-minute lease let five runners in a row claim #9180's job and drop it [C7,#9250].
   for (const entry of items) {
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner while it fetched the accepted items' });
-    const fetched = fetchItem(root, remote, entry);
+    const fetched = await fetchOne(root, remote, entry);
     if (fetched.moved) return done('item-moved', { detail: `#${entry.id}: ${fetched.moved}` });
   }
   for (let attempt = 1; attempt <= attempts; attempt++) {
     receipt.attempts = attempt;
     if (!await renew()) return done('lease-lost', { detail: 'the job\'s lease moved to another runner before it fetched trunk' });
-    const base = fetchTrunk(root, remote, trunk);
+    const base = await fetchTip(root, remote, trunk);
     if (base !== (receipt.base ?? expect)) receipt.moved.push(base);
     receipt.base = base;
     const already = items.filter(entry => tryGit(root, ['merge-base', '--is-ancestor', entry.commit, base]).status === 0).map(entry => entry.id);
@@ -508,7 +543,7 @@ export async function runLandingJob(payload, { workdir, checks = null, renew = (
     phases.push({ phase: 'push', ms: Date.now() - pushStart });
     if (pushed.status === 0) return done('landed', { trunk: tip, landed: pending.map(entry => entry.id), merges: firstMerges(root, base, tip, pending, squash), ...publishUpstream(root, { payload, trunk, tip, options: pushOptions() }) });
     // A refused push is a moved trunk only when trunk really moved; anything else is a push failure to report.
-    if (fetchTrunk(root, remote, trunk) === base) {
+    if (await fetchTip(root, remote, trunk) === base) {
       // A trunk hook's refusal gives every pending item back with the hook's words, as a red does [C7,P7].
       const hook = hookRefusal(pushed);
       if (hook) {

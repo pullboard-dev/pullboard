@@ -145,6 +145,7 @@ export {
   reuseContractResultsEnabled,
   parallelGatesEnabled,
   reuseGateReceiptsEnabled,
+  asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
   relayOfferEnabled,

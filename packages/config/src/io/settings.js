@@ -985,6 +985,11 @@ export function parallelGatesEnabled() {
   return loadMachineSettings().landing?.parallelGates === true;
 }
 
+/** Whether landing.asyncFetch is on (#9516): off by default; only an exact `true` turns it on. */
+export function asyncFetchEnabled() {
+  return loadMachineSettings().landing?.asyncFetch === true;
+}
+
 /** Whether landing.reuseGateReceipts is on (#9243): off by default; only an exact `true` turns it on. */
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
