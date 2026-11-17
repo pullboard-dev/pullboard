@@ -1,7 +1,7 @@
 {
   "version": 1,
   "cell": "store",
-  "baseSha256": "756a511919a04a59e823549a3573ae5c72f247b888eead8b4f6071787706b858",
+  "baseSha256": "e60e8c9e4fe3410326cfed17363ca6254b3462eed7a72e8e95edb341cd4b252f",
   "metrics": {
     "boundaries": {
       "remove": [],
@@ -10,5 +10,5 @@
       }
     }
   },
-  "sha256": "307bdaf699d3063cf044b92a9c50d6f376d6f421a7ee1455be7b40b20629aefd"
+  "sha256": "39781cf7ef2828f24867e02408dfaa156fe1126227aa6c9d31aefb8e611e92ba"
 }

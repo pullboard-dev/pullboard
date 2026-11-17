@@ -4,10 +4,8 @@
  */
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
-import {
-  runFixtureExecFile as execFileSync,
-  runFixtureChild,
-} from '../../tests/fixtures/child.js';
+import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import {
   appendFileSync,
   mkdirSync,
@@ -34,7 +32,10 @@ import {
   frozenCriterion,
   loadSpec,
 } from '../../../../packages/spec/index.js';
-import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import {
+  createE2eHelpers,
+  journeyCall,
+} from '../../tests/fixtures/e2e.js';
 import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
@@ -216,8 +217,9 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
     store.closeBoard(board);
   }
 
-  const run = (...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
-  const plain = run('show', '1');
+  // In this process by default, or the real CLI under PULLBOARD_JOURNEY_MODE=process so the gate's parity check can compare the two [C7].
+  const run = (...args) => journeyCall({ dir, env, cwd: repo, args, bin: BIN, inProcess: () => runCliInProcess(args, { cwd: repo, env }) });
+  const plain = await run('show', '1');
   assert.equal(plain.status, 0, plain.stderr);
   const verdictLines = plain.stdout.split('\n').filter((line) => /^(REJECT|ACCEPT) /.test(line));
   assert.deepEqual(verdictLines.slice(0, 2), [
@@ -230,21 +232,21 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
   }
   assert.match(plain.stdout, /every note in full: pullboard show 1 --history/);
 
-  const history = run('show', '1', '--history');
+  const history = await run('show', '1', '--history');
   assert.equal(history.status, 0, history.stderr);
   for (const note of NOTES) assert.ok(history.stdout.includes(note), `--history prints: ${note.slice(0, 40)}`);
   assert.doesNotMatch(history.stdout, /earlier verdicts shortened/);
   assert.ok(plain.stdout.length < history.stdout.length, 'the plain output is the shorter one');
 
-  const json = JSON.parse(run('show', '1', '--json').stdout);
+  const json = JSON.parse((await run('show', '1', '--json')).stdout);
   assert.deepEqual(json.verdicts.map((verdict) => verdict.verdict_note), NOTES, '--json carries every note in full');
 
-  const whole = run('show', '2');
+  const whole = await run('show', '2');
   assert.equal(whole.status, 0, whole.stderr);
   assert.ok(whole.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at dddddddddddd: ${EXACT}\n`), 'a first line of exactly 120 characters is printed whole');
   assert.doesNotMatch(whole.stdout, /earlier verdicts shortened/, 'no hint when no earlier note was shortened');
 
-  const breaks = run('show', '3');
+  const breaks = await run('show', '3');
   assert.equal(breaks.status, 0, breaks.stderr);
   Object.keys(BREAKS).forEach((name, round) => {
     assert.ok(breaks.stdout.includes(`REJECT TEST_FAILURE by web-2 (unknown) at ${String(round + 1).repeat(12)}: Break ${name} first.\n`), `${name} ends the first line`);

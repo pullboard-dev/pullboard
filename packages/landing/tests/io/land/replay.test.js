@@ -11,7 +11,7 @@ const gate = (isGreen, failures = []) => ({ commit: sha('a'), isGreen, submissio
 const batch = (id, gates, extra = {}) => ({ version: 1, id, state: 'blocked', items: [{ id: 7, commit: sha('b') }, { id: 8, commit: sha('c') }],
   updatedAt: '2026-11-05T10:00:00.000Z', invariantEvidence: { version: 1, gates, diagnostics: [] }, ...extra });
 
-test('clause 1: land --replay decides land, bisect, known-main and hold from recorded gates [C7]', () => {
+test('landing.replay.land-replay-decides-land-bisect-known: clause 1: land --replay decides land, bisect, known-main and hold from recorded gates [C7]', () => {
   assert.equal(replayBatch(batch('g', [gate(true)])).decision, 'land');
   const red = replayBatch(batch('r', [gate(false, ['test/a.test.js'])]));
   assert.equal(red.decision, 'bisect to culprits');
@@ -24,7 +24,7 @@ test('clause 1: land --replay decides land, bisect, known-main and hold from rec
   assert.equal(replayBatch(batch('n', [])).decision, 'hold');
 });
 
-test('clause 2: land --replay reads 50 batches in under 5 s, starts nothing and leaves the board unchanged [C7]', { timeout: 5000 }, t => {
+test('landing.replay.land-replay-reads-50-batches-in: clause 2: land --replay reads 50 batches in under 5 s, starts nothing and leaves the board unchanged [C7]', { timeout: 5000 }, t => {
   const board = fixtureBoard(t);
   for (let index = 0; index < 50; index++) {
     store.logEvent(board, 'coordinator', 'landing_batch', null, { batch: batch(`b${index}`, [gate(index % 2 === 0, index % 2 ? ['test/a.test.js'] : [])],
