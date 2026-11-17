@@ -26,7 +26,7 @@ import {
   landingFlakeRatchet,
 } from '../../../../packages/flakes/index.js';
 
-test('a real landing no longer refuses a newly observed unquarantined flake: reds never hold the trunk [C7,T12]', async t => {
+test('cli.journeys-merged-ratchet-landing.a-real-landing-no-longer-refuses: a real landing no longer refuses a newly observed unquarantined flake: reds never hold the trunk [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -55,7 +55,7 @@ test('a real landing no longer refuses a newly observed unquarantined flake: red
 });
 
 /** Two actual landings retain a falling, named quarantine count in their batch receipts. */
-test('real landings record the quarantine baseline and lower it after repair [C7,T12]', { skip: 'CONTROLLER_ONLY: the pulled land receipt carries no batch.flakeRatchet (the host batch step went with #6813, lander-v2 L1); the manual merged case below still records the count' }, async t => {
+test('cli.journeys-merged-ratchet-landing.real-landings-record-the-quarantine-baseline: real landings record the quarantine baseline and lower it after repair [C7,T12]', { skip: 'CONTROLLER_ONLY: the pulled land receipt carries no batch.flakeRatchet (the host batch step went with #6813, lander-v2 L1); the manual merged case below still records the count' }, async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -91,7 +91,7 @@ test('real landings record the quarantine baseline and lower it after repair [C7
 });
 
 /** A manual merged receipt records the count even if a current flake would block a fresh publication. */
-test('manual merged records quarantine count without refusing historical publication [C7,T12]', async t => {
+test('cli.journeys-merged-ratchet-landing.manual-merged-records-quarantine-count-without: manual merged records quarantine count without refusing historical publication [C7,T12]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
@@ -124,7 +124,7 @@ test('manual merged records quarantine count without refusing historical publica
 });
 
 /** The ordered writer rejects a stale snapshot before storing a batch, then seals publication. */
-test('landing batch recording fences flake events and preserves the published snapshot [C7,T12]', t => {
+test('cli.journeys-merged-ratchet-landing.landing-batch-recording-fences-flake-events: landing batch recording fences flake events and preserves the published snapshot [C7,T12]', t => {
   const { board } = boardFixture();
   t.after(() => closeBoard(board));
   const boundary = events(board).at(-1).event_id;
@@ -159,7 +159,7 @@ function backfillFixture(t) {
 }
 
 /** A flake proven on a tree that never runs again is filed by the next recorded run, so landing is not stuck on it. */
-test('a recorded gate run backfills quarantines for flakes proven on other trees since the last landing [C7,D1]', t => {
+test('cli.journeys-merged-ratchet-landing.a-recorded-gate-run-backfills-quarantines: a recorded gate run backfills quarantines for flakes proven on other trees since the last landing [C7,D1]', t => {
   const { board, receipt, tree } = backfillFixture(t);
   assert.deepEqual(landingFlakeRatchet(board).unprotected, [{ file: 'test/flaky.test.js', name: 'case' }]);
   const result = recordSealedGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' });
@@ -175,7 +175,7 @@ test('a recorded gate run backfills quarantines for flakes proven on other trees
 });
 
 /** Replay runs a move at its recorded engine: an older structured run must file nothing, so later ids stay as recorded. */
-test('an old-engine recorded gate run replays through the engine without backfill; a current one backfills [C7,H16]', t => {
+test('cli.journeys-merged-ratchet-landing.an-old-engine-recorded-gate-run: an old-engine recorded gate run replays through the engine without backfill; a current one backfills [C7,H16]', t => {
   for (const [engine, filed] of [[QUARANTINE_BACKFILL_ENGINE - 1, 0], [ENGINE_VERSION, 1]]) {
     const { board, receipt } = backfillFixture(t);
     const items = listItems(board, { all: true }).length, before = events(board).length;
