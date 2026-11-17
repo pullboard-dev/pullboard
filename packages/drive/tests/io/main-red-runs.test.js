@@ -13,7 +13,7 @@ const command = 'node --test';
 /** The ids of the job rows a database holds. */
 const jobs = db => db.prepare('SELECT job_id FROM job').all().map(row => row.job_id);
 
-test('clause 1: with a runs handle given (runs_store on), mainRedLookup and classifyGateRed write their main-test job rows only to the runs file [P7,C7,#9080]', t => {
+test('drive.main-red-runs.with-a-runs-handle-given: clause 1: with a runs handle given (runs_store on), mainRedLookup and classifyGateRed write their main-test job rows only to the runs file [P7,C7,#9080]', t => {
   const board = fixtureBoard(t);
   // A second database with the same job tables stands in for the runs file, held the way boardRunsHolder holds it.
   const runs = { db: fixtureBoard(t).db };
@@ -24,7 +24,7 @@ test('clause 1: with a runs handle given (runs_store on), mainRedLookup and clas
   assert.deepEqual(jobs(board.db), [], 'the board holds no main-test job row');
 });
 
-test('clause 2: with no runs handle (runs_store off), they write the same board job rows as on main [P7,C7,#9080]', t => {
+test('drive.main-red-runs.with-no-runs-handle-runs: clause 2: with no runs handle (runs_store off), they write the same board job rows as on main [P7,C7,#9080]', t => {
   const board = fixtureBoard(t);
   const lookup = mainRedLookup(board.db, [], { tree, file, command, now: 1000, runs: null });
   const classified = classifyGateRed(board.db, [], { tree, file: other, command, reds: ['x'], now: 2000 });

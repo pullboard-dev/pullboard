@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { secretsIn } from '../../../../commits/index.js';
 import { realpathSync } from 'node:fs';
 import { accountedFailures } from '../land.js';
+import { junitFailures } from '../../logic/junit-failures.js';
+import { junitFailureSignature } from '../../logic/junit-signature.js';
 import { failureSignature } from '../../../../gate/index.js';
 import { classifyMainRed } from '../../../../receipt/index.js';
 import { comparisonStatus } from '../../../../receipt/index.js';
@@ -98,16 +100,29 @@ export function cachedFailureSignatures(outcome, file) {
 }
 
 /**
+ * Signed rows for the failing cases of a JUnit report, or null when the report is damaged, names no failure, or a failing
+ * case has no file inside the root to sign. Why: a JUnit-only run has no Node diagnostics, so it could never be excused as
+ * main red; the caller reads landing.junitSignatures and passes it in, so this stays a plain move [C7].
+ */
+function junitSignedRows(xml, root) {
+  const { rows, code } = junitFailures(xml, root);
+  if (code || !rows.length) return null;
+  const signed = rows.map(row => ({ name: row.name, file: row.file, signature: junitFailureSignature(row, root) }));
+  return signed.every(row => row.signature) ? signed : null;
+}
+
+/**
  * Null means some process failure or diagnostic cannot be accounted for; it never authorizes acceptance.
  * With `evidence`, each row also carries its assertion line, expected and actual values and stderr, for the filer of a Main red (#3090);
  * rows compared for proof leave it off, because run-specific text must never take part in an equality.
  */
-export function failureSignatures(run, root, { raw = false, allowCancelled = false, evidence = false } = {}) {
+export function failureSignatures(run, root, { raw = false, allowCancelled = false, evidence = false, junitSignatures = false } = {}) {
   let executionRoot = run.executionRoot ?? root;
   if (!run.executionRunner) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
+  if (junitSignatures === true && typeof run.junitXml === 'string') return junitSignedRows(run.junitXml, executionRoot);
   const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict), allowCancelled });
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
