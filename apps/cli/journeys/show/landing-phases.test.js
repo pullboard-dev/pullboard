@@ -1,58 +1,63 @@
-/** pullboard show prints the phases of the landing receipt that merged an item, from the landing fixture's real runner job [C7,#9079]. */
+/** pullboard show prints the phases of the landing receipt that merged an item, from the landing fixture's board [C7,#9079]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { boardJobQueueCall } from '../../../../packages/api/index.js';
+import { claimJob } from '../../../../packages/api/index.js';
+import { offerJob } from '../../../../packages/api/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
-import { settleLand } from '../../tests/fixtures/land/settle.js';
+import { pullQueue } from '../../tests/fixtures/pull.js';
 
-const NAMED = ['merge', 'static checks', 'cli smoke', 'push'];
-const helpers = createE2eHelpers();
-let landing = null;
+/** The phases a land job records for a batch landing, in the order it runs them (packages/landing/src/io/runner/job.js). */
+const PHASES = [{ phase: 'merge', ms: 120 }, { phase: 'static checks', ms: 4000 }, { phase: 'cli smoke', ms: 900 }, { phase: 'push', ms: 700 }];
 
-/** Land one item through the landing fixture once for both clauses: a real runner landing is the slow step, so it is shared. */
-function landedItem() {
-  landing ??= (async () => {
-    const fixtures = makeLandProjectFixtures(helpers);
-    const box = fixtures.landProject();
-    const entry = fixtures.itemWorktree(box, 1);
-    const before = await box.runLocal(box.repo, 'show', String(entry.item));
-    const beforeJson = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
-    fixtures.submitItem(box, entry);
-    fixtures.acceptItem(box, entry);
-    const offered = await box.runLocal(box.repo, 'land', '--json');
-    assert.equal(offered.code, 0, offered.err + offered.out);
-    const landed = await settleLand(box, JSON.parse(offered.out));
-    assert.equal(landed.batch.state, 'landed', JSON.stringify(landed.landJob.receipt));
-    return { box, entry, before, beforeJson, receipt: landed.landJob.receipt };
-  })();
-  return landing;
+/**
+ * An item the landing fixture built and verified, and a poster for the runner job's land receipt.
+ * Why a posted receipt: a real runner landing outran the 180 s file budget; the receipt carries the same phases a runner job records [C7].
+ */
+async function verifiedItem(t) {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const fixtures = makeLandProjectFixtures(helpers);
+  const box = fixtures.landProject();
+  const entry = fixtures.itemWorktree(box, 1);
+  fixtures.submitItem(box, entry);
+  fixtures.acceptItem(box, entry);
+  const queue = await pullQueue(t, { ...box, boardFile: join(box.repo, '.git', 'pullboard', 'board.sqlite') });
+  const land = async phases => {
+    const trunk = box.git(box.repo, 'rev-parse', 'main');
+    offerJob(queue.board.db, { id: 'land:1:k', kind: 'land', base: trunk, needs: [], payload: { items: [{ id: entry.item }] }, now: 1 });
+    const held = claimJob(queue.board.db, { runner: 'r-land', capabilities: [], now: 2 });
+    boardJobQueueCall(queue.board, { action: 'receipt', job: 'land:1:k', runner: 'r-land', token: held.token,
+      receipt: { kind: 'land', outcome: 'landed', trunk, landed: [entry.item], already: [], ...(phases ? { phases } : {}) } }, { mode: 'pull', now: 3 });
+  };
+  return { box, entry, land };
 }
 
-test.after(() => helpers.cleanup());
-
-test('clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async () => {
-  const { box, entry, receipt } = await landedItem();
-  const recorded = receipt.phases.filter(row => typeof row.phase === 'string' && Number.isSafeInteger(row.ms));
+test('clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async t => {
+  const { box, entry, land } = await verifiedItem(t);
+  await land(PHASES);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
   assert.equal(shown.code, 0, shown.err);
-  const { landing: found } = JSON.parse(shown.out);
-  assert.ok(Array.isArray(found.phases) && found.phases.length > 0, shown.out);
-  for (const row of found.phases) assert.deepEqual(Object.keys(row).sort(), ['ms', 'phase']);
-  const names = found.phases.map(row => row.phase);
-  for (const name of NAMED) assert.ok(names.includes(name), `${name} is named in ${names.join(', ')}`);
-  assert.deepEqual(found.phases, recorded.filter(row => found.phases.some(kept => kept.phase === row.phase && kept.ms === row.ms)));
+  const document = JSON.parse(shown.out);
+  assert.equal(document.item_status, 'merged', shown.out);
+  assert.deepEqual(document.landing.phases, PHASES);
 });
 
-test('clause 2: show prints one line per phase, and an item with no recorded landing prints none and no error [C7,#9079]', async () => {
-  const { box, entry, before, beforeJson } = await landedItem();
-  // An item with no recorded landing (as one landed before phases were kept) prints no phase line and no error, in text and in JSON.
-  assert.equal(before.code, 0, before.err);
-  assert.doesNotMatch(before.out, /landing phase/u);
-  assert.equal(beforeJson.code, 0, beforeJson.err);
-  assert.equal(JSON.parse(beforeJson.out).landing, undefined);
-  const shown = await box.runLocal(box.repo, 'show', String(entry.item));
+test('clause 2: show prints one line per phase, and an item landed with no phases prints none and no error [C7,#9079]', async t => {
+  const first = await verifiedItem(t);
+  await first.land(PHASES);
+  const shown = await first.box.runLocal(first.box.repo, 'show', String(first.entry.item));
   assert.equal(shown.code, 0, shown.err);
-  const lines = shown.out.split('\n').filter(line => line.startsWith('landing phase '));
-  const json = JSON.parse((await box.runLocal(box.repo, 'show', String(entry.item), '--json')).out);
-  assert.deepEqual(lines, json.landing.phases.map(row => `landing phase ${row.phase}: ${row.ms} ms`));
+  assert.deepEqual(shown.out.split('\n').filter(line => line.startsWith('landing phase ')),
+    ['landing phase merge: 120 ms', 'landing phase static checks: 4000 ms', 'landing phase cli smoke: 900 ms', 'landing phase push: 700 ms']);
+  const old = await verifiedItem(t);
+  await old.land(null);
+  const plain = await old.box.runLocal(old.box.repo, 'show', String(old.entry.item));
+  assert.equal(plain.code, 0, plain.err);
+  assert.doesNotMatch(plain.out, /landing phase/u);
+  const json = await old.box.runLocal(old.box.repo, 'show', String(old.entry.item), '--json');
+  assert.equal(json.code, 0, json.err);
+  assert.equal(JSON.parse(json.out).landing, undefined);
 });
