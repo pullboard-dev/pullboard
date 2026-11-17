@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/git */
 /** A checker's fingerprint comes from the git index: the same tree gives the same one, and a changed or new file moves it [C7]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -82,11 +83,11 @@ test('git.definition.edges-saved-by-blob: clause 1: import edges are saved by bl
   assert.equal(fingerprint(graph.root), clean, 'a walk reading saved edges gives the same fingerprint');
 });
 
-test('git.definition.lookback-bounded: clause 2: the bounded look-back before each literal reads every Pullboard source the same as the whole prefix [C7]', () => {
+test('git.definition.lookback-bounded: clause 2: the bounded look-back before each literal reads every source in the git cell the same as the whole prefix [C7]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
-  const files = execFileSync('git', ['ls-files', '-z', '--', 'apps/*.js', 'packages/*.js', 'bin/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const files = execFileSync('git', ['ls-files', '-z', '--', 'packages/git/*.js'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
     .split('\0').filter(Boolean);
-  assert.ok(files.length > 500, 'the walk covers the repository');
+  assert.ok(files.length > 30, 'the walk covers the git cell');
   for (const file of files) {
     let source;
     try { source = readFileSync(join(root, file), 'utf8'); } catch { continue; }

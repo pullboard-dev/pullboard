@@ -27,8 +27,9 @@
  *
  * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
-import { isSourceCellLine } from '../affected/inputs.js';
-import { sourceCellPrefixes } from '../affected/inputs.js';
+import { declaresSource } from '../../logic/input-declaration.js';
+import { READ } from '../../logic/input-declaration.js';
+import { SOURCE_TREE_INPUT } from '../../logic/input-declaration.js';
 import {
   lex,
   lineAt,
@@ -38,34 +39,14 @@ import {
   walk,
 } from '../scan.js';
 
-const SOURCE_TREE_INPUT = '/** @pullboard-test-input source-tree */';
-const DECLARATIONS = new Set([SOURCE_TREE_INPUT, '// pullboard: browser', '/** @pullboard-test-input test-tree */', '/** @pullboard-test-input docs-tree */']);
-export const READ = /(?<![\w$])(?:readFileSync|readFile|readdirSync|readdir|opendirSync|opendir|createReadStream|cpSync|cp|copyFileSync|copyFile)\s*\(/u;
+export { declaresSource, READ };
+
 const ANCHOR = /(?<![\w$])import\s*\.\s*meta\s*\.\s*(?:url|dirname|filename)\b|(?<![\w$.])ROOT\b/u;
 const SOURCE_PATH = /(?:^|\/)src(?:\/|$)/u;
 // With tests.requireDeclaredInputs on, a path under tests/fixtures, data or docs is an input too [C7,#9801].
 const OUTSIDE_SRC_PATH = /(?:^|\/)(?:tests\/fixtures|data|docs)(?:\/|$)/u;
-// A header naming the exact files a test reads, such as `/** @pullboard-test-input packages/gate/src/io/run/slots.js */`, also declares it.
-const NAMED_INPUTS = /^\/\*\* @pullboard-test-input (?!source-tree \*\/$)\S.* \*\/$/u;
 const OPENERS = '([{';
 const CLOSERS = ')]}';
-
-/**
- * True when the file's leading declaration lines include the source-tree input, read as the
- * affected-test selection reads them.
- *
- * @param {string} source
- * @returns {boolean}
- */
-export function declaresSource(source) {
-  for (const line of source.split(/\r?\n/u)) {
-    if (line === SOURCE_TREE_INPUT) return true;
-    if (isSourceCellLine(line)) { if (sourceCellPrefixes(line) === null) return false; return true; }
-    if (NAMED_INPUTS.test(line)) return true;
-    if (!DECLARATIONS.has(line)) return false;
-  }
-  return false;
-}
 
 /** The offset of the innermost bracket that encloses `at` in blanked code, or -1. */
 function enclosing(code, at) {

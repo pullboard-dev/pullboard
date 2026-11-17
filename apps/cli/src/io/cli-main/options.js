@@ -174,6 +174,7 @@ const OPTIONS = {
   since: { type: 'string' },
   window: { type: 'string' },
   days: { type: 'string' },
+  against: { type: 'string' },
   compare: { type: 'boolean' },
   policy: { type: 'string' },
   decision: { type: 'boolean' },

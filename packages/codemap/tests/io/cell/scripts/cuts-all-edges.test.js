@@ -25,7 +25,7 @@ function runPlan(...args) {
   });
 }
 
-test('clause 2: --cuts-all reports none of the four hidden upward edges measured 31 Oct [C7,D3]', async () => {
+test('codemap.cuts-all-edges.cuts-all-reports-none-of: clause 2: --cuts-all reports none of the four hidden upward edges measured 31 Oct [C7,D3]', async () => {
   const swept = await runPlan('--cuts-all', ROOT);
   // The sweep itself ran: it names other findings, so an empty report cannot pass by never looking.
   assert.match(swept.stderr, / --cuts-all: /u, swept.stderr.slice(0, 400));

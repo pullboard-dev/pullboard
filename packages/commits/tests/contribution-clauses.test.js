@@ -64,7 +64,7 @@ function clauses(repo, entries, options = {}) {
   return runContributionClauses({ repo: repo.root, base: repo.base, head: repo.head, bar, check, scratch, allowlist: ALLOWLIST, ...options });
 }
 
-test('[CR3] one clause of each kind is proven on real commits: test, test kept, command and measurement', async t => {
+test('commits.contribution-clauses.one-clause-of-each-kind-is-proven-on: [CR3] one clause of each kind is proven on real commits: test, test kept, command and measurement', async t => {
   const repo = fixture(t);
   const report = await clauses(repo, [
     ['add returns the sum [test]', 'tests/add.test.js > adds two numbers'],
@@ -85,7 +85,7 @@ test('[CR3] one clause of each kind is proven on real commits: test, test kept, 
   assert.match(report.note, /not that it means what the clause says/u);
 });
 
-test('[CR3] a measurement over its threshold and a command that already passes on base both fail', async t => {
+test('commits.contribution-clauses.a-measurement-over-its-threshold-and-a: [CR3] a measurement over its threshold and a command that already passes on base both fail', async t => {
   const repo = fixture(t);
   const report = await clauses(repo, [
     ['size prints under 5 [measurement]', 'node scripts/size.js'],
@@ -97,7 +97,7 @@ test('[CR3] a measurement over its threshold and a command that already passes o
   assert.match(report.clauses[1].reason, /exits 0 on base too/u);
 });
 
-test('[CR3] none with a reason reports unverified, and a bare none is refused', async t => {
+test('commits.contribution-clauses.none-with-a-reason-reports-unverified: [CR3] none with a reason reports unverified, and a bare none is refused', async t => {
   const repo = fixture(t);
   const report = await clauses(repo, [
     ['the installer works on Windows [command]', 'none: Windows-only proof'],
@@ -109,7 +109,7 @@ test('[CR3] none with a reason reports unverified, and a bare none is refused', 
   assert.equal(report.clauses[1].refusal.code, 'CLAUSE_NONE_REASON');
 });
 
-test('[CR3] the cheats fail: an assert-true test, a load error, zero tests and a non-assertion throw', async t => {
+test('commits.contribution-clauses.the-cheats-fail-an-assert-true-test-a: [CR3] the cheats fail: an assert-true test, a load error, zero tests and a non-assertion throw', async t => {
   const repo = fixture(t);
   const report = await clauses(repo, [
     ['assert-true proves nothing [test]', 'tests/add.test.js > always true'],
@@ -131,7 +131,7 @@ test('[CR3] the cheats fail: an assert-true test, a load error, zero tests and a
   assert.match(report.clauses[2].reason, /zero tests/u);
 });
 
-test('[CR3] a kept test the PR edits runs as base wrote it and is flagged for review', async t => {
+test('commits.contribution-clauses.a-kept-test-the-pr-edits-runs-as-base: [CR3] a kept test the PR edits runs as base wrote it and is flagged for review', async t => {
   const repo = fixture(t, { 'src/greet.js': 'export function greet(name) { return `hello ${name}`; }\n',
     'tests/greet.test.js': "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { greet } from '../src/greet.js';\ntest('greets by name', () => { assert.equal(greet('ann'), 'hello ann'); });\n" });
   const [kept] = (await clauses(repo, [['greet still greets [test, kept]', 'tests/greet.test.js > greets by name']])).clauses;
@@ -140,7 +140,7 @@ test('[CR3] a kept test the PR edits runs as base wrote it and is flagged for re
   assert.match(kept.review, /goes to review/u);
 });
 
-test('[CR3] commands off the allowlist or holding shell syntax are refused before they run', async t => {
+test('commits.contribution-clauses.commands-off-the-allowlist-or-holding: [CR3] commands off the allowlist or holding shell syntax are refused before they run', async t => {
   const repo = fixture(t);
   const report = await clauses(repo, [
     ['remove things [command]', 'rm -rf src'],
@@ -155,7 +155,7 @@ test('[CR3] commands off the allowlist or holding shell syntax are refused befor
   ]);
 });
 
-test('[CR3] paths outside the repository are refused: absolute, "..", a leading dash and a symlink out', async t => {
+test('commits.contribution-clauses.paths-outside-the-repository-are-refused: [CR3] paths outside the repository are refused: absolute, "..", a leading dash and a symlink out', async t => {
   const outside = owned(t, 'pullboard-clauses-outside-');
   outside.write('escape.test.js', "import { test } from 'node:test';\ntest('escapes', () => { throw new Error('ran outside'); });\n");
   const repo = fixture(t, {}, root => symlinkSync(join(outside.root, 'escape.test.js'), join(root, 'tests', 'link.test.js')));
@@ -169,7 +169,7 @@ test('[CR3] paths outside the repository are refused: absolute, "..", a leading 
   assert.deepEqual(report.clauses.map(c => c.refusal?.code), ['CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH', 'CLAUSE_PATH'], JSON.stringify(report.clauses, null, 2));
 });
 
-test('[CR3] a command whose script is a symlink out of the repository is refused', async t => {
+test('commits.contribution-clauses.a-command-whose-script-is-a-symlink-out: [CR3] a command whose script is a symlink out of the repository is refused', async t => {
   const outside = owned(t, 'pullboard-clauses-outside-');
   outside.write('measure.js', 'console.log(1);\n');
   const repo = fixture(t, {}, root => {
@@ -180,7 +180,7 @@ test('[CR3] a command whose script is a symlink out of the repository is refused
   assert.equal(report.clauses[0].refusal?.code, 'CLAUSE_PATH', JSON.stringify(report.clauses, null, 2));
 });
 
-test('[CR3] a command option whose value is a symlink out of the repository is refused', async t => {
+test('commits.contribution-clauses.a-command-option-whose-value-is-a: [CR3] a command option whose value is a symlink out of the repository is refused', async t => {
   const outside = owned(t, 'pullboard-clauses-outside-');
   outside.write('hook.cjs', 'console.log(1);\n');
   const repo = fixture(t, {}, root => symlinkSync(join(outside.root, 'hook.cjs'), join(root, 'scripts', 'hook.cjs')));
@@ -188,7 +188,7 @@ test('[CR3] a command option whose value is a symlink out of the repository is r
   assert.equal(report.clauses[0].refusal?.code, 'CLAUSE_PATH', JSON.stringify(report.clauses, null, 2));
 });
 
-test('[CR3] Node is pinned: a runner whose node reports another version is refused before any clause runs', async t => {
+test('commits.contribution-clauses.node-is-pinned-a-runner-whose-node: [CR3] Node is pinned: a runner whose node reports another version is refused before any clause runs', async t => {
   const repo = fixture(t);
   await assert.rejects(clauses(repo, [['add returns the sum [test]', 'tests/add.test.js > adds two numbers']], { node: { version: 'v0.0.1' } }),
     error => error.code === 'CLAUSE_NODE_PIN' && error.message.includes('v0.0.1'));
@@ -197,7 +197,7 @@ test('[CR3] Node is pinned: a runner whose node reports another version is refus
   assert.equal(report.clauses[0].verdict, 'proven');
 });
 
-test('[CR3] the scratch folder must be empty and outside the repository, so nothing is written anywhere else', async t => {
+test('commits.contribution-clauses.the-scratch-folder-must-be-empty-and: [CR3] the scratch folder must be empty and outside the repository, so nothing is written anywhere else', async t => {
   const repo = fixture(t);
   const entry = [['add returns the sum [test]', 'tests/add.test.js > adds two numbers']];
   await assert.rejects(clauses(repo, entry, { scratch: repo.root }), error => error.code === 'CLAUSE_SCRATCH');

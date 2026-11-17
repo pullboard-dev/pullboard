@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/git */
 /** A detached review worktree at a commit the clone already holds [C7,#3091]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
