@@ -43,6 +43,6 @@ test('clause 1: the six sites in actions.js, render.js and menu.js call afterPai
 });
 
 test('clause 2: requestAnimationFrame plus setTimeout appears in one view file only [C7,#9528]', () => {
-  const files = SOURCES.filter((file) => file.text.split('\n').some((line) => line.includes('requestAnimationFrame') && line.includes('setTimeout'))).map((file) => file.name);
+  const files = SOURCES.filter((file) => file.text.split('\n').some((line) => /requestAnimationFrame|frame\(/u.test(line) && /\(\) => setTimeout\(/u.test(line))).map((file) => file.name);
   assert.deepEqual(files, ['render.js']);
 });
