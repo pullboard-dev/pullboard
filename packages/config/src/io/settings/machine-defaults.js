@@ -74,6 +74,7 @@ export const MACHINE_DEFAULTS = {
   'gate.testNice': false,
   'gate.timingRunner': 'auto',
   'gate.tripOverheadBudgetMs': 10_000,
+  'gate.withdrawCancelsJob': false,
   gateSlots: 2,
   'health.derivedState': false,
   'health.diskFloorGb': 0,
