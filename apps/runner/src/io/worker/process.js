@@ -85,7 +85,7 @@ export function assertTransportLive(S) {
  * @param {() => Promise<any>} work - The startup step.
  * @param {{ wait?: (ms: number) => Promise<void>, tries?: number, pauseMs?: number }} [options]
  */
-export async function retrySlotLocked(S, work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), tries = 8, pauseMs = 2_000 } = {}) {
+export async function retrySlotLocked(S, work, { wait = ms => new Promise(resolve => setTimeout(resolve, ms)), tries = 8, pauseMs = 2_000 } = {}) { // budget: the owned group holds processes whose exit we cannot subscribe to, so the signal loop polls
   for (let attempt = 1; ; attempt += 1) {
     try { return await work(); }
     catch (error) {
@@ -118,7 +118,7 @@ async function stopOwnedGroup(pid, closed, tracker) {
       // Keep null (an ambiguous census, or EPERM) distinct from false, so it retries instead of passing as drained.
       const sent = tracker ? tracker.signalOwnedGroup(pid, type) : false;
       if (sent === true || sent === false) return sent;
-      await new Promise(resolvePause => setTimeout(resolvePause, 250));
+      await new Promise(resolvePause => setTimeout(resolvePause, 250)); // budget: the owned group holds processes whose exit we cannot subscribe to, so the signal loop polls
     }
   };
   if (await signal('SIGTERM') === false) { await closed; return; }
@@ -127,12 +127,12 @@ async function stopOwnedGroup(pid, closed, tracker) {
   while (Date.now() < graceUntil) {
     const sent = await signal('SIGTERM');
     if (!sent) break;
-    await new Promise(resolvePause => setTimeout(resolvePause, 25));
+    await new Promise(resolvePause => setTimeout(resolvePause, 25)); // budget: the owned group holds processes whose exit we cannot subscribe to, so the signal loop polls
   }
   for (;;) {
     const sent = await signal('SIGKILL');
     if (!sent) break;
-    await new Promise(resolvePause => setTimeout(resolvePause, 50));
+    await new Promise(resolvePause => setTimeout(resolvePause, 50)); // budget: the owned group holds processes whose exit we cannot subscribe to, so the signal loop polls
   }
   await closed;
 }
