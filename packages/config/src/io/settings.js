@@ -92,6 +92,17 @@ export function gateComponentTier() {
   return loadMachineSettings().gate?.componentTier === true;
 }
 
+/** Whether landing.junitFailures is on (#9763): off by default; only an exact `true` turns it on. */
+export function landingJunitFailures() {
+  return loadMachineSettings().landing?.junitFailures === true;
+}
+
+/** The path gate.junitReport names (#9700), or null when it is blank or not a string. */
+export function gateJunitReport() {
+  const path = loadMachineSettings().gate?.junitReport;
+  return typeof path === 'string' && path.trim() ? path.trim() : null;
+}
+
 /** Write gate hops through the fenced, compare-and-set hop row unless this machine turned it off [C7,#8269,#8327]. */
 export function fencedHopEnabled() {
   return loadMachineSettings().gate?.fencedHop !== false;

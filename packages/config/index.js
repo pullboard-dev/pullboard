@@ -62,6 +62,8 @@ export {
   excuseMainTimingReds,
   recoverFromJobRow,
   gateComponentTier,
+  landingJunitFailures,
+  gateJunitReport,
   testNiceEnabled,
   fencedHopEnabled,
   endStaleJobsEnabled,
