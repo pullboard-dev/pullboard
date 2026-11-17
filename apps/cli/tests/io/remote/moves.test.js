@@ -123,21 +123,23 @@ async function moved(seats, seat, ...args) {
 
 test('cli.io-remote-moves.next-claim-fact-and-release-from-a: next, claim, fact and release from a boardless clone change the served board [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and eight CLI calls, not a throughput claim.
 sharedBody(async (seats) => {
+  // This case holds its claim to the end on a seat of its own, so the shared board's builder stays free for the next cases (a seat holds one item) [P7].
+  const mover = await served(seats.box, seats.box.root, 'worktree', 'app', '--model', FIXTURE_MODEL, '--family', 'codex');
   const id = await seats.add('Remote movable item');
-  const offered = await moved(seats, seats.builder, 'next');
+  const offered = await moved(seats, mover, 'next');
   assert.equal(offered.item.item_id, id, 'next claimed the open item on the served board');
   assert.equal((await seats.row(id)).status, 'claimed');
-  await moved(seats, seats.builder, 'fact', String(id), 'note', 'written from another host');
+  await moved(seats, mover, 'fact', String(id), 'note', 'written from another host');
   const { events } = (await seats.box.call(`${seats.box.path}/events`)).document;
   assert.ok(events.some((event) => event.event_kind === 'fact' && JSON.stringify(event).includes('written from another host')), 'the fact reached the served board');
-  await moved(seats, seats.builder, 'release', String(id), '--reason', 'OTHER', '--note', 'handing it back');
+  await moved(seats, mover, 'release', String(id), '--reason', 'OTHER', '--note', 'handing it back');
   assert.equal((await seats.row(id)).status, 'open', 'release reopened the item on the served board');
-  const text = await seats.run(seats.builder, 'claim', String(id));
+  const text = await seats.run(mover, 'claim', String(id));
   assert.equal(text.status, 0, text.stdout + text.stderr);
   assert.match(text.stdout, new RegExp(`^claimed #${id}\\b.* via http://`, 'mu'));
   assert.equal((await seats.row(id)).status, 'claimed', 'claim took the item on the served board');
   assert.equal(cloneBoard(seats.clone), false, 'no move opened a local board');
-  await moved(seats, seats.builder, 'release', String(id), '--reason', 'OTHER', '--note', 'the next case claims its own item');
+  await moved(seats, mover, 'release', String(id), '--reason', 'OTHER', '--note', 'the next case claims its own item');
 }));
 
 test('cli.io-remote-moves.submit-and-verify-post-through-moves-and: submit and verify post through /moves and print the served board\'s result [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one submit handoff and six CLI calls, not a throughput claim.
