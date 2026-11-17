@@ -39,11 +39,14 @@ const RUNNER_HOME = ['runner-jobs/job-1.json', 'runner-probes/probe.json', 'runn
 /** A row named `runner-home <command>` runs its command with runner state added to the seat's pullboard home [#6085]. */
 const RUNNER_ROW = /^runner-home /u;
 
+/** A row named `git-hook <command>` runs its command as a git hook does: with GIT_EXEC_PATH set, so the version probe reads the repo's installed hooks [C7]. */
+const GIT_HOOK_ROW = /^git-hook /u;
+
 /**
  * The distinct repo files one cold command loads in the seeded seat; refusals count too, since the load is paid before the command decides.
  * With runner true the seat's pullboard home is copied and given a runner's state first, so only the home's shape differs [#6085].
  */
-function modulesLoaded(args, runner = false) {
+function modulesLoaded(args, runner = false, extraEnv = {}) {
   const files = privateFixtureFiles('closure-budget-');
   files.write('seen.txt', '');
   const env = { ...seat.env };
@@ -53,6 +56,7 @@ function modulesLoaded(args, runner = false) {
     for (const file of RUNNER_HOME) files.write(`home/${file}`, '{}\n');
     env.PULLBOARD_HOME = `${files.root}/home`;
   }
+  Object.assign(env, extraEnv);
   env.PULLBOARD_OWN_CLI = '1';
   env.PULLBOARD_RESIDENT = '0';
   env.PULLBOARD_COUNT_FILE = `${files.root}/seen.txt`;
@@ -62,7 +66,9 @@ function modulesLoaded(args, runner = false) {
 
 for (const [command, budget] of Object.entries(budgets)) {
   test(`pullboard ${command} loads at most ${budget} modules; a lower count means lower the budget [C7]`, t => {
-    const loaded = RUNNER_ROW.test(command) ? modulesLoaded(command.replace(RUNNER_ROW, ''), true) : modulesLoaded(command);
+    const loaded = RUNNER_ROW.test(command) ? modulesLoaded(command.replace(RUNNER_ROW, ''), true)
+      : GIT_HOOK_ROW.test(command) ? modulesLoaded(command.replace(GIT_HOOK_ROW, ''), false, { GIT_EXEC_PATH: '/usr/libexec/git-core' })
+        : modulesLoaded(command);
     assert.ok(loaded <= budget, `pullboard ${command} loaded ${loaded} modules, over its budget of ${budget}: import the defining file or load the heavy package at the call, never raise the budget`);
     if (loaded < budget) t.diagnostic(`pullboard ${command} loaded ${loaded}; lower its budget in closure-budget.json to ${loaded}`);
   });

@@ -7,6 +7,7 @@
   "next": 1520,
   "test --status x": 942,
   "hook commit-msg": 39,
+  "git-hook --version": 80,
   "claim 1": 1184,
   "release 1 --reason OTHER --note x": 1135
 }
