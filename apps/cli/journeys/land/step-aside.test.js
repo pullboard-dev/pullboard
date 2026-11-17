@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli landing store */
+/** @pullboard-test-input source-cell apps/cli */
 /** A head item that fails twice on infrastructure steps aside, and the next accepted item lands [C7,#3118]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
