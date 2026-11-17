@@ -372,59 +372,33 @@ function parseOneDocument(stdout) {
 }
 
 
-catalogCase('[A1] command results match the catalog across roots and subcommands', [
-  'add',
+catalogCase('[A1] command results match the catalog across roots: reads, spec and hooks', [
   'agents',
-  'answer',
   'badge',
   'blueprint add',
   'blueprint starters',
   'capacity',
-  'check',
-  'claim',
-  'decisions',
   'doctor',
   'doctrine check',
-  'done',
-  'edit',
-  'escalate',
-  'fact',
-  'forget',
   'gate',
   'health',
   'heartbeat',
   'help',
-  'hold',
   'hook commit-msg',
   'hook pre-commit',
   'hook pre-merge-commit',
   'hook pre-push',
   'hooks',
-  'inbox',
   'init',
-  'join',
   'lanes',
   'ledger',
   'lifecycle',
-  'list',
   'log',
-  'merged',
-  'next',
-  'pass',
-  'patch',
-  'patch attach',
-  'patch list',
-  'patch remove',
   'prompt',
-  'refreeze',
-  'release',
   'request',
   'resources',
   'resume',
-  'run',
   'settings',
-  'shout',
-  'show',
   'skills',
   'spec',
   'spec check',
@@ -438,17 +412,9 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   'stats moves',
   'stats pipeline',
   'status',
-  'submit',
-  'sweep',
-  'tour',
-  'verify',
   'version',
   'whoami',
-  'why',
-  'why file',
-  'withdraw',
-  'worktree',
-], async (t) => {
+], async () => {
   const box = await project();
   const { repo } = box;
   assert.equal(box.initialized.version, 1);
@@ -543,6 +509,47 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(processBox(box), repo, 'hook', ['pre-merge-commit'], 'pre-merge-commit');
   await json(processBox(box), repo, 'hook', ['commit-msg', messageFile], 'commit-msg');
   await json(processBox(box), repo, 'hook', ['pre-push'], 'pre-push');
+}, ['agents', 'badge', 'blueprint', 'capacity', 'decisions', 'doctor', 'doctrine', 'gate', 'health', 'heartbeat', 'help', 'hook', 'hooks', 'inbox', 'init', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'prompt', 'request', 'resources', 'resume', 'settings', 'skills', 'spec', 'stats', 'status', 'version', 'whoami']);
+
+
+catalogCase('[A1] command results match the catalog across roots: items, shouts and runs', [
+  'add',
+  'answer',
+  'check',
+  'claim',
+  'decisions',
+  'done',
+  'edit',
+  'escalate',
+  'fact',
+  'forget',
+  'hold',
+  'inbox',
+  'join',
+  'list',
+  'merged',
+  'next',
+  'pass',
+  'patch',
+  'patch attach',
+  'patch list',
+  'patch remove',
+  'refreeze',
+  'release',
+  'run',
+  'shout',
+  'show',
+  'submit',
+  'sweep',
+  'tour',
+  'verify',
+  'why',
+  'why file',
+  'withdraw',
+  'worktree',
+], async (t) => {
+  const box = await project();
+  const { repo } = box;
 
   const review = await json(box, repo, 'worktree', ['review']);
   const reviewPath = review.path;
@@ -615,7 +622,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.ok(tourRepo && existsSync(tourRepo), 'the reported tour repo exists until the test cleans it up');
   assert.match(basename(dirname(tourRepo)), /^pullboard-tour-/, 'cleanup is confined to the generated tour folder');
   TEMP_DIRS.push(dirname(tourRepo));
-}, ['add', 'agents', 'answer', 'badge', 'blueprint', 'capacity', 'check', 'claim', 'decisions', 'doctor', 'doctrine', 'done', 'edit', 'escalate', 'fact', 'forget', 'gate', 'health', 'heartbeat', 'help', 'hold', 'hook', 'hooks', 'inbox', 'init', 'join', 'lanes', 'ledger', 'lifecycle', 'list', 'log', 'merged', 'next', 'pass', 'patch', 'prompt', 'refreeze', 'release', 'request', 'resources', 'resume', 'run', 'settings', 'shout', 'show', 'skills', 'spec', 'stats', 'status', 'submit', 'sweep', 'tour', 'verify', 'version', 'whoami', 'why', 'withdraw', 'worktree']);
+}, ['add', 'answer', 'check', 'claim', 'decisions', 'done', 'edit', 'escalate', 'fact', 'forget', 'hold', 'inbox', 'init', 'join', 'list', 'merged', 'next', 'pass', 'patch', 'refreeze', 'release', 'run', 'shout', 'show', 'spec', 'submit', 'sweep', 'tour', 'verify', 'why', 'withdraw', 'worktree']);
 
 
 catalogCase('[A1,B21,B27] a lane decision is answered by its agent through CLI JSON', [
@@ -1383,7 +1390,8 @@ catalogCase('[A1,C7,#8916] split files one child per numbered clause through rea
  */
 const CATALOG_GROUPS = {
   results: [
-    '[A1] command results match the catalog across roots and subcommands',
+    '[A1] command results match the catalog across roots: reads, spec and hooks',
+    '[A1] command results match the catalog across roots: items, shouts and runs',
   ],
   lanes: [
     '[A1,B21,B27] a lane decision is answered by its agent through CLI JSON',
