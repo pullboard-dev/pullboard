@@ -15,6 +15,7 @@ import { quarantineRunVerdict } from './quarantine.js';
 import { sourcePreparationFields } from '../../light.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
+import { receiptCounts } from './junit-receipt.js';
 import { gitChildEnv } from '../../../git/index.js';
 import { invalidateGitFacts } from '../../../git/index.js';
 import { commandFact } from '../../../git/index.js';
@@ -115,8 +116,8 @@ import {
   mainPolicy,
 } from '../../../sandbox/index.js';
 import {
-  proofCounts,
   observedFailureSignatures,
+  proofCounts,
 } from '../../../verify/index.js';
 import {
   logLines,
@@ -363,7 +364,7 @@ function leaveProofReceipt(root, command, run, before, context, lease, observedC
       proof: { item: context.item, frozenDigest: context.frozenDigest ?? null, seat: context.seat,
         environment, testRuntimes, runner: remote ?? (lease?.runner ? null
           : run.profile?.receipt?.runner?.id ?? lease?.receipt?.runner?.id ?? lease?.localDescriptor?.id ?? null), exitCode: run.exitCode,
-        counts: run.proofCounts ?? proofCounts(run.outputPath ? logLines(run.outputPath) : run.output ?? ''),
+        counts: receiptCounts(run.executionRoot ?? root, run.proofCounts ?? proofCounts(run.outputPath ? logLines(run.outputPath) : run.output ?? '')),
         durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? run.seconds * 1000)), sourceClean,
         ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}),

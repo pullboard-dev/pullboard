@@ -10,37 +10,11 @@ The row grammar, statuses, tiers, signers and id namespaces are on [docs/formats
 
 ## Proposed rulings and resume doctrine notes
 
-The coordinator proposes a standing ruling with `pullboard spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` (or a shout reference such as `"shout 42"`). A source is required. The draft lives in the configured doctrine file, with `Source: ...` in its text, and the returned id is qualified as `doctrine:DR1`. The person approves or declines that id through the existing `spec approve` or `spec decline` commands; the coordinator runs `spec apply`.
-
-`resume --json` includes `doctrineNotes`, an array of newly seen approved repo rules, each with `id`, `text` and `gate`. Drafts and pending applications are excluded. Text resume prints the same rules. Each checkout records its own displayed rule text under its Git directory, so a second checkout receives its own notice. Repeated resumes return an empty array until an approved rule changes.
-
-Resume and criterion freezing use the primary branch's committed doctrine together with the person's applied exact-row decisions. An older agent checkout can therefore read an approved ruling and detect that a frozen citation is stale without changing its branch or local doctrine file. Proposed or unapplied changes do not replace the in-force rule.
+Standing rulings and the resume doctrine notes are on [docs/formats/rulings.md](formats/rulings.md).
 
 ## Resume release notes
 
-<!-- resume-release-notes:start -->
-`pullboard resume --json` adds a `whatsNew` field to its version-1 envelope. `whatsNew` is `null` when nothing is new. After an upgrade it contains the released versions newer than this checkout last ran, newest first:
-
-```json
-{
-  "whatsNew": {
-    "releases": [
-      {
-        "version": "0.8.7",
-        "headline": "A new session",
-        "paragraph": "Release headline paragraph."
-      }
-    ],
-    "omitted": 0,
-    "notes": "CHANGELOG.md"
-  }
-}
-```
-
-Each `releases` entry has a version number, the release headline from its `###` heading in `CHANGELOG.md`, and that heading's paragraph. Added, Changed and Fixed lists are excluded. Only the newest three releases are included; `omitted` counts the earlier releases left out, and `notes` names the full release notes.
-
-Both text and JSON resumes record the displayed version once per checkout. Later resumes at the same version have no extra text and a null `whatsNew` field. A checkout's first run records its version quietly. The record is `pullboard-checkout/resume-version` in the checkout's Git directory, outside the shared board; linked worktrees keep separate records. JSON resume includes the notes in its response when recording that version, so a JSON call does not consume notes without exposing them.
-<!-- resume-release-notes:end -->
+The `whatsNew` field and the per-checkout version record are on [docs/formats/resume-notes.md](formats/resume-notes.md).
 
 ## SQLite board schema
 

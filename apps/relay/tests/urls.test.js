@@ -58,7 +58,7 @@ async function get(handler, path) {
   return { handled, ...res };
 }
 
-test('every relay browser URL served before the move still answers [H5,H18]', async () => {
+test('relay.urls.every-relay-browser-url-served-before: every relay browser URL served before the move still answers [H5,H18]', async () => {
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Refused('AUTH_REQUIRED', 'sign in'); } });
   for (const path of [...SERVED, '/']) {
     const reply = await get(handler, path);
@@ -68,7 +68,7 @@ test('every relay browser URL served before the move still answers [H5,H18]', as
   }
 });
 
-test('every module a served relay script imports is itself served [H5,H18]', async () => {
+test('relay.urls.every-module-a-served-relay-script: every module a served relay script imports is itself served [H5,H18]', async () => {
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Refused('AUTH_REQUIRED', 'sign in'); } });
   const pending = SERVED.filter(path => path.endsWith('.js')), seen = new Set();
   while (pending.length) {

@@ -26,7 +26,7 @@ function repo(t) {
   return { files, commit: () => { step('add', '-A'); step('commit', '-q', '-m', 'branch'); } };
 }
 
-test('clause 1: a branch that adds a cell test importing the CLI child fixture outside the exception list is reported [C7]', t => {
+test('gate.io-test-child-fixture.a-branch-that-adds-a-cell: clause 1: a branch that adds a cell test importing the CLI child fixture outside the exception list is reported [C7]', t => {
   const { files, commit } = repo(t);
   files.write('packages/b/tests/new.test.js', `/** a new test */\n${IMPORT}`);
   commit();
@@ -38,7 +38,7 @@ test('clause 1: a branch that adds a cell test importing the CLI child fixture o
   assert.deepEqual(cliChildImportProblems(files.root, { exceptions: ['b/tests/new.test.js'] }), [], 'a named exception is allowed');
 });
 
-test('clause 2: a branch that adds no such import gets no finding, even though main already carries one [C7]', t => {
+test('gate.io-test-child-fixture.a-branch-that-adds-no-such: clause 2: a branch that adds no such import gets no finding, even though main already carries one [C7]', t => {
   const { files, commit } = repo(t);
   files.write('packages/b/tests/other.test.js', PLAIN);
   commit();

@@ -40,7 +40,7 @@ function plan(files, runOnRunnerAsync) {
     remoteOptions: { metadata: { timingRunId: 'run-1' }, source: {} } };
 }
 
-test('clause 1: a landing rerun of many files runs as at most three runner shards under the collection wrapper, merged into one run [C7]', async () => {
+test('gate.io-shards-landing.a-landing-rerun-of-many-files: clause 1: a landing rerun of many files runs as at most three runner shards under the collection wrapper, merged into one run [C7]', async () => {
   const files = ['a.test.js', 'b.test.js', 'c.test.js', 'd.test.js', 'e.test.js', 'f.test.js'];
   const calls = [];
   const run = runner(calls);
@@ -62,7 +62,7 @@ test('clause 1: a landing rerun of many files runs as at most three runner shard
   assert.equal(merged.output.split('\n').filter(line => line.startsWith(COLLECTION_REPORT_PREFIX)).length, 1);
 });
 
-test('clause 2: a red shard makes the merged landing run red, and its collection stays complete so the red can be accounted [C7]', async () => {
+test('gate.io-shards-landing.a-red-shard-makes-the-merged: clause 2: a red shard makes the merged landing run red, and its collection stays complete so the red can be accounted [C7]', async () => {
   const files = ['a.test.js', 'b.test.js', 'c.test.js'];
   const calls = [];
   const run = runner(calls, { red: 'b.test.js' });
@@ -75,7 +75,7 @@ test('clause 2: a red shard makes the merged landing run red, and its collection
   assert.notEqual(merged.exitCode, 0);
 });
 
-test('clause 3: only a gate whose command is exactly its files under the focused runner shards; one file, or another command, runs whole [C7]', () => {
+test('gate.io-shards-landing.only-a-gate-whose-command-is: clause 3: only a gate whose command is exactly its files under the focused runner shards; one file, or another command, runs whole [C7]', () => {
   const files = ['a.test.js', 'b.test.js'];
   assert.equal(landingShardable(filesCommand(files), { files, filesCommand }), true);
   assert.equal(landingShardable(filesCommand(['a.test.js']), { files: ['a.test.js'], filesCommand }), false, 'one file has nothing to fan out');
@@ -85,7 +85,7 @@ test('clause 3: only a gate whose command is exactly its files under the focused
   assert.equal(planWrapper({ command: 'x', remoteCommand: '(export A=1\nx\n)' })('y'), '(export A=1\ny\n)');
 });
 
-test('clause 4: one suite report per shard joins into the one report the gate reads; a single report is left as it was [C7]', () => {
+test('gate.io-shards-landing.one-suite-report-per-shard-joins: clause 4: one suite report per shard joins into the one report the gate reads; a single report is left as it was [C7]', () => {
   const one = formatCollectionReport({ id: ID, scope: 'suite', shard: null, plannedFiles: ['a.test.js'], completedFiles: ['a.test.js'], complete: true, cleanupVerified: true });
   const two = formatCollectionReport({ id: ID, scope: 'suite', shard: null, plannedFiles: ['b.test.js'], completedFiles: [], complete: false, cleanupVerified: true });
   assert.equal(combineCollectionReports(`ok\n${one}`), `ok\n${one}`);
