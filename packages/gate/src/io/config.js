@@ -82,7 +82,8 @@ export function detectGate(root) {
 
 /** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
 export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
-  const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
+  const names = rows.length ? readdirSync(root) : [];
+  const rowTests = new Map(rows.map((row) => [row.language, typeof row.tests === 'function' ? row.tests(names) : row.tests ?? []]));
   return [...new Set(detectLanguages(root, rows).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []))];
 }
 
