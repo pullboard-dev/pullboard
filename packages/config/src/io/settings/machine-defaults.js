@@ -129,6 +129,7 @@ export const MACHINE_DEFAULTS = {
   'next.oneGitRead': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
+  'next.routeByTier': false,
   'push.recordTiming': false,
   'push.rerunFailedShardOnce': false,
   'read.thinCommands': false,
