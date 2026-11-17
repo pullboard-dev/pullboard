@@ -586,6 +586,14 @@ export function staticMemoOn() {
   return loadMachineSettings().gate?.staticMemo === true;
 }
 
+/**
+ * Whether the always-run static registry refuses a changed test that adds an unclassified file-board open: gate.boardOpensCheck, default off.
+ * Why: the open guard otherwise runs only when its own test is selected, so a new unannotated open could land unseen [C7].
+ */
+export function boardOpensCheckOn() {
+  return loadMachineSettings().gate?.boardOpensCheck === true;
+}
+
 /** Whether `pullboard serve` also answers runner pulls at /pull/ (#8765): off by default; only an exact `true` turns it on. */
 export function servePullRoute() {
   return loadMachineSettings().serve?.pullRoute === true;
