@@ -15,7 +15,7 @@ import { openBoardForRead } from '../../../store/index.js';
 import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/testkit.js';
 import { executeMove } from '../../../api/index.js';
 import { requireNonEmptySubmit } from '../../../../apps/cli/src/io/empty.js';
-import { mainPolicy } from '../../../sandbox/index.js';
+import { mainPolicy } from '../../../sandbox/light.js';
 import { mergeSubmissionMain } from '../../../merge/index.js';
 import { bundleCommits } from '../../index.js';
 import { receiveCommits } from '../../index.js';

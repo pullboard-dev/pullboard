@@ -184,7 +184,7 @@
     "inputs": [
       "packages/pin/index.js",
       "packages/api/index.js",
-      "packages/sandbox/index.js",
+      "packages/sandbox/light.js",
       "packages/merge/index.js"
     ]
   }
