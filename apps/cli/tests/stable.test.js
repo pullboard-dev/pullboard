@@ -1,5 +1,5 @@
-/** @pullboard-test-input apps/cli/tests/** */
-/** Every cli-app test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10476]. */
+/** @pullboard-test-input apps/cli/tests/** apps/cli/journeys/** */
+/** Every cli-app test, in its tests and journeys folders, carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10476,#10541]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -39,7 +39,7 @@ const DIR = import.meta.dirname;
 const KINDS = ['cell unit', 'contract', 'journey', 'harness'];
 const ID = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/u;
 
-/** Every test file under this cell's tests folder, nested folders included. */
+/** Every test file under one of this app's folders (tests, journeys), nested folders included. */
 function testFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
 }
@@ -47,7 +47,7 @@ function testFiles(dir) {
 test('cli.stable.complete: clause 1: [C7,U148] every registered test has a stable ID and one complete record; an unregistered test is reported and fails only with tests.registryStrict on', (t) => {
   // Each slice keeps its records in its own registry*.json so parallel slices never conflict.
   const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
-  const files = testFiles(DIR).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const files = [...testFiles(DIR), ...testFiles(join(DIR, '..', 'journeys'))].sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
   assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
   // A file that already carries an ID title is covered: it may not leave one test without an ID or record, strict mode or not.
