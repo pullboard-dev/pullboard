@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 
+/** The land cell sits below config in plan order, so its test cannot read tests.registryStrict; this cell is fully registered, so it is always strict (as the queue cell's registry test is) [C7,#9793]. */
+const STRICT = true;
 const TITLE_ID = /^test\('([^':\s]+): /gmu;
 const TESTS = /^test\(/gmu;
 
@@ -47,7 +48,7 @@ test('land.registry.complete: clause 1: [C7,U148] every registered test has a st
   const files = testFiles(DIR).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
   assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
-  const outcome = registryOutcome(findings, registryStrict());
+  const outcome = registryOutcome(findings, STRICT);
   if (outcome.report) t.diagnostic(outcome.report);
   assert.equal(outcome.fails, false, outcome.report);
   for (const [id, record] of Object.entries(records)) {
