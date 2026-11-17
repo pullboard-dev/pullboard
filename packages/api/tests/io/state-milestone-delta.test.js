@@ -55,7 +55,7 @@ async function served(t, milestoneDelta) {
     }
   });
   const head = 'a'.repeat(40);
-  at = now - HOUR;
+  at = now;
   cellClaim(board, ids[0], agents[0], { root: project.repo, leaseMs: 3 * HOUR });
   submitFixture(board, ids[0], { agentId: agents[0].id, commit: head, tree: 'tree:milestone-delta' });
   verify(board, ids[0], { agentId: agents[1].id, decision: 'ACCEPT', head, digest: getItem(board, ids[0]).item_frozen_digest, policy: 'any', note: 'Delta fixture only; no gate execution is claimed.' });
@@ -81,6 +81,7 @@ async function deltaAfter(box, change) {
   const before = await box.request(box.path + '/state');
   assert.equal(before.status, 200);
   assert.equal(before.document.state.milestones.length, MILESTONES);
+  assert.equal(before.document.state.milestones[0].summary.pace.last2h, 1, 'the landing is inside the two-hour window');
   change();
   const delta = await box.request(box.path + '/state?since=' + before.document.state.sequence);
   assert.ok(delta.document.delta, 'a later build answers with a delta');
