@@ -12,7 +12,7 @@ const TESTS = /^test\(/gmu;
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
 /** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
-const TEMPLATES = /`[^`]*`/gu;
+const TEMPLATES = new RegExp('\\x60[^\\x60]*\\x60', 'gu');
 
 function registryFindings(files, records) {
   const ids = [];
