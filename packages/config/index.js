@@ -66,6 +66,7 @@ export {
   gateJunitReport,
   testNiceEnabled,
   fencedHopEnabled,
+  judgeByReleaseEnabled,
   endStaleJobsEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,

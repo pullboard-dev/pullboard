@@ -276,6 +276,9 @@ export function loadMachineSettings() {
   if (value.census?.jobsPerRunnerQuiet !== undefined && value.census.jobsPerRunnerQuiet !== null && !(Number.isSafeInteger(value.census.jobsPerRunnerQuiet) && value.census.jobsPerRunnerQuiet >= 1)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `census.jobsPerRunnerQuiet in ${file} must be a whole number of jobs, 1 or more, or null`);
   }
+  if (value.moves?.judgeByRelease !== undefined && typeof value.moves.judgeByRelease !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `moves.judgeByRelease in ${file} must be true or false`);
+  }
   if (value.moves?.shadow !== undefined && typeof value.moves.shadow !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `moves.shadow in ${file} must be true or false`);
   }
