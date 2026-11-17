@@ -31,7 +31,7 @@ function landFixture(t) {
 /** The named phases of a receipt, each as ms. */
 const named = (receipt, phase) => receipt.phases.filter(row => row.phase === phase);
 
-test('clause 1: a finished land job records proof and contracts ms beside merge and push [C7,#9245]', async t => {
+test('landing.land-phase-ms.a-finished-land-job-records-proof: clause 1: a finished land job records proof and contracts ms beside merge and push [C7,#9245]', async t => {
   const box = landFixture(t);
   const receipt = await runLandingJob({ ...box.payload, check: ['sh', '-c', 'sleep 0.05'], contracts: { runner: 'true' } }, { workdir: box.workdir });
   assert.equal(receipt.outcome, 'landed');
@@ -42,7 +42,7 @@ test('clause 1: a finished land job records proof and contracts ms beside merge 
   assert.ok(named(receipt, 'proof')[0].ms >= 40, 'the proof ms covers the command it ran');
 });
 
-test('clause 2: a red proof still records the proof ms it spent [C7,#9245]', async t => {
+test('landing.land-phase-ms.a-red-proof-still-records-the: clause 2: a red proof still records the proof ms it spent [C7,#9245]', async t => {
   const box = landFixture(t);
   const receipt = await runLandingJob({ ...box.payload, check: ['sh', '-c', 'sleep 0.05; exit 1'] }, { workdir: box.workdir });
   assert.notEqual(receipt.outcome, 'landed');

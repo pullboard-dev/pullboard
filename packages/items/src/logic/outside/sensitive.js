@@ -13,7 +13,7 @@ export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'apps/lib/src/io/check/baseline.js', 'apps/lib/src/io/drive/worker.js',
   'apps/lib/src/io/landing/candidate.js', 'apps/runner/src/io/controller.js', 'apps/runner/src/io/shell.js', 'docs/tools/', 'packages/gate/bin/',
   'packages/codemap/data/baselines/lints/', 'packages/codemap/data/plan/', 'packages/codemap/src/io/shims.js',
-  'packages/codemap/src/io/cell/scripts/lints.js', 'packages/codemap/src/io/cells/backlog.js', 'packages/codemap/src/io/cells/move.js',
+  'packages/codemap/src/io/cell/scripts/lints.js', 'apps/cli/src/io/cells/backlog.js', 'packages/codemap/src/io/cells/move.js',
   'packages/codemap/src/io/cells/snapshots.js', 'packages/codemap/src/io/cells/door.js', 'packages/codemap/src/io/cells/shims.js',
   'packages/codemap/src/io/cells/git.js', 'packages/codemap/src/io/cells/placement.js', 'packages/codemap/src/io/cells/move/tool.js',
   'packages/codemap/src/io/cells/plan/cuts.js', 'packages/codemap/src/io/cells/scripts/cache.js', 'packages/codemap/src/io/cells/scripts/plan.js',

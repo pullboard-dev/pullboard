@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.squash'));
 }
 
-test('clause 1: landing.squash is a described setting, off by default, on only for an exact true [C7,#9217]', () => {
+test('config.io-landing-squash-setting.clause-1-landing-squash-is-a-described: clause 1: landing.squash is a described setting, off by default, on only for an exact true [C7,#9217]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

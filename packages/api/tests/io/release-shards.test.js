@@ -13,7 +13,7 @@ const HEAD = 'b'.repeat(40), BASE = 'a'.repeat(40), RELEASE = '11111111-2222-333
 const GATE = { run: ['node', '-e', 'x'], entry: 'gate.js', commits: [BASE] };
 const SHARDS = [{ files: ['packages/x/tests/a.test.js', 'packages/x/tests/c.test.js'], command: "node --test './packages/x/tests/a.test.js'" }, { files: ['packages/x/tests/b.test.js'], command: "node --test './packages/x/tests/b.test.js'" }];
 
-test('#8165 clause 1: with pull dispatch on, a release offers each shard as a gate-shard job release:<id>:shard:N through offerJob [C7,P7]', t => {
+test('api.release-shards.pull-dispatch-release-offers-each: #8165 clause 1: with pull dispatch on, a release offers each shard as a gate-shard job release:<id>:shard:N through offerJob [C7,P7]', t => {
   const { db } = cellBoard(t, ':memory:');
   const ids = offerReleaseShards(db, { release: RELEASE, head: HEAD, base: BASE, mode: 'pull', gate: GATE, shards: SHARDS, now: 1 });
   assert.deepEqual(ids, [`release:${RELEASE}:shard:1`, `release:${RELEASE}:shard:2`]);
@@ -28,7 +28,7 @@ test('#8165 clause 1: with pull dispatch on, a release offers each shard as a ga
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM job').get().n, 2);
 });
 
-test('#8165 clause 1: a release offers nothing while dispatch is not pull, and refuses a plan that is not one [C7,P7]', t => {
+test('api.release-shards.release-offers-nothing-while-dispatch: #8165 clause 1: a release offers nothing while dispatch is not pull, and refuses a plan that is not one [C7,P7]', t => {
   const { db } = cellBoard(t, ':memory:');
   assert.throws(() => offerReleaseShards(db, { release: RELEASE, head: HEAD, base: BASE, mode: 'controller', gate: GATE, shards: SHARDS }), error => error.code === 'RELEASE_SHARDS_MODE');
   assert.throws(() => offerReleaseShards(db, { release: RELEASE, head: 'abc', base: BASE, mode: 'pull', gate: GATE, shards: SHARDS }), error => error.code === 'RELEASE_SHARDS');
@@ -36,7 +36,7 @@ test('#8165 clause 1: a release offers nothing while dispatch is not pull, and r
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM job').get().n, 0);
 });
 
-test('#8165 clause 1: participation.shards records each claimed shard with its runner, head, tree and command, and a posted green receipt [C7,P7]', t => {
+test('api.release-shards.participation-shards-records-each-claimed: #8165 clause 1: participation.shards records each claimed shard with its runner, head, tree and command, and a posted green receipt [C7,P7]', t => {
   const { db, ...board } = cellBoard(t, ':memory:');
   offerReleaseShards(db, { release: RELEASE, head: HEAD, base: BASE, mode: 'pull', gate: GATE, shards: SHARDS, now: 1 });
   const fields = { release: RELEASE, head: HEAD, tree: 'c'.repeat(40), shards: SHARDS };

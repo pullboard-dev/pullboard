@@ -26,7 +26,7 @@ test('red fixture case [C7]', () => assert.fail('intentional gate reporter failu
   return { root: project.root, output: `${result.stdout ?? ''}\n${result.stderr ?? ''}`, status: result.status };
 }
 
-test('clause 1: a red project under plain node --test lands red naming its failing file and test [C7,V4]', t => {
+test('landing.reporter.a-red-project-under-plain-node: clause 1: a red project under plain node --test lands red naming its failing file and test [C7,V4]', t => {
   const { root, output, status } = redProject(t);
   assert.equal(status, 1, output);
   const failures = landingFailures(output, root);
@@ -34,7 +34,7 @@ test('clause 1: a red project under plain node --test lands red naming its faili
     [{ file: 'web/red.test.js', name: 'red fixture case [C7]' }], output);
 });
 
-test('clause 2: the fixture run loads and runs its failing case, so the red is not an empty run [C7,V4]', t => {
+test('landing.reporter.the-fixture-run-loads-and-runs: clause 2: the fixture run loads and runs its failing case, so the red is not an empty run [C7,V4]', t => {
   const { output } = redProject(t);
   assert.match(output, /^(?:# |ℹ )tests 1$/mu, 'the run counted exactly the one fixture case');
   assert.match(output, /^(?:# |ℹ )fail 1$/mu, 'the run counted that case as failed');

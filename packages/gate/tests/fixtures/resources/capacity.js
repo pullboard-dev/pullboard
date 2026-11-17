@@ -1,20 +1,19 @@
 /** Original public capacity regressions, kept outside the over-cap resource test module [Q1,Q2,Q4]. */
 import assert from 'node:assert/strict';
-import { machineSettings } from '../../../../../apps/cli/tests/fixtures/resources/settings.js';
 
 /** Change gate capacity through the config cell in this fixture's private machine home. */
-function configureGateSlots(box, slots) {
-  return machineSettings(box, 'setGateSlots', slots);
+function configureGateSlots(tools, box, slots) {
+  return tools.machineSettings(box, 'setGateSlots', slots);
 }
 
 /** Change browser capacity through the config cell in this fixture's private machine home. */
-function configureBrowserSlots(box, slots) {
-  return machineSettings(box, 'setBrowserSlots', slots);
+function configureBrowserSlots(tools, box, slots) {
+  return tools.machineSettings(box, 'setBrowserSlots', slots);
 }
 
 /**
  * Bind the existing resource fixture tools to the original regression callbacks.
- * @param {any} tools - The unchanged resource-test helpers and worker source.
+ * @param {any} tools - The unchanged resource-test helpers and worker source, plus machineSettings from the caller.
  * @returns {{raising: Function, lowering: Function, browser: Function}}
  */
 export function capacityChangeCases(tools) {
@@ -35,7 +34,7 @@ async function raising(tools) {
       const child = worker(box, { capacity: 2, agent }); children.push(child);
       assert.ok((await event(child)).waiting, 'the existing taker is queued before the setting changes');
     }
-    const raised = configureGateSlots(box, 4);
+    const raised = configureGateSlots(tools, box, 4);
     assert.equal(raised.error, undefined, raised.error?.message);
     assert.equal(raised.value.gateSlots, 4);
     for (const child of children.slice(2)) await acquired(child);
@@ -55,7 +54,7 @@ async function raising(tools) {
 async function lowering(tools) {
   const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER } = tools;
   const box = fixture();
-  assert.equal(configureGateSlots(box, 4).error, undefined);
+  assert.equal(configureGateSlots(tools, box, 4).error, undefined);
   const children = [];
   try {
     for (const agent of ['lower-one', 'lower-two', 'lower-three', 'lower-four']) {
@@ -63,7 +62,7 @@ async function lowering(tools) {
       await acquired(child);
     }
     const before = privateList(box).find(row => row.name === 'gate');
-    const lowered = configureGateSlots(box, 1);
+    const lowered = configureGateSlots(tools, box, 1);
     assert.ok(lowered.error, 'a decrease below live holders is refused rather than evicting them');
     const error = lowered.error;
     assert.equal(error.code, 'RESOURCE_BUSY');
@@ -72,10 +71,10 @@ async function lowering(tools) {
     const after = privateList(box).find(row => row.name === 'gate');
     assert.deepEqual(after, before, 'a refused decrease leaves the resource and leases unchanged');
     assert.ok(children.every(child => child.exitResult === null), 'no running holder was stopped');
-    const settings = machineSettings(box, 'loadMachineSettings');
+    const settings = tools.machineSettings(box, 'loadMachineSettings');
     assert.equal(settings.value.gateSlots, 4, 'the refused decrease did not change settings');
     for (const child of children) await release(child);
-    const changed = configureGateSlots(box, 1);
+    const changed = configureGateSlots(tools, box, 1);
     assert.equal(changed.error, undefined, changed.error?.message);
     assert.equal(privateList(box).find(row => row.name === 'gate').capacity, 1,
       'the same decrease works after the holders finish');
@@ -86,7 +85,7 @@ async function lowering(tools) {
 async function browser(tools) {
   const { fixture, worker, event, acquired, release, privateList, poolWorker, POOL_MODULE_WORKER } = tools;
   const box = fixture();
-  assert.equal(configureGateSlots(box, 4).error, undefined);
+  assert.equal(configureGateSlots(tools, box, 4).error, undefined);
   const script = POOL_MODULE_WORKER.replace('capacity: 2,',
     'capacity: loadMachineSettings().gateSlots, capacityProvider: () => loadMachineSettings().gateSlots,');
   const children = [];
@@ -97,7 +96,7 @@ async function browser(tools) {
       const child = poolWorker(box, { agent, browser: true, script }); children.push(child);
       assert.ok((await event(child)).queued, 'the browser taker waits before browserSlots is raised');
     }
-    const raised = configureBrowserSlots(box, 3);
+    const raised = configureBrowserSlots(tools, box, 3);
     assert.equal(raised.error, undefined, raised.error?.message);
     for (const child of children.slice(1, 3)) await acquired(child);
     const rows = privateList(box);

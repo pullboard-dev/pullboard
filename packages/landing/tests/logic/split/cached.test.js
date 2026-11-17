@@ -29,7 +29,7 @@ function repo(t) {
 /** A main comparison result with one red row naming one case. */
 const red = (main, file, extra = {}) => ({ main, files: [{ file, result: 'red', failures: [{ name: 'case' }] }], ...extra });
 
-test('clause 1: an untouched file is answered from the cache with no comparison and reported known [C7]', async t => {
+test('landing.cached.an-untouched-file-is-answered-from: clause 1: an untouched file is answered from the cache with no comparison and reported known [C7]', async t => {
   const { root, base } = repo(t);
   const said = [], compared = [];
   const state = { batch: { root, base }, say: line => said.push(line) };
@@ -42,7 +42,7 @@ test('clause 1: an untouched file is answered from the cache with no comparison 
   assert.ok(said.some(line => line.includes('b.test.js') && line.includes('ffffffffffff')));
 });
 
-test('clause 2: a base with no cache entry spawns the refresh once from the newest generation [C7]', () => {
+test('landing.cached.a-base-with-no-cache-entry: clause 2: a base with no cache entry spawns the refresh once from the newest generation [C7]', () => {
   const launched = [], said = [];
   const state = { root: '/repo', say: line => said.push(line) };
   const batch = { base: 'b'.repeat(40) };
@@ -56,7 +56,7 @@ test('clause 2: a base with no cache entry spawns the refresh once from the newe
   assert.equal(startBaseRefresh(state, batch, { source: () => null, launch: () => assert.fail('nothing to refresh from') }), null);
 });
 
-test('clause 3: two files\' comparisons start within 5 s and each logs file, runner and duration [C7]', async t => {
+test('landing.cached.two-files-comparisons-start-within-5: clause 3: two files\' comparisons start within 5 s and each logs file, runner and duration [C7]', async t => {
   const { root, base } = repo(t);
   const said = [], starts = new Map();
   let release;
