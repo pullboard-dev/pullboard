@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { test } from 'node:test';
 import { largeBoard } from '../../tests/fixtures/board/large.js';
 import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
-import { spawnEnv } from '../../tests/fixtures/spawns.js';
 
 const READS = new Set(['status', 'rev-parse', 'rev-list']);
 
@@ -19,41 +20,49 @@ function setting(box, value) {
   writeFileSync(file, JSON.stringify(known));
 }
 
-/** The three reads among the git children a spawn log holds, as `subcommand args <- callers`; git's -C path pair is skipped. */
-function readLines(log) {
-  const lines = [];
-  for (const part of readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.split(' '))) {
-    if (!part[2] || !part[2].endsWith('git')) continue;
-    const args = part.slice(3);
-    while (args[0] === '-C') args.splice(0, 2);
-    if (READS.has(args[0])) lines.push(args.join(' '));
+const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec'];
+
+/** Run `work` while every child process this process starts is noted; the three reads among the git children come back as `subcommand args`, git's -C path pair skipped. */
+async function recordingReads(work) {
+  const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
+  const reads = [];
+  for (const api of APIS) {
+    childProcess[api] = function recorded(...args) {
+      const command = typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '';
+      const rest = Array.isArray(args[1]) ? args[1].map(String) : typeof args[0] === 'string' ? args[0].trim().split(/\s+/u).slice(1) : [];
+      if (command.endsWith('git')) {
+        const own = [...rest];
+        while (own[0] === '-c' || own[0] === '-C') own.splice(0, 2);
+        if (READS.has(own[0])) reads.push(own.join(' '));
+      }
+      return real[api].apply(this, args);
+    };
   }
-  return lines;
+  syncBuiltinESMExports();
+  try { await work(); } finally {
+    for (const api of APIS) childProcess[api] = real[api];
+    syncBuiltinESMExports();
+  }
+  return reads;
 }
 
 /** One `next --build` on a fresh large board with the setting at `value`: the item it handed out, what it printed and its git reads. */
 async function measured(t, value) {
   const box = largeBoard(t, { scale: { items: 2_500, events: 5_000, shouts: 1_000, seats: 100 } });
-  const log = join(box.dir, 'spawns.log');
   fileFixtureItem(box, box.repo, { lane: 'web', title: 'Git reads sample', diagnose: false, args: ['--specs', 'G1'] });
   setting(box, value);
-  Object.assign(box.env, spawnEnv(log), { PULLBOARD_SPAWN_STACK: '1' });
-  writeFileSync(log, '');
-  const result = box.run(box.web, 'next', '--build', '--json');
+  let result;
+  const reads = await recordingReads(async () => { result = await box.runIn(box.web, 'next', '--build', '--json'); });
   assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
   const answer = JSON.parse(result.out);
   const printed = (result.out + result.err).replaceAll(box.dir, '<box>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/gu, '<time>').replace(/\b[0-9a-f]{40}\b/gu, '<sha>');
-  const spawned = readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
-  console.log(`# next children spawned: ${spawned}`);
-  return { item: answer?.item?.item_id ?? answer?.item_id, printed, reads: readLines(log) };
+  return { item: answer?.item?.item_id ?? answer?.item_id, printed, reads };
 }
 
 test('clause 1: with next.oneGitRead on, next spawns fewer status, rev-parse and rev-list reads than with it off [C7,#9853]', async (t) => {
   const off = await measured(t, false);
   const on = await measured(t, true);
   console.log(`# next git reads off: ${off.reads.length}; on: ${on.reads.length}`);
-  for (const line of off.reads) console.log(`# off ${line}`);
-  for (const line of on.reads) console.log(`# on ${line}`);
   assert.ok(on.reads.length <= off.reads.length, 'the setting never adds a read');
   assert.ok(on.reads.length < off.reads.length, `fewer reads with it on (${on.reads.length}) than off (${off.reads.length})`);
 });
