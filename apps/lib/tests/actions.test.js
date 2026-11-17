@@ -80,7 +80,7 @@ function keepBaseline(f, id, report) {
   return recordCoordinatorRelease(f.root, id, f.head, report, at(60));
 }
 
-test('coordinator actions name the window, distinct landing population and every kind [B35,R2]', t => {
+test('lib.actions.coordinator-actions-name-the-window-distinct-landing: coordinator actions name the window, distinct landing population and every kind [B35,R2]', t => {
   const f = fixture(t);
   const report = coordinatorActions(f.board, { since: at(0).toISOString(), until: at(60).toISOString() });
   assert.equal(report.actions, 11);
@@ -101,7 +101,7 @@ test('coordinator actions name the window, distinct landing population and every
     'a repeat receipt does not turn an earlier landing into a new one');
 });
 
-test('a release with a higher coordinator rate is refused before its gate, naming the kind; a person override is recorded [B35,R2,I15]', async t => {
+test('lib.actions.a-release-with-a-higher-coordinator-rate: a release with a higher coordinator rate is refused before its gate, naming the kind; a person override is recorded [B35,R2,I15]', async t => {
   const f = fixture(t);
   keepBaseline(f, FIRST, checkCoordinatorRelease(f.root, { now: at(60) }));
   store.shout(f.board, { from: 'coordinator', to: 'all', text: 'Another manual nudge', lanes: ['core'] });
@@ -118,7 +118,7 @@ test('a release with a higher coordinator rate is refused before its gate, namin
   assert.doesNotThrow(() => checkCoordinatorRelease(f.root, { now: at(60) }), 'the latest override becomes the previous release even when both audit clocks tie');
 });
 
-test('zero landings never invent a rate or erase the previous measured release [B35,R2,I15]', t => {
+test('lib.actions.zero-landings-never-invent-a-rate-or: zero landings never invent a rate or erase the previous measured release [B35,R2,I15]', t => {
   const f = fixture(t);
   keepBaseline(f, FIRST, checkCoordinatorRelease(f.root, { now: at(60) }));
   assert.throws(() => checkCoordinatorRelease(f.root, { now: at(3000) }), /unmeasured.*no items landed/u);
@@ -129,14 +129,14 @@ test('zero landings never invent a rate or erase the previous measured release [
 });
 
 
-test('a builder worktree cannot declare the person release override [B35,R2,I15]', t => {
+test('lib.actions.a-builder-worktree-cannot-declare-the-person: a builder worktree cannot declare the person release override [B35,R2,I15]', t => {
   const f = fixture(t);
   const worker = join(f.root, 'worker');
   runFixtureGit(['worktree', 'add', '--detach', worker, 'HEAD'], { cwd: f.root });
   assert.throws(() => checkCoordinatorRelease(worker, { now: at(60), personOverride: 'Agent attempting an override.' }), /person.*primary checkout/u);
 });
 
-test('project milestone shipping enforces and records the ratchet in the shared board log [B35,R2,I15]', t => {
+test('lib.actions.project-milestone-shipping-enforces-and-records-the: project milestone shipping enforces and records the ratchet in the shared board log [B35,R2,I15]', t => {
   const f = fixture(t);
   keepBaseline(f, FIRST, checkCoordinatorRelease(f.root, { now: at(60) }));
   assert.equal(MOVE_REGISTRY.shipMilestone.minimumEngine(['First release', { coordinatorActions: true }], f.board), COORDINATOR_ACTIONS_ENGINE);
@@ -162,7 +162,7 @@ test('project milestone shipping enforces and records the ratchet in the shared 
 });
 
 
-test('release override validation takes its ports before reading the board [B35,C7]', () => {
+test('lib.actions.release-override-validation-takes-its-ports-before: release override validation takes its ports before reading the board [B35,C7]', () => {
   const board = new Proxy({}, { get() { throw new Error('board touched before ports'); } });
   assert.throws(() => rawShipMilestone(board, 'Release', { agentId: 'coordinator', commit: 'a'.repeat(40), asPerson: true, reason: 'Person reason.' }, {}), TypeError);
 });

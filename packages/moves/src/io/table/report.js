@@ -95,7 +95,7 @@ async function judgeAgainst(root, name, against, loaded, records, cutAt) {
   try {
     const kept = replayable(records, cutAt);
     const judged = judgeRecords(kept, answersOf(released.table, released.rules, kept), answersOf(loaded.table, loaded.rules, kept));
-    return { against, counts: judged.counts, rows: judged.rows.filter((row) => row.class !== 'same') };
+    return { against: released.tag, counts: judged.counts, rows: judged.rows.filter((row) => row.class !== 'same') };
   } finally { released.dispose(); }
 }
 
