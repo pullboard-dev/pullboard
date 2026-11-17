@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell api apps/view store roadmap config */
 /** With state.milestoneDelta on, a state delta carries only the milestones its events touched, never one whose pace alone moved [C7,#9846,#9597]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
