@@ -55,7 +55,7 @@ import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
-import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
+import { checkpointAfterMove } from '../../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from '../checkpoint.js';
 
 /**
