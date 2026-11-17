@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'gate.recaptureHandoff'));
 }
 
-test('clause 1: gate.recaptureHandoff defaults to false in the inventory, reads on only for an exact true, and a non-boolean is refused [C7,#8989]', () => {
+test('config.io-recapture-handoff-setting.clause-1-gate-recapturehandoff-defaults: clause 1: gate.recaptureHandoff defaults to false in the inventory, reads on only for an exact true, and a non-boolean is refused [C7,#8989]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -35,7 +35,7 @@ test('clause 1: gate.recaptureHandoff defaults to false in the inventory, reads 
   assert.throws(() => withSettings({ gate: { recaptureHandoff: 'yes' } }, recaptureHandoffEnabled), /gate\.recaptureHandoff/u);
 });
 
-test('clause 2: gate.recaptureHandoff has a described row that pullboard settings prints [C7,#8989]', () => {
+test('config.io-recapture-handoff-setting.clause-2-gate-recapturehandoff-has-a: clause 2: gate.recaptureHandoff has a described row that pullboard settings prints [C7,#8989]', () => {
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /queued gate recapture/u);

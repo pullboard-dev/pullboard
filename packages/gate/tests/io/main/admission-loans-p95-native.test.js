@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { measureFileInflation } from '../../fixtures/p95.js';
 
-test('four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]', async t => {
+test('gate.io-main-admission-loans-p95-native.four-concurrent-runs-start-only-token: four concurrent runs start only token-owned file processes and keep p95 below twice standalone [C7]', async t => {
   for (const mode of ['native']) await t.test(mode, async scope => {
     const measurement = await measureFileInflation(scope, mode);
     const { samples, runs, standalone, standaloneAfter, ...summary } = measurement; // the rows are long; the summary keeps a red's numbers in a short log

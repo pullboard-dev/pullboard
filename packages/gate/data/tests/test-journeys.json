@@ -983,29 +983,6 @@
         "spawns a child process (apps/cli/tests/fixtures/runners.js)"
       ]
     },
-    "apps/cli/journeys/flow/replay/policy.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "stats"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)"
-      ]
-    },
-    "apps/cli/journeys/flow/replay.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
-      ]
-    },
     "packages/gate/tests/fixtures/file-pool.js": {
       "cells": [
         "gate",
@@ -2832,24 +2809,6 @@
       "reasons": [
         "drives a browser (apps/cli/tests/fixtures/e2e.js)",
         "imports past app:cli front door (apps/cli/src/logic/runner/loss.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
-        "spawns a child process (apps/cli/tests/fixtures/e2e.js)"
-      ]
-    },
-    "apps/cli/tests/fixtures/runner/redispatch.js": {
-      "cells": [
-        "app:lib",
-        "kernel",
-        "landing",
-        "outbox",
-        "person",
-        "runners",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
         "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
         "runs the CLI (apps/cli/tests/fixtures/e2e.js)",
         "spawns a child process (apps/cli/tests/fixtures/e2e.js)"

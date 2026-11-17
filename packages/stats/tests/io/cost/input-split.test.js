@@ -22,13 +22,13 @@ function stored(session, row) {
 
 const BASE = { model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs: 0, knownInputTokens: 9, knownOutputTokens: 4, unknownReasons: [] };
 
-test('clause 1: a usage record with cached and fresh input counts stores both [C7]', () => {
+test('stats.input-split.a-usage-record-with-cached-and: clause 1: a usage record with cached and fresh input counts stores both [C7]', () => {
   const [record] = stored('s-split', { ...BASE, freshInputTokens: 2, cacheReadInputTokens: 5, cacheWriteInputTokens: 2 });
   assert.deepEqual([record.freshInputTokens, record.cacheReadInputTokens, record.cacheWriteInputTokens], [2, 5, 2]);
   assert.deepEqual([sumUsage([record], {}).freshInputTokens, sumUsage([record], {}).cacheReadInputTokens], [2, 5]);
 });
 
-test('clause 2: a usage record without them is stored as not reported, never as zero [C7]', () => {
+test('stats.input-split.a-usage-record-without-them-is: clause 2: a usage record without them is stored as not reported, never as zero [C7]', () => {
   const [record] = stored('s-plain', BASE);
   assert.equal('freshInputTokens' in record, false);
   const total = sumUsage([record], {});

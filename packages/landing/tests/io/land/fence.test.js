@@ -31,7 +31,7 @@ function landing(t) {
   return { root: repo.root, remote, base: repo.commit, tip, trunk: () => runFixtureGit(['rev-parse', TRUNK], { cwd: remote }) };
 }
 
-test('clause 1: a land push carrying a stale hop epoch is refused HOP_FENCED and trunk does not move [C7,#8275]', t => {
+test('landing.fence.a-land-push-carrying-a-stale: clause 1: a land push carrying a stale hop epoch is refused HOP_FENCED and trunk does not move [C7,#8275]', t => {
   const { root, remote, base, trunk } = landing(t);
   fenceHop(root, { remote, item: ITEM, epoch: 1 });
   // The hop lapsed and a second land job took it at epoch 2, moving the fence.
@@ -45,7 +45,7 @@ test('clause 1: a land push carrying a stale hop epoch is refused HOP_FENCED and
   assert.equal(runFixtureGit(['rev-parse', hopFenceRef(ITEM)], { cwd: remote }), taken, 'the stale push left the fence with the new owner');
 });
 
-test('clause 1: the owner at the current hop epoch pushes trunk from the base to the tip through the fence [C7,#8275]', t => {
+test('landing.fence.the-owner-at-the-current-hop: clause 1: the owner at the current hop epoch pushes trunk from the base to the tip through the fence [C7,#8275]', t => {
   const { root, remote, base, tip, trunk } = landing(t);
   fenceHop(root, { remote, item: ITEM, epoch: 1 });
   fenceHop(root, { remote, item: ITEM, epoch: 2 });
@@ -53,7 +53,7 @@ test('clause 1: the owner at the current hop epoch pushes trunk from the base to
   assert.equal(trunk(), tip);
 });
 
-test('clause 1: a stale owner cannot fence its old epoch back over the newer one [C7,#8275]', t => {
+test('landing.fence.a-stale-owner-cannot-fence-its: clause 1: a stale owner cannot fence its old epoch back over the newer one [C7,#8275]', t => {
   const { root, remote } = landing(t);
   fenceHop(root, { remote, item: ITEM, epoch: 1 });
   const taken = fenceHop(root, { remote, item: ITEM, epoch: 2 });
@@ -61,7 +61,7 @@ test('clause 1: a stale owner cannot fence its old epoch back over the newer one
   assert.equal(runFixtureGit(['rev-parse', hopFenceRef(ITEM)], { cwd: remote }), taken);
 });
 
-test('clause 1: with no hop (gate.fencedHop off) the land push is the plain push and writes no fence ref [C7,#8275]', t => {
+test('landing.fence.with-no-hop-gate-fencedhop-off: clause 1: with no hop (gate.fencedHop off) the land push is the plain push and writes no fence ref [C7,#8275]', t => {
   const { root, remote, base, tip, trunk } = landing(t);
   assert.equal(pushTrunkThroughFence(root, { remote, branch: TRUNK, base }).status, 0);
   assert.equal(trunk(), tip);
@@ -78,12 +78,12 @@ function gateRow(t, epochs) {
   return db;
 }
 
-test('clause 1: with gate.fencedHop on the landing batch carries each item hop epoch from its gate_hop row [C7,#8320]', t => {
+test('landing.fence.with-gate-fencedhop-on-the-landing: clause 1: with gate.fencedHop on the landing batch carries each item hop epoch from its gate_hop row [C7,#8320]', t => {
   const db = gateRow(t, 3);
   assert.deepEqual(carryLandingHops(db, [{ id: ITEM }, { id: ITEM + 1 }], { enabled: true }), [{ item: ITEM, epoch: 3 }], 'the gated item carries its row epoch; an item with no row carries none');
 });
 
-test('clause 2: a land carrying a hop epoch older than its gate_hop row is refused HOP_FENCED, leaving trunk where it was [C7,#8320]', t => {
+test('landing.fence.a-land-carrying-a-hop-epoch: clause 2: a land carrying a hop epoch older than its gate_hop row is refused HOP_FENCED, leaving trunk where it was [C7,#8320]', t => {
   const { root, remote, base, trunk } = landing(t);
   const db = gateRow(t, 1);
   const hops = carryLandingHops(db, [{ id: ITEM }], { enabled: true });
@@ -97,7 +97,7 @@ test('clause 2: a land carrying a hop epoch older than its gate_hop row is refus
   assert.equal(trunk(), base, 'trunk did not move');
 });
 
-test('clause 2: the current owner lands through the fence its carried epoch moves, from an unfenced or several-epochs-old ref [C7,#8320]', t => {
+test('landing.fence.the-current-owner-lands-through-the: clause 2: the current owner lands through the fence its carried epoch moves, from an unfenced or several-epochs-old ref [C7,#8320]', t => {
   const { root, remote, base, tip, trunk } = landing(t);
   const db = gateRow(t, 3);
   const hops = carryLandingHops(db, [{ id: ITEM }], { enabled: true });
@@ -106,7 +106,7 @@ test('clause 2: the current owner lands through the fence its carried epoch move
   assert.notEqual(runFixtureGit(['rev-parse', hopFenceRef(ITEM)], { cwd: remote }), '', 'the fence names epoch 3');
 });
 
-test('clause 3: with gate.fencedHop off the land push writes no fence ref [C7,#8320]', t => {
+test('landing.fence.with-gate-fencedhop-off-the-land: clause 3: with gate.fencedHop off the land push writes no fence ref [C7,#8320]', t => {
   const { root, remote, base, tip, trunk } = landing(t);
   const db = gateRow(t, 2);
   const hops = carryLandingHops(db, [{ id: ITEM }], { enabled: false });

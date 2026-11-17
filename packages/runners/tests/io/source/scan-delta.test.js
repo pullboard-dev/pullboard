@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/runners packages/config */
+/** @pullboard-test-input source-cell packages/runners */
 /** A child commit's history scan reads only the commits after its nearest scanned ancestor, and a cold one reads all [C7,#9858]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
@@ -43,7 +43,7 @@ function fixture(t) {
   return { root, commits, add, addPath, poison };
 }
 
-test('clause 1: after one scan of a 100-commit history, a child scans only the commits after it and gives a full scan\'s verdict [C7,#9858]', t => {
+test('runners.scan-delta.after-one-scan-of-a-100: clause 1: after one scan of a 100-commit history, a child scans only the commits after it and gives a full scan\'s verdict [C7,#9858]', t => {
   const policies = [defaults().protect];
   const { root, commits, add, addPath, poison } = fixture(t);
   assert.equal(commits.length, HISTORY);
@@ -60,14 +60,14 @@ test('clause 1: after one scan of a 100-commit history, a child scans only the c
   assert.throws(() => protectHistory(root, { commit: blocked }, policies), { code: 'RUNNER_SECRET' }, 'a blocked path past the ancestor is refused as a full scan refuses it');
 });
 
-test('clause 2: a commit with no scanned ancestor is scanned in full as today [C7,#9858]', t => {
+test('runners.scan-delta.a-commit-with-no-scanned-ancestor: clause 2: a commit with no scanned ancestor is scanned in full as today [C7,#9858]', t => {
   const policies = [defaults().protect];
   const { root, commits, poison } = fixture(t);
   poison(commits[0]);
   assert.throws(() => protectHistory(root, { commit: commits[HISTORY - 1] }, policies), { code: 'RUNNER_SOURCE' }, 'with nothing scanned before it, the walk starts at the root');
 });
 
-test('clause 2: a clean 100-commit history with no scanned ancestor passes as a full scan [C7,#9858]', t => {
+test('runners.scan-delta.a-clean-100-commit-history-with: clause 2: a clean 100-commit history with no scanned ancestor passes as a full scan [C7,#9858]', t => {
   const { root, commits } = fixture(t);
   assert.doesNotThrow(() => protectHistory(root, { commit: commits[HISTORY - 1] }, [defaults().protect]));
 });

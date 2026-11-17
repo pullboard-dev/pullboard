@@ -5,7 +5,7 @@ import { configFromSource } from '../src/io/main.js';
 import { defaults } from '../src/io/main.js';
 import { describeSetting } from '../src/io/settings/descriptions.js';
 
-test('clause 1: a project config declaring a generated file with its generator command and inputs loads, and one declaring none is unchanged [C7]', () => {
+test('config.generated-files.clause-1-a-project-config-declaring-a: clause 1: a project config declaring a generated file with its generator command and inputs loads, and one declaring none is unchanged [C7]', () => {
   const generated = [{ file: 'docs/api.md', generator: 'node tools/make-api.js', inputs: ['src/api.js', 'tools/make-api.js'] }];
   const config = configFromSource(JSON.stringify({ generated }));
   assert.deepEqual(config.generated, generated);
@@ -13,7 +13,7 @@ test('clause 1: a project config declaring a generated file with its generator c
   assert.equal(configFromSource('{}').generated, undefined);
 });
 
-test('clause 2: a generated declaration missing its generator is refused with the field named [C7]', () => {
+test('config.generated-files.clause-2-a-generated-declaration-missing: clause 2: a generated declaration missing its generator is refused with the field named [C7]', () => {
   const missing = JSON.stringify({ generated: [{ file: 'docs/api.md', inputs: ['src/api.js'] }] });
   assert.throws(() => configFromSource(missing), error => error.name === 'Refused' && error.code === 'BAD_CONFIG'
     && /docs\/api\.md/u.test(error.message) && /"generator"/u.test(error.message));
@@ -21,7 +21,7 @@ test('clause 2: a generated declaration missing its generator is refused with th
   assert.throws(() => configFromSource(blank), /"generator"/u);
 });
 
-test('clause 3: the pace setting is listed in the settings descriptions as a choice [O6]', () => {
+test('config.generated-files.clause-3-the-pace-setting-is-listed-in: clause 3: the pace setting is listed in the settings descriptions as a choice [O6]', () => {
   const pace = describeSetting('pace');
   assert.equal(pace?.unit, 'choice');
   assert.match(pace.description, /steady/u);

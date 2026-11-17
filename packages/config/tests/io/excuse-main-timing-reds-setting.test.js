@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'gate.excuseMainTimingReds'));
 }
 
-test('clause 1: gate.excuseMainTimingReds is a described machine setting, off by default [C7,#9753]', () => {
+test('config.io-excuse-main-timing-reds-setting.clause-1-gate-excusemaintimingreds-is-a: clause 1: gate.excuseMainTimingReds is a described machine setting, off by default [C7,#9753]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,13 +34,13 @@ test('clause 1: gate.excuseMainTimingReds is a described machine setting, off by
   assert.match(unset.description ?? JSON.stringify(unset), /timing reds/u);
 });
 
-test('clause 2: excuseMainTimingReds() is true only for an exact true [C7,#9753]', () => {
+test('config.io-excuse-main-timing-reds-setting.clause-2-excusemaintimingreds-is-true: clause 2: excuseMainTimingReds() is true only for an exact true [C7,#9753]', () => {
   assert.equal(withSettings({}, excuseMainTimingReds), false);
   assert.equal(withSettings({ gate: { excuseMainTimingReds: false } }, excuseMainTimingReds), false);
   assert.equal(withSettings({ gate: { excuseMainTimingReds: true } }, excuseMainTimingReds), true);
 });
 
-test('clause 3: a non-boolean gate.excuseMainTimingReds is refused BAD_MACHINE_SETTINGS [C7,#9753]', () => {
+test('config.io-excuse-main-timing-reds-setting.clause-3-a-non-boolean-gate: clause 3: a non-boolean gate.excuseMainTimingReds is refused BAD_MACHINE_SETTINGS [C7,#9753]', () => {
   for (const bad of ['yes', 1, 'true']) {
     assert.throws(() => withSettings({ gate: { excuseMainTimingReds: bad } }, excuseMainTimingReds), (err) => err.code === 'BAD_MACHINE_SETTINGS' && /gate\.excuseMainTimingReds/u.test(err.message));
   }

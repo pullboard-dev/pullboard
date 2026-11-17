@@ -44,7 +44,7 @@ function landFixture(t, epoch) {
   return { work, remote, payload, workdir: join(dir, 'runner'), tip: () => ref('refs/heads/main'), fence: () => ref(hopFenceRef(ITEM)), pushes: () => readFileSync(pushes, 'utf8').trim().split('\n').filter(Boolean).map(line => line.trim().split(/\s+/u).sort().join(' ')) };
 }
 
-test('clause 1: with gate.fencedHop on, the runner land job moves refs/pullboard/hop/<item> to the item epoch in the same push as trunk [C7,#8437]', async t => {
+test('landing.job-hop.with-gate-fencedhop-on-the-runner: clause 1: with gate.fencedHop on, the runner land job moves refs/pullboard/hop/<item> to the item epoch in the same push as trunk [C7,#8437]', async t => {
   const box = landFixture(t, 2);
   fenceHop(box.work, { remote: box.remote, item: ITEM, epoch: 1 });
   const before = box.pushes().length;
@@ -56,7 +56,7 @@ test('clause 1: with gate.fencedHop on, the runner land job moves refs/pullboard
   assert.deepEqual(box.pushes().slice(before), [`refs/heads/main ${hopFenceRef(ITEM)}`], 'one push moved the fence and trunk together');
 });
 
-test('clause 2: a runner land job holding a stale epoch is refused HOP_FENCED and leaves trunk unmoved [C7,#8437]', async t => {
+test('landing.job-hop.a-runner-land-job-holding-a: clause 2: a runner land job holding a stale epoch is refused HOP_FENCED and leaves trunk unmoved [C7,#8437]', async t => {
   const box = landFixture(t, 2);
   // A newer gate owner took the hop at epoch 3 and moved the fence; this job still carries epoch 2.
   const newer = fenceHop(box.work, { remote: box.remote, item: ITEM, epoch: 3 });
@@ -70,7 +70,7 @@ test('clause 2: a runner land job holding a stale epoch is refused HOP_FENCED an
   assert.equal(box.fence(), newer, 'the fence stays with the newer owner');
 });
 
-test('clause 1: a land job with no hops pushes trunk alone and writes no fence ref [C7,#8437]', async t => {
+test('landing.job-hop.a-land-job-with-no-hops: clause 1: a land job with no hops pushes trunk alone and writes no fence ref [C7,#8437]', async t => {
   const box = landFixture(t, 1);
   const { hops, ...plain } = box.payload;
   const receipt = await runLandingJob({ ...plain, shape: 2 }, { workdir: box.workdir, checks: () => ({ ok: true }) });
