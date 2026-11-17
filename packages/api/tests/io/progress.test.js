@@ -12,7 +12,7 @@ import { offerJob } from '../../index.js';
 const progressRows = (db, job) => db.prepare("SELECT job_step_seq AS seq, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'progress'").all(job);
 const refusal = call => { try { call(); } catch (error) { return error.code; } return null; };
 
-test('clause 2: a progress post without the job\'s lease token is refused, and the holder\'s is recorded [P7]', t => {
+test('api.progress.progress-post-without-job-lease: clause 2: a progress post without the job\'s lease token is refused, and the holder\'s is recorded [P7]', t => {
   const { root } = privateFixtureFiles('pullboard-jobs-progress-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   const call = body => jobQueueCall(db, body, { mode: 'pull' });

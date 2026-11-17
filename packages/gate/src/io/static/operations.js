@@ -37,6 +37,8 @@ export const OPERATIONS = Object.freeze([
   { name: 'execute-gate', entry: 'packages/gate/src/io/execution.js', why: 'defines a gate runner', from: 'dispatch-gates',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+run\w*Gate\w*\s*\(/u) },
   { name: 'landing', entry: 'packages/api/src/io/landing.js', why: 'defines a landing',
+    // The one named adapter: landing one accepted item by hand runs the landing job's own merge step and records the bypassed hold (#3775).
+    adapters: ['packages/landing/src/io/land/hand.js'],
     marks: code => code.search(/export\s+(?:async\s+)?function\s+(?:land|land[A-Z]\w*|offerLanding\w*|runLanding\w*)\s*\(/u) },
   { name: 'record-proof', entry: 'packages/store/src/io/receipts.js', why: 'defines a proof or clause-tick writer',
     marks: code => code.search(/export\s+(?:async\s+)?function\s+record\w*(?:Ticks?|Proof|ProofRun)\s*\(/u) },

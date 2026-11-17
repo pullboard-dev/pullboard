@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell codemap git */
 /** The submit cells check asks Git each fixed question once: local variable names, snapshot reads and base blobs [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

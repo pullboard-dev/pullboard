@@ -10,6 +10,7 @@ import { privateFixtureFiles } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { selectAffectedTests } from '../../../index.js';
 import { declaresSource } from '../../../src/io/test/inputs.js';
+import { testInputProblems } from '../../../src/io/test/inputs.js';
 
 const READ = "import { readdirSync } from 'node:fs';\nreaddirSync(new URL('../src', import.meta.url));\n";
 
@@ -59,4 +60,18 @@ test('a plain source-tree header still reads every cell [C7,V4]', t => {
 test('the source-read rigor check accepts a source-cell header and refuses a malformed one [C7]', () => {
   assert.equal(declaresSource('/** @pullboard-test-input source-cell gate */\nx\n'), true);
   assert.equal(declaresSource('/** @pullboard-test-input source-cell */\nx\n'), false);
+});
+
+const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('../tests/fixtures/a.json', import.meta.url));\n";
+const DOCS_READ = "import { readFileSync } from 'node:fs';\nconst x = 1;\nreadFileSync(new URL('../../docs/a.md', import.meta.url));\n";
+
+test('clause 1: with the setting on, an undeclared read under tests/fixtures, data or docs is reported at its first such line [C7,#9801]', () => {
+  const files = { 'a.test.js': FIXTURE_READ, 'b.test.js': DOCS_READ, 'c.test.js': `/** @pullboard-test-input docs-tree */\n${DOCS_READ}` };
+  const problems = testInputProblems('/unused', Object.keys(files), path => files[path], true);
+  assert.deepEqual(problems.map(p => [p.path, p.line]), [['a.test.js', 2], ['b.test.js', 3]]);
+});
+
+test('clause 2: with the setting off the same files are not reported [C7,#9801]', () => {
+  const files = { 'a.test.js': FIXTURE_READ, 'b.test.js': DOCS_READ };
+  assert.deepEqual(testInputProblems('/unused', Object.keys(files), path => files[path], false), []);
 });
