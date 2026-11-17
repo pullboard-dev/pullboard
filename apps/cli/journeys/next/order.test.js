@@ -8,6 +8,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { eligibilityProblem as queueEligibility } from '../../../../packages/verify/index.js';
 import { HOUR } from '../../tests/fixtures/next/order.js';
+import { MID_ITEM_DETAILS } from '../../tests/fixtures/next/order.js';
 import { FREEZE } from '../../tests/fixtures/next/order.js';
 import { boardFixture } from '../../tests/fixtures/next/order.js';
 import { submitted } from '../../tests/fixtures/next/order.js';
