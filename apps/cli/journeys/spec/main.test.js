@@ -35,6 +35,7 @@ import { joinFixtureSeat } from '../../tests/fixtures/testkit.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { stopFixtureLocalRunner } from '../../tests/fixtures/runner/local-stop.js';
 import { specBox } from '../../tests/fixtures/spec/box.js';
+import { cascadeBox } from '../../tests/fixtures/spec/cascade.js';
 
 test('rows parse with id, status, tier, text, gate, serves, section and line [S1]', () => {
   const spec = parseSpec(SPEC);
@@ -376,4 +377,22 @@ test('clause 1: an approved revision applies while an unrelated held item cites 
   assert.deepEqual(document.held, [], 'the unrelated held item holds nothing back');
   // The loopback runner the claim started may still write its home; stop it before the box is removed [C7].
   stopFixtureLocalRunner(box.env.PULLBOARD_MACHINE_HOME);
+});
+
+test('clause 1: rejecting a row sends every row that serves it back for review [C7,#9344]', async (t) => {
+  const { box, author, fact, first, third, verify } = await cascadeBox(t);
+  const rejected = await verify(fact, 'rejected');
+  assert.equal(rejected.code ?? rejected.status, 0, `${rejected.out ?? rejected.stdout}${rejected.err ?? rejected.stderr}`);
+  const exported = await box.runLocal(box.repo, 'export');
+  const tables = JSON.parse(exported.out ?? exported.stdout).tables;
+  const marks = tables.event.filter(event => event.event_kind === 'row_needs_review').map(event => JSON.parse(event.event_detail));
+  assert.deepEqual(marks.map(mark => mark.id).sort(), [first, third].sort(), 'both rows that serve the rejected one, directly or through another, are marked');
+  assert.ok(marks.every(mark => mark.because === fact), 'each mark names the rejected row');
+  const sent = tables.shout.filter(shout => shout.shout_text.includes(`${fact} was rejected`));
+  assert.deepEqual(sent.map(shout => shout.shout_to).sort(), [author, author], 'each marked row goes to its author');
+  assert.deepEqual(sent.map(shout => shout.shout_text.match(/; (\S+) serves/u)[1]).sort(), [first, third].sort());
+  const checked = await box.runLocal(box.repo, 'spec', 'check');
+  const text = `${checked.out ?? checked.stdout}${checked.err ?? checked.stderr}`;
+  for (const id of [first, third]) assert.match(text, new RegExp(`NEEDS_REVIEW: serves rejected ${fact}`, 'u'), `spec check names ${id}`);
+  assert.ok(text.includes(first) && text.includes(third) || /:\d+/u.test(text), 'spec check reports both rows');
 });
