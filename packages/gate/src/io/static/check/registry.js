@@ -27,6 +27,10 @@ import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { boardFileOpens } from '../../board/files.js';
+import { boardFileGrowth } from '../../board/files.js';
+import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
+import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
@@ -107,7 +111,8 @@ export const STATIC_CHECKS = Object.freeze([
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
+  // Only changed files are reported, so a change with no JS source has nothing to report and skips the 1.5 s whole-tree proof [C7].
+  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (!staged && !files.some(file => /\.[cm]?js$/u.test(file)) ? [] : staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/logic/export/only.js).
   { name: 'export-only', run: ({ sources, text }) => {
@@ -142,6 +147,12 @@ export const STATIC_CHECKS = Object.freeze([
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
+  // A changed test that adds an unclassified file-board open past its file's ceiling; silent unless the gate.boardOpensCheck machine setting is on, and it reads only changed test files.
+  { name: 'board-file-opens', run: ({ root, files, read }) => {
+    const tests = files.filter(isTestSource);
+    if (!tests.length || !boardOpensCheckOn()) return [];
+    return tests.flatMap(file => boardFileGrowth(boardFileOpens(read(file).source, file), BOARD_FILE_BASELINE).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;
