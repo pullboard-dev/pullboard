@@ -140,13 +140,16 @@ const ROWS = Object.freeze({
   elixir: ['mix'],
   go: ['go'],
   gradle: command => (/^\s*gradle\s/u.test(command) ? ['gradle', 'java'] : ['java']),
+  haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
   make: ['make'],
   maven: ['java', 'mvn'],
   node: ['node'],
+  perl: ['perl'],
   php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),
   python: command => [...(/^\s*uv\s/u.test(command) ? ['uv'] : /^\s*poetry\s/u.test(command) ? ['poetry'] : []), 'python3'],
   ruby: command => (/^\s*bundle\s/u.test(command) ? ['bundle', 'ruby'] : /^\s*rake\s/u.test(command) ? ['rake', 'ruby'] : ['ruby']),
   rust: ['cargo'],
+  sbt: ['java', 'sbt'],
   swift: ['swift'],
 });
 
