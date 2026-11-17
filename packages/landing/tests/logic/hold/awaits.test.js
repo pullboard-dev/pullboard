@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const read = file => readFileSync(new URL(`../../../../../${file}`, import.meta.url), 'utf8');
 
-test('clause 1: no landing step runs a test synchronously, which blocked the lease heartbeat until LAND_LEASE_LOST (9 Nov) [C7]', () => {
+test('landing.awaits.no-landing-step-runs-a-test: clause 1: no landing step runs a test synchronously, which blocked the lease heartbeat until LAND_LEASE_LOST (9 Nov) [C7]', () => {
   const landing = ['packages/landing/src/io', 'packages/landing/src/logic']
     .flatMap(folder => readdirSync(new URL(`../../../../../${folder}`, import.meta.url), { recursive: true }).filter(name => name.endsWith('.js')).map(name => `${folder}/${name}`));
   for (const file of landing) {

@@ -18,7 +18,7 @@ import { git } from '../fixtures/plan.js';
 const LINTS = 'packages/codemap/data/baselines/lints';
 const digest = text => createHash('sha256').update(text).digest('hex');
 
-test('#5560 clause 1: product landing rebinds the cells listing to its shards, records renames and merges ceilings so the lower wins [C7]', t => {
+test('landing.fixups.n5560-clause-1-product-landing-rebinds: #5560 clause 1: product landing rebinds the cells listing to its shards, records renames and merges ceilings so the lower wins [C7]', t => {
   const { root, put } = fixture(t);
   // The listing: one metric over one shard whose allowances changed after the listing was written, and one cell file bound to it.
   put(`${LINTS}/shim-001.json`, JSON.stringify({ allowances: { 'a.js': 2, 'b.js': 3 } }));
@@ -48,7 +48,7 @@ test('#5560 clause 1: product landing rebinds the cells listing to its shards, r
 
 const RED = new Refused('GATE_RED', 'static checks are red; fix the named source before running proof:\nweb/old.txt:4: inherited row\nweb/new.txt:2: new collision');
 
-test('#5560 clause 2: product landing judges static rows against the main baseline, so a row main prints never refuses and a new one does [C7]', () => {
+test('landing.fixups.n5560-clause-2-product-landing-judges: #5560 clause 2: product landing judges static rows against the main baseline, so a row main prints never refuses and a new one does [C7]', () => {
   const baseline = 'web/old.txt:9: inherited row\n';
   const refusal = judgeStaticAgainstBaseline(RED, baseline, 'node checks.js');
   assert.ok(refusal instanceof Refused);
@@ -61,7 +61,7 @@ test('#5560 clause 2: product landing judges static rows against the main baseli
   assert.equal(judgeStaticAgainstBaseline(other, baseline), other);
 });
 
-test('#5560 clause 3: product bisect attributes an added static row to the item that added it, not to every item that touched the file [C7]', t => {
+test('landing.fixups.n5560-clause-3-product-bisect-attributes: #5560 clause 3: product bisect attributes an added static row to the item that added it, not to every item that touched the file [C7]', t => {
   const { root, put } = fixture(t);
   put('web/shared.txt', 'one\ntwo\nthree\n');
   git(root, 'add', '-A');

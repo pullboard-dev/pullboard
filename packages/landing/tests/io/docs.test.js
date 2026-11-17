@@ -37,7 +37,7 @@ function temporaryRepository() {
   return dir;
 }
 
-test('a stale generated document is regenerated and amended into the merge before its gate [B3,C7]', { timeout: 120000 }, () => { // budget: one real archive extraction, one generator run and one amend.
+test('landing.docs.a-stale-generated-document-is-regenerated: a stale generated document is regenerated and amended into the merge before its gate [B3,C7]', { timeout: 120000 }, () => { // budget: one real archive extraction, one generator run and one amend.
   const dir = temporaryRepository();
   try {
     writeFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), `${readFileSync(join(dir, 'apps', 'cli', 'src/logic/help/additions.js'), 'utf8')}// stale generated documentation\n`);
@@ -56,7 +56,7 @@ test('a stale generated document is regenerated and amended into the merge befor
   }
 });
 
-test('a current generated document leaves the merge unchanged [B3,C7]', { timeout: 120000 }, () => { // budget: one real archive extraction, one generator run and one no-op check.
+test('landing.docs.a-current-generated-document-leaves-the: a current generated document leaves the merge unchanged [B3,C7]', { timeout: 120000 }, () => { // budget: one real archive extraction, one generator run and one no-op check.
   const dir = temporaryRepository();
   try {
     const regenerated = spawnSync(process.execPath, ['docs/tools/update-docs.js'], { cwd: dir, env: cleanGitEnvironment(), encoding: 'utf8', timeout: 60000 });

@@ -37,7 +37,7 @@ async function redJob(t) {
   return { receipt, workdir };
 }
 
-test('clause 1: a red land job records each failing test file and case name on the item [C7,#8499]', async t => {
+test('landing.red-log.a-red-land-job-records-each: clause 1: a red land job records each failing test file and case name on the item [C7,#8499]', async t => {
   const { receipt } = await redJob(t);
   assert.equal(receipt.outcome, 'red');
   const [returned] = receipt.returned;
@@ -47,7 +47,7 @@ test('clause 1: a red land job records each failing test file and case name on t
   assert.equal(receipt.failed.cases.length, 2);
 });
 
-test('clause 2: a red land job records a readable path to its full log and keeps the merged commit [C7,#8499]', async t => {
+test('landing.red-log.a-red-land-job-records-a: clause 2: a red land job records a readable path to its full log and keeps the merged commit [C7,#8499]', async t => {
   const { receipt, workdir } = await redJob(t);
   const { log, commit, refs } = receipt.failed;
   assert.ok(returnedHasLog(receipt, log), 'the detail names the log path');

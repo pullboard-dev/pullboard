@@ -25,7 +25,7 @@ function runnerPath(name) {
   return body.slice(body.indexOf('\n', guard));
 }
 
-test('clause 1: with runnersOnly on, smokeCandidate runs the smoke through runCheckOnRunner and starts no local process [C7]', () => {
+test('landing.smoke-runner.with-runnersonly-on-smokecandidate-runs-the: clause 1: with runnersOnly on, smokeCandidate runs the smoke through runCheckOnRunner and starts no local process [C7]', () => {
   const path = runnerPath('smokeCandidate');
   assert.match(path, /await runCheckOnRunner\(/u);
   for (const local of ['runLandingCliSmoke', 'runCommitCliSmoke', 'spawnSync', 'spawn(', 'execSync']) assert.ok(!path.includes(local), `the runner path never calls ${local}`);

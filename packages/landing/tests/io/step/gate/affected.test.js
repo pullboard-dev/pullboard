@@ -64,51 +64,51 @@ function plannedFiles(changed, { tiers = false, proof = null, mandatory = [], st
   return { plan, files: JSON.parse(readFileSync(calls, 'utf8')).map(file => file.replace(/^\.\//u, '')) };
 }
 
-test('a merged batch runs the union of its affected tests without the full gate [C7,S10]', () => {
+test('landing.affected.a-merged-batch-runs-the-union: a merged batch runs the union of its affected tests without the full gate [C7,S10]', () => {
   const { plan, files } = plannedFiles(['a', 'b']);
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
   assert.deepEqual(plan.files, files);
 });
 
-test('a one-file test fix runs only that file [C7,S10]', () => {
+test('landing.affected.a-one-file-test-fix-runs: a one-file test fix runs only that file [C7,S10]', () => {
   const { files } = plannedFiles(['a']);
   assert.deepEqual(files, ['test/a.test.js']);
 });
 
-test('a tiered batch runs its affected journey without unrelated journeys [C7,S10]', () => {
+test('landing.affected.a-tiered-batch-runs-its-affected: a tiered batch runs its affected journey without unrelated journeys [C7,S10]', () => {
   const { plan, files } = plannedFiles(['a'], { tiers: true });
   assert.deepEqual(files, ['test/a.test.js']);
   assert.deepEqual(plan.files, files);
 });
 
-test('clause 1: tiered landing uses the sealed submit union, the change\'s own edited tests and explicit mandatory guards [C7,S10]', () => {
+test('landing.affected.tiered-landing-uses-the-sealed-submit: clause 1: tiered landing uses the sealed submit union, the change\'s own edited tests and explicit mandatory guards [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: ['test/a.test.js'], mandatory: ['test/unrelated.test.js'] });
   // 37a843ba86: a test file the change itself edits runs whatever its tier, so edited b joins the sealed union.
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js', 'test/unrelated.test.js']);
 });
 
-test('clause 1: a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
+test('landing.affected.a-named-frozen-check-runs-even: clause 1: a named frozen check runs even when the submit proof has no remaining files [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [] });
   // 37a843ba86: the edited test b also runs at landing.
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('the frozen criterion and submission proof contribute their complete file union [C7,S10]', () => {
+test('landing.affected.the-frozen-criterion-and-submission-proof: the frozen criterion and submission proof contribute their complete file union [C7,S10]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: ['test/b.test.js'] });
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a stale submission neither narrows nor stops landing: the merged change selects its tests [C7,S10,#2897]', () => {
+test('landing.affected.a-stale-submission-neither-narrows-nor: a stale submission neither narrows nor stops landing: the merged change selects its tests [C7,S10,#2897]', () => {
   const { files } = plannedFiles(['a', 'b'], { tiers: true, proof: [], stale: true });
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('a full fallback proof does not stop landing: the merged change selects its tests [C7,S10,#2897]', () => {
+test('landing.affected.a-full-fallback-proof-does-not: a full fallback proof does not stop landing: the merged change selects its tests [C7,S10,#2897]', () => {
   const { files } = plannedFiles(['a', 'b'], { proof: ['test/a.test.js'], full: true });
   assert.deepEqual(files, ['test/a.test.js', 'test/b.test.js']);
 });
 
-test('clause 1: a frozen moved test resolves through the submitted source map [C7,S10]', () => {
+test('landing.affected.a-frozen-moved-test-resolves-through: clause 1: a frozen moved test resolves through the submitted source map [C7,S10]', () => {
   const { files } = plannedFiles(['a'], { proof: [], moved: true });
   assert.deepEqual(files, ['packages/example/tests/a.test.js']);
 });
