@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { findChromeExecutable } from '../../../cli/tests/fixtures/relay/browser.js';
+import { stableChrome } from '../../../cli/tests/fixtures/cockpit/stable.js';
 import { startChrome } from '../../../cli/tests/fixtures/relay/browser.js';
 
 const BROWSER = new URL('../../src/io/browser/', import.meta.url);
@@ -46,7 +47,7 @@ test('clause 1: in real Chrome the opt-in registers a service worker, subscribes
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const { origin, posted } = await serve(t);
-  const chrome = await startChrome();
+  const chrome = await stableChrome(await startChrome());
   t.after(() => chrome.close());
   await chrome.navigate(origin + '/');
   await chrome.waitFor('document.readyState === "complete"');
