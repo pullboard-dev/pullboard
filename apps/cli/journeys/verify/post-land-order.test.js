@@ -39,9 +39,9 @@ function offerLandedReviews(box) {
 }
 test('clause 1: with landed reviews on, a submitted item is offered before any landed item [C7,#9864]', async t => {
   const box = await fixture(t);
-  await landedBy(box, t, { family: BUILDER, name: 'Landed older' });
-  const newer = await landedBy(box, t, { family: BUILDER, name: 'Landed newer' });
-  const submitted = await landedBy(box, t, { family: BUILDER, name: 'Submitted, not landed', land: false });
+  await landedBy(box, t, { family: `${BUILDER} A`, name: 'Landed older' });
+  const newer = await landedBy(box, t, { family: `${BUILDER} B`, name: 'Landed newer' });
+  const submitted = await landedBy(box, t, { family: `${BUILDER} C`, name: 'Submitted, not landed', land: false });
   offerLandedReviews(box);
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), submitted, 'the submitted item comes before every landed item');
@@ -52,8 +52,8 @@ test('clause 1: with landed reviews on, a submitted item is offered before any l
 
 test('clause 2: two landed items are offered newest landing first [C7,#9864]', async t => {
   const box = await fixture(t);
-  const older = await landedBy(box, t, { family: BUILDER, name: 'Landed older' });
-  const newer = await landedBy(box, t, { family: BUILDER, name: 'Landed newer' });
+  const older = await landedBy(box, t, { family: `${BUILDER} A`, name: 'Landed older' });
+  const newer = await landedBy(box, t, { family: `${BUILDER} B`, name: 'Landed newer' });
   offerLandedReviews(box);
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), newer, 'the newest landing is offered first');
