@@ -3547,7 +3547,6 @@
   "test/native-cli-fixture.js": "apps/cli/tests/fixtures/native.js",
   "test/needs.test.js": "apps/cli/journeys/spec/needs.test.js",
   "test/newcomer.test.js": "apps/cli/journeys/gate/newcomer.test.js",
-  "test/next-answer-first.test.js": "apps/cli/journeys/next/answer.test.js",
   "test/next-build-past-family-review.test.js": "apps/cli/journeys/next/review.test.js",
   "test/next-constant-in-claims.test.js": "apps/cli/journeys/next/claims.test.js",
   "test/next-coordinator-callouts-actionable.test.js": "apps/cli/journeys/next/coordinator/callouts/actionable.test.js",

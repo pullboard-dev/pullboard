@@ -16,7 +16,7 @@ import { tightenCliLaunchBaseline } from '../../../src/io/test/launches.js';
 const ROOT = fileURLToPath(new URL('../../../../..', import.meta.url));
 const PATH = 'apps/cli/journeys/example/main.test.js';
 
-test('clause 1: a spawn of node or the CLI entry, a fixture child and a kit box call are launches; git and in-process calls are not [C7]', () => {
+test('gate.io-test-launches.a-spawn-of-node-or-the: clause 1: a spawn of node or the CLI entry, a fixture child and a kit box call are launches; git and in-process calls are not [C7]', () => {
   const source = [
     "const a = spawnSync(process.execPath, [BIN, 'show'], {});",
     "const b = execFileSync('node', ['x.js']);",
@@ -32,7 +32,7 @@ test('clause 1: a spawn of node or the CLI entry, a fixture child and a kit box 
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [1, 2, 3, 4, 5]);
 });
 
-test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while a pullboard CLI launch still is [C7]', () => {
+test('gate.io-test-launches.a-spawn-of-bin-sh-or: clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while a pullboard CLI launch still is [C7]', () => {
   const source = [
     "const a = execFileSync('/bin/sh', ['-c', shell], { cwd: box.runner });",
     "const b = execFileSync('git', ['ls-files', 'bin/*.js'], { cwd: ROOT });",
@@ -45,7 +45,7 @@ test('clause 1: a spawn of /bin/sh or a quoted bin/ glob is not a launch, while 
   assert.deepEqual(cliLaunchSites(source, PATH).map(row => row.line), [4, 5, 6]);
 });
 
-test('clause 1: a box member counts by whether its helper starts a process, so renaming box.cli to box.inProcess keeps the count [C7]', () => {
+test('gate.io-test-launches.a-box-member-counts-by-whether: clause 1: a box member counts by whether its helper starts a process, so renaming box.cli to box.inProcess keeps the count [C7]', () => {
   /** A local fixture whose member, named `name`, runs the CLI as a child process; the test calls it three times. */
   const spawning = name => [
     'function fixture() {',
@@ -65,7 +65,7 @@ test('clause 1: a box member counts by whether its helper starts a process, so r
   assert.deepEqual(cliLaunchSites(wrapped, PATH).map(row => row.line), [2, 7], 'a helper that reaches a spawn through another closure counts');
 });
 
-test('clause 2: a helper that runs the CLI in-process is not counted, whatever its name [C7]', () => {
+test('gate.io-test-launches.a-helper-that-runs-the-cli: clause 2: a helper that runs the CLI in-process is not counted, whatever its name [C7]', () => {
   const source = [
     'function fixture() {',
     "  const cli = (cwd, ...args) => runCliInProcess(args, { cwd });",
@@ -81,7 +81,7 @@ test('clause 2: a helper that runs the CLI in-process is not counted, whatever i
   assert.deepEqual(cliLaunchSites(source, PATH), []);
 });
 
-test('clause 1: a runner handed its command counts only when the call names node or the CLI, and a kit box keeps its spawning members [C7]', () => {
+test('gate.io-test-launches.a-runner-handed-its-command-counts: clause 1: a runner handed its command counts only when the call names node or the CLI, and a kit box keeps its spawning members [C7]', () => {
   const runner = [
     'function fixture() {',
     "  const run = (cwd, command, args) => runFixtureChild(command, args, { cwd });",
@@ -101,14 +101,14 @@ test('clause 1: a runner handed its command counts only when the call names node
   assert.deepEqual(cliLaunchSites(kit, PATH).map(row => row.line), [3], 'a closure never put on a box does not shadow the kit member');
 });
 
-test('clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
+test('gate.io-test-launches.only-test-files-under-apps-and: clause 1: only test files under apps/ and packages/ have launches counted, the fixture kit and src files are not [C7]', () => {
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/tests/fixtures/e2e.js'), []);
   assert.deepEqual(cliLaunchSites("box.run(cwd, 'show');", 'apps/cli/src/main.js'), []);
   assert.equal(cliLaunchSites("spawnSync(process.execPath, [BIN]);", 'packages/gate/tests/io/x.test.js').length, 1);
   assert.equal(cliLaunchSites("box.run(cwd, 'show');", PATH).length, 1);
 });
 
-test('clause 1: counts are per file, a risen count and a new launching journey are refused, and a fall is allowed [C7]', () => {
+test('gate.io-test-launches.counts-are-per-file-a-risen: clause 1: counts are per file, a risen count and a new launching journey are refused, and a fall is allowed [C7]', () => {
   const sites = cliLaunchSites("box.run(a);\nbox.run(b);", PATH);
   assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 2 } });
   assert.deepEqual(cliLaunchGrowth(sites, { [PATH]: { launch: 2 } }), []);
@@ -119,7 +119,7 @@ test('clause 1: counts are per file, a risen count and a new launching journey a
   assert.deepEqual(cliLaunchGrowth(cliLaunchSites('runCliInProcess(a);', 'apps/cli/journeys/example/new.test.js'), {}), []);
 });
 
-test('clause 1: the updater only lowers ceilings and refuses growth without writing [C7]', () => {
+test('gate.io-test-launches.the-updater-only-lowers-ceilings-and: clause 1: the updater only lowers ceilings and refuses growth without writing [C7]', () => {
   const baseline = { [PATH]: { launch: 2 } };
   const grown = cliLaunchSites('box.run(a);\nbox.run(b);\nbox.run(c);', PATH);
   assert.throws(() => tightenCliLaunchBaseline(grown, baseline), /main\.test\.js:3:/u);
@@ -128,18 +128,18 @@ test('clause 1: the updater only lowers ceilings and refuses growth without writ
   assert.deepEqual(baseline, { [PATH]: { launch: 2 } });
 });
 
-test('clause 1: the repository has no new CLI launches in its journeys [C7]', () => {
+test('gate.io-test-launches.the-repository-has-no-new-cli: clause 1: the repository has no new CLI launches in its journeys [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL('../../../data/baselines/cli-launches.json', import.meta.url), 'utf8'));
   assert.deepEqual(cliLaunchGrowth(cliLaunchReport(ROOT), baseline), []);
 });
 
-test('clause 1: the report gives each file a pullboard CLI count and an other-child count, with both totals [C7,#5946]', () => {
+test('gate.io-test-launches.the-report-gives-each-file-a: clause 1: the report gives each file a pullboard CLI count and an other-child count, with both totals [C7,#5946]', () => {
   const sites = cliLaunchSites("box.run(a);\nspawnSync(process.execPath, ['--test', 'x.test.js']);\nexecFileSync('node', ['-e', 'x']);\nspawnSync(process.execPath, [BIN, 'show']);", PATH);
   assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
   assert.deepEqual(cliLaunchCounts(sites), { [PATH]: { launch: 4 } }, 'the ceilings still count both');
 });
 
-test('tighten drops a row measured at 0 [C7]', () => {
+test('gate.io-test-launches.tighten-drops-a-row-measured-at: tighten drops a row measured at 0 [C7]', () => {
   const other = 'apps/cli/journeys/example/stale.test.js';
   const baseline = { [PATH]: { launch: 2 }, [other]: { launch: 3 } };
   const next = tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', PATH), baseline);
@@ -147,13 +147,13 @@ test('tighten drops a row measured at 0 [C7]', () => {
   assert.equal(other in next, false, 'the file measured at 0 loses its row');
 });
 
-test('tighten refuses to raise or add a row, naming the file [C7]', () => {
+test('gate.io-test-launches.tighten-refuses-to-raise-or-add: tighten refuses to raise or add a row, naming the file [C7]', () => {
   const added = 'apps/cli/journeys/example/new.test.js';
   assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);\nbox.run(b);', PATH), { [PATH]: { launch: 1 } }), /main\.test\.js/u);
   assert.throws(() => tightenCliLaunchBaseline(cliLaunchSites('box.run(a);', added), { [PATH]: { launch: 1 } }), /new\.test\.js/u);
 });
 
-test('clause 1: the advice for a packages/ cell test names a helper in its own cell, one the cross-cell import rule allows [C7]', () => {
+test('gate.io-test-launches.the-advice-for-a-packages-cell: clause 1: the advice for a packages/ cell test names a helper in its own cell, one the cross-cell import rule allows [C7]', () => {
   const source = "const a = spawnSync(process.execPath, [BIN, 'show'], {});";
   const cellPath = 'packages/landing/tests/io/example.test.js';
   const [site] = cliLaunchSites(source, cellPath);

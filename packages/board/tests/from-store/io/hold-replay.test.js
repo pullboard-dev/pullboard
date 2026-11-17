@@ -37,7 +37,7 @@ function shown(board, id) {
     detail: JSON.parse(store.events(board, { itemId: id }).at(-1).event_detail) };
 }
 
-test('clause 1: a hold written with holds.requireOwner on replays to the same board state on a machine with it off [C7,#8569]', t => {
+test('board.hold-replay.hold-written-with-holds-requireowner-replays: clause 1: a hold written with holds.requireOwner on replays to the same board state on a machine with it off [C7,#8569]', t => {
   const writer = machine(t);
   const replica = machine(t);
   const move = { agentId: 'coordinator', requireOwner: true, reason: 'wait for the design', owner: 'lane:web', deadline: '2030-01-02T03:04:05Z' };
@@ -57,7 +57,7 @@ test('clause 1: a hold written with holds.requireOwner on replays to the same bo
   assert.equal(store.itemHoldOwner(writer.board, writer.ids[1]), null);
 });
 
-test('clause 2: every hold write path records the requireOwner decision in its event [C7,#8569]', t => {
+test('board.hold-replay.every-hold-write-path-records-the: clause 2: every hold write path records the requireOwner decision in its event [C7,#8569]', t => {
   const { board, dir, ids } = machine(t);
   onMachine(t, dir, true);
   store.holdItem(board, ids[0], { agentId: 'coordinator', requireOwner: true, reason: 'owned hold', owner: 'a seat' });

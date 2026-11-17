@@ -75,7 +75,7 @@ function written(board, after) {
     .map(row => ({ kind: row.kind, by: row.by, detail: (({ model, ...rest }) => rest)(JSON.parse(row.detail)) }));
 }
 
-test('clause 1: with moves.live.handoff on, a hand-off start keeps the record the START table decides and refuses what the table refuses [C7,#8385]', t => {
+test('board.submit-handoff-live.with-moves-live-handoff-hand-off: clause 1: with moves.live.handoff on, a hand-off start keeps the record the START table decides and refuses what the table refuses [C7,#8385]', t => {
   let decided = null;
   const shadowed = startBoard(t, startRecord.snapshot, { startSubmitHandoffShadow: answer => { decided = answer.decided; } });
   startGate(shadowed);
@@ -90,7 +90,7 @@ test('clause 1: with moves.live.handoff on, a hand-off start keeps the record th
   assert.equal(store.submitHandoff(unserved, startRecord.move.id).state, 'queued', 'a refused start keeps the queued record');
 });
 
-test('clause 2: with moves.live.handoff on, a hand-off completion saves the record and writes the events the COMPLETE table decides [C7,#8385]', t => {
+test('board.submit-handoff-live.with-moves-live-handoff-hand-off-2: clause 2: with moves.live.handoff on, a hand-off completion saves the record and writes the events the COMPLETE table decides [C7,#8385]', t => {
   let decided = null;
   const shadowed = completeBoard(t, completion.snapshot, { submitCompleteShadow: answer => { decided = answer.decided; } });
   completeGate(shadowed);
@@ -106,7 +106,7 @@ test('clause 2: with moves.live.handoff on, a hand-off completion saves the reco
     error => error.code === 'SUBMIT_HANDOFF_CHANGED' && typeof error.next === 'string' && error.next.length > 0);
 });
 
-test('clause 3: with moves.live.handoff off (the default) the writers\' own rules decide and the tables only compare; on, they do not run beside them [C7,#8385]', t => {
+test('board.submit-handoff-live.with-moves-live-handoff-off-the: clause 3: with moves.live.handoff off (the default) the writers\' own rules decide and the tables only compare; on, they do not run beside them [C7,#8385]', t => {
   const compares = [];
   for (const live of [false, true]) {
     const started = startBoard(t, startRecord.snapshot, { movesLive: { handoff: live }, startSubmitHandoffShadow: () => compares.push(['start', live]) });

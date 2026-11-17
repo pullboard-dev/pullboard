@@ -11,7 +11,7 @@ import { repositoryName } from '../../index.js';
 import { GITHUB_API_VERSION } from '../../index.js';
 import { githubFixture } from '../../../cli/tests/fixtures/relay.js';
 
-test('App browser grant uses state and PKCE and is one-use [H8, H1]', async (t) => {
+test('relay.io-github.app-browser-grant-uses-state-and: App browser grant uses state and PKCE and is one-use [H8, H1]', async (t) => {
   const fixture = await githubFixture(t);
   const client = createGitHubClient(fixture.config);
   const verifier = randomBytes(32).toString('base64url');
@@ -27,7 +27,7 @@ test('App browser grant uses state and PKCE and is one-use [H8, H1]', async (t) 
   assert.ok(fixture.calls.filter(call => call.path !== '/login/oauth/authorize').every(call => call.apiVersion === GITHUB_API_VERSION));
 });
 
-test('device grant polls pending and slow-down without CLI-held secret [H8, H1]', async (t) => {
+test('relay.io-github.device-grant-polls-pending-and-slow: device grant polls pending and slow-down without CLI-held secret [H8, H1]', async (t) => {
   const fixture = await githubFixture(t);
   const client = createGitHubClient(fixture.config);
   const grant = await client.startDevice();
@@ -41,7 +41,7 @@ test('device grant polls pending and slow-down without CLI-held secret [H8, H1]'
   assert.ok(polls.every(call => !call.formKeys.includes('client_secret') && !call.formKeys.includes('scope')));
 });
 
-test('App metadata checks current private access and immutable account identity [H8, H1]', async (t) => {
+test('relay.io-github.app-metadata-checks-current-private-access: App metadata checks current private access and immutable account identity [H8, H1]', async (t) => {
   const fixture = await githubFixture(t);
   const client = createGitHubClient(fixture.config);
   const user = { id: '7', login: 'fixture-user' };
@@ -60,7 +60,7 @@ test('App metadata checks current private access and immutable account identity 
   assert.throws(() => repositoryName('owner/../other'), { code: 'BAD_REPOSITORY' });
 });
 
-test('GitHub credentials never follow a redirect to a different origin [H8, H1]', async (t) => {
+test('relay.io-github.github-credentials-never-follow-a-redirect: GitHub credentials never follow a redirect to a different origin [H8, H1]', async (t) => {
   const fixture = await githubFixture(t);
   let foreignRequests = 0;
   const foreign = createServer((req, res) => { foreignRequests += 1; res.end('{}'); });
@@ -77,7 +77,7 @@ test('GitHub credentials never follow a redirect to a different origin [H8, H1]'
 });
 
 
-test('GitHub roles use role_name, custom-role flags and legacy fallback [H13,H14,H8]', async (t) => {
+test('relay.io-github.github-roles-use-role-name-custom: GitHub roles use role_name, custom-role flags and legacy fallback [H13,H14,H8]', async (t) => {
   const fixture = await githubFixture(t);
   fixture.state.public = true;
   const client = createGitHubClient(fixture.config);
