@@ -12,7 +12,7 @@ import { fixtureProjectPolicy } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('pullboard publish from an agent shell pushes the green head [GH25]', () => {
+test('pullboard publish from an agent shell pushes the green head [GH25]', async () => {
   const box = e2e.sandbox();
   delete box.env.NODE_TEST_CONTEXT;
   const project = e2e.project('node --test test/publish.test.js', box, { withWorktree: false });
@@ -30,7 +30,7 @@ test('pullboard publish from an agent shell pushes the green head [GH25]', () =>
   // The coordinator is a Claude Code agent: its shell carries the agent markers and a session id.
   box.env.CLAUDECODE = '1';
   box.env.CLAUDE_CODE_SESSION_ID = 'coordinator-publish-gh25';
-  const published = box.run(repo, 'publish');
+  const published = await box.runIn(repo, 'publish');
   assert.equal(published.code, 0, published.out + published.err);
   assert.doesNotMatch(published.out + published.err, /NOT_JOINED/);
   const branch = box.git(repo, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
