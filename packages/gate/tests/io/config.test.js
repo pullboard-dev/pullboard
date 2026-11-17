@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { detectLanguages } from '../../src/io/config.js';
+import { detectTestGlobs } from '../../src/io/config.js';
+import { languageToolchains } from '../../src/io/config.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 /** Make a repo root holding the given files, removed after the test. */
