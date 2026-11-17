@@ -4,6 +4,8 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.
 import { completeGate } from '../completion.js';
 import { junitFailures } from '../../logic/junit-failures.js';
 import { cargoTestCases } from '../../../../gate/light.js';
+import { detectLanguages } from '../../../../gate/index.js';
+import { junitFile } from '../../logic/junit-files.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import * as store from '../../../../store/index.js';
@@ -12,10 +14,11 @@ import * as store from '../../../../store/index.js';
  * Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. With
  * junitFailures on and junitXml given, the report's failing cases join the rows, deduped on file plus case names.
  * Why: pytest, Go, Rust, PHP, Elixir, C# and C++ write JUnit, not TAP, so landing could name none of their reds [C7].
+ * A case the report gives no file attribute for takes the path junitFile gives for junitLanguage; with no junitLanguage its file stays null [C7,#10591].
  * With cargoFailures on, each failing `cargo test` case in the output is a row with its panic line, deduped against the rows
  * above on test name; Rust writes no JUnit without nextest [C7,#10385].
  */
-export function landingFailures(output, root, { excludeCancelled = false, junitFailures: junitOn = false, junitXml = null, cargoFailures: cargoOn = false } = {}) {
+export function landingFailures(output, root, { excludeCancelled = false, junitFailures: junitOn = false, junitXml = null, junitLanguage = null, cargoFailures: cargoOn = false } = {}) {
   const failures = [];
   let active = null;
   const cases = [];
@@ -87,13 +90,24 @@ export function landingFailures(output, root, { excludeCancelled = false, junitF
     return [`${file}\0${JSON.stringify(caseNames ?? [name])}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}), ...(watchdog ? { watchdog: true } : {}) }];
   }));
   if (junitOn === true && typeof junitXml === 'string') {
-    for (const { name, file, assertion } of junitFailures(junitXml, root).rows) {
+    for (const { name, classname, file: reported, assertion } of junitFailures(junitXml, root).rows) {
+      const file = reported ?? (typeof junitLanguage === 'string' ? junitFile(junitLanguage, { classname, file: null }) : null);
       const key = `${file}\0${JSON.stringify([name])}`;
       if (!unique.has(key)) unique.set(key, { name, file, ...(assertion ? { assertion } : {}) });
     }
   }
   if (cargoOn === true) addCargoRows(unique, output);
   return [...unique.values()];
+}
+
+/**
+ * The one language a project root is gated in, or null when it has none, several, or one per folder.
+ * Why: a JUnit row maps a case to a file by its language, and a guess in a multi-language repo would name the wrong file [C7,#10591].
+ */
+export function landingJunitLanguage(root) {
+  const entries = detectLanguages(root);
+  const languages = new Set(entries.map(entry => entry.language));
+  return languages.size === 1 && entries.every(entry => !entry.folder) ? entries[0].language : null;
 }
 
 /** The `Running <path>` line before a libtest line, as the repo file its binary was built from, or null when none came before. */
