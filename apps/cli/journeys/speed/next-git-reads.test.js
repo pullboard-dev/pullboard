@@ -39,10 +39,10 @@ async function measured(t, value) {
   setting(box, value);
   Object.assign(box.env, spawnEnv(log), { PULLBOARD_SPAWN_STACK: '1' });
   writeFileSync(log, '');
-  const result = await box.runLocal(box.web, 'next', '--build', '--json');
+  const result = box.run(box.web, 'next', '--build', '--json');
   assert.equal(result.code, 0, `next exited ${result.code}: ${result.err}${result.out}`);
   const answer = JSON.parse(result.out);
-  const printed = (result.out + result.err).replaceAll(box.dir, '<box>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/gu, '<time>');
+  const printed = (result.out + result.err).replaceAll(box.dir, '<box>').replace(/\d{4}-\d\d-\d\dT[\d:.]+Z/gu, '<time>').replace(/\b[0-9a-f]{40}\b/gu, '<sha>');
   const spawned = readFileSync(log, 'utf8').split('\n').filter(Boolean).length;
   console.log(`# next children spawned: ${spawned}`);
   return { item: answer?.item?.item_id ?? answer?.item_id, printed, reads: readLines(log) };
