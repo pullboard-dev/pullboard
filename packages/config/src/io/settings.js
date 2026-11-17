@@ -162,6 +162,11 @@ export function idiomSpreadEnabled() {
   return loadMachineSettings().gate?.idiomSpread === true;
 }
 
+/** Whether the static check refuses a test that pins an engine number, an exact count, a file hash or a frozen JSON snapshot: off by default; only an exact `true` turns it on [C7,#9385]. */
+export function literalPinsEnabled() {
+  return loadMachineSettings().gate?.literalPins === true;
+}
+
 /** Record each move table shadow compare on the board only when this machine opted in [C7,#8376]. */
 export function movesShadowEnabled() {
   return loadMachineSettings().moves?.shadow === true;
