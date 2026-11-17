@@ -46,15 +46,40 @@ function unittestCommand(root) {
   return '';
 }
 
+/** Folders a nested scan never enters: tooling, dependencies and build output hold no project of their own [C7,#10367]. */
+const NESTED_SKIPPED = new Set(['node_modules', 'vendor', 'target']);
+
 /**
  * Every ecosystem the project uses, each with its test command, in a fixed order, without running anything.
  * Why: a repo with several languages needs each one's tests in its gate, not only the first found [#3707].
+ * A root that detects nothing is read one folder down, each hit naming its folder, because a monorepo keeps
+ * each service in its own folder; a root that detects anything is never scanned below [C7,#10367].
  *
  * @param {string} root
  * @param {readonly object[]} [rows] extra ecosystem rows, in table order
- * @returns {{ language: string, command: string }[]}
+ * @returns {{ language: string, command: string, folder?: string }[]}
  */
 export function detectLanguages(root, rows = LANGUAGE_ROWS) {
+  const here = detectHere(root, rows);
+  if (here.length) return here;
+  const nested = [];
+  const folders = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && !NESTED_SKIPPED.has(entry.name))
+    .map((entry) => entry.name).sort();
+  for (const folder of folders) {
+    for (const entry of detectHere(join(root, folder), rows)) nested.push({ ...entry, folder });
+  }
+  return nested;
+}
+
+/**
+ * The ecosystems whose markers sit directly in one folder.
+ *
+ * @param {string} root
+ * @param {readonly object[]} rows
+ * @returns {{ language: string, command: string }[]}
+ */
+function detectHere(root, rows) {
   const found = [];
   const add = (language, command) => found.push({ language, command });
   const file = join(root, 'package.json');
@@ -102,13 +127,15 @@ export function detectLanguages(root, rows = LANGUAGE_ROWS) {
 
 /** Detect an existing ecosystem's test command without executing it during setup; several join with &&. */
 export function detectGate(root) {
-  return detectLanguages(root).map((entry) => entry.command).join(' && ');
+  // A nested hit runs in a subshell that changes into its folder, so the next command starts where the gate did [C7,#10367].
+  return detectLanguages(root).map((entry) => (entry.folder ? `(cd '${entry.folder.replaceAll("'", "'\\''")}' && ${entry.command})` : entry.command)).join(' && ');
 }
 
 /** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
 export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
   const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
-  return [...new Set(detectLanguages(root, rows).flatMap((entry) => LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []))];
+  const prefix = (entry) => (entry.folder ? `${entry.folder}/` : '');
+  return [...new Set(detectLanguages(root, rows).flatMap((entry) => (LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? []).map((glob) => `${prefix(entry)}${glob}`)))];
 }
 
 /** Read literal rule target lists without executing Makefile parsing, includes or recipes. */
