@@ -133,3 +133,45 @@ export function cargoTestCases(output) {
   }
   return { cases, reason: null };
 }
+
+/* Per-language affected-test rows: the command that runs only what a change touches, and the unit selection picks by [C7]. Kept here so the gate light door loads no extra module for them. */
+
+/** A file-unit row: the prefix runs each selected test file. */
+const fileRow = command => ({ affectedTests: command, selectionUnit: 'file' });
+
+/** The rows, by language. {units} is every selected unit in one command; {unit} repeats the command once per unit. */
+const AFFECTED_ROWS = {
+  python: fileRow('pytest'),
+  node: fileRow('node --test'),
+  go: { affectedTests: 'go test {units}', selectionUnit: 'package' },
+  rust: { affectedTests: 'cargo test --manifest-path {unit}/Cargo.toml', selectionUnit: 'crate' },
+  csharp: { affectedTests: 'dotnet test {unit}', selectionUnit: 'project' },
+  php: fileRow('vendor/bin/phpunit'),
+  ruby: fileRow('bundle exec rspec'),
+  deno: fileRow('deno test'),
+  bun: fileRow('bun test'),
+};
+
+/** Languages whose tests no file or unit command can narrow; they run the full gate or declare affectedSuites. */
+const AFFECTED_NONE = {
+  cmake: 'AFFECTED_NONE: cmake selects by test binary; run the full gate or declare affectedSuites',
+  make: 'AFFECTED_NONE: make selects by test binary; run the full gate or declare affectedSuites',
+  maven: 'AFFECTED_NONE: maven has no per-file test command; run the full gate or declare affectedSuites',
+  gradle: 'AFFECTED_NONE: gradle has no per-file test command; run the full gate or declare affectedSuites',
+  swift: 'AFFECTED_NONE: swift has no per-file test command; run the full gate or declare affectedSuites',
+};
+
+/**
+ * The affected-test row for a language: {affectedTests, selectionUnit, reason: null}, or a null command with a reason, never a guessed command [C7].
+ *
+ * @param {string} language a language row id such as python, go or rust
+ * @returns {{affectedTests: string | null, selectionUnit: string | null, reason: string | null}}
+ */
+export function affectedRow(language) {
+  const row = AFFECTED_ROWS[language];
+  if (row) return { ...row, reason: null };
+  return { affectedTests: null, selectionUnit: null, reason: AFFECTED_NONE[language] ?? `AFFECTED_UNKNOWN: ${String(language)} has no affected-test row; run the full gate or declare affectedSuites` };
+}
+
+/** Every language that has a row or an explicit no-row answer. */
+export const AFFECTED_LANGUAGES = [...Object.keys(AFFECTED_ROWS), ...Object.keys(AFFECTED_NONE)];
