@@ -122,10 +122,11 @@ export function validateServe(serve, file) {
  */
 export function validateBoardRemote(board, file) {
   if (board === undefined) return;
-  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents', 'crossProcessWrites', 'hotState'].includes(key))) {
-    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits, archiveEvents, crossProcessWrites and hotState; remove it to use the local board`);
+  if (!board || typeof board !== 'object' || Array.isArray(board) || Object.keys(board).some(key => !['url', 'token', 'commits', 'archiveEvents', 'compactShouts', 'crossProcessWrites', 'hotState'].includes(key))) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `board in ${file} holds only url, token, commits, archiveEvents, compactShouts, crossProcessWrites and hotState; remove it to use the local board`);
   }
   if (board.archiveEvents !== undefined && typeof board.archiveEvents !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.archiveEvents in ${file} must be true or false`);
+  if (board.compactShouts !== undefined && typeof board.compactShouts !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.compactShouts in ${file} must be true or false`);
   if (board.crossProcessWrites !== undefined && typeof board.crossProcessWrites !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.crossProcessWrites in ${file} must be true or false`);
   if (board.hotState !== undefined && typeof board.hotState !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `board.hotState in ${file} must be true or false`);
   // Off by default: with commits set to bundle, a submit by URL carries the clone's commits as one git bundle [P7,C7].
@@ -595,6 +596,11 @@ export function retireIdleSeatHours() {
 /** Free gigabytes below which pullboard health warns (#9110); 0, the default, never warns. */
 export function healthDiskFloorGb() {
   return loadMachineSettings().health?.diskFloorGb ?? 0;
+}
+
+/** Whether a new shout event stores the shout id and no text (#9336): off by default; only an exact `true` turns it on. */
+export function compactShoutsEnabled() {
+  return loadMachineSettings().board?.compactShouts === true;
 }
 
 /** Whether old relay request receipts are dropped (#9337): off by default; only an exact `true` turns it on. */
