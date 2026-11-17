@@ -7,7 +7,7 @@ import * as index from '../../index.js';
 import * as dispatch from '../../src/io/dispatch.js';
 import * as front from '../../src/io/run-async.js';
 
-test('clause 1: the runners index exports runOnRunnerAsync, bridgeDeadlineMs and refuseLegacyControllerEntry from run-async.js, and dispatch.js exports none of them [C7,#9890]', () => {
+test('runners.run-async-front.index-exports-async-front-not-dispatch: clause 1: the runners index exports runOnRunnerAsync, bridgeDeadlineMs and refuseLegacyControllerEntry from run-async.js, and dispatch.js exports none of them [C7,#9890]', () => {
   assert.equal(index.dispatchRunOnRunnerAsync, front.runOnRunnerAsync);
   assert.equal(index.bridgeDeadlineMs, front.bridgeDeadlineMs);
   assert.equal(index.refuseLegacyControllerEntry, front.refuseLegacyControllerEntry);
@@ -17,7 +17,7 @@ test('clause 1: the runners index exports runOnRunnerAsync, bridgeDeadlineMs and
   }
 });
 
-test('clause 2: runOnRunnerAsync through the index with a stub runner keeps its result shape: an aborted run refuses with RunnerDropped naming the host [C7,#9890]', async () => {
+test('runners.run-async-front.aborted-run-refuses-runnerdropped: clause 2: runOnRunnerAsync through the index with a stub runner keeps its result shape: an aborted run refuses with RunnerDropped naming the host [C7,#9890]', async () => {
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(

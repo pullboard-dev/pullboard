@@ -25,13 +25,13 @@ import { occupiedPlaces } from '../../../index.js';
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
 
-test("an interactive marker-phase parent lends its token while it waits on the child's markers [C7]", async t => {
+test('gate.io-main-admission-loans.an-interactive-marker-phase-parent-lends: an interactive marker-phase parent lends its token while it waits on the child\'s markers [C7]', async t => {
   const { root, env } = fixture(t, 1);
   const ready = join(root, 'interactive-ready'), release = join(root, 'interactive-release');
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   writeFileSync(join(root, 'interactive-child.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
-test('child waits for barrier', async () => {
+test('gate.io-main-admission-loans.child-waits-for-barrier: child waits for barrier', async () => {
   writeFileSync(${JSON.stringify(ready)}, 'ready');
   while (!existsSync(${JSON.stringify(release)})) await new Promise(done => setTimeout(done, 10));
 });\n`);
@@ -40,7 +40,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { awaitNestedPhase, occupiedPlaces } from ${JSON.stringify(poolModule)};
-test('parent coordinates only its child', { timeout: 30000 }, async () => {
+test('gate.io-main-admission-loans.parent-coordinates-only-its-child: parent coordinates only its child', { timeout: 30000 }, async () => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'interactive-child.test.js'], { cwd: ${JSON.stringify(root)}, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.resume(); child.stderr.resume();
   const result = await awaitNestedPhase(child, async () => {
@@ -57,12 +57,12 @@ test('parent coordinates only its child', { timeout: 30000 }, async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0, 'the interactive loan drains before return');
 });
 
-test('an interactive group shares one loan and drains all registered children [C7]', async t => {
+test('gate.io-main-admission-loans.an-interactive-group-shares-one-loan: an interactive group shares one loan and drains all registered children [C7]', async t => {
   const { root, env } = fixture(t, 1);
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   writeFileSync(join(root, 'group-child.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
-test('wait for its barrier', async () => {
+test('gate.io-main-admission-loans.wait-for-its-barrier: wait for its barrier', async () => {
   writeFileSync(process.env.READY, 'ready');
   while (!existsSync(process.env.RELEASE)) await new Promise(done => setTimeout(done, 10));
 });\n`);
@@ -71,7 +71,7 @@ import { existsSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
 import { withNestedGroup, awaitNestedRun, occupiedPlaces } from ${JSON.stringify(poolModule)};
-test('sequential children share one group', { timeout: 45000 }, async () => {
+test('gate.io-main-admission-loans.sequential-children-share-one-group: sequential children share one group', { timeout: 45000 }, async () => {
   const home = JSON.parse(process.env.PULLBOARD_TEST_FILE_POOL).home;
   await withNestedGroup(async add => {
     for (const number of [1, 2]) {
@@ -98,7 +98,7 @@ test('sequential children share one group', { timeout: 45000 }, async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('clause 1: an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
+test('gate.io-main-admission-loans.an-explicit-async-loan-refuses-duplicate: clause 1: an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
@@ -111,7 +111,7 @@ import { awaitNestedRun } from ${JSON.stringify(poolModule)};
 // slots to the home these nested runs inherit, or two seat tests share two slots and one waits 30 s for the reserve [C7].
 mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
 writeFileSync(process.env.PULLBOARD_MACHINE_HOME + '/settings.json', JSON.stringify({ gateSlots: 4, browserSlots: 1 }));
-test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
+test('gate.io-main-admission-loans.explicit-wait-contracts: explicit wait contracts', { timeout: 10_000 }, async (t) => {
   const start = () => {
     const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { cwd: ${JSON.stringify(root)}, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.resume(); child.stderr.resume();
@@ -148,7 +148,7 @@ test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('async offers preserve spawn argument overloads and Node validation [C7]', async (t) => {
+test('gate.io-main-admission-loans.async-offers-preserve-spawn-argument-overloads: async offers preserve spawn argument overloads and Node validation [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   const probe = join(root, 'options.sh');
@@ -226,7 +226,7 @@ import { awaitNestedRun } from ${JSON.stringify(poolModule)};
 import { variants } from './spawn-cases.mjs';
 import { startVariant } from './spawn-cases.mjs';
 import { observation } from './spawn-cases.mjs';
-test('offered spawn matches independently loaded Node', async () => {
+test('gate.io-main-admission-loans.offered-spawn-matches-independently-loaded-node: offered spawn matches independently loaded Node', async () => {
   const expected = JSON.parse(readFileSync('expected.json', 'utf8'));
   for (const variant of variants) {
     let observed;
@@ -241,12 +241,12 @@ test('offered spawn matches independently loaded Node', async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('an async loan whose cleanup fails exits without resuming its parent [C7]', async (t) => {
+test('gate.io-main-admission-loans.an-async-loan-whose-cleanup-fails: an async loan whose cleanup fails exits without resuming its parent [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
   const poolModule = new URL('../../../index.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
-test('borrowed child', async () => {
+test('gate.io-main-admission-loans.borrowed-child: borrowed child', async () => {
   writeFileSync('inner-ready', 'ready');
   while (!existsSync('release-inner')) await new Promise(next => setTimeout(next, 10));
 });
@@ -259,7 +259,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { waitFor } from ${JSON.stringify(new URL('../../../../../apps/cli/tests/fixtures/gate/resource.js', import.meta.url).href)};
 import { awaitNestedRun } from ${JSON.stringify(poolModule)};
-test('a broken private pool must not return a live loan', async () => {
+test('gate.io-main-admission-loans.a-broken-private-pool-must-not: a broken private pool must not return a live loan', async () => {
   const child = spawn(process.execPath, [${JSON.stringify(runner)}, 'inner.test.js'], { stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout.resume(); child.stderr.resume();
   const waiting = awaitNestedRun(child);
@@ -280,7 +280,7 @@ test('a broken private pool must not return a live loan', async () => {
   assert.equal(await occupiedPlaces(env.PULLBOARD_MACHINE_HOME), 0);
 });
 
-test('a run a synchronous call leaves behind lends nothing once the call returns [C7]', { cpuLoad: true }, async (t) => {
+test('gate.io-main-admission-loans.a-run-a-synchronous-call-leaves: a run a synchronous call leaves behind lends nothing once the call returns [C7]', { cpuLoad: true }, async (t) => {
   const { root, env, log } = fixture(t, 1);
   for (const file of ['inner-a.test.js', 'inner-b.test.js']) writeFileSync(join(root, file), timedFile(file, 200));
   // The detached run keeps its own temp folder: under the outer run's, the outer cleanup removes the run's sandbox mid-start under load.
@@ -302,7 +302,7 @@ test('a run a synchronous call leaves behind lends nothing once the call returns
   assert.ok(innerStarts.every(at => at >= parentEnd), 'on 1 core, the detached run waited for the parent instead of borrowing its place');
 });
 
-test('a synchronous call returns only after the file it lent its place to has exited [C7]', async (t) => {
+test('gate.io-main-admission-loans.a-synchronous-call-returns-only-after: a synchronous call returns only after the file it lent its place to has exited [C7]', async (t) => {
   const { root, env, log } = fixture(t, 1);
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 2000));
   // The shell starts a run and returns only once its file has logged its start: it was admitted inside the open call.
@@ -321,14 +321,14 @@ test('a synchronous call returns only after the file it lent its place to has ex
   assert.ok(resumed >= innerEnd, 'on 1 core, the caller resumed only after the file in its place exited');
 });
 
-test('a call waits for every file under it, even when a file in between dies [C7]', async (t) => {
+test('gate.io-main-admission-loans.a-call-waits-for-every-file: a call waits for every file under it, even when a file in between dies [C7]', async (t) => {
   const { root, env, log } = fixture(t, 1);
   writeFileSync(join(root, 'd.test.js'), timedFile('d.test.js', 2000));
   // C starts D inside its own call, waits until D is admitted, and is then killed while D still runs.
   const startD = `${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} d.test.js > /dev/null 2>&1 & until grep -q 'd.test.js","at":"start' ${JSON.stringify(env.FIXTURE_LOG)} 2>/dev/null; do sleep 0.05; done; kill -9 \${PPID_C}`;
   writeFileSync(join(root, 'c.test.js'), `import { execSync } from 'node:child_process';
 import { test } from 'node:test';
-test('c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, PPID_C: String(process.pid), FIXTURE_RUN: 'd' } }); });
+test('gate.io-main-admission-loans.c: c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, PPID_C: String(process.pid), FIXTURE_RUN: 'd' } }); });
 `);
   const runC = `const { execSync } = await import('node:child_process');
   try { execSync(${JSON.stringify(`${JSON.stringify(process.execPath)} ${JSON.stringify(runner)} c.test.js`)}, { cwd: ${JSON.stringify(root)}, env: { ...process.env, FIXTURE_RUN: 'c' }, stdio: 'ignore' }); }
@@ -346,7 +346,7 @@ test('c', () => { execSync(${JSON.stringify(startD)}, { cwd: ${JSON.stringify(ro
 
 
 /** Missing providers refuse before any workspace read, queued lease or caller action can begin. */
-test('gate admission requires explicit complete execution providers before work [C7,Q1]', async () => {
+test('gate.io-main-admission-loans.gate-admission-requires-explicit-complete-execution: gate admission requires explicit complete execution providers before work [C7,Q1]', async () => {
   let called = false;
   const root = '/missing-core714-execution-provider-fixture';
   const action = () => { called = true; };

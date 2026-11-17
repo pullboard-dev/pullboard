@@ -12,7 +12,7 @@ function row(pid, ppid, pgid) {
   return { pid, ppid, pgid, started: 'Sat Oct 24 09:00:00 2026', state: 'S', command: 'node' };
 }
 
-test("a job's detached child lives until the job ends, then custody reaps it [C7]", async t => {
+test('runner.custody.a-job-s-detached-child-lives-until: a job\'s detached child lives until the job ends, then custody reaps it [C7]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-custody-phase-'));
   const self = 9_100_001, command = 9_100_010, detached = 9_100_020;
   let rows = new Map([[self, row(self, 1, self)]]), phase = 'command running';

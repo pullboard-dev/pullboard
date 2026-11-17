@@ -14,7 +14,7 @@ import { waitForFixtureMarker } from '../../../fixtures/landing-run.js';
 import { makeShardFixture } from '../../../fixtures/landing-run.js';
 import { runShardWithPreload } from '../../../fixtures/landing-run.js';
 
-test('a later spawn-time ps failure names unverified cleanup [C7,V4]', t => {
+test('runners.snapshot-cleanup.a-later-spawn-time-ps-failure: a later spawn-time ps failure names unverified cleanup [C7,V4]', t => {
   const fixture = makeShardFixture(t);
   const workerTest = join(fixture.root, 'test/spawn-snapshot.test.js');
   const injected = join(fixture.root, 'spawn-snapshot-injected.json');
@@ -72,7 +72,7 @@ if (process.argv[1] === ${JSON.stringify(workerTest)}) {
   assert.equal((output.match(/cleanup for .* UNVERIFIED/gu) ?? []).length, 1, 'cleanup uncertainty is reported once');
 });
 
-test('tests continue when worker and parent identity censuses stay unavailable [C7,V4]', async t => {
+test('runners.snapshot-cleanup.tests-continue-when-worker-and-parent: tests continue when worker and parent identity censuses stay unavailable [C7,V4]', async t => {
   const fixture = makeShardFixture(t);
   const workerTest = join(fixture.root, 'test/worker-unverified.test.js');
   const preload = join(fixture.root, 'persistent-census-failure.mjs');

@@ -36,7 +36,7 @@ function probe(moduleURL, root, env) {
   return result.stdout === 'true';
 }
 
-test('[A5,A6] code provenance strips inherited GIT_DIR in both worktree-to-main directions', (t) => {
+test('git.main.provenance-strips-git-dir: [A5,A6] code provenance strips inherited GIT_DIR in both worktree-to-main directions', (t) => {
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-git-provenance-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   const main = join(fixture, 'main');
@@ -81,7 +81,7 @@ test('[A5,A6] code provenance strips inherited GIT_DIR in both worktree-to-main 
   assert.equal(mainAsWorktree, true, 'main source can upgrade in a hook that inherits linked-worktree variables');
 });
 
-test('[A2,N26,A5,A6] code provenance is cached per request and refreshes for the next request', async (t) => {
+test('git.main.provenance-cached: [A2,N26,A5,A6] code provenance is cached per request and refreshes for the next request', async (t) => {
   const fixture = mkdtempSync(join(tmpdir(), 'pullboard-git-provenance-scope-'));
   t.after(() => rmSync(fixture, { recursive: true, force: true }));
   const main = join(fixture, 'main');

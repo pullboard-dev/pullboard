@@ -67,7 +67,7 @@ async function fixture(t, limitBytes = 300) {
   return { provider, root, directory, database, auth, signed, principal, quota, journal, page };
 }
 
-test('one account quota includes legacy bytes and unfinished pages across its boards [H15,H17]', async t => {
+test('relay.io-quota.one-account-quota-includes-legacy-bytes: one account quota includes legacy bytes and unfinished pages across its boards [H15,H17]', async t => {
   const box = await fixture(t);
   box.journal(A, journal => journal.appendNext(Buffer.alloc(150), 'move', { kind: 'agent', userId: box.signed.user.id, agent: 'fixture' }));
   box.page(B, 110);
@@ -86,7 +86,7 @@ test('one account quota includes legacy bytes and unfinished pages across its bo
   finally { reopened.close(); }
 });
 
-test('an account nearing its storage quota is warned before any write is refused [H5,H15,H17]', async t => {
+test('relay.io-quota.an-account-nearing-its-storage-quota: an account nearing its storage quota is warned before any write is refused [H5,H15,H17]', async t => {
   const box = await fixture(t, 300);
   const actor = { kind: 'agent', userId: box.signed.user.id, agent: 'fixture' };
   box.journal(A, journal => journal.appendNext(Buffer.alloc(120), 'move', actor));
@@ -141,7 +141,7 @@ test('an account nearing its storage quota is warned before any write is refused
   }
 });
 
-test('an existing storage account is stable across a second authorized link and another account has its own budget [H15,H17]', async t => {
+test('relay.io-quota.an-existing-storage-account-is-stable: an existing storage account is stable across a second authorized link and another account has its own budget [H15,H17]', async t => {
   const box = await fixture(t);
   box.provider.state.accountID = 8; box.provider.state.permissionAccountID = 8;
   const other = await signIn(box.auth);
@@ -160,7 +160,7 @@ test('an existing storage account is stable across a second authorized link and 
   assert.equal(box.quota.usage(A).usedBytes, 252);
 });
 
-test('the quota lock remains held through the write and an over-quota account may still shrink [H15,H17]', async t => {
+test('relay.io-quota.the-quota-lock-remains-held-through: the quota lock remains held through the write and an over-quota account may still shrink [H15,H17]', async t => {
   const box = await fixture(t, 100);
   box.quota.change(A, box.principal, 90, () => {
     const independent = new DatabaseSync(box.database);

@@ -20,7 +20,7 @@ function repo(t) {
   return { root, previous, published: git('rev-parse', 'HEAD') };
 }
 
-test('the refresh is launched detached with the previous and published main, and the landing does not wait for it [C7]', (t) => {
+test('landing.detached.the-refresh-is-launched-detached-with: the refresh is launched detached with the previous and published main, and the landing does not wait for it [C7]', (t) => {
   const { root, previous, published } = repo(t);
   const launches = [];
   const said = [];
@@ -31,7 +31,7 @@ test('the refresh is launched detached with the previous and published main, and
   assert.deepEqual(said, [], 'nothing waits or reports here');
 });
 
-test('an unchanged main launches nothing, and a launch failure is said, never thrown [C7]', (t) => {
+test('landing.detached.an-unchanged-main-launches-nothing-and: an unchanged main launches nothing, and a launch failure is said, never thrown [C7]', (t) => {
   const { root, published } = repo(t);
   const launches = [];
   assert.equal(refreshPublishedMainReds({ root, say() {} }, published, { launch: (...args) => launches.push(args) }), null);

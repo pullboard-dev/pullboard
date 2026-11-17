@@ -53,14 +53,14 @@ async function landTiming(t, asyncFetch) {
   } finally { running = false; await watch; }
 }
 
-test('clause 1: with landing.asyncFetch on, the event loop takes a turn at least every 500 ms through a 3 s fetch [C7,#9516]', async t => {
+test('landing.async-fetch.with-landing-asyncfetch-on-the-event: clause 1: with landing.asyncFetch on, the event loop takes a turn at least every 500 ms through a 3 s fetch [C7,#9516]', async t => {
   const { receipt, gap, slow } = await landTiming(t, true);
   assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
   assert.equal(slow, true, 'the slow fetch ran');
   assert.ok(gap < 500, `the event loop went ${gap} ms without a turn`);
 });
 
-test('clause 2: with the setting off the fetches block the event loop as today [C7,#9516]', async t => {
+test('landing.async-fetch.with-the-setting-off-the-fetches: clause 2: with the setting off the fetches block the event loop as today [C7,#9516]', async t => {
   const { receipt, slow } = await landTiming(t, false);
   assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
   assert.equal(slow, true, 'the same slow fetch ran, synchronously');

@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/memo.js packages/codemap/src/io/cells/scripts/cache.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
+/** @pullboard-test-input apps/cli/src/io/memo.js apps/cli/src/io/cells/cache.js packages/gate/index.js packages/items/index.js packages/landing/index.js */
 /** Runners share one cells fixture-analysis memo through the controller; a bad memo never replaces good entries [C7]. */
 /** @pullboard-world-pin: the runner fixture carries the shipped memo-share module, the code a pinned main's archive holds. */
 import { test } from 'node:test';
@@ -111,7 +111,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
 `);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
-  put('packages/codemap/src/io/cells/scripts/cache.js', `import { join } from 'node:path';
+  put('apps/cli/src/io/cells/cache.js', `import { join } from 'node:path';
 export function transferredCellsInventories() { return null; }
 export function cellsCacheDirectory(kind) { return join(process.env.FIXTURE_RUNNER_CACHE, kind); }
 `);

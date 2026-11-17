@@ -33,7 +33,7 @@ function decryptPush(body, { ecdh, auth }) {
   return plain.subarray(0, plain.length - 1);
 }
 
-test('clause 1: an encrypted payload decrypts back to the payload with the subscriber\'s private key [C7]', () => {
+test('relay.logic-push-encrypt.an-encrypted-payload-decrypts-back-to: clause 1: an encrypted payload decrypts back to the payload with the subscriber\'s private key [C7]', () => {
   const sub = subscriber();
   const payload = JSON.stringify({ kind: 'wake', blob: 'sealed' });
   const body = encryptPush(payload, sub.keys);
@@ -43,7 +43,7 @@ test('clause 1: an encrypted payload decrypts back to the payload with the subsc
   assert.notEqual(encryptPush(payload, sub.keys).toString('hex'), body.toString('hex'), 'each encryption uses a fresh salt and sender key');
 });
 
-test('clause 1: a fixed salt and sender key give the same bytes, and an empty and a maximal payload round-trip [C7]', () => {
+test('relay.logic-push-encrypt.a-fixed-salt-and-sender-key: clause 1: a fixed salt and sender key give the same bytes, and an empty and a maximal payload round-trip [C7]', () => {
   const sub = subscriber();
   const senderKey = createECDH('prime256v1');
   senderKey.generateKeys();
@@ -55,7 +55,7 @@ test('clause 1: a fixed salt and sender key give the same bytes, and an empty an
   assert.throws(() => encryptPush(randomBytes(3994), sub.keys), RangeError);
 });
 
-test('clause 1: a changed byte anywhere in the record fails to decrypt, and another subscriber cannot read it [C7]', () => {
+test('relay.logic-push-encrypt.a-changed-byte-anywhere-in-the: clause 1: a changed byte anywhere in the record fails to decrypt, and another subscriber cannot read it [C7]', () => {
   const sub = subscriber();
   const body = encryptPush('sealed text', sub.keys);
   const header = 21 + body[20];
@@ -67,7 +67,7 @@ test('clause 1: a changed byte anywhere in the record fails to decrypt, and anot
   assert.throws(() => decryptPush(body, subscriber()));
 });
 
-test('clause 1: a malformed subscription key or auth secret is refused before encrypting [C7]', () => {
+test('relay.logic-push-encrypt.a-malformed-subscription-key-or-auth: clause 1: a malformed subscription key or auth secret is refused before encrypting [C7]', () => {
   const sub = subscriber();
   assert.throws(() => encryptPush('x', { ...sub.keys, auth: randomBytes(15).toString('base64url') }), TypeError);
   assert.throws(() => encryptPush('x', { ...sub.keys, p256dh: Buffer.concat([Buffer.from([3]), randomBytes(64)]).toString('base64url') }), TypeError);
