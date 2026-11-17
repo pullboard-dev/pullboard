@@ -21,7 +21,7 @@ function board(items) {
   return { run, edits };
 }
 
-test('clause 1: every open item naming a moved path has its criterion and check rewritten, each edit recorded with the reason [B4,R2]', () => {
+test('codemap.bars.every-open-item-naming-a: clause 1: every open item naming a moved path has its criterion and check rewritten, each edit recorded with the reason [B4,R2]', () => {
   const { run, edits } = board([
     open(1, { item_criterion: `1. ${MOVE.from} still exports run [test].`, item_check: `node --test ${MOVE.from}` }),
     open(2, { item_criterion: `1. Only the criterion names ${MOVE.from}.` }),
@@ -38,7 +38,7 @@ test('clause 1: every open item naming a moved path has its criterion and check 
   ]);
 });
 
-test('clause 1: a path that only shares a prefix or suffix with the moved one is left alone [B4,R2]', () => {
+test('codemap.bars.a-path-that-only-shares: clause 1: a path that only shares a prefix or suffix with the moved one is left alone [B4,R2]', () => {
   const { run, edits } = board([open(1, { item_criterion: `${MOVE.from}x and x${MOVE.from} and ${MOVE.from}/inner and ${MOVE.from}.map stay.`, item_check: `node --test ${MOVE.from}.` })]);
   const done = rewriteMovedBars({ moves: [MOVE], reason: REASON, run });
   assert.deepEqual(done.map(change => change.id), [1]);
@@ -46,7 +46,7 @@ test('clause 1: a path that only shares a prefix or suffix with the moved one is
   assert.equal(edits[0].check, `node --test ${MOVE.to}.`, 'a sentence period after the path still matches');
 });
 
-test('clause 1: a rewrite with no reason refuses before any edit [B4,R2]', () => {
+test('codemap.bars.a-rewrite-with-no-reason: clause 1: a rewrite with no reason refuses before any edit [B4,R2]', () => {
   const { run, edits } = board([open(1, { item_criterion: MOVE.from })]);
   assert.throws(() => rewriteMovedBars({ moves: [MOVE], reason: ' ', run }), { code: 'BAR_REASON' });
   assert.equal(edits.length, 0);

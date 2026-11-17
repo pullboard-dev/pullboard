@@ -62,7 +62,7 @@ function refusesMovedGrowth(box, commit, gained, before) {
     && error.message.includes(`web/moved/old.html gains ${gained} problem${gained === 1 ? '' : 's'}, had ${before}`));
 }
 
-test('a body moved behind a re-export shim keeps its original problems [D1,D3]', () => {
+test('doctrine.rename.a-body-moved-behind-a-re-export-shim: a body moved behind a re-export shim keeps its original problems [D1,D3]', () => {
   for (const shim of [
     "export * from './moved/old.html';\n",
     "/* compatibility */ export { one, two as alias, } from './moved/old.html'; // no body\n",
@@ -77,14 +77,14 @@ test('a body moved behind a re-export shim keeps its original problems [D1,D3]',
   }
 });
 
-test('a shim move that gains a problem still refuses below the total ceiling [D1,D3]', () => {
+test('doctrine.rename.a-shim-move-that-gains-a-problem-still: a shim move that gains a problem still refuses below the total ceiling [D1,D3]', () => {
   const box = repo();
   writeFileSync(join(box.root, 'web', 'other.html'), 'done\n');
   const commit = shimMove(box, "export * from './moved/old.html';\n", `${OLD}TODO e\n`);
   refusesMovedGrowth(box, commit, 1, 3);
 });
 
-test('a copied body whose origin remains executable gets no inherited allowance [D1,D3]', () => {
+test('doctrine.rename.a-copied-body-whose-origin-remains: a copied body whose origin remains executable gets no inherited allowance [D1,D3]', () => {
   for (const origin of [
     OLD,
     `${OLD}one more harmless line\n`,
@@ -102,7 +102,7 @@ test('a copied body whose origin remains executable gets no inherited allowance 
   }
 });
 
-test('a renamed file with the same problems passes against its origin [D1,D3]', () => {
+test('doctrine.rename.a-renamed-file-with-the-same-problems: a renamed file with the same problems passes against its origin [D1,D3]', () => {
   const box = repo();
   mkdirSync(join(box.root, 'web', 'moved'));
   renameSync(join(box.root, 'web', 'old.html'), join(box.root, 'web', 'moved', 'old.html'));
@@ -114,7 +114,7 @@ test('a renamed file with the same problems passes against its origin [D1,D3]', 
   assert.equal(result.holds, true);
 });
 
-test('a renamed file with fewer problems passes [D1,D3]', () => {
+test('doctrine.rename.a-renamed-file-with-fewer-problems: a renamed file with fewer problems passes [D1,D3]', () => {
   const box = repo();
   mkdirSync(join(box.root, 'web', 'moved'));
   renameSync(join(box.root, 'web', 'old.html'), join(box.root, 'web', 'moved', 'old.html'));
@@ -123,7 +123,7 @@ test('a renamed file with fewer problems passes [D1,D3]', () => {
   assert.equal(hold(box, commit)[0].count, 3);
 });
 
-test('a renamed file that gains a problem still refuses (negative control) [D1,D3]', () => {
+test('doctrine.rename.a-renamed-file-that-gains-a-problem: a renamed file that gains a problem still refuses (negative control) [D1,D3]', () => {
   const box = repo();
   mkdirSync(join(box.root, 'web', 'moved'));
   renameSync(join(box.root, 'web', 'old.html'), join(box.root, 'web', 'moved', 'old.html'));
@@ -134,7 +134,7 @@ test('a renamed file that gains a problem still refuses (negative control) [D1,D
     && /web\/moved\/old\.html gains 1 problem, had 3/.test(error.message));
 });
 
-test('a genuinely new file with problems still refuses (negative control) [D1,D3]', () => {
+test('doctrine.rename.a-genuinely-new-file-with-problems-still: a genuinely new file with problems still refuses (negative control) [D1,D3]', () => {
   const box = repo();
   writeFileSync(join(box.root, 'web', 'fresh.html'), 'TODO x\nTODO y\nTODO z\n');
   writeFileSync(join(box.root, 'web', 'old.html'), 'done\n');

@@ -23,6 +23,9 @@ import { runSummary } from "../../logic/board/runs.js";
 import { RUN_APPLIED_EVENT } from "../../logic/board/runs.js";
 import { RUN_QUEUED_EVENT } from "../../logic/board/runs.js";
 import { PENDING_STEP } from "./runs.js";
+import { runsPort } from "./runs.js";
+import { jobsOf } from "../../../../jobs/index.js";
+import { releaseLease } from "../../../../jobs/index.js";
 
 /** How long a pending job with no board run may wait for its move before the reconciler abandons it. */
 export const INTENT_GRACE_MS = 10 * 60 * 1000;
@@ -285,4 +288,28 @@ export function saveSubmitHandoff(db, item, handoff, { now = Date.now() } = {}) 
     ON CONFLICT (run_job) DO UPDATE SET run_record = excluded.run_record, run_updated = excluded.run_updated`)
     .run(handoff.id, item, handoff.commit, handoff.main ?? null, JSON.stringify(handoff), now, now);
   return { job: handoff.id, step: handoff.state, seq: 0 };
+}
+
+/**
+ * End an item's live gate job as cancelled through the runs port, so its runner's next renew or receipt is refused [C7,#3860].
+ * A job already done or cancelled is left as it is; an item with no live gate job writes nothing.
+ *
+ * Why the lease is freed too: the cancelled step alone leaves the runner's lease standing, and a renew on a standing lease would succeed.
+ *
+ * @param {any} board - The open board, whose job tables serve while runs_store is off.
+ * @param {number} item
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null, now?: number, reason?: string }} [options] - runs: the board's runs holder while runs_store is on.
+ * @returns {{ written: boolean, jobs: string[] }} jobs: the gate jobs this call cancelled.
+ */
+export function cancelGateJob(board, item, { runs = null, now = Date.now(), reason = 'withdrawn' } = {}) {
+  const db = runs?.db ?? board.db;
+  const port = runsPort({ db });
+  const cancelled = [];
+  for (const view of jobsOf(db, { kind: 'gate', item })) {
+    if (['done', 'cancelled'].includes(view.step)) continue;
+    if (!port.cancel(view.id, { reason, now }).written) continue;
+    if (view.leaseOwner) releaseLease(db, view.id, view.leaseOwner, { now });
+    cancelled.push(view.id);
+  }
+  return { written: cancelled.length > 0, jobs: cancelled };
 }

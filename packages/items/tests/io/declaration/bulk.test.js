@@ -35,7 +35,7 @@ function families(board, expected) {
   assert.deepEqual(observed, expected);
 }
 
-test('synthetic historical inputs: bulk family reads preserve requested-seat ties, shared sessions and ghost peer evidence [V4,H16,C7]', t => {
+test('items.declaration.bulk-requested-ties: synthetic historical inputs: bulk family reads preserve requested-seat ties, shared sessions and ghost peer evidence [V4,H16,C7]', t => {
   const board = fixtureBoard(t);
   seat(board, 'core-1', 'OpenAI', 'shared'); seat(board, 'core-2', 'Claude', 'shared');
   assert.deepEqual(withDerivedFamilies(board, []), []);
@@ -49,7 +49,7 @@ test('synthetic historical inputs: bulk family reads preserve requested-seat tie
   families(board, { 'core-1': 'Ghost vendor', 'core-2': 'Ghost vendor', 'core-3': null });
 });
 
-test('synthetic historical inputs: blank requested seats retain row-ordered ghost peer LAST ties [V4,H16,C7]', t => {
+test('items.declaration.bulk-blank-last-ties: synthetic historical inputs: blank requested seats retain row-ordered ghost peer LAST ties [V4,H16,C7]', t => {
   const board = fixtureBoard(t);
   seat(board, 'core-1', null, 'shared');
   metadata(board, 'agent_session:ghost', 'shared'); // Deliberately before the lexically earlier real peer.
@@ -58,7 +58,7 @@ test('synthetic historical inputs: blank requested seats retain row-ordered ghos
   families(board, { 'core-1': 'Ghost vendor', 'core-2': 'OpenAI' });
 });
 
-test('synthetic historical inputs: case-variant metadata remains a peer but never overrides an original session [V4,H16,C7]', t => {
+test('items.declaration.bulk-case-variants: synthetic historical inputs: case-variant metadata remains a peer but never overrides an original session [V4,H16,C7]', t => {
   const board = fixtureBoard(t);
   seat(board, 'core-1', 'OpenAI'); metadata(board, 'AGENT_SESSION:core-1', 'shared');
   seat(board, 'core-2', null, 'shared'); metadata(board, 'agent_session:ghost', 'shared');
@@ -67,7 +67,7 @@ test('synthetic historical inputs: case-variant metadata remains a peer but neve
   families(board, { 'core-1': 'OpenAI', 'core-2': 'Ghost vendor', 'core-3': 'Claude' });
 });
 
-test('synthetic historical inputs: bulk family reads retain earliest nonblank declarations and exact historical receipt binding [V4,H16,C7]', t => {
+test('items.declaration.bulk-earliest-nonblank: synthetic historical inputs: bulk family reads retain earliest nonblank declarations and exact historical receipt binding [V4,H16,C7]', t => {
   const board = fixtureBoard(t);
   seat(board, 'core-1', null); event(board, 'core-1', 'join', {}); event(board, 'core-1', 'family', { family: 'Claude' });
   families(board, { 'core-1': 'Claude' });
@@ -86,7 +86,7 @@ test('synthetic historical inputs: bulk family reads retain earliest nonblank de
   families(board, { 'core-1': 'OpenAI', 'core-2': 'First vendor', 'core-3': 'Claude' });
 });
 
-test('synthetic historical inputs: bulk family snapshots end at return and never cache a late declaration or rolled-back row [V4,H16,C7]', t => {
+test('items.declaration.bulk-snapshot-ends: synthetic historical inputs: bulk family snapshots end at return and never cache a late declaration or rolled-back row [V4,H16,C7]', t => {
   const board = fixtureBoard(t);
   seat(board, 'core-1', null); families(board, { 'core-1': null });
   board.db.prepare('UPDATE agent SET agent_family=? WHERE agent_id=?').run('OpenAI', 'core-1');
@@ -101,7 +101,7 @@ test('synthetic historical inputs: bulk family snapshots end at return and never
   families(board, { 'core-1': 'OpenAI', 'core-2': 'Late vendor', 'core-3': 'Late vendor' });
 });
 
-test('synthetic historical inputs: bulk family snapshots observe external writes and preserve preengine and inserting semantics [V4,H16,C7]', t => {
+test('items.declaration.bulk-external-writes: synthetic historical inputs: bulk family snapshots observe external writes and preserve preengine and inserting semantics [V4,H16,C7]', t => {
   const board = fixtureBoard(t, { storage: 'file', purpose: 'persistence' });
   seat(board, 'core-1', 'OpenAI'); families(board, { 'core-1': 'OpenAI' });
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
@@ -118,7 +118,7 @@ test('synthetic historical inputs: bulk family snapshots observe external writes
   families(board, { 'core-1': 'Original vendor' });
 });
 
-test('synthetic historical inputs: bulk family reads use bounded SQLite scans even when every seat shares a session [V4,H16,C7]', t => {
+test('items.declaration.bulk-bounded-scans: synthetic historical inputs: bulk family reads use bounded SQLite scans even when every seat shares a session [V4,H16,C7]', t => {
   const board = fixtureBoard(t), expected = {};
   for (let index = 1; index <= 64; index++) {
     const id = `core-${index}`; seat(board, id, null, 'shared'); expected[id] = 'OpenAI';
