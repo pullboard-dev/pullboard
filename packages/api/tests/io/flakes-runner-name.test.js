@@ -26,8 +26,8 @@ function boardWith(t, flag) {
   const item = cellItem(board, { lane: 'web', title: 'Build the page' });
   cellClaim(board, item.item_id, seat, { root: repo.root });
   const runs = [], folder = repo.root;
-  board.enginePorts = { store: { recordFlakeObservation() {}, recordGateRun: (_board, { receipt }) => runs.push(receipt) } };
-  board.runtimePorts = { sourceAdvanceReceipts: { boardReceiptStore: () => join(folder, 'receipts'), receiptBody: run => JSON.stringify(run) } };
+  board.enginePorts = { ...board.enginePorts, store: { ...board.enginePorts?.store, recordFlakeObservation() {}, recordGateRun: (_board, { receipt }) => runs.push(receipt) } };
+  board.runtimePorts = { ...board.runtimePorts, sourceAdvanceReceipts: { boardReceiptStore: () => join(folder, 'receipts'), receiptBody: run => JSON.stringify(run) } };
   if (flag) board.db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1');
   const queue = queueFor(board, 'coordinator');
   t.after(() => queue?.runs.db.close());
@@ -46,7 +46,7 @@ test('api.flakes-runner-name.runs-store-receipt-step: clause 1: with runs_store 
   offerJob(board.db, { id: 'gate:1', kind: 'gate', item, candidate: SHA, base: SHA, needs: [], now: 1 }, queue);
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM job').get().n, 0, 'the board holds no job rows');
   writeStep(home, 'gate:1', 'receipt', { runner: 'runs-file-runner' }, { seq: 0, now: 2 });
-  const done = recordPulledPairs(board, { job: 'gate:1', receipt: pairedRed(), item, candidate: SHA, main: SHA, submit: { tree: SHA, agentId: seat.agentId ?? 'seat', digest: null }, queue });
+  const done = recordPulledPairs(board, { job: 'gate:1', receipt: pairedRed(), item, candidate: SHA, main: SHA, submit: { tree: SHA, agentId: seat.id, digest: null }, queue });
   assert.equal(done.runs, 2);
   assert.deepEqual(runs.map(run => run.proof.runner), ['runs-file-runner', 'runs-file-runner']);
 });
@@ -56,7 +56,7 @@ test('api.flakes-runner-name.runs-store-off-job-row: clause 1: with runs_store o
   assert.equal(queue, null);
   offerJob(board.db, { id: 'gate:2', kind: 'gate', item, candidate: SHA, base: SHA, needs: [], now: 1 });
   writeStep(board.db, 'gate:2', 'receipt', { runner: 'board-row-runner' }, { seq: 0, now: 2 });
-  const done = recordPulledPairs(board, { job: 'gate:2', receipt: pairedRed(), item, candidate: SHA, main: SHA, submit: { tree: SHA, agentId: seat.agentId ?? 'seat', digest: null } });
+  const done = recordPulledPairs(board, { job: 'gate:2', receipt: pairedRed(), item, candidate: SHA, main: SHA, submit: { tree: SHA, agentId: seat.id, digest: null } });
   assert.equal(done.runs, 2);
   assert.deepEqual(runs.map(run => run.proof.runner), ['board-row-runner', 'board-row-runner']);
 });
