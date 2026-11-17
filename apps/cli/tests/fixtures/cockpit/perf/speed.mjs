@@ -40,11 +40,25 @@ const MENU_OF = { spec: 'rules', doctrine: 'rules', dashboard: 'insights' };
 export function tabSpeedTrace(env = process.env, write = line => process.stderr.write(`${line}\n`)) {
   const on = Boolean(env.PULLBOARD_TAB_SPEED_TRACE) && env.PULLBOARD_TAB_SPEED_TRACE !== '0';
   return async function stage(label, run) {
-    if (!on) return run();
+    inFlight.push(label);
     const start = performance.now();
     try { return await run(); }
-    finally { write(`tab-speed-trace: ${label} ${Math.round(performance.now() - start)} ms`); }
+    finally {
+      inFlight.pop();
+      if (on) write(`tab-speed-trace: ${label} ${Math.round(performance.now() - start)} ms`);
+    }
   };
+}
+
+/** Stages begun and not yet ended, outermost first; lets a watchdog name the stage a run sits in. */
+const inFlight = [];
+export function tabSpeedStageNow() { return inFlight.join(' > ') || 'none'; }
+
+/** Fail with the stage name if `work` has not finished in `ms`, instead of waiting for the file kill. */
+export function nameStuckStage(work, ms) {
+  let timer;
+  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`STUCK in stage: ${tabSpeedStageNow()}`)), ms); });
+  return Promise.race([work, stuck]).finally(() => clearTimeout(timer));
 }
 
 /** Observe actual fetch/body/parse work before the page starts, without replacing its data. */
