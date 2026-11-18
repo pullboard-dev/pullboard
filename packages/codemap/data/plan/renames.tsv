@@ -474,7 +474,7 @@ apps/relay/src/core/pairing-http.js	apps/relay/src/logic/pairing/http.js
 apps/relay/src/core/pairing-store.js	apps/relay/src/logic/pairing/store.js
 apps/relay/src/core/passkey-http.js	apps/relay/src/logic/http/passkey.js
 apps/relay/src/core/person-enrollment-http.js	apps/relay/src/logic/person/enrollment/http.js
-apps/relay/src/core/person-enrollment-store.js	apps/relay/src/logic/person/enrollment/store.js
+apps/relay/src/core/person-enrollment-store.js	apps/relay/src/io/store/enrollment.js
 apps/relay/src/core/service-worker.js	apps/relay/src/logic/worker.js
 apps/relay/src/core/upload-status.js	apps/relay/src/logic/status.js
 apps/relay/src/shell/app.webmanifest	apps/relay/src/io/app.webmanifest
