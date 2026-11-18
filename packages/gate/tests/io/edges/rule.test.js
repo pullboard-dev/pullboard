@@ -12,7 +12,7 @@ import { git } from '../../../../landing/tests/fixtures/plan.js';
 
 const BIN = fileURLToPath(new URL('../../../../codemap/src/io/cells/scripts/plan.js', import.meta.url));
 
-test('clause 1: a new src/zz-test-engine.js is reported unplanned, so no engine leaf comes back to src/ [C7,V4]', t => {
+test('gate.io-edges-rule.a-new-src-zz-test-engine: clause 1: a new src/zz-test-engine.js is reported unplanned, so no engine leaf comes back to src/ [C7,V4]', t => {
   const { root, put } = fixture(t);
   writePlan(root, computePlan(root));
   put('src/zz-test-engine.js', 'export const ZZ_TEST_ENGINE = 1;\n');

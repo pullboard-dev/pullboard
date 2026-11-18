@@ -1,3 +1,4 @@
+/** @pullboard-test-input package.json apps/runner/src/io/scripts/worker.js packages/runners/src/io/tooling/remote.js */
 /** The worker bundle is cached by tooling digest: a new commit with the same tooling reuses it, a bad bundle is rebuilt [C7,#8462]. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

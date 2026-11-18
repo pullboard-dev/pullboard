@@ -38,7 +38,7 @@ function fixture(t, settings) {
   return { repo, git, seat, touch, run: now => runWorktreeMaintenance(repo, config, ports, { now }) };
 }
 
-test('clause 1: with maintenance.retireIdleSeats on, a clean seat idle past the set age with HEAD on main is removed [C7,#9109]', async t => {
+test('cli.io-worktree-maintenance-retire-idle-seats.with-maintenance-retireidleseats-on-a-clean-seat: clause 1: with maintenance.retireIdleSeats on, a clean seat idle past the set age with HEAD on main is removed [C7,#9109]', async t => {
   const fx = fixture(t, { maintenance: { retireIdleSeats: true } });
   const now = Date.now() + 10 * HOUR, idle = fx.seat('b-idle');
   fx.touch(idle, now - 4 * HOUR);
@@ -50,7 +50,7 @@ test('clause 1: with maintenance.retireIdleSeats on, a clean seat idle past the 
   assert.equal(existsSync(fx.repo), true, 'the main checkout stays');
 });
 
-test('clause 2: it keeps a dirty, locked, recent or off-main worktree [C7,#9109]', async t => {
+test('cli.io-worktree-maintenance-retire-idle-seats.it-keeps-a-dirty-locked-recent-or: clause 2: it keeps a dirty, locked, recent or off-main worktree [C7,#9109]', async t => {
   const fx = fixture(t, { maintenance: { retireIdleSeats: true } });
   const now = Date.now() + 10 * HOUR, old = now - 4 * HOUR;
   const dirty = fx.seat('b-dirty'), locked = fx.seat('b-locked'), recent = fx.seat('b-recent'), ahead = fx.seat('b-ahead');
@@ -64,7 +64,7 @@ test('clause 2: it keeps a dirty, locked, recent or off-main worktree [C7,#9109]
   assert.equal(report.pruned, 0);
 });
 
-test('clause 2: with maintenance.retireIdleSeats off, the default, maintenance removes nothing [C7,#9109]', async t => {
+test('cli.io-worktree-maintenance-retire-idle-seats.with-maintenance-retireidleseats-off-the-default-maintenance: clause 2: with maintenance.retireIdleSeats off, the default, maintenance removes nothing [C7,#9109]', async t => {
   const fx = fixture(t, {});
   const now = Date.now() + 10 * HOUR, idle = fx.seat('b-idle');
   fx.touch(idle, now - 4 * HOUR);
@@ -73,7 +73,7 @@ test('clause 2: with maintenance.retireIdleSeats off, the default, maintenance r
   assert.equal(report.pruned, 0);
 });
 
-test('clause 3: maintenance.retireIdleSeats is a described setting, off by default [C7,#9109]', t => {
+test('cli.io-worktree-maintenance-retire-idle-seats.maintenance-retireidleseats-is-a-described-setting-off: clause 3: maintenance.retireIdleSeats is a described setting, off by default [C7,#9109]', t => {
   const fx = fixture(t, {});
   const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'maintenance.retireIdleSeats');
   assert.equal(row.default, false);

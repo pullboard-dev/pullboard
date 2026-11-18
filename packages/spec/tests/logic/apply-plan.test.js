@@ -7,8 +7,8 @@ const person = { name: 'Corey Olson', email: 'corey@example.invalid' };
 
 test('clause 1: a clean checkout and a decided row plan apply and commit with message and author [C7]', () => {
   assert.deepEqual(planViewApproval({ id: 'G1.2', decision: 'approve' }, { clean: true }, person),
-    { action: 'apply-and-commit', row: 'G1.2', message: 'spec: approve G1.2', author: 'Corey Olson <corey@example.invalid>' });
-  assert.equal(planViewApproval({ id: 'G1.2', decision: 'decline' }, { clean: true }, person).message, 'spec: decline G1.2');
+    { action: 'apply-and-commit', row: 'G1.2', message: 'docs(spec): approve G1.2', author: 'Corey Olson <corey@example.invalid>' });
+  assert.equal(planViewApproval({ id: 'G1.2', decision: 'decline' }, { clean: true }, person).message, 'docs(spec): decline G1.2');
 });
 
 test('clause 1: a dirty checkout plans left with the single command to run [C7]', () => {

@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/resources/src/io/handoff/prune.js */
 /** The hand-off folder prune carries a complete runner import closure [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

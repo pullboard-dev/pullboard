@@ -260,10 +260,29 @@ function pulledResult(pulled, queued, { recording = false } = {}) {
   const { receipt } = pulled;
   const gate = receipt.gate ?? {};
   const phase = gate.phases?.[0] ?? null;
-  return { green: receipt.status === 0 && gate.green === true && phase?.status === 0, runner: pulled.runner ?? 'a pulled runner',
+  const green = receipt.status === 0 && gate.green === true && phase?.status === 0;
+  const failures = Array.isArray(phase?.failures) ? phase.failures : [];
+  return { green, runner: pulled.runner ?? 'a pulled runner',
     seconds: Number.isFinite(receipt.durationMs) ? Math.round(receipt.durationMs / 1000) : null, counts: null,
-    failures: Array.isArray(phase?.failures) ? phase.failures : [], logPath: queued.log ?? null, files: queued.files ?? [],
-    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`] };
+    failures, logPath: queued.log ?? null, files: queued.files ?? [],
+    notices: [`result read from the runner receipt of test job ${pulled.job}: ${recording ? 'the worker is still recording it' : 'the worker stopped before recording it'}`,
+      ...(green || failures.length ? [] : receiptVerdictLines(gate.verdicts))] };
+}
+
+/**
+ * One line per file a red receipt's verdicts name, with its first case, for a receipt whose phase lists no failures.
+ * Why: 37 red runs on 17 Nov were read from the receipt with no failing file printed, so builders reran or opened the log;
+ * these are notices only, so the main comparison that reads `failures` is unchanged (#10678).
+ *
+ * @param {unknown} verdicts - The receipt's gate.verdicts: test file -> its failing case names.
+ * @returns {string[]}
+ */
+function receiptVerdictLines(verdicts) {
+  if (!verdicts || typeof verdicts !== 'object' || Array.isArray(verdicts)) return [];
+  return Object.entries(verdicts).map(([file, cases]) => {
+    const first = Array.isArray(cases) && typeof cases[0] === 'string' ? cases[0] : null;
+    return `failing (from the receipt): ${file}${first && first !== file && !first.endsWith(`/${file}`) ? `: ${first}` : ''}`;
+  });
 }
 
 /**

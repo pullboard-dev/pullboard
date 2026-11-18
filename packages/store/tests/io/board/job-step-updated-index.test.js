@@ -40,11 +40,11 @@ function assertIndexed(file) {
   assert.doesNotMatch(detail, /SCAN job\b/);
 }
 
-test('clause 1: a fresh board has the job_step_updated index and the finished-runs count uses it [C7]', t => {
+test('store.io-board-job-step-updated-index.a-fresh-board-has-the-job: clause 1: a fresh board has the job_step_updated index and the finished-runs count uses it [C7]', t => {
   assertIndexed(boardFile(t));
 });
 
-test('clause 1: a board that predates the index gains it on open and the count uses it [C7]', t => {
+test('store.io-board-job-step-updated-index.a-board-that-predates-the-index: clause 1: a board that predates the index gains it on open and the count uses it [C7]', t => {
   const file = boardFile(t);
   const old = new DatabaseSync(file);
   try { old.exec('DROP INDEX job_step_updated'); } finally { old.close(); }

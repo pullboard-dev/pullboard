@@ -1,3 +1,5 @@
+/** @pullboard-test-input test-tree */
+/** @pullboard-test-input packages/gate/data/tests/test-manifest.json packages/gate/data/tests/guards.json */
 /** The guard and budget tests the freeze deleted are restored, tagged harness and never planned for deletion [C7]. */
 /** @pullboard-world-pin: reads the committed test manifest and checks the restored guard files exist in the repository. */
 import assert from 'node:assert/strict';

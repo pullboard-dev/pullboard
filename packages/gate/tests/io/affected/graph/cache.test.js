@@ -38,7 +38,7 @@ function repository(t) {
   return { root, git, put, commit };
 }
 
-test('cached committed graphs retain unknowns and give each consumer fresh containers [C7,V4]', t => {
+test('gate.io-affected-graph-cache.cached-committed-graphs-retain-unknowns-and: cached committed graphs retain unknowns and give each consumer fresh containers [C7,V4]', t => {
   const box = repository(t);
   box.put('src/unknown.js', 'export const load = name => import(name);\n');
   box.put('test/unknown.test.js', "import '../src/unknown.js';\n");
@@ -71,7 +71,7 @@ test('cached committed graphs retain unknowns and give each consumer fresh conta
   assert.ok(!reached.files.includes('test/value.test.js'), 'a test that never reaches the unknown file stays out');
 });
 
-test('documentation overlays and new commits cannot contaminate an immutable cached base [C7,V4]', t => {
+test('gate.io-affected-graph-cache.documentation-overlays-and-new-commits-cannot: documentation overlays and new commits cannot contaminate an immutable cached base [C7,V4]', t => {
   const box = repository(t); const base = box.commit();
   const one = selectAffectedTests(box.root, { base, commit: base, changed: ['docs/one.md'] });
   const two = selectAffectedTests(box.root, { base, commit: base, changed: ['docs/two.md'] });

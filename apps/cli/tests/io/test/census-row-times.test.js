@@ -38,7 +38,7 @@ const dispatcher = times => async ({ files, write }) => {
 
 const rowsOf = out => readFileSync(out, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
 
-test('clause 1: every row carries claimedAt, startedAt and endedAt as ISO times for its job [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.every-row-carries-claimedat-startedat-and-endedat: clause 1: every row carries claimedAt, startedAt and endedAt as ISO times for its job [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   const times = { claimedAt: '2026-11-16T10:00:00.000Z', startedAt: '2026-11-16T10:00:05.000Z', endedAt: '2026-11-16T10:03:00.000Z', load1: 4.25 };
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(times) });
@@ -51,7 +51,7 @@ test('clause 1: every row carries claimedAt, startedAt and endedAt as ISO times 
   }
 });
 
-test('clause 1: a job that reports no times still gets ISO claim, start and end times, in order [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.a-job-that-reports-no-times-still: clause 1: a job that reports no times still gets ISO claim, start and end times, in order [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(null) });
   for (const row of rowsOf(out)) {
@@ -60,10 +60,29 @@ test('clause 1: a job that reports no times still gets ISO claim, start and end 
   }
 });
 
-test('clause 2: every row carries the runner\'s 1-minute load average at job start [C7,#9284]', async (t) => {
+test('cli.io-test-census-row-times.every-row-carries-the-runner-s-1: clause 2: every row carries the runner\'s 1-minute load average at job start [C7,#9284]', async (t) => {
   const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher({ claimedAt: '2026-11-16T10:00:00.000Z', startedAt: '2026-11-16T10:00:05.000Z', endedAt: '2026-11-16T10:03:00.000Z', load1: 4.25 }) });
   assert.deepEqual(rowsOf(out).map(row => row.load1), [4.25, 4.25]);
   await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(null) });
   for (const row of rowsOf(out)) assert.ok(Number.isFinite(row.load1) && row.load1 >= 0, 'a local census falls back to this host\'s load');
+});
+
+test('cli.io-test-census-row-times.every-row-carries-the-enqueuedat-of-its-pulled: clause 1: every row carries the enqueuedAt of the pulled job it ran in, one per job [C7,#10522]', async (t) => {
+  const repo = fixture(t), out = join(repo, '..', 'census.jsonl');
+  const jobs = ['2026-11-16T09:59:50.000Z', '2026-11-16T09:59:55.000Z'];
+  const two = async ({ files, write }) => {
+    files.forEach((file, index) => {
+      write(`# landing shard ${index + 1}/2 attempt 1 on host-a: green in 9000 ms\n`);
+      write(`# census-times ${JSON.stringify({ enqueuedAt: jobs[index], claimedAt: '2026-11-16T10:00:00.000Z', startedAt: '2026-11-16T10:00:05.000Z', endedAt: '2026-11-16T10:03:00.000Z', load1: 1 })}\n`);
+      write(`# landing-file-ms 1500 ${file}\n# landing-file-exit 0 ${file}\n# tests 1\n# pass 1\n`);
+    });
+    write('# landing result: done\n');
+    return { isGreen: true };
+  };
+  await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 2, run: two });
+  const rows = rowsOf(out);
+  assert.deepEqual(rows.map(row => row.enqueuedAt).sort(), jobs);
+  await runCensus(quiet, { info: { root: repo } }, { out }, { shards: 1, run: dispatcher(null) });
+  for (const row of rowsOf(out)) assert.equal(new Date(row.enqueuedAt).toISOString(), row.enqueuedAt, 'a job with no enqueue time still gets an ISO one');
 });

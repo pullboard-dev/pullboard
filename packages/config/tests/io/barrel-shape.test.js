@@ -19,6 +19,7 @@ const BEFORE = [
   'environmentProblem',
   'gitSyncMarkerLinked',
   'healthDiskFloorGb',
+  'hunkFreshnessEnabled',
   'listThinRead',
   'loadConfig',
   'loadMachineSettings',

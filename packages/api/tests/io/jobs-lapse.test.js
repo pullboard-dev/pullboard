@@ -19,7 +19,7 @@ function lapsed(t) {
 
 const stepsOf = db => db.prepare("SELECT job_step_name AS name, job_step_seq AS seq, job_step_payload AS payload FROM job_step WHERE job_step_job = 'land:1:x' ORDER BY rowid").all().map(row => row.name);
 
-test('clause 1: with jobs.recordLapse on, a takeover writes one lapsed step naming the earlier runner, attempt, lease end, last sign of life and last step [test] [C7,#9247]', t => {
+test('api.jobs-lapse.takeover-writes-lapsed-step: clause 1: with jobs.recordLapse on, a takeover writes one lapsed step naming the earlier runner, attempt, lease end, last sign of life and last step [test] [C7,#9247]', t => {
   const { db } = lapsed(t);
   const second = claimJob(db, { runner: 'anvil', now: 200_000, leaseMs: 120_000, recordLapse: true });
   assert.equal(second.attempt, 2);
@@ -30,7 +30,7 @@ test('clause 1: with jobs.recordLapse on, a takeover writes one lapsed step nami
   assert.equal(db.prepare("SELECT job_step FROM job WHERE job_id = 'land:1:x'").get().job_step, 'claimed', 'the job still reads claimed');
 });
 
-test('clause 2: with jobs.recordLapse off (the default) a takeover writes no extra step and the claim result is the same [test] [C7,#9247]', t => {
+test('api.jobs-lapse.off-writes-no-extra-step: clause 2: with jobs.recordLapse off (the default) a takeover writes no extra step and the claim result is the same [test] [C7,#9247]', t => {
   const off = lapsed(t);
   const on = lapsed(t);
   const plain = claimJob(off.db, { runner: 'anvil', now: 200_000, leaseMs: 120_000 });
@@ -41,7 +41,7 @@ test('clause 2: with jobs.recordLapse off (the default) a takeover writes no ext
   assert.ok(a && b);
 });
 
-test('clause 1: a first claim and a claim of a job whose lease is still live write no lapsed step [test] [C7,#9247]', t => {
+test('api.jobs-lapse.first-or-live-claim-writes-no-step: clause 1: a first claim and a claim of a job whose lease is still live write no lapsed step [test] [C7,#9247]', t => {
   const { db } = lapsed(t);
   assert.equal(claimJob(db, { runner: 'anvil', now: 50_000, leaseMs: 120_000, recordLapse: true }), null, 'a live lease is not taken');
   assert.ok(!stepsOf(db).includes('lapsed'));

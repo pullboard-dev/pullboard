@@ -20,7 +20,7 @@ const savedOptions = process.env.NODE_OPTIONS;
 test.before(() => { delete process.env.NODE_TEST_CONTEXT; delete process.env.NODE_OPTIONS; });
 test.after(() => { if (savedContext === undefined) delete process.env.NODE_TEST_CONTEXT; else process.env.NODE_TEST_CONTEXT = savedContext; if (savedOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = savedOptions; });
 
-test('timing profile reads direct and native TAP without inventing file rows [C7,V10]', async t => {
+test('gate.io-main-output.timing-profile-reads-direct-and-native: timing profile reads direct and native TAP without inventing file rows [C7,V10]', async t => {
   const repo = makeRepo();
   const caseFile = join(repo, 'timed', 'slow.test.mjs');
   mkdirSync(join(repo, 'timed'));
@@ -76,7 +76,7 @@ test('timing profile reads direct and native TAP without inventing file rows [C7
   });
 });
 
-test('timing profile reads caller-selected native JUnit stdout [C7,V10]', () => {
+test('gate.io-main-output.timing-profile-reads-caller-selected-native: timing profile reads caller-selected native JUnit stdout [C7,V10]', () => {
   const repo = makeRepo();
   writeFileSync(join(repo, 'junit.test.mjs'), "import {test} from 'node:test'; test('native JUnit slow sample', async()=>new Promise(resolve=>setTimeout(resolve,130)));\n");
   const run = runProfiledShell(repo, 'node --test --test-reporter=junit junit.test.mjs', {artifactDirectory:join(repo,'artifacts'),persistLog:true,waitMs:17});
@@ -86,7 +86,7 @@ test('timing profile reads caller-selected native JUnit stdout [C7,V10]', () => 
   assert.deepEqual(run.profile.files,[],'native JUnit supplies no explicit file duration');
 });
 
-test('timing profile uses only actual JUnit file and test metadata [C7,V10]', () => {
+test('gate.io-main-output.timing-profile-uses-only-actual-junit: timing profile uses only actual JUnit file and test metadata [C7,V10]', () => {
   const repo = makeRepo();
   const commandFile = join(repo, 'emit-junit.mjs');
   writeFileSync(commandFile, `import { writeFileSync } from 'node:fs'; const start = Date.now(); await new Promise(resolve => setTimeout(resolve, 130)); const seconds = ((Date.now() - start) / 1000).toFixed(3); process.stdout.write('<testsuite name="suite" file="timed/suite.test.js" time="' + seconds + '"><testcase name="slow &amp; measured" file="timed/suite.test.js" time="' + seconds + '"><failure message="expected red"/></testcase></testsuite>\\n'); process.exitCode = 1;`);
@@ -102,7 +102,7 @@ test('timing profile uses only actual JUnit file and test metadata [C7,V10]', ()
   assert.match(gateReport({ ...failed, log: failed.logPath }), /slowest test files:[\s\S]*timed\/suite\.test\.js/);
 });
 
-test('timing profile leaves unsupported runner commands and destinations untouched [C7,V10]', () => {
+test('gate.io-main-output.timing-profile-leaves-unsupported-runner-commands: timing profile leaves unsupported runner commands and destinations untouched [C7,V10]', () => {
   const repo = makeRepo();
   const testFile = join(repo, 'one.test.mjs');
   writeFileSync(testFile, "import { test } from 'node:test'; test('unsupported runner sample', () => {});\n");

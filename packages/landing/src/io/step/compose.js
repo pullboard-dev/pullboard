@@ -1,6 +1,8 @@
 /** A named batch's merges built on a runner: the coordinator fetches the returned commit and moves nothing else [C7,#5585]. */
 import { git } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
+import { mainCheckout } from '../../../../git/index.js';
+import { Refused } from '../../../../kernel/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
@@ -64,4 +66,30 @@ export async function composeOnRunner(state, plan, { runChecks = state.guardServ
     renames: JSON.parse(lineValue(output, COMPOSE_RENAMES) ?? '[]'),
     writes: JSON.parse(lineValue(output, COMPOSE_WRITES) ?? '[]'),
   };
+}
+
+/**
+ * With landing.runnerOnlyCompose on: compose on a runner, then take its tip only while main still equals the batch base, by an
+ * update-ref on `refs/pullboard/compose/<batch>` (the objects are already here), with no git merge. A main that moved while the
+ * runner composed moves the batch base to it and dispatches the compose once more; a second move refuses LAND_ITEM_MOVED [C7,#10247].
+ * Why: a runner-built tip is a fast-forward of the base it was built on, so only an unmoved main lets the coordinator adopt it as is.
+ * @param {object} state The landing state; `state.batch.base` is replaced by the new main on a re-dispatch.
+ * @param {{ id: number, commit: string, header: string, trailers: string }[]} plan
+ * @param {{ compose?: typeof composeOnRunner }} [options] The runner compose (tests).
+ * @returns {Promise<Awaited<ReturnType<typeof composeOnRunner>>>} Null when a runner could not answer, so the caller refuses or merges locally.
+ */
+export async function composeFollowingMain(state, plan, { compose = composeOnRunner } = {}) {
+  for (let dispatched = 1; ; dispatched++) {
+    const composed = await compose(state, plan);
+    if (!composed) return null;
+    const main = mainCheckout(state.root)?.commit;
+    if (!main || main === state.batch.base) {
+      tryGit(state.root, ['update-ref', `refs/pullboard/compose/${state.batch.id}`, composed.tip]);
+      return composed;
+    }
+    if (dispatched > 1) throw new Refused('LAND_ITEM_MOVED', `main moved again while batch ${state.batch.id} composed on a runner (now ${main.slice(0, 12)}); rebuild the batch from current verified work: pullboard land`);
+    state.say?.(`main moved to ${main.slice(0, 12)} while the runner composed; composing again from it`);
+    state.batch.base = main;
+    git(state.batch.root, ['checkout', '--detach', '--quiet', main]);
+  }
 }

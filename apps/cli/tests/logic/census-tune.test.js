@@ -5,7 +5,7 @@ import { selfTunedJobMinutes } from '../../src/logic/census-tune.js';
 
 const MIN = 60_000;
 
-test('clause 1: selfTunedJobMinutes is null under 4 shard times, else the 80th percentile in whole minutes kept between 3 and 20 [C7,U151]', () => {
+test('cli.logic-census-tune.selftunedjobminutes-is-null-under-4-shard-times: clause 1: selfTunedJobMinutes is null under 4 shard times, else the 80th percentile in whole minutes kept between 3 and 20 [C7,U151]', () => {
   assert.equal(selfTunedJobMinutes([5 * MIN, 6 * MIN, 7 * MIN]), null);
   assert.equal(selfTunedJobMinutes([]), null);
   assert.equal(selfTunedJobMinutes(undefined), null);
@@ -16,7 +16,7 @@ test('clause 1: selfTunedJobMinutes is null under 4 shard times, else the 80th p
   assert.equal(selfTunedJobMinutes([0, NaN, 5 * MIN, 5 * MIN, 5 * MIN]), null, 'unusable times do not count');
 });
 
-test('clause 2: one extreme shard moves the result by at most the clamp, and arrival order does not matter [C7,U151]', () => {
+test('cli.logic-census-tune.one-extreme-shard-moves-the-result-by: clause 2: one extreme shard moves the result by at most the clamp, and arrival order does not matter [C7,U151]', () => {
   const base = [5, 5, 6, 6, 6, 7, 7, 7, 7, 8].map(m => m * MIN);
   const median = 6.5 * MIN;
   const withExtreme = [...base.slice(1), 10 * median];

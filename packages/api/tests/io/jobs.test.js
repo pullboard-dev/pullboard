@@ -1,5 +1,6 @@
 /** The board API serves its runner job queue on loopback, only under gate.runnerDispatch pull [P7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
@@ -89,4 +91,70 @@ test('api.jobs.large-change-gate-request-over: clause 1: a large-change gate req
   assert.equal(claim?.job, 'gate:large', 'the large-change job is offered and claimable');
   const input = jobQueueCall(db, { action: 'request', job: 'gate:large', runner: 'r-a', token: claim.token }, { mode: 'pull' });
   assert.deepEqual(input.request, request, 'the runner holding the job reads the whole request back');
+});
+
+test('api.jobs.a-pulled-gate-receipt-holds-queuewaitseconds-claim: clause 1: a pulled gate job receipt holds queueWaitSeconds, its first claim minus its enqueue time, and shows on the settled gate [C7,#10524]', (t) => {
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'gate:wait', kind: 'gate', needs: [] });
+  offerJob(db, { id: 'gate:none', kind: 'gate', needs: [] });
+  db.prepare('UPDATE job SET job_created = 1000000 WHERE job_id IN (?, ?)').run('gate:wait', 'gate:none');
+  const claim = jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now: 1007500 }).claim;
+  const other = jobQueueCall(db, { action: 'claim', runner: 'r-b', capabilities: [] }, { mode: 'pull', now: 1012000 }).claim;
+  const gate = { green: true, phases: [{ role: 'check', status: 0 }] };
+  jobQueueCall(db, { action: 'receipt', job: claim.job, runner: 'r-a', token: claim.token, receipt: { status: 0, gate } }, { mode: 'pull', now: 1020000 });
+  jobQueueCall(db, { action: 'receipt', job: other.job, runner: 'r-b', token: other.token, receipt: { status: 0, digest: 'f00d' } }, { mode: 'pull', now: 1020000 });
+  const waits = Object.fromEntries([claim, other].map(held => [held.job, jobView(db, held.job).steps.find(step => step.name === 'receipt').payload.receipt.queueWaitSeconds]));
+  assert.equal(waits[claim.job], 7.5);
+  assert.equal(waits[other.job], undefined, 'a receipt with no gate is stored as it was posted');
+  const posted = jobView(db, claim.job).steps.find(step => step.name === 'receipt').payload;
+  assert.equal(settledGate(claim.job, posted).queueWaitSeconds, 7.5);
+});
+
+/** A held claim of one offered gate job, and a call that posts as its runner. */
+function heldGate(t, id) {
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id, kind: 'gate', needs: [] });
+  const claim = jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull' }).claim;
+  const call = (body, options = {}) => jobQueueCall(db, { job: claim.job, runner: 'r-a', token: claim.token, ...body }, { mode: 'pull', ...options });
+  return { db, claim, call };
+}
+
+/** The gateParts a receipt names for this gate JSON text. */
+function partsOf(text, count) {
+  return { count, bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex') };
+}
+
+test('api.jobs.receipt-parts-any-size: clause 1: a gate receipt over 100 KiB posts as receiptPart calls, each one queue call, and the board stores and applies it whole with every proofPlan file [C7,P7,#10771]', (t) => {
+  const { db, claim, call } = heldGate(t, 'gate:big');
+  const files = Array.from({ length: 2000 }, (_, n) => `packages/store/tests/io/queued/red/case-${n}.test.js`);
+  const gate = { version: 1, green: false, proofPlan: { runner: 'node --test', files, cores: 12, account: true } };
+  const text = JSON.stringify(gate);
+  assert.ok(Buffer.byteLength(text) > 100 * 1024, 'the receipt is over 100 KiB');
+  assert.throws(() => call({ action: 'receipt', receipt: { status: 0, gate } }), { code: 'JOB_RECEIPT' }, 'one call still carries at most 64 KiB');
+  const size = 32 * 1024, count = Math.ceil(text.length / size);
+  for (let index = 0; index < count; index += 1) assert.equal(call({ action: 'receiptPart', part: { index, count, text: text.slice(index * size, (index + 1) * size) } }).recorded, true);
+  const applied = [];
+  const posted = call({ action: 'receipt', receipt: { status: 1, gateParts: partsOf(text, count) } }, { onReceipt: row => { applied.push(row); return { applied: true }; } });
+  assert.equal(posted.recorded, true);
+  const steps = jobView(db, claim.job).steps;
+  const stored = steps.find(step => step.name === 'receipt').payload.receipt;
+  assert.deepEqual(stored.gate.proofPlan.files, files, 'the stored receipt holds every proof file');
+  assert.equal(stored.gateParts, undefined);
+  assert.deepEqual(applied[0].receipt.gate.proofPlan.files, files, 'the receipt the board applies is whole');
+  assert.deepEqual(steps.filter(step => step.name.startsWith('artifact:receipt-part.')), [], 'the joined parts are dropped');
+});
+
+test('api.jobs.receipt-parts-refused: clause 2: a receipt part from a runner not holding the claim is refused, and a receipt whose parts are missing or do not match gateParts is refused JOB_RECEIPT and records nothing [C7,P7,#10771]', (t) => {
+  const { db, claim, call } = heldGate(t, 'gate:parts');
+  const text = JSON.stringify({ version: 1, green: true, phases: [{ role: 'check', status: 0 }] }), half = Math.ceil(text.length / 2);
+  assert.throws(() => jobQueueCall(db, { action: 'receiptPart', job: claim.job, runner: 'r-b', token: 'r-b:1', part: { index: 0, count: 2, text } }, { mode: 'pull' }), { code: /^JOB_/u });
+  call({ action: 'receiptPart', part: { index: 0, count: 2, text: text.slice(0, half) } });
+  const receipt = { status: 0, gateParts: partsOf(text, 2) };
+  assert.throws(() => call({ action: 'receipt', receipt }), { code: 'JOB_RECEIPT' }, 'a part never posted');
+  call({ action: 'receiptPart', part: { index: 1, count: 2, text: `${text.slice(half)} ` } });
+  assert.throws(() => call({ action: 'receipt', receipt }), { code: 'JOB_RECEIPT' }, 'a join that does not match its sha256');
+  assert.equal(jobView(db, claim.job).steps.some(step => step.name === 'receipt'), false, 'a refused receipt records nothing');
+  assert.equal(db.prepare('SELECT job_step AS step FROM job WHERE job_id = ?').get(claim.job).step, 'claimed', 'the job stays claimed');
+  call({ action: 'receiptPart', part: { index: 1, count: 2, text: text.slice(half) } });
+  assert.equal(call({ action: 'receipt', receipt }).recorded, true, 'the part posted again replaces the wrong one');
 });

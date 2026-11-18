@@ -48,7 +48,7 @@ async function idleFixture(t) {
 }
 
 // Native CLI setup and two minutes of one-second polls over a real HTTP server share this journey budget.
-test('clause 1: an idle tab polling for two minutes causes no state rebuild and item idle time still advances [C7]', { timeout: 90_000 }, async t => {
+test('cli.journeys-view-idle.an-idle-tab-polling-for-two: clause 1: an idle tab polling for two minutes causes no state rebuild and item idle time still advances [C7]', { timeout: 90_000 }, async t => {
   const { base, clock, board, get, builds, original } = await idleFixture(t);
   /** Each item's idle minutes must equal the clock minus its own last activity. */
   const idle = async () => (await get('state')).state.items.map(item => [item.progress.idleMinutes,
@@ -66,7 +66,7 @@ test('clause 1: an idle tab polling for two minutes causes no state rebuild and 
   assert.deepEqual(exportBoard(board), original, 'polling never manufactures a native move');
 });
 
-test('clause 2: an item request is answered while another tab\'s state request is still outstanding, and tab switches wait behind no rebuild [C7]', { timeout: 90_000 }, async t => {
+test('cli.journeys-view-idle.an-item-request-is-answered-while: clause 2: an item request is answered while another tab\'s state request is still outstanding, and tab switches wait behind no rebuild [C7]', { timeout: 90_000 }, async t => {
   const { base, clock, get, builds, api, id, secret } = await idleFixture(t);
   await get('state');
   const warm = builds();

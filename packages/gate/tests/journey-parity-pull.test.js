@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/gate/piped-pull.test.js', cases: ['a pulled gate of a piped command settles red on the runner when an early stage fails [V16,C7]'] }];
 
-test('clause 1: a pull-fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-pull.a-pull-fixture-sample-gives-the-same: clause 1: a pull-fixture sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the pull fixture starts no CLI process for its add, claim and bar calls when the journey runs in-process [C7]', () => {
+test('gate.journey-parity-pull.the-pull-fixture-starts-no-cli-process: clause 2: the pull fixture starts no CLI process for its add, claim and bar calls when the journey runs in-process [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/pull.js', import.meta.url), 'utf8');
   const quick = source.slice(source.indexOf('function quick('), source.indexOf('export function submitOne'));
   assert.match(quick, /JOURNEY_MODE === 'process' \? box\.run\(cwd, \.\.\.args\) : box\.runSync\(cwd, \.\.\.args\)/u, 'quick answers on the worker thread unless the journey runs as processes');

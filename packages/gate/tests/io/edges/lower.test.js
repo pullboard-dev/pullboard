@@ -12,7 +12,7 @@ import { readPlan } from '../../../../codemap/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
-test('the actual store, sandbox and items graphs have no native quarantine imports [C7,CD64]', () => {
+test('gate.io-edges-lower.the-actual-store-sandbox-and-items: the actual store, sandbox and items graphs have no native quarantine imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);
   const provider = plan.cells.flatMap(cell => cell.paths).find(([from]) => from === 'src/quarantine.js');
   assert.ok(provider, 'quarantine retains its actual higher provider placement');

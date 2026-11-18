@@ -19,13 +19,13 @@ async function documented(t, command, args) {
   return document;
 }
 
-test('clause 1: cells runs as a real CLI case and its JSON matches JSON_SHAPES.commands [A1,C7]', async t => {
+test('cli.journeys-publish-catalog-cells-route.cells-runs-as-a-real-cli: clause 1: cells runs as a real CLI case and its JSON matches JSON_SHAPES.commands [A1,C7]', async t => {
   const report = await documented(t, 'cells', []);
   assert.ok(Array.isArray(report.cells), 'cells lists every cell');
   assert.deepEqual(report.unsealed, report.cells.filter(row => row.state === 'unsealed').map(row => row.cell), 'unsealed names the unsealed cells');
 });
 
-test('clause 2: route runs as a real CLI case and its JSON matches JSON_SHAPES.commands [A1,C7]', async t => {
+test('cli.journeys-publish-catalog-cells-route.route-runs-as-a-real-cli: clause 2: route runs as a real CLI case and its JSON matches JSON_SHAPES.commands [A1,C7]', async t => {
   const report = await documented(t, 'route', ['--suggest']);
   assert.equal(report.suggest, 'light');
   assert.ok(Array.isArray(report.items), 'route lists the strong items that meet the light shape');

@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/spec/e2e/next.test.js', cases: ['verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]'] }];
 
-test('clause 1: a settled-submit sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-settle.a-settled-submit-sample-gives-the-same: clause 1: a settled-submit sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the settle fixture reads show for its gate wait in this process, whatever run its caller passes [C7]', () => {
+test('gate.journey-parity-settle.the-settle-fixture-reads-show-for-its: clause 2: the settle fixture reads show for its gate wait in this process, whatever run its caller passes [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/submit/settle.js', import.meta.url), 'utf8');
   const wait = source.slice(source.indexOf('export function settledGateJob'), source.indexOf('export async function settleSubmit'));
   assert.match(wait, /readShown\(box, item\)/u, 'the wait reads show through readShown');

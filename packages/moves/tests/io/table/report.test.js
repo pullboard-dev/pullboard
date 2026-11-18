@@ -1,6 +1,8 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** Replay and explain reports load a table by name, count how often it agrees with the board, and refuse an unknown table naming the known ones [C7,#8071,#8072]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -10,7 +12,11 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
+import { fixtureCommitAll } from '../../../../gate/tests/fixtures/testkit.js';
+import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { explainReport } from '../../../index.js';
+import { judgeAllReport } from '../../../index.js';
 import { replayReport } from '../../../index.js';
 
 const files = privateFixtureFiles('pullboard-move-report-');
@@ -89,3 +95,88 @@ test('moves.report.replay-never-writes-the-board-it-reads: clause 1: replay neve
   assert.equal(count(), before);
   db.close();
 });
+
+/** judgeAllReport judges every current table against one release: drifted tables named, new tables listed, off by default, read-only [C7,R4,U150]. */
+{
+  const files = privateFixtureFiles('pullboard-judge-all-');
+  after(() => rmSync(files.root, { recursive: true, force: true }));
+  const MOVES = pathToFileURL(fileURLToPath(new URL('../../../index.js', import.meta.url))).href;
+  const NOW = Date.parse('2026-11-12T00:00:00.000Z');
+  const CUT = '2026-11-05T00:00:00.000Z';
+  const dir = (name) => `packages/${name}/src/logic`;
+  
+  /** A table named `name` that accepts every move and writes the event the board would, keeping the recorded detail or dropping it. */
+  function tableSource(name, keepDetail) {
+    const up = name.toUpperCase();
+    return `
+      import { defineRules } from ${JSON.stringify(MOVES)};
+      export const ${up}_RULES = defineRules({ known: { says: 'the move is one the board knows', holds: (s, m) => m.kind !== 'zzz' } });
+      export const ${up}_TABLE = { name: '${name}',
+        guards: [{ id: 'known', requires: 'known', code: 'UNKNOWN_MOVE', message: 'no such move', next: 'use a move the board knows' }],
+        outcomes: [{ id: 'plain', patch: () => ({}), events: (s, m) => [{ kind: m.kind, by: m.actor, detail: ${keepDetail ? 'm.detail' : '{}'} }] }] };`;
+  }
+  
+  /** Write a table into the working tree. */
+  function put(root, name, keepDetail) {
+    mkdirSync(join(root, dir(name)), { recursive: true });
+    writeFileSync(join(root, dir(name), `${name}.table.js`), tableSource(name, keepDetail));
+  }
+  
+  let counter = 0;
+  /** A repository tagged v1.0.0 holding table demo; the working tree then drops demo's detail (when `drift`) and adds table extra. */
+  function repo(drift) {
+    const root = join(files.root, `repo-${++counter}`);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), '{ "type": "module" }\n');
+    put(root, 'demo', true);
+    fixtureCommitAll(root);
+    runFixtureGit(['tag', 'v1.0.0'], { cwd: root });
+    put(root, 'demo', !drift);
+    if (drift) put(root, 'extra', true);
+    return root;
+  }
+  
+  /** A board on real SQLite with one claim carrying detail. */
+  function board() {
+    const file = join(files.root, `board-${++counter}.sqlite`);
+    const db = new DatabaseSync(file);
+    db.exec(`CREATE TABLE event (event_id INTEGER PRIMARY KEY AUTOINCREMENT, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT '{}')`);
+    db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run('2026-11-10T00:00:00.000Z', 'core-1', 'claim', 1, '{"leaseUntil":"x"}');
+    db.close();
+    return file;
+  }
+  
+  /** Run `work` with moves.judgeByRelease set as given in a private machine home. */
+  async function withSetting(on, work) {
+    const home = join(files.root, `machine-${++counter}`);
+    mkdirSync(home, { recursive: true });
+    fixtureMachineSettings(home, { moves: { judgeByRelease: on } });
+    const saved = process.env.PULLBOARD_MACHINE_HOME;
+    process.env.PULLBOARD_MACHINE_HOME = home;
+    try { return await work(); } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+  }
+  
+  test('moves.judge-all.names-drifted-and-new: clause 1: judgeAllReport names the table whose answers drifted since the tag, lists the table the tag lacked as new, and is not clean [C7,R4]', async () => {
+    const out = await withSetting(true, () => judgeAllReport({ root: repo(true), boardFile: board(), against: 'v1.0.0', days: 20, now: NOW, cut: CUT }));
+    assert.deepEqual(out.drifted, ['demo']);
+    assert.deepEqual(out.newTables, ['extra']);
+    assert.equal(out.clean, false);
+    assert.deepEqual(out.rows.map(row => row.table), ['demo']);
+  });
+  
+  test('moves.judge-all.clean-and-last-resolved: clause 2: judgeAllReport is clean when the tree equals the tag, and against last is reported as the resolved tag v1.0.0 [C7,R4]', async () => {
+    const out = await withSetting(true, () => judgeAllReport({ root: repo(false), boardFile: board(), against: 'last', days: 20, now: NOW, cut: CUT }));
+    assert.deepEqual(out.drifted, []);
+    assert.equal(out.clean, true);
+    assert.equal(out.against, 'v1.0.0');
+  });
+  
+  test('moves.judge-all.off-is-refused-and-read-only: clause 3: judgeAllReport with the setting off is refused JUDGE_OFF naming the setting, and a judged run leaves the board file byte for byte unchanged [C7,R4]', async () => {
+    const file = board();
+    const before = readFileSync(file);
+    await withSetting(false, () => assert.rejects(judgeAllReport({ root: repo(true), boardFile: file, against: 'v1.0.0', days: 20, now: NOW, cut: CUT }),
+      error => error.code === 'JUDGE_OFF' && String(error.next ?? error.message).includes('moves.judgeByRelease')));
+    await withSetting(true, () => judgeAllReport({ root: repo(true), boardFile: file, against: 'v1.0.0', days: 20, now: NOW, cut: CUT }));
+    assert.deepEqual(readFileSync(file), before);
+  });
+}
