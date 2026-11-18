@@ -13,7 +13,7 @@ import {
   intakeFixture,
 } from "../../tests/fixtures/intake.js";
 
-test('only trusted main can extend outside sensitive paths and ordinary source stays ordinary [B26,V4]', t => {
+test('cli.journeys-intake-boundary.only-trusted-main-can-extend-outside: only trusted main can extend outside sensitive paths and ordinary source stays ordinary [B26,V4]', t => {
   const box = intakeFixture(t);
   const configPath = new URL('pullboard.json', 'file://' + box.repo + '/');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -28,7 +28,7 @@ test('only trusted main can extend outside sensitive paths and ordinary source s
   assert.equal(filed.item.outside.sensitivity.some(reason => reason.path === 'lib/ordinary.js'), false, 'source files are not all sensitive just for being source');
 });
 
-test('renaming an existing sealing boundary cannot hide its touched old path [B26,V3]', t => {
+test('cli.journeys-intake-boundary.renaming-an-existing-sealing-boundary-cannot: renaming an existing sealing boundary cannot hide its touched old path [B26,V3]', t => {
   const content = 'export const sealFixture = value => value;\n';
   const box = intakeFixture(t, { baseFiles: { 'packages/kernel/src/logic/seal.js': content } });
   advanceOutsideFixture(box, 'lib/moved-boundary.js', content, ['packages/kernel/src/logic/seal.js', 'apps/relay/src/io/deploy/outside.js']);
@@ -40,7 +40,7 @@ test('renaming an existing sealing boundary cannot hide its touched old path [B2
   assert.ok(filed.item.outside.sensitivity.some(reason => reason.path === 'packages/kernel/src/logic/seal.js' && reason.rule === 'declared-sensitive-path'), 'the exact old trust-boundary path remains part of the owner decision after a GitHub rename');
 });
 
-test('trusted pinned browser images use the sandbox protocol without changing actual Node roles [V3,C7]', t => {
+test('cli.journeys-intake-boundary.trusted-pinned-browser-images-use-the: trusted pinned browser images use the sandbox protocol without changing actual Node roles [V3,C7]', t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
