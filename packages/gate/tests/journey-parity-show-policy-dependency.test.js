@@ -19,7 +19,9 @@ test('gate.journey-parity-show-policy-dependency.a-sample-of-the-show-policy-dep
 
 test('gate.journey-parity-show-policy-dependency.the-show-policy-dependency-journey-keeps-all: clause 2: the show/policy/dependency journey keeps all 1 of its cases, and the sampled case is that one [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/journeys/show/policy/dependency.test.js', import.meta.url), 'utf8');
-  const cases = [...source.matchAll(/^test\((["'`])(.*?)\1/gmu)].map(match => match[2]);
+  // A title may hold an escaped quote and carry a stable-ID prefix (`area.file.slug: `): read the literal whole, then drop the prefix.
+  const cases = [...source.matchAll(/^test\((["'`])((?:\\.|(?!\1).)*)\1/gmu)]
+    .map(match => match[2].replace(/\\(.)/gu, '$1').replace(/^[a-z][\w-]*(?:\.[\w-]+)+: /u, ''));
   assert.equal(cases.length, 1, `the journey keeps its 1 case, found ${cases.length}`);
   assert.deepEqual(cases, SAMPLES[0].cases);
 });
