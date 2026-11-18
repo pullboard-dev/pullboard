@@ -44,7 +44,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('an approver signed member list survives sealed native replay and revokes by revision [H15,H16,E17]', async t => {
+test('cli.journeys-relay-membership.an-approver-signed-member-list-survives: an approver signed member list survives sealed native replay and revokes by revision [H15,H16,E17]', async t => {
   const box = helpers.project();
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const replica = openBoard(join(box.dir, 'replica.sqlite'));
