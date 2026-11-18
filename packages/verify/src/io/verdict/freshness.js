@@ -5,6 +5,7 @@ import {
   mainCheckout,
 } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
+import { changedHunkHeaders } from '../../logic/verdict/own-patch.js';
 import { ownPatchChanges } from '../../logic/verdict/own-patch.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 
@@ -73,6 +74,23 @@ export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKey
       if (keyed !== null) return keyed;
     }
     return pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path);
+  });
+}
+
+/**
+ * The hunks of the reviewed patch that main's move changed or that a merge onto main cannot carry, as `{ file, header }` with the full hunk header line.
+ * When the merge composes, these are the hunks that differ before and after it; when the merge conflicts, they are the reviewed hunks of the touched paths, since main's change reaches them.
+ * Why: a refusal naming only the file leaves the reviewer hunting for the hunk that went stale [C7,#2981].
+ */
+export function changedHunks(root, { base, checked, tip, paths }) {
+  const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
+    { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const tree = merged.status === 0 ? merged.stdout.trim().split('\n')[0] : null;
+  return paths.flatMap(path => {
+    try {
+      const reviewed = pathDiff(root, base, checked, path);
+      return changedHunkHeaders(tree ? reviewed : '', tree ? pathDiff(root, tip, tree, path) : reviewed);
+    } catch { return []; }
   });
 }
 
