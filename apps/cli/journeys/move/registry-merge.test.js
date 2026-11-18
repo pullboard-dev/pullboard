@@ -4,6 +4,6 @@
 import { test } from 'node:test';
 import { registryMergeProof } from '../../tests/fixtures/move/registry/cases.js';
 
-test('two move items from one main merge without a snapshot conflict [C7,V4]', async () => {
+test('cli.journeys-move-registry-merge.two-move-items-from-one-main-merge: clause 1: two move items from one main merge without a snapshot conflict [C7,V4]', async () => {
   await registryMergeProof();
 });
