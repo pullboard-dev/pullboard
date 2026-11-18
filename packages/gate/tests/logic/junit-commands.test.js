@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-cell gate */
+/** @pullboard-world-pin: clause 3 reads the committed gate registry to check the clojure cases have records. */
 /** Each detected language has a JUnit-writing gate command and a known report path [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit.js';
@@ -78,4 +80,12 @@ test('gate.junit-commands.clojure-row: clause 1: junitCommand(clojure) returns t
 
 test('gate.junit-commands.clojure-door: clause 2: junitCommand(clojure) imported from packages/gate/light.js returns the same clojure row [C7]', () => {
   assert.deepEqual(lightJunitCommand('clojure'), junitCommand('clojure'));
+});
+
+test('gate.junit-commands.clojure-registered: clause 3: the clojure row and door cases each carry an ID with a record in the gate registry [C7]', () => {
+  const registry = JSON.parse(readFileSync(new URL('../fixtures/registry.json', import.meta.url), 'utf8'));
+  const records = registry.tests ?? registry;
+  for (const id of ['gate.junit-commands.clojure-row', 'gate.junit-commands.clojure-door', 'gate.junit-commands.clojure-registered']) {
+    assert.ok(records[id], `${id} has a record`);
+  }
 });
