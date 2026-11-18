@@ -9,6 +9,7 @@ import { basename } from 'node:path';
 import { resolve } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -247,9 +248,49 @@ export function cleanItemFolders(ctx, board, me, { spare = false } = {}) {
     const idle = idleFolder(ctx, board, me, root, id, registry);
     if (!idle) continue;
     if (!spared) { spared = true; continue; }
-    git(ctx.info.root, ['worktree', 'remove', idle.path]);
-    if (idle.item.item_status === 'withdrawn' || idle.item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', idle.ref]);
+    const dropBranch = idle.item.item_status === 'withdrawn' || Boolean(idle.item.item_merged_commit);
+    removeIdleFolder(ctx.info.root, idle.path, { seat: root, ref: dropBranch ? idle.ref : null, running: [ctx.info.root, runningCheckout()] });
   }
+}
+
+/** Where main() keeps the folder removals it runs after its last step; absent outside a running command. */
+export const DEFERRED_FOLDER_REMOVALS = Symbol.for('pullboard.deferred-folder-removals');
+
+/** The checkout this CLI's own modules load from, resolved once (apps/cli/src/io/item/ sits five levels below it). */
+let ownCheckout;
+function runningCheckout() {
+  return (ownCheckout ??= canonical(fileURLToPath(new URL('../../../../../', import.meta.url))));
+}
+
+/**
+ * Remove one idle item folder, or, while a command runs from inside it, leave it until main() finishes.
+ * Why: release removed the folder the agent stood in, and when that folder held the CLI it ran, every later lazy
+ * import resolved into a deleted tree: the release recorded, then Node crashed ERR_MODULE_NOT_FOUND (#10891).
+ *
+ * @param {string} gitRoot the checkout the command runs git in
+ * @param {string} path the clean item folder to remove
+ * @param {{ seat: string, ref?: string|null, running?: (string|null)[] }} options the seat checkout that survives,
+ *   the item branch to delete after removal, and the folders the running command stands in or loads from
+ * @returns {boolean} true when the folder was removed now, false when its removal waits for main() to finish
+ */
+export function removeIdleFolder(gitRoot, path, { seat, ref = null, running = [] }) {
+  const pending = globalThis[DEFERRED_FOLDER_REMOVALS];
+  const here = canonical(path);
+  const inside = here !== null && running.some(folder => {
+    const real = folder ? canonical(folder) : null;
+    return real !== null && (real === here || real.startsWith(here + '/'));
+  });
+  if (Array.isArray(pending) && inside) {
+    // Run from the seat, which survives, never from the folder being removed.
+    pending.push(() => {
+      tryGit(seat, ['worktree', 'remove', path]);
+      if (ref) tryGit(seat, ['branch', '-d', ref]);
+    });
+    return false;
+  }
+  git(gitRoot, ['worktree', 'remove', path]);
+  if (ref) tryGit(gitRoot, ['branch', '-d', ref]);
+  return true;
 }
 
 /**

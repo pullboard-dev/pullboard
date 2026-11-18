@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import { openItemFolder } from '../../../src/io/item/folder.js';
 import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
+import { removeIdleFolder } from '../../../src/io/item/folder.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
@@ -176,4 +177,28 @@ test('cli.item-folder.config-count-sets-workers: clause 2: parallelCheckout retu
   assert.deepEqual(result, []);
   assert.deepEqual(result, gitsAnswer(seat), 'the same arguments as git');
   assert.equal(launches, 0, `launched ${launches} git processes`);
+});
+
+test('cli.io-item-folder.defers-the-running-folder: clause 2: inside a running command the folder it runs in waits for main to finish while other idle folders go at once; outside a command it goes at once [B5,#10891]', async t => {
+  const { ctx } = repository(t);
+  const seat = ctx.info.root;
+  const running = await openItemFolder(ctx, ME, 7);
+  const other = await openItemFolder(ctx, ME, 8);
+  const key = Symbol.for('pullboard.deferred-folder-removals');
+  const saved = globalThis[key];
+  t.after(() => { if (saved === undefined) delete globalThis[key]; else globalThis[key] = saved; });
+  globalThis[key] = [];
+  assert.equal(removeIdleFolder(running, running, { seat, ref: 'core/item-7', running: [running] }), false, 'the running folder waits');
+  assert.ok(existsSync(running), 'the folder the command runs in still stands');
+  assert.equal(removeIdleFolder(running, other, { seat, running: [running] }), true, 'another idle folder goes at once');
+  assert.equal(existsSync(other), false);
+  const pending = globalThis[key];
+  delete globalThis[key];
+  assert.equal(pending.length, 1, 'one removal waits for main to finish');
+  pending[0]();
+  assert.equal(existsSync(running), false, 'main\'s last step removes the waiting folder');
+  assert.equal(runFixtureGit(['branch', '--list', 'core/item-7'], { cwd: seat }), '', 'and deletes its named branch');
+  const outside = await openItemFolder(ctx, ME, 9);
+  assert.equal(removeIdleFolder(outside, outside, { seat, running: [outside] }), true, 'outside a command nothing waits');
+  assert.equal(existsSync(outside), false);
 });
