@@ -21,7 +21,7 @@ export function remoteBoard() {
  * board refusals into refusals that keep the board's own code and next step.
  * Every call opens its own connection (agent: false): the shared keep-alive pool reuses a socket the board closed while idle,
  * which surfaced as ECONNRESET on a POST that then must not be retried [P7].
- * @param {{ url: string, token: string }} remote
+ * @param {{ url: string, token: string, seatKey?: string | null }} remote
  * @param {string} path An absolute API path.
  * @param {any} [body] A JSON body to POST; omitted for a read.
  * @param {number} [timeout] Milliseconds to wait for the answer.
@@ -32,7 +32,8 @@ export function requestJson(remote, path, body, timeout = READ_TIMEOUT_MS) {
   const target = new URL(origin + path);
   const send = target.protocol === 'https:' ? httpsRequest : httpRequest;
   const payload = body === undefined ? null : JSON.stringify(body);
-  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json',
+  // A move as a seat carries that seat's own key beside the board key, or a served board refuses it SEAT_CREDENTIAL [P7,#10790].
+  const headers = { authorization: `Bearer ${remote.token}`, accept: 'application/json', ...(remote.seatKey ? { 'x-pullboard-seat-key': remote.seatKey } : {}),
     ...(payload === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) }) };
   return new Promise((resolve, reject) => {
     const unreachable = (why) => new Refused('BOARD_UNREACHABLE', `cannot reach board.url ${origin} (${why}); start pullboard serve on the board host, or fix it with pullboard settings board.url <url>`);
@@ -82,6 +83,17 @@ export function seatAgent(cwd) {
   if (process.env.PULLBOARD_AGENT) return process.env.PULLBOARD_AGENT;
   try { return gitExecFileSync(['config', '--get', 'pullboard.agent'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; }
   catch { return null; }
+}
+
+/**
+ * The seat's own key that a remote join kept in this worktree's git config beside its name, or null when `agent` is
+ * another seat (PULLBOARD_AGENT naming one) or the seat joined before keys were issued [P7,#10790].
+ * @param {string} cwd
+ * @param {string} agent
+ */
+export function seatKey(cwd, agent) {
+  const read = (name) => { try { return gitExecFileSync(['config', '--get', name], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null; } catch { return null; } };
+  return agent && read('pullboard.agent') === agent ? read('pullboard.seatKey') : null;
 }
 
 /** Print one item from the board host, as show's header lines print it. */
