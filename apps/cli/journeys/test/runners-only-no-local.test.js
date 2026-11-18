@@ -99,7 +99,7 @@ test('cli.journeys-test-runners-only-no-local.with-no-runner-free-the-gate: clau
   assert.equal(existsSync(marker), false, 'the frozen check never ran locally');
 });
 
-test('clause 1: with no runner free, the cells-plan check reads Git objects only, runs no local process and still refuses an unnumbered engine [C7,#3011]', { timeout: 60000 }, async () => {
+test('cli.journeys-test-runners-only-no-local.with-no-runner-free-the-cells: clause 1: with no runner free, the cells-plan check reads Git objects only, runs no local process and still refuses an unnumbered engine [C7,#3011]', { timeout: 60000 }, async () => {
   const box = lonely({ 'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n" });
   const spawned = [];
   const spy = { ...realGitAdapter, spawnSync(args, options) { spawned.push(args[0]); return realGitAdapter.spawnSync(args, options); },
