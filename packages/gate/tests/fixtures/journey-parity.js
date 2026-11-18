@@ -18,8 +18,9 @@ export async function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
   const record = join(dir, `${mode}.jsonl`);
   try {
+    // A case may carry a stable-ID prefix (`area.file.slug: `) before its sampled name, so the name match allows one.
     const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:[\\w.-]+: )?(?:${pattern})`],
       env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record, PULLBOARD_SUBMIT_MARKS: '' } });
     assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
     assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
