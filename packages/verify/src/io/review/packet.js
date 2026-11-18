@@ -148,12 +148,34 @@ function mainReceiptFor(commonDir, ids, main, failure) {
   return null;
 }
 
+const CLAUSE_KIND = /\[(test|command|screenshot|measurement|reasoning)\]\s*[.;]?\s*$/u;
+
+/**
+ * A criterion that opens "1." split by sequence: a marker counts only when its number is the next one expected, so
+ * prose such as "c is 3. Not 4." stays inside its clause. [] for free text or a bar with no clause 1 [V4,C7].
+ */
+function sequenceClauses(criterion) {
+  const source = String(criterion ?? '').trim();
+  if (!/^1[.)]\s/u.test(source)) return [];
+  const marks = [];
+  for (const match of source.matchAll(/(?:^|\s)(\d+)[.)]\s+/gu)) {
+    if (Number(match[1]) === marks.length + 1) marks.push({ start: match.index, end: match.index + match[0].length });
+  }
+  const clauses = marks.map((mark, index) => {
+    const text = source.slice(mark.end, index + 1 < marks.length ? marks[index + 1].start : source.length).trim().replace(/[;,]\s*$/u, '').trim();
+    return { n: index + 1, text, ...(CLAUSE_KIND.exec(text) ? { kind: CLAUSE_KIND.exec(text)[1] } : {}) };
+  });
+  return clauses.every(clause => clause.text) ? clauses : [];
+}
+
 /** Split the frozen bar into numbered clauses: the criterion's sentences, then each frozen row. */
 function packetClauses(item) {
   const bar = frozenBar(item);
   const criterion = bar.criterion || wording(item.item_criterion);
   const numbered = criterionClauses(item.item_criterion ?? criterion);
+  const bySequence = numbered.length ? [] : sequenceClauses(item.item_criterion ?? criterion);
   const sentences = numbered.length ? numbered.map(clause => ({ n: clause.number, text: clause.text, ...(clause.kind ? { kind: clause.kind } : {}) }))
+    : bySequence.length ? bySequence
     : criterion.split(/(?<=[.!?])\s+(?=[A-Z0-9`"'#])/u).map(text => text.trim()).filter(Boolean).map(text => ({ text }));
   const gates = new Map(frozenRowGates(item).map(row => [row.id, row.file]));
   return [...sentences, ...bar.rows.map(row => ({ id: row.id, text: `${row.id}: ${row.text}`, ...(gates.has(row.id) ? { gate: gates.get(row.id) } : {}) }))]
