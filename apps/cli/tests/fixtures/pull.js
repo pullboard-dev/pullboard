@@ -62,10 +62,10 @@ export async function holdDoctrineAsync(root) { record(root, 'doctrine'); return
   'apps/cli/src/io/static/checks.js': `import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static');
 `,
-  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only under a loopback runner's job, so an item add or inline gate leaves no file [C7,#7301].
+  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only in a pulled job (the gate entry sets PULLBOARD_PULLED_JOB for its phases), so an item add or inline gate leaves no file [C7,#7301].
   'bin/profile.js': `import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-export function writeProfile(role) { if (process.env.PULLBOARD_FIXTURE_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
+export function writeProfile(role) { if (process.env.PULLBOARD_PULLED_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
 `,
   // The proof holds its job open a moment, so the host is sampled while all the gates run at once; it writes the ACCEPT timing profile.
   'bin/proof.js': `import { record } from './record.js';
@@ -78,7 +78,7 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
 };
 
 /** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. Why inline: a bar naming a file path must be one a lane owns, so the check names none. */
-export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_FIXTURE_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
+export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_PULLED_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
 
 /** Processes on this host whose command line names the board's sandbox: a dispatcher, driver or worker the submit left behind. */
 export function hostProcesses(dir) {
