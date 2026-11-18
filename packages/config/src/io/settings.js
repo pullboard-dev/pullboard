@@ -145,6 +145,11 @@ export function recordLapseEnabled() {
   return loadMachineSettings()['jobs.recordLapse'] === true;
 }
 
+/** Name the trunk main commit in every runner claim answer, only when this machine opted in (stored flat as "runners.reportCommit") [C7,#10819]. */
+export function runnerCommitReportEnabled() {
+  return loadMachineSettings()['runners.reportCommit'] === true;
+}
+
 /** Settle a sharded item gate left unknown on a missing main receipt when that receipt records, only when this machine opted in [C7,#9057]. */
 export function settleOnMainReceiptEnabled() {
   return loadMachineSettings().gate?.settleOnMainReceipt === true;

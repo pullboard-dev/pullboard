@@ -178,6 +178,7 @@ const BEFORE = {
   'runners.fetchFailFast': false,
   'runners.localWake': false,
   'runners.postedLineNamesCase': false,
+  'runners.reportCommit': false,
   'runners.requiredToolchains': null,
   'runners.yieldWhilePruning': false,
   'scratch': null,
