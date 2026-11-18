@@ -229,6 +229,7 @@
     "apps/view": 55,
     "blueprints": 54,
     "board": 56,
+    "clock": 54,
     "codemap": 62,
     "commits": 57,
     "config": 63,
