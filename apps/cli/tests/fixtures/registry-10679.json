@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-spec-apply-row.decline-refused": {"proves":{"specs":["C7"],"claim":"A person-channel spec apply --row call whose pending same-channel decision is a decline is refused COORDINATOR_ONLY."},"why":"Without it, a regression where a pending decline opens the person-channel apply would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/spec/apply-row.test.js","apps/cli/src/io/commands/spec/apply-row.js"]},
+  "cli.io-commands-spec-apply-row.approve-applies": {"proves":{"specs":["C7"],"claim":"A person-channel spec apply --row --commit call with a pending same-channel approve is allowed."},"why":"Without it, a regression where the guard refuses a real approve would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/commands/spec/apply-row.test.js","apps/cli/src/io/commands/spec/apply-row.js"]}
+}
