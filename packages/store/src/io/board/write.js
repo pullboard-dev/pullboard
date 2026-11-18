@@ -145,7 +145,7 @@ const FILE_QUEUES = new Map();
 const QUEUE_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** The operations that go through the file write queue with board.crossProcessWrites on: one list, never a copy per operation (#9816, #9817, #8163). */
-const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify']);
+const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify', 'queueSubmitHandoff', 'startSubmitHandoff', 'completeSubmitHandoff']);
 
 /**
  * The write id of a queued write: the caller's own move id when its options carry one, else a digest of the board, the
@@ -158,7 +158,7 @@ function queuedWriteId(board, operation, args) {
 }
 
 /**
- * Submit a claim, release or verdict to the machine's shared file write queue and give back what its result file holds.
+ * Submit a claim, release, verdict or submit hand-off write to the machine's shared file write queue and give back what its result file holds.
  * With board.crossProcessWrites on this returns a promise; the queue answers across processes, so it cannot be synchronous.
  */
 async function writeThroughFileQueue(board, operation, args, actor, options) {
@@ -186,7 +186,7 @@ function readMark(file) {
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock. With
- * board.crossProcessWrites on, a claim, a release and a verdict go through the machine's file write queue instead and the call returns a promise;
+ * board.crossProcessWrites on, a claim, a release, a verdict and the three submit hand-off writes go through the machine's file write queue instead and the call returns a promise;
  * every other operation, and every operation with the setting off, writes directly as before.
  * @param {any} board
  * @param {string} operation
