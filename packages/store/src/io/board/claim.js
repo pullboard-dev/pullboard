@@ -413,16 +413,24 @@ export function claim(board, id, options, ports) {
 /**
  * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
  * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
- * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ * Atomics.wait. Only the claim's own rows can make the preparation stale, as for a plain claim (#6016): under the
+ * whole-board check any heartbeat or fact another process wrote meanwhile refused BOARD_BUSY, the caller skipped the
+ * witness, and review could never reuse that gate's proof (#10942). The one read beyond those rows, that the admission
+ * id is unused, is checked again under the lock against the events written since the snapshot [C7].
  */
 export function admitSubmit(board, id, options, ports) {
   const snapshot = boardWriteSnapshot(board);
   const rows = claimRows(board, id);
   const plan = claimPlan(board, id, options, ports);
   ports.checkedItemMove(board, id, 'claim', plan.how.checks);
-  const binding = { board, id, snapshot, rows, strict: true, plan };
+  const binding = { board, id, snapshot, rows, strict: false, plan, admissionSince: snapshot.eventId };
   if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
   return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
+}
+
+/** Whether a claim or renewal written after event `since` already used this submit admission id; a primary-key range read. */
+function admissionUsedSince(board, since, admissionId) {
+  return Boolean(board.db.prepare("SELECT 1 FROM event WHERE event_id > ? AND event_kind IN ('claim','renew') AND json_valid(event_detail) AND json_extract(event_detail,'$.submitAdmission.id')=? LIMIT 1").get(since, admissionId));
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
@@ -445,6 +453,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+    if (admission && Number.isSafeInteger(binding.admissionSince) && admissionUsedSince(board, binding.admissionSince, admission.id)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
     const frozen = plan.frozen();
     const renewed = isRenewal(item);
