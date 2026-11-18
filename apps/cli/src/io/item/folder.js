@@ -342,6 +342,25 @@ function branchCheckout(root, ref) {
   return null;
 }
 
+/**
+ * The same checkout branchCheckout finds, read from the registry Git keeps under the common directory, with no Git launch:
+ * the primary checkout's HEAD, then worktrees/<name>/HEAD, gitdir and locked. Why: every fresh claim asked Git for the list, 23 ms median (#10862).
+ */
+function branchCheckoutFromFiles(commonDir, ref) {
+  const read = file => { try { return readFileSync(file, 'utf8').trim(); } catch { return null; } };
+  const wanted = `ref: refs/heads/${ref}`;
+  if (basename(commonDir) === '.git' && read(join(commonDir, 'HEAD')) === wanted) return { path: dirname(commonDir), locked: false };
+  let names;
+  try { names = readdirSync(join(commonDir, 'worktrees')); } catch { return null; }
+  for (const name of names) {
+    const entry = join(commonDir, 'worktrees', name);
+    if (read(join(entry, 'HEAD')) !== wanted) continue;
+    const gitdir = read(join(entry, 'gitdir'));
+    if (gitdir) return { path: dirname(gitdir), locked: existsSync(join(entry, 'locked')) };
+  }
+  return null;
+}
+
 /** The ITEM_FOLDER_PROTECTED refusal for an item branch held in a locked or foreign folder, which no claim adopts. */
 function protectedFolderRefusal(ref, path) {
   return new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
@@ -435,7 +454,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
 export async function liveFolderRefusal(ctx, board, me, id) {
   if (me.id === 'coordinator') return null;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  const prior = existsSync(path) ? null : branchCheckout(ctx.info.root, branch(me.lane, id));
+  const prior = existsSync(path) ? null : branchCheckoutFromFiles(ctx.info.commonDir, branch(me.lane, id));
   const folder = prior ? prior.path : path;
   if (!folder || !existsSync(folder)) return null;
   // A locked or foreign folder is never adopted (recoverPriorFolder); next passes over its item instead of refusing the call.
