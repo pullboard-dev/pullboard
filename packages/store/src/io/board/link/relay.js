@@ -33,6 +33,21 @@ function capabilityFor(capability, record, method) {
   return capability[method].bind(capability);
 }
 
+/**
+ * The folder transport of link/file.js, loaded at its first send or read: its module stays outside the closure every hot command
+ * (status, next, claim) loads, whose module budgets only ratchet down. The folder and the bound board are checked here, at once.
+ */
+export function createBoardLinkFileTransport(folder, { board } = {}) {
+  if (typeof folder !== 'string' || folder === '') throw new TypeError('board link file transport needs its delivery folder');
+  const id = board === undefined ? null : boardReferenceId(board);
+  let real = null;
+  const loaded = () => (real ??= import('./file.js').then(module => module.createBoardLinkFileTransport(folder, { board })));
+  return Object.freeze({ board: id,
+    async send(value) { return (await loaded()).send(value); },
+    async read(...args) { return (await loaded()).read(...args); },
+  });
+}
+
 /** Bind a transport instance to one explicitly authenticated source or receiving board. */
 export function createBoardLinkRelayTransport(state, { request }) {
   if (typeof request !== 'function') throw new TypeError('board link transport needs its authenticated request port');
