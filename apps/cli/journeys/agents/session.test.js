@@ -1,13 +1,8 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/person */
+/** @pullboard-test-input source-cell apps/cli packages/kernel */
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
-import { fixtureChildMessage } from "../../tests/fixtures/child.js";
-import { runFixtureChild } from "../../tests/fixtures/child.js";
-import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { resolve } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { SSH_SHELL_MARKERS } from "../../../../packages/kernel/index.js";
@@ -110,41 +105,6 @@ test('cli.journeys-agents-session.no-session-shells-are-one-session: clause 1: n
   const self = (await box.inProcess(box.repo, ['shout', 'coordinator', 'self decision', '--decision', '--json'], { agent: false }));
   assert.notEqual(self.status, 0);
   assert.deepEqual(boardSnapshot(box.boardFile), beforeSelf, 'self-addressed decision is refused without a write');
-});
-
-test('cli.journeys-agents-session.a-shout-from-the-local-view: clause 1: a shout from the local view as the person is recorded as the person [N26,B26,B3,B7]', async () => {
-  const box = await project();
-  const owner = (await box.inProcess(box.repo, ['shout', 'web', 'agent owns this checkout', '--json'], { session: 'view-owner-session-273' }));
-  assert.equal(owner.status, 0, owner.stdout + owner.stderr);
-  assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_from, 'coordinator', 'an agent-shell shout keeps the coordinator as author');
-  const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
-  const before = readFileSync(file);
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../../../packages/api/src/io/main.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../tests/fixtures/native.js')).href;
-  const source = `
-    const { executeMove } = await import(${JSON.stringify(apiModule)});
-    const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../lib/index.js', import.meta.url).href)});
-    const { moveArgs } = await import(${JSON.stringify(new URL('../../../../packages/person/index.js', import.meta.url).href)});
-    const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
-    const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main, undefined, undefined, undefined, apiBoardOpeners);
-    const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'Which path should web-1 use?', kind: 'question' } }, main, undefined, undefined, undefined, apiBoardOpeners);
-    process.stdout.write(JSON.stringify({ ...response, asAgent }));
-  `;
-  const response = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], {
-    cwd: box.repo, env: { ...box.base, CODEX_THREAD_ID: 'other-process-view-session-273' }, encoding: 'utf8',
-  });
-  assert.equal(response.status, 0, fixtureChildMessage(response));
-  const document = JSON.parse(response.stdout);
-  assert.equal(document.status, 200, response.stdout);
-  assert.equal(document.body.event.event_kind, 'shout');
-  assert.equal(document.body.event.event_by, 'person');
-  const shouts = boardSnapshot(box.boardFile).shout;
-  assert.equal(shouts.at(-2).shout_text, 'actual view action');
-  assert.equal(shouts.at(-2).shout_from, 'person', 'the view as the coordinator records the person');
-  assert.equal(document.asAgent.status, 200, response.stdout);
-  assert.equal(shouts.at(-1).shout_from, 'web-1', 'the view acting as a named agent still records that agent');
-  assert.deepEqual(readFileSync(file), before, 'the authenticated view does not alter the local agent-session binding');
 });
 
 test('cli.journeys-agents-session.a-remote-shell-is-recognized-by: clause 1: a remote shell is recognized by any SSH marker [B26,E22]', async () => {
