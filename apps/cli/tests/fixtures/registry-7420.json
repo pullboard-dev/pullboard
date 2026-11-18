@@ -1,0 +1,47 @@
+{
+  "cli.io-reconcile.tick-applies-inbox": {
+    "proves": {
+      "specs": [
+        "B2",
+        "P7"
+      ],
+      "claim": "With runs_store on, one serve reconciler tick applies a receipt left unapplied in the runs inbox."
+    },
+    "why": "Without it, a receipt stranded by a crash between the board move and the ack would never apply while serve runs.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/reconcile.test.js",
+      "apps/cli/src/io/reconcile.js"
+    ]
+  },
+  "cli.io-reconcile.tick-drains-three-receipts": {
+    "proves": {
+      "specs": [
+        "B2",
+        "P7"
+      ],
+      "claim": "After three receipts and one tick with runs_store on, the inbox holds no unapplied receipt."
+    },
+    "why": "Without it, a tick that applies only one receipt would leave the others stranded.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/reconcile.test.js",
+      "apps/cli/src/io/reconcile.js"
+    ]
+  },
+  "cli.io-reconcile.flag-off-opens-no-runs-file": {
+    "proves": {
+      "specs": [
+        "B2",
+        "P7"
+      ],
+      "claim": "With runs_store off, a serve reconciler tick opens no runs file."
+    },
+    "why": "Without it, a board that never turned the flag on would grow a runs file.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/reconcile.test.js",
+      "apps/cli/src/io/reconcile.js"
+    ]
+  }
+}
