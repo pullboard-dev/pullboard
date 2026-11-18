@@ -9,20 +9,20 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as landCommand from '../../../../src/io/commands/land.js';
 
-test('releasing a verified item hold wakes landing the way an accept does [C7,#2898]', () => {
+test('cli.io-commands-land-itself.releasing-a-verified-item-hold-wakes-landing: releasing a verified item hold wakes landing the way an accept does [C7,#2898]', () => {
   const source = readFileSync(new URL('../../../../src/io/commands/hold.js', import.meta.url), 'utf8');
   assert.match(source, /item_status === 'verified'\) released = ctx/u);
   assert.match(source, /landAfterAcceptance\(released\)/u);
 });
 
-test('#6807 clause 2: neither executeBoardLanding nor landingBatchRunner is named in apps/cli/src or packages/landing/src [C7,#6807]', () => {
+test('cli.io-commands-land-itself.n-6807-clause-2-neither-executeboardlanding-nor-landingbatchrunner: #6807 clause 2: neither executeBoardLanding nor landingBatchRunner is named in apps/cli/src or packages/landing/src [C7,#6807]', () => {
   const roots = ['../../../../src', '../../../../../../packages/landing/src'].map(path => fileURLToPath(new URL(path, import.meta.url)));
   const named = roots.flatMap(root => readdirSync(root, { recursive: true }).filter(file => file.endsWith('.js'))
     .filter(file => /\b(?:executeBoardLanding|landingBatchRunner)\b/u.test(readFileSync(join(root, file), 'utf8'))).map(file => join(root, file)));
   assert.deepEqual(named, []);
 });
 
-test('#6813 clauses 1-3: the batch step is gone, its runner is named nowhere, and land.js only offers the land job [C7,#6813]', () => {
+test('cli.io-commands-land-itself.n-6813-clauses-1-3-the-batch-step: #6813 clauses 1-3: the batch step is gone, its runner is named nowhere, and land.js only offers the land job [C7,#6813]', () => {
   const root = fileURLToPath(new URL('../../../../../../', import.meta.url));
   // Built from parts, so this test names neither the deleted path nor the deleted function itself.
   const step = ['packages/landing/src/io/step', 'batch.js'].join('/');

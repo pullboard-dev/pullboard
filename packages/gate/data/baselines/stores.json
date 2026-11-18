@@ -490,6 +490,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-env.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/env.js"
+    },
     "adapter-lint-fs.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/fs.js"
@@ -596,7 +600,7 @@
     },
     "cells-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/test/tier/selection.js"
+      "owner": "packages/gate/src/io/edges.js"
     },
     "cells-test-batches.json": {
       "kind": "json",
@@ -859,6 +863,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
+    },
     "push-only.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/push-only.js"
@@ -1011,6 +1019,10 @@
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-relink.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
@@ -1134,6 +1146,10 @@
     "sources.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/uses.js"
+    },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
     },
     "startup.json": {
       "kind": "json",
@@ -1521,7 +1537,7 @@
     },
     "temporary-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+      "owner": "apps/cli/src/io/cells/cache.js"
     },
     "test-cells.json": {
       "kind": "repo-data",

@@ -32,7 +32,7 @@ function tableSays(answer) {
   store.provideMoveTables({ runTable: () => answer(), reopenEngine: () => ({ table: {}, rules: {} }) });
 }
 
-test('clause 1: with moves.live.reopen on, a reopen writes exactly the events the reopen table decides [C7,#8390]', t => {
+test('board.reopen-live.with-moves-live-reopen-reopen-writes: clause 1: with moves.live.reopen on, a reopen writes exactly the events the reopen table decides [C7,#8390]', t => {
   const shadowed = submitted(t, false);
   let decided = null;
   shadowed.board.reopenShadow = answer => { decided = answer.decided; };
@@ -47,14 +47,14 @@ test('clause 1: with moves.live.reopen on, a reopen writes exactly the events th
   assert.equal(store.getItem(live.board, 7).item_status, 'open');
 });
 
-test('clause 3: with moves.live.reopen off (the default) the writer\'s own rules decide, whatever the table says [C7,#8390]', t => {
+test('board.reopen-live.with-moves-live-reopen-off-the: clause 3: with moves.live.reopen off (the default) the writer\'s own rules decide, whatever the table says [C7,#8390]', t => {
   const { board, reopen } = submitted(t);
   reopen();
   assert.equal(reopens(board).length, 1);
   assert.equal(store.getItem(board, 7).item_status, 'open');
 });
 
-test('clause 2: with moves.live.reopen on, a reopen the table refuses is refused with the table\'s code and writes nothing [C7,#8390]', t => {
+test('board.reopen-live.with-moves-live-reopen-reopen-the: clause 2: with moves.live.reopen on, a reopen the table refuses is refused with the table\'s code and writes nothing [C7,#8390]', t => {
   const { board, reopen } = submitted(t, true);
   tableSays(() => ({ refused: { code: 'COORDINATOR_ONLY', message: 'only the coordinator reopens submissions', next: 'ask the coordinator' } }));
   assert.throws(reopen, error => error.code === 'COORDINATOR_ONLY' && error.next === 'ask the coordinator');
@@ -62,7 +62,7 @@ test('clause 2: with moves.live.reopen on, a reopen the table refuses is refused
   assert.equal(store.getItem(board, 7).item_status, 'submitted');
 });
 
-test('clause 2: a reopen table that throws never takes the reopen down; the writer\'s own event is written [C7,#8390]', t => {
+test('board.reopen-live.reopen-table-that-throws-never-takes: clause 2: a reopen table that throws never takes the reopen down; the writer\'s own event is written [C7,#8390]', t => {
   const { board, reopen } = submitted(t, true);
   tableSays(() => { throw new Error('table broke'); });
   reopen();

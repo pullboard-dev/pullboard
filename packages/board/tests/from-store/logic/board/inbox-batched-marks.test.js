@@ -16,7 +16,7 @@ function countWrites(board, run) {
   return begins;
 }
 
-test('clause 1: a queue of marks for several agents flushes in one transaction writing each agent\'s highest mark once [C7]', t => {
+test('board.inbox-batched-marks.queue-marks-for-several-agents-flushes: clause 1: a queue of marks for several agents flushes in one transaction writing each agent\'s highest mark once [C7]', t => {
   const board = cellBoard(t, ':memory:');
   register(board, { lane: 'coordinator', path: '/m/root' });
   const a = register(board, { lane: 'web', path: '/m/a' });
@@ -37,7 +37,7 @@ test('clause 1: a queue of marks for several agents flushes in one transaction w
   assert.equal(store.flushInboxMarks(board), 0, 'a flush empties the queue');
 });
 
-test('clause 2: a flush never lowers a recorded mark and an empty queue writes nothing [C7]', t => {
+test('board.inbox-batched-marks.flush-never-lowers-recorded-mark-and: clause 2: a flush never lowers a recorded mark and an empty queue writes nothing [C7]', t => {
   const board = cellBoard(t, ':memory:');
   register(board, { lane: 'coordinator', path: '/m/root' });
   const a = register(board, { lane: 'web', path: '/m/a' });

@@ -49,7 +49,7 @@ function setup(t, settings) {
 /** The result files the queue folder holds. */
 const results = home => readdirSync(join(home, 'board-write-queue')).filter(name => name.endsWith('.result'));
 
-test('clause 1: with board.crossProcessWrites on, release and verify each go through the file queue and return their stored result [C7,#9817]', async t => {
+test('store.io-board-release-verdict-file-queue.with-boardcrossprocesswrites-on-release-and-verify: clause 1: with board.crossProcessWrites on, release and verify each go through the file queue and return their stored result [C7,#9817]', async t => {
   const f = setup(t, { board: { crossProcessWrites: true } });
   const released = await f.release();
   assert.equal(results(f.home).length, 1, 'the release left one result file');
@@ -64,7 +64,7 @@ test('clause 1: with board.crossProcessWrites on, release and verify each go thr
   assert.notEqual(answer, null);
 });
 
-test('clause 2: a release or verdict retried with the same write id is answered from its result file with no second event [C7,#9817]', async t => {
+test('store.io-board-release-verdict-file-queue.a-release-or-verdict-retried-with: clause 2: a release or verdict retried with the same write id is answered from its result file with no second event [C7,#9817]', async t => {
   const f = setup(t, { board: { crossProcessWrites: true } });
   const released = await f.release();
   assert.deepEqual(await f.release(), released);
@@ -74,7 +74,7 @@ test('clause 2: a release or verdict retried with the same write id is answered 
   assert.equal(f.count(f.landed, 'verify'), 1, 'the retried verdict wrote no second event');
 });
 
-test('clause 3: with board.crossProcessWrites off release and verify write directly and return at once, with no queue folder [C7,#9817]', t => {
+test('store.io-board-release-verdict-file-queue.with-boardcrossprocesswrites-off-release-and-verify: clause 3: with board.crossProcessWrites off release and verify write directly and return at once, with no queue folder [C7,#9817]', t => {
   const f = setup(t, {});
   const released = f.release();
   assert.equal(typeof released?.then, 'undefined', 'the direct release is synchronous');

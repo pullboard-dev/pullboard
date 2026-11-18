@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: phpunit --log-junit report.xml
+     Suites nest (a suite per class inside a suite per directory). Each testcase carries file (absolute, inside the checkout),
+     class, classname and line. Case names read "clause 1: ..." as a naming hook would write them. No tool is needed to read it. -->
+<testsuites>
+  <testsuite name="Unit" tests="3" assertions="2" errors="0" failures="1" skipped="1" time="0.011">
+    <testsuite name="Tests\MathTest" file="/work/repo/tests/MathTest.php" tests="3" assertions="2" errors="0" failures="1" skipped="1" time="0.011">
+      <testcase name="clause 1: adds two numbers" file="/work/repo/tests/MathTest.php" line="9" class="Tests\MathTest" classname="Tests.MathTest" assertions="1" time="0.004"/>
+      <testcase name="clause 2: halves a number" file="/work/repo/tests/MathTest.php" line="14" class="Tests\MathTest" classname="Tests.MathTest" assertions="1" time="0.003">
+        <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\MathTest::clause 2: halves a number
+Failed asserting that 1 matches expected 2.
+
+/work/repo/tests/MathTest.php:16</failure>
+      </testcase>
+      <testcase name="clause 3: later" file="/work/repo/tests/MathTest.php" line="19" class="Tests\MathTest" classname="Tests.MathTest" assertions="0" time="0.000">
+        <skipped/>
+      </testcase>
+    </testsuite>
+  </testsuite>
+</testsuites>

@@ -50,13 +50,13 @@ function runningGate(t) {
   return { project, web, board, seat, id, job, commit, tree };
 }
 
-test('clause 1: a claimed item whose hand-off is running serves, so its gate is current [C7]', t => {
+test('board.current.claimed-item-whose-hand-off-running: clause 1: a claimed item whose hand-off is running serves, so its gate is current [C7]', t => {
   const { board, id, job } = runningGate(t);
   assert.equal(handoffServes(board, id, job), true);
   assert.equal(handoffGateCurrent(board, id, job), true);
 });
 
-test('clause 1: the item its own gate just submitted at the hand-off head, by the hand-off seat and at its digest, is still current [C7,#4073]', t => {
+test('board.current.the-item-its-own-gate-just: clause 1: the item its own gate just submitted at the hand-off head, by the hand-off seat and at its digest, is still current [C7,#4073]', t => {
   const { board, seat, id, job, commit, tree } = runningGate(t);
   submitFixture(board, id, { agentId: seat.id, commit, tree });
   const item = getItem(board, id);
@@ -66,7 +66,7 @@ test('clause 1: the item its own gate just submitted at the hand-off head, by th
   assert.equal(handoffGateCurrent(board, id, job), true);
 });
 
-test('clause 1: an item submitted at another head than the hand-off\'s is not current [C7,#4073]', t => {
+test('board.current.item-submitted-another-head-than-the: clause 1: an item submitted at another head than the hand-off\'s is not current [C7,#4073]', t => {
   const { board, seat, id, job, commit } = runningGate(t);
   const other = commit.startsWith('a') ? 'b'.repeat(40) : 'a'.repeat(40);
   submitFixture(board, id, { agentId: seat.id, commit: other, tree: other });
@@ -78,7 +78,7 @@ test('clause 1: an item submitted at another head than the hand-off\'s is not cu
   assert.equal(handoffGateCurrent(board, id, job), false);
 });
 
-test('clause 1: an item submitted at the hand-off head by another seat is not current [C7,#4073]', t => {
+test('board.current.item-submitted-the-hand-off-head: clause 1: an item submitted at the hand-off head by another seat is not current [C7,#4073]', t => {
   const { project, board, seat, id, job, commit, tree } = runningGate(t);
   const other = join(project.dir, 'web-two');
   project.git(project.repo, 'worktree', 'add', '-q', other, '-b', 'web/two');
@@ -95,7 +95,7 @@ test('clause 1: an item submitted at the hand-off head by another seat is not cu
   assert.equal(handoffGateCurrent(board, id, job), false);
 });
 
-test('clause 1: another hand-off id, a finished hand-off and an item with no hand-off are not current [C7]', t => {
+test('board.current.another-hand-off-finished-hand-off: clause 1: another hand-off id, a finished hand-off and an item with no hand-off are not current [C7]', t => {
   const { board, seat, id, job } = runningGate(t);
   assert.equal(handoffGateCurrent(board, id, randomUUID()), false, 'a gate for another job id is stale');
   completeSubmitHandoff(board, id, { agentId: seat.id, job,

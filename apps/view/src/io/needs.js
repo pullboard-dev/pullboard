@@ -10,7 +10,7 @@ import {
   pendingFit,
   projectFit,
 } from '../../../../packages/blueprints/index.js';
-import { projectState } from './serve.js';
+import { projectState } from './state.js';
 import { loadConfig } from '../../../../packages/config/index.js';
 import { loadSpec } from '../../../../packages/spec/index.js';
 import { loadDoctrine } from '../../../../packages/doctrine/index.js';

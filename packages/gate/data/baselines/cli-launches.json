@@ -305,7 +305,7 @@
   "apps/cli/journeys/roadmap/count.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/agents/session.test.js": {
+  "apps/cli/journeys/agents/session-takeover.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/companion/companions/review.test.js": {
@@ -533,10 +533,10 @@
   "apps/cli/journeys/relay/hosted/boards.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/cockpit.test.js": {
+  "apps/cli/journeys/spec/cockpit/shared.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/spec/cockpit/shared.test.js": {
+  "apps/cli/journeys/spec/cockpit/decisions.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/spec/cockpit/pointer.test.js": {
@@ -594,7 +594,10 @@
     "launch": 9
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/baseline/check-part2.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/receipts.test.js": {
     "launch": 3
@@ -1085,7 +1088,7 @@
   "apps/cli/journeys/claim/display.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/milestone/api.test.js": {
+  "apps/cli/journeys/milestone/api-part2.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/init/known/main/frozen-stage.test.js": {
@@ -1193,9 +1196,6 @@
   "apps/cli/journeys/test/selection/sealed.test.js": {
     "launch": 1
   },
-  "apps/cli/journeys/fact/timing.test.js": {
-    "launch": 1
-  },
   "packages/gate/tests/io/assumptions.test.js": {
     "launch": 1
   },
@@ -1203,7 +1203,10 @@
     "launch": 4
   },
   "apps/cli/journeys/resume/flow.test.js": {
-    "launch": 8
+    "launch": 2
+  },
+  "apps/cli/journeys/resume/flow-upgrade.test.js": {
+    "launch": 6
   },
   "apps/cli/journeys/runner/reuse.test.js": {
     "launch": 1

@@ -38,7 +38,7 @@ async function assertStallPhase(t, box, script, phase) {
   });
 }
 
-test('a real relay request held past the child deadline names relay waiting [A7,H16,C7]', async t => {
+test('cli.journeys-relay-phases.a-real-relay-request-held-past: a real relay request held past the child deadline names relay waiting [A7,H16,C7]', async t => {
   const box = fixture(t);
   const server = createServer(() => {}); // Positive control: accept HTTP and deliberately never answer.
   server.listen(0, '127.0.0.1');
@@ -52,7 +52,7 @@ await request({url:${JSON.stringify(origin)}}, '/held', {}, {relayTimeoutMs:6000
   await assertStallPhase(t, box, script, 'waiting-relay');
 });
 
-test('a real live relay lock held past the child deadline names lock waiting [A7,H16,C7]', async t => {
+test('cli.journeys-relay-phases.a-real-live-relay-lock-held: a real live relay lock held past the child deadline names lock waiting [A7,H16,C7]', async t => {
   const box = fixture(t);
   const file = join(box.root, 'relay.json');
   let ready;
@@ -68,7 +68,7 @@ await locked(${JSON.stringify(file)}, async () => {});`, 'waiting-lock');
   } finally { release(); await holder; }
 });
 
-test('a real SQLite export blocked by a private writer names local export work [A7,H16,C7]', async t => {
+test('cli.journeys-relay-phases.a-real-sqlite-export-blocked-by: a real SQLite export blocked by a private writer names local export work [A7,H16,C7]', async t => {
   const box = fixture(t);
   const file = join(box.root, 'private.sqlite');
   const db = new DatabaseSync(file);

@@ -39,7 +39,7 @@ function recordingFreeze(writeHeld, onCall = () => {}) {
   return { calls, freeze };
 }
 
-test('clause 1: a coordinator criterion edit runs its freezer before the board write opens [C7]', t => {
+test('board.edit-freeze.coordinator-criterion-edit-runs-its-freezer: clause 1: a coordinator criterion edit runs its freezer before the board write opens [C7]', t => {
   const { board, id, writeHeld } = fixture(t);
   const { calls, freeze } = recordingFreeze(writeHeld);
   writeBoardCommand(board, 'editItem', [id, { agentId: 'coordinator', criterion: 'Corrected item works under load', correction: true, freeze }], 'coordinator');
@@ -49,7 +49,7 @@ test('clause 1: a coordinator criterion edit runs its freezer before the board w
   assert.equal(JSON.parse(item.item_frozen).call, 1, 'the writer stored the bar frozen before the write opened');
 });
 
-test('clause 2: an item row changed after preparation is frozen again under the lock [C7]', t => {
+test('board.edit-freeze.item-row-changed-after-preparation-frozen: clause 2: an item row changed after preparation is frozen again under the lock [C7]', t => {
   const { board, id, writeHeld } = fixture(t);
   const { calls, freeze } = recordingFreeze(writeHeld, count => {
     // Another writer changes the item between preparation and the write.

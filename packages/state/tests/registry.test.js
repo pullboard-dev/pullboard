@@ -1,4 +1,5 @@
-/** Every state-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9946]. @pullboard-test-input source-cell packages/state */
+/** @pullboard-test-input source-cell packages/state */
+/** Every state-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9946]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

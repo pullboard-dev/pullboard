@@ -39,7 +39,7 @@ function request(keys, overrides = {}) {
     expires: 1_800_000_060_000, grants: ['a'.repeat(32)], ...overrides };
 }
 
-test('person enrollment verifies the trusted root and exact account device origin nonce expiry grants [H15]', async () => {
+test('relay.logic-person-enrollment-http.person-enrollment-verifies-the-trusted-root: person enrollment verifies the trusted root and exact account device origin nonce expiry grants [H15]', async () => {
   const api = await personAPI();
   const root = await api.createPersonRoot();
   const stranger = await api.createPersonRoot();
@@ -71,7 +71,7 @@ test('person enrollment verifies the trusted root and exact account device origi
     { ...expected, revoked: true }), { code: 'PERSON_ENROLL_REVOKED' });
 });
 
-test('account envelopes require independently retained key and exact account context [H15]', async () => {
+test('relay.logic-person-enrollment-http.account-envelopes-require-independently-retained-key: account envelopes require independently retained key and exact account context [H15]', async () => {
   const api = await personAPI();
   const recovery = crypto.getRandomValues(new Uint8Array(32));
   const vault = crypto.getRandomValues(new Uint8Array(32));
@@ -153,7 +153,7 @@ async function deviceRequest(box, path, { method = 'GET', token, cookie, origin,
 
 
 
-test('a person-bound challenge gets an opaque wrap and a substituted key, wrong account, replay, expiry or revoked enrollment gets none [H15]', async (t) => {
+test('relay.logic-person-enrollment-http.a-person-bound-challenge-gets-an: a person-bound challenge gets an opaque wrap and a substituted key, wrong account, replay, expiry or revoked enrollment gets none [H15]', async (t) => {
   const api = await personAPI();
   const box = await relayDeviceFixture(t);
   const recipientCookie = await browserSession(box);
@@ -245,7 +245,7 @@ test('a person-bound challenge gets an opaque wrap and a substituted key, wrong 
 
 
 /** The device schema is complete on first ordinary access, without requiring a person's enrollment traffic. */
-test('cold device storage creates person enrollment schema without person traffic [H15]', t => {
+test('relay.logic-person-enrollment-http.cold-device-storage-creates-person-enrollment: cold device storage creates person enrollment schema without person traffic [H15]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-person-cold-'));
   const store = createDeviceStore({ directory });
   const file = join(directory, 'devices.sqlite');

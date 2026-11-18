@@ -25,7 +25,7 @@ function landed(t, item) {
 const reject = ({ board, id, reviewer }) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the result is wrong',
   head: COMMIT, digest: '', policy: 'any', landed: true });
 
-test('clause 1: a landed mid reject records the verdict and files a follow-up carrying the Files:, Test: and check [C7,#8835]', t => {
+test('board.verify-landed-followup.landed-mid-reject-records-the-verdict: clause 1: a landed mid reject records the verdict and files a follow-up carrying the Files:, Test: and check [C7,#8835]', t => {
   const f = landed(t, { brief: BRIEF, check: 'node --test web/result.test.js' });
   const result = reject(f);
   const followUp = store.getItem(f.board, result.followUp);
@@ -36,7 +36,7 @@ test('clause 1: a landed mid reject records the verdict and files a follow-up ca
   assert.match(followUp.item_brief, /Test: web\/result\.test\.js/);
 });
 
-test('clause 2: a landed mid reject with no brief still records the verdict and files a strong follow-up [C7,#8835]', t => {
+test('board.verify-landed-followup.landed-mid-reject-with-brief-still: clause 2: a landed mid reject with no brief still records the verdict and files a strong follow-up [C7,#8835]', t => {
   const f = landed(t, { route: 'strong', brief: '' });
   f.board.db.prepare("UPDATE item SET item_route = 'mid' WHERE item_id = ?").run(f.id);
   assert.equal(store.getItem(f.board, f.id).item_route, 'mid', 'the landed item is routed mid with no brief and no check');

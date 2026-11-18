@@ -40,7 +40,7 @@ const reopens = board => board.db.prepare("SELECT event_by by, event_detail deta
 /** Reopen the item as the record did. */
 const reopenAs = (board, record, extra = {}) => store.reopen(board, record.item.id, { agentId: 'coordinator', note: record.move.note, conflict: record.move.conflict, withdrawVerdict: record.move.withdrawVerdict, ...extra });
 
-test('clause 1: the store reopen writer agrees with the reopen table on every replayed reopen [C7,#8285]', t => {
+test('board.reopen-table.the-store-reopen-writer-agrees-with: clause 1: the store reopen writer agrees with the reopen table on every replayed reopen [C7,#8285]', t => {
   assert.ok(RECORDS.length >= 8, 'the replay holds the board\'s reopens');
   assert.deepEqual([...new Set(RECORDS.map(record => record.via))].sort(), ['return-conflict', 'return-landing-failure', 'return-submission', 'withdraw-verdict'], 'every path the board used is replayed');
   const disagreements = [];
@@ -54,7 +54,7 @@ test('clause 1: the store reopen writer agrees with the reopen table on every re
   assert.deepEqual(disagreements, []);
 });
 
-test('clause 1: a conflict, landing-failure or verdict-withdrawal reopen records the first-refusal window its table decides, and a plain return records none [C7,#8285]', t => {
+test('board.reopen-table.conflict-landing-failure-verdict-withdrawal-reopen: clause 1: a conflict, landing-failure or verdict-withdrawal reopen records the first-refusal window its table decides, and a plain return records none [C7,#8285]', t => {
   const seen = {};
   for (const record of RECORDS) {
     if (seen[record.via]) continue;
@@ -66,7 +66,7 @@ test('clause 1: a conflict, landing-failure or verdict-withdrawal reopen records
   for (const via of ['return-conflict', 'return-landing-failure', 'withdraw-verdict']) assert.deepEqual(Object.keys(seen[via]), ['builder', 'until'], `${via} reserves the item for its builder`);
 });
 
-test('clause 1: a conflict reopen records the conflict and the derived cause its table decides [C7,#8285]', t => {
+test('board.reopen-table.conflict-reopen-records-the-conflict-and: clause 1: a conflict reopen records the conflict and the derived cause its table decides [C7,#8285]', t => {
   const record = RECORDS.find(entry => entry.via === 'return-conflict');
   const board = boardFor(t, record);
   reopenAs(board, record);

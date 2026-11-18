@@ -15,6 +15,8 @@ const STAMP = new Date(AT).toISOString();
 function submitted(t, shadow) {
   const board = cellBoard(t, ':memory:', { now: () => new Date(AT) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.reopen on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { reopen: false };
   const sql = board.db;
   sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run('core-1', 'core', '/seat/core-1', 'strong', STAMP);
   sql.prepare(`INSERT INTO item (item_id, item_lane, item_title, item_route, item_status, item_created_by, item_created_at, item_updated_at) VALUES (7, 'core', 'reopened', 'strong', 'open', 'coordinator', ?, ?)`).run(STAMP, STAMP);
@@ -26,13 +28,13 @@ function submitted(t, shadow) {
   return { board, reopen: () => store.reopen(board, 7, { agentId: 'coordinator', note: 'the criterion needs correction' }) };
 }
 
-test('clause 3: with moves.shadow off (the default) a reopen records no shadow compare [C7,#8388]', t => {
+test('board.reopen-shadow-record.with-moves-shadow-off-the-default: clause 3: with moves.shadow off (the default) a reopen records no shadow compare [C7,#8388]', t => {
   const { board, reopen } = submitted(t);
   reopen();
   assert.equal(store.readShadow(board, 'reopen'), null);
 });
 
-test('clause 2: with moves.shadow on, a matching reopen adds one compare and no disagreement to the reopen table\'s counts [C7,#8388]', t => {
+test('board.reopen-shadow-record.with-moves-shadow-matching-reopen-adds: clause 2: with moves.shadow on, a matching reopen adds one compare and no disagreement to the reopen table\'s counts [C7,#8388]', t => {
   const { board, reopen } = submitted(t, true);
   reopen();
   const counts = store.readShadow(board, 'reopen');
@@ -41,7 +43,7 @@ test('clause 2: with moves.shadow on, a matching reopen adds one compare and no 
   assert.equal(counts.since, STAMP);
 });
 
-test('clause 1: with moves.shadow on, a reopen whose table answer differs adds one disagreement with the item id and the differing field [C7,#8388]', t => {
+test('board.reopen-shadow-record.with-moves-shadow-reopen-whose-table: clause 1: with moves.shadow on, a reopen whose table answer differs adds one disagreement with the item id and the differing field [C7,#8388]', t => {
   const { board } = submitted(t, true);
   const hook = store.shadowHook(board, 'reopenShadow', 'reopen', store.reopenDiffers, () => false);
   const wrote = [{ kind: 'reopen', by: 'coordinator', detail: JSON.stringify({ commit: 'a', note: 'why', judgment: null }) }];

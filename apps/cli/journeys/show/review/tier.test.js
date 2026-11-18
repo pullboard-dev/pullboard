@@ -22,7 +22,7 @@ function submitted(box, title) {
   return id;
 }
 
-test('clause 1: with verify.family require and no live eligible seat for 20 minutes, the real next --verify offers the item to a seat of another session and the verdict record says the family rule was widened and why [V1,H16]', async t => {
+test('cli.journeys-show-review-tier.with-verify-family-require-and-no: clause 1: with verify.family require and no live eligible seat for 20 minutes, the real next --verify offers the item to a seat of another session and the verdict record says the family rule was widened and why [V1,H16]', async t => {
   const box = await fixture(t, { family: 'require' });
   const first = submitted(box, 'Review waits on a same-family seat');
   const second = submitted(box, 'A second review waits too');
@@ -47,7 +47,7 @@ test('clause 1: with verify.family require and no live eligible seat for 20 minu
   assert.match(verdict.verdict_note, /review family relaxed at reservation: 2 waiting, threshold 2/u);
 });
 
-test('clause 1: an eligible reviewer that is joined, live and busy holding another review keeps the item unwidened under the real next --verify [V1,H16]', async t => {
+test('cli.journeys-show-review-tier.an-eligible-reviewer-that-is-joined: clause 1: an eligible reviewer that is joined, live and busy holding another review keeps the item unwidened under the real next --verify [V1,H16]', async t => {
   const box = await fixture(t, { family: 'require' });
   const held = submitted(box, 'The live reviewer holds this review');
   const waiting = [submitted(box, 'Waits behind a busy reviewer'), submitted(box, 'A second review waits too')];
@@ -65,7 +65,7 @@ test('clause 1: an eligible reviewer that is joined, live and busy holding anoth
   for (const id of waiting) assert.equal(store.getItem(box.board, id).item_review_by, null, `#${id} stays unreserved`);
 });
 
-test('clause 2: an eligible reviewer that is joined, live and idle for over 15 minutes keeps the item unwidened [V1,H16]', async t => {
+test('cli.journeys-show-review-tier.an-eligible-reviewer-that-is-joined-2: clause 2: an eligible reviewer that is joined, live and idle for over 15 minutes keeps the item unwidened [V1,H16]', async t => {
   const box = await fixture(t, { family: 'require' });
   const first = submitted(box, 'Waits for a live idle reviewer');
   const second = submitted(box, 'A second review waits too');

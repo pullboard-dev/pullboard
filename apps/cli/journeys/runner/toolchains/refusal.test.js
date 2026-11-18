@@ -31,14 +31,14 @@ function pool(root, runners, requiredToolchains) {
 const PLAIN = { host: 'plain-box', slots: 2, browser: 0 };
 const EQUIPPED = { host: 'tool-box', slots: 2, browser: 0, toolchains: { node: '22' } };
 
-test('clause 1: with no registered runner recording a required toolchain, the job is refused naming it [C7]', async t => {
+test('cli.journeys-runner-toolchains-refusal.with-no-registered-runner-recording-a: clause 1: with no registered runner recording a required toolchain, the job is refused naming it [C7]', async t => {
   const root = fixture(t);
   await assert.rejects(
     takeResource({ ...pool(root, [PLAIN, EQUIPPED], 'node,cargo'), agent: 'needs-cargo', onWait: async () => { throw new Error('the waiter queued instead of being refused'); } }),
     error => error.code === 'RUNNER_TOOLCHAIN_MISSING' && /toolchain cargo\b/u.test(error.message) && /plain-box, tool-box/u.test(error.message) && /pullboard runner add/u.test(error.message));
 });
 
-test('clause 2: the refusal comes on the first poll, before the job joins the line [C7]', async t => {
+test('cli.journeys-runner-toolchains-refusal.the-refusal-comes-on-the-first-poll: clause 2: the refusal comes on the first poll, before the job joins the line [C7]', async t => {
   const root = fixture(t);
   const options = pool(root, [PLAIN], 'go');
   await assert.rejects(takeResource({ ...options, agent: 'first-poll' }), error => error.code === 'RUNNER_TOOLCHAIN_MISSING');
@@ -47,7 +47,7 @@ test('clause 2: the refusal comes on the first poll, before the job joins the li
   await held.release?.();
 });
 
-test('clause 1: a runner recording every required toolchain keeps the job eligible; blank requires nothing [C7]', () => {
+test('cli.journeys-runner-toolchains-refusal.a-runner-recording-every-required: clause 1: a runner recording every required toolchain keeps the job eligible; blank requires nothing [C7]', () => {
   const refusedNames = (runners, text) => unsuppliedToolchainsMessage(runners, text)?.match(/toolchains? ([\w, ]+?) \(/u)[1] ?? null;
   assert.equal(refusedNames([PLAIN, EQUIPPED], 'node'), null);
   assert.equal(refusedNames([PLAIN], ''), null);

@@ -21,7 +21,7 @@ function boardFile(t) {
   return join(cellSandbox(t).dir, 'board.sqlite');
 }
 
-test('the runs file opens in WAL with a busy timeout, the job tables and a runs_meta stamp naming its board [B2,P7]', t => {
+test('board.runs.the-runs-file-opens-wal-with: the runs file opens in WAL with a busy timeout, the job tables and a runs_meta stamp naming its board [B2,P7]', t => {
   const file = runsFilePath(boardFile(t));
   const db = openRunsStore(file, { boardId: 'board-a' });
   t.after(() => db.close());
@@ -34,7 +34,7 @@ test('the runs file opens in WAL with a busy timeout, the job tables and a runs_
   assert.throws(() => openRunsStore(file, { boardId: 'board-b' }), error => error.code === 'RUNS_BOARD_MISMATCH', 'a runs file never serves a second board');
 });
 
-test('the runs port exposes only intend, confirm, cancel, receiptsSince and ack, and each is safe to repeat [B2,P7]', t => {
+test('board.runs.the-runs-port-exposes-only-intend: the runs port exposes only intend, confirm, cancel, receiptsSince and ack, and each is safe to repeat [B2,P7]', t => {
   const db = openRunsStore(':memory:', { boardId: 'board-a' });
   t.after(() => db.close());
   const port = runsPort({ db });
@@ -62,7 +62,7 @@ test('the runs port exposes only intend, confirm, cancel, receiptsSince and ack,
   assert.equal(port.cancel('missing', { now: 33 }).written, false);
 });
 
-test('with runs_store off a board makes no runs file and its job tables work as before; on, the file opens on first use [B2,P7]', t => {
+test('board.runs.with-runs-store-off-board-makes: with runs_store off a board makes no runs file and its job tables work as before; on, the file opens on first use [B2,P7]', t => {
   const file = boardFile(t);
   const board = cellBoard(t, file);
   assert.equal(runsStoreOn(board.db), false, 'the flag is off by default');

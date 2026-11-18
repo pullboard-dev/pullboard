@@ -29,7 +29,7 @@ function run(box, args, extra = {}) {
   return runFixtureChild(process.execPath, [RUNNER, ...args], { cwd: box.work, env: { ...box.env, ...extra }, encoding: 'utf8', timeout: 120_000 });
 }
 
-test('a bare call from a seat is refused by name before any test runs [C7,S10]', t => {
+test('gate.io-run-tests-selection.a-bare-call-from-a-seat: a bare call from a seat is refused by name before any test runs [C7,S10]', t => {
   const box = fixture(t);
   const bare = run(box, []);
   assert.equal(bare.status, 1, bare.stdout + bare.stderr);
@@ -40,7 +40,7 @@ test('a bare call from a seat is refused by name before any test runs [C7,S10]',
   assert.ok(pattern.stderr.includes(REFUSAL), pattern.stderr);
 });
 
-test('a named file, --all by hand, and the machine stages are admitted past the selection check [C7,S10]', t => {
+test('gate.io-run-tests-selection.a-named-file-all-by-hand: a named file, --all by hand, and the machine stages are admitted past the selection check [C7,S10]', t => {
   const box = fixture(t);
   for (const [label, args, extra] of [
     ['a named file', ['one.test.js'], {}],

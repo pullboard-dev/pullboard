@@ -25,7 +25,7 @@ function landed(t) {
 const reject = ({ board, id, reviewer }, extra = {}) => store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'the result is wrong',
   head: COMMIT, digest: '', policy: 'any', landed: true, ...extra });
 
-test('clause 1: with the recorded keepCheck argument, a reviewer reject of a landed item reopens it with the check unchanged and records keptCheckFrom [C7,#9637]', t => {
+test('board.verify-reject-keeps-check.with-the-recorded-keepcheck-argument-reviewer: clause 1: with the recorded keepCheck argument, a reviewer reject of a landed item reopens it with the check unchanged and records keptCheckFrom [C7,#9637]', t => {
   const f = landed(t);
   const result = reject(f, { keepCheck: true });
   assert.equal(store.getItem(f.board, f.id).item_verdict, 'REJECT');
@@ -34,18 +34,18 @@ test('clause 1: with the recorded keepCheck argument, a reviewer reject of a lan
   assert.equal(JSON.parse(event.event_detail).keptCheckFrom, CHECK);
 });
 
-test('clause 2: with no keepCheck argument (the default), the same reject is refused COORDINATOR_CHECK as before [C7,#9637]', t => {
+test('board.verify-reject-keeps-check.with-keepcheck-argument-the-default-the: clause 2: with no keepCheck argument (the default), the same reject is refused COORDINATOR_CHECK as before [C7,#9637]', t => {
   const f = landed(t);
   assert.throws(() => reject(f), error => error.code === 'COORDINATOR_CHECK' || /COORDINATOR_CHECK|item check/.test(String(error.message) + String(error.code)));
 });
 
-test('clause 3: a reviewer still cannot set a check of their own, with or without the argument [C7,#9637]', t => {
+test('board.verify-reject-keeps-check.reviewer-still-cannot-set-check-their: clause 3: a reviewer still cannot set a check of their own, with or without the argument [C7,#9637]', t => {
   const f = landed(t);
   assert.throws(() => store.addItem(f.board, { by: f.reviewer, lane: 'web', title: 'x', criterion: '1. y [reasoning]', check: CHECK }), error => /check/.test(String(error.message)));
   assert.throws(() => store.addItem(f.board, { by: f.reviewer, lane: 'web', title: 'x', criterion: '1. y [reasoning]', check: CHECK, keptCheckFrom: 'other' }), error => /check/.test(String(error.message)));
 });
 
-test('clause 4: replaying the recorded move with verify.rejectKeepsCheck OFF on the replaying machine gives the same result [C7,#9637]', t => {
+test('board.verify-reject-keeps-check.replaying-the-recorded-move-with-verify: clause 4: replaying the recorded move with verify.rejectKeepsCheck OFF on the replaying machine gives the same result [C7,#9637]', t => {
   const f = landed(t);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = `${f.board.gitRoot}/no-machine-settings`;

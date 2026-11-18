@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/commits */
 /** @pullboard-world-pin reads the parser and clause runner source to list every refusal code. Each contribution record failure maps to a rule, a fix and a skill command; an unmapped code fails [CR5]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

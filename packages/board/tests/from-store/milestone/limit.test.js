@@ -5,6 +5,7 @@ import * as store from '../../../../store/index.js';
 import { editMilestone } from '../../../../store/index.js';
 import { editMilestoneItems } from '../../../../store/index.js';
 import { roadmap } from '../../../../store/index.js';
+import { provideCoordinatorMilestoneRelease } from '../../../../store/index.js';
 import { workQueue } from '../../../../items/index.js';
 import { milestoneRoadmap } from '../../../../roadmap/index.js';
 import { listApiProjects } from '../../../../seats/index.js';
@@ -14,6 +15,9 @@ import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../fixtures/cell-board.js';
+
+// The store has no stats edge; these ships do not read the gauge, so a stub release stands in [C7].
+provideCoordinatorMilestoneRelease(() => ({ gauge: null, previous: null, problem: null }));
 
 const HOUR = 3_600_000;
 const SETUP = 'fixture release setup';
@@ -47,7 +51,7 @@ function fixture(t) {
   return { project, board, builder, item, add, edit, members, plan };
 }
 
-test('a milestone with a limit refuses an add past it and accepts a swap [N26,H16]', (t) => {
+test('board.limit.milestone-with-limit-refuses-add-past: a milestone with a limit refuses an add past it and accepts a swap [N26,H16]', (t) => {
   const box = fixture(t);
   const first = box.item('Unstarted release work', 'open');
   const building = box.item('Already building', 'open');
@@ -79,7 +83,7 @@ test('a milestone with a limit refuses an add past it and accepts a swap [N26,H1
 });
 
 
-test('[N26,H16] caps validate edits, shipment carry and historical replay without partial changes', (t) => {
+test('board.limit.caps-validate-edits-shipment-carry-and: [N26,H16] caps validate edits, shipment carry and historical replay without partial changes', (t) => {
   const box = fixture(t);
   const first = box.item('First', 'open');
   const second = box.item('Second', 'open');

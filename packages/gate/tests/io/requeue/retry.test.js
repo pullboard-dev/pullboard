@@ -40,7 +40,7 @@ function child(box, source) {
   return JSON.parse(result.stdout);
 }
 
-test('one runner deadline requeues the same item ticket once and records both attempts [C7]', t => {
+test('gate.io-requeue-retry.one-runner-deadline-requeues-the-same: one runner deadline requeues the same item ticket once and records both attempts [C7]', t => {
   const box = fixture(t);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
   const resources = pathToFileURL(join(import.meta.dirname, '../../../../resources/index.js')).href;
@@ -60,7 +60,7 @@ test('one runner deadline requeues the same item ticket once and records both at
   assert.ok(readFileSync(box.requests, 'utf8').includes(box.runner.host), 'the successful second attempt used only the private stand-in');
 });
 
-test('a late transport failure receives one fresh bounded runner admission window [C7]', t => {
+test('gate.io-requeue-retry.a-late-transport-failure-receives-one: a late transport failure receives one fresh bounded runner admission window [C7]', t => {
   const box = fixture(t);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
   const source = lateTransportRetrySource(gate, box.runner, executionServicesSource(gate));
@@ -76,7 +76,7 @@ test('a late transport failure receives one fresh bounded runner admission windo
   assert.ok(readFileSync(box.requests, 'utf8').includes(box.runner.host), 'the retry used only the private stand-in');
 });
 
-test('a real command failure on an admitted slot is returned on its first attempt [C7]', t => {
+test('gate.io-requeue-retry.a-real-command-failure-on-an: a real command failure on an admitted slot is returned on its first attempt [C7]', t => {
   const box = fixture(t);
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   writeFileSync(settings, JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false }, runners: [] }));

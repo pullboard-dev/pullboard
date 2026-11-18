@@ -28,7 +28,7 @@ function itemWithGate(board, title, status) {
   return id;
 }
 
-test('clause 2: the item lister reads hand-off records only for items still in play, and every stage is unchanged [I6]', t => {
+test('board.live-records.the-item-lister-reads-hand-off: clause 2: the item lister reads hand-off records only for items still in play, and every stage is unchanged [I6]', t => {
   const board = cellBoard(t, ':memory:', { now: () => new Date('2026-11-14T08:00:00.000Z') });
   const live = itemWithGate(board, 'In play', null);
   const closed = itemWithGate(board, 'Verified', 'verified');

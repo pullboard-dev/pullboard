@@ -29,7 +29,7 @@ const records = RECORDS;
 const eventsOf = (board, before) => board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(before)
   .filter(e => e.kind !== 'shout').map(e => { const { model, ...detail } = JSON.parse(e.detail); return { kind: e.kind, by: e.by, detail }; });
 
-test('clause 1: the store withdraw writer agrees with the withdraw table on every replayed withdrawal [C7,#8273]', t => {
+test('board.withdraw-table.the-store-withdraw-writer-agrees-with: clause 1: the store withdraw writer agrees with the withdraw table on every replayed withdrawal [C7,#8273]', t => {
   assert.ok(records.length >= 30, 'the replay holds the board\'s withdrawals');
   const disagreements = [];
   for (const record of records) {
@@ -42,7 +42,7 @@ test('clause 1: the store withdraw writer agrees with the withdraw table on ever
   assert.deepEqual(disagreements, []);
 });
 
-test('clause 1: the writer refuses with the table\'s code and words in the order the move declares, and writes nothing [C7,#8273]', t => {
+test('board.withdraw-table.the-writer-refuses-with-the-tables: clause 1: the writer refuses with the table\'s code and words in the order the move declares, and writes nothing [C7,#8273]', t => {
   const record = records[0];
   const board = boardFor(t, record.item);
   const count = () => board.db.prepare('SELECT COUNT(*) n FROM event').get().n;

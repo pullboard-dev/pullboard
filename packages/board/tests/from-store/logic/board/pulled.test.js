@@ -34,7 +34,7 @@ function landing(board) {
   return { history, value: last ? LANDING_EVENTS[last.kind] : row.item_merged_commit ? 'landed' : 'none' };
 }
 
-test('clause 1: a coordinator move with a full revert sha on a pulling item runs PULLED_TABLE and writes one pulled event, leaving landingOf none [M2,R3,#9098]', t => {
+test('board.pulled.coordinator-move-with-full-revert-sha: clause 1: a coordinator move with a full revert sha on a pulling item runs PULLED_TABLE and writes one pulled event, leaving landingOf none [M2,R3,#9098]', t => {
   const board = landedItem(t, { pulling: true });
   assert.equal(landing(board).value, 'pulling');
   const before = landing(board).history.length;
@@ -46,7 +46,7 @@ test('clause 1: a coordinator move with a full revert sha on a pulling item runs
   assert.equal(after.value, 'none', 'the landing is back to none');
 });
 
-test('clause 2: the table refusals NOT_PULLING and REVERT_COMMIT surface unchanged from the writer, and write nothing [M2,R3,#9098]', t => {
+test('board.pulled.the-table-refusals-not-pulling-and: clause 2: the table refusals NOT_PULLING and REVERT_COMMIT surface unchanged from the writer, and write nothing [M2,R3,#9098]', t => {
   const landed = landedItem(t, { pulling: false });
   const written = landing(landed).history.length;
   assert.throws(() => store.recordPulled(landed, 7, { agentId: 'coordinator', revert: REVERT }), error => {

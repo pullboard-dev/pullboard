@@ -15,6 +15,8 @@ function boardFor(t, snapshot, shadow) {
   const over = {};
   const board = cellBoard(t, ':memory:', { now: () => new Date(snapshot.now) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.outcome on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { outcome: false };
   const sql = board.db;
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);
   const { item } = snapshot;
@@ -33,7 +35,7 @@ function renew(board) {
   return outcome;
 }
 
-test('clause 1: with moves.shadow on, a submit outcome whose table answer differs adds one disagreement to the recorded counts [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-submit-outcome-whose: clause 1: with moves.shadow on, a submit outcome whose table answer differs adds one disagreement to the recorded counts [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot, true);
   const hook = store.shadowHook(board, 'submitOutcomeShadow', 'outcome', store.outcomeDiffers, () => true);
   const { id } = record.move;
@@ -46,7 +48,7 @@ test('clause 1: with moves.shadow on, a submit outcome whose table answer differ
   assert.deepEqual(counts.last.map(({ differs }) => differs), ['recorded.code', 'skipped']);
 });
 
-test('clause 2: with moves.shadow on, a matching submit outcome adds one compare and no disagreement when its claim commits [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-matching-submit-outcome: clause 2: with moves.shadow on, a matching submit outcome adds one compare and no disagreement when its claim commits [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot, true);
   const outcome = store.checkedSubmitOutcome(board, record.move.id, record.move.actor, record.renewal, null);
   assert.equal(store.readShadow(board, 'outcome'), null, 'nothing is recorded before the claim commits');
@@ -56,7 +58,7 @@ test('clause 2: with moves.shadow on, a matching submit outcome adds one compare
   assert.equal(counts.disagreed, 0, JSON.stringify(counts.last));
 });
 
-test('clause 3: with moves.shadow off no submit outcome compare is recorded [C7,#8380]', t => {
+test('board.submit-outcome-shadow-record.with-moves-shadow-off-submit-outcome: clause 3: with moves.shadow off no submit outcome compare is recorded [C7,#8380]', t => {
   const board = boardFor(t, record.snapshot);
   renew(board);
   assert.equal(store.readShadow(board, 'outcome'), null);

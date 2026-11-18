@@ -51,6 +51,7 @@ export {
   censusBalanceByTimeEnabled,
   censusJobMinutes,
   censusSoloFileSeconds,
+  censusFileKillSeconds,
   censusJobsPerRunner,
   censusJobsPerRunnerQuiet,
   jobsAvoidRunnersEnabled,
@@ -64,7 +65,9 @@ export {
   excuseMainTimingReds,
   pendingFromJobRow,
   recoverFromJobRow,
+  residentChecks,
   gateComponentTier,
+  landingCargoFailures,
   landingJunitFailures,
   gateJunitReport,
   testNiceEnabled,
@@ -73,13 +76,16 @@ export {
   endStaleJobsEnabled,
   reofferInfraEndEnabled,
   recaptureHandoffEnabled,
+  receiptMissingCauseEnabled,
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
+  runnerCommitReportEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
   censusRerunOnSettleEnabled,
+  censusSkipUnchangedEnabled,
   registryStrictEnabled,
   hunkFreshnessEnabled,
   requireRegisteredEnabled,
@@ -87,6 +93,7 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  adapterLintEnvEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
   adapterLintFsEnabled,
@@ -117,18 +124,22 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
+  releaseStaleItemRevision,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
   nextItemNotices,
   reviewCanonicalFamilies,
+  joinCoordinatorSeat,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextLabelBounds,
   nextCapBuilders,
+  nextLightShapedStrong,
   nextRouteByTier,
   nextHoldAboveLoad,
   heavyLocalHoldEnabled,
@@ -146,6 +157,8 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testLoadRerunEnabled,
+  testRetryStaleRecordEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
   requireFactQuoteEnabled,
@@ -265,9 +278,11 @@ export {
 } from './src/logic/maintenance.js';
 
 export { submitProofOnly } from './src/logic/settings.js';
+export { submitComposeAsObject } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
-export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, readThinCommands, relayPruneReceipts, withdrawCancelsJob } from './src/logic/settings.js';
+export { setLocalWake } from './src/io/settings.js';
+export { compactShoutsEnabled, listThinRead, namedImportSelectionOn, reachableDispatcherOn, readThinCommands, relayPruneReceipts, runnerOnlyCompose, withdrawCancelsJob } from './src/logic/settings.js';
 export { retireIdleSeatHours } from './src/logic/settings.js';
 export { healthDiskFloorGb } from './src/logic/settings.js';
 export { boardKey, boardKeyFile } from './src/io/settings.js';

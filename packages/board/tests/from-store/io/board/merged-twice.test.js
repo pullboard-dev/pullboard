@@ -25,7 +25,7 @@ function verifiedItem(t) {
 /** How many merged events the item has. */
 const mergedEvents = (board, id) => store.events(board, { itemId: id }).filter(e => e.event_kind === 'merged').length;
 
-test('merged on an already merged item refuses ALREADY_MERGED for another commit [B2]', (t) => {
+test('board.merged-twice.merged-already-merged-item-refuses-already: merged on an already merged item refuses ALREADY_MERGED for another commit [B2]', (t) => {
   const { board, id } = verifiedItem(t);
   store.merged(board, id, { agentId: 'coordinator', commit: 'a'.repeat(40) });
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: 'b'.repeat(40) }), (error) => {
@@ -36,7 +36,7 @@ test('merged on an already merged item refuses ALREADY_MERGED for another commit
   assert.equal(mergedEvents(board, id), 1);
 });
 
-test('merged naming the same commit again writes nothing [B2]', (t) => {
+test('board.merged-twice.merged-naming-the-same-commit-again: merged naming the same commit again writes nothing [B2]', (t) => {
   const { board, id } = verifiedItem(t);
   store.merged(board, id, { agentId: 'coordinator', commit: 'a'.repeat(40) });
   store.merged(board, id, { agentId: 'coordinator', commit: 'a'.repeat(40) });

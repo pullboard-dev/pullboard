@@ -11,7 +11,7 @@ export * from './src/logic/cuts.js';
 export { declaredLoads, declaredSourceLoads, declaredSourcePatterns, globPattern, headerLines } from './src/logic/loads.js';
 export * from './src/io/cells/plan.js';
 export { barRewrites, rewriteMovedBars, rewritePaths } from './src/io/cells/move/bars.js';
-export { requireRewrittenRows, unrewrittenRows } from './src/io/cells/move/rows.js';
+export { moveAfterRowRewrite, requireRewrittenRows, requireRowRewriteForMove, unrewrittenRows } from './src/io/cells/move/rows.js';
 export { PLAN_DIR, PLAN_FILE, SEED_FILE, computePlan, planWrites, placePath, readPlan, readSeed, shardFile, writePlan } from './src/io/cells-plan-model.js';
 export { formatJson } from './src/logic/format-json.js';
 export { entryPlacementProblems as planEntryProblems, ownedStayProblems, processEntry, retiredProblems } from './src/io/cells-plan-placement.js';
@@ -44,7 +44,7 @@ export { moveDeclarationFiles, runnerWorkerFiles } from './src/io/cells/move/clo
 export { withParseScope, importsIn, commonJsIn, compileModules, moduleCompiles, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from './src/io/module/imports.js';
 export { namedBindingsIn } from './src/io/module/names.js';
 export { importParseScopes } from './src/io/module/cache.js';
-export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations } from './src/logic/layout.js';
+export { LAYOUT_RULES, layoutCounts, layoutRatchet, layoutViolations, newTestMirrorFindings } from './src/logic/layout.js';
 export { LAYOUT_BASELINE, layoutCheck, layoutReport, layoutWrite } from './src/io/layout.js';
 export { cachedMainFact, mainFactDigest, mainFactToolIdentity } from './src/io/main-facts-cache.js';
 export { narrowedTo, readText, TEST_FILE, walk } from './src/io/check-walk.js';
@@ -53,8 +53,7 @@ export { leasedModules, syncCallsIn, syncSpawnConfig, syncSpawnProblems, syncSpa
 
 export { git as cellGit, tryGit as cellTryGit, readPathMap as cellReadPathMap, withCellGitObjects } from './src/io/cells/git.js';
 export { cellsObjectSnapshots, landingPlanProblems } from './src/io/cells/snapshots.js';
-export { cellsCacheDirectory } from './src/io/cells/cache-files.js';
-export { inventoryCache, inventoryCodeDigest, inventoryPending, observationCache } from './src/io/cells/scripts/cache.js';
+export { cellsCacheDirectory, publishCacheEntry } from './src/io/cells/cache-files.js';
 export { checkMoved, stalePlanRows, unplanned } from './src/io/cells/scripts/plan.js';
 export { addedPlacementProblems, checkCuts, entryPlacementProblems, frontDoorBypasses, onlyForwards, withDeclaredLoads } from './src/io/cells/plan/cuts.js';
 export { lightFrontDoorProblems, pureDoorProblems, pureFrontDoorProblems } from './src/io/cells/door.js';

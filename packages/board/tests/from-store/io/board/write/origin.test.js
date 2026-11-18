@@ -13,7 +13,7 @@ import { cellItem } from '../../../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../../store/tests/fixtures/cell.js';
 
-test('clause 1 and clause 2: a hold row names the calling file and line, not the event log that runs the transaction [C7,#2282,#6825]', t => {
+test('board.origin.and-hold-row-names-the-calling: clause 1 and clause 2: a hold row names the calling file and line, not the event log that runs the transaction [C7,#2282,#6825]', t => {
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   t.after(() => {
     if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
@@ -33,7 +33,7 @@ test('clause 1 and clause 2: a hold row names the calling file and line, not the
   for (const phase of phases) assert.doesNotMatch(phase, /^work:log\.js:/u, `${phase} names the event log itself`);
 });
 
-test('clause 1 and clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
+test('board.origin.and-stack-whose-checkout-folder-has: clause 1 and clause 2: a stack whose checkout folder has a space still skips the event log and names the caller [C7,#8496]', () => {
   const own = '/srv/dev/Open Source/pullboard/packages/store/src/io/board/event/log.js';
   const caller = '/srv/dev/Open Source/pullboard/apps/cli/src/io/move.js';
   const stack = `Error\n    at transaction (${pathToFileURL(own).href}:115:3)\n    at move (${pathToFileURL(caller).href}:9:1)`;

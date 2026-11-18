@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as store from '../../../../../store/index.js';
 import { cellBoard } from '../../../fixtures/cell-board.js';
 
-test('clause 1: a seat that joins now reports 0 unread until a later shout reaches it [C7]', t => {
+test('board.inbox.seat-that-joins-now-reports-0: clause 1: a seat that joins now reports 0 unread until a later shout reaches it [C7]', t => {
   const board = cellBoard(t, ':memory:');
   store.register(board, { lane: 'coordinator', path: '/join/root' });
   store.shout(board, { from: 'coordinator', to: 'all', text: 'old shout before the join' });

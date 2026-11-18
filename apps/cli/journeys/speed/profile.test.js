@@ -114,7 +114,7 @@ function json(result, what) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: one submit on a large board spawns at most 90 git processes, down from the 136 it spawned before [C7]', (t) => {
+test('cli.journeys-speed-profile.one-submit-on-a-large-board: clause 1: one submit on a large board spawns at most 90 git processes, down from the 136 it spawned before [C7]', (t) => {
   const box = largeBoard(t);
   box.beforeCleanup(() => stopResidents(box.repo));
   const recorder = networkRecorder(box.dir);
@@ -153,7 +153,7 @@ test('clause 1: one submit on a large board spawns at most 90 git processes, dow
   assert.ok(median <= 90, `a submit spawned ${median} git processes (runs: ${counts.join(', ')}), over the 90 allowed`);
 });
 
-test('clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
+test('cli.journeys-speed-profile.the-network-recorder-logs-a-tcp: clause 2: the network recorder logs a TCP connect and a name lookup, so its empty log means no network [C7]', (t) => {
   const box = largeBoard(t, { scale: { items: 0, events: 0, shouts: 0, seats: 0 } });
   const recorder = networkRecorder(box.dir);
   const probe = "import net from 'node:net'; import dns from 'node:dns';"
@@ -166,7 +166,7 @@ test('clause 2: the network recorder logs a TCP connect and a name lookup, so it
   assert.match(log, /dns localhost/u);
 });
 
-test('clause 3: a stand-in command that takes 300 ms fails, naming the command, its time and the 200 ms budget [C7]', () => {
+test('cli.journeys-speed-profile.a-stand-in-command-that-takes: clause 3: a stand-in command that takes 300 ms fails, naming the command, its time and the 200 ms budget [C7]', () => {
   const standIn = () => runFixtureChild(process.execPath, ['-e', 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 300)'], // real process: this test measures real spawns
     { cwd: import.meta.dirname, encoding: 'utf8' });
   const measured = [measure('stand-in', () => ({ code: standIn().status, out: '', err: '' }))];

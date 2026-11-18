@@ -39,8 +39,11 @@ function fixture() {
   mkdirSync(join(jobs, 'dead-BBBBBB'), { recursive: true });
   writeFileSync(join(jobs, 'dead-BBBBBB', 'worker-owner.json'), JSON.stringify({ pid: 2 ** 22 - 3, started: 'Mon Jan 1 00:00:00 2001' }));
   fill(join(jobs, 'dead-BBBBBB', 'checkout', 'big.bin'), 4);
-  fill(join(jobs, 'ownerless-CCCCCC', 'big.bin'), 4);
-  utimesSync(join(jobs, 'ownerless-CCCCCC'), OLD / 1000, OLD / 1000);
+  writeFileSync(join(jobs, 'dead-BBBBBB', 'job-terminal.json'), '{}\n');
+  // No owner record and no result: removed only once abandoned, after 24 quiet hours [#3734].
+  const ABANDONED = Date.now() - 25 * 60 * 60 * 1000;
+  fill(join(jobs, 'ownerless-CCCCCC', 'big.bin'), 4, ABANDONED);
+  utimesSync(join(jobs, 'ownerless-CCCCCC'), ABANDONED / 1000, ABANDONED / 1000);
   fill(join(jobs, 'young-DDDDDD', 'big.bin'), 4, Date.now());
   writeFileSync(join(jobs, 'young-DDDDDD', 'extra'), '');
   fill(join(root, 'repos', 'a'.repeat(64) + '.git', 'pack'), 4);
@@ -59,7 +62,7 @@ function diskOf(root, spare) {
   return () => ({ free: total - treeBytes(root), total });
 }
 
-test('a sweep keeps the leased folder, removes unleased ones and reports at least the free-space floor [C7]', async t => {
+test('runner.sweep.a-sweep-keeps-the-leased-folder-removes: a sweep keeps the leased folder, removes unleased ones and reports at least the free-space floor [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const total = treeBytes(root);
@@ -72,7 +75,7 @@ test('a sweep keeps the leased folder, removes unleased ones and reports at leas
   assert.ok(existsSync(join(root, 'cache', 'resource-pool', 'db')), 'the lease database is never trimmed');
 });
 
-test('an oversized repos directory is trimmed oldest first and never trims a pinned repo [C7]', async t => {
+test('runner.sweep.an-oversized-repos-directory-is-trimmed-oldest: an oversized repos directory is trimmed oldest first and never trims a pinned repo [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const pinned = treeBytes(join(root, 'repos', 'a'.repeat(64) + '.git'));
@@ -81,7 +84,7 @@ test('an oversized repos directory is trimmed oldest first and never trims a pin
   assert.ok(existsSync(join(root, 'repos', 'a'.repeat(64) + '.git')), 'the repo a live job pins stays');
 });
 
-test('a sweep with no process census touches nothing [C7]', async t => {
+test('runner.sweep.a-sweep-with-no-process-census-touches: a sweep with no process census touches nothing [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), census: () => null, diskFree: diskOf(root, 0) });
@@ -89,7 +92,7 @@ test('a sweep with no process census touches nothing [C7]', async t => {
   assert.ok(existsSync(join(root, 'jobs', 'dead-BBBBBB')));
 });
 
-test('a job is refused while protected data keeps the disk under the free-space floor after the sweep [C7]', async t => {
+test('runner.sweep.a-job-is-refused-while-protected-data: a job is refused while protected data keeps the disk under the free-space floor after the sweep [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   // The remaining disk is occupied outside the sweep's custody, so reclaiming fixtures cannot reach the floor.
@@ -101,7 +104,7 @@ test('a job is refused while protected data keeps the disk under the free-space 
 });
 
 
-test('a repo lease serializes sweeping with a newly published job pin [C7]', async t => {
+test('runner.sweep.a-repo-lease-serializes-sweeping-with-a: a repo lease serializes sweeping with a newly published job pin [C7]', async t => {
   const { root, jobs, me } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repoId = 'b'.repeat(64), pool = join(root, 'cache', 'resource-pool');
@@ -122,7 +125,7 @@ test('a repo lease serializes sweeping with a newly published job pin [C7]', asy
   assert.ok(existsSync(join(root, 'repos', `${repoId}.git`)), 'the pin published while the sweep waited protects the repository');
 });
 
-test('an actual live gate lease protects its job even when the owner record is missing [C7]', async t => {
+test('runner.sweep.an-actual-live-gate-lease-protects-its: an actual live gate lease protects its job even when the owner record is missing [C7]', async t => {
   const { root, jobs } = fixture(), machineHome = join(root, 'machine');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const id = '00000000-0000-4000-8000-000000000001', job = join(jobs, id + '-leased');

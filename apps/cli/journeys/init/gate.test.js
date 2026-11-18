@@ -28,7 +28,7 @@ import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('init prints a short summary and one next step and never suggests killing a process [I1,I2,H5,N26]', async (t) => {
+test('cli.journeys-init-gate.init-prints-a-short-summary-and: init prints a short summary and one next step and never suggests killing a process [I1,I2,H5,N26]', async (t) => {
   await assertShortInit(t, e2e.sandbox);
 });
 
@@ -81,7 +81,7 @@ function gateWarnings(run) {
   });
 }
 
-test('init says when its gate command cannot run [I1, I2]', async () => {
+test('cli.journeys-init-gate.init-says-when-its-gate-command: init says when its gate command cannot run [I1, I2]', async () => {
   const box = e2e.sandbox();
   for (const name of ['UV_PROJECT_ENVIRONMENT', 'POETRY_ACTIVE', 'POETRY_VIRTUALENVS_PATH', 'VIRTUAL_ENV']) delete box.env[name];
   const path = isolatedPath(box);
@@ -134,23 +134,20 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   box.env.POETRY_VIRTUALENVS_PATH = poetryCache;
   const decoy = await box.runLocal(poetryRoot, 'init', '--json');
   assert.equal(decoy.code, 0, decoy.err || decoy.out);
-  assert.deepEqual(gateWarnings(decoy), [{ command: 'pytest', searched: ['PATH', 'project `.venv`'], recipe: 'run `poetry install` and activate that environment' }],
+  // A poetry.lock fronts the detected gate with `poetry run` [C7,#10357], so the executable init resolves is poetry, never a same-name cache entry's pytest.
+  const poetryNote = 'gate command "poetry" is not available on PATH; install it before running the gate';
+  assert.deepEqual(JSON.parse(decoy.out).notes.filter((note) => note.startsWith('gate command')), [poetryNote],
     'a same-name Poetry cache entry is not assumed to belong to this repo');
   assert.equal(existsSync(poetryMarker), false, 'init does not execute a same-name Poetry cache entry');
 
   delete box.env.POETRY_VIRTUALENVS_PATH;
-  const activePoetry = join(box.dir, 'active-poetry-environment');
-  mkdirSync(join(activePoetry, process.platform === 'win32' ? 'Scripts' : 'bin'), { recursive: true });
-  writeGateSentinel(join(activePoetry, process.platform === 'win32' ? 'Scripts/pytest.cmd' : 'bin/pytest'), poetryMarker);
-  box.env.POETRY_ACTIVE = '1';
-  box.env.VIRTUAL_ENV = activePoetry;
-  const inPoetryEnvironment = await box.runLocal(poetryRoot, 'init', '--json');
-  assert.equal(inPoetryEnvironment.code, 0, inPoetryEnvironment.err || inPoetryEnvironment.out);
-  assert.deepEqual(gateWarnings(inPoetryEnvironment), [],
-    'an explicitly active Poetry environment is checked');
-  assert.equal(existsSync(poetryMarker), false, 'init does not execute a gate found in the active Poetry environment');
-  delete box.env.POETRY_ACTIVE;
-  delete box.env.VIRTUAL_ENV;
+  writeGateSentinel(join(path, process.platform === 'win32' ? 'poetry.cmd' : 'poetry'), poetryMarker);
+  const withPoetry = await box.runLocal(poetryRoot, 'init', '--json');
+  assert.equal(withPoetry.code, 0, withPoetry.err || withPoetry.out);
+  assert.deepEqual(JSON.parse(withPoetry.out).notes.filter((note) => note.startsWith('gate command')), [],
+    'poetry on PATH resolves the fronted gate');
+  assert.equal(existsSync(poetryMarker), false, 'init does not execute the poetry that fronts the gate');
+  rmSync(join(path, process.platform === 'win32' ? 'poetry.cmd' : 'poetry'));
   const defaultMissing = await box.runLocal(pythonRepo(box, 'default-missing-gate'), 'init');
   // The short-versus-verbose split is a rendering of the same note: init --json carries the whole note either way,
   // so the split is proved on the two text renderings of one note (the summary keeps the warning clause, verbose adds the recipe).
@@ -160,7 +157,7 @@ test('init says when its gate command cannot run [I1, I2]', async () => {
   assert.ok(!defaultMissing.out.includes(shortNote.recipe), 'detailed recipes stay behind verbose');
 });
 
-test('a repo without package.json is told a gate that fits it [C7,B26]', async () => {
+test('cli.journeys-init-gate.a-repo-without-package-json-is: a repo without package.json is told a gate that fits it [C7,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'no-package');
   mkdirSync(root);

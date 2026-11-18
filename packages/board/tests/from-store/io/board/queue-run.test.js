@@ -51,7 +51,7 @@ function crashedAt(t, stopAt) {
   return { board, runs, port: runsPort(runs) };
 }
 
-test('queueRun writes the job pending, then the run row and its event, then the offer; a pending job is never claimable [B2,P7]', t => {
+test('board.queue-run.queuerun-writes-the-job-pending-then: queueRun writes the job pending, then the run row and its event, then the offer; a pending job is never claimable [B2,P7]', t => {
   const board = cellBoard(t, ':memory:', clock);
   const runs = { db: openRunsStore(':memory:', { boardId: boardIdOf(board) }) };
   t.after(() => runs.db.close());
@@ -69,7 +69,7 @@ test('queueRun writes the job pending, then the run row and its event, then the 
   assert.equal(boardRun(board.db, JOB).run_kind, 'gate');
 });
 
-test('a crash after intend leaves a pending job and no run: the reconciler waits, then abandons it past the grace [B2,P7]', t => {
+test('board.queue-run.crash-after-intend-leaves-pending-job: a crash after intend leaves a pending job and no run: the reconciler waits, then abandons it past the grace [B2,P7]', t => {
   const { board, runs, port } = crashedAt(t, 'intend');
   assert.equal(boardRun(board.db, JOB), null);
   assert.equal(jobView(runs.db, JOB).step, 'pending');
@@ -79,7 +79,7 @@ test('a crash after intend leaves a pending job and no run: the reconciler waits
   assert.equal(claimableJobs(runs.db, { runner: 'r1', now: Date.now(), limit: 10 }).length, 0);
 });
 
-test('a crash after the move leaves a queued run with a pending job: the reconciler confirms the offer [B2,P7]', t => {
+test('board.queue-run.crash-after-the-move-leaves-queued: a crash after the move leaves a queued run with a pending job: the reconciler confirms the offer [B2,P7]', t => {
   const { board, runs, port } = crashedAt(t, 'move');
   assert.equal(boardRun(board.db, JOB).run_state, 'queued');
   assert.equal(jobView(runs.db, JOB).step, 'pending');
@@ -88,7 +88,7 @@ test('a crash after the move leaves a queued run with a pending job: the reconci
   assert.equal(reconcileQueued(board, runs, port, JOB), 'settled', 'a second tick changes nothing');
 });
 
-test('a crash after confirm leaves a queued run and an offered job: the reconciler has nothing to do [B2,P7]', t => {
+test('board.queue-run.crash-after-confirm-leaves-queued-run: a crash after confirm leaves a queued run and an offered job: the reconciler has nothing to do [B2,P7]', t => {
   const { board, runs, port } = crashedAt(t, 'confirm');
   assert.equal(boardRun(board.db, JOB).run_state, 'queued');
   assert.equal(jobView(runs.db, JOB).step, 'offered');
@@ -96,7 +96,7 @@ test('a crash after confirm leaves a queued run and an offered job: the reconcil
   assert.equal(queuedEvents(board, JOB), 1);
 });
 
-test('retrying queueRun with the same id writes no second job, run row or event [B2,P7]', t => {
+test('board.queue-run.retrying-queuerun-with-the-same-writes: retrying queueRun with the same id writes no second job, run row or event [B2,P7]', t => {
   const board = cellBoard(t, ':memory:', clock);
   const runs = { db: openRunsStore(':memory:', { boardId: boardIdOf(board) }) };
   t.after(() => runs.db.close());

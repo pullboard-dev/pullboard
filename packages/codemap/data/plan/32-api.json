@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/api",
  "frontDoor": "packages/api/index.js",
+ "lightFrontDoor": "packages/api/light.js",
  "paths": [
   ["src/api-delta-fields.js","packages/api/src/logic/fields.js","rule"],
   ["src/api-http.js","packages/api/src/io/http.js","seed"],

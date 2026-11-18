@@ -55,7 +55,7 @@ function returned(f, cause, minutes, causeKey) {
   return id;
 }
 
-test('[B13,B5] every return anchors its full builder window to one advancing-clock instant', t => {
+test('moves.claim.every-return-anchors-its-full-builder-window: [B13,B5] every return anchors its full builder window to one advancing-clock instant', t => {
   for (const cause of ['reject', 'landing', 'conflict']) {
     for (const stepMs of [1, 1000]) {
       const f = fixture(t);
@@ -83,7 +83,7 @@ function enable(f, key = 'returnRejectedWork') {
 /** Ask the real native planner for this seat's next build. */
 function next(f, agentId) { return store.nextFor(f.board, { agentId, lane: 'core' }); }
 
-test('[B35,B13] rejection is the builder next work with its clause, verdict and handoff', t => {
+test('moves.claim.rejection-is-the-builder-next-work-with: [B35,B13] rejection is the builder next work with its clause, verdict and handoff', t => {
   const f = fixture(t); enable(f);
   const older = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older', criterion: 'prove', specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/older.js\nTest: proves older work' });
   const id = returned(f, 'reject', 0);
@@ -96,7 +96,7 @@ test('[B35,B13] rejection is the builder next work with its clause, verdict and 
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
 });
 
-test('[B35,B13,H16] any lane family can take an unclaimed reject at the thirty-minute boundary', t => {
+test('moves.claim.any-lane-family-can-take-an-unclaimed: [B35,B13,H16] any lane family can take an unclaimed reject at the thirty-minute boundary', t => {
   const f = fixture(t); enable(f); enable(f, 'reworkSameFamily');
   const id = returned(f, 'reject', 0);
   assert.equal(next(f, f.other).item, null);
@@ -108,7 +108,7 @@ test('[B35,B13,H16] any lane family can take an unclaimed reject at the thirty-m
   assert.equal(store.getItem(f.board, id).item_owner, f.other);
 });
 
-test('[B35,V6] manual reopen refuses with the board-return explanation', t => {
+test('moves.claim.manual-reopen-refuses-with-the-board-return-explanation: [B35,V6] manual reopen refuses with the board-return explanation', t => {
   const f = fixture(t); enable(f);
   const id = returned(f, 'reject', 0);
   assert.throws(() => store.reopen(f.board, id, { agentId: 'coordinator', note: 'return it' }),
@@ -116,7 +116,7 @@ test('[B35,V6] manual reopen refuses with the board-return explanation', t => {
   assert.equal(store.getItem(f.board, id).item_verdict, 'REJECT');
 });
 
-test('[B35,H16] rejection routing remains opt-in and respects item holds', t => {
+test('moves.claim.rejection-routing-remains-opt-in-and-respects-item: [B35,H16] rejection routing remains opt-in and respects item holds', t => {
   const f = fixture(t);
   const id = returned(f, 'reject', 0);
   assert.equal(next(f, f.other).item.item_id, id);
@@ -126,7 +126,7 @@ test('[B35,H16] rejection routing remains opt-in and respects item holds', t => 
   assert.throws(() => claim(f, id, f.builder), error => error.code === 'ITEM_HELD');
 });
 
-test('[B35,H16] automatic rejection routing is sealed into claim and verdict replay floors', t => {
+test('moves.claim.automatic-rejection-routing-is-sealed-into-claim: [B35,H16] automatic rejection routing is sealed into claim and verdict replay floors', t => {
   const f = fixture(t); enable(f);
   const id = returned(f, 'reject', 0);
   const options = { agentId: f.builder, lane: 'core', leaseMs: 7_200_000,
@@ -140,7 +140,7 @@ test('[B35,H16] automatic rejection routing is sealed into claim and verdict rep
   }
 });
 
-test('[B35,B5] a new rejection precedes the builder other live claim and retains triage holds', t => {
+test('moves.claim.a-new-rejection-precedes-the-builder-other: [B35,B5] a new rejection precedes the builder other live claim and retains triage holds', t => {
   const f = fixture(t); enable(f);
   const id = returned(f, 'reject', 0);
   const active = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'already active', criterion: 'prove',
@@ -153,7 +153,7 @@ test('[B35,B5] a new rejection precedes the builder other live claim and retains
   assert.equal(next(f, f.builder).item.item_id, active);
 });
 
-test('[B35,B5] a claimed rejection remains next ahead of an older live claim', t => {
+test('moves.claim.a-claimed-rejection-remains-next-ahead-of: [B35,B5] a claimed rejection remains next ahead of an older live claim', t => {
   const f = fixture(t); enable(f);
   const active = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older active work', criterion: 'prove',
     specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/active.js\nTest: proves current work' });
@@ -164,7 +164,7 @@ test('[B35,B5] a claimed rejection remains next ahead of an older live claim', t
   assert.equal(next(f, f.builder).item.item_id, id);
 });
 
-test('[B35,B5] the builder own claimed rejection precedes an older returned item from another builder', t => {
+test('moves.claim.the-builder-own-claimed-rejection-precedes-an: [B35,B5] the builder own claimed rejection precedes an older returned item from another builder', t => {
   const f = fixture(t); enable(f);
   const older = returned({ ...f, builder: f.other, other: f.builder }, 'reject', 0);
   const own = returned(f, 'reject', 0);

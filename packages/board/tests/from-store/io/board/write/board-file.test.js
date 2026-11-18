@@ -37,13 +37,13 @@ function writeAndRead(t) {
   return { file: realpathSync(project.boardFile), writes: read('board-writes.jsonl'), holds: read('board-holds.jsonl') };
 }
 
-test('clause 1: every board-writes.jsonl row carries the absolute path of the board file [C7,#3190]', t => {
+test('board.board-file.every-board-writes-jsonl-row-carries: clause 1: every board-writes.jsonl row carries the absolute path of the board file [C7,#3190]', t => {
   const { file, writes } = writeAndRead(t);
   assert.ok(writes.length > 0, 'writes were recorded');
   for (const row of writes) assert.equal(realpathSync(row.boardFile), file, `${row.command} row names the board file`);
 });
 
-test('clause 2: a board-holds.jsonl row carries the absolute path of the board file [C7,#3190]', t => {
+test('board.board-file.board-holds-jsonl-row-carries-the: clause 2: a board-holds.jsonl row carries the absolute path of the board file [C7,#3190]', t => {
   const { file, holds } = writeAndRead(t);
   assert.ok(holds.length > 0, 'holds were recorded');
   for (const row of holds) assert.equal(realpathSync(row.boardFile), file, `${row.command} row names the board file`);

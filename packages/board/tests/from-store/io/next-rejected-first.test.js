@@ -47,7 +47,7 @@ function rejected(f, title, builder, verifier) {
 
 const next = (f, agentId) => store.nextFor(f.board, { agentId, lane: 'core' }).item?.item_id ?? null;
 
-test('[N2] a rejected item sorts before never-claimed work for every seat, after the seat\'s own parked work (#5765 clause 1)', t => {
+test('board.next-rejected-first.rejected-item-sorts-before-never-claimed: [N2] a rejected item sorts before never-claimed work for every seat, after the seat\'s own parked work (#5765 clause 1)', t => {
   const f = fixture(t);
   const fresh = add(f, 'never claimed, older');
   const back = rejected(f, 'returned work', f.builder, f.third);
@@ -66,7 +66,7 @@ test('[N2] a rejected item sorts before never-claimed work for every seat, after
   assert.equal(next(f, f.third), back, 'another seat\'s parked work does not displace the rejection');
 });
 
-test('[N2] the builder sees its own rejection first, and when busy any seat takes it with no window (#5765 clause 2)', t => {
+test('board.next-rejected-first.the-builder-sees-its-own-rejection: [N2] the builder sees its own rejection first, and when busy any seat takes it with no window (#5765 clause 2)', t => {
   const f = fixture(t);
   const peerBack = rejected(f, 'peer returned, older', f.peer, f.third);
   const mineBack = rejected(f, 'builder returned', f.builder, f.third);
@@ -83,7 +83,7 @@ test('[N2] the builder sees its own rejection first, and when busy any seat take
   assert.equal(store.getItem(f.board, mineBack).item_owner, f.third, 'the claim writer takes it with no builder window');
 });
 
-test('[N2] a rejected item open over 1 h while a lane seat calls next idle raises one stuck shout (#5765 clause 3)', t => {
+test('board.next-rejected-first.rejected-item-open-over-1-while: [N2] a rejected item open over 1 h while a lane seat calls next idle raises one stuck shout (#5765 clause 3)', t => {
   const f = fixture(t);
   const back = rejected(f, 'stuck returned', f.builder, f.third);
   const stuckShouts = () => f.board.db.prepare("SELECT shout_text FROM shout WHERE shout_from='rework' AND shout_to='coordinator'").all();

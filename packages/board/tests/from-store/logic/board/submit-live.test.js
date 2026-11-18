@@ -51,7 +51,7 @@ function queueGate(board) {
   return store.queueSubmitHandoff(board, queueRecord.move.id, { agentId: queueRecord.move.actor, job: queueRecord.move.job, ...head, digest: queueRecord.snapshot.item.frozenDigest, companionDigest, leaseMs: queueRecord.snapshot.config.leaseMs });
 }
 
-test('clause 1: with moves.live.submit on, a submit writes exactly the event the COMMIT table decides [C7,#8384]', t => {
+test('board.submit-live.with-moves-live-submit-submit-writes: clause 1: with moves.live.submit on, a submit writes exactly the event the COMMIT table decides [C7,#8384]', t => {
   const board = boardFor(t, commitRecord.snapshot, { live: true });
   const id = submitCommit(board, true);
   const seen = [];
@@ -63,9 +63,9 @@ test('clause 1: with moves.live.submit on, a submit writes exactly the event the
   assert.deepEqual(submitEvents(board, id), expected.map(({ kind, by, detail }) => ({ kind, by, detail })));
 });
 
-test('clause 2: with moves.live.submit on, a gate queue follows the SUBMIT table: its refusal with code and next step and nothing written, else its queued job [C7,#8384]', t => {
+test('board.submit-live.with-moves-live-submit-gate-queue: clause 2: with moves.live.submit on, a gate queue follows the SUBMIT table: its refusal with code and next step and nothing written, else its queued job [C7,#8384]', t => {
   const seen = [];
-  const shadow = boardFor(t, queueRecord.snapshot);
+  const shadow = boardFor(t, queueRecord.snapshot, { live: false });
   shadow.queueSubmitHandoffShadow = answer => seen.push(answer);
   queueGate(shadow);
   const table = seen[0].decided;
@@ -80,10 +80,10 @@ test('clause 2: with moves.live.submit on, a gate queue follows the SUBMIT table
   assert.equal(refused.db.prepare('SELECT COUNT(*) n FROM event').get().n, before, 'a refused queue writes no event');
 });
 
-test('clause 3: with moves.live.submit off (the default) the writers\' own rules decide [C7,#8384]', t => {
-  const board = boardFor(t, commitRecord.snapshot);
+test('board.submit-live.with-moves-live-submit-off-the: clause 3: with moves.live.submit set false the writers\' own rules decide [C7,#8384]', t => {
+  const board = boardFor(t, commitRecord.snapshot, { live: false });
   const id = submitCommit(board, false);
   assert.equal(submitEvents(board, id).length, 1, 'the writer logged its own submit event');
-  const refused = boardFor(t, queueRecord.snapshot, { owner: 'someone-else' });
+  const refused = boardFor(t, queueRecord.snapshot, { live: false, owner: 'someone-else' });
   assert.throws(() => queueGate(refused), error => error.code === 'NOT_YOURS' && /claim this item before submitting it/u.test(error.message));
 });

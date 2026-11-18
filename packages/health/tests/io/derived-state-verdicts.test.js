@@ -38,7 +38,7 @@ function rows(file, commit, kind) {
 /** The verdict states the sweep is handed, mapped from the board's ids to this fixture's item numbers. */
 const stateFor = ids => item => verdictState({ ...item, item_id: ids.indexOf(item.item_id) + 1 });
 
-test('clause 1: with health.derivedState on, the sweep writes verdict freshness rows equal to what next computes for the same main commit [C7,#8976]', t => {
+test('health.derived-verdicts.freshness-matches-next: clause 1: with health.derivedState on, the sweep writes verdict freshness rows equal to what next computes for the same main commit [C7,#8976]', t => {
   const { board, file, ids, listItems } = acceptedBoard(t);
   const written = sweepDerivedVerdicts(board, { mainCommit: MAIN, enabled: true, listItems, verdictState: stateFor(ids) });
   assert.equal(written.file, derivedStatePath(file));
@@ -50,7 +50,7 @@ test('clause 1: with health.derivedState on, the sweep writes verdict freshness 
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name = 'derived_state'").get().n, 0, 'the board database holds no derived table');
 });
 
-test('clause 2: the accept-order rows equal the board accept order for that commit [C7,#8976]', t => {
+test('health.derived-verdicts.accept-order-matches-board: clause 2: the accept-order rows equal the board accept order for that commit [C7,#8976]', t => {
   const { board, file, ids, listItems } = acceptedBoard(t, [3, 1, 2]);
   sweepDerivedVerdicts(board, { mainCommit: MAIN, enabled: true, listItems, verdictState: stateFor(ids) });
   const order = rows(file, MAIN, 'accept-order');
@@ -59,7 +59,7 @@ test('clause 2: the accept-order rows equal the board accept order for that comm
   assert.deepEqual(order.map(row => [Number(row.key), Number(row.value)]).sort((a, b) => a[0] - b[0]), boardOrder.map(row => [row.item_id, row.event_id]).sort((a, b) => a[0] - b[0]));
 });
 
-test('clause 3: a new main commit gets its own rows and leaves the old commit rows unread [C7,#8976]', t => {
+test('health.derived-verdicts.new-commit-own-rows: clause 3: a new main commit gets its own rows and leaves the old commit rows unread [C7,#8976]', t => {
   const { board, file, ids, listItems } = acceptedBoard(t);
   sweepDerivedVerdicts(board, { mainCommit: MAIN, enabled: true, listItems, verdictState: stateFor(ids) });
   const oldVerdicts = rows(file, MAIN, 'verdict');
@@ -71,7 +71,7 @@ test('clause 3: a new main commit gets its own rows and leaves the old commit ro
   assert.deepEqual(rows(file, MAIN, 'accept-order'), oldOrder);
 });
 
-test('clause 4: with health.derivedState off the verdict sweep writes no file [C7,#8976]', t => {
+test('health.derived-verdicts.off-writes-no-file: clause 4: with health.derivedState off the verdict sweep writes no file [C7,#8976]', t => {
   const { board, file, ids, listItems } = acceptedBoard(t);
   assert.equal(sweepDerivedVerdicts(board, { mainCommit: MAIN, enabled: false, listItems, verdictState: stateFor(ids) }), null);
   assert.equal(sweepDerivedVerdicts(board, { mainCommit: MAIN, listItems, verdictState: stateFor(ids) }), null);

@@ -23,7 +23,7 @@ function setup(t) {
 /** The write a lapsed-claim observation stands for: one of this connection's own rows. */
 const ownWrite = (board, seat, item) => appendFact(board, item, { agentId: seat.id, kind: 'note', text: 'observation' });
 
-test('clause 1: the connection\'s own acknowledged write leaves a prepared snapshot valid, an unacknowledged one voids it [B2,C7]', async t => {
+test('board.own.the-connections-own-acknowledged-write-leaves: clause 1: the connection\'s own acknowledged write leaves a prepared snapshot valid, an unacknowledged one voids it [B2,C7]', async t => {
   const { board, seat, item } = setup(t);
   const plain = boardWriteSnapshot(board);
   ownWrite(board, seat, item);
@@ -33,7 +33,7 @@ test('clause 1: the connection\'s own acknowledged write leaves a prepared snaps
   assert.doesNotThrow(() => requireBoardWriteSnapshot(board, snapshot, 'submit'));
 });
 
-test('clause 2: another connection\'s commit during preparation still refuses BOARD_BUSY, even beside an acknowledged own write [B2,C7]', async t => {
+test('board.own.another-connections-commit-during-preparation-still: clause 2: another connection\'s commit during preparation still refuses BOARD_BUSY, even beside an acknowledged own write [B2,C7]', async t => {
   const { project, board, seat, item } = setup(t);
   const snapshot = boardWriteSnapshot(board);
   await acknowledgeOwnWrites(board, () => ownWrite(board, seat, item));

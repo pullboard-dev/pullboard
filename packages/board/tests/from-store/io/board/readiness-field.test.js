@@ -17,7 +17,7 @@ function fixture(t) {
   return { board, id: item };
 }
 
-test('clause 1: a board at the new engine stores an item readiness command, empty by default [C7,H16]', (t) => {
+test('board.readiness-field.board-the-new-engine-stores-item: clause 1: a board at the new engine stores an item readiness command, empty by default [C7,H16]', (t) => {
   const { board, id } = fixture(t);
   assert.ok((board.executionEngineVersion ?? ENGINE_VERSION) >= READINESS_ENGINE, 'a new board runs the current engine');
   const item = store.itemById(board, id);
@@ -26,7 +26,7 @@ test('clause 1: a board at the new engine stores an item readiness command, empt
   assert.equal(store.itemById(board, id).item_readiness_command, 'node --version');
 });
 
-test('clause 2: a board replayed at the previous engine reads the same as before [C7,H16]', (t) => {
+test('board.readiness-field.board-replayed-the-previous-engine-reads: clause 2: a board replayed at the previous engine reads the same as before [C7,H16]', (t) => {
   const { board, id } = fixture(t);
   board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES(?,?)').run(`item_readiness_command:${id}`, JSON.stringify('node --version'));
   const current = board.executionEngineVersion;

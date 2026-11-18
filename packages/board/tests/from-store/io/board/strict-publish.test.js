@@ -43,7 +43,7 @@ const landing = board => ({
 });
 const merge = board => store.merged(board, 7, { agentId: 'coordinator', commit: COMMIT });
 
-test('clause 1: with landing.strictFullSuite on, a strict verified item with a green full-suite receipt merges and publishes in one transaction [M2,#9327]', t => {
+test('board.strict-publish.with-landing-strictfullsuite-strict-verified-item: clause 1: with landing.strictFullSuite on, a strict verified item with a green full-suite receipt merges and publishes in one transaction [M2,#9327]', t => {
   const board = boardWith(t, { pace: 'strict', setting: true, suite: SUITE });
   assert.deepEqual(landing(board), { kinds: [], mergedCommit: null });
   merge(board);
@@ -52,7 +52,7 @@ test('clause 1: with landing.strictFullSuite on, a strict verified item with a g
   assert.deepEqual(JSON.parse(published.d).commit, COMMIT);
 });
 
-test('clause 2: without the full-suite receipt the strict merge is refused LAND_SUITE_PENDING and writes nothing [M2,#9327]', t => {
+test('board.strict-publish.without-the-full-suite-receipt-the: clause 2: without the full-suite receipt the strict merge is refused LAND_SUITE_PENDING and writes nothing [M2,#9327]', t => {
   for (const suite of [undefined, { ...SUITE, green: false }, { ...SUITE, group: 'web' }, { ...SUITE, suite: 'partial' }]) {
     const board = boardWith(t, { pace: 'strict', setting: true, suite });
     assert.throws(() => merge(board), error => error.code === 'LAND_SUITE_PENDING' && /full-suite receipt/u.test(error.message));
@@ -60,7 +60,7 @@ test('clause 2: without the full-suite receipt the strict merge is refused LAND_
   }
 });
 
-test('clause 3: with the setting off, or for a steady item, the merge writes the one merged event as today [M2,#9327]', t => {
+test('board.strict-publish.with-the-setting-off-for-steady: clause 3: with the setting off, or for a steady item, the merge writes the one merged event as today [M2,#9327]', t => {
   for (const options of [{ pace: 'strict', setting: false, suite: SUITE }, { pace: 'strict', setting: undefined }, { pace: 'steady', setting: true, suite: SUITE }, { pace: 'steady', setting: true }]) {
     const board = boardWith(t, options);
     merge(board);
