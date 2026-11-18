@@ -43,7 +43,7 @@ async function addDiagnosedLight(box, ...args) {
   return added;
 }
 
-test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
+test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carries a brief to whoever claims it; clause 2: a light agent sees only its tier [B10, B13, B14]', async () => {
   const box = project();
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -80,7 +80,7 @@ test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carr
   const lightSeat = JSON.parse((await box.runLocal(light, 'whoami', '--json')).out);
   assert.deepEqual([lightSeat.id, lightSeat.lane, lightSeat.route, lightSeat.model], ['web-2', 'web', 'light', 'fixture-model']);
   const next = (await box.runLocal(light, 'next'));
-  assert.match(next.out, /claimed #2: Copy the header\nnext: build and commit in [^\n]+\nitem folder: [^\n]+; seat web-2; build, commit and submit there\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nbrief:\n {2}Files:\n {2}- web\/page.js/);
+  assert.match(next.out, /claimed #2: Copy the header\nnext: build and commit in [^\n]+\nitem folder: [^\n]+; seat web-2; build, commit and submit there\ncriterion: the page shows the header\ncheck: test -f web\/page.js {3}\(run it before you submit\)\nthat is your bar; pullboard show 2 adds the thread and history only\nbrief:\n {2}Files:\n {2}- web\/page.js/);
   assert.match((await box.runLocal(light, 'claim', '1')).err, /ROUTE/);
   assert.match((await box.runLocal(box.web, 'next')).out, /claimed #1: Design the page/);
   assert.equal((await box.runLocal(box.repo, 'edit', '1', '--brief', 'Start from the sketch in docs/page.md.')).code, 0);
