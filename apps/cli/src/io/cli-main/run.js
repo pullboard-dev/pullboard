@@ -101,6 +101,10 @@ async function timedMain(argv, streams) {
 /** Record local command wall time without sending timing data to the board. */
 export async function main(rawArgv, streams) {
   const { argv, why } = extractWhy(rawArgv);
+  // The outermost run owns the folder removals deferred until its last step: cleanup never deletes the folder a command runs from mid-command (#10891).
+  const removals = Symbol.for('pullboard.deferred-folder-removals');
+  const outermost = !Array.isArray(globalThis[removals]);
+  if (outermost) globalThis[removals] = [];
   // Reads and the commit-msg hook make no throwaway folder, so they skip the config barrel's load; every other command hands the scratch root down first [C7].
   if (!NO_SCRATCH.has(argv[0] === 'hook' ? `hook ${argv[1]}` : argv[0])) (await import('../../../../../packages/config/index.js')).applyMachineScratch();
   const { beginSeatTiming, timingSeat } = await import('../../../../../packages/seats/light.js');
@@ -127,6 +131,12 @@ export async function main(rawArgv, streams) {
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
+    // Last step: every import this run needs has loaded, so the folder it ran from may go now.
+    if (outermost) {
+      const pending = globalThis[removals];
+      delete globalThis[removals];
+      for (const remove of pending) try { remove(); } catch { /* A folder that will not go stays for the next cleanup pass. */ }
+    }
   }
 }
 
