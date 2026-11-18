@@ -18,7 +18,7 @@ const releases = [
 const html = roadmapCardsHtml(releases, { root: '/r' });
 const buttons = [...html.matchAll(/<button class="roadmap-release"[^>]*>.*?<\/button>/gu)].map(([text]) => text);
 
-test('clause 1: each release is one row with its full version, its whole name for the CSS to cut, landed/total and a stage-coloured bar [N26]', () => {
+test('view.x-summary-roadmap-release-list.clause-1-each-release-is-one-row: clause 1: each release is one row with its full version, its whole name for the CSS to cut, landed/total and a stage-coloured bar [N26]', () => {
   assert.equal(buttons.length, 3, 'one row per release');
   assert.match(buttons[0], /roadmap-release-version">0\.9\.4<\/span><span class="roadmap-release-name">Restructure for Speed and Cost, with a name far longer than the row<\/span>/u, 'the version is whole and the name is never cut in the markup');
   assert.match(buttons[1], /roadmap-release-version">0\.9\.4-UI<\/span>/u, 'a suffixed version stays whole');
@@ -33,7 +33,7 @@ test('clause 1: each release is one row with its full version, its whole name fo
   assert.doesNotMatch(rule('.roadmap-release'), /min-height: var\(--tap\)|box-shadow/u, 'the row is not a tall tap box');
 });
 
-test('clause 2: the selected release is marked as the navigation marks its page, with no raised box and no grey hover box [N26]', () => {
+test('view.x-summary-roadmap-release-list.clause-2-the-selected-release-is-marked: clause 2: the selected release is marked as the navigation marks its page, with no raised box and no grey hover box [N26]', () => {
   const selected = rule('.roadmap-release[aria-current="location"]');
   assert.match(selected, /font-weight: 600/u);
   assert.doesNotMatch(selected, /background|border|shadow/u, 'no box on the selected release');
