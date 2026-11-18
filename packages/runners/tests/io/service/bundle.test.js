@@ -1,6 +1,7 @@
 /** @pullboard-test-input packages/state/src/logic/engines/** */
 /** The runner service bundle carries every folder the runner lists at run time, and a runner runs from it alone [P7,#8734]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -10,6 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { serviceFiles } from '../../../src/io/service.js';
+import { trustedEntries } from '../../../src/io/service.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
@@ -58,4 +60,50 @@ test('runners.bundle.n8734-clause-2-a-runner-started: #8734 clause 2: a runner s
     assert.equal(jobs.length, 1, JSON.stringify(jobs));
     assert.equal(jobs[0].outcome, 'posted', JSON.stringify(jobs[0]));
     assert.ok(receipt, 'the board got the receipt');
+  });
+
+const RELATIVE_IMPORT = /(?:\bfrom|\bimport\s*\()\s*'(\.\.?\/[^']+)'/gu;
+
+/** Every repo file a trusted entry reaches through relative imports that the bundle lacks. */
+function missingFromBundle(bundle, entries) {
+  const missing = new Set();
+  const seen = new Set();
+  const pending = entries.flatMap(entry => entry.imports);
+  while (pending.length) {
+    const path = pending.pop();
+    if (seen.has(path)) continue;
+    seen.add(path);
+    if (bundle[path] === undefined) { missing.add(path); continue; }
+    if (!path.endsWith('.js')) continue;
+    for (const [, specifier] of bundle[path].matchAll(RELATIVE_IMPORT)) pending.push(join(dirname(path), specifier).replaceAll('\\', '/'));
+  }
+  return [...missing];
+}
+
+test('runners.bundle.trusted-entries-closed: clause 1: the bundle holds every repo file the trusted job entries import, gate analysis entry included, and a bundle without the cells cache module is reported [P7,#10826]', () => {
+  const bundle = serviceFiles();
+  const entries = trustedEntries();
+  const analysis = entries.find(entry => entry.name === 'ANALYSIS_ENTRY');
+  assert.ok(analysis, 'the gate analysis entry is found');
+  for (const path of ['apps/cli/src/io/cells/cache.js', 'apps/cli/src/io/cells-submit-checks.js', 'apps/cli/src/io/memo.js']) {
+    assert.ok(analysis.imports.includes(path), `${path} is imported by the analysis entry`);
+  }
+  assert.deepEqual(missingFromBundle(bundle, entries), []);
+  const { 'apps/cli/src/io/cells/cache.js': _dropped, ...without } = bundle;
+  assert.deepEqual(missingFromBundle(without, entries), ['apps/cli/src/io/cells/cache.js']);
+});
+
+test('runners.bundle.analysis-entry-links-from-bundle: clause 2: the gate analysis entry written into a bundle folder with no packages/items in the board repo links without a missing module [P7,#10826]', { timeout: 120_000 }, // budget: one bundle write and one node child that stops at its first read of stdin.
+  t => {
+    const { root: app } = privateFixtureFiles('pullboard-service-entry-');
+    t.after(() => rmSync(app, { recursive: true, force: true }));
+    for (const [path, text] of Object.entries(serviceFiles())) {
+      mkdirSync(dirname(join(app, path)), { recursive: true });
+      writeFileSync(join(app, path), text);
+    }
+    writeFileSync(join(app, 'package.json'), '{ "type": "module" }\n');
+    const analysis = trustedEntries().find(entry => entry.name === 'ANALYSIS_ENTRY');
+    writeFileSync(join(app, 'pullboard-trusted-entry.mjs'), analysis.text);
+    const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'pullboard-trusted-entry.mjs', app], { cwd: app, input: '{}', encoding: 'utf8', timeout: 100_000 });
+    assert.doesNotMatch(String(child.stderr), /ERR_MODULE_NOT_FOUND|Cannot find module/u, String(child.stderr).slice(0, 1500));
   });
