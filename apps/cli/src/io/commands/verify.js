@@ -697,7 +697,7 @@ export async function run(io, args) {
     return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
+  if (code === 0 && ctx.verdictResult.value) await completeMoveHandoff(ctx, id, values, ctx.verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest, reviewOnly: true });
   return code;
 }
 
