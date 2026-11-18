@@ -1,7 +1,7 @@
 import { reviewPatchAuthors } from '../../io/review/composition.js';
 import { seatFamily } from '../../../../items/index.js';
-import { insertVerdict } from '../../io/verdict/record.js';
 import { committedItemAuthors } from '../../io/review/independence.js';
+import { insertVerdict } from '../../io/review/independence.js';
 import { twoTierReviews } from '../../io/review/independence.js';
 /** Immutable verdict assurance distinguishes recorded parent independence from procedural review [V1,B3]. */
 import { ENGINE_VERSION } from '../../../../state/index.js';

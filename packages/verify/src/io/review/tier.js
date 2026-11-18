@@ -28,7 +28,6 @@ const SOURCE_FILES = new Set([
   'packages/verify/src/logic/advance.js',
   'packages/verify/src/io/verdict/admission.js',
   'packages/verify/src/logic/verdict/assurance.js',
-  'packages/verify/src/io/verdict/record.js',
   'packages/verify/src/io/verdict/freshness.js',
   'packages/verify/src/logic/verdict/reviews.js',
   'packages/verify/src/io/verdict/trunk.js',
