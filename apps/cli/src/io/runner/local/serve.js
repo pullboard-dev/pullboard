@@ -50,7 +50,7 @@ async function serveLocal(io) {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
       wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
-      admit: ({ running }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running }) });
+      admit: ({ running, held }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held }) });
     if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
     return 0;
   } finally {
