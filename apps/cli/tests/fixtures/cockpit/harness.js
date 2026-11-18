@@ -1233,7 +1233,7 @@ async function pressedInto(chrome, expression, timeoutMs = 10_000) {
   try {
     await chrome.waitFor(expression, timeoutMs);
   } catch (error) {
-    const shows = await chrome.stable(`JSON.stringify({ panes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane), address: location.pathname + location.search + location.hash, lit: document.querySelector('.tab.on')?.dataset.tab ?? null, viewTab: typeof view === 'object' ? view.tab : null, item: typeof view === 'object' ? view.item : null, scrollY: Math.round(scrollY), pressed: window.__pressed ?? null, entries: history.length })`).catch((failure) => 'an unreadable page: ' + failure.message);
+    const shows = await chrome.stable(`JSON.stringify({ panes: [...document.querySelectorAll('[data-pane]')].filter((each) => !each.hidden).map((each) => each.dataset.pane), address: location.pathname + location.search + location.hash, lit: document.querySelector('.tab.on')?.dataset.tab ?? null, viewTab: typeof view === 'object' ? view.tab : null, item: typeof view === 'object' ? view.item : null, state: typeof view === 'object' ? view.state : null, needsHidden: document.querySelector('#needs')?.hidden ?? null, scrollY: Math.round(scrollY), pressed: window.__pressed ?? null, entries: history.length })`).catch((failure) => 'an unreadable page: ' + failure.message);
     throw new Error(`${error.message}; the page shows ${shows}`, { cause: error });
   }
 }

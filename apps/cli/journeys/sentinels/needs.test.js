@@ -28,6 +28,7 @@ import {
   fetchLive,
   serveFolder,
   press,
+  pressedInto,
 } from '../../tests/fixtures/cockpit/harness.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../index.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
@@ -451,7 +452,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:verify');
     // The control answers at once and the page draws on the next turn, so wait for the draw before reading Rulings.
-    await chrome.waitFor("document.querySelector('[data-page-ctl=state][data-value=verify]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#needs').hidden");
+    await pressedInto(chrome, "document.querySelector('[data-page-ctl=state][data-value=verify]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#needs').hidden");
     assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
