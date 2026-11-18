@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, watch, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join, posix } from 'node:path';
 import { test } from 'node:test';
@@ -161,6 +161,10 @@ async function captureReadme() {
   const evidenceDirectory = process.env.PULLBOARD_README_CAPTURE_EVIDENCE_DIR;
   if (evidenceDirectory) mkdirSync(evidenceDirectory, { recursive: true, mode: 0o700 });
   const fixture = mkdtempSync(join(tmpdir(), captureFixturePrefix()));
+  const stageStart = Date.now();
+  /** Write one diagnostic line to stderr as a stage ends, with the seconds since the capture began. */
+  const stageEnded = (stage) => process.stderr.write(`README capture stage: ${stage} ended at ${((Date.now() - stageStart) / 1000).toFixed(1)} s\n`);
+  let watcher = null;
   try {
     const root = join(fixture, 'repo');
     mkdirSync(root);
@@ -193,7 +197,21 @@ async function captureReadme() {
     delete env.PULLBOARD_VIEW_FOREGROUND;
     delete env.PULLBOARD_MODEL;
     if (!foregroundControl) delete env.PULLBOARD_README_CAPTURE_FOREGROUND;
+    stageEnded('fixture copy');
+    const marks = [
+      ['demo rebuild (export index written)', join(root, 'docs/demo/index.html')],
+      ['view start (observation receipt written)', observationPath],
+      ...images.map((image) => [`Chrome capture ${image}`, join(root, 'docs/shots', image)]),
+    ];
+    watcher = watch(fixture, { recursive: true }, () => {
+      for (let index = marks.length - 1; index >= 0; index -= 1) {
+        if (existsSync(marks[index][1])) { stageEnded(marks[index][0]); marks.splice(index, 1); }
+      }
+    });
     const result = await runAsync(process.execPath, [join(root, 'docs/shots/demo.mjs'), '--screenshots-only'], { cwd: root, env, timeout: 210_000 });
+    watcher.close();
+    watcher = null;
+    stageEnded('demo.mjs process');
     const observation = existsSync(observationPath) ? JSON.parse(readFileSync(observationPath, 'utf8')) : null;
     const outcome = {
       arm,
@@ -226,8 +244,11 @@ async function captureReadme() {
     assert.deepEqual(observation.fixtureProcessesAfterTestCleanup, [], `${arm}: test cleanup leaves no fixture process behind`);
     assert.deepEqual(observation.teardownErrors, [], `${arm}: capture teardown completed without errors`);
     const exported = (name) => JSON.parse(readFileSync(join(root, 'docs/demo/api/v1/boards/demo-board', name), 'utf8'));
-    return { state: exported('state.json').state, events: exported('events.json').events };
+    const read = { state: exported('state.json').state, events: exported('events.json').events };
+    stageEnded('export read');
+    return read;
   } finally {
+    if (watcher) watcher.close();
     rmSync(fixture, { recursive: true, force: true });
   }
 }
