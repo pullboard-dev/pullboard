@@ -19,10 +19,15 @@ socket.on('error', () => {});
 setTimeout(() => socket.destroy(), 120000);
 `;
 
-/** Whether `ps` still lists a live (not zombie) process with this pid. */
+/** Whether `ps` still lists this pid in any state, a zombie included; only ps's own "no such process" exit (1) with no output counts as gone, any other ps failure throws. */
 async function listed(pid) {
-  const out = await run('ps', ['-o', 'stat=', '-p', String(pid)]).then(done => done.stdout.trim(), () => '');
-  return out !== '' && !out.startsWith('Z');
+  try {
+    const done = await run('ps', ['-o', 'stat=', '-p', String(pid)]);
+    return done.stdout.trim() !== '';
+  } catch (error) {
+    if (error.code === 1 && String(error.stdout ?? '').trim() === '') return false;
+    throw error;
+  }
 }
 
 test('cli.journeys-gate-pulled-withdraw-ends.withdrawn-job-process-gone-within-60s: clause 1: the process of a pull runner job whose gate was withdrawn is gone within 60 s of the withdraw, ended by the runner serve and not by the test [C7,#9880]', { timeout: 240_000 }, // budget: hang ceiling for a project, a submit, a runner serve taking the job, a 35 s worst-case lease loss and a 60 s window.
@@ -47,10 +52,13 @@ async t => {
   assert.equal(await listed(pid), true, 'the proof is running before the withdraw');
   const out = await box.runIn(sent.folder, 'gate', '--withdraw', String(id), '--json');
   assert.equal(out.code, 0, `${out.err}\n${out.out}`);
-  await Promise.race([proofEnded, new Promise((_, fail) => setTimeout(() => fail(new Error(`proof process ${pid} still running 60000 ms after the withdraw:\n${served.output()}`)), 60_000).unref())]); // budget: hang ceiling at the declared 60 s from the withdraw to the job process gone (#9880).
+  const deadline = Date.now() + 60_000; // the declared 60 s from the withdraw to the job process gone (#9880).
   let still = true;
-  for (let attempt = 0; attempt < 100 && still; attempt++) still = await listed(pid);
-  assert.equal(still, false, `the proof process ${pid} is gone`);
+  while (still && Date.now() < deadline) {
+    still = await listed(pid);
+  }
+  assert.equal(still, false, `proof process ${pid} still listed 60000 ms after the withdraw:\n${served.output()}`);
+  await proofEnded;
   assert.equal(await Promise.race([served.closed.then(() => 'closed'), Promise.resolve('serving')]), 'serving', 'the runner serve is still serving: it ended the job, not the test');
   served.stop();
   await served.closed;
