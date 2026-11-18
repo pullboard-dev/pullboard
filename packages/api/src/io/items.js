@@ -53,3 +53,15 @@ export function finishedText(entry, compactItemSummaries) {
   }
   return '{"version":1,"sequence":' + entry.sequence + ',"state":' + held.state + '}';
 }
+
+/**
+ * One seat's lane, route and the ids it holds claimed, read from the agent and item rows alone, so a seat joined by URL
+ * learns who it is without the host building the board state (#11052). A claim whose lease lapsed is not held.
+ */
+export function seatClaims(board, name, { store, Refused }) {
+  const agent = board.db.prepare('SELECT agent_id, agent_lane, agent_route FROM agent WHERE agent_id=?').get(name);
+  if (!agent) throw new Refused('NO_AGENT', `no registered agent ${name}; use the agents in this board's state or join a worktree first`);
+  const claimed = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner=? ORDER BY item_id").all(name)
+    .filter((row) => store.isHeld(board, row)).map((row) => row.item_id);
+  return { agent_id: agent.agent_id, agent_lane: agent.agent_lane, agent_route: agent.agent_route, claimed };
+}
