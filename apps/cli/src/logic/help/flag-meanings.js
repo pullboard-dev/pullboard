@@ -111,6 +111,7 @@ export const FLAG_MEANINGS = Object.freeze({
   'fact --supersedes': ['--supersedes <fact-id>', 'the earlier fact this one replaces'],
   '--ref': ['--ref <path:lines@full-sha>', 'the code the fact refers to'],
   '--cause': ['--cause <key>', 'the failure cause: test:<file>::<title>, refusal:<CODE>, row:<id> or doctrine:<id>'],
+  'answer --cause': ['--cause <key>', 'the ruling cause: routing-assignment, bar-ambiguity, proof-red-tests, design-choice, conflicting-rulings, person-authority or tool-defect'],
   'fact --cause': ['--cause <key>', 'the failure cause the person records, such as test:<file>::<title> or refusal:<CODE>'],
   '--never-again': 'marks the cause as one that must not repeat; rigor lists it at once',
   'fact --as': ['--as person', 'records the fact as the person'],
