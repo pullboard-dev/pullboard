@@ -196,6 +196,7 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
+  'submit.composeOnRunner': false,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
