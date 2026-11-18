@@ -180,9 +180,10 @@ test('cli.journeys-next-claims.a-plain-next-that-offers-a: clause 2: a plain nex
   assert.ok(Buffer.byteLength(out) < 2048, `the review offer is ${Buffer.byteLength(out)} bytes`);
 });
 
-test('cli.journeys-next-claims.children-of-an-unheld-parent-hold-one: clause 1: with claims.perSeat 1 four next calls over four children of an unheld parent leave one build claim, also after a queued submit [C7,#10851]', async t => {
+test('cli.journeys-next-claims.children-of-an-unheld-parent-hold-one: clause 1: with claims.perSeat 1 four next calls over four children of a parent another seat holds leave one build claim, also after a queued submit [C7,#10851]', async t => {
   const box = await fixture(t, { perSeat: 1 });
-  const parent = box.add('Umbrella nobody holds', { lane: 'docs' });
+  const parent = box.add('Umbrella held by another seat');
+  box.claim(parent);
   const children = ['One', 'Two', 'Three', 'Four'].map(title => box.add(`Slice ${title}`, { parentId: parent, brief: `Files: web/${title.toLowerCase()}.js\nTest: the real board selects the item.` }));
   const heldBy = seat => store.listItems(box.board).filter(item => item.item_status === 'claimed' && item.item_owner === seat.id);
   for (let call = 0; call < 4; call += 1) await plainNext(box, box.seats.actor);
