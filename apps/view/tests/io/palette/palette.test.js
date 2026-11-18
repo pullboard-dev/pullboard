@@ -48,7 +48,7 @@ function page(options = {}) {
 }
 const field = { closest: (selector) => (/input/.test(selector) ? {} : null) };
 
-test('clause 1: the search box reads "Search" and a press on it opens the palette [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-1-the-search-box-reads-search: clause 1: the search box reads "Search" and a press on it opens the palette [U94,#6616]', () => {
   const { palette, box, overlay } = page();
   assert.equal(box.placeholder, 'Search');
   let prevented = false;
@@ -57,12 +57,12 @@ test('clause 1: the search box reads "Search" and a press on it opens the palett
   assert.match(overlay.innerHTML, /placeholder="Search"/);
 });
 
-test('clause 1: under 900 px the search box says just "Search" [N26]', () => {
+test('view.x-io-palette-palette.clause-1-under-900-px-the-search: clause 1: under 900 px the search box says just "Search" [N26]', () => {
   globalThis.matchMedia = () => ({ matches: true });
   try { assert.equal(page().box.placeholder, 'Search'); } finally { delete globalThis.matchMedia; }
 });
 
-test('clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes it [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-1-cmd-k-or-ctrl-k: clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes it [U94,#6616]', () => {
   for (const extra of [{ metaKey: true }, { ctrlKey: true }]) {
     const { palette, press } = page();
     press('k', undefined, extra);
@@ -75,7 +75,7 @@ test('clause 1: Cmd+K or Ctrl+K and / open the palette, and Cmd+K again closes i
   assert.ok(palette.isOpen() && event.defaultPrevented, '/ opens it and is not typed into the page');
 });
 
-test('clause 1: the palette finds pages, items by id and by title, and actions, from the board in memory [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-1-the-palette-finds-pages-items: clause 1: the palette finds pages, items by id and by title, and actions, from the board in memory [U94,#6616]', () => {
   const { palette } = page();
   const kinds = (q) => palette.results(q).map((r) => r.kind + ':' + r.label);
   assert.deepEqual(kinds('').filter((k) => k.startsWith('Go to')).length, 8, 'an empty query lists every page');
@@ -90,7 +90,7 @@ test('clause 1: the palette finds pages, items by id and by title, and actions, 
   assert.deepEqual(kinds('zzzz'), [], 'nothing matches nothing');
 });
 
-test('clause 1: arrow keys move the pick, Enter opens it, and a pick goes where it names [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-1-arrow-keys-move-the-pick: clause 1: arrow keys move the pick, Enter opens it, and a pick goes where it names [U94,#6616]', () => {
   const { palette, press, calls, results } = page();
   press('/');
   press('ArrowDown');
@@ -109,7 +109,7 @@ test('clause 1: arrow keys move the pick, Enter opens it, and a pick goes where 
   assert.deepEqual(calls.go, ['tab:shouts', 'item:3186'], 'an item opens by its id');
 });
 
-test('clause 1: a page row reads title, then one subtitle once, then its count, each in its own element [N26]', () => {
+test('view.x-io-palette-palette.clause-1-a-page-row-reads-title: clause 1: a page row reads title, then one subtitle once, then its count, each in its own element [N26]', () => {
   const { press, results } = page({ pages: [{ id: 'spec', name: 'Spec', count: '314' }, { id: 'dashboard', name: 'Dashboard', count: '' }] });
   press('/');
   const rows = results.innerHTML.split('<button').slice(1);
@@ -120,13 +120,13 @@ test('clause 1: a page row reads title, then one subtitle once, then its count, 
   assert.match(rows[1], /<span>Dashboard<\/span><small>Every number on the board<\/small><span class="pal-end"><kbd>g d<\/kbd><\/span>/u, 'no count draws no count');
 });
 
-test('clause 1: the mounted page reads each page name from its title element, apart from its subtitle and count [N26]', () => {
+test('view.x-io-palette-palette.clause-1-the-mounted-page-reads-each: clause 1: the mounted page reads each page name from its title element, apart from its subtitle and count [N26]', () => {
   const script = paletteScript();
   assert.match(script, /querySelector\('\.tab-name b, \.side-name'\)/u, 'the name comes from the title, not the whole button text');
   assert.match(script, /querySelector\('\[data-nav-fact\]'\)/u, 'the count comes from the page fact');
 });
 
-test('clause 2: g then a page letter jumps to that page, and a late or unknown second key does nothing [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-2-g-then-a-page-letter: clause 2: g then a page letter jumps to that page, and a late or unknown second key does nothing [U94,#6616]', () => {
   const letters = { i: 'items', s: 'shouts', r: 'roadmap', e: 'spec', o: 'doctrine', d: 'dashboard', a: 'activity', c: 'cost' };
   for (const [letter, tab] of Object.entries(letters)) {
     const { press, calls } = page();
@@ -149,7 +149,7 @@ test('clause 2: g then a page letter jumps to that page, and a late or unknown s
   assert.deepEqual(calls.go, [], 'g then a letter after the pause goes nowhere');
 });
 
-test('clause 2: ? lists the shortcuts, \\ moves the navigation, Esc closes [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-2-lists-the-shortcuts-moves-the: clause 2: ? lists the shortcuts, \\ moves the navigation, Esc closes [U94,#6616]', () => {
   const { palette, press, calls, overlay } = page();
   press('?');
   assert.ok(palette.isHelp());
@@ -168,7 +168,7 @@ test('clause 2: ? lists the shortcuts, \\ moves the navigation, Esc closes [U94,
   assert.ok(!none.defaultPrevented, 'Esc with nothing open is left to the page');
 });
 
-test('clause 2: typing in a field never triggers a shortcut [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-2-typing-in-a-field-never: clause 2: typing in a field never triggers a shortcut [U94,#6616]', () => {
   const { palette, press, calls } = page();
   for (const key of ['/', '?', '\\', 'g']) press(key, field);
   press('i', field);
@@ -179,7 +179,7 @@ test('clause 2: typing in a field never triggers a shortcut [U94,#6616]', () => 
   assert.deepEqual(calls.go, [], 'and letters typed in the palette are only letters');
 });
 
-test('clause 1: the hosted page mounts it with one hook and the palette reads the board in memory, fetching nothing [U94,#6616]', () => {
+test('view.x-io-palette-palette.clause-1-the-hosted-page-mounts-it: clause 1: the hosted page mounts it with one hook and the palette reads the board in memory, fetching nothing [U94,#6616]', () => {
   const script = paletteScript();
   assert.doesNotThrow(() => new Script(script), 'the mounted script parses');
   assert.ok(script.includes('function pbPalette(env)') && script.includes('pbPalette({'), 'the page script holds the module and mounts it');
@@ -192,7 +192,7 @@ test('clause 1: the hosted page mounts it with one hook and the palette reads th
   assert.doesNotMatch(actions, /event\.key !== '\/'/u, 'the old "/" focus handler is gone, so "/" opens the palette only');
 });
 
-test('clause 1: the mounted script runs in a page that has no navigator [C7,#6719]', () => {
+test('view.x-io-palette-palette.clause-1-the-mounted-script-runs-in: clause 1: the mounted script runs in a page that has no navigator [C7,#6719]', () => {
   const part = { innerHTML: '', classList: { toggle() {} }, setAttribute() {}, focus() {}, setSelectionRange() {}, scrollIntoView() {} };
   const overlay = { innerHTML: '', addEventListener() {}, setAttribute() {}, querySelector: () => part, querySelectorAll: () => [] };
   const document = { body: { appendChild() {} }, activeElement: null, createElement: () => overlay, addEventListener() {}, querySelector: () => null, querySelectorAll: () => [] };

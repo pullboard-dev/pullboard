@@ -1,0 +1,4 @@
+{
+  "cli.io-cli-main-options.level-and-route-parse-to-the-same-value": {"proves":{"specs":["C7"],"claim":"parseCommandArgs accepts --level light, mid or strong and returns it as values.route, the same value --route gives."},"why":"Without it, the approved --level name would reach commands as an unknown value and every command that reads values.route would ignore it.","kind":"cell unit","inputs":["apps/cli/tests/io/cli-main/options.test.js","apps/cli/src/io/cli-main/options.js"]},
+  "cli.io-cli-main-options.level-and-route-with-different-values-refuse": {"proves":{"specs":["C7"],"claim":"Giving --level and --route with different values refuses with the USAGE code."},"why":"Without it, one of the two values would win silently and the seat would run on a route its caller did not mean.","kind":"cell unit","inputs":["apps/cli/tests/io/cli-main/options.test.js","apps/cli/src/io/cli-main/options.js"]}
+}
