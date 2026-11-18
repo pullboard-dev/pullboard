@@ -135,8 +135,8 @@ const BEFORE = {
   ruby: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.rb` : null),
   // pytest writes a dotted module in classname (tests.test_math) and no file attribute.
   python: row => (row.classname ? `${row.classname.replace(/\./gu, '/')}.py` : null),
-  // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
-  haskell: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null),
+  // hspec-junit-formatter writes the dotted spec module (Data.CalcSpec) in classname and no file attribute; a module ending in Spec is the spec file's own path (Data/CalcSpec.hs), a bare group (Calc) is test/CalcSpec.hs.
+  haskell: row => (row.classname ? (/Spec$/u.test(row.classname) ? `${row.classname.replace(/\./gu, '/')}.hs` : `test/${row.classname.replace(/\./gu, '/')}Spec.hs`) : null),
   // dart test with junitreport writes the test file path (test/calc_test.dart) in classname and no file attribute.
   dart: row => (row.classname && /\.dart$/u.test(row.classname) ? row.classname : null),
   // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
@@ -249,6 +249,25 @@ test('landing.junit-files.maven-titles-registered: clause 3: every maven test ti
   const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
   const source = readFileSync(import.meta.filename, 'utf8');
   const ids = [...source.matchAll(/^test\('(landing\.junit-files\.maven-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
+
+test('landing.junit-files.haskell-dotted-module-path: clause 1: junitFile haskell returns the dotted spec module as a path with dots turned into folder separators and the .hs suffix [C7]', () => {
+  assert.equal(junitFile('haskell', { classname: 'Data.CalcSpec' }), 'Data/CalcSpec.hs');
+  assert.equal(junitFile('haskell', { classname: 'CalcSpec' }), 'CalcSpec.hs');
+  assert.equal(junitFile('haskell', { classname: 'Calc' }), 'test/CalcSpec.hs');
+});
+
+test('landing.junit-files.haskell-no-classname-is-null: clause 2: junitFile haskell returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('haskell', {}), null);
+  assert.equal(junitFile('haskell', { classname: '' }), null);
+});
+
+test('landing.junit-files.haskell-titles-registered: clause 3: every haskell test title here carries an ID starting landing.junit-files.haskell with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.haskell-[^':\s]+): /gmu)].map(match => match[1]);
   assert.ok(ids.length >= 3);
   for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
 });
