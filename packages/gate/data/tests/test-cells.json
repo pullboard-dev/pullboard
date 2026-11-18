@@ -179,6 +179,7 @@
     "doctrine",
     "drive",
     "flakes",
+    "fs",
     "gate",
     "git",
     "github",
