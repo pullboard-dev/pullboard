@@ -22,12 +22,12 @@ async function settled(t, edgeFollowUps) {
   return children;
 }
 
-test('clause 1: with submit.edgeFollowUps on, a submit whose diff adds an import edge files exactly one linked follow-up [C7]', async t => {
+test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit: clause 1: with submit.edgeFollowUps on, a submit whose diff adds an import edge files exactly one linked follow-up [C7]', async t => {
   const children = await settled(t, true);
   assert.equal(children.length, 1, JSON.stringify(children));
   assert.match(children[0].item_brief, /src\/a\.js -> src\/b\.js/u, 'the follow-up lists the new edge');
 });
 
-test('clause 2: with submit.edgeFollowUps at its default (off), the same submit files nothing [C7]', async t => {
+test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-at-its-default: clause 2: with submit.edgeFollowUps at its default (off), the same submit files nothing [C7]', async t => {
   assert.deepEqual(await settled(t, false), []);
 });

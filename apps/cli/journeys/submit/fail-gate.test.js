@@ -7,7 +7,7 @@ import { submitStep } from '../../tests/fixtures/submit/fail.js';
 import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
 
-test('clause 2: a static failure is refused before any gate job is offered [V4,C7]', async t => {
+test('cli.journeys-submit-fail-gate.a-static-failure-is-refused-before: clause 2: a static failure is refused before any gate job is offered [V4,C7]', async t => {
   const failing = await project(t, { staticFails: true });
   put(failing.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(failing.box, 'feat(core): change the source [G1]');
