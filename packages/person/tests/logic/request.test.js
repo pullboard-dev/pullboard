@@ -65,3 +65,8 @@ test('person.request.rejects-newer-formats: [H12,H16] versioned person requests 
   }
   assert.throws(() => validatePersonRequest({ ...request, unexpected: true }), error => error instanceof Refused && error.code === 'BAD_REQUEST');
 });
+
+test('person.request.heartbeat-move-form: clause 1: the heartbeat move is the argv of pullboard heartbeat and refuses any argument [P7]', () => {
+  assert.deepEqual(moveArgs({ verb: 'heartbeat' }), ['heartbeat', '--json', '--']);
+  assert.throws(() => moveArgs({ verb: 'heartbeat', args: { note: 'x' } }), (error) => error instanceof Refused && error.code === 'BAD_REQUEST');
+});
