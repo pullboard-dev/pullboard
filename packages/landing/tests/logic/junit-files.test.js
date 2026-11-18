@@ -252,3 +252,21 @@ test('landing.junit-files.maven-titles-registered: clause 3: every maven test ti
   assert.ok(ids.length >= 3);
   for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
 });
+
+test('landing.junit-files.gradle-java-or-kotlin-path: clause 1: junitFile gradle returns the java path for a classname whose source is Java and the kotlin path for a Kotlin one [C7]', () => {
+  assert.equal(junitFile('gradle', { classname: 'com.example.CalcTest' }), 'src/test/java/com/example/CalcTest.java');
+  assert.equal(junitFile('gradle', { classname: 'com.example.CalcTest', kotlin: true }), 'src/test/kotlin/com/example/CalcTest.kt');
+});
+
+test('landing.junit-files.gradle-no-classname-is-null: clause 2: junitFile gradle returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('gradle', {}), null);
+  assert.equal(junitFile('gradle', { kotlin: true }), null);
+});
+
+test('landing.junit-files.gradle-titles-registered: clause 3: every gradle test title here carries an ID starting landing.junit-files.gradle with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.gradle-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});
