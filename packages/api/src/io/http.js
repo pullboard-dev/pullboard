@@ -372,7 +372,8 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
         }
       }
       if (!route && !shoutRoute && !itemRoute && !proofRoute && !trunkRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
-      const board = await adapter.board(boardId, who);
+      // A runner's job call is served ahead of agent moves when the API is busy, its board lookup too (#10786).
+      const board = await adapter.board(boardId, who, { runner: route?.[2] === 'jobs' });
       if (trunkRoute) return await sendTrunkPack(req, res, board, trunkRoute[2], who);
       if (proofRoute) {
         if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a proof record with GET');
