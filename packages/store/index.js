@@ -96,6 +96,7 @@ export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } f
 export { insertItem } from './src/io/board/add.js';
 export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';
+export { rulingsByCause } from './src/io/board/decision/answer.js';
 export { reserveWithin } from './src/io/board/reserve/review.js';
 export { insertShout, persistShout } from './src/io/board/shout.js';
 export { RELEASE_REASONS, REVIEW_RELEASE_REASONS, REVIEW_ONLY_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
