@@ -5,6 +5,8 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import * as kernel from '../../../kernel/index.js';
+import * as kernelLight from '../../../kernel/light.js';
 import { fileSystemAdapter } from '../../index.js';
 
 test('fs.adapter.returns-the-source: clause 1: the adapter returns what the injected source returns [C7]', () => {
@@ -34,4 +36,10 @@ test('fs.adapter.fake-is-deterministic: clause 1: a fake source makes the answer
   const fs = fileSystemAdapter({ readFileSync: () => 'fixed', existsSync: () => true });
   assert.equal(fs.readFile('/anything'), 'fixed');
   assert.equal(fs.readFile('/else'), 'fixed');
+});
+
+test('fs.adapter.kernel-gains-no-export: clause 2: the kernel exports no file-system adapter, so no existing behaviour changes [C7]', () => {
+  assert.equal('fileSystemAdapter' in kernel, false);
+  assert.equal('fileSystemAdapter' in kernelLight, false);
+  assert.equal(typeof fileSystemAdapter, 'function');
 });
