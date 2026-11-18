@@ -45,7 +45,7 @@ async function startPhoneFixture() {
   return { origin, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-test('clause 1: relay off, board excluded and network down each render their own message at phone width in real Chrome [H5,N26,C7,#9459]', { timeout: 120_000 }, async (t) => {
+test('view.x-cockpit-relay-cause-message.clause-1-relay-off-board-excluded-and: clause 1: relay off, board excluded and network down each render their own message at phone width in real Chrome [H5,N26,C7,#9459]', { timeout: 120_000 }, async (t) => {
   if (!findChromeExecutable()) return t.skip('Install Chrome or set PULLBOARD_CHROME for the relay cause check.');
   const fixture = await startPhoneFixture();
   const chrome = await stableChrome(await startChrome());
