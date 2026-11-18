@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
+  readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
@@ -13,7 +14,7 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
-import { fixtureAdd } from '../../tests/fixtures/testkit.js';
+import { fileFixtureItem } from '../../tests/fixtures/testkit.js';
 import { fixtureJoin } from '../../tests/fixtures/testkit.js';
 import { fixturePolicy } from '../../tests/fixtures/testkit.js';
 
@@ -23,18 +24,18 @@ const { project } = e2e;
 
 const ALPHA = 'Files:\n- packages/alpha/src/a.js\nTest:\n- the alpha test\n';
 
-/** A project whose committed settings turn laneMode off, with the web seat holding the new settings. */
-function lanesOffProject() {
+/**
+ * A project whose web lane owns the packages folders while the items are filed, because `pullboard add` still checks a
+ * brief against the lane folders; then its committed settings turn laneMode off and the lane back to web/ alone, and the web seat holds them.
+ */
+function lanesOffProject(...briefs) {
   const box = project('true');
-  fixturePolicy(box, { laneMode: 'off' });
+  const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
+  fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'packages/'] } } });
+  briefs.forEach((brief, index) => fileFixtureItem(box, box.repo, { lane: 'web', title: `Cell item ${index + 1}`, brief, args: ['--specs', 'G1'] }));
+  fixturePolicy(box, { laneMode: 'off', lanes });
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return box;
-}
-
-/** File an item in the web lane whose bar names the given brief. */
-function file(box, title, brief) {
-  const filed = fixtureAdd(box.run, box.repo, 'web', title, '--specs', 'G1', '--criterion', `${title} works`, '--brief', brief, '--check', 'true');
-  assert.equal(filed.code, 0, filed.out + filed.err);
 }
 
 /** Write files in a checkout, creating folders. */
@@ -49,8 +50,7 @@ function commit(box, cwd, message) {
 }
 
 test('cli.journeys-join-lanes-off-cells.own-cells-pass: clause 1: with laneMode off a commit touching only the claimed item\'s cells passes pre-commit and submit [C7,#8907]', async t => {
-  const box = lanesOffProject();
-  file(box, 'Alpha work', ALPHA);
+  const box = lanesOffProject(ALPHA);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const folder = `${box.web}-item-1`;
   write(folder, 'packages/alpha/src/a.js', 'packages/alpha/tests/a.test.js');
@@ -62,8 +62,7 @@ test('cli.journeys-join-lanes-off-cells.own-cells-pass: clause 1: with laneMode 
 });
 
 test('cli.journeys-join-lanes-off-cells.foreign-cell-refused: clause 2: with laneMode off a commit touching a path outside those cells is refused naming the path [C7,#8907]', async () => {
-  const box = lanesOffProject();
-  file(box, 'Alpha work', ALPHA);
+  const box = lanesOffProject(ALPHA);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const folder = `${box.web}-item-1`;
   write(folder, 'packages/alpha/src/a.js', 'packages/beta/src/b.js');
@@ -73,10 +72,7 @@ test('cli.journeys-join-lanes-off-cells.foreign-cell-refused: clause 2: with lan
 });
 
 test('cli.journeys-join-lanes-off-cells.held-cell-not-offered: clause 3: with laneMode off next never hands a second seat an item in a cell the first seat holds [C7,#8907]', async () => {
-  const box = lanesOffProject();
-  file(box, 'Alpha held', ALPHA);
-  file(box, 'Alpha sibling', 'Files:\n- packages/alpha/src/b.js\nTest:\n- the sibling test\n');
-  file(box, 'Beta free', 'Files:\n- packages/beta/src/c.js\nTest:\n- the beta test\n');
+  const box = lanesOffProject(ALPHA, 'Files:\n- packages/alpha/src/b.js\nTest:\n- the sibling test\n', 'Files:\n- packages/beta/src/c.js\nTest:\n- the beta test\n');
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const second = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'api/one');
