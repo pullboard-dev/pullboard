@@ -1200,7 +1200,7 @@
       "cells": 3,
       "deep": 0
     },
-    "apps/relay/src/logic/person/enrollment/store.js": {
+    "apps/relay/src/io/store/enrollment.js": {
       "cells": 2,
       "deep": 0
     },
