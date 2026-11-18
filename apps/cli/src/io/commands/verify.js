@@ -171,6 +171,8 @@ import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
@@ -381,7 +383,15 @@ export async function verifyHere(ctx, id, { second, values }) {
           unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
-        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
+        // With submit.composeAsObject on, a stale re-review is offered on a fresh object composition of current main and this head [C7,U159].
+        const composed = composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events,
+          composeAsObject: submitComposeAsObject(), composeMain: composeSubmissionMain });
+        if (composed.commit !== checkedCommit) {
+          checkedCommit = composed.commit;
+          checkedLabel = 'main-composed review';
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} with the reviewed head for the re-review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composed;
       };
       let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
