@@ -72,3 +72,24 @@ test('cli.io-submit-proof-only.submit-proofonly-is-a-described-setting-off: clau
   assert.equal(row.value, false);
   assert.ok(row.label && /empty/u.test(row.description ?? JSON.stringify(row)), 'the row carries a plain label and description');
 });
+
+test('cli.io-submit-proof-only.off-refusal-names-the-setting: clause 1: with submit.proofOnly off, a proof-only item ticked at the head is refused EMPTY_SUBMIT naming submit.proofOnly [C7,#10834]', async (t) => {
+  const box = await proofBox(t, { on: false, kinds: ['command', 'measurement', 'reasoning'] });
+  await tick(box, 1, 'command');
+  await tick(box, 2, 'measurement');
+  await tick(box, 3, 'reasoning');
+  const refused = await runLocal(box, 'submit', '1', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /EMPTY_SUBMIT/u);
+  assert.match(refused.err + refused.out, /submit\.proofOnly/u);
+});
+
+test('cli.io-submit-proof-only.test-clause-keeps-old-text: clause 2: with submit.proofOnly off, an item with a [test] clause keeps the existing EMPTY_SUBMIT text, which does not name submit.proofOnly [C7,#10834]', async (t) => {
+  const box = await proofBox(t, { on: false, kinds: ['command', 'test'] });
+  await tick(box, 1, 'command');
+  await tick(box, 2, 'test');
+  const refused = await runLocal(box, 'submit', '1', '--json');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.err + refused.out, /EMPTY_SUBMIT/u);
+  assert.doesNotMatch(refused.err + refused.out, /submit\.proofOnly/u);
+});
