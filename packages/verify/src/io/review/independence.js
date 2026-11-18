@@ -114,6 +114,17 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
 }
 
 /**
+ * The one family check for a reviewer, used alike by reservation, verdict and the eligibility listing: the two-tier rule on
+ * current engines, and below the independence engine the original require rule, compared through familiesDiffer so an alias
+ * of the builder's family is refused the same way everywhere (#3781).
+ */
+export function reviewFamilyEligibility(board, item, reviewer, familyPolicy = 'off') {
+  if (twoTierReviews(board)) return reviewFamilyProblem(board, item, reviewer, familyPolicy);
+  return familyPolicy === 'require' && !familiesDiffer(board, seatFamily(board, reviewer), builderFamilyOf(board, item))
+    ? new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`) : null;
+}
+
+/**
  * Refuse a reviewer that ever held the item when review.excludeEarlierHolders is on: it claimed, released, built or submitted it.
  * Why: a seat that dropped or handed on an item still knows its code, so its review is not independent (5287, 11 Nov).
  */

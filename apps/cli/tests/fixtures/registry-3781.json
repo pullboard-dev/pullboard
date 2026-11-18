@@ -1,0 +1,28 @@
+{
+  "cli.journeys-queue-family-one-check.a-reviewer-whose-family-is-an": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A reviewer whose family is an alias of the builder family is refused alike by the reservation guard and the eligibility listing, on the current engine and below the independence engine."
+    },
+    "why": "Without it, next and verify could offer and refuse the same reviewer differently.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/queue/family-one-check.test.js"
+    ]
+  },
+  "cli.journeys-queue-family-one-check.a-reviewer-of-a-different-family": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A reviewer of a different family is accepted alike by the reservation guard and the eligibility listing, on the current and the legacy engine."
+    },
+    "why": "Without it, next and verify could offer and refuse the same reviewer differently.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/queue/family-one-check.test.js"
+    ]
+  }
+}
