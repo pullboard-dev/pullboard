@@ -350,7 +350,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
-    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
+    {
+      proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+      proofShaped: () => withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+    }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
