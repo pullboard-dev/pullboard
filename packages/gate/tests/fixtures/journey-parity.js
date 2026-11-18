@@ -18,13 +18,24 @@ export async function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
   const record = join(dir, `${mode}.jsonl`);
   try {
+    // A case may carry a stable-ID prefix (`area.file.slug: `) before its sampled name, so the name match allows one.
     const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
-    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
+    const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:[\\w.-]+: )?(?:${pattern})`],
       env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record, PULLBOARD_SUBMIT_MARKS: '' } });
     assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
     assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
     return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));
   } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+/**
+ * A timing field (how long a call waited in a queue) differs between any two runs for a reason that is not a behaviour difference, so it is
+ * blanked before the compare: as a JSON key, and as the `queueWaitSeconds: <n>` line show prints [C7].
+ */
+const TIMING_FIELDS = new Set(['queueWaitSeconds']);
+const TIMING_LINES = /\b(queueWaitSeconds): [\d.]+/gu;
+function withoutTiming(value) {
+  return JSON.stringify(value, (key, inner) => (TIMING_FIELDS.has(key) ? undefined : typeof inner === 'string' ? inner.replace(TIMING_LINES, '$1: <seconds>') : inner));
 }
 
 /** Every difference between two runs' records, named by call: exit code, JSON result, printed text and board state. */
@@ -34,7 +45,7 @@ export function parityDifferences(real, inprocess) {
   for (let at = 0; at < Math.min(real.length, inprocess.length); at++) {
     const call = real[at].args.join(' ');
     for (const field of ['args', 'code', 'json', 'out', 'err', 'board']) {
-      const [a, b] = [JSON.stringify(real[at][field]), JSON.stringify(inprocess[at][field])];
+      const [a, b] = [withoutTiming(real[at][field]), withoutTiming(inprocess[at][field])];
       if (a !== b) {
         // Show the text around the first difference, not the start, so a long record names what differs.
         const first = [...a].findIndex((char, index) => char !== b[index]);

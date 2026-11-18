@@ -23,6 +23,16 @@ export function pullJobId(id) {
 export function rootWord(runner) { return runner?.root ? pullWord(runner.root) : '"$HOME/.pullboard-runner"'; }
 
 /**
+ * The enqueue line that starts the runner agent: the agent snippet backgrounded inside /bin/sh, never in the login shell.
+ * Why: ssh runs the enqueue script in the runner account's login shell; zsh (the macOS default) renices every
+ * background job by 5 (BG_NICE), so the two background levels here started the agent at nice 10, and every
+ * review job it ran inherited 10 while pulled jobs ran at 0 (#10985).
+ * @param {string} agent The shell snippet that starts the agent.
+ * @returns {string} One POSIX command that returns at once.
+ */
+function agentLaunch(agent) { return `/bin/sh -c ${pullWord(`( ${agent}\n) </dev/null >/dev/null 2>&1 &`)} </dev/null >/dev/null 2>&1`; }
+
+/**
  * Build the enqueue script: stdin is one JSON line (row.json) then the frame bytes.
  * The job folder is built as queue/.tmp-<id> and renamed whole, so a runner never sees half a row; a frame that
  * is not exactly `frameBytes` long (a dropped connection) is removed instead of renamed.
@@ -52,7 +62,7 @@ N=$(wc -c < "$T/input" | tr -d ' ')
 if [ "$N" != ${frameBytes} ]; then rm -rf "$T"; echo "frame was cut short" >&2; exit 3; fi
 ${command ? `printf '%s\\n' ${pullWord(command)} > "$T/command"\n` : ''}: > "$T/wanted"
 mv "$T" "$R/queue/${id}"
-${agent ? `( ${agent}\n) </dev/null >/dev/null 2>&1 &\n` : ''}echo "queued ${id}"
+${agent ? `${agentLaunch(agent)}\n` : ''}echo "queued ${id}"
 `;
 }
 

@@ -863,6 +863,10 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
     },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
+    },
     "push-only.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/push-only.js"
@@ -1015,6 +1019,10 @@
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-relink.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
@@ -1138,6 +1146,10 @@
     "sources.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/uses.js"
+    },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
     },
     "startup.json": {
       "kind": "json",
@@ -1369,7 +1381,7 @@
     },
     "table:person_enrollment": {
       "kind": "table",
-      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+      "owner": "apps/relay/src/io/store/enrollment.js"
     },
     "table:phone_approval": {
       "kind": "table",
@@ -1501,7 +1513,7 @@
     },
     "table:temp": {
       "kind": "table",
-      "owner": "packages/outbox/src/logic/undo.js"
+      "owner": "packages/outbox/src/io/relay/undo.js"
     },
     "table:test_result": {
       "kind": "table",
@@ -1514,6 +1526,10 @@
     "table:verdict": {
       "kind": "table",
       "owner": "packages/verify/src/logic/verdict/assurance.js"
+    },
+    "table:vault": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "table:waiter": {
       "kind": "table",
@@ -1574,6 +1590,10 @@
     "transition.json": {
       "kind": "repo-data",
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
+    },
+    "vault.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "vendors.json": {
       "kind": "repo-data",

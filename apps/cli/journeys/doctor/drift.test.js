@@ -62,7 +62,7 @@ function driftedBoard() {
   return file;
 }
 
-test('clause 1: opening a drifted board creates the job tables and indexes it lacks, and submit queues a gate on it [A5]', () => {
+test('cli.journeys-doctor-drift.opening-a-drifted-board-creates-the: clause 1: opening a drifted board creates the job tables and indexes it lacks, and submit queues a gate on it [A5]', () => {
   const file = driftedBoard();
   const before = observe(file);
   assert.equal(before.standing, 'drifted');
@@ -88,7 +88,7 @@ test('clause 1: opening a drifted board creates the job tables and indexes it la
   assert.deepEqual(repaired.rows, before.rows, 'no board_meta row was moved or rewritten; only local proof counters count the guards event');
 });
 
-test('clause 1: a board with foreign drift gains the additive tables but keeps its stamp, guards and report [A5,M3]', () => {
+test('cli.journeys-doctor-drift.a-board-with-foreign-drift-gains: clause 1: a board with foreign drift gains the additive tables but keeps its stamp, guards and report [A5,M3]', () => {
   const file = driftedBoard();
   const db = new DatabaseSync(file);
   try { db.exec('CREATE INDEX hand_made ON item (item_title)'); } finally { db.close(); }
@@ -112,7 +112,7 @@ function releaseBox() {
   return { command, file: join(box.repo, '.git', 'pullboard', 'board.sqlite') };
 }
 
-test('clause 2: pullboard status restores changed pullboard triggers, and doctor then reports none changed [M3,A5]', async () => {
+test('cli.journeys-doctor-drift.pullboard-status-restores-changed-pullboard-triggers: clause 2: pullboard status restores changed pullboard triggers, and doctor then reports none changed [M3,A5]', async () => {
   const project = releaseBox();
   const created = await project.command('status');
   assert.equal(created.status, 0, created.stderr || created.stdout);

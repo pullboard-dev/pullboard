@@ -29,7 +29,7 @@ import {
   shoutTexts,
 } from '../../../tests/fixtures/relay/local-first.js';
 
-test('one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
+test('cli.journeys-relay-local-sender.one-background-sender-per-machine-sends: one background sender per machine sends each new move once, asks GitHub once per window, pulls other machines\' moves, and the relay reads none [H21,H5,H15]', async t => {
   const { box, env } = await linkedBoard(t);
   const printed = await box.cliLocal('relay', 'pair');
   const other = await box.otherDeviceJoin(printed.document.code, undefined, { inProcess: true });
@@ -89,7 +89,7 @@ test('one background sender per machine sends each new move once, asks GitHub on
   }
 });
 
-test('a conflict found on sync is refused at replay with a code naming the winner, and its agent is told once [H21,H16]', async t => {
+test('cli.journeys-relay-local-sender.a-conflict-found-on-sync-is: a conflict found on sync is refused at replay with a code naming the winner, and its agent is told once [H21,H16]', async t => {
   const box = await relayClientFixture(t);
   enableOutbox(box);
   await box.link();

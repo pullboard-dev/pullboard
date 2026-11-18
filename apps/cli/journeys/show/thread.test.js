@@ -61,7 +61,7 @@ function item(board, title = 'Threaded item', holder = null) {
   return id;
 }
 
-test('[B29] every fact kind is stamped, and nonholders can append observations', (t) => {
+test('cli.journeys-show-thread.b29-every-fact-kind-is-stamped: [B29] every fact kind is stamped, and nonholders can append observations', (t) => {
   const { board } = fixture(t);
   const id = item(board, 'All fact kinds', 'web-1');
   const observations = ['capture', 'measurement', 'note', 'diff'];
@@ -87,7 +87,7 @@ test('[B29] every fact kind is stamped, and nonholders can append observations',
   assert.equal(store.getItem(board, closed).item_status, 'withdrawn', 'a fact can be appended to a closed item without reopening it');
 });
 
-test('[B30] judgements and corrections require the live holder or coordinator, including after lease expiry', (t) => {
+test('cli.journeys-show-thread.b30-judgements-and-corrections-require-the: [B30] judgements and corrections require the live holder or coordinator, including after lease expiry', (t) => {
   const { board, clock } = fixture(t);
   const id = item(board, 'Guarded item', 'web-1');
   const observation = store.appendFact(board, id, { agentId: 'web-2', kind: 'note', text: 'shared evidence', factId: 'guard-evidence' });
@@ -101,7 +101,7 @@ test('[B30] judgements and corrections require the live holder or coordinator, i
   assert.throws(() => store.appendFact(board, id, { agentId: 'web-1', kind: 'note', text: 'expired-holder correction', supersedes: observation.id, factId: 'expired-correction' }), { code: 'FACT_JUDGEMENT' });
 });
 
-test('[B31] fact events are append-only, corrections retain both facts, and supersession stays on its item', (t) => {
+test('cli.journeys-show-thread.b31-fact-events-are-append-only: [B31] fact events are append-only, corrections retain both facts, and supersession stays on its item', (t) => {
   const { board } = fixture(t);
   const id = item(board, 'Correction chain', 'web-1');
   const otherId = item(board, 'Other item');
@@ -119,7 +119,7 @@ test('[B31] fact events are append-only, corrections retain both facts, and supe
   assert.equal(store.itemThread(board, id).filter((entry) => entry.type === 'fact').length, 3);
 });
 
-test('[B32] fact references require a full SHA and a safe positive ascending line range', (t) => {
+test('cli.journeys-show-thread.b32-fact-references-require-a-full: [B32] fact references require a full SHA and a safe positive ascending line range', (t) => {
   const { board } = fixture(t);
   const id = item(board, 'Bound evidence');
   const fact = store.appendFact(board, id, {
@@ -131,7 +131,7 @@ test('[B32] fact references require a full SHA and a safe positive ascending lin
   }
 });
 
-test('[B29,B31,B32] itemThread merges moves and facts in append order with exact ids, stamps and text', (t) => {
+test('cli.journeys-show-thread.b29-b31-b32-itemthread-merges-moves: [B29,B31,B32] itemThread merges moves and facts in append order with exact ids, stamps and text', (t) => {
   const { board, clock } = fixture(t);
   const id = item(board, 'Ordered thread');
   // Filing now also places the item in its milestone, so the thread opens with every earlier move on the item.
@@ -162,7 +162,7 @@ test('[B29,B31,B32] itemThread merges moves and facts in append order with exact
   assert.ok(thread.every((entry, index) => index === 0 || thread[index - 1].eventId < entry.eventId));
 });
 
-test('[B31,B32] native export and import preserve every fact in the item thread', (t) => {
+test('cli.journeys-show-thread.b31-b32-native-export-and-import: [B31,B32] native export and import preserve every fact in the item thread', (t) => {
   const { board } = fixture(t);
   const id = item(board, 'Portable thread', 'web-1');
   const first = store.appendFact(board, id, { agentId: 'web-2', kind: 'note', text: 'original', factId: 'portable-original' });
@@ -174,7 +174,7 @@ test('[B31,B32] native export and import preserve every fact in the item thread'
   assert.deepEqual(exportBoard(restored), exportBoard(board));
 });
 
-test('[B29,B31,H16] engine fact replay uses move ids, retries once, and keeps corrections identical across replicas', (t) => {
+test('cli.journeys-show-thread.b29-b31-h16-engine-fact-replay: [B29,B31,H16] engine fact replay uses move ids, retries once, and keeps corrections identical across replicas', (t) => {
   const clock = { now: () => new Date('2026-10-08T00:00:00.000Z') };
   const left = openBoard(':memory:', clock);
   const right = openBoard(':memory:', clock);
@@ -291,7 +291,7 @@ async function threadHttpBox(t) {
   return { ...box, api, url, key, boardId: id, path: `/api/v1/boards/${id}`, call };
 }
 
-test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judgements, and preserve full refs and literal text', async (t) => {
+test('cli.journeys-show-thread.b29-b30-b31-b32-a2-cli: [B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judgements, and preserve full refs and literal text', async (t) => {
   const box = await threadHttpBox(t);
   const holder = await box.cliLocal(box.root, 'worktree', 'app');
   const observer = await box.cliLocal(box.root, 'worktree', 'app');

@@ -16,7 +16,7 @@ async function capacity(box) {
   return JSON.parse(result.out);
 }
 
-test('clause 1: pullboard capacity records one row per week on the board [C7,R1,R2]', async () => {
+test('cli.io-commands-capacity-weeks.pullboard-capacity-records-one-row-per-week: clause 1: pullboard capacity records one row per week on the board [C7,R1,R2]', async () => {
   const box = e2e.project();
   const first = await capacity(box);
   assert.equal(first.weeks.length, 1, 'the first reading adds the week');
@@ -27,7 +27,7 @@ test('clause 1: pullboard capacity records one row per week on the board [C7,R1,
   assert.equal(row.runs, 1);
 });
 
-test('clause 2: a second run in the same week updates that week row instead of adding one [C7,R1,R2]', async () => {
+test('cli.io-commands-capacity-weeks.a-second-run-in-the-same-week: clause 2: a second run in the same week updates that week row instead of adding one [C7,R1,R2]', async () => {
   const box = e2e.project();
   await capacity(box);
   const second = await capacity(box);

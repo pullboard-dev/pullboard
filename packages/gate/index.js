@@ -6,6 +6,8 @@ export { createInstallCache } from "./src/io/scripts/pack-cache.js";
 export { createPackCache } from "./src/io/scripts/pack-cache.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
+export { splitByMain } from "./src/logic/static/findings.js";
+export { staticFindingsOnMain } from "./src/io/static/main-findings.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
 export { testClosures, codeMapGraph, cliReachRows, keylessRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
@@ -22,8 +24,7 @@ export { checkBaseline, baselineTestEvidence, baselineFailureDetails, refuseChec
 export { exactStart, childJournalPreloadSource } from "./src/io/journal/preload.js";
 export { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from "./src/io/clone.js";
 export { testsNeedCpuRunner, cpuRunnerRequired } from "./src/io/admission/cpu/load.js";
-export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages } from "./src/io/config.js";
-export { languageToolchains } from "./src/logic/language-toolchains.js";
+export { detectGate, detectTestGlobs, settingCommand, missingGate, setHere, detectLanguages, languageToolchains } from "./src/io/config.js";
 export { recordGateRun, gateRuns, gateControlFindings, GATE_RUNS_FILE, GATE_WINDOW_MS, GATE_MIN_RUNS } from "./src/io/control.js";
 export { committedTree, isStampedGreen, stampGreen, refuseSandboxBlocked, safeLog, runProfiledShell, runFrozenProof, runProfiledShellAsync, withLandingGateSlot, landingControllerPlacement, pinRunMain, runGate, runMainComparison, recordRun, fullGateRun } from "./src/io/execution.js";
 export { runClauseBaseComparison } from "./src/io/clause-base.js";

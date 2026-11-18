@@ -17,7 +17,6 @@
     "packages/gate/src/io/check/baseline.js",
     "packages/gate/src/io/run/shell.js",
     "packages/resources/index.js",
-    "packages/sandbox/src/io/trusted/policy.js",
     "packages/sentinels/src/io/main.js",
     "packages/state/src/io/machine.js",
     "packages/store/index.js",

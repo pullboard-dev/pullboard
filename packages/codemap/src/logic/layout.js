@@ -81,6 +81,29 @@ export function layoutViolations(paths) {
   return [...found.values()].sort((a, b) => a.rule.localeCompare(b.rule) || a.key.localeCompare(b.key));
 }
 
+/**
+ * The new test files a bar names that the layout rule calls a test-mirror violation, and the path that mirrors the nearest
+ * source file the bar names (#10629). Why: add and edit refuse such a path before it is frozen into an item.
+ *
+ * @param {string[]} tracked Repository-relative paths on main.
+ * @param {string[]} named Every path the bar names.
+ * @returns {{ bad: string[], use: string|null }}
+ */
+export function newTestMirrorFindings(tracked, named) {
+  const onMain = new Set(tracked);
+  const fresh = named.filter(path => isDefaultTestFile(path) && !onMain.has(path));
+  if (!fresh.length) return { bad: [], use: null };
+  const planned = named.filter(path => path.endsWith('.js') && !isDefaultTestFile(path));
+  const found = new Set(layoutViolations([...tracked, ...planned, ...fresh]).filter(row => row.rule === 'test-mirror').map(row => row.key));
+  const bad = fresh.filter(path => found.has(path));
+  const match = bad.length ? CELL.exec(bad[0]) : null;
+  const cell = match ? `${match[1]}/${match[2]}` : null;
+  const source = cell ? named.find(path => path.startsWith(`${cell}/src/`) && path.endsWith('.js') && !isDefaultTestFile(path)) : null;
+  const base = bad[0]?.split('/').at(-1) ?? '';
+  const suffix = base.slice(base.indexOf('.'));
+  return { bad, use: source ? source.replace('/src/', '/tests/').replace(/\.js$/u, suffix) : null };
+}
+
 /** Apply the cell rules to one cell's files. */
 function cellViolations(cell, { name, apps, rels }, add) {
   const effective = new Set();

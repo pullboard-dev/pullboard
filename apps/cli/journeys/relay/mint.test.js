@@ -84,7 +84,7 @@ function submitted(board, builder, lane, gitRoot) {
   return store.getItem(board, item.item_id);
 }
 
-test('an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', async (t) => {
+test('cli.journeys-relay-mint.an-agent-in-its-worktree-cannot: an agent in its worktree cannot mint a relay token [H2,V1,E3,E5,P6]', async (t) => {
   const box = await relayClientFixture(t);
   const lane = box.lane;
   git(box.root, box.env, ['add', '-A']);

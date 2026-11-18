@@ -14,6 +14,8 @@ const STAMP = new Date(AT).toISOString();
 function quietSeat(t, shadow) {
   const board = fixtureBoard(t, { clock: { now: () => new Date(AT) } });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.reclaim on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { reclaim: false };
   const sql = board.db;
   for (const id of ['core-1', 'core-2']) {
     sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, 'strong', STAMP);

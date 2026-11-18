@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view packages/store packages/api */
 /** The state the view serves and the native board state carry the same holds and itemHolds [C7,#3043]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -30,7 +29,7 @@ function both({ project, board }) {
   return { view: projectState(project.repo, { board }), native };
 }
 
-test('clause 1: with one lane hold and one item hold the view and native states carry equal holds and itemHolds [C7,#3043]', (t) => {
+test('view.x-io-holds-parity.clause-1-with-one-lane-hold-and: clause 1: with one lane hold and one item hold the view and native states carry equal holds and itemHolds [C7,#3043]', (t) => {
   const box = machine(t);
   store.holdLane(box.board, 'web', { agentId: 'coordinator', reason: 'freeze the web lane' });
   store.holdItem(box.board, box.item, { agentId: 'coordinator', reason: 'wait for the design' });
@@ -41,7 +40,7 @@ test('clause 1: with one lane hold and one item hold the view and native states 
   assert.deepEqual(native.itemHolds, view.itemHolds);
 });
 
-test('clause 2: a board with no holds gives empty holds and itemHolds in both states [C7,#3043]', (t) => {
+test('view.x-io-holds-parity.clause-2-a-board-with-no-holds: clause 2: a board with no holds gives empty holds and itemHolds in both states [C7,#3043]', (t) => {
   const box = machine(t);
   const { view, native } = both(box);
   assert.deepEqual(view.holds, []);

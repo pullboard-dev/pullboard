@@ -1,0 +1,4 @@
+{
+  "cli.io-submit-gate-startup.the-result-carries-steps-startup-as-a": {"proves":{"specs":["C7"],"claim":"The startup statement sits after the entry text's last import line and before its first await."},"why":"Without it, a regression where the analysis result stops recording its start-up time would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/src/io/submit/gate.js"]},
+  "cli.io-submit-gate-startup.every-other-key-is-unchanged-and-startup": {"proves":{"specs":["C7"],"claim":"The result object the entry text builds carries steps: { startup } beside main, source and notes, with no other key."},"why":"Without it, a regression where the start-up step changed the result's other keys or overstated the time would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/src/io/submit/gate.js"]}
+}

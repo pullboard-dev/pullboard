@@ -33,7 +33,7 @@ const landed = { id: 6661, lane: 'view', route: 'strong', status: 'verified', me
 const ORDER = ['Sent back', 'Latest gate', 'Journey', 'Done when', 'Check', 'Brief', 'Files', 'History'];
 const labels = html => [...html.matchAll(/<p class="ip-lbl">([^<]+)<\/p>/gu)].map(match => match[1]);
 
-test('clause 1: the header is one block of id, stage chip with its sent-back mark, holder or landing commit, title and one quiet meta line, with no chip rows and no tabs [N26]', () => {
+test('view.x-panel-head.clause-1-the-header-is-one-block: clause 1: the header is one block of id, stage chip with its sent-back mark, holder or landing commit, title and one quiet meta line, with no chip rows and no tabs [N26]', () => {
   const html = draw(sentBack, { stage: 'Building', milestone: '0.9.4 Restructure for Speed and Cost' });
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<span class="id">#4742<\/span><span class="ip-chip b">Building<\/span><span class="ip-mark"[^>]*>[\s\S]*<\/svg>1<\/span><span class="ip-who">core-3528 · /u, 'id, stage chip, sent-back mark, then the holder at the right');
@@ -47,7 +47,7 @@ test('clause 1: the header is one block of id, stage chip with its sent-back mar
   assert.match(css, /\.item-panel-head h2 \{[^}]*-webkit-line-clamp: 3/u);
 });
 
-test('clause 2: the panel is one scroll of sections in the approved order, each only when it has content, with Done when as one row per clause showing its evidence kind and proven state [N26]', () => {
+test('view.x-panel-head.clause-2-the-panel-is-one-scroll: clause 2: the panel is one scroll of sections in the approved order, each only when it has content, with Done when as one row per clause showing its evidence kind and proven state [N26]', () => {
   const full = draw({ ...sentBack, thread: [...sentBack.thread, move('merged', '2026-11-13T23:30:00Z', 'coordinator')].slice(0, -1) },
     { brief: 'Economics audit.', files: ['apps/a/src.js', 'apps/a/tests/src.test.js', 'x/1.js', 'x/2.js', 'x/3.js', 'x/4.js'], baseline: { label: 'no baseline on main', warn: false } });
   assert.deepEqual(labels(full), ORDER, 'the sections come in the approved order');
@@ -65,7 +65,7 @@ test('clause 2: the panel is one scroll of sections in the approved order, each 
   assert.equal(script().includes("'<div class=\"item-panel\">' + drawPanel(item)"), true, 'the arrived panel and the loading frame draw the same panel');
 });
 
-test('clause 2: the Done when rows, gate rows and history rows are one-line rows that never wrap, and a clause opens in place [N26]', () => {
+test('view.x-panel-head.clause-2-the-done-when-rows-gate: clause 2: the Done when rows, gate rows and history rows are one-line rows that never wrap, and a clause opens in place [N26]', () => {
   const rules = selector => [...css.matchAll(new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&') + ' \\{([^}]*)\\}', 'gu'))].map(match => match[1]).join(' ');
   assert.match(rules('.ip-row'), /white-space: nowrap/u);
   assert.match(rules('.ip-cl .t'), /white-space: nowrap/u);

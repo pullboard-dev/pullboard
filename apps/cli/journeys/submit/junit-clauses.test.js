@@ -33,14 +33,14 @@ async function submitWith(cases, { setting }) {
   return { submitted, thread: (shown.thread ?? []).map(row => String(row.text ?? '')) };
 }
 
-test('clause 1: with gate.junitReport set, submit on a project whose test command wrote JUnit XML ticks the [test] clauses the report names [C7,#9727]', { timeout: 240_000 }, async () => {
+test('cli.journeys-submit-junit-clauses.with-gate-junitreport-set-submit-on: clause 1: with gate.junitReport set, submit on a project whose test command wrote JUnit XML ticks the [test] clauses the report names [C7,#9727]', { timeout: 240_000 }, async () => {
   const { submitted, thread } = await submitWith([['clause 1: adds two numbers'], ['clause 2: halves a number']], { setting: true });
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   assert.ok(thread.some(text => /^clause 1 \[test\]: JUnit report junit\.xml at [0-9a-f]{12}/u.test(text)), thread.join('\n'));
   assert.ok(thread.some(text => /^clause 2 \[test\]: JUnit report junit\.xml/u.test(text)));
 });
 
-test('clause 2: a failing case in the report leaves its clause unticked and names the case [C7,#9727]', { timeout: 240_000 }, async () => {
+test('cli.journeys-submit-junit-clauses.a-failing-case-in-the-report: clause 2: a failing case in the report leaves its clause unticked and names the case [C7,#9727]', { timeout: 240_000 }, async () => {
   const { submitted, thread } = await submitWith([['clause 1: adds two numbers'], ['clause 2: halves a number', true]], { setting: true });
   assert.notEqual(submitted.code, 0);
   assert.match(submitted.out + submitted.err, /case "clause 2: halves a number" failed/u);
@@ -48,7 +48,7 @@ test('clause 2: a failing case in the report leaves its clause unticked and name
   assert.equal(thread.some(text => /^clause 2 \[test\]: JUnit report/u.test(text)), false);
 });
 
-test('clause 3: with gate.junitReport unset, submit reads no report and records no JUnit tick [C7,#9727]', { timeout: 240_000 }, async () => {
+test('cli.journeys-submit-junit-clauses.with-gate-junitreport-unset-submit-reads: clause 3: with gate.junitReport unset, submit reads no report and records no JUnit tick [C7,#9727]', { timeout: 240_000 }, async () => {
   const { submitted, thread } = await submitWith([['clause 1: adds two numbers'], ['clause 2: halves a number']], { setting: false });
   assert.notEqual(submitted.code, 0);
   assert.match(submitted.out + submitted.err, /CLAUSE_UNTICKED|no evidence/u);
