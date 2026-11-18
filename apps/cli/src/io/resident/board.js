@@ -221,8 +221,19 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
-const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
+const { gitLocation, headCommit, residentBusyFile, residentCommandCeiling, residentStartFile, RESIDENT_START_CUTOFF_MS } = await import('./client.js');
 const busyFile = residentBusyFile(pidFile);
+let startLockCleared = false;
+/**
+ * Remove the start lock the client that started this process took, once: when this process listens, when it leaves the
+ * slot to another, or when it exits before either. Never after, so a successor's starter keeps its own lock.
+ */
+function clearStartLock() {
+  if (startLockCleared) return;
+  startLockCleared = true;
+  try { unlinkSync(residentStartFile(pidFile)); } catch { /* Never taken or already gone. */ }
+}
+process.on('exit', clearStartLock);
 
 /** Whether a queued command's client has stopped waiting for it to start, and so runs it in-process itself. */
 const abandoned = request => Number.isFinite(request.sentAt) && Date.now() - request.sentAt > RESIDENT_START_CUTOFF_MS;
@@ -374,6 +385,7 @@ function listen() {
   /** Leave the path to the process that holds it, freeing the lock first. */
   const leave = (message) => {
     unlock?.();
+    clearStartLock();
     process.stderr.write(`pullboard resident: ${message}\n`);
     process.exit(0);
   };
@@ -403,6 +415,7 @@ function listen() {
         return leave(`cannot record the resident process in ${pidFile}: ${error.code ?? error.message}`);
       }
       unlock();
+      clearStartLock();
       // Idle time counts from when the process can serve, never from a slow start under load.
       lastActive = clock();
       watchIdle();
