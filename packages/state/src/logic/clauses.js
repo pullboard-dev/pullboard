@@ -58,6 +58,9 @@ export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks =
   const named = gateNamedFile(clause, gateFiles, item);
   if (named) return [named];
   if (clause.kind !== 'test' || QUOTED_TEST.test(clause.text)) return [];
+  const inherited = item ? clauseTestFile(clause, criterionClauses(item.item_criterion)) : null;
+  const ranInherited = inherited ? [...gateFiles].filter(file => file && sameTestFile(file, inherited)) : [];
+  if (ranInherited.length) return ranInherited;
   const inFolder = folderTicks ? folderFiles(clause.text, gateFiles) : [];
   if (inFolder.length) return inFolder;
   const checked = checkTestFiles(item?.item_check);
@@ -74,6 +77,67 @@ export function gateCoveredFiles(clause, gateFiles, item = null, { folderTicks =
  */
 export function testCaseTitles(file, source) {
   return [...String(source ?? '').matchAll(/\b(?:test|it|describe)(?:\.\w+)?\(\s*(['"`])((?:\\.|(?!\1)[^\\\n])*)\1/gu)].map(match => ({ file, name: match[2] }));
+}
+
+/** A case title's stable ID (U148): the dotted token before its first colon, such as `landing.junit-files.cmake-row`, or null. */
+function stableId(name) {
+  return /^([a-z0-9][\w-]*(?:\.[\w-]+)+)\s*:/iu.exec(String(name ?? '').trim())?.[1] ?? null;
+}
+
+/** Whether a run's file is the test file a clause quotes, by its whole path or its base name. */
+function sameTestFile(file, quoted) {
+  return file === quoted || file.endsWith(`/${quoted}`) || quoted.endsWith(`/${file}`);
+}
+
+/** A clause that points at an earlier clause's file instead of quoting one, such as "proved by a case in the same file". */
+const SAME_FILE = /\bsame\s+(?:test\s+)?file\b/iu;
+
+/**
+ * The test file a clause names: the path its text quotes, or, for a clause saying "the same file", the file the nearest earlier
+ * clause quotes; null when neither. Why: bars name the file once and say "in the same file" after, so clauses 2 and 3 of
+ * #10589 and #10848 were never covered and every builder hand-ticked them [C7].
+ *
+ * @param {{ number: number, text: string }} clause
+ * @param {{ number: number, text: string }[]} clauses - Every clause of the bar.
+ * @returns {string | null}
+ */
+export function clauseTestFile(clause, clauses = []) {
+  const own = QUOTED_TEST.exec(clause.text)?.[0];
+  if (own) return own;
+  if (!SAME_FILE.test(clause.text)) return null;
+  const earlier = clauses.filter(other => other.number < clause.number).sort((a, b) => b.number - a.number);
+  for (const other of earlier) { const file = QUOTED_TEST.exec(other.text)?.[0]; if (file) return file; }
+  return null;
+}
+
+/** Whether a run's case speaks for a [test] clause: by the stable ID or whole title the clause quotes, or as "clause N:" in its own file. */
+function caseSpeaksFor(clause, file, row) {
+  if (!row?.name) return false;
+  const text = clause.text.toLowerCase();
+  const id = stableId(row.name)?.toLowerCase();
+  const escaped = id?.replace(/[.*+?^$()|[\]\\{}]/gu, '\\$&');
+  if (escaped && new RegExp(`(?:^|[^\\w.-])${escaped}(?![\\w-]|\\.[\\w-])`, 'u').test(text)) return true;
+  if (String(row.name).length >= 12 && text.includes(String(row.name).toLowerCase())) return true;
+  return Boolean(file && row.file && sameTestFile(row.file, file) && titledFor(clause.number, row.name));
+}
+
+/**
+ * The passing, unskipped cases of a run that prove a [test] clause: a case whose stable ID or whole title the clause quotes,
+ * or a case titled "clause N:" (after an optional stable-ID prefix) in the test file the clause names, or for "the same file"
+ * the file an earlier clause names. A "clause N:" case in any other file never counts. Why: since U148 every case title starts
+ * with a stable ID, so builders on #10589, #10848, #9441 and #10692 found no "clause N:" case to tick from, and a "clause 1:"
+ * case in an unrelated file ticked another item's clause 1 [C7].
+ *
+ * @param {{ number: number, text: string, kind: string | null }} clause
+ * @param {{ number: number, text: string }[]} clauses - Every clause of the bar, for "the same file".
+ * @param {{ file: string, name: string, passed: boolean, skipped?: boolean }[]} cases - The run's case outcomes.
+ * @returns {{ file: string, name: string, passed: boolean, skipped?: boolean }[]}
+ */
+export function clauseCases(clause, clauses, cases) {
+  if (clause.kind !== null && clause.kind !== 'test') return [];
+  const file = clauseTestFile(clause, clauses);
+  const speaking = (Array.isArray(cases) ? cases : []).filter(row => caseSpeaksFor(clause, file, row));
+  return speaking.some(row => row.passed !== true || row.skipped === true) ? [] : speaking;
 }
 
 /** True when a test case's title cites a clause as "clause N:", the fleet's naming rule for clause cases. */
@@ -269,12 +333,29 @@ function testStep(item, testClauses) {
  * so the builder never retypes a case name or spends a second run after a green runner proof; a run of only some of
  * the check's files proves only some of it, so it ticks nothing [C7].
  */
-export function testRunTickNotes(item, files, head) {
+export function testRunTickNotes(item, files, head, { outcomes = [], run = null } = {}) {
   const clauses = criterionClauses(item.item_criterion);
   const ran = new Set(files.map(file => String(file).replace(/^\.\//u, '')));
   const needed = checkTestFiles(item.item_check);
-  if (!clauses.length || !needed.length || !needed.every(file => ran.has(file))) return [];
-  return testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head);
+  if (!clauses.length) return [];
+  if (needed.length) return needed.every(file => ran.has(file)) ? testClauseTickNotes(clauses, `test run of ${files.join(' ')}`, head) : [];
+  return caseTickNotes(clauses, outcomes, { run, head });
+}
+
+/**
+ * One tick note per [test] clause a green run's cases prove by clauseCases, for an item whose check names no test file, citing
+ * the case files, the head, the run id and the case titles. Why: such an item had no tick from its own green run, so its
+ * review checklist stayed empty and accept refused CLAUSE_UNTICKED until a builder hand-typed each note (#10589, #10848) [C7].
+ */
+function caseTickNotes(clauses, outcomes, { run, head }) {
+  return clauses.flatMap(clause => {
+    const cases = clauseCases(clause, clauses, outcomes);
+    if (!cases.length) return [];
+    const files = [...new Set(cases.map(row => row.file))].sort().join(' ');
+    const names = [...new Set(cases.map(row => row.name))];
+    const listed = names.slice(0, NAMED_CASES).join('; ');
+    return [`clause ${clause.number} [test]: green pullboard test run of ${files} at ${head}${run ? `, run ${run}` : ''}: ${names.length} case${names.length === 1 ? '' : 's'} passed (${listed}${names.length > NAMED_CASES ? '; ...' : ''})`];
+  });
 }
 
 /**

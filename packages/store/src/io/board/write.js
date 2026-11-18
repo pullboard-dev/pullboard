@@ -27,6 +27,8 @@ const PREPARE_ATTEMPTS = 4;
 const PREPARATIONS = Object.freeze({
   claim: (board, args) => [args[0], store.prepareClaim(board, args[0], args[1])],
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
+  // A submit seals its git reads, policy, settings and inspection proofs here, so its writer only writes (#10850).
+  submit: (board, args) => [args[0], store.prepareSubmit(board, args[0], args[1]), ...args.slice(2)],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
   reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
   // A verdict on work whose gate has no captured receipt is refused before any write transaction opens (#5561).
@@ -38,6 +40,9 @@ const PREPARATIONS = Object.freeze({
   // A coordinator's bar correction freezes from git (main policy, facts, spec, test hashes); freeze it here, not under the lock.
   editItem: (board, args) => [args[0], prepareEditFreeze(board, args[0], args[1]), ...args.slice(2)],
 });
+
+/** Preparations whose seal re-reads the board and refuses BOARD_BUSY when another connection committed meanwhile; they retry. */
+const SEALED_PREPARATIONS = new Set(['queueSubmitHandoff', 'submit']);
 
 /** The rows an edit's freeze reads from the board: the item, its newest event, and the bar settings and item-keyed metadata. */
 function editFreezeRows(board, id) {
@@ -82,10 +87,14 @@ function refuseUnreceiptedVerdict(board, id) {
 /** Run a verdict's evidence checks with no lock held and mark the options so the writer skips the slow reads. */
 export function prepareVerdictEvidence(board, args) {
   const [id, options] = args;
-  if (!options || (options.knownMainFailures === undefined && options.quarantineProofId === undefined)) return args;
+  if (!options) return args;
+  // The verify table's reads (history, verdicts, flakes, next ids) depend on no write of the verdict; take them here so the writer only decides and writes [#10868].
+  const verifyFacts = options.landed === true ? undefined : store.prepareVerdictFacts(board, id, options);
+  const withFacts = verifyFacts ? { ...options, verifyFacts } : options;
+  if (options.knownMainFailures === undefined && options.quarantineProofId === undefined) return verifyFacts ? [id, withFacts, ...args.slice(2)] : args;
   store.verdictEvidence(board, id, { agentId: options.agentId, isAccept: options.decision === 'ACCEPT', engine: board.executionEngineVersion ?? ENGINE_VERSION,
     review: options.review, knownMainFailures: options.knownMainFailures, quarantineProofId: options.quarantineProofId });
-  return [id, { ...options, prechecked: true }, ...args.slice(2)];
+  return [id, { ...withFacts, prechecked: true }, ...args.slice(2)];
 }
 
 /** Read the shared gate-run and flake histories with no lock held. */
@@ -192,8 +201,8 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
       });
     } catch (error) {
       rollbackPrepared?.();
-      // Claim preparation already owns its bounded retries; only queue sealing needs this outer retry.
-      if (preparing && operation !== 'queueSubmitHandoff') throw observedWriterRecords(error);
+      // Claim preparation already owns its bounded retries; only queue and submit sealing need this outer retry (#10850).
+      if (preparing && !SEALED_PREPARATIONS.has(operation)) throw observedWriterRecords(error);
       // The lock is released here, so a final refusal can read the machine write log to name its writer (#6016).
       if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw observedWriterRecords(error);
       // Jitter outside the rolled-back transaction, so contending preparations stop retrying in step (#6016).

@@ -2,6 +2,7 @@
 /** The pre-commit shared reads answer each cells plan shard as one record, however many paths a commit stages [C7,#10657]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
@@ -54,4 +55,37 @@ test('commits.io-hooks.shard-read-small-commit: clause 2: a staged change under 
   assert.equal(seen.HEAD.shard, '{"cell":"api","paths":[]}\n');
   assert.equal(seen[':index'].shard, '{"cell":"api","paths":[],"changed":true}\n');
   assert.equal(seen.HEAD.plan, JSON.stringify({ cells: [{ file: SHARD }] }));
+});
+
+const BRIEF = 'Slice.\nFiles:\n- packages/alpha/src/a.js\n- packages/alpha/tests/a.test.js\nCaller files: packages/beta/src/b.js:3.\n';
+
+/** A seat in lane web whose claimed item names two packages/alpha files; the staged change edits the given paths. */
+function laneChange(t, laneMode, edited) {
+  const graph = fixtureCommittedGraph('pullboard-lanes-off-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('pullboard.json', JSON.stringify({ gate: 'true', laneMode, lanes: { web: { owns: ['web/'], specs: ['G1'] } } }) + '\n');
+  for (const path of ['packages/alpha/src/a.js', 'packages/alpha/tests/a.test.js', 'packages/beta/src/b.js']) graph.put(path, 'original\n');
+  graph.commit();
+  for (const path of edited) graph.put(path, 'edited\n');
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  const claimed = [{ item_brief: BRIEF, item_files: '' }];
+  const board = { prepare: () => ({ all: () => claimed }), close: () => {} };
+  return preCommitProblems({ root, isMain: false, agent: { agent_lane: 'web', agent_id: 'seat-1' }, boardFile: join(root, 'board.sqlite'),
+    config: { protect: { blocked: [], allowed: [], secrets: false } }, approvedRowPorts: { checkLoosening: () => [], openBoardReadOnly: () => board } });
+}
+
+test('commits.io-hooks.lanes-off-own-cells-pass: clause 1: with laneMode off a staged change touching only the cells of the claimed item\'s named files passes [C7,#8907]', t => {
+  assert.deepEqual(laneChange(t, 'off', ['packages/alpha/src/a.js', 'packages/alpha/tests/a.test.js']), []);
+});
+
+test('commits.io-hooks.lanes-off-foreign-cell-refused: clause 2: with laneMode off a staged path outside those cells is refused naming the path [C7,#8907]', t => {
+  const problems = laneChange(t, 'off', ['packages/alpha/src/a.js', 'packages/beta/src/b.js']);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /outside the web lane: packages\/beta\/src\/b\.js/u);
+});
+
+test('commits.io-hooks.lanes-on-unchanged: clause 2: with laneMode on the named cells are not owned and the lane folders decide [C7,#8907]', t => {
+  const problems = laneChange(t, 'on', ['packages/alpha/src/a.js']);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /outside the web lane: packages\/alpha\/src\/a\.js/u);
 });
