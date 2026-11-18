@@ -11,7 +11,7 @@ import { registerSecondProject } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
 import { login } from '../../tests/fixtures/relay/auth.js';
 
-test('a minted device session stays cancellable after its device grant expires [H5,N26]', async (t) => {
+test('cli.journeys-relay-main.a-minted-device-session-stays-cancellable: a minted device session stays cancellable after its device grant expires [H5,N26]', async (t) => {
   const box = await fixture(t);
   const prior = await login(box);
   const grantStarted = box.now();
@@ -35,7 +35,7 @@ test('a minted device session stays cancellable after its device grant expires [
   assert.deepEqual(await box.auth.cancelDevice('pd_' + 'x'.repeat(43)), { cancelled: false }, 'an unknown ticket is never treated as cleaned up');
 });
 
-test('device-session cleanup survives grant pruning but ends at session expiry [H5,N26]', async (t) => {
+test('cli.journeys-relay-main.device-session-cleanup-survives-grant-pruning: device-session cleanup survives grant pruning but ends at session expiry [H5,N26]', async (t) => {
   const box = await fixture(t, { sessionTTL: 30 * 60_000 });
   const prior = await login(box);
   const grantStarted = box.now();
@@ -60,7 +60,7 @@ test('device-session cleanup survives grant pruning but ends at session expiry [
   await assert.rejects(box.auth.pollDevice(grant.ticket), { code: 'OAUTH_EXPIRED' }, 'an expired cleanup receipt never restores poll access');
 });
 
-test('linking every board stops cleanly when the sign-in is declined or cancelled [H5,N26]', async (t) => {
+test('cli.journeys-relay-main.linking-every-board-stops-cleanly-when: linking every board stops cleanly when the sign-in is declined or cancelled [H5,N26]', async (t) => {
   for (const scenario of ['already-cancelled', 'declined', 'expired', 'cancelled-during-sign-in', 'cancelled-after-sign-in']) await t.test(scenario, async (t) => {
     const box = await relayClientFixture(t);
     const second = await registerSecondProject(box);

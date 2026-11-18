@@ -31,7 +31,7 @@ function fixture(t, clock) {
   return { board, builder, id, claim, project, freeze };
 }
 
-test('withdrawn summary and detail keep the actual open, claimed or submitted origin [A2,C15,N26]', t => {
+test('cli.journeys-settings-reason.withdrawn-summary-and-detail-keep-the: withdrawn summary and detail keep the actual open, claimed or submitted origin [A2,C15,N26]', t => {
   for (const stage of ['open', 'claimed', 'submitted']) {
     const f = fixture(t);
     if (stage !== 'open') f.claim();
@@ -58,7 +58,7 @@ test('withdrawn summary and detail keep the actual open, claimed or submitted or
   }
 });
 
-test('non-withdrawn items carry explicit null withdrawal facts [A2,C15,N26]', t => {
+test('cli.journeys-settings-reason.non-withdrawn-items-carry-explicit-null: non-withdrawn items carry explicit null withdrawal facts [A2,C15,N26]', t => {
   const f = fixture(t);
   for (const claim of [false, true]) {
     if (claim) f.claim();
@@ -71,7 +71,7 @@ test('non-withdrawn items carry explicit null withdrawal facts [A2,C15,N26]', t 
   }
 });
 
-test('withdrawal origin requires recorded history, never a guessed current stage [A2,C15,N26]', () => {
+test('cli.journeys-settings-reason.withdrawal-origin-requires-recorded-history-never: withdrawal origin requires recorded history, never a guessed current stage [A2,C15,N26]', () => {
   assert.equal(withdrawnFrom([], 'withdrawn'), null);
   assert.equal(withdrawnFrom([{ kind: 'withdraw', at: '2026-10-30T00:00:00Z' }], 'withdrawn'), null);
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim' }], 'withdrawn'), null);
@@ -81,7 +81,7 @@ test('withdrawal origin requires recorded history, never a guessed current stage
   assert.equal(withdrawnFrom([{ kind: 'add' }, { kind: 'claim', leaseUntil: 'invalid' }, { kind: 'withdraw', at: '2026-10-30T00:00:00Z' }], 'withdrawn'), null);
 });
 
-test('withdrawal uses the public stage at the recorded lease expiry boundary [A2,C15,N26]', t => {
+test('cli.journeys-settings-reason.withdrawal-uses-the-public-stage-at: withdrawal uses the public stage at the recorded lease expiry boundary [A2,C15,N26]', t => {
   for (const offset of [-1, 0, 1]) {
     let now = Date.parse('2026-10-30T00:00:00Z');
     const f = fixture(t, { now: () => new Date(now) });
@@ -100,7 +100,7 @@ test('withdrawal uses the public stage at the recorded lease expiry boundary [A2
   }
 });
 
-test('legacy hosted snapshots replay the same withdrawal lifecycle including retained refreezes [A2,C15,N26]', t => {
+test('cli.journeys-settings-reason.legacy-hosted-snapshots-replay-the-same: legacy hosted snapshots replay the same withdrawal lifecycle including retained refreezes [A2,C15,N26]', t => {
   const f = fixture(t);
   f.claim();
   store.editItem(f.board, f.id, { agentId: 'coordinator', criterion: 'Corrected promise', reason: 'Clarify the bar', freeze: f.freeze });
@@ -119,7 +119,7 @@ test('legacy hosted snapshots replay the same withdrawal lifecycle including ret
   assert.throws(() => snapshotState(malformed, boardId), { code: 'RELAY_SNAPSHOT' });
 });
 
-test('withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
+test('cli.journeys-settings-reason.withdrawal-facts-agree-in-http-summary: withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
   const box = await httpBox(t);
   // @pullboard-board-file journey: HTTP and sealed readers must observe the same persisted withdrawal.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));

@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
 import { runRunnerScript } from './pull/ssh.js';
+import { trunkGit } from './tooling/committed.js';
 import { pullWord } from './pull/scripts.js';
 import { localNetworkHost } from '../logic/service.js';
 import { serviceForm } from '../logic/service.js';
@@ -209,7 +210,7 @@ export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entr
 
 /** Run git in the trunk store; a non-zero exit rejects with its message. */
 function defaultGit(store) {
-  return args => new Promise((done, fail) => execFile('git', ['--git-dir', store, ...args], { timeout: REFRESH_MS }, (error, _out, stderr) => error ? fail(new Error(String(stderr || error.message).trim())) : done()));
+  return args => trunkGit(store, args, REFRESH_MS);
 }
 
 /**

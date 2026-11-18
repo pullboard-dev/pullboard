@@ -8,7 +8,7 @@ import {
   test,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', t => {
+test('cli.journeys-fact-team-events.a-landing-lease-renewal-or-waiter: a landing lease renewal or waiter poll writes no board event [Q1,Q2,Q3]', t => {
   const directory = '/fixture/lease-events';
   let milliseconds = Date.parse('2026-01-01T00:00:00Z');
   const board = fixtureBoard(t, { clock: { now: () => new Date(milliseconds) } });
