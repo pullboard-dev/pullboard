@@ -48,9 +48,35 @@ const IMPORT_BEFORE = /(?:\bfrom|\bimport\s*\(?)\s*$/u;
 // A data file a module reads next to itself is written `new URL('./file', import.meta.url)`; it is part of the closure too.
 const URL_BEFORE = /\bnew\s+URL\s*\(\s*$/u;
 const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
+// The files that hold the entries a runner job runs from its install: each is a template string written into the tooling root, so its imports are relative to the repo root (#10826).
+const ENTRY_SOURCES = ['apps/cli/src/io/submit/gate.js', 'apps/cli/src/io/submit/pull.js', 'apps/cli/src/io/fixture-memo-warm.js'];
+const ENTRY_TEMPLATE = /\b([A-Z][A-Z_]*ENTRY) = `((?:[^`\\]|\\.)*)`/gu;
+const ENTRY_IMPORT = /'(\.\/[\w./-]+\.js)'/gu;
 
 /**
- * The service entry and every repo file it imports, by repo path. Only Node built-ins may be imported from outside the
+ * The trusted entries a runner job runs from its install, with the repo files each one names in an import, by repo path.
+ * Why: a job on a board whose main is not Pullboard's own tree runs these from the runner's install, so the install must carry what they import, though service.js never does (#10826).
+ * An import of a file the repo lacks is an optional one the entry guards, so it is left out.
+ *
+ * @param {string} [root] - The repo root.
+ * @returns {{ name: string, text: string, imports: string[] }[]}
+ */
+export function trustedEntries(root = REPO) {
+  const entries = [];
+  for (const source of ENTRY_SOURCES) {
+    let text;
+    try { text = readFileSync(posix.join(root, source), 'utf8'); } catch (error) { if (error?.code === 'ENOENT') continue; throw error; }
+    for (const [, name, template] of text.matchAll(ENTRY_TEMPLATE)) {
+      const imports = [...new Set([...template.matchAll(ENTRY_IMPORT)].map(match => match[1].slice(2)))]
+        .filter(path => statSync(posix.join(root, path), { throwIfNoEntry: false })?.isFile());
+      entries.push({ name, text: template, imports });
+    }
+  }
+  return entries;
+}
+
+/**
+ * The service entry and every repo file it imports, plus what every trusted job entry imports, by repo path. Only Node built-ins may be imported from outside the
  * repo, so the runner needs nothing installed but Node.
  *
  * @param {string} [root] - The repo root.
@@ -59,7 +85,7 @@ const URL_AFTER = /^\s*,\s*import\.meta\.url\b/u;
  */
 export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   const files = {};
-  const pending = [entry];
+  const pending = [entry, ...trustedEntries(root).flatMap(trusted => trusted.imports)];
   const generated = new Set();
   const present = new Set();
   let bytes = 0;
