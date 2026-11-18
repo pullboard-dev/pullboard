@@ -15,6 +15,8 @@ function boardFor(t, snapshot, shadow) {
   const over = {};
   const board = cellBoard(t, ':memory:', { now: () => new Date(snapshot.now) });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.outcome on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { outcome: false };
   const sql = board.db;
   for (const { name } of sql.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'machine_item%'").all()) sql.exec(`DROP TRIGGER ${name}`);
   const { item } = snapshot;

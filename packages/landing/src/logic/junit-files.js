@@ -12,6 +12,8 @@ export const JUNIT_FILE_ROWS = Object.fromEntries(LANGUAGES.filter(row => row.ca
  */
 export function junitFile(language, row) {
   if (row.file) return row.file;
+  // A gradle report cannot say Java or Kotlin: the kotlin row's path when row.kotlin is true, else the java row's path, both read from the rows above, never a second table.
+  if (language === 'gradle') return (row.kotlin === true ? JUNIT_FILE_ROWS.kotlin : JUNIT_FILE_ROWS.java)(row);
   const named = Object.hasOwn(JUNIT_FILE_ROWS, language) ? JUNIT_FILE_ROWS[language] : null;
   const map = named ?? LANGUAGES.find(candidate => candidate.language === language)?.cases?.file ?? null;
   return map ? map(row) : null;

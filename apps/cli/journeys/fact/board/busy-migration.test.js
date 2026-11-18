@@ -43,7 +43,7 @@ function longWrites(stderr) {
     .map(line => JSON.parse(line.slice('pullboard: long board write '.length)));
 }
 
-test('native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', async () => {
+test('cli.journeys-fact-board-busy-migration.native-import-observes-committed-and-rolled: native import observes committed and rolled-back write ownership without changing restored rows [A7,C7,P4]', async () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private restored item', '--specs', 'G1', '--criterion', 'the private page renders', '--json');
@@ -114,7 +114,7 @@ test('native import observes committed and rolled-back write ownership without c
   }
 });
 
-test('journal conversion reports total wait-plus-hold separately and preserves its result [C7,P4]', () => {
+test('cli.journeys-fact-board-busy-migration.journal-conversion-reports-total-wait-plus: journal conversion reports total wait-plus-hold separately and preserves its result [C7,P4]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -164,7 +164,7 @@ test('journal conversion reports total wait-plus-hold separately and preserves i
   assert.deepEqual(snapshot(file), before);
 });
 
-test('a failed owning migration rolls back schema, index and stamp work together [A5,A6,C7]', () => {
+test('cli.journeys-fact-board-busy-migration.a-failed-owning-migration-rolls-back: a failed owning migration rolls back schema, index and stamp work together [A5,A6,C7]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const installed = join(box.dir, 'installed-rollback-cli');
@@ -207,7 +207,7 @@ test('a failed owning migration rolls back schema, index and stamp work together
   assert.equal(boardWriteHolderText(file), '');
 });
 
-test('a pre-BEGIN contender is labelled waiting or holding and cleaned on refusal [C7,P4,B2]', t => {
+test('cli.journeys-fact-board-busy-migration.a-pre-begin-contender-is-labelled: a pre-BEGIN contender is labelled waiting or holding and cleaned on refusal [C7,P4,B2]', t => {
   const box = e2e.project();
   const file = join(box.repo, '.git/pullboard/board.sqlite');
   const db = new DatabaseSync(file);
