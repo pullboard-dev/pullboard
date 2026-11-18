@@ -22,13 +22,13 @@ function fixture(t, job = {}) {
   return { board, id };
 }
 
-test('the item\'s green gate on exactly this merged tree is the landing proof, with no rerun [C7,#2902]', t => {
+test('lib.landing-tree.the-item-s-green-gate-on: the item\'s green gate on exactly this merged tree is the landing proof, with no rerun [C7,#2902]', t => {
   const { board, id } = fixture(t);
   const proven = provenTreeGate(board, [{ id, commit: COMMIT }], TREE);
   assert.deepEqual(proven, { isGreen: true, tree: TREE, failures: [], logPath: null, reusedSubmitGate: 'job-1' });
 });
 
-test('a different tree, commit, bar, gate state or a multi-item batch runs the plan as before [C7,#2902]', t => {
+test('lib.landing-tree.a-different-tree-commit-bar-gate: a different tree, commit, bar, gate state or a multi-item batch runs the plan as before [C7,#2902]', t => {
   const { board, id } = fixture(t);
   assert.equal(provenTreeGate(board, [{ id, commit: COMMIT }], 'u'.repeat(40)), null, 'main moved, so the merged tree differs');
   assert.equal(provenTreeGate(board, [{ id, commit: 'd'.repeat(40) }], TREE), null, 'another head');
@@ -39,7 +39,7 @@ test('a different tree, commit, bar, gate state or a multi-item batch runs the p
   assert.equal(provenTreeGate(rebarred.board, [{ id: rebarred.id, commit: COMMIT }], TREE), null, 'a changed bar needs its own run');
 });
 
-test('the landing proof keeps the reused submit receipt id, and a fresh gate run records none [C7,#2902]', t => {
+test('lib.landing-tree.the-landing-proof-keeps-the-reused: the landing proof keeps the reused submit receipt id, and a fresh gate run records none [C7,#2902]', t => {
   const { board, id } = fixture(t);
   const reused = provenTreeGate(board, [{ id, commit: COMMIT }], TREE);
   assert.deepEqual(landingProof(reused, () => assert.fail('a green reuse needs no waiver')),
@@ -49,7 +49,7 @@ test('the landing proof keeps the reused submit receipt id, and a fresh gate run
   assert.equal(landingProof({ isGreen: false }, () => 'waived'), 'waived');
 });
 
-test('#6816 clauses 1-2: the trunk-move guards are gone from step/trunk.js and named nowhere in the tree [C7,#6816]', () => {
+test('lib.landing-tree.clauses-1-2-the-trunk-move: #6816 clauses 1-2: the trunk-move guards are gone from step/trunk.js and named nowhere in the tree [C7,#6816]', () => {
   const root = fileURLToPath(new URL('../../../../', import.meta.url));
   // The names are split so this test does not name them; git grep exits 1 when nothing matches.
   for (const name of ['followMoved' + 'Trunk', 'reusedAcross' + 'Move', 'quick' + 'Guards']) {

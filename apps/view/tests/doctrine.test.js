@@ -1,5 +1,4 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-input packages/doctrine/src/io/standard.md */
+/** @pullboard-test-input docs/rfcs/0001-standard-doctrine.md packages/doctrine/src/io/standard.md */
 /** Standard doctrine and repo overrides (D1–D4), using real private files. */
 import assert from 'node:assert/strict';
 import {
@@ -33,7 +32,7 @@ function practiceBox(t, text, name = 'PRACTICE.md') {
   return { root, config: { practice: name } };
 }
 
-test('standard version1 retains twelve rules with the approved PB9 trailer amendment [D1,D2,C7]', (t) => {
+test('view.x-doctrine.standard-version1-retains-twelve-rules-with-the: standard version1 retains twelve rules with the approved PB9 trailer amendment [D1,D2,C7]', (t) => {
   const standard = standardDoctrine();
   const rfc = parseSpec(readFileSync(new URL('../../../docs/rfcs/0001-standard-doctrine.md', import.meta.url), 'utf8'));
   /** Comparable rule fields; the packaged file legitimately has different source lines. */
@@ -52,7 +51,7 @@ test('standard version1 retains twelve rules with the approved PB9 trailer amend
   assert.ok(merged.rows.every((row) => row.origin === 'standard' && row.version === 1));
 });
 
-test('repo rules override and decline inherited rows with a reason, keeping source labels and legacy text [D2,D3,D4]', (t) => {
+test('view.x-doctrine.repo-rules-override-and-decline-inherited-rows: repo rules override and decline inherited rows with a reason, keeping source labels and legacy text [D2,D3,D4]', (t) => {
   const text = '# Local rules\n\n## Team\n- PB2 [approved, must] Deletion needs two approvals. | gate: review\n- PB8 [wont] No persistent data is stored.\n- R1 [fact] An existing local rule.\n';
   const box = practiceBox(t, text, 'ways.md');
   const merged = loadDoctrine(box.root, box.config);
@@ -70,7 +69,7 @@ test('repo rules override and decline inherited rows with a reason, keeping sour
   assert.match(doctrineText(merged), /PB8 \(repo\).*No persistent data/);
 });
 
-test('a missing or blank decline reason fails lint, and duplicate repo overrides are not silently discarded [D3]', (t) => {
+test('view.x-doctrine.a-missing-or-blank-decline-reason-fails: a missing or blank decline reason fails lint, and duplicate repo overrides are not silently discarded [D3]', (t) => {
   const box = practiceBox(t);
   for (const trailing of ['   ', '    | gate: review']) {
     writeFileSync(join(box.root, 'PRACTICE.md'), '# Rules\n\n## Local\n- PB2 [wont]' + trailing + '\n');
@@ -82,7 +81,7 @@ test('a missing or blank decline reason fails lint, and duplicate repo overrides
 });
 
 
-test('cold-start run pack uses configured legacy practice and labels each source [D2,D3,D4]', (t) => {
+test('view.x-doctrine.cold-start-run-pack-uses-configured-legacy: cold-start run pack uses configured legacy practice and labels each source [D2,D3,D4]', (t) => {
   const text = '# Legacy rules\n\n## Local\n- PB2 [fact] Delete only after review.\n- PB8 [wont] This fixture stores no secrets.\n- R1 [fact] The legacy rule stays.\n';
   const box = practiceBox(t, text, 'ways.md');
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify({ gate: 'true', spec: 'SPEC.md', practice: 'ways.md', lanes: { core: { owns: ['src/'] } } }));
@@ -95,7 +94,7 @@ test('cold-start run pack uses configured legacy practice and labels each source
   assert.equal(readFileSync(join(box.root, 'ways.md'), 'utf8'), text);
 });
 
-test('a shared section heading renders inherited and repo rules once each [D1,D3]', (t) => {
+test('view.x-doctrine.a-shared-section-heading-renders-inherited-and: a shared section heading renders inherited and repo rules once each [D1,D3]', (t) => {
   const box = practiceBox(t, '# Local rules\n\n## Rules\n- PB2 [fact] A repo override.\n- R1 [fact] A repo addition.\n');
   const practice = loadDoctrine(box.root, box.config);
   const html = renderSpecView({ title: 'Fixture', spec: parseSpec('# Fixture\n\n## Goals\n- G1 [fact] A goal.\n'), practice, signoffs: [], generatedAt: 'fixture', files: { spec: 'SPEC.md', practice: 'PRACTICE.md' } });

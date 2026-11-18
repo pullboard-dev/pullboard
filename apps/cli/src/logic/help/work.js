@@ -1,3 +1,14 @@
+/** What each build reason does to the release-twice hold, printed under `pullboard release` in the full help and in `help release`. */
+export const RELEASE_REASON_LINES = Object.freeze([
+  'INELIGIBLE   too big, stale or not buildable as written: counts toward the release-twice hold',
+  'ROUTED_ELSEWHERE  belongs to another route or lane: counts toward the release-twice hold',
+  'BLOCKED      waits on other items (name them with --on): counts toward the release-twice hold',
+  'BUDGET       your budget ran out: counts toward the release-twice hold',
+  'TAKEN_OVER   another seat took the work: does not count toward the release-twice hold',
+  'OTHER        none of these: does not count toward the release-twice hold, so the item comes back to the next seat',
+  'INELIGIBLE, BLOCKED, BUDGET and ROUTED_ELSEWHERE count toward the release-twice hold; OTHER and TAKEN_OVER do not',
+]);
+
 /** Preserved work command-group help, composed in its original display order. */
 export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
@@ -8,6 +19,7 @@ export const workHelp = `Work
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
     [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
     [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
+    [--here "reason"]                   file an item whose files belong to another board here anyway, saying why
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -135,9 +147,10 @@ export const workHelp = `Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
+${RELEASE_REASON_LINES.map(line => `                                        ${line}`).join('\n')}
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
-  pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
+  pullboard ship [id] [--note text]       commit staged work, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--companion <patch> --key <key> --author <seat>] [--wait] [--no-next]  needs a clean tree; companions auto-attach with an owner objection window (alias: done)
                                         --precheck: run cheap submit checks only, without cells or gate
                                         --dry-run-review: with line setting bar.dryRunReview on, print the verifier checklist first (advisory, no verdict)
@@ -174,7 +187,7 @@ export const workHelp = `Work
                                         answer your decision; person mode is main-checkout only
                                         repo#id answers a sibling repo's decision on its own board
                                         Other options: [--implies <ids>] [--supersedes <answer-id>]
-                                                      [--origin person-relayed|agent|inherited] [--rationale <why>]
+                                                      [--origin person-relayed|agent|inherited] [--rationale <why>] [--cause <key>]
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person

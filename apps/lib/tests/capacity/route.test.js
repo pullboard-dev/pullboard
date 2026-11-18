@@ -65,7 +65,7 @@ function fixture(t) {
   return { directory, root, file, board, clock, config, scan, addFree, freeze, seat, present, shortages };
 }
 
-test('the coordinator is told to split work when a route has more idle seats than free items [A6,N2,B13]', t => {
+test('lib.capacity-route.the-coordinator-is-told-to-split-work: the coordinator is told to split work when a route has more idle seats than free items [A6,N2,B13]', t => {
   const box = fixture(t);
   const agents = [1, 2].map(number => store.register(box.board,
     { lane: 'core', path: join(box.directory, 'seat-' + number), route: 'mid' }));
@@ -93,7 +93,7 @@ test('the coordinator is told to split work when a route has more idle seats tha
 });
 
 
-test('idle seats count once at their top route and lower work remains compatible [N2,B13]', t => {
+test('lib.capacity-route.idle-seats-count-once-at-their-top: idle seats count once at their top route and lower work remains compatible [N2,B13]', t => {
   const box = fixture(t);
   const seats = [box.seat('light', 'light'), box.seat('mid'), box.seat('strong', 'strong')];
   // A light item is offered only once a capable seat has diagnosed it, as next's own eligibility requires [N2,B13].
@@ -112,7 +112,7 @@ test('idle seats count once at their top route and lower work remains compatible
   assert.deepEqual(box.shortages(), [], 'strong work resolves only the strong group; lower groups keep their light work');
 });
 
-test('held and dependency-blocked items do not hide a route work shortage [A6,N2,B13]', t => {
+test('lib.capacity-route.held-and-dependency-blocked-items-do-not: held and dependency-blocked items do not hide a route work shortage [A6,N2,B13]', t => {
   const box = fixture(t);
   const seats = [box.seat('one'), box.seat('two')];
   const free = box.addFree('Free work');
@@ -126,7 +126,7 @@ test('held and dependency-blocked items do not hide a route work shortage [A6,N2
   assert.deepEqual(box.shortages(), [{ route: 'mid', free: 0, idle: 2 }], 'a lane hold removes its otherwise free work');
 });
 
-test('recently joined, busy and retired seats do not inflate idle route capacity [A6,N2,B13]', t => {
+test('lib.capacity-route.recently-joined-busy-and-retired-seats-do: recently joined, busy and retired seats do not inflate idle route capacity [A6,N2,B13]', t => {
   const box = fixture(t);
   const idle = box.seat('idle');
   box.seat('retired');
@@ -141,7 +141,7 @@ test('recently joined, busy and retired seats do not inflate idle route capacity
 });
 
 
-test('ready capacity reads current items and lane holds once per projection [C7,N2]', t => {
+test('lib.capacity-route.ready-capacity-reads-current-items-and-lane: ready capacity reads current items and lane holds once per projection [C7,N2]', t => {
   const box = fixture(t);
   const ids = Array.from({ length: 12 }, (_, index) => box.addFree(`Capacity ${index}`, index === 2 ? { reviewFamily: 'Claude' } : {}));
   box.addFree('Dependency blocked', { after: [ids[0]] });

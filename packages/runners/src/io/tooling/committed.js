@@ -1,4 +1,5 @@
 /** Export runner controllers from immutable Git objects, independently of checkout edits [O5,C7]. */
+import { gitSpawn } from '../../../../git/index.js';
 import { gitSpawnSync } from '../../../../git/index.js';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -256,4 +257,22 @@ export function committedRunnerController(root, { shared = false } = {}) {
     if (target && inUse.has(target)) unlease(target);
     throw error;
   }
+}
+
+/**
+ * Run git against a runner's trunk store through the Git adapter; a non-zero exit, a stop or a launch error rejects with git's own words.
+ * Why: the service refresh archives a trunk commit with it, and a literal launch there grew the launch allowance (#10824, #10882) [C7].
+ * @param {string} store The trunk git directory.
+ * @param {string[]} args The git arguments after --git-dir.
+ * @param {number} timeout Milliseconds before git is stopped.
+ * @returns {Promise<void>}
+ */
+export function trunkGit(store, args, timeout) {
+  return new Promise((done, fail) => {
+    let stderr = '';
+    const child = gitSpawn(['--git-dir', store, ...args], { timeout, stdio: ['ignore', 'ignore', 'pipe'] });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.on('error', error => fail(new Error(String(error.message).trim())));
+    child.on('close', (code, signal) => code === 0 ? done() : fail(new Error(stderr.trim() || `git ${args[0]} ${signal ? `was stopped by ${signal}` : `exited ${code}`}`)));
+  });
 }

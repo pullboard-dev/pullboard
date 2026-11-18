@@ -47,7 +47,7 @@ function editRule(box, from, to) {
   return box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("clause 2: a doctrine rule's check holds its count when its row is demoted, shown at submit [D1,D3,C7]", async t => {
+test('cli.journeys-doctrine-checks-demoted.a-doctrine-rule-s-check-holds: clause 2: a doctrine rule\'s check holds its count when its row is demoted, shown at submit [D1,D3,C7]', async t => {
   const box = await checkedProject('count: 2');
   const file = join(box.repo, 'DOCTRINE.md');
   const committed = readFileSync(file, 'utf8');

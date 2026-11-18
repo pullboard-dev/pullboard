@@ -45,7 +45,7 @@ function fixture(extra = {}) {
 
 const FACTS = { cells: ['a', 'b'], deepImporters: {} };
 
-test('clause 1: a conforming cell test passes, a cell test that spawns the CLI and an unlisted root test are findings naming their rule [C7]', () => {
+test('cli.journeys-test-cells.a-conforming-cell-test-passes-a: clause 1: a conforming cell test passes, a cell test that spawns the CLI and an unlisted root test are findings naming their rule [C7]', () => {
   const root = fixture();
   const rows = classifyTests(root);
   const byFile = Object.fromEntries(rows.map(row => [row.file, row]));
@@ -57,7 +57,7 @@ test('clause 1: a conforming cell test passes, a cell test that spawns the CLI a
   assert.deepEqual(Object.keys(testCellsReport(root, { facts: FACTS }).findings).sort(), ['packages/b/tests/spawns.test.js', 'test/unlisted.test.js']);
 });
 
-test('clause 1: a root test listed as a journey with a reason is not a finding, and a cell test importing another cell past a leaf door is [C7]', () => {
+test('cli.journeys-test-cells.a-root-test-listed-as-a: clause 1: a root test listed as a journey with a reason is not a finding, and a cell test importing another cell past a leaf door is [C7]', () => {
   const root = fixture({
     'packages/gate/data/tests/test-cells.json': JSON.stringify({ journeys: { 'test/unlisted.test.js': 'drives the whole CLI' }, pureHelpers: [], leaves: [], findings: {}, rootTests: 1, sealed: [] }),
     'packages/a/tests/reaches.test.js': "import { b } from '../../b/index.js';\nexport const x = b;\n",
@@ -70,7 +70,7 @@ test('clause 1: a root test listed as a journey with a reason is not a finding, 
   assert.equal(leafed.kind, 'cell');
 });
 
-test('clause 2: the ratchet refuses a new finding and a higher root test count, and the write only lowers [C7]', () => {
+test('cli.journeys-test-cells.the-ratchet-refuses-a-new-finding: clause 2: the ratchet refuses a new finding and a higher root test count, and the write only lowers [C7]', () => {
   const root = fixture();
   assert.equal(writeTestCells(root, { initialize: true }).length, 0);
   const listing = readListing(root);
@@ -85,7 +85,7 @@ test('clause 2: the ratchet refuses a new finding and a higher root test count, 
   assert.equal(readListing(root).rootTests, 1, 'nothing was recorded');
 });
 
-test('clause 3: a cell with only conforming tests reports sealed, one with a finding or a deep importer does not, and a lost seal is refused [C7]', () => {
+test('cli.journeys-test-cells.a-cell-with-only-conforming-tests: clause 3: a cell with only conforming tests reports sealed, one with a finding or a deep importer does not, and a lost seal is refused [C7]', () => {
   const root = fixture();
   const cells = Object.fromEntries(testCellsReport(root, { facts: FACTS }).cells.map(row => [row.cell, row]));
   assert.equal(cells.a.sealed, true);
@@ -101,7 +101,7 @@ test('clause 3: a cell with only conforming tests reports sealed, one with a fin
   assert.ok(readFileSync(join(root, 'packages/gate/data/tests/test-cells.json'), 'utf8').includes('journeys'));
 });
 
-test('clause 1: a cell test that imports front doors of cells below it is the component tier; one above it or past a front door is a finding [C7,V23]', () => {
+test('cli.journeys-test-cells.a-cell-test-that-imports-front: clause 1: a cell test that imports front doors of cells below it is the component tier; one above it or past a front door is a finding [C7,V23]', () => {
   const root = fixture({
     'packages/gate/data/tests/cell-order.json': JSON.stringify({ order: ['b', 'a'] }),
     'packages/b/src/inner.js': 'export const inner = 1;\n',
@@ -118,7 +118,7 @@ test('clause 1: a cell test that imports front doors of cells below it is the co
   assert.equal(rows['packages/b/tests/upward.test.js'].kind, 'finding', 'a cell above is still a finding');
 });
 
-test('clause 2: a test in apps/<name>/tests importing its own app is its own cell, not a finding [C7]', () => {
+test('cli.journeys-test-cells.a-test-in-apps-name-tests: clause 2: a test in apps/<name>/tests importing its own app is its own cell, not a finding [C7]', () => {
   const root = fixture({
     'apps/r/index.js': 'export const r = 1;\n',
     'apps/r/tests/own.test.js': "import { r } from '../index.js';\nexport const x = r;\n",
@@ -128,7 +128,7 @@ test('clause 2: a test in apps/<name>/tests importing its own app is its own cel
   assert.deepEqual([row.kind, row.problems], ['cell', []]);
 });
 
-test('clause 3: a listed pure helper may be imported by a cell test, and a listed helper that launches the CLI is refused [C7]', () => {
+test('cli.journeys-test-cells.a-listed-pure-helper-may-be: clause 3: a listed pure helper may be imported by a cell test, and a listed helper that launches the CLI is refused [C7]', () => {
   const root = fixture({
     'test/pure.js': "import { tmpdir } from 'node:os';\nexport const where = tmpdir;\n",
     'test/impure.js': "import { spawnSync } from 'node:child_process';\nexport const run = () => spawnSync('node', ['apps/cli/pullboard.js', 'list']);\n",
@@ -147,7 +147,7 @@ test('clause 3: a listed pure helper may be imported by a cell test, and a liste
   assert.ok(!problems.some(text => text.startsWith('test/pure.js') || text.startsWith('test/uses-door.js')), 'a helper that launches nothing is not refused');
 });
 
-test('clause 1: a listed root test moved into its cell keeps its finding, and a brand-new cell test with a finding is refused; clause 2: the write re-keys it [C7]', () => {
+test('cli.journeys-test-cells.a-listed-root-test-moved-into: clause 1: a listed root test moved into its cell keeps its finding, and a brand-new cell test with a finding is refused; clause 2: the write re-keys it [C7]', () => {
   const root = fixture({
     'packages/gate/data/tests/test-cells.json': JSON.stringify({ journeys: {}, pureHelpers: [], leaves: [], findings: { 'test/moved.test.js': 'unlisted root test', 'test/unlisted.test.js': 'unlisted root test', 'packages/b/tests/spawns.test.js': 'spawns the CLI' }, rootTests: 1, sealed: [] }),
     'packages/a/tests/moved.test.js': "import { b } from '../../b/index.js';\nexport const x = b;\n",
@@ -164,7 +164,7 @@ test('clause 1: a listed root test moved into its cell keeps its finding, and a 
   assert.equal(written.rootTests, 1);
 });
 
-test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper chain reaching a CLI launcher, never a data string [C7]', () => {
+test('cli.journeys-test-cells.a-cli-launch-is-a-spawn: clause 1: a CLI launch is a spawn call naming the CLI or a test helper chain reaching a CLI launcher, never a data string [C7]', () => {
   assert.equal(spawnsCli("const row = { check: 'node apps/cli/pullboard.js spec check' };\n"), false, 'a data string launches nothing');
   assert.equal(spawnsCli("const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');\nrunFixtureChild(process.execPath, [BIN, 'list']);\n"), true);
   const root = fixture({
@@ -179,14 +179,14 @@ test('clause 1: a CLI launch is a spawn call naming the CLI or a test helper cha
   assert.match(rows['packages/a/tests/chain.test.js'].problems.at(-1).text, /spawns or reaches the CLI/u);
 });
 
-test('clause 1: a hooks install is an installHooks call or a hooksPath set to a folder, never a disable or an output string [C7]', () => {
+test('cli.journeys-test-cells.a-hooks-install-is-an-installhooks: clause 1: a hooks install is an installHooks call or a hooksPath set to a folder, never a disable or an output string [C7]', () => {
   assert.equal(installsHooks("runFixtureChild('git', ['-c', 'core.hooksPath=/dev/null', 'commit']);\n"), false, 'pointing hooks at /dev/null disables them');
   assert.equal(installsHooks("const expected = ['set core.hooksPath to .githooks'];\n"), false, 'an expected output line installs nothing');
   assert.equal(installsHooks('installHooks(root);\n'), true);
   assert.equal(installsHooks("spawnSync('git', ['config', 'core.hooksPath', '.githooks']);\n"), true);
 });
 
-test('clause 1: a declared split counts as its one source and its targets carry the source finding; clause 2: a bad split is refused [C7]', () => {
+test('cli.journeys-test-cells.a-declared-split-counts-as-its: clause 1: a declared split counts as its one source and its targets carry the source finding; clause 2: a bad split is refused [C7]', () => {
   const root = fixture({
     'packages/gate/data/tests/test-cells.json': JSON.stringify({ journeys: {}, pureHelpers: [], leaves: [], findings: { 'test/slow.test.js': 'unlisted root test', 'test/unlisted.test.js': 'unlisted root test', 'packages/b/tests/spawns.test.js': 'spawns the CLI' }, rootTests: 2, sealed: [],
       splits: { 'test/slow.test.js': ['test/slow-a.test.js', 'test/slow-b.test.js', 'test/slow-c.test.js'] } }),
@@ -205,7 +205,7 @@ test('clause 1: a declared split counts as its one source and its targets carry 
   assert.ok(texts.includes('split target test/slow-a.test.js sits in two splits, test/slow.test.js and test/other.test.js'), texts.join('\n'));
 });
 
-test('clause 1: a test in a later app cell importing an earlier app\'s light.js is a component test, not a deep import [C7]', () => {
+test('cli.journeys-test-cells.a-test-in-a-later-app: clause 1: a test in a later app cell importing an earlier app\'s light.js is a component test, not a deep import [C7]', () => {
   const order = new Map([['apps/view', 1], ['apps/relay', 2]]);
   const reading = target => cellTestReading('apps/relay/tests/page.test.js', `import { x } from '${target}';\nexport { x };\n`, { order });
   const door = reading('../../view/light.js');
@@ -214,7 +214,7 @@ test('clause 1: a test in a later app cell importing an earlier app\'s light.js 
   assert.equal(reading('../../view/src/core/view.js').problems.length, 1, 'a deep import past the door stays refused');
 });
 
-test('clause 1: a listed helper that spawns the CLI through process.execPath by a path function is not pure, one spawning an unrelated script is [C7,#4621]', () => {
+test('cli.journeys-test-cells.a-listed-helper-that-spawns-the: clause 1: a listed helper that spawns the CLI through process.execPath by a path function is not pure, one spawning an unrelated script is [C7,#4621]', () => {
   const root = fixture({
     'apps/cli/pullboard.js': 'export const main = 0;\n',
     'apps/cli/tests/fixtures/launcher.js': "import { join } from 'node:path';\nfunction resolveBin() {\n  return join(import.meta.dirname, '../../pullboard.js');\n}\nconst BIN = resolveBin();\nexport const run = () => runFixtureChild(process.execPath, [BIN, 'list']);\n",
@@ -225,7 +225,7 @@ test('clause 1: a listed helper that spawns the CLI through process.execPath by 
   assert.deepEqual(problems, ['apps/cli/tests/fixtures/launcher.js: listed as a pure helper but it launches the CLI or installs hooks']);
 });
 
-test('clause 2: the real submit gate fixture is not pure [C7,#4621]', () => {
+test('cli.journeys-test-cells.the-real-submit-gate-fixture-is: clause 2: the real submit gate fixture is not pure [C7,#4621]', () => {
   const root = join(import.meta.dirname, '../../../..');
   const gate = 'apps/cli/tests/fixtures/submit/gate.js';
   assert.equal(impurePureHelpers(root, { pureHelpers: { [gate]: 'claimed pure' } }).length, 1);

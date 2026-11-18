@@ -12,7 +12,7 @@ import { inputCoverage } from '../../src/logic/input-coverage.js';
 const READS = "import { readFileSync } from 'node:fs';\nreadFileSync('x');\n";
 const PURE = "import { test } from 'node:test';\ntest('a', () => {});\n";
 
-test('clause 1: inputCoverage(files) returns per cell the counts tests, readers, declared and undeclared [C7,#9800]', () => {
+test('gate.logic-input-coverage.inputcoverage-files-returns-per-cell: clause 1: inputCoverage(files) returns per cell the counts tests, readers, declared and undeclared [C7,#9800]', () => {
   const coverage = inputCoverage([
     { path: 'packages/gate/tests/a.test.js', text: READS },
     { path: 'packages/gate/tests/b.test.js', text: `/** @pullboard-test-input source-cell gate */\n${READS}` },
@@ -29,7 +29,7 @@ test('clause 1: inputCoverage(files) returns per cell the counts tests, readers,
   assert.deepEqual(inputCoverage([]), {});
 });
 
-test('clause 2: it reads only the file texts it is given and spawns no child process [C7,#9800]', () => {
+test('gate.logic-input-coverage.it-reads-only-the-file: clause 2: it reads only the file texts it is given and spawns no child process [C7,#9800]', () => {
   const source = readFileSync(new URL('../../src/logic/input-coverage.js', import.meta.url), 'utf8');
   const imports = source.split('\n').filter(line => line.startsWith('import ')).join('\n');
   assert.doesNotMatch(imports, /child_process|node:fs/u);
@@ -47,7 +47,7 @@ function closure(file, seen = new Set()) {
   return seen;
 }
 
-test('clause 3: input-coverage reaches no io module through its imports, so the io check never runs on load [C7,#10084]', () => {
+test('gate.logic-input-coverage.input-coverage-reaches-no-io: clause 3: input-coverage reaches no io module through its imports, so the io check never runs on load [C7,#10084]', () => {
   const reached = [...closure(fileURLToPath(new URL('../../src/logic/input-coverage.js', import.meta.url)))];
   assert.ok(reached.some(file => file.endsWith('/logic/input-declaration.js')), 'the header rules now live in logic');
   assert.deepEqual(reached.filter(file => /\/gate\/src\/io\//u.test(file)), []);

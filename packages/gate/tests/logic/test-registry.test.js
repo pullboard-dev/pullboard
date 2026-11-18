@@ -8,7 +8,7 @@ const golden = [{ file: 'apps/cli/journeys/init/gate.test.js' }];
 const registeredCells = ['packages/spec'];
 const run = added => unregisteredNewTests({ added, registeredCells, records, golden });
 
-test('clause 1: a finding per added test whose cell has no registry, whose title has no ID, or whose ID has no record, each naming file and next step [C7,U148]', () => {
+test('gate.logic-test-registry.a-finding-per-added-test-whose: clause 1: a finding per added test whose cell has no registry, whose title has no ID, or whose ID has no record, each naming file and next step [C7,U148]', () => {
   const noCell = run([{ path: 'packages/other/tests/a.test.js', text: "test('x.y: a', () => {});" }]);
   assert.deepEqual(noCell.map(f => f.code), ['CELL_NO_REGISTRY']);
   const noId = run([{ path: 'packages/spec/tests/a.test.js', text: "test('plain title', () => {});\ntest('spec.sig.ok: fine', () => {});" }]);
@@ -21,7 +21,7 @@ test('clause 1: a finding per added test whose cell has no registry, whose title
   }
 });
 
-test('clause 2: an added journey no golden path names is a finding; golden journeys, registered tests and an empty change give none [C7,U148]', () => {
+test('gate.logic-test-registry.an-added-journey-no-golden-path: clause 2: an added journey no golden path names is a finding; golden journeys, registered tests and an empty change give none [C7,U148]', () => {
   const lone = run([{ path: 'apps/cli/journeys/new/thing.test.js', text: '' }]);
   assert.deepEqual(lone.map(f => f.code), ['JOURNEY_NO_PATH']);
   assert.ok(lone[0].next.includes('golden.json'));
