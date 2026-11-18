@@ -1,0 +1,17 @@
+{
+  "cli.journeys-hooks-cross-lane.claimed-cells-pass": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With laneMode off, a commit touching only the cells of a claimed item from another lane passes pre-commit."
+    },
+    "why": "Without it, a seat from another lane could claim an item and still be refused its own cells at commit.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/journeys/hooks/cross-lane.test.js",
+      "packages/commits/src/io/hooks.js",
+      "packages/store/src/io/eligibility.js"
+    ]
+  }
+}
