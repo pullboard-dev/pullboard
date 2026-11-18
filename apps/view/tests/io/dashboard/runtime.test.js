@@ -6,7 +6,7 @@ import { dashboardRuntime } from '../../../index.js';
 /** Drain only the already queued read-promise callbacks, without a timer or absence assertion. */
 async function delivered() { for (let index = 0; index < 6; index++) await Promise.resolve(); }
 
-test('Dashboard refuses truncated history and isolates a replaced board at the same root [N26]', async t => {
+test('view.x-io-dashboard-runtime.dashboard-refuses-truncated-history-and-isolates-a: Dashboard refuses truncated history and isolates a replaced board at the same root [N26]', async t => {
   const previous = globalThis.document;
   const region = { innerHTML: '', querySelectorAll: () => [] };
   globalThis.document = { getElementById: () => region };
