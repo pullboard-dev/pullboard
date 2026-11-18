@@ -311,6 +311,18 @@ const PREPARED_CLAIMS = new WeakMap();
 const CLAIM_PREPARE_ATTEMPTS = 5;
 
 /**
+ * The item-keyed board_meta key families a claim reads, each as the key text before the item id.
+ * Why: exact keys are served by the meta_key primary key; a LIKE '%:<id>' read cannot use any index and scanned the table.
+ */
+const ITEM_META_FAMILIES = [
+  'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
+  'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
+  'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
+];
+
+/**
  * The rows a prepared claim depends on: the item (its holder, lease, bar and after-links), the state of each
  * dependency, its own events and item-keyed metadata (check baseline, bar revision and sign-off, machine
  * verification), its pending re-freeze, and the spec decisions and bar setting the freeze reads. Every guard runs
@@ -320,13 +332,14 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
  * @param {number} id
  * @returns {string}
  */
-function claimRows(board, id) {
+export function claimRows(board, id) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null;
   const dependencies = item ? itemDependencies.localDependencyIds(item).map(dependency =>
     board.db.prepare('SELECT item_id,item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency) ?? null) : [];
   const lastEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(id)?.id ?? null;
-  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
-    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id));
+  const keys = ['row_decisions', 'bar_ready_setting', ...ITEM_META_FAMILIES.map(family => `${family}${id}`)];
+  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN (${keys.map(() => '?').join(',')})
+    ORDER BY meta_key`).all(...keys);
   return JSON.stringify({ item, dependencies, lastEvent, meta, refreeze: pendingRefreeze(board, id) });
 }
 
@@ -400,16 +413,24 @@ export function claim(board, id, options, ports) {
 /**
  * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
  * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
- * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ * Atomics.wait. Only the claim's own rows can make the preparation stale, as for a plain claim (#6016): under the
+ * whole-board check any heartbeat or fact another process wrote meanwhile refused BOARD_BUSY, the caller skipped the
+ * witness, and review could never reuse that gate's proof (#10942). The one read beyond those rows, that the admission
+ * id is unused, is checked again under the lock against the events written since the snapshot [C7].
  */
 export function admitSubmit(board, id, options, ports) {
   const snapshot = boardWriteSnapshot(board);
   const rows = claimRows(board, id);
   const plan = claimPlan(board, id, options, ports);
   ports.checkedItemMove(board, id, 'claim', plan.how.checks);
-  const binding = { board, id, snapshot, rows, strict: true, plan };
+  const binding = { board, id, snapshot, rows, strict: false, plan, admissionSince: snapshot.eventId };
   if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
   return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
+}
+
+/** Whether a claim or renewal written after event `since` already used this submit admission id; a primary-key range read. */
+function admissionUsedSince(board, since, admissionId) {
+  return Boolean(board.db.prepare("SELECT 1 FROM event WHERE event_id > ? AND event_kind IN ('claim','renew') AND json_valid(event_detail) AND json_extract(event_detail,'$.submitAdmission.id')=? LIMIT 1").get(since, admissionId));
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
@@ -432,6 +453,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+    if (admission && Number.isSafeInteger(binding.admissionSince) && admissionUsedSince(board, binding.admissionSince, admission.id)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
     const frozen = plan.frozen();
     const renewed = isRenewal(item);

@@ -7,6 +7,7 @@ import { selectTestTiers } from './test/tier/selection.js';
 import { testTierProofFiles } from './test/tier/selection.js';
 import { testTierReport } from './test/tier/selection.js';
 import { requireSealedSkips } from './test/tier/selection.js';
+import { canaryTests } from './test/tier/selection.js';
 import { startReceipt } from './receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -126,7 +127,8 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const deferFullFallback = !testTiers && deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
   const deferSelection = !testTiers && deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
-  const invariants = testTiers ? [] : advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
+  // A project with no tier manifest runs its canary on every submit, deferred or not; tier units already carry it [C7,#10874].
+  const invariants = testTiers ? [] : advancePlan?.invariants ?? [...new Set([...(deferred ? config.submitInvariants ?? [] : []), ...canaryTests(root, commit)])].sort();
   const registryGuards = testTiers ? [] : advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, commit, changed, git }),
     ...selectTestTreeGuards(root, { base, trunk, commit, changed })])].sort();
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {

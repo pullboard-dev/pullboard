@@ -7,4 +7,4 @@ import {
   withBoard,
 } from '../../../tests/fixtures/scenarios/team.js';
 
-test('a non-approver device without a signed member list receives no board key [H15,E17]', async t => memberHandoverCase(t, { helpers, withBoard }));
+test('cli.journeys-fact-team-handover.a-non-approver-device-without-a: a non-approver device without a signed member list receives no board key [H15,E17]', async t => memberHandoverCase(t, { helpers, withBoard }));

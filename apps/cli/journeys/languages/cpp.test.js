@@ -14,7 +14,7 @@ import { writeProject } from '../../tests/fixtures/languages/cpp.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: init in a copy of the scratch CMake project records its ctest command as the gate [C7,#10515]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-cpp.init-in-a-copy-of-the: clause 1: init in a copy of the scratch CMake project records its ctest command as the gate [C7,#10515]', { timeout: 240_000 }, async (t) => {
   if (!CMAKE) return t.skip(UNAVAILABLE);
   const box = cmakeSandbox(helpers);
   const repo = join(box.dir, 'project');

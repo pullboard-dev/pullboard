@@ -221,7 +221,7 @@ export const ITEM_SLOTS = Object.freeze({
   recordSelectorGap: [[0, 'itemId']], closeLandingTestDefect: [[0, 'item']],
   createItemSlice: [[0, 'parentId']],
   completeSubmitHandoff: [[0]], deferOwnership: [[0]], objectItemPatch: [[0]],
-  queueSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
+  queueSubmitHandoff: [[0]], recaptureSubmitHandoff: [[0]], relandAccepted: [[0]], startSubmitHandoff: [[0]],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
   recordExitProgress: [[0, 'item']],
   recordCoordinatorUsage: [], recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],

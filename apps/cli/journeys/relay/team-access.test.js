@@ -36,7 +36,7 @@ function linkState(root) {
 }
 
 /** Exercise rolling leases through real CLI syncs without changing a credential database directly. */
-test('clause 1: a used machine stays signed in, and clause 2: health warns before expiry [H5,H16]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: hang ceiling for real CLI and relay round trips; not a speed target.
+test('cli.journeys-relay-team-access.a-used-machine-stays-signed-in: clause 1: a used machine stays signed in, and clause 2: health warns before expiry [H5,H16]', { timeout: relayWorkBudgetMs(12) }, async (t) => { // budget: hang ceiling for real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
   const { auth, root } = box;
@@ -87,7 +87,7 @@ test('clause 1: a used machine stays signed in, and clause 2: health warns befor
 });
 
 /** Renewal retains the live principal and repeats current access checks rather than minting new authority. */
-test('clause 1: rolling renewal preserves credential scope, revocation and awaited expiry [H2,H5,H16]', async (t) => {
+test('cli.journeys-relay-team-access.rolling-renewal-preserves-credential-scope-revocation: clause 1: rolling renewal preserves credential scope, revocation and awaited expiry [H2,H5,H16]', async (t) => {
   const provider = await githubFixture(t);
   const root = privateFixtureFiles('pullboard-renewal-boundary-').root;
   const database = join(root, 'auth.sqlite');
@@ -134,7 +134,7 @@ test('clause 1: rolling renewal preserves credential scope, revocation and await
 
 
 /** The old relay delegates an unknown auth route to the real common API boundary. */
-test('clause 1: successful sync tolerates the legacy relay renewal endpoint refusal [H5,H16]', async (t) => {
+test('cli.journeys-relay-team-access.successful-sync-tolerates-the-legacy-relay: clause 1: successful sync tolerates the legacy relay renewal endpoint refusal [H5,H16]', async (t) => {
   const scratch = privateFixtureFiles('pullboard-legacy-renewal-').root;
   const provider = await githubFixture(t);
   let now = Date.now();
@@ -181,7 +181,7 @@ test('clause 1: successful sync tolerates the legacy relay renewal endpoint refu
 });
 
 /** Issue in the past through auth clock injection, then let the real client half-life rule rotate now. */
-test('clause 1: coordinator half-life rotation preserves a rolling monthly credential [H5,H16]', async (t) => {
+test('cli.journeys-relay-team-access.coordinator-half-life-rotation-preserves-a: clause 1: coordinator half-life rotation preserves a rolling monthly credential [H5,H16]', async (t) => {
   const provider = await githubFixture(t);
   const scratch = privateFixtureFiles('pullboard-coordinator-rotation-').root;
   const DAY = 86_400_000;

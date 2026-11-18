@@ -95,7 +95,7 @@ function codexPrefixes(contents) {
     });
 }
 
-test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', async t => {
+test('cli.journeys-init-permissions.init-grants-the-agent-the-permissions: init grants the agent the permissions the Pullboard loop needs [I1,I2]', async t => {
   const syntheticHome = join(resolve(tmpdir()), 'permission-scope-user');
   assert.equal(machineHomeWriteScopeIsNarrow(join(syntheticHome, '.pullboard'), syntheticHome), true, 'a private machine-home below the OS home is eligible for a write grant');
   assert.equal(machineHomeWriteScopeIsNarrow(syntheticHome, syntheticHome), false, 'the OS home itself is never granted');
@@ -211,7 +211,7 @@ test('init grants the agent the permissions the Pullboard loop needs [I1,I2]', a
   assert.equal(readFileSync(skipCodexPath, 'utf8'), skipCodexBytes, '--no-permissions preserves existing Codex rules byte-for-byte');
 });
 
-test('init edits a simple Codex config and keeps a pullboard server already there [A9,I1]', async (t) => {
+test('cli.journeys-init-permissions.init-edits-a-simple-codex-config: init edits a simple Codex config and keeps a pullboard server already there [A9,I1]', async (t) => {
   // Every line is in the simple subset, so init appends the table once, or keeps the file when pullboard is there.
   for (const [existing, codex] of [
     ['[mcp_servers.pullboard] # the team runs it here\ncommand = "pullboard"\nargs = ["mcp"]\n', 'kept'],
@@ -237,7 +237,7 @@ test('init edits a simple Codex config and keeps a pullboard server already ther
   }
 });
 
-test('init leaves a Codex config outside the simple subset as written, prints the exact block and marks Codex manual [A9,I1]', async (t) => {
+test('cli.journeys-init-permissions.init-leaves-a-codex-config-outside: init leaves a Codex config outside the simple subset as written, prints the exact block and marks Codex manual [A9,I1]', async (t) => {
   // Outside the subset init never rewrites the person's TOML; it prints the one block for them to add.
   for (const existing of [
     'mcp_servers = { other = { command = "other-server", args = ["serve"] } }\n',
