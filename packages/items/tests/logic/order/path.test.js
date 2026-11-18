@@ -40,7 +40,7 @@ function walk() {
   return [...outside].sort();
 }
 
-test("items.logic-order-path.engine-numbers-from-light-door: clause 2: path.js imports the engine numbers from the state light door and its static imports never reach the state barrel or the state machine [C7,#6480]", () => {
+test('items.logic-order-path.engine-numbers-from-light-door: clause 2: path.js imports the engine numbers from the state light door and its static imports never reach the state barrel or the state machine [C7,#6480]', () => {
   const source = readFileSync(ENTRY, "utf8");
   assert.match(source, /import \{ CRITICAL_PATH_ENGINE \} from "[./]*state\/light\.js"/u);
   assert.match(source, /import \{ ENGINE_VERSION \} from "[./]*state\/light\.js"/u);
