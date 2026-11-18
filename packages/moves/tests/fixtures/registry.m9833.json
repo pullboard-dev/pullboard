@@ -1,0 +1,3 @@
+{
+  "moves.io-table-release-records.no-skipped-event-ids": {"proves":{"specs":["C7"],"claim":"release-records.js holds no list of skipped recorded event ids."},"why":"Without this test, a regression where the release replay skipped a recorded event by its id would pass unnoticed and hide a release the table decides differently.","kind":"cell unit","inputs":["packages/moves/src/io/table/release-records.js"]}
+}
