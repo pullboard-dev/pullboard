@@ -48,7 +48,7 @@ export { gitOut, fileVersions, committedIds } from './src/io/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline, knownGreenBaseline, guardGreenCheck } from './src/io/baseline/check.js';
 export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/logic/known/main/reworks.js';
 export { recordKnownMainStatic } from './src/io/board/fact.js';
-export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
+export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayMachineStateFile, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
 export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
