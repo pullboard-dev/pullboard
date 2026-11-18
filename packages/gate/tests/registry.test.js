@@ -114,6 +114,16 @@ test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each car
   assert.equal(ids.length, 40, 'all 40 tests of the logic b files are registered');
 });
 
+test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['assumptions', 'budgets', 'clone', 'edges', 'engine-lazy-door', 'imports', 'keepalive'];
+  const files = names.map((name) => join(DIR, "io", name + ".test.js")).map((file) => ({ file, source: readFileSync(file, "utf8") }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith("registry.json:"));
+  assert.deepEqual(mine, [], "every test in those files is titled with a registered ID");
+  assert.equal(ids.length, 32, 'all 32 tests of the io top-level a files are registered');
+});
+
 test('gate.registry.io-moves-to-watchdog: clause 3: [C7,U148] the io folders moves through watchdog, style.test.js excepted, each carry an ID in every test title and one record per ID', () => {
   const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
   const folders = ['moves', 'paths', 'requeue', 'run', 'scripts', 'shards', 'slot', 'static', 'submit', 'sync', 'test', 'watchdog'];
@@ -153,4 +163,14 @@ test('gate.registry.top-left: clause 2: [C7,U148] the journey parity, run-tests-
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
   assert.equal(ids.length, 32, `all 32 tests of those files are registered (${ids.length})`);
+});
+
+test('gate.registry.logic-all: clause 1: [C7,U148] every test file under the logic folder carries an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const files = testFiles(join(DIR, 'logic')).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  assert.ok(files.length >= 47, 'the logic folder is present');
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in the logic folder is titled with a registered ID');
+  assert.ok(ids.length >= 216, 'all 216 tests of the logic folder are registered');
 });
