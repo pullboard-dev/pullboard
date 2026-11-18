@@ -182,3 +182,13 @@ test('store.io-write-queue-file.fifty-claims-from-separate-processes-reach: clau
   assert.equal(new Set(rows.map(row => row.claim)).size, 50, 'every claim landed once');
   assert.deepEqual(rows.map(row => row.seq), rows.map(row => row.seq).slice().sort((a, b) => a - b), 'board event order equals queue order');
 });
+
+test('store.io-write-queue-file.a-write-published-beside-a-far-ahead-record-takes-a-higher-number: clause 2: a write published while another record with a far-ahead sequence number is visible takes a sequence number above it [C7,#11021]', async () => {
+  const dir = privateFixtureFiles('pullboard-wqf-').root;
+  const far = (Date.now() + 3_600_000) * 1000;
+  writeFileSync(join(dir, 'far.pending'), JSON.stringify({ seq: far, pid: 2_147_483_646 }));
+  let taken = 0;
+  const outcome = await createFileWriteQueue(dir).submit({ id: 'late', run: seq => { taken = seq; return seq; } });
+  assert.equal(outcome.ok, true);
+  assert.ok(taken > far, `the late write took ${taken}, not above the visible ${far}`);
+});

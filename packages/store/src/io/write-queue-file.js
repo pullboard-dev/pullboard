@@ -9,7 +9,7 @@
  * synchronous: a transaction cannot stay open across an await. Without the ports each write runs alone, as before.
  *
  * Layout in `dir`: `<id>.pending` (the write waits), `<id>.result` ({ ok, value } or { ok: false, error }), and
- * `drain.lock` (the process now draining). Records are written to a temp name and renamed, so a reader never sees half.
+ * `drain.lock` (the process now draining) and `publish.lock` (the process now taking a sequence number). Records are written to a temp name and renamed, so a reader never sees half.
  */
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -23,6 +23,7 @@ import { writeFileAtomic } from './atomic.js';
 
 const LOCK_STALE_MS = 5_000;
 const LOCK_RETRY_MS = 5;
+const PUBLISH_WAIT = new Int32Array(new SharedArrayBuffer(4));
 
 /** Read a JSON record, or null when it is missing or unreadable. */
 function readRecord(file) {
@@ -39,7 +40,7 @@ function lockIsStale(lock) {
   try { return Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS; } catch { return false; }
 }
 
-/** Take the drain lock without blocking; true when this process now holds it. */
+/** Take a lock without blocking; true when this process now holds it. */
 function takeLock(lock) {
   try { mkdirSync(lock); } catch (error) {
     if (error.code !== 'EEXIST') throw error;
@@ -48,6 +49,9 @@ function takeLock(lock) {
   writeFileSync(join(lock, `${process.pid}.holder`), '');
   return true;
 }
+
+/** Wait a few ms, blocking this thread: the publish step is synchronous so writes submitted in one turn keep their order. */
+const nap = ms => Atomics.wait(PUBLISH_WAIT, 0, 0, ms);
 
 /** Wait a few ms without blocking the event loop. */
 const pause = ms => new Promise(done => setTimeout(done, ms));
@@ -63,8 +67,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   const lock = join(dir, 'drain.lock');
   const resultFile = id => join(dir, `${id}.result`);
   const pendingFile = id => join(dir, `${id}.pending`);
+  const publishLock = join(dir, 'publish.lock');
   const runs = new Map();
-  let counter = 0;
 
   /** True when `pid` is a live process. */
   function alive(pid) {
@@ -84,6 +88,27 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
       }
       return true;
     });
+  }
+
+  /** The highest sequence number among the records visible now, or 0. */
+  function highestVisibleSeq() {
+    let highest = 0;
+    for (const name of readdirSync(dir)) if (name.endsWith('.pending')) highest = Math.max(highest, readRecord(join(dir, name))?.seq ?? 0);
+    return highest;
+  }
+
+  /**
+   * Make write `id` visible, the one place a sequence number is taken. Under a short publish lock the number is the
+   * larger of the clock and one above the highest visible record, so sequence order is visibility order: a process
+   * stalled before publishing takes a number above every record already visible, never below one that ran [C7,#11021].
+   */
+  function publish(id) {
+    while (!takeLock(publishLock)) {
+      if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
+      else nap(LOCK_RETRY_MS);
+    }
+    try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
+    finally { rmSync(publishLock, { recursive: true, force: true }); }
   }
 
   /** Store a write's outcome and clear its pending record. */
@@ -134,7 +159,7 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
     async submit({ id, run }) {
       const done = readRecord(resultFile(id));
       if (done) return done;
-      if (!existsSync(pendingFile(id))) writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Date.now() * 1000 + (counter++ % 1000), pid: process.pid }));
+      if (!existsSync(pendingFile(id))) publish(id);
       runs.set(id, run);
       if (transaction) await new Promise(done => queueMicrotask(done)); // let every write submitted in this turn queue before the drain
       for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
