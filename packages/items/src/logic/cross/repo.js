@@ -1,5 +1,6 @@
 /** Foreign prerequisites use only the authenticated receiving board's canonical E32 state [B24,E32,H16]. */
 import { boardLinkRecord } from "../../../../kernel/index.js";
+import { boardLinkStates } from "../../../../kernel/index.js";
 import { foreignDependencies } from "../dependencies.js";
 
 /** Resolve one repository against current signed links, never local paths or a submitter status. */
@@ -23,7 +24,7 @@ function stateFor(board, ref, readReceivedBoardState) {
     || state.linkId !== record.linkId || state.generation !== record.generation || state.disclosure !== 'states'
     || !Number.isSafeInteger(state.position) || state.position < 0 || !Array.isArray(state.rows)) return null;
   const items = state.rows.filter(row => row.board === record.child.boardId && row.id === ref.id);
-  if (items.length !== 1 || !['open', 'claimed', 'submitted', 'verified', 'withdrawn'].includes(items[0].state)) return null;
+  if (items.length !== 1 || !boardLinkStates(2).includes(items[0].state)) return null;
   return { board: record.child.boardId, status: items[0].state };
 }
 
