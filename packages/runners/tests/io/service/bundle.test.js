@@ -1,7 +1,6 @@
 /** @pullboard-test-input packages/state/src/logic/engines/** */
 /** The runner service bundle carries every folder the runner lists at run time, and a runner runs from it alone [P7,#8734]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -80,8 +79,8 @@ test('runners.bundle.trusted-entries-closed: clause 1: the bundle holds every re
   assert.deepEqual(missingFromBundle(without, entries), ['apps/cli/src/io/cells/cache.js']);
 });
 
-test('runners.bundle.analysis-entry-links-from-bundle: clause 2: the gate analysis entry written into a bundle folder with no packages/items in the board repo links without a missing module [P7,#10826]', { timeout: 120_000 }, // budget: one bundle write and one node child that stops at its first read of stdin.
-  t => {
+test('runners.bundle.analysis-entry-links-from-bundle: clause 2: every module the gate analysis entry imports links from a bundle folder holding no packages/items of the board repo, with no missing module [P7,#10826]', { timeout: 120_000 }, // budget: one bundle write and the analysis entry's imports linked once.
+  async t => {
     const { root: app } = privateFixtureFiles('pullboard-service-entry-');
     t.after(() => rmSync(app, { recursive: true, force: true }));
     for (const [path, text] of Object.entries(serviceFiles())) {
@@ -90,7 +89,8 @@ test('runners.bundle.analysis-entry-links-from-bundle: clause 2: the gate analys
     }
     writeFileSync(join(app, 'package.json'), '{ "type": "module" }\n');
     const analysis = trustedEntries().find(entry => entry.name === 'ANALYSIS_ENTRY');
-    writeFileSync(join(app, 'pullboard-trusted-entry.mjs'), analysis.text);
-    const child = spawnSync(process.execPath, ['--disable-warning=ExperimentalWarning', 'pullboard-trusted-entry.mjs', app], { cwd: app, input: '{}', encoding: 'utf8', timeout: 100_000 });
-    assert.doesNotMatch(String(child.stderr), /ERR_MODULE_NOT_FOUND|Cannot find module/u, String(child.stderr).slice(0, 1500));
+    assert.ok(analysis.imports.length >= 6, analysis.imports.join(' '));
+    for (const path of analysis.imports) {
+      await assert.doesNotReject(import(pathToFileURL(join(app, path)).href), path);
+    }
   });
