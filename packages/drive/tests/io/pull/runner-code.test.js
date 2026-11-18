@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/drive/src/io/pull.js */
 /** A pull serve rebuilds its own runner code once the board reports a newer trunk commit, after its held jobs post [C7,P7,#10800]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
