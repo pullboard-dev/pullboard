@@ -1,9 +1,11 @@
-import { execFileSync } from 'node:child_process';
+import { checkoutHead } from '../../../../packages/git/index.js';
+import { checkoutRefCommit } from '../../../../packages/git/index.js';
+import { gitExecFileSync } from '../../../../packages/git/index.js';
 import { trunkBranch } from './item/folder.js';
 
 /** Run Git in `root` for one value, or null when Git refuses (no trunk branch, unborn HEAD). */
 function read(root, args) {
-  try { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  try { return gitExecFileSync(args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
   catch { return null; }
 }
 
@@ -25,6 +27,9 @@ function ageText(ms) {
  */
 export function lagLine(root, nowMs) {
   const trunk = trunkBranch(root);
+  // A checkout whose HEAD is the trunk tip, both read from Git's ref files, is zero behind with no Git launch [C7,#5329].
+  const head = checkoutHead(root);
+  if (head !== undefined && head === checkoutRefCommit(root, `refs/heads/${trunk}`)) return null;
   const behind = Number(read(root, ['rev-list', '--count', `HEAD..${trunk}`]));
   if (!Number.isInteger(behind) || behind <= 0) return null;
   const base = read(root, ['merge-base', 'HEAD', trunk]);

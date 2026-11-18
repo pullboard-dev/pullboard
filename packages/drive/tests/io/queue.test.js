@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { fixtureBoard } from '../../../board/tests/fixtures/board.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { takeJob } from '../../../jobs/index.js';
 import { writeStep } from '../../../jobs/index.js';
 import { START_BOUND_MS } from '../../index.js';
@@ -29,7 +29,7 @@ function queued(t, now) {
   return { board, run };
 }
 
-test('a run whose log ends with the worker verdict reports it, not running [C7]: the result record never landed', (t) => {
+test('drive.queue.a-run-whose-log-ends: a run whose log ends with the worker verdict reports it, not running [C7]: the result record never landed', (t) => {
   const { board, run } = queued(t, Date.now());
   takeJob(board.db, run.id, 'test-run:1', { leaseMs: 600_000 });
   writeStep(board.db, run.id, 'running', { pid: 1 });
@@ -42,7 +42,7 @@ test('a run whose log ends with the worker verdict reports it, not running [C7]:
   assert.match(testRunLines(found)[0], /red on host-1 in 47s/u);
 });
 
-test('a run with a recorded result reports green or red [C7]: the board record wins', async (t) => {
+test('drive.queue.a-run-with-a-recorded: a run with a recorded result reports green or red [C7]: the board record wins', async (t) => {
   const { board, run } = queued(t, Date.now());
   await workTestRun(work => work(board), run.id, async () => ({ green: true, runner: 'host-2', seconds: 3, files: ['test/a.test.js'], logPath: run.log }));
   const found = readTestRun(board, run.id);
@@ -50,7 +50,7 @@ test('a run with a recorded result reports green or red [C7]: the board record w
   assert.equal(found.result.seconds, 3);
 });
 
-test('a run no worker took within the start bound reports TEST_RUN_NOT_STARTED [C7]: typed, not queued forever', (t) => {
+test('drive.queue.a-run-no-worker-took: a run no worker took within the start bound reports TEST_RUN_NOT_STARTED [C7]: typed, not queued forever', (t) => {
   const { board, run } = queued(t, Date.now() - START_BOUND_MS - 1000);
   const found = readTestRun(board, run.id);
   assert.equal(found.status, 'refused');
@@ -60,7 +60,7 @@ test('a run no worker took within the start bound reports TEST_RUN_NOT_STARTED [
   assert.equal(readTestRun(fresh.board, fresh.run.id).status, 'queued');
 });
 
-test('a test run whose lease lapsed and whose worker is gone is marked lost and frees its slot [C7]: within 2 minutes', (t) => {
+test('drive.queue.a-test-run-whose-lease: a test run whose lease lapsed and whose worker is gone is marked lost and frees its slot [C7]: within 2 minutes', (t) => {
   const now = Date.now();
   const { board, run } = queued(t, now - 3 * 3_600_000);
   takeJob(board.db, run.id, 'test-run:424242', { now: now - 3 * 3_600_000, leaseMs: 120_000 });
@@ -75,7 +75,7 @@ test('a test run whose lease lapsed and whose worker is gone is marked lost and 
   assert.deepEqual(endLostTestRuns(board.db, { now, alive: () => false }), [], 'a run is ended once');
 });
 
-test('a run with a live lease or a recorded result is never marked lost [C7]', async (t) => {
+test('drive.queue.a-run-with-a-live: a run with a live lease or a recorded result is never marked lost [C7]', async (t) => {
   const { board, run } = queued(t, Date.now());
   takeJob(board.db, run.id, `test-run:${process.pid}`);
   assert.deepEqual(endLostTestRuns(board.db, { alive: () => false }), []);
@@ -84,14 +84,14 @@ test('a run with a live lease or a recorded result is never marked lost [C7]', a
   assert.deepEqual(endLostTestRuns(done.board.db, { now: Date.now() + 3_600_000, alive: () => false }), []);
 });
 
-test('clause 1: the queue names no apps/ path, so its package-to-app ceiling row is gone [C7]', () => {
+test('drive.queue.the-queue-names-no-apps: clause 1: the queue names no apps/ path, so its package-to-app ceiling row is gone [C7]', () => {
   const source = readFileSync(new URL('../../src/io/queue.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /apps\//u);
   const ceilings = JSON.parse(readFileSync(new URL('../../../gate/data/ceilings/cells-edges.json', import.meta.url), 'utf8'));
   assert.equal(ceilings.packageApps['packages/drive/src/io/queue.js'], undefined);
 });
 
-test('clause 1: the worker runs the CLI entry its caller names [C7]', (t) => {
+test('drive.queue.the-worker-runs-the-cli: clause 1: the worker runs the CLI entry its caller names [C7]', (t) => {
   const board = fixtureBoard(t);
   const seen = [];
   queueTestRun({ info: { commonDir: root, root } }, work => work(board), { agent: 'seat', files: ['a.test.js'] },

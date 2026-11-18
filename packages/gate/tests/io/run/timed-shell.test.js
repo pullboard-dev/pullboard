@@ -12,7 +12,7 @@ writeFileSync(request.outputFile, 'stand-in ran: ' + request.timeoutMs);
 process.stdout.write(JSON.stringify({ status: 0 }));
 `;
 
-test('clause 2: a timed run spawns the timedShell entry its caller passes [C7]', () => {
+test('gate.io-run-timed-shell.a-timed-run-spawns-the-timedshell: clause 2: a timed run spawns the timedShell entry its caller passes [C7]', () => {
   const fixture = privateFixtureFiles('pullboard-timed-shell-');
   fixture.write('entry.mjs', STAND_IN);
   const run = runShell(fixture.root, 'echo ignored', { timeoutMs: 20_000, timedShell: join(fixture.root, 'entry.mjs') });
@@ -20,7 +20,7 @@ test('clause 2: a timed run spawns the timedShell entry its caller passes [C7]',
   assert.match(run.output, /stand-in ran: 20000/u);
 });
 
-test('clause 2: a timed run with no entry refuses and names how to pass one [C7]', () => {
+test('gate.io-run-timed-shell.a-timed-run-with-no-entry: clause 2: a timed run with no entry refuses and names how to pass one [C7]', () => {
   const saved = process.env.PULLBOARD_TIMED_SHELL;
   delete process.env.PULLBOARD_TIMED_SHELL;
   try {

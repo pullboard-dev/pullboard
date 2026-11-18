@@ -20,7 +20,7 @@ const { diverge, fixture, git } = hookFixtures({ runFixtureChild, runFixtureGit,
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 
-test('accepted-main merges preserve exact foreign objects on a primary branch named trunk [L3]', (t) => {
+test('doctrine.hooks.accepted-main-merges-preserve-exact: accepted-main merges preserve exact foreign objects on a primary branch named trunk [L3]', (t) => {
   const box = fixture(t, 'trunk');
   diverge(box);
   assert.deepEqual(preCommitProblems({ ...box.context, approvedRowPorts }), []);
@@ -31,7 +31,7 @@ test('accepted-main merges preserve exact foreign objects on a primary branch na
     'the exception ends when the merge ends');
 });
 
-test('owned conflict resolutions commit while foreign edits and mode changes remain refused [L3]', (t) => {
+test('doctrine.hooks.owned-conflict-resolutions-commit-while: owned conflict resolutions commit while foreign edits and mode changes remain refused [L3]', (t) => {
   const box = fixture(t);
   diverge(box, { conflict: true });
   writeFileSync(join(box.lane, 'core', 'file'), 'resolved owned core\n');
@@ -46,7 +46,7 @@ test('owned conflict resolutions commit while foreign edits and mode changes rem
     'an unchanged blob does not authorize a different executable mode');
 });
 
-test('an accepted-main conflict permits a foreign resolution, including literal odd filenames [L3,H16,B26]', (t) => {
+test('doctrine.hooks.an-accepted-main-conflict-permits-a: an accepted-main conflict permits a foreign resolution, including literal odd filenames [L3,H16,B26]', (t) => {
   const box = fixture(t);
   const path = 'view/literal [x] \n file';
   writeFileSync(join(box.main, path), 'base literal\n');
@@ -71,7 +71,7 @@ test('an accepted-main conflict permits a foreign resolution, including literal 
     'a resolved accepted-main conflict may choose new content at its coordinator-owned path');
 });
 
-test('merging an unaccepted branch never authorizes foreign changes [L3]', (t) => {
+test('doctrine.hooks.merging-an-unaccepted-branch-never: merging an unaccepted branch never authorizes foreign changes [L3]', (t) => {
   const box = fixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   git(box.lane, 'add', '-A');

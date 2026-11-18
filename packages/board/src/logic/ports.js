@@ -28,11 +28,6 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
-import { shadowSubmitHandoff } from '../../../jobs/index.js';
-import { reserveReview as reserveReviewLease } from '../../../jobs/index.js';
-import { renewReview } from '../../../jobs/index.js';
-import { reclaimLapsedReviews } from '../../../jobs/index.js';
-import { releaseReview } from '../../../jobs/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,
@@ -174,7 +169,7 @@ const { sealOwnershipWait } = deferred(seal, ['sealOwnershipWait']);
 const { claimHealthSnapshot, conditionalHoldFloor } = deferred(healthPackage, ['claimHealthSnapshot', 'conditionalHoldFloor']);
 const { submitGateConfig, submitGatePlan, sealKnownMainAutofile, submitImportEdges, receiptFields, boardReceiptStore, readGateReceipt, receiptBody, recordReceipt } = deferred(gatePackage, ['submitGateConfig', 'submitGatePlan', 'sealKnownMainAutofile', 'submitImportEdges', 'receiptFields', 'boardReceiptStore', 'readGateReceipt', 'receiptBody', 'recordReceipt']);
 const { policyAt, mainPolicy, frozenCheck, itemPolicy, requireTrunkMerge, submitHandoffBoardRoot, sealSubmitHandoffQueue, advanceItemSource, sourceAdvanceCASProblem, sealSourceAdvance, sealSourceAdvanceReturn } = deferred(sandboxPackage, ['policyAt', 'mainPolicy', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge', 'submitHandoffBoardRoot', 'sealSubmitHandoffQueue', 'advanceItemSource', 'sourceAdvanceCASProblem', 'sealSourceAdvance', 'sealSourceAdvanceReturn']);
-const { validateQuarantineProofIds, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, flakeQuarantines, gateRuns, recordGateRun, requireBound, flakeLedger, recordFlakeObservation } = deferred(flakesPackage, ['validateQuarantineProofIds', 'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'requireBound', 'flakeLedger', 'recordFlakeObservation']);
+const { validateQuarantineProofIds, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, flakeQuarantines, gateRuns, recordGateRun, requireBound, flakeLedger, recordFlakeObservation, landingFlakeRatchet } = deferred(flakesPackage, ['validateQuarantineProofIds', 'quarantineVerdictSnapshot', 'validateQuarantineGate', 'validateQuarantineLandingProof', 'validateQuarantineVerdict', 'recordSealedGateRun', 'sealQuarantineVerdict', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'requireBound', 'flakeLedger', 'recordFlakeObservation', 'landingFlakeRatchet']);
 const { personSigningPresentation, verifiedPasskeyRowDecision, personProposals, personSigning, proposePersonMove, setPersonSigning, signedMoveProblem, exportedMeta, guardRestore, validPresence } = deferred(personPackage, ['personSigningPresentation', 'verifiedPasskeyRowDecision', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'signedMoveProblem', 'exportedMeta', 'guardRestore', 'validPresence']);
 const { personRequestStatuses, requestMoveProblem, recordRequestMove, relayPerson, requestPerson, beginCommandPhase } = deferred(linkPackage, ['personRequestStatuses', 'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson', 'beginCommandPhase']);
 const { projectFit, pendingFit, fitFile } = deferred(blueprintsPackage, ['projectFit', 'pendingFit', 'fitFile']);
@@ -210,7 +205,7 @@ const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);
 export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification }) {
   const nativePorts = Object.freeze({
     patchProof: Object.freeze({ boardReceiptStore, readGateReceipt, submitGateConfig, submitGatePlan, nativeProofBlockingGreen, receiptBlockingGreen }),
-    quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
+    quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds, landingFlakeRatchet }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, shout: store.shout, PERSON: store.PERSON,
@@ -229,8 +224,8 @@ export function nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, de
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
-    shadowJob: shadowSubmitHandoff,
-    reviewLease: Object.freeze({ reserveReview: reserveReviewLease, renewReview, reclaimLapsedReviews, releaseReview }),
+    shadowJob: store.saveSubmitHandoff,
+    reviewLease: store.reviewLeases,
     conditionalHoldFloor, claimedItemRoot,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge, submitImportEdges }),

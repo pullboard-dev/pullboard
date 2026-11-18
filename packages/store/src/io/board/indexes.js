@@ -63,12 +63,13 @@ export function missingAdditiveIndexes(db) {
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
 export function ensureAdditiveIndexes(db) {
-  ensureFactIdentityIndexes(db);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
+  // After the archive table exists, so its fact identity indexes are made too: an older board stays equal to the declared shape.
+  ensureFactIdentityIndexes(db);
 }
 
 /**
@@ -87,7 +88,6 @@ export function missingAdditiveSchema(db) {
  */
 export function ensureAdditiveSchema(db) {
   for (const sql of HOT_INDEXES) db.exec(sql);
-  ensureFactIdentityIndexes(db);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
   db.exec(JOB_SCHEMA_SQL);
@@ -95,6 +95,7 @@ export function ensureAdditiveSchema(db) {
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(GATE_HOP_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
+  ensureFactIdentityIndexes(db);
 }
 
 /**

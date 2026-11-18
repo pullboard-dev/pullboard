@@ -5,7 +5,7 @@ export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LAND
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
 export * from "./src/logic/land/collisions.js";
-export * from "./src/logic/land/guard.js";
+export * from "./src/io/land/guard.js";
 export * from "./src/io/land.js";
 export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
@@ -43,6 +43,7 @@ export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";
 export * from "./src/io/step/selection.js";
+export { landOneByHand } from "./src/io/land/hand.js";
 export * from "./src/io/step/merge.js";
 export * from "./src/io/step/failures.js";
 export * from "./src/io/step/gate.js";
@@ -71,3 +72,5 @@ export { landingMainReds } from "./src/logic/main/ledger.js";
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
 export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";
+/** The runnerCode port the installed runner service is handed: the runners cell's refresh of the service app folder, through the cell the service already loads [P7,#10825]. */
+export { runnerCodeRefresh } from '../runners/index.js';

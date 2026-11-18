@@ -112,7 +112,14 @@ export function milestoneRoadmap(root, board, options = {}) {
   };
   // One landed fact [C7]: a main reader in the ports makes milestone entries and item progress read the commit on main.
   const onMain = typeof ports.onMain === 'function' ? ports.onMain : options.landedFromMain === true ? mainLandedReader(root) : null;
-  const milestones = roadmap(board, resolveExternal, onMain);
+  const unfiltered = roadmap(board, resolveExternal, onMain);
+  // A field filter keeps only the numbered items it names and recounts landed and total over them, so every count below is over the filtered set [C7,#9354].
+  const milestones = typeof options.itemFilter !== 'function' ? unfiltered : unfiltered.map(milestone => {
+    const kept = milestone.items.filter(entry => typeof entry.id === 'number' && options.itemFilter(entry.id));
+    const active = kept.filter(entry => entry.status !== 'withdrawn' || entry.state === 'landed');
+    const landed = active.filter(entry => entry.state === 'landed').length;
+    return { ...milestone, items: kept, landed, done: landed, total: active.length, count: kept.length };
+  });
   const progressById = workProgress(board, { onMain });
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   const holds = new Set(laneHolds(board).map(hold => hold.hold_lane));

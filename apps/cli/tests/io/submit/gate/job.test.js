@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -34,7 +35,7 @@ function fixture(t, red = []) {
   const refuse = (part, code) => red.includes(part) ? `throw Object.assign(new Error('${part} is red'), { name: 'Refused', code: '${code}' });` : '';
   git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
-  put('packages/items/index.js', `export function requireSubmitComposition() { ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
+  put('packages/items/index.js', `import { writeFileSync } from 'node:fs';\nexport function requireSubmitComposition(root, candidate, trunk, main, parentBase) { writeFileSync('parent-base.txt', String(parentBase)); ${refuse('preflight', 'COMPOSITION_RED')} }\n`);
   put('packages/gate/index.js', `export function importsIn() {} export function commonJsIn() {} export function withImportParseCache() {}
 export function foreignNodeOptions() { return false; }
 export function submitGatePlan(root, config, options) { ${refuse('selection', 'SELECTION_RED')}
@@ -44,7 +45,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', `export async function requireSubmitCells(root, main, source) { ${refuse('cells', 'CELLS_SUBMIT')}
   return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n`);
-  put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put('apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('bin/static-checks.js', red.includes('static') ? "console.error('static is red'); process.exitCode = 1;\n" : '');
   git(controller, 'add', '.');
   git(controller, '-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'main');
@@ -87,7 +88,7 @@ async function submitStages(box, runner, artifacts) {
   return { settled, leases };
 }
 
-test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one lease and one runner controller instead of four [C7]', async t => {
+test('cli.io-submit-gate-job.the-four-analysis-parts-make-one-remotesubmitanalysis: clause 1: the four analysis parts make one remoteSubmitAnalysis call, one lease and one runner controller instead of four [C7]', async t => {
   const box = fixture(t), artifacts = join(box.dir, 'artifacts');
   const before = countingRunner(box);
   for (const part of PARTS) await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base: box.main, check: 'x', criterion: 'c',
@@ -102,7 +103,7 @@ test('clause 1: the four analysis parts make one remoteSubmitAnalysis call, one 
   assert.deepEqual(settled[1].value.plan.proofFiles, ['test/a.test.js']);
 });
 
-test('clause 2: a red part refuses with its own code and message, unchanged, while the other parts stay green [C7]', async t => {
+test('cli.io-submit-gate-job.a-red-part-refuses-with-its-own: clause 2: a red part refuses with its own code and message, unchanged, while the other parts stay green [C7]', async t => {
   const expected = { preflight: ['COMPOSITION_RED', /preflight is red/u], selection: ['SELECTION_RED', /selection is red/u],
     cells: ['CELLS_SUBMIT', /cells is red/u], static: ['GATE_RED', /static checks are red.*static is red/su] };
   for (const part of PARTS) {
@@ -118,4 +119,12 @@ test('clause 2: a red part refuses with its own code and message, unchanged, whi
       } else assert.equal(row.status, 'fulfilled', `${PARTS[index]} stays green beside red ${part}`);
     });
   }
+});
+
+test('cli.io-submit-gate-job.the-preflight-passes-the-request-base-to: clause 1: the preflight passes the request base to requireSubmitComposition as the parent base [C7]', async t => {
+  const box = fixture(t), runner = countingRunner(box);
+  const base = box.main;
+  await remoteSubmitAnalysis(box.controller, { main: box.main, source: box.source, trunk: box.main, base, check: 'x', criterion: 'c',
+    composition: box.source, staticChecks: '', config: { affectedTests: 'node apps/cli/src/io/run/tests.js' }, browserFreeChecks: true, readCutItems: () => [], parts: ['preflight'] }, runner.lease, join(box.dir, 'artifacts'));
+  assert.equal(readFileSync(join(box.runner, 'parent-base.txt'), 'utf8'), base, 'the guard receives the base the submission was claimed at');
 });

@@ -12,7 +12,9 @@ import { statSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { storeName } from './store-names.js';
+
+/** The store file name for the record held under a key, with its extension; local so a cold command loads one module fewer (closure-budget) [C7]. */
+function storeName(key, ext = '.json') { return key + ext; }
 
 /** Environment names that carry an agent session id (kept literal so a trace loads no discovery module). */
 const SESSION_ENV = ['CLAUDE_CODE_SESSION_ID', 'CLAUDE_SESSION_ID', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID'];
@@ -205,10 +207,23 @@ export function traceLine(entry) {
  * Every gate job step on the board with its job's item, attempt and lease owner, oldest first; empty on a board that
  * has no job tables yet. Why: the trace shows a gate's internals beside the item's calls and events [C7].
  *
+ * With `runs` (runs_store on) the steps come from the runs file, read only, and each finished run adds one outcome step
+ * from the board's run row [B2,#9013].
+ *
  * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options]
  * @returns {{ id: number, job: string, step: string, at: number, payload: string, kind: string, item: number, attempt: number, owner: string|null }[]}
  */
-export function readJobSteps(db) {
+export function readJobSteps(db, { runs = null } = {}) {
+  if (runs) {
+    const live = runs.db ? readJobSteps(runs.db) : [];
+    let outcomes = [];
+    try {
+      outcomes = db.prepare("SELECT rowid AS n, * FROM run WHERE run_state != 'queued' AND run_item IS NOT NULL ORDER BY run_updated, rowid").all()
+        .map(row => ({ id: 1e9 + row.n, job: row.run_job, step: `outcome:${row.run_outcome ?? row.run_state}`, at: row.run_updated, payload: '', kind: row.run_kind, item: row.run_item, attempt: row.run_attempt, owner: null }));
+    } catch { outcomes = []; }
+    return [...live, ...outcomes].sort((left, right) => left.at - right.at || left.id - right.id);
+  }
   let rows;
   try {
     rows = db.prepare(`SELECT s.job_step_id AS id, s.job_step_job AS job, s.job_step_name AS step, s.job_step_at AS at, s.job_step_payload AS payload,

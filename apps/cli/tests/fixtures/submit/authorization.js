@@ -45,7 +45,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
 `);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
-  put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put('apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('packages/doctrine/index.js', `export async function holdDoctrineAsync(root, options) { ${mark('doctrine')} return [{ rule: 'fixture', commit: options.commit }]; }\n`);
   const outcome = sandbox === 'foreign'
     ? "throw Object.assign(new Error('[OUTSIDE_LANE] outside the web lane: docs/x.md'), { name: 'Refused', code: 'OUTSIDE_LANE', paths: ['docs/x.md'], policy: 'p' });"

@@ -59,7 +59,7 @@ export async function tightenLandingDoctrine(root, config, { onWait, measured } 
     reports = await withGateSlot(root, lease => rules.map(rule => {
       const report = runRuleCheck(root, rule.command, config.check?.timeoutMs, gateSlotEnvironment(lease));
       return { id: rule.id, count: rule.count, found: report.problems.length, broken: report.broken ?? null };
-    }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, remote: false, agent: 'coordinator', kind: 'doctrine', onWait });
+    }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, remote: false, agent: 'coordinator', kind: 'landing', item: 'landing doctrine', onWait });
   }
   if (headCommit(root) !== head || (!isClean(root) || untracked(root).length)) throw new Refused('LAND_DIRTY', 'a doctrine check changed the merged landing tree; inspect it before adopting');
   const uncounted = reports.filter(report => report.broken);

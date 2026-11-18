@@ -33,7 +33,7 @@ function landFixture(t) {
 /** The refusal a runner raises when its checkout is not the queued candidate. */
 const sourceRefusal = () => Object.assign(new Error('the runner checkout is not the queued candidate'), { code: 'RUNNER_SOURCE' });
 
-test('clause 1: RUNNER_SOURCE stops the land job with trunk unmoved, and three refusals on one base hold the item [C7]', async t => {
+test('landing.job.runner-source-stops-the-land-job: clause 1: RUNNER_SOURCE stops the land job with trunk unmoved, and three refusals on one base hold the item [C7]', async t => {
   const box = landFixture(t);
   const before = box.tip();
   const batches = [];
@@ -47,7 +47,7 @@ test('clause 1: RUNNER_SOURCE stops the land job with trunk unmoved, and three r
   assert.equal(runnerSourceHold(batches.slice(0, 2), { item_id: ITEM, item_commit: box.payload.items[0].commit }, before), null, 'two refusals still retry');
 });
 
-test('clause 1: a landing fault is retryable and the next land job lands the same item [C7,#3693]', async t => {
+test('landing.job.a-landing-fault-is-retryable-and: clause 1: a landing fault is retryable and the next land job lands the same item [C7,#3693]', async t => {
   const box = landFixture(t);
   const before = box.tip();
   const fault = Object.assign(new Error('every shard was refused by the runner'), { code: 'LAND_RUNNER_FAULT' });
@@ -59,7 +59,7 @@ test('clause 1: a landing fault is retryable and the next land job lands the sam
   assert.notEqual(box.tip(), before, 'the retry moved trunk');
 });
 
-test('clause 1: a landing whose item trunk already holds reuses it, runs no check and moves nothing [C7]', async t => {
+test('landing.job.a-landing-whose-item-trunk-already: clause 1: a landing whose item trunk already holds reuses it, runs no check and moves nothing [C7]', async t => {
   const box = landFixture(t);
   const first = await runLandingJob(box.payload, { workdir: box.workdir, checks: () => ({ ok: true }) });
   assert.deepEqual(first.landed, [ITEM]);

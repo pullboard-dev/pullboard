@@ -27,6 +27,11 @@ export function relayMachineDirectory() {
   return join(pullboardHome(), 'relay-machine');
 }
 
+/** The relay machine state file, inside the machine's relay settings folder. */
+export function relayMachineStateFile() {
+  return join(relayMachineDirectory(), 'state.json');
+}
+
 /** The machine's relay key folder. */
 export function relayKeyDirectory() {
   return join(pullboardHome(), 'relay-keys');
@@ -88,16 +93,34 @@ export function baselineReceiptDirectory(commonDir) {
 }
 
 /**
+ * Whether the machine's relay state file records nothing due: no linked board, no pending request and no auto-link.
+ * One small file is parsed, with no relay import. Why false on any doubt: a missing, unreadable or odd file is left to the
+ * full path to report [C7].
+ *
+ * @returns {boolean}
+ */
+function relayMachineStateEmpty() {
+  const file = relayMachineStateFile();
+  if (!existsSync(file)) return false;
+  let state;
+  try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { return false; }
+  const none = (value) => value === undefined || Array.isArray(value) && value.length === 0;
+  return Boolean(state && typeof state === 'object' && [1, 2].includes(state.v) && state.autoLink === false
+    && (state.owner ?? null) === null && (state.pending ?? null) === null
+    && none(state.devices) && none(state.revocations) && none(state.approvals));
+}
+
+/**
  * Whether the relay sync, auto-link, person requests or baseline delivery around a command could do anything here:
- * a relay token in the environment, relay state on this machine, a relay link, or a pending baseline result. False
- * only when each of them would return without acting, so skipping them changes nothing.
+ * a relay token in the environment, relay state on this machine that records anything, a relay link, or a pending
+ * baseline result. False only when each of them would return without acting, so skipping them changes nothing.
  *
  * @param {string} cwd
  * @returns {boolean}
  */
 export function syncMayAct(cwd) {
   if (process.env.PULLBOARD_RELAY_TOKEN !== undefined && process.env.PULLBOARD_RELAY_KEY !== undefined) return true;
-  if (existsSync(relayMachineDirectory()) || existsSync(relayKeyDirectory())) return true;
+  if (existsSync(relayKeyDirectory()) || (existsSync(relayMachineDirectory()) && !relayMachineStateEmpty())) return true;
   let info;
   try { info = repoInfo(cwd); }
   catch (error) {

@@ -23,7 +23,7 @@ function seed(owner) {
   board.db.exec('COMMIT');
 }
 
-test('clause 1: inbox, status and heartbeat on a board with 1,900 agent rows spend under 100 ms in seatRecords [C7,#3251]', t => {
+test('items.declaration.seat-records-budget: clause 1: inbox, status and heartbeat on a board with 1,900 agent rows spend under 100 ms in seatRecords [C7,#3251]', t => {
   const board = cellBoard(t, ':memory:');
   seed(board);
   const ids = Array.from({ length: SEATS }, (_, n) => `core-${n}`);

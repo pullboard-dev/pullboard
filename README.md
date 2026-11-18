@@ -442,6 +442,7 @@ The full plan lives in the Roadmap tab in Pullboard View and `pullboard roadmap`
 The reference docs, in reading order.
 
 - `pullboard lifecycle`: how an item moves, state by state.
+- [Glossary](docs/glossary.md): bar, lane, claim, verify and land, in plain words.
 - [CLI JSON API](docs/api.md): every command's output, for scripts and tools.
 - [Unblock path](docs/unblock.md): when the pipeline cannot pass its own fix, the person's tested way out.
 - [Stored formats](docs/formats.md): the board's files, exports and their versions.

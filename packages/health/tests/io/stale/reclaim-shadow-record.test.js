@@ -14,6 +14,8 @@ const STAMP = new Date(AT).toISOString();
 function quietSeat(t, shadow) {
   const board = fixtureBoard(t, { clock: { now: () => new Date(AT) } });
   if (shadow !== undefined) board.movesShadow = shadow;
+  // The shadow compare runs only while the writer decides; with moves.live.reclaim on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { reclaim: false };
   const sql = board.db;
   for (const id of ['core-1', 'core-2']) {
     sql.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_route, agent_created_at) VALUES (?, ?, ?, ?, ?)').run(id, 'core', `/seat/${id}`, 'strong', STAMP);
@@ -32,7 +34,7 @@ function quietSeat(t, shadow) {
   return { board, pass };
 }
 
-test('clause 1: with moves.shadow on, a pass that releases a quiet seat records one reclaim compare that agrees with the release it wrote [C7,#9367]', t => {
+test('health.reclaim-shadow.records-compare: clause 1: with moves.shadow on, a pass that releases a quiet seat records one reclaim compare that agrees with the release it wrote [C7,#9367]', t => {
   const { board, pass } = quietSeat(t, true);
   const result = pass();
   assert.deepEqual(result.claims, [7], 'maintenance released the quiet seat\'s item');
@@ -42,7 +44,7 @@ test('clause 1: with moves.shadow on, a pass that releases a quiet seat records 
   assert.equal(shadow.disagreed, 0, JSON.stringify(shadow.last));
 });
 
-test('clause 2: with moves.shadow off, a pass runs no reclaim table and records nothing [C7,#9367]', t => {
+test('health.reclaim-shadow.off-records-nothing: clause 2: with moves.shadow off, a pass runs no reclaim table and records nothing [C7,#9367]', t => {
   const { board, pass } = quietSeat(t, false);
   const result = pass();
   assert.deepEqual(result.claims, [7], 'maintenance still released the item');

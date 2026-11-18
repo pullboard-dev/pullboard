@@ -57,7 +57,7 @@ function refused(work, directory) {
   });
 }
 
-test('an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
+test('runners.machine-home.an-unwritable-machine-home-is-refused: an unwritable machine home is refused by name [I1,C7,Q4]', async (t) => {
   await t.test('a registry refresh names a blocked project registry', async () => {
     const p = cellProject(t, { real: true, gate: 'true' });
     const home = join(p.dir, 'machine-home');
@@ -125,7 +125,7 @@ function boardProject(t) {
   return { ...p, folder: join(p.repo, '.git', 'pullboard') };
 }
 
-test('a read-only board refuses the write check by name [I1,L3,P4]', (t) => {
+test('runners.machine-home.a-read-only-board-refuses-the: a read-only board refuses the write check by name [I1,L3,P4]', (t) => {
   const p = boardProject(t);
   assert.doesNotThrow(() => requireBoardWriteAccess(p.boardFile), 'the board is writable before it is locked');
   lockBoard(p.folder);
@@ -147,7 +147,7 @@ test('a read-only board refuses the write check by name [I1,L3,P4]', (t) => {
   assert.doesNotThrow(() => requireBoardWriteAccess(p.boardFile), 'restoring write access, the step it names, lets the check pass');
 });
 
-test('a Codex agent that cannot write the board is told the Codex step that grants it [I1,P4]', (t) => {
+test('runners.machine-home.a-codex-agent-that-cannot-write: a Codex agent that cannot write the board is told the Codex step that grants it [I1,P4]', (t) => {
   const p = boardProject(t);
   lockBoard(p.folder);
   try {
@@ -159,7 +159,7 @@ test('a Codex agent that cannot write the board is told the Codex step that gran
   } finally { unlockBoard(p.folder); }
 });
 
-test('the write check covers both board-file and journal-folder capability without leaving a probe [I1,L3,P4]', (t) => {
+test('runners.machine-home.the-write-check-covers-both-board: the write check covers both board-file and journal-folder capability without leaving a probe [I1,L3,P4]', (t) => {
   for (const blocked of ['file', 'folder']) {
     const p = boardProject(t);
     const { folder, boardFile: file } = p;
@@ -184,7 +184,7 @@ test('the write check covers both board-file and journal-folder capability witho
  */
 const OPEN_CONTEXTS = [['installed pullboard', undefined], ['main checkout', true], ['lane worktree', false]];
 
-test('a read-only board is refused by name in the installed, main-checkout and lane-worktree contexts [I1,L3,P4]', (t) => {
+test('runners.machine-home.a-read-only-board-is-refused: a read-only board is refused by name in the installed, main-checkout and lane-worktree contexts [I1,L3,P4]', (t) => {
   const p = cellProject(t, { real: true, gate: 'true' });
   // A board folder that is not a repository's own, so the context hint alone decides how the board is opened.
   const folder = join(p.dir, 'pullboard');

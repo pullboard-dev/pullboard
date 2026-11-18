@@ -2,6 +2,7 @@ import { logEvent } from '../../../../store/index.js';
 import { PERSON } from '../../../../store/index.js';
 /** Person-owned machine exclusions carry key-free native provenance [H5,H17,B26]. */
 import { repoInfo } from '../../../../git/index.js';
+import { sameCommonDir } from '../../../../git/index.js';
 import { readRelayMachine } from './machine.js';
 import { updateRelayMachine } from './machine.js';
 import { requirePersonChannel } from '../../../../person/index.js';
@@ -16,20 +17,35 @@ function exclusionKeys(root, state) {
   const info = repoInfo(root);
   if (!relayExcludeByBoard()) return { key: info.root, matching: [info.root] };
   const sameBoard = entry => {
-    try { return repoInfo(entry).commonDir === info.commonDir; } catch { return false; }
+    try { return sameCommonDir(repoInfo(entry).commonDir, info.commonDir); } catch { return false; }
   };
-  return { key: info.commonDir, matching: [info.commonDir, ...state.excluded.filter(entry => entry !== info.commonDir && sameBoard(entry))] };
+  return { key: info.commonDir, matching: [info.commonDir, ...state.excluded.filter(entry => !sameCommonDir(entry, info.commonDir) && sameBoard(entry))] };
 }
 
-/** Read an exclusion without inferring a missing historical actor or timestamp. */
+/**
+ * Read an exclusion without inferring a missing historical actor or timestamp [H5,H17].
+ * A legacy entry has no recorded provenance, so its first observation is stored once and shown as first-seen, never as the exclusion time.
+ */
 export function relayExclusion(root) {
   const state = readRelayMachine();
   const project = exclusionKeys(root, state).matching.find(entry => state.excluded.includes(entry));
   if (project === undefined) return null;
   const detail = state.exclusionDetails?.[project];
+  let firstSeenAt = detail?.firstSeenAt ?? null;
+  if (!detail?.reason && !firstSeenAt) {
+    firstSeenAt = new Date().toISOString();
+    try {
+      updateRelayMachine(next => {
+        next.exclusionDetails ??= {};
+        next.exclusionDetails[project] ??= {};
+        next.exclusionDetails[project].firstSeenAt ??= firstSeenAt;
+        firstSeenAt = next.exclusionDetails[project].firstSeenAt;
+      });
+    } catch { /* A read-only machine home still names the exclusion; the first-seen time is then not retained. */ }
+  }
   return { reason: detail?.reason ?? 'unknown historical exclusion', at: detail?.at ?? null,
     by: detail?.by ?? null, path: detail?.path ?? null, eventId: detail?.eventId ?? null,
-    next: 'pullboard relay on' };
+    ...(detail?.reason ? {} : { firstSeenAt }), next: 'pullboard relay on' };
 }
 
 /** Successful local unlink remains available to agents; only a person can persist an opt-out. */

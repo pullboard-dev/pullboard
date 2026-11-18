@@ -41,6 +41,8 @@ function seatBox(flag) {
   if (flag) withFixtureBoard(boardFileOf(box), board => board.db.prepare('INSERT OR REPLACE INTO board_meta (meta_key, meta_value) VALUES (?, ?)').run(RUNS_STORE_KEY, '1'));
   // A seat at its own prompt: no machine variable, no outer CLI.
   for (const key of [...MACHINE_CONTEXT_ENV, 'PULLBOARD_TEST_RUNNER_PID']) delete box.env[key];
+  // The case cancels its own run, so the fixture must not wait for the queued run to settle (a board-held run kept the queue call for the whole 60 s sleep).
+  box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   return box;
 }
 
@@ -57,7 +59,7 @@ function assertFound(cancelled, id) {
   assert.match(cancelled.err, /\[TEST_RUN_FINISHED\]/u, `${cancelled.out}${cancelled.err}`);
 }
 
-test('clause 1: with runs_store on, test queues, reads and cancels a run through the runs file [P7,#9111]', async () => {
+test('cli.io-commands-test-runs-store.with-runs-store-on-test-queues-reads: clause 1: with runs_store on, test queues, reads and cancels a run through the runs file [P7,#9111]', async () => {
   const box = seatBox(true);
   const queued = await box.inProcess(box.web, 'test', TEST_FILE);
   assert.equal(queued.code, 0, `${queued.out}${queued.err}`);
@@ -76,7 +78,7 @@ test('clause 1: with runs_store on, test queues, reads and cancels a run through
   assert.match(after.out, new RegExp(`test run ${id}`, 'u'), 'the run is still read through the runs file');
 });
 
-test('clause 2: with runs_store off, the board holds the run rows and no runs file is made [P7,#9111]', async () => {
+test('cli.io-commands-test-runs-store.with-runs-store-off-the-board-holds: clause 2: with runs_store off, the board holds the run rows and no runs file is made [P7,#9111]', async () => {
   const box = seatBox(false);
   const queued = await box.inProcess(box.web, 'test', TEST_FILE);
   assert.equal(queued.code, 0, `${queued.out}${queued.err}`);

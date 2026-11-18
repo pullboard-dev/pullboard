@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { checkRunTickNotes } from '../../index.js';
+import { checklistEvidenceProblem } from '../../index.js';
 import { clauseInspectionProblem } from '../../index.js';
 import { testRunTickNotes } from '../../index.js';
 
@@ -20,7 +21,7 @@ function thread(texts) {
   return texts.map((text, index) => ({ type: 'fact', kind: 'note', by: 'core-1', text, id: `f${index}` }));
 }
 
-test('clause 1: a green check run ticks its clauses [C7]', () => {
+test('state.logic-evidence.clause-1-a-green-check-run-ticks-its: clause 1: a green check run ticks its clauses [C7]', () => {
   const notes = testRunTickNotes(item, [FILE], 'abc123');
   assert.equal(notes.length, 2, 'only the two [test] clauses are ticked');
   assert.match(notes[0], /^clause 1 \[test\]: green pullboard test run of test\/example\.test\.js at abc123$/u);
@@ -32,17 +33,17 @@ test('clause 1: a green check run ticks its clauses [C7]', () => {
   assert.match(other.message, /clause 2/u, 'a non-test clause still needs its own evidence');
 });
 
-test('clause 1: a run of a file outside the check ticks nothing [C7]', () => {
+test('state.logic-evidence.clause-1-a-run-of-a-file-outside-the: clause 1: a run of a file outside the check ticks nothing [C7]', () => {
   assert.deepEqual(testRunTickNotes(item, ['test/other.test.js'], 'abc123'), []);
   assert.deepEqual(testRunTickNotes(item, [], 'abc123'), []);
 });
 
-test('clause 1: pullboard test records the ticks only after a green run [C7]', () => {
+test('state.logic-evidence.clause-1-pullboard-test-records-the: clause 1: pullboard test records the ticks only after a green run [C7]', () => {
   const source = readFileSync(new URL('../../../../apps/cli/src/io/test/here.js', import.meta.url), 'utf8');
-  assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
+  assert.match(source, /result\.green && item !== undefined\) await (?:recordAgainstMain\(\(\) => )?recordClauseTicks\(/u);
 });
 
-test('clause 1: a green run of a shell-command check ticks its clauses [C7]', () => {
+test('state.logic-evidence.clause-1-a-green-run-of-a-shell-command: clause 1: a green run of a shell-command check ticks its clauses [C7]', () => {
   const shell = { ...item, item_criterion: '1) The old file is gone [test]\n2) The new file exists [test]', item_check: 'test ! -e src/x.js' };
   const notes = checkRunTickNotes(shell, 'abc123');
   assert.equal(notes.length, 2);
@@ -51,7 +52,7 @@ test('clause 1: a green run of a shell-command check ticks its clauses [C7]', ()
   assert.deepEqual(checkRunTickNotes({ ...shell, item_check: '' }, 'abc123'), []);
 });
 
-test('clause 1: pullboard check records the ticks only after a green run [C7]', () => {
+test('state.logic-evidence.clause-1-pullboard-check-records-the: clause 1: pullboard check records the ticks only after a green run [C7]', () => {
   const source = readFileSync(new URL('../../../../apps/cli/src/io/commands/check.js', import.meta.url), 'utf8');
   assert.match(source, /run\.isGreen\) await recordCheckTicks/u);
 });
@@ -60,20 +61,20 @@ const RUNNER = 'node packages/gate/src/io/run/tests.js';
 const PAIR = { item_id: 9, item_owner: 'core-1', item_criterion: '1. It refuses [test]\n2. It says why [test]',
   item_check: `${RUNNER} test/a.test.js test/b.test.js` };
 
-test('clause 1: a green run covering every check file ticks the clauses; a run of only some of them ticks nothing [C7]', () => {
+test('state.logic-evidence.clause-1-a-green-run-covering-every: clause 1: a green run covering every check file ticks the clauses; a run of only some of them ticks nothing [C7]', () => {
   assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', './test/b.test.js'], 'abc123').length, 2);
   assert.equal(testRunTickNotes(PAIR, ['test/b.test.js', 'test/a.test.js', 'test/extra.test.js'], 'abc123').length, 2, 'extra green files are fine');
   assert.deepEqual(testRunTickNotes(PAIR, ['test/a.test.js'], 'abc123'), [], 'half the check proves half the bar');
   assert.deepEqual(testRunTickNotes({ ...PAIR, item_check: `${RUNNER} test/a.test.js && false` }, ['test/a.test.js'], 'abc123'), [], 'shell syntax needs pullboard check');
 });
 
-test('clause 1: a hand-written note after the green run does not hide it, so submit needs no pullboard check --yes [C7]', () => {
+test('state.logic-evidence.clause-1-a-hand-written-note-after-the: clause 1: a hand-written note after the green run does not hide it, so submit needs no pullboard check --yes [C7]', () => {
   const notes = testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], 'abc123');
   const later = ['clause 1 [test]: test/a.test.js refuses on runner', 'clause 2 [test]: same file says why'];
   assert.equal(clauseInspectionProblem(PAIR, thread([...notes, ...later])), null);
 });
 
-test('clause 1: an unticked test clause naming a test file the gate does not run names pullboard test of the check files as the one step [C7]', () => {
+test('state.logic-evidence.clause-1-an-unticked-test-clause-naming: clause 1: an unticked test clause naming a test file the gate does not run names pullboard test of the check files as the one step [C7]', () => {
   const refused = clauseInspectionProblem({ ...PAIR, item_criterion: '1. test/c.test.js refuses [test]\n2. test/c.test.js says why [test]' }, thread([]));
   assert.equal(refused.code, 'CLAUSE_UNTICKED');
   assert.equal(refused.next, 'pullboard test test/a.test.js test/b.test.js, then submit again');
@@ -84,7 +85,7 @@ const HEAD = '86ac47390cbf9d2d37ef9e83af946c5767d1f31d';
 const bar = { ...item, item_owner: 'core-2', item_criterion: '1) test/c.test.js: The heading is present [test]\n2) test/c.test.js: The count appears [test]' };
 const earlier = thread(testRunTickNotes(bar, [FILE], HEAD));
 
-test('clause 1: a re-claim of the same bar at the same head keeps the earlier holder\'s ticks [C7]', () => {
+test('state.logic-evidence.clause-1-a-re-claim-of-the-same-bar-at: clause 1: a re-claim of the same bar at the same head keeps the earlier holder\'s ticks [C7]', () => {
   assert.equal(clauseInspectionProblem(bar, earlier, { head: HEAD }), null, 'ticks citing the unchanged head still count');
   assert.equal(clauseInspectionProblem(bar, earlier, { head: HEAD.slice(0, 12) }), null, 'a short head matches too');
   const merge = { type: 'fact', kind: 'note', by: 'core-2', text: `Builder core-2 automatic main merge: source ${HEAD}, main ${'1'.repeat(40)}, merge ${'e'.repeat(40)}.` };
@@ -93,7 +94,7 @@ test('clause 1: a re-claim of the same bar at the same head keeps the earlier ho
   assert.match(clauseInspectionProblem(bar, earlier).message, /clause 2 .*no evidence/u, 'without a head the earlier ticks do not count');
 });
 
-test('clause 2: ticks recorded before the bar text changed do not count [C7]', () => {
+test('state.logic-evidence.clause-2-ticks-recorded-before-the-bar: clause 2: ticks recorded before the bar text changed do not count [C7]', () => {
   const edit = criterion => ({ type: 'move', kind: 'edit', by: 'coordinator', detail: { criterion } });
   const changed = [...earlier, edit(bar.item_criterion.replace('count', 'total'))];
   const sharpened = { ...bar, item_criterion: bar.item_criterion.replace('count', 'total') };
@@ -102,4 +103,23 @@ test('clause 2: ticks recorded before the bar text changed do not count [C7]', (
   assert.match(clauseInspectionProblem(own, changed, { head: HEAD }).message, /clause 1 .*no evidence/u, 'the holder\'s own ticks lapse too');
   const restated = [edit(bar.item_criterion), ...earlier];
   assert.equal(clauseInspectionProblem(bar, restated, { head: HEAD }), null, 'ticks under the current text still count');
+});
+
+test('state.logic-evidence.run-cases-tick-a-checkless-bar: clause 2: a green run ticks each [test] clause of a bar with no check that its cases prove, citing the run id, head and case titles, never from a same-number case in another file, and accept and submit read those notes [C7]', () => {
+  const own = 'packages/landing/tests/logic/junit-files.test.js';
+  const other = 'packages/gate/tests/io/other.test.js';
+  const checkless = { item_id: 10589, item_owner: 'core-1', item_check: '', item_criterion: `1. In ${own}, cmake maps to cpp [test] 2. In the same file, no classname is null [test] 3. Case landing.junit-files.registered passes [test]` };
+  const pass = (file, name) => ({ file, name, passed: true, skipped: false });
+  const rows = [pass(own, 'landing.junit-files.cmake-row: clause 1: cmake maps to cpp'), pass(other, 'gate.other.x: clause 2: unrelated'), pass(own, 'landing.junit-files.registered: titles carry IDs')];
+  const run = '9278348d-5ba7-47db-bea6-9af90a095bf0';
+  const notes = testRunTickNotes(checkless, [own, other], HEAD, { outcomes: rows, run });
+  assert.deepEqual(notes.map(note => note.slice(0, 9)), ['clause 1 ', 'clause 3 '], 'clause 2 has only a same-number case in another file');
+  assert.equal(notes[0], `clause 1 [test]: green pullboard test run of ${own} at ${HEAD}, run ${run}: 1 case passed (landing.junit-files.cmake-row: clause 1: cmake maps to cpp)`);
+  assert.match(checklistEvidenceProblem(checkless, thread(notes)).message, /clause 2 .*has no evidence/u, 'accept still names the unproven clause');
+  const all = testRunTickNotes(checkless, [own], HEAD, { outcomes: [...rows, pass(own, 'landing.junit-files.null-row: clause 2: no classname is null')], run });
+  assert.equal(all.length, 3);
+  assert.equal(checklistEvidenceProblem(checkless, thread(all)), null, 'accept reads the notes as checklist evidence');
+  assert.equal(clauseInspectionProblem(checkless, thread(all), { head: HEAD }), null, 'submit reads them as ticks');
+  assert.deepEqual(testRunTickNotes(checkless, [own], HEAD), [], 'a run with no outcome rows ticks nothing');
+  assert.equal(testRunTickNotes(PAIR, ['test/a.test.js', 'test/b.test.js'], HEAD, { outcomes: rows, run }).length, 2, 'a bar with check files keeps its check-file ticks');
 });

@@ -42,15 +42,15 @@ import { tryGit } from '../../index.js';
 import { withGitFacts } from '../../index.js';
 import { withGitReadFacts } from '../../index.js';
 import { trunkRef } from '../../light.js';
-import { runFixtureExecFile } from '../../../../apps/cli/tests/fixtures/child.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureExecFile } from '../../../gate/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const ROOT = resolve(import.meta.dirname, '../../../..');
 const FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false', '-c', 'gc.auto=0']; // gc.auto=0 joined the shared GIT_FLAGS in packages/git/src/io/main.js
 const BEFORE = { 'stable.txt': 'same\n', 'changed.txt': 'before\n', 'old.txt': 'removed\n' };
 const AFTER = { 'stable.txt': 'same\n', 'changed.txt': 'after\n', 'new space.txt': 'added\n', 'line\nbreak.txt': 'framed\n', 'bytes.bin': Buffer.from([0, 255, 10, 13]) };
 
-test('plain retained trunk reads avoid Git; ambiguous configuration still asks Git [C7]', t => {
+test('git.adapter.retained-trunk-reads: plain retained trunk reads avoid Git; ambiguous configuration still asks Git [C7]', t => {
   const box = fixture(t, 'real');
   const calls = [];
   const adapter = { ...realGitAdapter, spawnSync(args, options) { calls.push(args); return realGitAdapter.spawnSync(args, options); } };
@@ -235,7 +235,7 @@ for (const implementation of ['real', 'memory']) {
   });
 }
 
-test('in-memory Git rejects uncontracted operations without real-process fallback [C7]', () => {
+test('git.adapter.in-memory-rejects: in-memory Git rejects uncontracted operations without real-process fallback [C7]', () => {
   const adapter = createMemoryGitAdapter([]);
   assert.throws(() => withGitAdapter(adapter, () => gitSpawn(['status'])), { code: 'GIT_ADAPTER_UNSUPPORTED' });
   const seed = { root: '/virtual/known', head: '1'.repeat(40), commits: [{ oid: '1'.repeat(40), tree: '2'.repeat(40) }] };
@@ -246,7 +246,7 @@ test('in-memory Git rejects uncontracted operations without real-process fallbac
   assert.throws(() => known.spawnSync(['rev-parse', 'HEAD'], { cwd: seed.root, env: { GIT_DIR: '/elsewhere' } }), { code: 'GIT_ADAPTER_UNSUPPORTED' });
 });
 
-test('async and nested Git implementations isolate caches and restore after failure [C7]', async () => {
+test('git.adapter.caches-isolated: async and nested Git implementations isolate caches and restore after failure [C7]', async () => {
   const root = '/virtual/shared';
   /** Build independently seeded state for the same logical root. */
   const memory = digit => createMemoryGitAdapter([{ root, head: digit.repeat(40), commits: [{ oid: digit.repeat(40), tree: 'a'.repeat(40) }] }]);
@@ -273,7 +273,7 @@ test('async and nested Git implementations isolate caches and restore after fail
   assert.throws(() => withGitAdapter(first, () => gitExecFileSync(['show', 'HEAD:missing'], { cwd: root, encoding: 'utf8' })), error => error.status === 128);
 });
 
-test('Git transport preserves caller arguments, stdin and bounds at the migrated seam [C7]', () => {
+test('git.adapter.transport-preserves: Git transport preserves caller arguments, stdin and bounds at the migrated seam [C7]', () => {
   const calls = [];
   const observer = {
     ...realGitAdapter,
@@ -291,7 +291,7 @@ test('Git transport preserves caller arguments, stdin and bounds at the migrated
   assert.equal(calls[0].options.env.GIT_NO_REPLACE_OBJECTS, '1');
 });
 
-test('real Git streaming implementation preserves child output and completion [C7]', async t => {
+test('git.adapter.streaming-real: real Git streaming implementation preserves child output and completion [C7]', async t => {
   const box = fixture(t, 'real');
   const child = withGitAdapter(realGitAdapter, () => gitSpawn(['rev-parse', 'HEAD'], { cwd: box.root, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] }));
   let output = '';
@@ -307,7 +307,7 @@ test('real Git streaming implementation preserves child output and completion [C
   assert.equal(diagnostic, '');
 });
 
-test('literal Git launch ratchet counts code and aliases, rejects growth, and reports the remaining migration [C7]', () => {
+test('git.adapter.launch-ratchet: literal Git launch ratchet counts code and aliases, rejects growth, and reports the remaining migration [C7]', () => {
   const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/io/launch/baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.ok(report.total <= 81, 'this slice migrates all eight direct packages/git/index.js launches from the original 89');
@@ -329,7 +329,7 @@ test('literal Git launch ratchet counts code and aliases, rejects growth, and re
 });
 
 /** The scan covers packages at their true paths, so a launcher cannot hide in a cell. */
-test('the Git launch scan counts package launchers at their true path and fails a planted one naming the file [C7,doctrine:CD64]', t => {
+test('git.adapter.launch-scan-paths: the Git launch scan counts package launchers at their true path and fails a planted one naming the file [C7,doctrine:CD64]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-package-git-launch-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const moved = join(root, 'packages/git/src/io');
@@ -352,14 +352,14 @@ test('the Git launch scan counts package launchers at their true path and fails 
   assert.deepEqual(loweredGitLaunchBaseline(planted, { files: allowed }).growth.map(entry => entry.file), ['packages/widget/src/shell/planted.js']);
 });
 
-test('the committed Git launch allowance names only files that still launch Git at that path [C7]', () => {
+test('git.adapter.allowance-names-launchers: the committed Git launch allowance names only files that still launch Git at that path [C7]', () => {
   const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/io/launch/baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(Object.keys(baseline.files).filter(file => !report.files[file]), [], 'a moved or migrated file leaves a stale allowance');
 });
 
 /** Proves the item's single clause: every launch beyond the allowance goes through the adapter, and the allowance never rises. */
-test('clause 1: no direct Git launch exceeds the committed allowance and the allowance stays within its original total [C7]', () => {
+test('git.adapter.no-launch-over-allowance: clause 1: no direct Git launch exceeds the committed allowance and the allowance stays within its original total [C7]', () => {
   const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/io/launch/baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.deepEqual(gitLaunchGrowth(report, baseline.files), [], 'a direct Git launch beyond the allowance must go through packages/git');
@@ -383,7 +383,7 @@ function factRepository(t) {
 /** The four facts the board API reads on every board lookup. */
 const apiFacts = (root) => ({ info: repoInfo(root), main: codeIsFromMain(root), head: headCommit(root), tree: headTree(root) });
 
-test('clause 1: repoInfo, codeIsFromMain, headCommit and headTree answer from cache with no Git process after .git directory churn [A2,C7]', t => {
+test('git.adapter.cache-after-churn: clause 1: repoInfo, codeIsFromMain, headCommit and headTree answer from cache with no Git process after .git directory churn [A2,C7]', t => {
   const { root } = factRepository(t);
   withGitReadFacts(() => {
     const warm = apiFacts(root);
@@ -398,7 +398,7 @@ test('clause 1: repoInfo, codeIsFromMain, headCommit and headTree answer from ca
   });
 });
 
-test('clause 2: a moved HEAD ref still refreshes headCommit [A2,C7]', t => {
+test('git.adapter.head-ref-moves: clause 2: a moved HEAD ref still refreshes headCommit [A2,C7]', t => {
   const { root, setup } = factRepository(t);
   withGitReadFacts(() => {
     const before = headCommit(root);

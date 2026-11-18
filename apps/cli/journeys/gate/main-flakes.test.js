@@ -50,7 +50,7 @@ after(() => {
 });
 const repoWithGate = gateRepoFixture(dirs);
 
-test('a piped gate fails on any red stage without changing its existing shell [V16,C7]', async () => {
+test('cli.journeys-gate-main-flakes.a-piped-gate-fails-on-any: a piped gate fails on any red stage without changing its existing shell [V16,C7]', async () => {
   const supported = runFixtureChild('set -o pipefail', { shell: true }).status === 0;
   const failing = await repoWithGate('sh -c "exit 7" | tail -1');
   const red = await failing.runLocal('gate', '--json');
@@ -119,6 +119,7 @@ function flakeRepo(t, policy = {}) {
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   /** Open the repo's board the way a landing reads it: quarantine comes from accepted main's pullboard.json. */
   const open = () => {
+    // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test reads or seeds that same file.
     const board = openBoard(file);
     board.quarantineEnabled = () => mainPolicy(root).config.flakes?.quarantine === true;
     t.after(() => store.closeBoard(board));
@@ -126,13 +127,14 @@ function flakeRepo(t, policy = {}) {
   };
   const receipts = join(root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(dirname(file), { recursive: true });
+  // @pullboard-board-file journey: the real CLI in this fixture repo owns the board file; the test reads or seeds that same file.
   const setup = openBoard(file);
   store.board_ensureCoordinator(setup, root);
   store.closeBoard(setup);
   return { root, git, commit, gate, open, receipts, marker };
 }
 
-test('the same tree red and green proves a flake and files it once [C7,D1]', async (t) => {
+test('cli.journeys-gate-main-flakes.the-same-tree-red-and-green: the same tree red and green proves a flake and files it once [C7,D1]', async (t) => {
   const box = flakeRepo(t);
   const tree = box.commit('one');
   await box.gate(true);
@@ -168,7 +170,7 @@ test('the same tree red and green proves a flake and files it once [C7,D1]', asy
   assert.deepEqual(liveWaiverProjection(board, landingPorts), []);
 });
 
-test('a quarantined test reports but does not block [C7,D1]', async (t) => {
+test('cli.journeys-gate-main-flakes.a-quarantined-test-reports-but-does: a quarantined test reports but does not block [C7,D1]', async (t) => {
   const box = flakeRepo(t, { flakes: { quarantine: true } });
   box.commit('one');
   assert.equal(waivedFailures(box.open(), [FLAKY], landingPorts), null, 'a red test blocks before it is proven flaky');
@@ -210,7 +212,7 @@ test('a quarantined test reports but does not block [C7,D1]', async (t) => {
   assert.equal(waivedFailures(board, [FLAKY], landingPorts)?.length, 1);
 });
 
-test('a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
+test('cli.journeys-gate-main-flakes.a-hand-recorded-run-never-quarantines: a hand-recorded run never quarantines a test [C7,D1]', async (t) => {
   const box = flakeRepo(t, { flakes: { quarantine: true } });
   const tree = box.commit('one');
   const head = box.git('rev-parse', 'HEAD');

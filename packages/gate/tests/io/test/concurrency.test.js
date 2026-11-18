@@ -20,7 +20,7 @@ function project(t, config) {
   return root;
 }
 
-test('#5790 clause 1: a run marked as a pulled runner job spreads its files over every core; an unmarked run keeps the performance cores [P7]', t => {
+test('gate.io-test-concurrency.case-5790-clause-1-a-run-marked: #5790 clause 1: a run marked as a pulled runner job spreads its files over every core; an unmarked run keeps the performance cores [P7]', t => {
   assert.equal(executionCores({ [PULLED_JOB_ENV]: '1' }), availableParallelism());
   assert.equal(executionCores({}), performanceCores());
   const root = project(t);
@@ -32,19 +32,19 @@ test('#5790 clause 1: a run marked as a pulled runner job spreads its files over
   assert.equal(testConcurrency(root).files, performanceCores());
 });
 
-test('#5790 clause 1: a project\'s testConcurrency.files still decides inside a pulled runner job [P7]', t => {
+test('gate.io-test-concurrency.case-5790-clause-1-a-project-s: #5790 clause 1: a project\'s testConcurrency.files still decides inside a pulled runner job [P7]', t => {
   const root = project(t, { testConcurrency: { files: 3 } });
   assert.equal(testConcurrency(root, executionCores({ [PULLED_JOB_ENV]: '1' })).files, 3);
 });
 
-test('#5790 clause 1: a test process never inherits the pulled job marker, so a run a test starts keeps ordinary concurrency [P7]', t => {
+test('gate.io-test-concurrency.case-5790-clause-1-a-test-process: #5790 clause 1: a test process never inherits the pulled job marker, so a run a test starts keeps ordinary concurrency [P7]', t => {
   const sandbox = project(t);
   const env = isolateTestMachine({ [PULLED_JOB_ENV]: '1', KEEP: 'yes' }, sandbox);
   assert.equal(env[PULLED_JOB_ENV], undefined);
   assert.equal(env.KEEP, 'yes');
 });
 
-test('#5919 clause 1: a pulled job whose serve set its worker share spreads its files over that share, at least 1 [P7]', t => {
+test('gate.io-test-concurrency.case-5919-clause-1-a-pulled-job: #5919 clause 1: a pulled job whose serve set its worker share spreads its files over that share, at least 1 [P7]', t => {
   assert.equal(executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '3' }), 3);
   assert.equal(executionCores({ [PULLED_JOB_ENV]: '1', [JOB_WORKERS_ENV]: '0' }), availableParallelism(), 'a share below 1 is no share');
   assert.equal(executionCores({ [JOB_WORKERS_ENV]: '3' }), performanceCores(), 'the share applies only inside a pulled job');
@@ -52,7 +52,7 @@ test('#5919 clause 1: a pulled job whose serve set its worker share spreads its 
   assert.equal(isolateTestMachine({ [JOB_WORKERS_ENV]: '3' }, project(t))[JOB_WORKERS_ENV], undefined, 'a test process never inherits the share');
 });
 
-test('#6753 clause 1: reading the settings twice spawns sysctl at most once per process [C7]', async t => {
+test('gate.io-test-concurrency.case-6753-clause-1-reading-the-settings: #6753 clause 1: reading the settings twice spawns sysctl at most once per process [C7]', async t => {
   const root = project(t);
   const fresh = await import(`../../../src/io/test/concurrency.js?fresh=${process.pid}`);
   let spawns = 0;

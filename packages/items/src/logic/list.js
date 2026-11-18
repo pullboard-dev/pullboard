@@ -1,5 +1,6 @@
 /** Shared local/relay item-list fields, derived once from the declared lifecycle [A2,N26,H17]. */
 import { MACHINE } from "../../../state/light.js";
+import { Refused } from "../../../kernel/light.js";
 import { lifecycleSteps } from "./lifecycle.js";
 import { recordedWithdrawalFrom } from "./lifecycle.js";
 export { lifecycleEvent } from "./lifecycle.js";
@@ -94,4 +95,51 @@ export function itemSummary(item) {
   summary.verdict = item.verdict && { decision: item.verdict.decision, reason: item.verdict.reason,
     ...(sentBack ? { note: String(item.verdict.note ?? '').split('\n').map((line) => line.trim()).find(Boolean) ?? '' } : {}) };
   return summary;
+}
+
+/** The comparison operators a `--field` filter takes, longest first so `>=` is not read as `>`. */
+const FIELD_OPERATORS = Object.freeze(['>=', '<=', '!=', '=', '>', '<']);
+
+/**
+ * Parse a `--field` filter such as `priority=high` or `points>=3` into its name, operator and value text.
+ * Why here: the filter is pure, so the thin and full list paths and the relay list can share one reading of it [C7,#9353].
+ *
+ * @param {string} text
+ * @returns {{ name: string, op: string, value: string }}
+ */
+export function parseFieldFilter(text) {
+  const match = /^([a-z][a-z0-9_-]{0,31})(>=|<=|!=|=|>|<)(.*)$/u.exec(String(text));
+  if (!match || !FIELD_OPERATORS.includes(match[2]) || match[3] === '') {
+    throw new Refused('FIELD_FILTER', `${JSON.stringify(String(text))} is not a field filter`, 'write --field <name><op><value>, such as --field priority=high or --field points>=3');
+  }
+  return { name: match[1], op: match[2], value: match[3] };
+}
+
+/**
+ * Keep the items whose typed field satisfies the filter. An item with no value for the field never matches.
+ * An unknown field name refuses with its next step; a number field compares as a number, others as text with = and !=.
+ *
+ * @param {{ id?: number, item_id?: number }[]} items
+ * @param {string} text - the `--field` argument.
+ * @param {{ types: Map<string, string>, values: Map<number, Map<string, string | number>> }} index - from the store's fieldIndex.
+ * @returns {any[]}
+ */
+export function filterByField(items, text, index) {
+  const { name, op, value } = parseFieldFilter(text);
+  const type = index.types.get(name);
+  if (!type) {
+    const known = [...index.types.keys()].sort();
+    throw new Refused('FIELD_UNKNOWN', `no field named ${name} is declared`, known.length ? `use one of: ${known.join(', ')}; or declare it with pullboard field declare` : 'declare it first with pullboard field declare <name> <text|choice|number>');
+  }
+  const wanted = type === 'number' ? Number(value) : value;
+  if (type === 'number' && !Number.isFinite(wanted)) throw new Refused('FIELD_FILTER', `field ${name} is a number; ${JSON.stringify(value)} is not`, `compare it with a number, such as --field ${name}${op}3`);
+  if (type !== 'number' && !['=', '!='].includes(op)) throw new Refused('FIELD_FILTER', `field ${name} is ${type}; ${op} compares numbers only`, `use = or != with a ${type} field`);
+  const holds = {
+    '=': (have) => have === wanted, '!=': (have) => have !== wanted,
+    '>': (have) => have > wanted, '>=': (have) => have >= wanted, '<': (have) => have < wanted, '<=': (have) => have <= wanted,
+  }[op];
+  return items.filter((item) => {
+    const own = index.values.get(item.id ?? item.item_id);
+    return own?.has(name) && holds(own.get(name));
+  });
 }

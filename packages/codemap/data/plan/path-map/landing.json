@@ -2,7 +2,7 @@
   "src/computed-conflict-receipt.js": "packages/landing/src/io/computed/conflict/receipt.js",
   "src/computed-conflict-return.js": "packages/landing/src/io/computed/conflict/return.js",
   "src/land-collisions.js": "packages/landing/src/logic/land/collisions.js",
-  "src/land-local-guard.js": "packages/landing/src/logic/land/guard.js",
+  "src/land-local-guard.js": "packages/landing/src/io/land/guard.js",
   "src/land.js": "packages/landing/src/io/land.js",
   "src/landing-batch-history.js": "packages/landing/src/logic/batch/history.js",
   "src/landing-cadence.js": "packages/landing/src/logic/cadence.js",

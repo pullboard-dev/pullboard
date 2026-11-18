@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { git } from '../../../git/index.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { configFromSource } from '../../index.js';
-import { runFixtureGit } from '../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
 import { fixtureCommittedGraph } from '../../../gate/tests/fixtures/testkit.js';
 
 /** A private plain Git repository on a `web` branch holding one registered move input, with no board, hooks or CLI. */
@@ -24,7 +24,7 @@ function registryRepo(t) {
   return { root: graph.root, git: run, commit: message => { run('add', '-A'); run('commit', '-q', '-m', message); } };
 }
 
-test('registry policy validates paths and selects deleted and renamed inputs conservatively [C7,V4]', t => {
+test('config.submit-guards.registry-policy-validates-paths-and: registry policy validates paths and selects deleted and renamed inputs conservatively [C7,V4]', t => {
   assert.deepEqual(configFromSource('{"gate":"true"}').registryGuards, [], 'other projects opt in explicitly');
   for (const path of ['../outside.js', '/absolute.js', 'test/*.js', 'test/../outside.js']) {
     assert.throws(() => configFromSource(JSON.stringify({ affectedTests: 'custom-runner', registryGuards: [{ inputs: ['src/**'], tests: [path] }] })),
@@ -52,7 +52,7 @@ test('registry policy validates paths and selects deleted and renamed inputs con
 });
 
 
-test('registry selection uses the explicit caller Git port and never queries for supplied changes or uncertainty [C7,D3]', () => {
+test('config.submit-guards.registry-selection-uses-the-explicit: registry selection uses the explicit caller Git port and never queries for supplied changes or uncertainty [C7,D3]', () => {
   const rules = [{ inputs: ['src/moves/**'], tests: ['test/registry.test.js'] }];
   const calls = [];
   const provider = (root, args) => {

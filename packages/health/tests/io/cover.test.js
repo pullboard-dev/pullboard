@@ -57,7 +57,7 @@ function fixture(t, { third = false, noIndependentClaude = false } = {}) {
   return { board, id, claim, attach, submit, projection };
 }
 
-test('Strict uses current material authors, excluding earlier holders and removed companions from fresh review rules [V4,H16]', t => {
+test('health.cover.strict-current-authors: Strict uses current material authors, excluding earlier holders and removed companions from fresh review rules [V4,H16]', t => {
   const f = fixture(t);
   f.claim('core-2');
   f.attach('core-2', 'removed');
@@ -74,7 +74,7 @@ test('Strict uses current material authors, excluding earlier holders and remove
   assert.equal(store.getItem(f.board, f.id).item_review_by, 'core-2');
 });
 
-test('a current companion family stays excluded when a third joined family can independently review [V4]', t => {
+test('health.cover.companion-family-excluded: a current companion family stays excluded when a third joined family can independently review [V4]', t => {
   const f = fixture(t, { third: true });
   f.claim('core-1'); f.attach('core-2'); f.submit();
   const result = f.projection();
@@ -83,7 +83,7 @@ test('a current companion family stays excluded when a third joined family can i
   assert.ok(result.eligible.includes('core-6'));
 });
 
-test('mixed-family composition remains independently reviewable while every current author and parent stays excluded [V4,H16]', t => {
+test('health.cover.mixed-family-reviewable: mixed-family composition remains independently reviewable while every current author and parent stays excluded [V4,H16]', t => {
   const f = fixture(t);
   f.claim('core-1'); f.attach('core-2');
   f.board.executionEngineVersion = REVIEW_HEAD_BUILDER_FAMILY_ENGINE - 1;
@@ -103,7 +103,7 @@ test('mixed-family composition remains independently reviewable while every curr
   assert.equal(report.waiting.some(row => row.cause === 'REVIEW_FAMILY_FALLBACK' && row.item === f.id), false);
 });
 
-test('owner uses matching native submit size against active patch hunk lines; a tie retains last builder [V4,H16]', t => {
+test('health.cover.owner-by-size: owner uses matching native submit size against active patch hunk lines; a tie retains last builder [V4,H16]', t => {
   for (const [lines, expected, eligible] of [[1, 'core-2', 'core-3'], [4, 'core-1', 'core-4'], [5, 'core-1', 'core-4']]) {
     const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit(lines);
     assert.equal(compositionOwner(f.board, store.getItem(f.board, f.id)), expected);
@@ -114,7 +114,7 @@ test('owner uses matching native submit size against active patch hunk lines; a 
   }
 });
 
-test('old ordered review semantics still exclude historical contributors and refuse mixed-family reachability [V4,H16]', t => {
+test('health.cover.old-ordered-semantics: old ordered review semantics still exclude historical contributors and refuse mixed-family reachability [V4,H16]', t => {
   const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit();
   f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
   const result = f.projection();
@@ -123,7 +123,7 @@ test('old ordered review semantics still exclude historical contributors and ref
   assert.throws(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW), { code: 'NO_ELIGIBLE_REVIEWER' });
 });
 
-test('current strict local session checks ignore superseded ledger claims but still refuse current authors [V4,H16]', t => {
+test('health.cover.superseded-claims: current strict local session checks ignore superseded ledger claims but still refuse current authors [V4,H16]', t => {
   const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit();
   const commonDir = mkdtempSync(join(tmpdir(), 'pullboard-current-author-'));
   t.after(() => rmSync(commonDir, { recursive: true, force: true }));
@@ -139,7 +139,7 @@ test('current strict local session checks ignore superseded ledger claims but st
   assert.throws(() => refuseSelfSession(info, item, digest, [], { currentAuthorSessions: [digest] }), { code: 'SELF_SESSION_VERIFY' }, 'immutable current session snapshots refuse even without a local seat binding');
 });
 
-test('new native activation fences downgraded review while preserving genuine historical receipt bytes [V4,H16]', t => {
+test('health.cover.native-activation-fence: new native activation fences downgraded review while preserving genuine historical receipt bytes [V4,H16]', t => {
   const f = fixture(t); f.claim('core-1'); f.attach('core-3'); f.submit();
   const args = [f.id, { agentId: 'core-2', lane: 'core', leaseMs: 60_000, ...REVIEW }];
   const old = { ...prepareEngineMove(f.board, 'reserveReview', args, { id: 'old-composition-review' }), engine: STRICT_COMPOSITION_ENGINE - 1 };
@@ -158,7 +158,7 @@ test('new native activation fences downgraded review while preserving genuine hi
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
 });
 
-test('real submit preflight uses candidate size for companion-owned reachability and rolls every observation back [V4,H16]', t => {
+test('health.cover.submit-preflight-rolls-back: real submit preflight uses candidate size for companion-owned reachability and rolls every observation back [V4,H16]', t => {
   const f = fixture(t, { noIndependentClaude: true });
   f.claim('core-1');
   // A real legacy attachment predates the reachability guard; upgrading must not strand its composition.

@@ -6,7 +6,7 @@ import { configProblems } from '../../src/io/main.js';
 import { defaults } from '../../src/io/main.js';
 import { describeSetting } from '../../src/io/settings/descriptions.js';
 
-test('clause 2: pin.signed defaults to false, must be a boolean, and is described [C7]', () => {
+test('config.io-pin-signed-setting.clause-2-pin-signed-defaults-to-false: clause 2: pin.signed defaults to false, must be a boolean, and is described [C7]', () => {
   assert.equal(defaults().pin.signed, false);
   assert.equal(configFromSource('{}').pin.signed, false);
   assert.equal(configFromSource('{"pin":{"signed":true}}').pin.signed, true);

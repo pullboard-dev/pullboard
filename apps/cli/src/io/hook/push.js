@@ -10,8 +10,10 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gateRunnerWaitMs } from '../../../../../packages/config/index.js';
 import { pushRecordTimingEnabled } from '../../../../../packages/config/index.js';
+import { pushRefuseUnshardedEnabled } from '../../../../../packages/config/index.js';
 import { pushRerunFailedShardOnceEnabled } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
+import { Refused } from '../../../../../packages/kernel/light.js';
 import { git } from '../../../../../packages/git/index.js';
 import { headCommit } from '../../../../../packages/git/index.js';
 import { isClean } from '../../../../../packages/git/index.js';
@@ -224,14 +226,15 @@ export async function pushShardPlan(root, config, { runners, history } = {}) {
  * @returns {Promise<{ jobs: string[], ref: string, reoffer: (board: { db: object }, job: string, runner: string | null) => string }>}
  */
 export async function offerPushShards(ctx, plan) {
-  const [{ offerJob, endJobs, SHARD_JOB_KIND }, { GATE_NEEDS, gateShardRequest }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js')]);
+  const [{ offerJob, endJobs, SHARD_JOB_KIND }, { GATE_NEEDS, gateShardRequest, pushShardTooling }] = await Promise.all([import('../../../../../packages/api/index.js'), import('../submit/pull.js')]);
   const tag = randomBytes(6).toString('hex');
   const ref = `refs/pullboard/push/${tag}`;
   git(ctx.info.root, ['update-ref', ref, plan.source]);
   const of = plan.shards.length;
+  const pin = pushShardTooling(ctx.info.root, plan.source);
   const offer = (board, at, id, avoid = []) => offerJob(board.db, { id, kind: SHARD_JOB_KIND,
     priority: 'gate', needs: GATE_NEEDS, item: null, candidate: plan.source, base: plan.main, avoid,
-    request: gateShardRequest({ main: plan.main, source: plan.source, shard: { index: at + 1, of, files: plan.shards[at].files, command: plan.shards[at].command } }) }).id;
+    request: gateShardRequest({ main: plan.main, source: plan.source, shard: { index: at + 1, of, files: plan.shards[at].files, command: plan.shards[at].command }, ...pin }) }).id;
   const jobs = withBoard(ctx, board => plan.shards.map((shard, at) => offer(board, at, `push:${plan.source.slice(0, 12)}:${tag}:shard:${at + 1}`)));
   /** Withdraw a failed shard job and offer the same shard again, naming the runner it failed on to avoid [C7,#9274]. */
   const reoffer = (board, job, runner) => {
@@ -348,7 +351,8 @@ export function redShardFiles(shard, receipt) {
 
 /**
  * The refusal a not-green set of shards makes: red shards name their failing files, and a shard that posted no
- * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046].
+ * receipt reads unknown, counted as neither red nor green, so the tree is never stamped green on it [C7,#8046]. It also
+ * names that shard's own files as not run (the first 20 and a count), apart from the failing ones [C7,#9370].
  *
  * @param {{ gate: { shards: { job: string, green: boolean }[] } }} combined - combinedReceipt's result.
  * @param {{ posted?: { receipt?: object } }[]} settled - Each shard's awaited result, in plan order.
@@ -363,7 +367,9 @@ export function shardProblem(combined, settled, plan, jobs, failingParts) {
   const reds = notGreen.filter(part => settled[part.at].posted?.receipt);
   const failing = [...new Set(reds.flatMap(part => redShardFiles(plan.shards[part.at], settled[part.at].posted?.receipt)))].sort();
   const redText = reds.length ? `the gate is red in ${reds.length} of ${jobs.length} shard jobs (${reds.map(part => part.job).join(', ')}); failing files: ${failing.join(', ')}. fix them before pushing.\n${failingParts(combined).join('\n')}` : '';
-  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green. push again to rerun them.` : '';
+  const unrun = [...new Set(unknown.flatMap(part => plan.shards[part.at].files))].sort();
+  const unrunText = unrun.length ? ` files not run: ${unrun.slice(0, 20).join(', ')}${unrun.length > 20 ? ` and ${unrun.length - 20} more` : ''}.` : '';
+  const unknownText = unknown.length ? `the gate is unknown in ${unknown.length} of ${jobs.length} shard jobs (${unknown.map(part => part.job).join(', ')}): no receipt was posted, so they count as neither red nor green and the tree is not stamped green.${unrunText} push again to rerun them.` : '';
   return [redText, unknownText].filter(Boolean).join('\n');
 }
 
@@ -414,25 +420,28 @@ export function readPushTimings(ctx, { read = work => withBoardRead(ctx, work) }
  * Run the pre-push full gate as pull shard jobs, or return null when pushShardPlan keeps the one-command gate.
  * Green stamps the pushed tree, as a full gate run does, so a retried push of it is not gated twice.
  *
+ * With push.refuseUnsharded on, a push with no shard plan throws Refused(PUSH_UNSHARDED) naming pushShardSkipReason's reason, instead of returning null for the one-command gate [C7,#9369].
+ *
  * @param {object} ctx - The hook's command context.
- * @param {{ say?: (line: string) => void, wait?: Function, pollMs?: number }} [options]
+ * @param {{ say?: (line: string) => void, wait?: Function, pollMs?: number, refuse?: boolean, plan?: Function, offer?: Function, settle?: Function }} [options]
  * @returns {Promise<{ isGreen: boolean, problem: string | null, jobs: string[] } | null>}
  */
-export async function pushShardGate(ctx, { say, wait, pollMs, now = Date.now, record = recordPushTiming } = {}) {
+export async function pushShardGate(ctx, { say, wait, pollMs, now = Date.now, record = recordPushTiming, refuse = pushRefuseUnshardedEnabled(), plan: planShards = pushShardPlan, offer = offerPushShards, settle = awaitAndWithdraw } = {}) {
   const root = ctx.info.root;
   const runners = ctx.config?.pushGate?.sizeFromBoard === true ? await import('../commands/runner.js').then(module => module.liveRunnerCount(ctx)) : undefined;
   const history = ctx.config?.pushGate?.sizeFromBoard === true ? readPushTimings(ctx) : undefined;
-  const plan = await pushShardPlan(root, ctx.config, { runners, history });
+  const plan = await planShards(root, ctx.config, { runners, history });
   if (!plan) {
     const reason = await pushShardFacts(root, ctx.config).then(pushShardSkipReason, () => null);
+    if (reason && refuse) throw new Refused('PUSH_UNSHARDED', `the push cannot run as shard jobs: ${reason}. next: fix that, then push again (or turn push.refuseUnsharded off to allow the one-command gate)`);
     if (reason) say?.(`pre-push: running the one-command gate instead of shard jobs: ${reason}`);
     return null;
   }
-  const { jobs, ref, reoffer } = await offerPushShards(ctx, plan);
+  const { jobs, ref, reoffer } = await offer(ctx, plan);
   const files = plan.shards.reduce((sum, shard) => sum + shard.files.length, 0);
   say?.(`pre-push: the full gate's ${files} test files are offered as ${jobs.length} shard jobs at ${plan.source.slice(0, 12)}; every free runner pulls them`);
   const timing = new Map(), began = now();
-  const settled = await awaitAndWithdraw(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, reoffer, timing, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
+  const settled = await settle(ctx, jobs, { say, wait, pollMs, limitMs: plan.limitMs, reoffer, timing, after: () => { try { git(root, ['update-ref', '-d', ref]); } catch { /* a pin left behind only keeps a commit reachable */ } } });
   try { record(ctx, pushTimingRow({ source: plan.source.slice(0, 12), at: new Date(now()).toISOString(), wallMs: now() - began, plan, timing })); } catch { /* recording never changes the gate's answer */ }
   if (!Array.isArray(settled)) return { isGreen: false, problem: `the gate did not finish: ${settled.refused}`, jobs };
   const { combinedReceipt, failingParts } = await import('../../../../../packages/api/index.js');

@@ -25,19 +25,19 @@ function runnerPath(name) {
   return body.slice(body.indexOf('\n', guard));
 }
 
-test('clause 1: with runnersOnly on, smokeCandidate runs the smoke through runCheckOnRunner and starts no local process [C7]', () => {
+test('landing.smoke-runner.with-runnersonly-on-smokecandidate-runs-the: clause 1: with runnersOnly on, smokeCandidate runs the smoke through runCheckOnRunner and starts no local process [C7]', () => {
   const path = runnerPath('smokeCandidate');
   assert.match(path, /await runCheckOnRunner\(/u);
   for (const local of ['runLandingCliSmoke', 'runCommitCliSmoke', 'spawnSync', 'spawn(', 'execSync']) assert.ok(!path.includes(local), `the runner path never calls ${local}`);
   assert.match(SMOKE, /const RUNNER_SMOKE = `node --input-type=module -e "const \{ runLandingCliSmoke \} = await import\('\.\/packages\/landing\/src\/io\/smoke\.js'\)/u, 'the runner runs the candidate\'s own smoke module');
 });
 
-test('clause 1: with runnersOnly on, smokeCommit reaches the smoke only through smokeCandidate on a runner [C7]', () => {
+test('landing.smoke-runner.smoke-only-through-smokecandidate: clause 1: with runnersOnly on, smokeCommit reaches the smoke only through smokeCandidate on a runner [C7]', () => {
   const path = runnerPath('smokeCommit');
   assert.match(path, /smokeCandidate\(checkout, \{ admission \}\)/u);
   for (const local of ['runLandingCliSmoke', 'runCommitCliSmoke', 'spawnSync', 'spawn(']) assert.ok(!path.includes(local), `the runner path never calls ${local}`);
 });
 
-test('clause 1: with runnersOnly on, a candidate that ships no CLI is not smoked locally or on a runner [C7]', async () => {
+test('landing.smoke-runner.no-cli-candidate-not-smoked: clause 1: with runnersOnly on, a candidate that ships no CLI is not smoked locally or on a runner [C7]', async () => {
   assert.deepEqual(await smokeCandidate(import.meta.dirname, { admission: { runnerOnly: true } }), { ran: [] });
 });

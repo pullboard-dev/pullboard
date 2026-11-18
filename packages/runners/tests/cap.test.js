@@ -34,7 +34,7 @@ async function runFile(t, name, source) {
   return { status, output, ms: Date.now() - started };
 }
 
-test('a test file that never exits resolves as HUNG within 10 s after its cap, with partial output [C7]', async t => {
+test('runners.cap.a-test-file-that-never-exits: a test file that never exits resolves as HUNG within 10 s after its cap, with partial output [C7]', async t => {
   const { status, output, ms } = await runFile(t, 'plain.test.js', `import { test } from 'node:test';
 test('partial output kept [C7]', () => { console.log('PARTIAL-MARK'); });
 test('the hang [C7]', () => new Promise(() => setInterval(() => {}, 1000)));
@@ -45,7 +45,7 @@ test('the hang [C7]', () => new Promise(() => setInterval(() => {}, 1000)));
   assert.ok(ms < CAP_MS + SLACK_MS, `resolved after ${ms}ms: ${output}`);
 });
 
-test('a child forking a grandchild that holds stdout open still resolves within 10 s after the cap [C7]', async t => {
+test('runners.cap.a-child-forking-a-grandchild-that: a child forking a grandchild that holds stdout open still resolves within 10 s after the cap [C7]', async t => {
   const { status, output, ms } = await runFile(t, 'grandchild.test.js', `import { test } from 'node:test';
 import { spawn } from 'node:child_process';
 test('forks a grandchild holding the output [C7]', () => {

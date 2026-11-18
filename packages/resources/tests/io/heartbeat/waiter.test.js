@@ -45,7 +45,7 @@ function inPool(box, action) {
   try { return action(db); } finally { db.close(); }
 }
 
-test('a live gate waiter older than two minutes cannot block a free slot [C7]', async t => {
+test('resources.waiter.a-live-gate-waiter-older-than: a live gate waiter older than two minutes cannot block a free slot [C7]', async t => {
   const box = fixture(t);
   const holder = await box.take({ agent: 'holder' });
   const stale = await waiting(box, 'stale-head');
@@ -64,7 +64,7 @@ test('a live gate waiter older than two minutes cannot block a free slot [C7]', 
   } finally { fresh?.release(); holder.release(); await stale.stop(); }
 });
 
-test('a live gate waiter below two minutes retains priority past the ordinary lease cutoff [C7]', async t => {
+test('resources.waiter.a-live-gate-waiter-below-two: a live gate waiter below two minutes retains priority past the ordinary lease cutoff [C7]', async t => {
   const box = fixture(t);
   const holder = await box.take({ agent: 'holder' });
   const live = await waiting(box, 'live-head');
@@ -78,7 +78,7 @@ test('a live gate waiter below two minutes retains priority past the ordinary le
   } finally { holder.release(); await live.stop(); }
 });
 
-test('a resumed gate cannot resurrect a removed arrival or release-order ticket [C7]', async t => {
+test('resources.waiter.a-resumed-gate-cannot-resurrect-a: a resumed gate cannot resurrect a removed arrival or release-order ticket [C7]', async t => {
   const box = fixture(t);
   const holder = await box.take({ agent: 'holder' });
   const old = await waiting(box, 'old-head');
@@ -103,7 +103,7 @@ test('a resumed gate cannot resurrect a removed arrival or release-order ticket 
 });
 
 const PIN = 'repo-fd803180-source-pin';
-test('a stuck non-gate pin line clears: stale head is swept, a fresh waiter is admitted, and the swept owner rejoins at the back [C7]', async t => {
+test('resources.waiter.a-stuck-non-gate-pin-line: a stuck non-gate pin line clears: stale head is swept, a fresh waiter is admitted, and the swept owner rejoins at the back [C7]', async t => {
   const box = fixture(t);
   const holder = await box.take({ agent: 'holder', name: PIN });
   const orphan = await waiting(box, 'orphan', PIN);
@@ -119,7 +119,7 @@ test('a stuck non-gate pin line clears: stale head is swept, a fresh waiter is a
   } finally { fresh?.release(); holder.release(); await orphan.stop(); }
 });
 
-test('a live non-gate pin waiter below two minutes is not swept and keeps its place at the head [C7]', async t => {
+test('resources.waiter.a-live-non-gate-pin-waiter: a live non-gate pin waiter below two minutes is not swept and keeps its place at the head [C7]', async t => {
   const box = fixture(t);
   const holder = await box.take({ agent: 'holder', name: PIN });
   const live = await waiting(box, 'live-pin', PIN);

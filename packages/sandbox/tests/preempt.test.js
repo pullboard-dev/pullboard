@@ -23,7 +23,7 @@ function fixture(t) {
   return { board, seat, add, mark };
 }
 
-test('only the person marks urgency; marked and main-red items lead eligible native next [N2,B3]', t => {
+test('sandbox.preempt.person-marks-urgency: only the person marks urgency; marked and main-red items lead eligible native next [N2,B3]', t => {
   const f = fixture(t);
   const ordinary = f.add('Earlier ordinary work');
   const urgent = f.add('Later urgent work');
@@ -48,7 +48,7 @@ test('only the person marks urgency; marked and main-red items lead eligible nat
   assert.throws(() => f.mark(urgent, 'on'), /BAD_FACT_KIND/u, 'old moves cannot introduce a future mark');
 });
 
-test('only a demonstrably waiting clean claim may yield; dirty, committed and unknown work stay protected [N2,B3]', t => {
+test('sandbox.preempt.only-waiting-clean-claim-yields: only a demonstrably waiting clean claim may yield; dirty, committed and unknown work stay protected [N2,B3]', t => {
   const f = fixture(t);
   const waiting = f.add('Claimed work');
   store.claim(f.board, waiting, { agentId: f.seat, lane: 'web', leaseMs: 7_200_000,
@@ -72,7 +72,7 @@ test('only a demonstrably waiting clean claim may yield; dirty, committed and un
 });
 
 /** Exercise the real Next takeover controller against native ordered release writers. */
-test('Next releases only its caller waiting claim and records why it yielded [N2,B3]', async t => {
+test('sandbox.preempt.next-releases-waiting-claim: Next releases only its caller waiting claim and records why it yielded [N2,B3]', async t => {
   const f = fixture(t);
   const waiting = f.add('Held waiting work');
   store.claim(f.board, waiting, { agentId: f.seat, lane: 'web', leaseMs: 7_200_000,

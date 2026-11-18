@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'health.derivedState'));
 }
 
-test('clause 1: health.derivedState defaults to false in the inventory, reads on only for an exact true, and a non-boolean is refused [C7,#8974]', () => {
+test('config.io-derived-state-setting.clause-1-health-derivedstate-defaults-to: clause 1: health.derivedState defaults to false in the inventory, reads on only for an exact true, and a non-boolean is refused [C7,#8974]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -35,7 +35,7 @@ test('clause 1: health.derivedState defaults to false in the inventory, reads on
   assert.throws(() => withSettings({ health: { derivedState: 'yes' } }, derivedStateEnabled), /health\.derivedState/u);
 });
 
-test('clause 2: health.derivedState has a described row that pullboard settings prints [C7,#8974]', () => {
+test('config.io-derived-state-setting.clause-2-health-derivedstate-has-a: clause 2: health.derivedState has a described row that pullboard settings prints [C7,#8974]', () => {
   const described = row({});
   assert.ok(described.label, 'the row carries a plain label');
   assert.match(described.description ?? JSON.stringify(described), /item state/u);

@@ -53,7 +53,7 @@ function screen(t, repo, commit, base, { pace = 'sprint', staticCommand = null }
   return runScreenJob(board.db, { repo, item, base, owner: 'runner-1', recheck, staticCommand }).then(ran => ({ ran, board, item }));
 }
 
-test('clause 1: a sprint item whose commit merges cleanly on its base with no re-check findings records a green screen receipt at that commit and base [V16]', async t => {
+test('drive.screen.a-sprint-item-whose-commit: clause 1: a sprint item whose commit merges cleanly on its base with no re-check findings records a green screen receipt at that commit and base [V16]', async t => {
   const repo = fixture(t);
   const commit = repo.onItem('notes.txt', 'hello\n', 'docs(notes): add notes');
   const base = repo.onMain('other.txt', 'other\n', 'docs(other): add other');
@@ -71,7 +71,7 @@ test('clause 1: a sprint item whose commit merges cleanly on its base with no re
   assert.deepEqual(board.db.prepare('SELECT job_kind FROM job').all().map(row => row.job_kind), ['screen']);
 });
 
-test('clause 2: a commit carrying a secret records a red screen receipt naming the finding [V16,C1]', async t => {
+test('drive.screen.a-commit-carrying-a-secret: clause 2: a commit carrying a secret records a red screen receipt naming the finding [V16,C1]', async t => {
   const repo = fixture(t);
   // Built from parts so this file never holds a secret-shaped line itself.
   const value = ['abcd', 'efgh', 'ijkl', 'mnop', 'qrst'].join('');
@@ -85,7 +85,7 @@ test('clause 2: a commit carrying a secret records a red screen receipt naming t
   assert.ok(!ran.result.findings[0].includes(value), 'the value is never echoed');
 });
 
-test('clause 3: a commit that conflicts with its base records a red screen receipt naming the conflict [V16]', async t => {
+test('drive.screen.a-commit-that-conflicts-with: clause 3: a commit that conflicts with its base records a red screen receipt naming the conflict [V16]', async t => {
   const repo = fixture(t);
   const commit = repo.onItem('readme.txt', 'item\n', 'docs(readme): item words');
   const base = repo.onMain('readme.txt', 'main\n', 'docs(readme): main words');

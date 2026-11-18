@@ -40,7 +40,7 @@ function fixtureCustody(child, clone) {
   return { browserLive: false, paths: result.stdout.split('\n').filter(line => line.startsWith(`n${clone}/`)).map(line => line.slice(1)) };
 }
 
-test('killed private browser fixture leaves an old clone removed after its real FD owner exits [C7]', { timeout: 15000 }, async t => {
+test('runner.chrome.killed-private-browser-fixture-leaves-an-old: killed private browser fixture leaves an old clone removed after its real FD owner exits [C7]', { timeout: 15000 }, async t => {
   const { namespace, clone } = fixture(t);
   // This is a browser-process stand-in; it does not claim to create a native code-sign clone.
   const child = startFixtureChild(process.execPath, ['-e',
@@ -75,7 +75,7 @@ test('killed private browser fixture leaves an old clone removed after its real 
   assert.equal(existsSync(clone), false);
 });
 
-test('young clones, symlinks, live Chrome and unknown census never authorize removal [C7]', async t => {
+test('runner.chrome.young-clones-symlinks-live-chrome-and-unknown: young clones, symlinks, live Chrome and unknown census never authorize removal [C7]', async t => {
   const { root, namespace, clone } = fixture(t);
   const link = join(namespace, 'code_sign_clone.Def456');
   symlinkSync(root, link);

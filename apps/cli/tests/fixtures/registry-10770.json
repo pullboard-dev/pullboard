@@ -1,0 +1,4 @@
+{
+  "cli.io-resident-start.concurrent-commands-on-one-slot-start-one-resident": {"proves":{"specs":["C7"],"claim":"Concurrent commands that find no resident on a slot start exactly one resident process there; the rest run in-process."},"why":"Without it, a regression where every concurrent command starts its own resident on one slot (41 at once on 17 Nov, load 130) would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/resident/start.test.js"]},
+  "cli.io-resident-start.a-stale-start-lock-is-taken-over": {"proves":{"specs":["C7"],"claim":"A start lock older than the stale age is taken over, so a starter that died before listening never blocks its slot."},"why":"Without it, a regression where a dead starter's lock keeps its slot from ever starting a resident would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/resident/start.test.js"]}
+}

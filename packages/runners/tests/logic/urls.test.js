@@ -56,7 +56,7 @@ function runInstalled(fixture, tools) {
   return JSON.parse(result.stdout);
 }
 
-test('clause 1: a runtime past 2 MiB is named in a spec far below the 1 MiB frame, with no source inline [C7]', () => {
+test('runners.urls.a-runtime-past-2-mib-is: clause 1: a runtime past 2 MiB is named in a spec far below the 1 MiB frame, with no source inline [C7]', () => {
   const tools = tooling(2 * 1024 ** 2);
   const reference = runtimeReference(tools.runtime);
   assert.ok(Buffer.byteLength(JSON.stringify(tools.runtime)) > 2 * SPEC_FRAME_LIMIT, 'the fixture runtime must be past the frame');
@@ -65,7 +65,7 @@ test('clause 1: a runtime past 2 MiB is named in a spec far below the 1 MiB fram
   assert.equal(JSON.stringify(reference).includes(tools.runtime.files['src/bulk.js'].slice(30, 90)), false);
 });
 
-test('clauses 2 and 3: a capsule past 1 MiB installs, and the worker rebuilds and checks the named runtime from it [C7]', t => {
+test('runners.urls.clauses-2-and-3-a-capsule: clauses 2 and 3: a capsule past 1 MiB installs, and the worker rebuilds and checks the named runtime from it [C7]', t => {
   const fixture = privateFixtureFiles('pullboard-runtime-ref-');
   t.after(() => rmSync(fixture.root, { recursive: true, force: true }));
   const tools = tooling(1536 * 1024);

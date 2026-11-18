@@ -8,6 +8,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { runFixtureChildAsync } from '../child.js';
+import { inProcessHooksOn } from '../hook/mode.js';
 import {
   verifySettled,
   verifySettledSync,
@@ -119,7 +120,9 @@ async function commitItemLocal(box, entry, contents = 'PASS\n') {
   mkdirSync(join(entry.path, entry.file, '..'), { recursive: true });
   writeFileSync(join(entry.path, entry.file), contents);
   box.git(entry.path, 'add', '-A');
-  const committed = await runFixtureChildAsync('git', ['commit', '-q', '-m', `feat(web): build land fixture ${entry.item} [G1]`], { cwd: entry.path, env: box.env, encoding: 'utf8' });
+  const args = ['commit', '-q', '-m', `feat(web): build land fixture ${entry.item} [G1]`];
+  // With test.inProcessHooks on, the hooks run in this process; otherwise the real hooks run as child processes [C7,#10412].
+  const committed = inProcessHooksOn(box.env) ? await box.tryGit(entry.path, ...args) : await runFixtureChildAsync('git', args, { cwd: entry.path, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, committed.stderr);
   entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
   return entry;

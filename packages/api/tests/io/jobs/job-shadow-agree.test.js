@@ -42,7 +42,7 @@ function claimed(t, reads, receiptStep) {
   return { db, id: 'gate:2991:78fcefb3d274:mwjjn31j:shard:15', token: claim.token };
 }
 
-test('clause 1: the job table reads the row inside the writer\'s transaction, and a renew then a receipt compare with no disagreement [C7,#9360]', t => {
+test('api.jobs-job-shadow-agree.job-table-reads-row-inside: clause 1: the job table reads the row inside the writer\'s transaction, and a renew then a receipt compare with no disagreement [C7,#9360]', t => {
   const reads = [];
   const { db, id, token } = claimed(t, reads);
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
@@ -53,7 +53,7 @@ test('clause 1: the job table reads the row inside the writer\'s transaction, an
   assert.equal(counts.disagreed, 0, `the job table agreed: ${JSON.stringify(counts.last)}`);
 });
 
-test('clause 2: a table answer whose step genuinely differs from the writer\'s still records its differing path [C7,#9360]', t => {
+test('api.jobs-job-shadow-agree.table-answer-whose-step-genuinely: clause 2: a table answer whose step genuinely differs from the writer\'s still records its differing path [C7,#9360]', t => {
   const reads = [];
   const { db, id, token } = claimed(t, reads, 'claimed');
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });

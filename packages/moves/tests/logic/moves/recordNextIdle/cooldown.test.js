@@ -13,7 +13,7 @@ function claimAndRelease(box, id) {
   store.release(box.board, id, box.seats.actor.id, 'Give the fixture item back to the board', 'OTHER');
 }
 
-test('a seat that released item A is offered item B, and A once the cooldown passes [B3,N2]', async t => {
+test('moves.record-next-idle-cooldown.a-seat-that-released-item-a-is: a seat that released item A is offered item B, and A once the cooldown passes [B3,N2]', async t => {
   const box = fixture(t);
   const a = box.add('Item A');
   const b = box.add('Item B');
@@ -27,7 +27,7 @@ test('a seat that released item A is offered item B, and A once the cooldown pas
   assert.equal(later.item.item_id, a, 'after 30 minutes the released item is offered again');
 });
 
-test('plain next, the command seats loop on, also offers item B after item A was released [B3,N2]', async t => {
+test('moves.record-next-idle-cooldown.plain-next-the-command-seats-loop-on: plain next, the command seats loop on, also offers item B after item A was released [B3,N2]', async t => {
   const box = fixture(t);
   const a = box.add('Item A');
   const b = box.add('Item B');
@@ -37,7 +37,7 @@ test('plain next, the command seats loop on, also offers item B after item A was
   assert.equal(store.getItem(box.board, a).item_status, 'open');
 });
 
-test('with only the released item open, the seat is offered it [B3,N2]', async t => {
+test('moves.record-next-idle-cooldown.with-only-the-released-item-open-the: with only the released item open, the seat is offered it [B3,N2]', async t => {
   const box = fixture(t);
   const a = box.add('Item A');
   claimAndRelease(box, a);
@@ -45,7 +45,7 @@ test('with only the released item open, the seat is offered it [B3,N2]', async t
   assert.equal(offered.item.item_id, a);
 });
 
-test('claims.releaseCooldownMinutes defaults to 30 and refuses a negative or non-number value [B3]', () => {
+test('moves.record-next-idle-cooldown.claims-release-cooldown-minutes-defaults-to-30-and-refuses-a: claims.releaseCooldownMinutes defaults to 30 and refuses a negative or non-number value [B3]', () => {
   assert.equal(configFromSource('{}').claims.releaseCooldownMinutes, 30);
   assert.equal(configFromSource('{"claims":{"releaseCooldownMinutes":0}}').claims.releaseCooldownMinutes, 0);
   for (const value of [-1, '30', null]) {

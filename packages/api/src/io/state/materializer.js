@@ -91,11 +91,11 @@ function restamped(record, now) {
  * openRevision opens a board's cheap revision watcher, the one change notices use, kept open per board.
  * The worker runs until close(), which the server's own close calls.
  */
-export function startStateMaterializer({ portsModule, projects, scope, isMain, openRevision, onStateBuild, onRecord, onFailure, Refused }) {
+export function startStateMaterializer({ portsModule, projects, scope, isMain, codeStampCache = false, openRevision, onStateBuild, onRecord, onFailure, Refused }) {
   // The worker takes none of this process's preloads: a test runner's per-file preload, run again in a thread,
   // claimed the file's test slot a second time and killed the worker, so every state read failed [C7].
   const { NODE_TEST_CONTEXT: _testContext, ...workerEnv } = process.env;
-  const worker = new Worker(new URL('./materializer/worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects() }, execArgv: [], env: workerEnv });
+  const worker = new Worker(new URL('./materializer/worker.js', import.meta.url), { workerData: { portsModule, scope, isMain, projects: projects(), codeStampCache }, execArgv: [], env: workerEnv });
   const boards = new Map();
   let failure = null;
   let closing = false;

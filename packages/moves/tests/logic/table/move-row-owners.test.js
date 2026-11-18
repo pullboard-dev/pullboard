@@ -80,7 +80,7 @@ test('moves.row-owners.backbone: clause 2: the backbone table has rows and exact
 
 test('moves.row-owners.landing: clause 2: the five landing tables have rows and every row has exactly one owner [C7,#8561]', () => {
   const records = JSON.parse(readFileSync(join(DIR, '../../registry.json'), 'utf8'));
-  assert.equal(TABLES.landing.length, 43);
+  assert.equal(TABLES.landing.length, 45, 'the 43 rows after the Pace slices plus strict-full-suite and merge-publish from #9326, owned by moves.landing.rows-fire');
   assert.deepEqual(moveRowOwnershipProblems({ landing: TABLES.landing }, records), []);
 });
 

@@ -5,7 +5,7 @@ import { needsActionsHtml } from '../../../../index.js';
 import { needsPanelHtml } from '../../../../index.js';
 import { needsPanelModel } from '../../../../index.js';
 
-test('revision Needs rows preserve comparison bytes and exact proposal actions [N26,B26,C7]', () => {
+test('view.needs-summary-revision.revision-needs-rows-preserve-comparison-bytes-and: revision Needs rows preserve comparison bytes and exact proposal actions [N26,B26,C7]', () => {
   const call = { kind: 'spec-revision', id: 'R7', ref: 'G1',
     source: 'G1 [approved, must] Keep <old> & "quoted" text.\nThe complete final line.',
     replacement: 'G1 [draft, must] Use <new> & \'quoted\' text.\nThe proposed final line.',

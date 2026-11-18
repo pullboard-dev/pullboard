@@ -34,7 +34,7 @@ async function boxWithMissingCheckFile(t, setting) {
   return box;
 }
 
-test('clause 1: submit refuses in under a second when the frozen check names a missing test file and lists the added files, with gate.refuseMissingCheckFile on [C7]', async (t) => {
+test('cli.journeys-submit-missing.submit-refuses-in-under-a-second: clause 1: submit refuses in under a second when the frozen check names a missing test file and lists the added files, with gate.refuseMissingCheckFile on [C7]', async (t) => {
   const box = await boxWithMissingCheckFile(t, true);
   const started = Date.now();
   const refused = await runLocal(box, 'submit', '1', '--json');

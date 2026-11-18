@@ -19,7 +19,7 @@ import {
 import { produceAcceptedCells } from '../../../../lib/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
 import { isAbsolute } from 'node:path';
-import { cellsBacklogCollector } from '../../../../../packages/codemap/index.js';
+import { cellsBacklogCollector } from '../cells/backlog.js';
 import { boardCommandBudgetCheck } from './budget.js';
 
 const [root, token, ...args] = process.argv.slice(2);

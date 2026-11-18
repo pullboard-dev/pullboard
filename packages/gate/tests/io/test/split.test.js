@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { splitRegistries } from '../../../src/io/test/split.js';
+import { formatTestTiers } from '../../../src/io/test/tiers.js';
 import { CELL_METRICS } from '../../../../codemap/index.js';
 import { readCellLintBaseline } from '../../../../codemap/index.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
@@ -63,7 +64,7 @@ const lints = async () => ({
 /** The tier classifier's rows for the split files. */
 const tiers = () => ({ files: [{ file: OLD, tier: 'T3' }, { file: NEW, tier: 'T2' }] });
 
-test('a split moves every per-file registry row to its new files in one command [C7]', async () => {
+test('gate.io-test-split.a-split-moves-every-per-file: a split moves every per-file registry row to its new files in one command [C7]', async () => {
   const fixture = tree(), { root, write, read } = fixture;
   try {
     write(OLD, [LAUNCH, ''].join('\n'));
@@ -93,7 +94,7 @@ test('a split moves every per-file registry row to its new files in one command 
   }
 });
 
-test('a split that raises any budget writes nothing [C7]', async () => {
+test('gate.io-test-split.a-split-that-raises-any-budget: a split that raises any budget writes nothing [C7]', async () => {
   const fixture = tree(), { root, write, read } = fixture;
   try {
     write(OLD, [LAUNCH, ''].join('\n'));
@@ -108,12 +109,30 @@ test('a split that raises any budget writes nothing [C7]', async () => {
   }
 });
 
-test('a split that deletes a path-map target refuses with the next step [C7]', async () => {
+test('gate.io-test-split.a-split-that-deletes-a-path: a split that deletes a path-map target refuses with the next step [C7]', async () => {
   const fixture = tree(), { root, write } = fixture;
   try {
     rmSync(`${root}/${OLD}`);
     write(NEW, [LAUNCH, ''].join('\n'));
     await assert.rejects(splitRegistries(root, OLD, [NEW], { lints: null, tiers }), error => error.code === 'SPLIT_PATH_MAP' && error.next.includes(`keep ${OLD}`));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('gate.io-test-split.a-split-changes-only-the-moved: a split changes only the moved rows of tiers.json and keeps one row per line [C7]', async () => {
+  const fixture = tree(), { root, write, read } = fixture;
+  try {
+    const others = Array.from({ length: 40 }, (_, index) => ({ file: `apps/m${String(index).padStart(2, '0')}.test.js`, tier: 'T1', packages: ['.', 'apps/cli'] }));
+    const before = formatTestTiers({ files: [...others.slice(0, 20), { file: OLD, tier: 'T3' }, ...others.slice(20)] });
+    write('packages/gate/data/tests/tiers.json', before);
+    write(OLD, [LAUNCH, ''].join('\n'));
+    write(NEW, [LAUNCH, SLEEP, OPEN, ''].join('\n'));
+    await splitRegistries(root, OLD, [NEW], { lints: null, tiers });
+    const after = read('packages/gate/data/tests/tiers.json').toString('utf8');
+    assert.equal(after, formatTestTiers({ files: [...others.slice(0, 20), { file: OLD, tier: 'T3' }, { file: NEW, tier: 'T2' }, ...others.slice(20)] }), 'the file keeps its one-row-per-line format');
+    const kept = new Set(before.split('\n'));
+    assert.ok(after.split('\n').filter(line => !kept.has(line)).length < 20, 'only the moved rows differ');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

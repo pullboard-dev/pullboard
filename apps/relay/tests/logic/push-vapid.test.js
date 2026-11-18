@@ -13,7 +13,7 @@ function open(token) {
   return { signed: `${head}.${body}`, header: JSON.parse(Buffer.from(head, 'base64url')), claims: JSON.parse(Buffer.from(body, 'base64url')), signature: Buffer.from(signature, 'base64url') };
 }
 
-test('clause 1: the token verifies as ES256 against the public key and not against another key [C7]', () => {
+test('relay.logic-push-vapid.the-token-verifies-as-es256-against: clause 1: the token verifies as ES256 against the public key and not against another key [C7]', () => {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const other = generateKeyPairSync('ec', { namedCurve: 'P-256' }).publicKey;
   const { signed, header, signature } = open(vapidAuth('https://push.example.net/send/abc', 'mailto:ops@example.com', privateKey, NOW));
@@ -23,7 +23,7 @@ test('clause 1: the token verifies as ES256 against the public key and not again
   assert.equal(verify('sha256', Buffer.from(signed), { key: other, dsaEncoding: 'ieee-p1363' }, signature), false);
 });
 
-test('clause 1: the claims carry the endpoint origin as audience, the subject, and an expiry inside 12 hours [C7]', () => {
+test('relay.logic-push-vapid.the-claims-carry-the-endpoint-origin: clause 1: the claims carry the endpoint origin as audience, the subject, and an expiry inside 12 hours [C7]', () => {
   const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
   const { claims } = open(vapidAuth('https://push.example.net:8443/send/abc?x=1', 'mailto:ops@example.com', pem, NOW));

@@ -10,7 +10,7 @@ import { runnerModuleParserCompileCount } from '../../../src/io/module/parser.js
 import { runnerPackage } from '../../../src/io/package.js';
 import { captureRunnerTooling } from '../../../src/io/tooling/snapshot.js';
 
-test('clause 1: a second parser in one process parses nothing again and a changed file is re-parsed [C7]', () => {
+test('runners.parser.a-second-parser-in-one-process: clause 1: a second parser in one process parses nothing again and a changed file is re-parsed [C7]', () => {
   const source = `import { a } from './cache-probe-${process.pid}.js';\nexport const b = a;\n`;
   const first = createRunnerModuleParser();
   let started = process.hrtime.bigint();
@@ -48,7 +48,7 @@ test('clause 1: a second parser in one process parses nothing again and a change
   assert.equal(runnerModuleParserCompileCount(), before + 3, 'the same path with changed content is re-parsed');
 });
 
-test('clause 1 and clause 2: the production importsIn call sites pass real paths, so a second pass over the real tree parses nothing [C7]', () => {
+test('runners.parser.clause-1-and-clause-2-the: clause 1 and clause 2: the production importsIn call sites pass real paths, so a second pass over the real tree parses nothing [C7]', () => {
   const root = resolve(import.meta.dirname, '../../../../..');
   const first = runnerPackage(root);
   const afterPackage = runnerModuleParserCompileCount();

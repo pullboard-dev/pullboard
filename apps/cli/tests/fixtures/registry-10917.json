@@ -1,0 +1,3 @@
+{
+  "cli.stable.journeys-registered-10917": {"proves":{"specs":["C7","U148"],"claim":"Every core-owned test under the journeys submit folder has a registered cli.<area>.<slug> title ID."},"why":"Without it, a journey test in the submit folder could lose its ID and record unnoticed while the strict setting is off.","kind":"cell unit","inputs":["apps/cli/tests/stable.test.js","apps/cli/journeys/submit/**"]}
+}

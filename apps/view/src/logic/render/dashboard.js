@@ -5,10 +5,10 @@
  * through data-dashboard-list (and data-dashboard-lane); every item row opens its item through data-go [N26].
  * The view's policy disallows inline styles, so each proportional bar is SVG geometry.
  * @param {object} model - The Dashboard snapshot model.
- * @param {object} options - Presentation settings.
+ * @param {object} options - Presentation settings. `gate`, `{ open, trace }`, makes each In the gate row open its gate trace panel (data-gate-trace) in place of the item: `open` is the item whose panel shows, `trace` the gate trace projection [C7].
  * @returns {string} Dashboard markup.
  */
-export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 'UTC' } = {}) {
+export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 'UTC', gate = null } = {}) {
   const m = model;
   /** Escape both text and attribute values supplied by a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -158,9 +158,22 @@ export function dashboardHtml(model, { deferQuiet, locale = 'en-US', timeZone = 
   const list = (name, n, listKey, note, rows, foot = '', empty = 'Nothing '+name.toLowerCase()+'.') => !rows.length && listKey !== 'landed' ? section(name, 'dash-qsec dash-qquiet', label(esc(name), pill(n, listKey)), '', { cap: esc(empty) }) : section(name, 'dash-qsec', label(esc(name), pill(n, listKey)),
     '<div class="dash-card dash-q">'+(rows.length ? rows.slice(0, 10).join('') : '<p class="dash-empty">'+esc(empty)+'</p>')+'</div>', { cap: note, link: foot ? open(foot, listKey, { cls: 'dash-lk' }) : '' });
   const L = m.lists;
+  /** One gate row: it opens the item's gate trace panel, which sits right under it and lists each phase with its duration in ms. */
+  const gateRow = entry => {
+    const shown = gate.open === entry.id, job = m.runners?.gates?.[entry.id];
+    const button = '<button type="button" class="dash-row" data-gate-trace="'+entry.id+'" aria-expanded="'+shown+'"><span class="dash-id">#'+entry.id+'</span><span class="dash-t" title="'+esc(entry.title)+'">'+esc(entry.title)+'</span><span class="dash-age">gate '+ago(m.last(entry, 'submit'))+'</span></button>';
+    if (!shown) return button;
+    const trace = job ? gate.trace(job, { now: m.now }) : null, phases = trace ? trace.phases : [], total = Math.max(1, trace ? trace.totalMs : 1);
+    const bar = phase => '<svg class="dash-gbar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect class="bg" width="100" height="1"/><rect class="'+phase.kind+'" x="'+((phase.start - trace.start)/total*100)+'" width="'+Math.max(0.6, phase.ms/total*100)+'" height="1"/></svg>';
+    const line = phase => '<li class="dash-gp '+phase.kind+(phase.open ? ' now' : '')+'" data-gate-phase="'+esc(phase.name)+'"><span class="dash-gn">'+esc(phase.type === 'gap' ? 'gap' : phase.name)+(phase.open ? ' <small>running</small>' : '')+'</span>'+bar(phase)+'<span class="dash-gm">'+num(phase.ms)+' ms</span></li>';
+    const status = !trace ? 'No gate record for this item yet.' : !phases.length ? 'The gate has not started a phase.' : trace.running ? 'Running · now in <b>'+esc(trace.current.name)+'</b> · '+num(trace.totalMs)+' ms so far' : 'Finished · '+num(trace.totalMs)+' ms in all, '+num(trace.gapMs)+' ms waiting between phases';
+    return button+'<div class="dash-gt" data-gate-panel="'+entry.id+'" role="region" aria-label="Gate trace for #'+entry.id+'"><p class="dash-gs">'+status+'</p>'
+      + (phases.length ? '<ol class="dash-gl">'+phases.map(line).join('')+'</ol>' : '')
+      + '<p class="dash-gf"><button type="button" class="dash-lk" data-go="item:'+entry.id+'">Open the item ›</button><button type="button" class="dash-lk" data-gate-trace="'+entry.id+'">Close</button></p></div>';
+  };
   const reviewed = L.review.filter(reserved).length;
   const queues = '<div class="dash-queues">'
-    + list('In the gate', L.gate.length, 'gate', L.gate.length ? 'longest '+ago(m.last(L.gate[0], 'submit')) : '', L.gate.map(entry => row('dash-row', entry, 'gate '+ago(m.last(entry, 'submit')))))
+    + list('In the gate', L.gate.length, 'gate', L.gate.length ? 'longest '+ago(m.last(L.gate[0], 'submit')) : '', L.gate.map(entry => gate ? gateRow(entry) : row('dash-row', entry, 'gate '+ago(m.last(entry, 'submit')))))
     + list('In review', L.review.length, 'review', L.review.length ? reviewed+' being reviewed · '+(L.review.length - reviewed)+' pending review' : '', L.review.map(entry => reserved(entry) ? row('dash-row', entry, 'reviewing '+ago(m.last(entry, 'reserve'))) : row('dash-row', entry, 'pending review '+ago(m.last(entry, 'submit')), m.now - m.last(entry, 'submit') > late)))
     + list('Landing', L.accepted.length, 'passed', L.accepted.length ? L.accepted.length+' accepted, landing next' : '', L.accepted.map((entry, index) => row('dash-row', entry, entry.landingBatchAt ? 'landing '+ago(Date.parse(entry.landingBatchAt) || m.now) : index ? 'next' : 'passed '+ago(m.last(entry, 'accept')))))
     + list('Landed · 4 h', L.landed.length, 'landed', '', L.landed.filter(entry => entry.item).map(entry => row('dash-row', entry.item, ago(entry.at))), L.landed.length ? 'All '+L.landed.length+' ›' : '', 'Nothing landed in the last 4 hours.')

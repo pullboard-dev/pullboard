@@ -58,7 +58,7 @@ function freshCheckout(t, box) {
 /** A probe that counts full graph builds and records which modules were wired and which source texts were parsed. */
 const probe = () => ({ builds: 0, imported: [], parsed: [] });
 
-test('a fresh clone reads main\'s graph and parses only the one changed file, picking what a cold build picks [C7,V4]', t => {
+test('gate.io-affected-graph-cache-selection.a-fresh-clone-reads-main-s: a fresh clone reads main\'s graph and parses only the one changed file, picking what a cold build picks [C7,V4]', t => {
   const box = repository(t);
   const warmMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-warm-'));
   const coldMachine = mkdtempSync(join(tmpdir(), 'pullboard-machine-cold-'));
@@ -91,7 +91,7 @@ test('a fresh clone reads main\'s graph and parses only the one changed file, pi
   assert.deepEqual(warm.files, Array.from({ length: 25 }, (_, at) => `test/t${(at + 5) * 10}.test.js`).sort());
 });
 
-test('a graph updated from the base equals one built from scratch, and a changed path set rebuilds [C7,V4]', t => {
+test('gate.io-affected-graph-cache-selection.a-graph-updated-from-the-base: a graph updated from the base equals one built from scratch, and a changed path set rebuilds [C7,V4]', t => {
   const box = repository(t);
   const machine = mkdtempSync(join(tmpdir(), 'pullboard-machine-delta-'));
   t.after(() => rmSync(machine, { recursive: true, force: true }));

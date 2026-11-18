@@ -9,6 +9,24 @@ const POLL_MS = 2_000;
 const NO_PUSH_OPTIONS = /does not support push options/u;
 const FAILING_CASES = 4000;
 
+const CACHE_SUMMARY = /^(?:# )?test cache: (\d+) files, (\d+) reused, (\d+) ran;/mu;
+const REUSED_FILE = /^# reused [0-9a-f]{64} from ledger \((.+)\)$/mu;
+const ACCOUNT_FILES = 200;
+
+/**
+ * What one posted shard reused from the results the gate recorded: the reused count its proof phase's test cache summary
+ * prints, and the files named by the ledger-hit lines the phase's output tail still holds. Why: a shard receipt carries only
+ * the tail of its output, so the count is exact and the file list is what that tail kept [C7,#9515].
+ *
+ * @param {{ receipt?: { gate?: { phases?: { role: string, tail?: string }[] } } } | null} posted
+ * @returns {{ reused: number | null, files: string[] }}
+ */
+export function shardReuse(posted) {
+  const tail = String((posted?.receipt?.gate?.phases ?? []).find(phase => phase.role === 'proof')?.tail ?? '');
+  const summary = CACHE_SUMMARY.exec(tail);
+  return { reused: summary ? Number(summary[2]) : null, files: [...tail.matchAll(new RegExp(REUSED_FILE.source, 'gmu'))].map(row => row[1]) };
+}
+
 /** Sleep without leaving a timer behind once the wait ends. */
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -69,14 +87,14 @@ function pinMerged(root, { remote, job, options = [] }) {
  * @returns {(context: { root: string, base: string, renew?: () => Promise<boolean> | boolean }) => Promise<object>}
  */
 export function shardedProofCheck(proof, shard, local) {
-  const { job, remote, cores, gate, offer, receipts, pushOptions = () => [], pollMs = POLL_MS, wait = pause, now = Date.now, deadline = () => null } = shard;
+  const { job, remote, cores, gate, offer, receipts, pushOptions = () => [], pollMs = POLL_MS, wait = pause, now = Date.now, deadline = () => null, reuseGate = false } = shard;
   return async context => {
     const merged = tryGit(context.root, ['rev-parse', 'HEAD']).stdout;
     if (!/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(merged) || proof.files.length <= cores) return local(context);
     const pinned = pinMerged(context.root, { remote, job, options: pushOptions() });
     if (!pinned.ok) return local(context);
     let offered;
-    try { offered = await offer({ merged, ref: landingRef(job), plan: { runner: proof.runner, files: proof.files, cores }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
+    try { offered = await offer({ merged, ref: landingRef(job), ...(reuseGate ? { reuse: true } : {}), plan: { runner: proof.runner, files: proof.files, cores }, gate: { run: gate.run, entry: gate.entry, commits: [context.base] } }); } catch { return local(context); }
     if (!offered?.sharded || !Array.isArray(offered.shards) || !offered.shards.length) return local(context);
     const posted = new Map(), total = offered.shards.length;
     const counts = { files: proof.files.length, reused: 0, ran: proof.files.length, shards: total };
@@ -91,6 +109,13 @@ export function shardedProofCheck(proof, shard, local) {
       if (posted.size < total && limit && now() >= limit.at) return { ok: false, timeout: true, detail: timeoutDetail(`the landing proof's ${total} shards (${posted.size} posted)`, limit.ms, ''), proof: counts };
       if (posted.size < total) await wait(pollMs);
     }
+    // The shards' own cache summaries say how many files they reused from the gate's results; one missing summary leaves the count unknown, so it stays 0 rather than guessed.
+    const reuse = offered.shards.map(id => shardReuse(posted.get(id)));
+    if (reuse.every(row => row.reused !== null)) {
+      const reused = reuse.reduce((total, row) => total + row.reused, 0);
+      Object.assign(counts, { reused, ran: counts.files - reused });
+    }
+    if (reuseGate) Object.assign(counts, { reusedFiles: reuse.flatMap(row => row.files).slice(0, ACCOUNT_FILES) });
     return { ok: true, detail: null, proof: counts };
   };
 }

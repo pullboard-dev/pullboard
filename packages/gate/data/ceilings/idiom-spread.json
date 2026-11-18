@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "idioms": {
+    "request-animation-frame-set-timeout": {
+      "pattern": "requestAnimationFrame\\(\\(\\) => setTimeout\\(|requestAnimationFrame\\b[^\\n]*\\)\\(\\(\\) => setTimeout\\(",
+      "sites": 0
+    }
+  }
+}

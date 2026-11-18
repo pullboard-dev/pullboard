@@ -8,11 +8,11 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../../../gate/tests/fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../../../gate/tests/fixtures/runner/ssh.js';
 import { waitRunnerJob } from '../../../src/io/pull/wait.js';
 
-test('C7: the waiter observes need within 1 s of the runner writing it, and ready and done too, on the default cadence [C7]', {
+test('runners.need-latency.c7-the-waiter-observes-need-within: C7: the waiter observes need within 1 s of the runner writing it, and ready and done too, on the default cadence [C7]', {
   timeout: 30_000, // budget: one waiter over the ssh stand-in against a real runner folder, three steps each written just after a refresh.
 }, async t => {
   const base = privateFixtureFiles('pbneed-').root;

@@ -43,7 +43,7 @@ function preparedBy(board, run) {
   return [...seen];
 }
 
-test('seatFamily plans no board_meta scan and 1,000 calls finish under 50 ms on 300,000 rows [C7,#2976]', t => {
+test('items.declaration.seat-family-indexed: seatFamily plans no board_meta scan and 1,000 calls finish under 50 ms on 300,000 rows [C7,#2976]', t => {
   const board = fixtureBoard(t);
   seed(board);
   assert.ok(board.db.prepare('SELECT COUNT(*) AS n FROM board_meta').get().n >= ROWS);

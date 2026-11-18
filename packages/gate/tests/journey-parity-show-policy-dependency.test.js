@@ -10,16 +10,18 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sampleDifferences } from './fixtures/journey-parity.js';
 
-const SAMPLES = [{ journey: 'apps/cli/journeys/show/policy/dependency.test.js', cases: ["a dependency's own verified dependency admits its files [N16,V4]"] }];
+const SAMPLES = [{ journey: 'apps/cli/journeys/show/policy/dependency.test.js', cases: ["clause 2: a dependency's own verified dependency admits its files [N16,V4]"] }];
 
-test('clause 1: a sample of the show/policy/dependency journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-show-policy-dependency.a-sample-of-the-show-policy-dependency: clause 1: a sample of the show/policy/dependency journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the show/policy/dependency journey keeps all 1 of its cases, and the sampled case is that one [C7]', () => {
+test('gate.journey-parity-show-policy-dependency.the-show-policy-dependency-journey-keeps-all: clause 2: the show/policy/dependency journey keeps all 1 of its cases, and the sampled case is that one [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/journeys/show/policy/dependency.test.js', import.meta.url), 'utf8');
-  const cases = [...source.matchAll(/^test\((["'`])(.*?)\1/gmu)].map(match => match[2]);
+  // A title may hold an escaped quote and carry a stable-ID prefix (`area.file.slug: `): read the literal whole, then drop the prefix.
+  const cases = [...source.matchAll(/^test\((["'`])((?:\\.|(?!\1).)*)\1/gmu)]
+    .map(match => match[2].replace(/\\(.)/gu, '$1').replace(/^[a-z][\w-]*(?:\.[\w-]+)+: /u, ''));
   assert.equal(cases.length, 1, `the journey keeps its 1 case, found ${cases.length}`);
   assert.deepEqual(cases, SAMPLES[0].cases);
 });

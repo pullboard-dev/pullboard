@@ -20,21 +20,21 @@ function gating(t, ratchet) {
   return { state, said, latest: () => store.landingBatches(board).find(batch => batch.id === 'ratchet-block') };
 }
 
-test('a refused ratchet records the batch blocked with FLAKE_RATCHET and stops the landing [C7]', async t => {
+test('landing.publish.a-refused-ratchet-records-the-batch: a refused ratchet records the batch blocked with FLAKE_RATCHET and stops the landing [C7]', async t => {
   const { state, said, latest } = gating(t, { allowed: false, unprotected: [{ file: 'test/flaky.test.js', name: 'case' }], malformed: [], unjustified: [] });
   assert.equal(await flakeRatchetOrBlock(state), false);
   assert.deepEqual([latest().state, latest().refusal?.code], ['blocked', 'FLAKE_RATCHET']);
   assert.match(said.join('\n'), /nothing landed: .*test\/flaky\.test\.js :: case/);
 });
 
-test('an allowed ratchet binds its snapshot and lets the landing go on [C7]', async t => {
+test('landing.publish.an-allowed-ratchet-binds-its-snapshot: an allowed ratchet binds its snapshot and lets the landing go on [C7]', async t => {
   const snapshot = { version: 1, eventId: 0, count: 0, quarantines: [] };
   const { state, latest } = gating(t, { allowed: true, unprotected: [], malformed: [], unjustified: [], snapshot });
   assert.equal(await flakeRatchetOrBlock(state), true);
   assert.equal(latest().state, 'gating');
 });
 
-test('before its gate a refused ratchet blocks the batch FLAKE_RATCHET and starts no gate [C7]', async t => {
+test('landing.publish.before-its-gate-a-refused-ratchet: before its gate a refused ratchet blocks the batch FLAKE_RATCHET and starts no gate [C7]', async t => {
   const { state, said, latest } = gating(t, { allowed: false, unprotected: [{ file: 'test/flaky.test.js', name: 'case' }], malformed: [], unjustified: [] });
   await assert.rejects(() => flakeRatchetBeforeGate(state), { code: 'FLAKE_RATCHET', message: /test\/flaky\.test\.js :: case/ });
   assert.deepEqual([latest().state, latest().refusal?.code], ['blocked', 'FLAKE_RATCHET']);
@@ -42,7 +42,7 @@ test('before its gate a refused ratchet blocks the batch FLAKE_RATCHET and start
   assert.equal(state.gates, undefined, 'no gate state was created');
 });
 
-test('before its gate an allowed ratchet changes nothing and the publish step keeps its own check [C7]', async t => {
+test('landing.publish.before-its-gate-an-allowed-ratchet: before its gate an allowed ratchet changes nothing and the publish step keeps its own check [C7]', async t => {
   const { state, latest } = gating(t, { allowed: true, unprotected: [], malformed: [], unjustified: [], snapshot: { version: 1, eventId: 0, count: 0, quarantines: [] } });
   await flakeRatchetBeforeGate(state);
   assert.equal(latest().state, 'gating');

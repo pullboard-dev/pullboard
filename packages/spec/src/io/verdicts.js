@@ -48,7 +48,7 @@ function outsideParent(board, author, verifier) {
 function sendBack(board, { served, rejected, from }, { rowDrafts, shout }) {
   const authors = new Set(rowDrafts(board).filter(draft => draft.id === served && (draft.target ?? 'spec') === 'spec' && !draft.revises).map(draft => draft.by));
   const to = authors.size === 1 ? [...authors][0] : 'coordinator';
-  shout(board, { from, to, lanes: [], kind: 'status', text: `${rejected} was rejected; ${served} serves it and needs review: pullboard spec show ${served}` });
+  shout(board, { from, to, lanes: [], kind: 'question', text: `${rejected} was rejected; ${served} serves it and needs review: pullboard spec show ${served}` });
 }
 
 /** Record an exact-row receipt under the authenticated operation actor, without writing a file. */

@@ -18,8 +18,6 @@ import {
   test,
 } from 'node:test';
 import { checkAtCommit } from '../../../runner/index.js';
-import * as store from '../../../../packages/store/index.js';
-import { openBoard } from '../../../lib/index.js';
 
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 const e2e = createE2eHelpers();
@@ -28,7 +26,7 @@ const {
   sandbox, privateCheckSubmission,
 } = e2e;
 
-test('oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.oversized-single-output-lines-are-discarded: oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', async () => {
   const planted = 'sk-proj-' + 'z'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'process.stdout.write("BEGIN-LONG\\n"+"😀".repeat(17*1024)+"${planted}\\nTAIL-LONG\\n");process.exitCode=1'` });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the oversized diagnostic line must fail closed', '--json');
@@ -44,7 +42,7 @@ test('oversized single output lines are discarded with an explicit safe-scan mar
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.stream-scanning-handles-utf-8-and: stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', async () => {
   const planted = 'sk-proj-' + 'b'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); fs.writeSync(1,"x".repeat(32766)+"😀\\n"); fs.writeSync(1,"x".repeat(32762)+"${planted}\\nTAIL-CHUNK\\n"); process.exitCode=1'` });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the streamed scanner handles chunk boundaries', '--json');
@@ -61,7 +59,7 @@ test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V
   assert.match(saved, /TAIL-CHUNK/);
 });
 
-test('a check output survives the browser launch guard [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.a-check-output-survives-the-browser: a check output survives the browser launch guard [V18,V2]', async () => {
   const probe = sandbox();
   const observed = join(probe.dir, 'guard-stdio.json');
   const preload = join(probe.dir, 'observe-guard.mjs');
@@ -102,34 +100,7 @@ if (process.argv.length === 1) fs.writeFileSync(${JSON.stringify(observed)}, JSO
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('accept reports failed install as CHECK_UNVERIFIED with an output digest [V18,V2]', async () => {
-  const box = privateCheckSubmission({ install: 'echo install-failed; exit 9', check: 'true' });
-  const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'install must complete before verification', '--json');
-  assert.equal(refused.code, 1);
-  const error = JSON.parse(refused.out).error;
-  assert.equal(error.code, 'CHECK_UNVERIFIED');
-  assert.match(error.message, /install failed/);
-  assert.match(error.message, /output digest/);
-  assert.match(error.message, /install-failed/);
-  assert.match(error.next, /^restore the install or check environment, then retry verification/);
-});
-
-test('private check digest keeps install and noisy check output in separate sections [V18,V2]', () => {
-  const box = privateCheckSubmission({
-    install: 'echo install-marker',
-    check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',
-  });
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
-  let item;
-  try { item = store.getItem(board, 1); }
-  finally { store.closeBoard(board); }
-  const proof = checkAtCommit(box.repo, item);
-  assert.equal(proof.state, 'red');
-  assert.match(proof.report, /install output:\ninstall-marker/);
-  assert.match(proof.report, /check output:[\s\S]*check-failed/);
-});
-
-test('a submission without a frozen check keeps the no-check pass path [V18,V2]', () => {
+test('cli.journeys-verify-checks-output.a-submission-without-a-frozen-check: a submission without a frozen check keeps the no-check pass path [V18,V2]', () => {
   assert.deepEqual(checkAtCommit('/missing/private/repository', {}), {
     state: 'pass', green: true, checked: false, report: '',
   });

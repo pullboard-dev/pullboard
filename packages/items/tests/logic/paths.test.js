@@ -15,7 +15,7 @@ function steps(rows, status) {
   return lifecycleSteps(MACHINE, rows.map(lifecycleEvent), status);
 }
 
-test('clause 1: a board with a recorded patch objection replays it, and the projected lifecycle counts one patch-objected [C7]', () => {
+test('items.paths.patch-objection-replay: clause 1: a board with a recorded patch objection replays it, and the projected lifecycle counts one patch-objected [C7]', () => {
   const objected = steps([
     row('add', '2026-11-08T10:00:00.000Z'),
     row('claim', '2026-11-08T10:01:00.000Z', { leaseUntil: '2026-11-08T12:01:00.000Z' }),
@@ -29,7 +29,7 @@ test('clause 1: a board with a recorded patch objection replays it, and the proj
   assert.deepEqual(objected.map(step => step.move?.verb ?? null), [null, 'claim', 'submit', 'patch-objected'], 'claim, submit and the objection each match a declared move');
 });
 
-test('clause 1: a board without an objection projects no patch-objected move [C7]', () => {
+test('items.paths.no-objection-no-move: clause 1: a board without an objection projects no patch-objected move [C7]', () => {
   const plain = steps([
     row('add', '2026-11-08T10:00:00.000Z'),
     row('claim', '2026-11-08T10:01:00.000Z', { leaseUntil: '2026-11-08T12:01:00.000Z' }),

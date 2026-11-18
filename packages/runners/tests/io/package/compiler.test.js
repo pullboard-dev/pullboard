@@ -24,7 +24,7 @@ import { test } from 'node:test';
 import { copyRunnerPackage } from '../../fixtures/package.js';
 import { fixture } from '../../fixtures/package-files.js';
 
-test('the private closure compiler preserves V8 edges and refusals without executing source [C7,P3]', t => {
+test('runners.compiler.the-private-closure-compiler-preserves-v8: the private closure compiler preserves V8 edges and refusals without executing source [C7,P3]', t => {
   const f = fixture(t);
   const marker = join(f.directory, 'must-not-execute');
   const parser = createRunnerModuleParser();
@@ -55,7 +55,7 @@ test('the private closure compiler preserves V8 edges and refusals without execu
   assert.throws(() => readFileSync(marker), { code: 'ENOENT' }, 'compile-only source never executes its filesystem effect');
 });
 
-test('a private compiler startup failure refuses instead of supplying an empty closure [C7,P3]', t => {
+test('runners.compiler.a-private-compiler-startup-failure-refuses: a private compiler startup failure refuses instead of supplying an empty closure [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
@@ -73,7 +73,7 @@ console.log('COMPILER_STARTUP_REFUSED');`;
   assert.match(result.stdout, /COMPILER_STARTUP_REFUSED/u);
 });
 
-test('a private compiler cannot replace a requested import with a forged empty reply [C7,P3]', t => {
+test('runners.compiler.a-private-compiler-cannot-replace-a: a private compiler cannot replace a requested import with a forged empty reply [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'forged-reply-prepared');
@@ -102,7 +102,7 @@ finally { parser.close(); }`;
   assert.equal(readFileSync(marker, 'utf8'), 'prepared', 'the forged response was prepared, rather than an unrelated startup failure');
 });
 
-test('a compiler swap restored before its reply cannot erase a real import [C7,P3]', t => {
+test('runners.compiler.a-compiler-swap-restored-before-its: a compiler swap restored before its reply cannot erase a real import [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'swapped-compiler-executed');
@@ -148,7 +148,7 @@ try {
 });
 
 /** The private wake channel cannot supply source/results, and filesystem notifications remain a fallback. */
-test('private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
+test('runners.compiler.private-compiler-missing-duplicate-and-spurious: private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
   const f=fixture(t);
   const protocol=join(f.directory,'protocol');mkdirSync(protocol);
   const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../../../src/io/module/parser/worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
@@ -184,7 +184,7 @@ test('private compiler missing duplicate and spurious hints retain atomic reques
 });
 
 /** Missing notifications must not strand a valid request; exercise the real worker with only watch delivery suppressed. */
-test('private compiler drains atomic requests when watcher notifications are lost [C7,P3]', async t => {
+test('runners.compiler.private-compiler-drains-atomic-requests-when: private compiler drains atomic requests when watcher notifications are lost [C7,P3]', async t => {
   const f = fixture(t);
   const protocol = join(f.directory, 'lost-notification-protocol');
   mkdirSync(protocol);

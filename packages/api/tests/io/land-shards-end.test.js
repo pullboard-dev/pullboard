@@ -33,7 +33,7 @@ function postShard(board, runner, now) {
   return claim.job;
 }
 
-test('clause 2: when the land job posts its receipt, every unfinished shard ends, even one a runner holds, and none is claimed again [test] [C7,#7818]', t => {
+test('api.land-shards-end.when-land-job-posts-receipt: clause 2: when the land job posts its receipt, every unfinished shard ends, even one a runner holds, and none is claimed again [test] [C7,#7818]', t => {
   const { board, shards, end } = landing(t);
   const { shards: ids } = shards(FIRST);
   const done = postShard(board, 'r-a', 5);
@@ -47,7 +47,7 @@ test('clause 2: when the land job posts its receipt, every unfinished shard ends
   assert.equal(claimJob(board.db, { runner: 'r-c', capabilities: [], now: 11 }), null, 'no runner finds a shard to claim');
 });
 
-test('clause 2: a job that is not a land job withdraws nothing when it ends, and a land job with no shards ends cleanly [test] [C7,#7818]', t => {
+test('api.land-shards-end.job-land-job-withdraws-nothing: clause 2: a job that is not a land job withdraws nothing when it ends, and a land job with no shards ends cleanly [test] [C7,#7818]', t => {
   const { board, end } = landing(t);
   offerJob(board.db, { id: 'gate:9:x', kind: 'gate', now: 2 });
   offerJob(board.db, { id: 'gate:9:x:shard:1', kind: 'gate-shard', now: 2 });
@@ -55,7 +55,7 @@ test('clause 2: a job that is not a land job withdraws nothing when it ends, and
   assert.notEqual(jobViews(board.db, ['gate:9:x:shard:1'])[0].step, 'done', 'another job\'s shard is untouched');
 });
 
-test('clause 2: shards offered again for another merged commit end the old ones and never hand back the old tree\'s receipts [test] [C7,#7818]', t => {
+test('api.land-shards-end.shards-offered-again-another-merged: clause 2: shards offered again for another merged commit end the old ones and never hand back the old tree\'s receipts [test] [C7,#7818]', t => {
   const { board, shards, receipts } = landing(t);
   const first = shards(FIRST).shards;
   postShard(board, 'r-a', 5);
@@ -69,7 +69,7 @@ test('clause 2: shards offered again for another merged commit end the old ones 
   assert.deepEqual(shards(SECOND, {}, 9).shards, again, 'asking again for the same merged commit returns the same shards');
 });
 
-test('clause 2: the shards carry the landing ref their runner fetches, and a ref outside refs/pullboard/landing is refused [test] [C7,#7818]', t => {
+test('api.land-shards-end.shards-carry-landing-ref-their: clause 2: the shards carry the landing ref their runner fetches, and a ref outside refs/pullboard/landing is refused [test] [C7,#7818]', t => {
   const { board, shards } = landing(t);
   const claim = claimJob(board.db, { runner: 'r-a', capabilities: [], now: 4 });
   assert.equal(claim, null, 'nothing is claimable before shards are offered');

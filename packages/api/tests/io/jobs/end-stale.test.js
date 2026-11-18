@@ -29,14 +29,14 @@ function board(t) {
 /** The step of each named job. */
 const steps = (db, ids) => jobViews(db, ids).map(view => view.step);
 
-test('clause 1: with gate.endStaleJobs on, offering a new candidate ends the item\'s older open gate jobs and keeps the new one and other items\' [C7,#8816]', t => {
+test('api.jobs-end-stale.gate-endstalejobs-offering-new-candidate: clause 1: with gate.endStaleJobs on, offering a new candidate ends the item\'s older open gate jobs and keeps the new one and other items\' [C7,#8816]', t => {
   const db = board(t);
   const ended = endStaleGateJobs(db, { item: ITEM, keep: NEW, enabled: true, now: 3000 });
   assert.deepEqual(ended, ['gate:7:old']);
   assert.deepEqual(steps(db, ['gate:7:old', 'gate:7:new', 'gate:8:other', 'land:7']), ['done', 'offered', 'offered', 'offered']);
 });
 
-test('clause 2: with gate.endStaleJobs on, an item that lands has all its open gate jobs ended [C7,#8816]', t => {
+test('api.jobs-end-stale.gate-endstalejobs-item-lands-has: clause 2: with gate.endStaleJobs on, an item that lands has all its open gate jobs ended [C7,#8816]', t => {
   const db = board(t);
   const ended = endStaleGateJobs(db, { item: ITEM, enabled: true, now: 3000 });
   assert.deepEqual(ended.sort(), ['gate:7:new', 'gate:7:old']);
@@ -44,7 +44,7 @@ test('clause 2: with gate.endStaleJobs on, an item that lands has all its open g
   assert.deepEqual(endStaleGateJobs(db, { item: ITEM, enabled: true, now: 4000 }), [], 'ended jobs end only once');
 });
 
-test('clause 3: gate.endStaleJobs is off unless given: neither a new candidate nor a landing ends any job [C7,#8816]', t => {
+test('api.jobs-end-stale.gate-endstalejobs-off-unless-given: clause 3: gate.endStaleJobs is off unless given: neither a new candidate nor a landing ends any job [C7,#8816]', t => {
   const db = board(t);
   assert.deepEqual(endStaleGateJobs(db, { item: ITEM, keep: NEW, now: 3000 }), []);
   assert.deepEqual(endStaleGateJobs(db, { item: ITEM, enabled: false, now: 3000 }), []);

@@ -2,6 +2,8 @@
   "foreign": [
     "package.json",
     "composer.json",
+    "deno.json",
+    "deno.jsonc",
     "package-lock.json",
     "npm-shrinkwrap.json",
     ".mcp.json",
@@ -363,6 +365,14 @@
       "kind": "sqlite",
       "owner": "packages/verify/src/io/proof/derived.js"
     },
+    "*.derived-state.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/health/src/io/derived.js"
+    },
+    "*.rigor-derived.sqlite": {
+      "kind": "sqlite",
+      "owner": "packages/rigor/src/io/derived.js"
+    },
     "*.profile.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/submit.js",
@@ -480,6 +490,18 @@
       "kind": "repo-data",
       "owner": "packages/gate/src/io/adapter-lints/clock.js"
     },
+    "adapter-lint-env.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/env.js"
+    },
+    "adapter-lint-fs.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/fs.js"
+    },
+    "adapter-lint-timers.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/timers.js"
+    },
     "auth.sqlite": {
       "kind": "sqlite",
       "owner": "apps/relay/src/io/auth.js"
@@ -578,7 +600,7 @@
     },
     "cells-edges.json": {
       "kind": "repo-data",
-      "owner": "packages/gate/src/io/test/tier/selection.js"
+      "owner": "packages/gate/src/io/edges.js"
     },
     "cells-test-batches.json": {
       "kind": "json",
@@ -627,6 +649,10 @@
     "code-map.json": {
       "kind": "json",
       "owner": "packages/codemap/src/io/map.js"
+    },
+    "app-harnesses.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/matrix.js"
     },
     "compiler.json": {
       "kind": "json",
@@ -737,6 +763,10 @@
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
     },
+    "idiom-spread.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/idiom-spread.js"
+    },
     "index.json": {
       "kind": "json",
       "owner": "packages/gate/src/io/test/action/memo.js"
@@ -776,6 +806,10 @@
     "legacy.json": {
       "kind": "json",
       "owner": "packages/state/src/io/engine/numbers.js"
+    },
+    "literal-pins-allowlist.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/literal-pins.js"
     },
     "load-bearing.json": {
       "kind": "json",
@@ -828,6 +862,10 @@
     "guards.json": {
       "kind": "repo-data",
       "owner": "packages/gate/src/io/test/manifest.js"
+    },
+    "job-terminal.json": {
+      "kind": "json",
+      "owner": "apps/runner/src/io/sweep.js"
     },
     "push-only.json": {
       "kind": "repo-data",
@@ -981,6 +1019,10 @@
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
     },
+    "relay-outbox.unsealed.json": {
+      "kind": "json",
+      "owner": "packages/outbox/src/io/relay.js"
+    },
     "relay-relink.json": {
       "kind": "json",
       "owner": "packages/link/src/io/relay/relink.js"
@@ -1105,6 +1147,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/uses.js"
     },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
+    },
     "startup.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
@@ -1115,7 +1161,7 @@
     },
     "stats-history.jsonl": {
       "kind": "jsonl",
-      "owner": "apps/cli/src/io/commands/stats.js"
+      "owner": "packages/stats/src/io/time/history.js"
     },
     "storage-quota.sqlite": {
       "kind": "sqlite",
@@ -1164,6 +1210,10 @@
     "table:decision_handoff_v1": {
       "kind": "table",
       "owner": "packages/items/src/io/decision.js"
+    },
+    "table:derived_state": {
+      "kind": "table",
+      "owner": "packages/health/src/io/derived.js"
     },
     "table:device": {
       "kind": "table",
@@ -1240,7 +1290,8 @@
     "table:item": {
       "kind": "table",
       "owner": "packages/items/src/io/rehome.js"
-    },    "table:item_field": {
+    },
+    "table:item_field": {
       "kind": "table",
       "owner": "packages/store/src/io/board/item/fields.js"
     },
@@ -1485,8 +1536,8 @@
       "owner": "apps/relay/src/io/store/device.js"
     },
     "temporary-edges.json": {
-      "kind": "json",
-      "owner": "packages/codemap/src/io/cells/scripts/cache.js"
+      "kind": "repo-data",
+      "owner": "apps/cli/src/io/cells/cache.js"
     },
     "test-cells.json": {
       "kind": "repo-data",
@@ -1522,11 +1573,11 @@
     },
     "timer.guard.sqlite": {
       "kind": "sqlite",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "timer.json": {
       "kind": "json",
-      "owner": "packages/gate/src/io/main/audit/scheduler.js"
+      "owner": "packages/gate/src/io/main/audit/state.js"
     },
     "tooling-pin.json": {
       "kind": "json",
@@ -1537,7 +1588,7 @@
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
     },
     "vendors.json": {
-      "kind": "json",
+      "kind": "repo-data",
       "owner": "packages/items/src/logic/vendors.js"
     },
     "view-bind.json": {
@@ -1547,6 +1598,10 @@
     "view-reuse.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/setup.js"
+    },
+    "view-timer-layout.json": {
+      "kind": "repo-data",
+      "owner": "packages/gate/src/io/adapter-lints/view-timer-layout.js"
     },
     "view.json": {
       "kind": "json",
@@ -1579,13 +1634,20 @@
     "workers-usage.json": {
       "kind": "json",
       "owner": "apps/cli/src/io/scale.js"
+    },
+    "readiness-cache.json": {
+      "kind": "json",
+      "owner": "packages/moves/src/io/selection.js"
+    },
+    "push.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
+    },
+    "table:push_subscription": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/push/subscriptions.js"
     }
   },
   "exceptions": [],
-  "writeOwnerDebt": [
-    "stats-history.jsonl",
-    "timer.guard.sqlite",
-    "timer.json",
-    "vendors.json"
-  ]
+  "writeOwnerDebt": []
 }

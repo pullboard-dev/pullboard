@@ -13,6 +13,7 @@ import { copyCommittedPackageFiles } from '../copy.js';
 import { runFixtureGit } from '../child.js';
 import { startFixtureLocalRunner } from '../runner/local-start.js';
 import { whenRunnerSettles } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 import { openBoard } from '../../../../lib/index.js';
 import { flakeQuarantines } from '../../../../lib/index.js';
 import { gateRuns } from '../../../../lib/index.js';
@@ -55,7 +56,7 @@ export function fixture(t, deterministic = false, companion = false) {
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
   if (!deterministic) writeFileSync(box.counter, 'run\n'); // Baseline executes a genuine pass; no legacy one-pair quarantine is seeded.
   // The baseline and every Submit gate are pulled jobs on the machine's loopback local runner; the scratch teardown stops it [P7,C7].
-  startFixtureLocalRunner(box.env, box.root);
+  startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
   const added = box.cli('add', 'core', 'Controlled native Submit', '--route', 'strong', '--criterion', 'Retain the actual initial failure.', '--brief', 'Files:\n- packages/controlled/src/behavior.js\n- test/alternating.test.mjs\nTest:\n- the controlled Submit receipt retains the real initial failure and paired pass', '--check', 'true', '--wait');
   assert.equal(added.code, 0, JSON.stringify(added.document));
   assert.equal(added.document.item.item_check, 'true', JSON.stringify(added.document));

@@ -5,6 +5,7 @@ import {
   logEvent,
 } from "../../../io/board.js";
 import { COORDINATOR } from "../../../../../config/index.js";
+import { strictFullSuiteEnabled } from "../../../../../config/index.js";
 import { Refused } from "../../../../../kernel/light.js";
 import { RELEASE_REASONS } from "../../reasons.js";
 import { staleStateLimits } from "../stale/state/policy.js";
@@ -62,6 +63,11 @@ export function runVerifyTable(build, snapshot, move) {
   verifyBuilt ??= moveTables().verifyEngine(build());
   return moveTables().runTable(verifyBuilt.table, verifyBuilt.rules, snapshot, move);
 }
+/**
+ * Whether landing.strictFullSuite is on, read from the machine settings at the call.
+ * Why here: this file already holds the store's config edge for landing, so the merged writer reads the setting without a new cell import [M2,#9327].
+ */
+export function strictFullSuiteOn() { return strictFullSuiteEnabled(); }
 let mergedBuilt = null;
 /**
  * Run the landing merged table over a snapshot and move, built on first use over the landing's own limits, fault codes and repeat-hold prefix.

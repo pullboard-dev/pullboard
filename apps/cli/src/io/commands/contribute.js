@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { CONTRIBUTION_SHAPES } from '../../../../../packages/commits/index.js';
+import { MAX_SUMMARY_CHARS } from '../../../../../packages/commits/index.js';
+import { contributionSecrets } from '../../../../../packages/commits/index.js';
+import { contributionSecretRefusal } from '../../../../../packages/commits/index.js';
 import { contributionFix } from '../../../../../packages/commits/index.js';
 import { parseContributionRecord } from '../../../../../packages/commits/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -20,6 +23,20 @@ function recordBlock(text) {
   if (open < 0) return { block: text, offset: 0 };
   const close = lines.findIndex((line, index) => index > open && /^```\s*$/u.test(line));
   return { block: lines.slice(open + 1, close < 0 ? undefined : close).join('\n'), offset: open + 1 };
+}
+
+/**
+ * The summary: the prose of the file outside its issue-form front matter and its yaml block, trimmed.
+ * Why: the record's machine part is fields; the summary is the only free text, and RFC 0009 limits it.
+ */
+function summaryOf(text) {
+  const body = text.replace(/^---\n[\s\S]*?\n---\n/u, '');
+  return body.replace(/^```ya?ml\s*$[\s\S]*?^```\s*$/mu, '').trim();
+}
+
+/** One failure per secret-looking line, shaped like the parser failures so they print the same way. */
+function secretFailures(text, file) {
+  return contributionSecrets(text).map(({ line, kind }) => failure(contributionSecretRefusal(line, kind), file, 0));
 }
 
 /** The record shape: the shape the person passed after the file, or the issue form's own name line, which is the shape name. */
@@ -83,7 +100,10 @@ export function run(io, { first, second, rest }) {
       if (current === null) break;
     }
   }
-  io.result?.({ file: second, shape, ok: failures.length === 0, failures });
+  failures.push(...secretFailures(text, second));
+  const summary = summaryOf(text).length;
+  io.say(`summary ${summary} of ${MAX_SUMMARY_CHARS} characters`);
+  io.result?.({ file: second, shape, ok: failures.length === 0, summary: { length: summary, max: MAX_SUMMARY_CHARS }, failures });
   if (!failures.length) { io.say(`${second}: a ${shape} record the parser accepts`); return 0; }
   for (const item of failures) io.say(`${item.where}: ${item.code}; rule: ${item.rule}; fix: ${item.fix}; skill: ${item.command}`);
   io.say(`${failures.length} failure${failures.length === 1 ? '' : 's'} in ${second}`);

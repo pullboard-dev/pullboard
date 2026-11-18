@@ -9,6 +9,7 @@
 import { landJobs } from './board.js';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
 import { whenRunnerSettles } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 
 // Budget: how long a fixture waits for the loopback local runner to post one land job's receipt; a hang ceiling only.
 const SETTLE_MS = 180_000;
@@ -27,7 +28,7 @@ function batchState(outcome) {
  * @returns {Promise<{ id: string, items: number[], receipt: object }>}
  */
 export function settledLandJob(box, job, { deadlineMs = SETTLE_MS } = {}) {
-  reviveFixtureLocalRunner(box.repo, box.env);
+  reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
   return whenRunnerSettles(box.env, () => { const found = landJobs(box).find(entry => entry.id === job); return found?.receipt ? found : null; },
     { deadlineMs, what: `land job ${job}` });
 }

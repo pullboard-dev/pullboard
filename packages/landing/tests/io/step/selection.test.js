@@ -24,7 +24,7 @@ function scratch(t) {
   return { root, board, base: vcs('rev-parse', 'HEAD') };
 }
 
-test('clause 1: a verified item whose only unmerged dependency is withdrawn is selected and the batch entry records it [test] [C7]', t => {
+test('landing.selection.a-verified-item-whose-only-unmerged: clause 1: a verified item whose only unmerged dependency is withdrawn is selected and the batch entry records it [test] [C7]', t => {
   const { root, board, base } = scratch(t);
   const listed = [
     { item_id: 2658, item_status: 'withdrawn', item_merged_commit: null, item_commit: base },
