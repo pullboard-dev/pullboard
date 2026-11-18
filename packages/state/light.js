@@ -8,6 +8,7 @@ export { MACHINE } from "./src/logic/machine/declaration.js";
 export const ACCEPTED_RELAND_ENGINE = engineNumber('ACCEPTED_RELAND_ENGINE');
 export const ACTIVITY_DELIVERY_ENGINE = engineNumber('ACTIVITY_DELIVERY_ENGINE');
 export const ACTIVITY_NEWS_ENGINE = engineNumber('ACTIVITY_NEWS_ENGINE');
+export const ADVISOR_ROLE_ENGINE = engineNumber('ADVISOR_ROLE_ENGINE');
 export const AGENT_GRANT_ENGINE = engineNumber('AGENT_GRANT_ENGINE');
 export const AUTOMATIC_DISPATCH_ENGINE = engineNumber('AUTOMATIC_DISPATCH_ENGINE');
 export const ASK_CLOSE_ENGINE = engineNumber('ASK_CLOSE_ENGINE');
