@@ -24,6 +24,7 @@ const EXCEPTIONS = new Map([
   ['apps/cli/journeys/shout/prose.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
   ['apps/cli/journeys/init/provenance.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
   ['apps/cli/journeys/relay/cockpit.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
+  ['apps/view/tests/needs-door.test.js', 'view lane owns it; the core lane cannot edit it, so the coordinator converts it in the freeze'],
 ]);
 
 /** The index just past a quoted string or template literal that starts at `at`, or -1. */

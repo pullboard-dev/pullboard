@@ -101,6 +101,7 @@ export const MACHINE_DEFAULTS = {
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
   'jobs.recordLapse': false,
+  'join.coordinatorSeat': false,
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.cargoFailures': false,

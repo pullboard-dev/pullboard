@@ -67,6 +67,8 @@ export const JUNIT_FILE_ROWS = {
   // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
   clojure: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null),
   perl: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null),
+  // A Zig JUnit reporter (zig build test has no built-in one) writes the test file path (src/calc.zig) in classname and no file attribute.
+  zig: row => (row.classname && /\.zig$/u.test(row.classname) ? row.classname : null),
   // deno test --junit-path writes the test file as a file:// URL in classname and no file attribute; the checkout root (row.root when given) is removed, and an absolute path outside it stays null (never guess).
   deno: row => {
     const path = (row.classname ?? '').replace(/^file:\/\//u, '');

@@ -511,7 +511,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const queueStart = Date.now();
-  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord, composed: mainMerge?.composed && mainMerge.commit === commit ? { main: acceptedMain.commit, head: mainMerge.source, tree: mainMerge.tree } : null }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
   submitMark('queueing', queueStart);
   return queued;
 }

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/data/ceilings/model-names.json apps/view/src/io/cost/overview.js */
 /** @pullboard-world-pin reads overview.js source and the shipped model-names table to prove vendor names live in data. */
 /** Cost overview names no vendor in code; the dot classes come from model-names.json [P5]. */
 import assert from 'node:assert/strict';

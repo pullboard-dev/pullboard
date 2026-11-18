@@ -479,6 +479,11 @@ export function reviewCanonicalFamilies() {
   return loadMachineSettings().review?.canonicalFamilies === true;
 }
 
+/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on. */
+export function joinCoordinatorSeat() {
+  return loadMachineSettings().join?.coordinatorSeat === true;
+}
+
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
 export function statsRecordCoordinatorUsage() {
   return loadMachineSettings().stats?.recordCoordinatorUsage === true;
