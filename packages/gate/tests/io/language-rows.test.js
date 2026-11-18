@@ -17,7 +17,7 @@ function rootWith(t, files) {
   return root;
 }
 
-test('clause 1: a fake row table matches by marker, pattern, requires and function command in table order [C7]', (t) => {
+test('gate.io-language-rows.a-fake-row-table-matches: clause 1: a fake row table matches by marker, pattern, requires and function command in table order [C7]', (t) => {
   const rows = [
     { language: 'alpha', markers: ['alpha.cfg'], command: 'alpha test', tests: ['**/*.alpha'] },
     { language: 'beta', pattern: /\.beta$/u, command: 'beta test', tests: ['**/*.b'] },
@@ -38,7 +38,7 @@ test('clause 1: a fake row table matches by marker, pattern, requires and functi
   assert.equal(rowMatches({ ...rows[1], pattern: /\.beta$/gu }, ['x.beta', 'y.beta'], () => null), true);
 });
 
-test('clause 2: the shipped rows leave detectLanguages and detectTestGlobs unchanged for a go.mod directory [C7]', (t) => {
+test('gate.io-language-rows.the-shipped-rows-leave-detectlanguages: clause 2: the shipped rows leave detectLanguages and detectTestGlobs unchanged for a go.mod directory [C7]', (t) => {
   const root = rootWith(t, { 'go.mod': 'module example.test/project\n' });
   assert.equal(LANGUAGE_ROWS.some((row) => row.markers?.includes('go.mod')), false);
   assert.equal(Object.isFrozen(LANGUAGE_ROWS), true);
