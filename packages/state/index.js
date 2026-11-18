@@ -150,7 +150,6 @@ export { MOVES as machine_move_patch_MOVES } from "./src/logic/machine/move/patc
 export { MOVES as machine_move_refreeze_MOVES } from "./src/logic/machine/move/refreeze.js";
 export { MOVES as machine_move_rehome_import_MOVES } from "./src/logic/machine/move/rehome.js";
 export { MOVES as machine_move_reject_MOVES } from "./src/logic/machine/move/reject.js";
-export { MOVES as machine_move_reland_MOVES } from "./src/logic/machine/move/reland.js";
 export { MOVES as machine_move_release_MOVES } from "./src/logic/machine/move/release.js";
 export { MOVES as machine_move_reopen_MOVES } from "./src/logic/machine/move/reopen.js";
 export { MOVES as machine_move_reserve_MOVES } from "./src/logic/machine/move/reserve.js";
