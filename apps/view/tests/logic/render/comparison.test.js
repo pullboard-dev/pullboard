@@ -16,7 +16,7 @@ function section(html, name) {
   return html.slice(start, end);
 }
 
-test('Activity comparison consumes labelled API comparison scalars without rebuilding their history [N26,R1,R2]', () => {
+test('view.x-render-comparison.activity-comparison-consumes-labelled-api-comparison-scalars: Activity comparison consumes labelled API comparison scalars without rebuilding their history [N26,R1,R2]', () => {
   const input = dashboardData({ populated: true });
   const current = { since:'2026-10-28T10:00:00.000Z', until:'2026-10-28T12:00:00.000Z', landed:2, agentHours:4, agentHoursPerLanding:2, idleShare:0.5, submitsPerItem:1.5, rejectRate:0.25, shoutsPerLanding:1,
     idleReasons:{'nothing-eligible':0.1,held:0.1,'review-family':0.1,'main-red':0.1,unknown:0.1}, stageShares:{build:0.2,rework:0.2,reviewWait:0.2,review:0.2,land:0.2} };
@@ -42,7 +42,7 @@ test('Activity comparison consumes labelled API comparison scalars without rebui
 });
 
 
-test('Activity comparison preserves unavailable comparison reasons and never turns missing evidence into zero [N26]', () => {
+test('view.x-render-comparison.activity-comparison-preserves-unavailable-comparison-reasons-and: Activity comparison preserves unavailable comparison reasons and never turns missing evidence into zero [N26]', () => {
   const input = dashboardData({ populated: true });
   input.project.statsComparison = { version:1, available:false, reason:'No recorded seat intervals <yet>' };
   const html = section(comparisonHtml(input.project.statsComparison), 'Window comparison');
@@ -54,7 +54,7 @@ test('Activity comparison preserves unavailable comparison reasons and never tur
 });
 
 
-test('seeded event windows reach the Activity comparison rows through the canonical projection [N26,R1,R2]', () => {
+test('view.x-render-comparison.seeded-event-windows-reach-the-activity-comparison: seeded event windows reach the Activity comparison rows through the canonical projection [N26,R1,R2]', () => {
   const input = dashboardData({ populated: true });
   const base = input.clockBase - 240 * 60_000;
   /** Fix every event at an exact minute so no host clock supplies a measurement. */
