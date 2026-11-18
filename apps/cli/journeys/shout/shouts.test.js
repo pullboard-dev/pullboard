@@ -44,7 +44,7 @@ async function catchUp(page, shown) {
   }
 }
 
-test('the shouts tab counts shouts you have not seen [N26]', async () => {
+test('cli.journeys-shout-shouts.the-shouts-tab-counts-shouts-you: the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.repo, 'shout', 'web', 'first');
@@ -116,7 +116,7 @@ test('the shouts tab counts shouts you have not seen [N26]', async () => {
   }
 });
 
-test('an empty feed says so on one line [N26]', async () => {
+test('cli.journeys-shout-shouts.an-empty-feed-says-so-on: an empty feed says so on one line [N26]', async () => {
   const box = machine();
   project(box, 'alpha');
   const view = await startView(box);
@@ -132,7 +132,7 @@ test('an empty feed says so on one line [N26]', async () => {
     await view.stop();
   }
 });
-test('clause 2: a shout shows the evidence it carries [B22]', async () => {
+test('cli.journeys-shout-shouts.a-shout-shows-the-evidence-it: clause 2: a shout shows the evidence it carries [B22]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -162,7 +162,7 @@ test('clause 2: a shout shows the evidence it carries [B22]', async () => {
 });
 
 /** The person's own words carry the person's name, and only the view's secret can give it [N26,A9,B26]. */
-test('a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
+test('cli.journeys-shout-shouts.a-shout-from-the-view-shows: a shout from the view shows the person as its author [N26,A9]', { timeout: 60_000 }, async (t) => {
   const box = machine();
   const alpha = project(box, 'alpha');
   await box.runIn(alpha.web, 'shout', 'all', 'web-1 is on the greeting');

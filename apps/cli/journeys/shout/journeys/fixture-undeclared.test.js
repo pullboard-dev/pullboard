@@ -34,7 +34,7 @@ import {
   packageFiles,
 } from '../../../../../packages/runners/index.js';
 
-test('the view fixture refuses to launch Chrome from an undeclared test file [C7,O5]', async t => {
+test('cli.journeys-shout-journeys-fixture-undeclared.the-view-fixture-refuses-to-launch: the view fixture refuses to launch Chrome from an undeclared test file [C7,O5]', async t => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-view-browser-slot-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const name of ['bin', 'machine']) mkdirSync(join(root, name));
@@ -51,7 +51,7 @@ import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 ${binding}
-test('${name} view launch', async () => {
+test('cli.journeys-shout-journeys-fixture-undeclared.the-budget-view-launch: ${name} view launch', async () => {
   appendFileSync(process.env.FIXTURE_MARKERS, '${name}=' + process.env.PULLBOARD_TEST_BROWSER_SLOT + '\\n');
   const profile = join(process.cwd(), '${name}-profile');
   mkdirSync(profile);
