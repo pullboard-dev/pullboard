@@ -17,6 +17,7 @@ import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
 import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
+import { sealedFallbackMain } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
@@ -433,7 +434,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           gate: ctx.config.gate ?? '', supplement, expectedPlan: expectedPlan ?? undefined });
         // A deferred full suite or a main that moved since submit missed the exact-match reuse; the sealed receipts still
         // stand when no moved file reaches the item or its check, so judge that move instead of rerunning [C7].
-        const sealedMain = reused.ids || !frozenCheck(item) || reReview || companionDigest || item.item_effective_head ? null : submittedPolicyCommit(store.events(board, { itemId: id }));
+        const sealedMain = sealedFallbackMain(store.events(board, { itemId: id }), { reused, reReview, companionDigest, effectiveHead: item.item_effective_head });
         if (sealedMain) {
           let moveNote = '';
           try {
