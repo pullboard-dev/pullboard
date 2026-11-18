@@ -10,8 +10,8 @@ import {
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { takeResource } from '../../main.js';
-import { machineHome } from '../../home.js';
 import { Refused } from '../../../../../kernel/light.js';
+import { handoffQueueDirectory } from '../../../../../kernel/light.js';
 
 /** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
 export async function withHandoffQueueOrder(work) {
@@ -20,8 +20,7 @@ export async function withHandoffQueueOrder(work) {
   finally { lock.release(); }
 }
 
-/** The machine-wide directory of launches waiting for a worker slot. */
-export function handoffQueueDirectory() { return join(machineHome(), 'handoff-queue'); }
+export { handoffQueueDirectory };
 
 /**
  * Take the next place in line, at the submit ordering point and before the slow tooling copy.

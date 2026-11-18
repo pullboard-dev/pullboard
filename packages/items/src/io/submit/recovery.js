@@ -22,7 +22,7 @@ import {
 } from 'node:path';
 import { sameCommonDir } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { handoffQueueDirectory } from '../../../../resources/index.js';
+import { handoffQueueDirectory } from '../../../../kernel/light.js';
 import { scratchFolder } from '../../../../config/index.js';
 import { scratchRoot } from '../../../../config/index.js';
 

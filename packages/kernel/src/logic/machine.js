@@ -22,3 +22,6 @@ export function processMachineHome() {
   // The OS account is read only without an override: a sandbox denying process-info traps the lookup (exit 133).
   return machineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
 }
+
+/** The machine-wide directory of hand-off launches waiting for a worker slot; here so status reads it without the resources door [C7]. */
+export function handoffQueueDirectory() { return join(processMachineHome(), 'handoff-queue'); }
