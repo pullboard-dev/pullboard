@@ -23,19 +23,19 @@ async function shownAfterSubmit(t, { on, ticked }) {
   return (await inProcess(box, box.root, 'show', '1')).out;
 }
 
-test('clause 1: with submit.clauseMarks on, a submit records the clause marks with the evidence each tick cites and show lists them [C7,#9440]', async t => {
+test('cli.journeys-submit-marks.with-submit-clausemarks-on-a-submit: clause 1: with submit.clauseMarks on, a submit records the clause marks with the evidence each tick cites and show lists them [C7,#9440]', async t => {
   const shown = await shownAfterSubmit(t, { on: true, ticked: true });
   assert.match(shown, /Submit clause marks at [0-9a-f]{12}: 1 of 1 met\. 1 met \(the change is the whole bar, see src\/a\.js\)\./u);
 });
 
-test('clause 1: with submit.clauseMarks on, a clause no tick covers is recorded as not marked [C7,#9440]', () => {
+test('cli.journeys-submit-marks.with-submit-clausemarks-on-a-clause: clause 1: with submit.clauseMarks on, a clause no tick covers is recorded as not marked [C7,#9440]', () => {
   const item = { item_owner: 'build-1', item_criterion: '1. a [test]\n2. b [reasoning]' };
   const thread = [{ type: 'fact', kind: 'note', by: 'build-1', text: 'clause 2 [reasoning]: because' }];
   assert.equal(clauseMarksNote(item, thread, 'a'.repeat(40)), 'Submit clause marks at aaaaaaaaaaaa: 1 of 2 met. 1 not marked; 2 met (because).');
   assert.equal(clauseMarksNote({ ...item, item_criterion: '' }, thread, 'a'.repeat(40)), null);
 });
 
-test('clause 2: with submit.clauseMarks unset, the default, a submit records no clause marks [C7,#9440]', t => {
+test('cli.journeys-submit-marks.with-submit-clausemarks-unset-the-default: clause 2: with submit.clauseMarks unset, the default, a submit records no clause marks [C7,#9440]', t => {
   const box = privateRepo(t);
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
