@@ -80,6 +80,7 @@ export {
   redFactLocationEnabled,
   settleOnMainReceiptEnabled,
   recordLapseEnabled,
+  runnerCommitReportEnabled,
   movesShadowEnabled,
   censusRerunNonGreenEnabled,
   censusSelfTuneEnabled,
