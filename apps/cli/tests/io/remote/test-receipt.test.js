@@ -4,6 +4,8 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { FIXTURE_BRIEF } from '../../fixtures/api.js';
@@ -45,6 +47,23 @@ async function remoteSeat(t) {
   return { box, clone, run, id, head };
 }
 
+
+/** A forwarding stand-in in front of the served board that records the path of every GET it relays. */
+async function pathRecorder(t, target) {
+  const paths = [];
+  const server = createServer((request, response) => {
+    paths.push(`${request.method} ${request.url}`);
+    const relay = httpRequest(new URL(request.url, target), { method: request.method, headers: { ...request.headers, host: new URL(target).host }, agent: false }, (answer) => {
+      response.writeHead(answer.statusCode, answer.headers);
+      answer.pipe(response);
+    });
+    request.pipe(relay);
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { server.close(done); server.closeIdleConnections(); }));
+  return { paths, origin: `http://127.0.0.1:${server.address().port}` };
+}
+
 /** The fact texts the served board's events carry for one item. */
 async function factTexts(box, id) {
   const { events } = (await box.call(`${box.path}/events`)).document;
@@ -74,4 +93,17 @@ async (t) => {
   const shown = await runCliInProcess(['show', String(id)], { cwd: box.root, env: box.env });
   assert.equal(shown.status, 0, shown.stdout + shown.stderr);
   assert.match(shown.stdout, new RegExp(`test receipt: green pullboard test run of app/pass\\.test\\.js at ${head}`, 'u'), shown.stdout);
+});
+
+test('cli.io-remote-test-receipt.claim-from-seat-route: clause 2: pullboard test in a URL-joined clone finds the seat\'s claimed item from its agent route and requests no GET .../state [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board, one node --test run and a recording relay, not a throughput claim.
+async (t) => {
+  const { box, run, id, head } = await remoteSeat(t);
+  const relay = await pathRecorder(t, box.origin);
+  assert.equal((await run('settings', 'board.url', `${relay.origin}${box.path}`)).status, 0);
+  relay.paths.length = 0;
+  const ran = await run('test', 'app/pass.test.js');
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  assert.match(ran.stdout, new RegExp(`at ${head} .*recorded on #${id} via http://`, 'u'));
+  assert.ok(relay.paths.some((path) => /^GET .*\/agents\/[^/]+$/u.test(path)), `the agent route was requested: ${relay.paths}`);
+  assert.deepEqual(relay.paths.filter((path) => path.endsWith('/state')), [], 'no GET .../state was requested');
 });
