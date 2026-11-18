@@ -57,7 +57,7 @@ test('cli.journeys-verify-sealed-no-check.reuses-after-main-moves: clause 1: an 
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', builder, 'main');
   assert.equal((await joinFixtureSeat(box, builder, 'web', { run: box.runIn })).code, 0);
   const added = JSON.parse((await ok(box, box.repo, 'add', 'web', 'Greet the visitor', '--specs', 'G1',
-    '--criterion', '1. The visitor is named [test]', '--json')).out);
+    '--criterion', '1. The visitor is named by web/sealed.test.js [test]', '--json')).out);
   const id = added.item.item_id;
   await ok(box, builder, 'claim', String(id));
   writeFileSync(join(builder, 'web/greet.js'), "export const greet = (name) => `Hello, ${name.split(' ')[0]}`;\n");
