@@ -18,7 +18,7 @@ function stateTable() {
   return Function('return ' + table)();
 }
 
-test('clause 2: each count, card and chip opens Items narrowed to exactly what it counts [N26]', () => {
+test('view.x-render-dashboard-links.clause-2-each-count-card-and-chip: clause 2: each count, card and chip opens Items narrowed to exactly what it counts [N26]', () => {
   const { project, events, items } = board();
   const model = dashboardModel(project, events, { now, complete: true });
   const html = dashboardHtml(model);
@@ -56,7 +56,7 @@ test('clause 2: each count, card and chip opens Items narrowed to exactly what i
   for (const id of [4, 5, 6, 7, 8]) assert.match(html, new RegExp(`data-go="item:${id}"`, 'u'), `#${id} opens its item`);
 });
 
-test('clause 2: the Agents notch opens the Dashboard at its Agents table [N26]', () => {
+test('view.x-render-dashboard-links.clause-2-the-agents-notch-opens-the: clause 2: the Agents notch opens the Dashboard at its Agents table [N26]', () => {
   assert.match(pageActions(), /else if \(to === 'agents'\) openTab\('dashboard', 'agents'\);/u, 'the notch opens #dashboard/agents');
   const html = dashboardHtml(dashboardModel(board().project, board().events, { now, complete: true }));
   assert.match(html, /<section class="dash-sec dash-agentsec" id="dashboard-agents" aria-label="Agents">/u, 'the address has a table to scroll to');

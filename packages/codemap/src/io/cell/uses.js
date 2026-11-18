@@ -11,6 +11,8 @@ import { lex } from '../../../../kernel/index.js';
 import { importsWithCompiler } from '../../../../kernel/index.js';
 import { commonJsWithCompiler } from '../../../../kernel/index.js';
 import { currentCellLintParser } from './parser.js';
+import { storedCompilations } from '../parsed.js';
+import { foreignNodeOptions } from '../../../../kernel/index.js';
 import { availableParallelism } from 'node:os';
 import { loadavg } from 'node:os';
 import { mkdtempSync } from 'node:fs';
@@ -20,10 +22,23 @@ const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs'
 const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
 process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextModule(source);return true;}catch{return false;}})));`;
 
-/** Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden. */
+/**
+ * Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden.
+ * Why the store: a whole-repository lint report compiles tens of thousands of probe variants, about 25 s of its 29 s on
+ * a workstation and 150-290 s on a loaded runner (guard.test.js, #10529); the machine-wide store keyed by source bytes,
+ * runtime and compiler program answers every unchanged file from an earlier run, and a foreign preload skips it.
+ */
 function compiles(sources) {
   const parser = currentCellLintParser();
   if (parser) return parser(sources).map(row => row.compiles);
+  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
+  // Known owned preloads (a test run's per-run recorder path) never change what V8 compiles, so the key names them as one class, as the accepted inventory does.
+  const epoch = JSON.stringify(['cell-bindings', process.execPath, process.versions.node, 'pullboard-known-owned-preloads-v1', COMPILER]);
+  return storedCompilations(epoch, sources, missing => compileFresh(missing).map(valid => ({ compiles: valid, imports: [] }))).map(row => row.compiles);
+}
+
+/** Compile in a fresh child with no stored result consulted; a loaded machine gets one load-scaled retry. */
+function compileFresh(sources) {
   const directory = mkdtempSync(join(scratchBase(), 'pullboard-cell-bindings-'));
   try {
     const file = join(directory, 'sources.json');

@@ -15,7 +15,7 @@ import { writeProject } from '../../tests/fixtures/languages/python.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 1: init in a copy of the scratch unittest project records python3 -m unittest discover as the gate [C7,#10559]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-python.init-in-a-copy-of-the: clause 1: init in a copy of the scratch unittest project records python3 -m unittest discover as the gate [C7,#10559]', { timeout: 240_000 }, async (t) => {
   if (!PYTHON) return t.skip(UNAVAILABLE);
   const box = pythonSandbox(helpers);
   const repo = join(box.dir, 'project');

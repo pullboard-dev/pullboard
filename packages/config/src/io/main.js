@@ -4,6 +4,7 @@
 import {
   existsSync,
   readFileSync,
+  statSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
@@ -195,19 +196,32 @@ const isStringList = (value) =>
 /** Whether a setting is not a plain object: the shape check every block below repeats. */
 const notPlain = value => !value || typeof value !== 'object' || Array.isArray(value);
 
+/** Whether a repo-relative path names a folder in the repo. */
+function isFolder(root, entry) {
+  try { return statSync(join(root, entry)).isDirectory(); } catch { return false; }
+}
+
 /**
  * Problems in one lane's declaration.
  *
  * @param {string} name
  * @param {any} lane
+ * @param {string} [root] the repo folder, when known: owns entries are checked against it
  * @returns {string[]}
  */
-function laneProblems(name, lane) {
+function laneProblems(name, lane, root) {
   if (!LANE_NAME_RE.test(name) || name === 'all' || name === COORDINATOR) {
     return [`lane "${name}": names are lowercase words; "all" and "coordinator" are taken`];
   }
   const problems = [];
   if (!isStringList(lane?.owns)) problems.push(`lane "${name}": "owns" is a list of path prefixes`);
+  if (root && isStringList(lane?.owns)) {
+    for (const entry of lane.owns) {
+      if (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry)) {
+        problems.push(`lane "${name}": owns entry "${entry}" names a folder and matches no file in it; write "${entry}/"`);
+      }
+    }
+  }
   if (lane?.specs !== undefined && !isStringList(lane.specs)) {
     problems.push(`lane "${name}": "specs" is a list of spec ids or prefixes`);
   }
@@ -221,9 +235,10 @@ function laneProblems(name, lane) {
  * Every problem in a merged config, empty when it is sound.
  *
  * @param {any} config
+ * @param {string} [root] the repo folder, when known: lane owns entries are checked against it
  * @returns {string[]}
  */
-export function configProblems(config) {
+export function configProblems(config, root) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   if (!Array.isArray(config.modelTiers) || config.modelTiers.some(entry => !entry || typeof entry !== 'object'
     || Array.isArray(entry) || Object.keys(entry).some(key => !['contains', 'route'].includes(key))
@@ -311,7 +326,7 @@ export function configProblems(config) {
   problems.push(...labelDeclarationProblems(config.labels));
   if (typeof config.staticChecks !== 'string') problems.push('"staticChecks" is an optional project static-check command');
   if (config.landing !== undefined && (notPlain(config.landing)
-    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'exactTreeCheck', 'ledgerMainReds', 'priorityOrder', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
+    || Object.keys(config.landing).some(key => !['publish', 'environment', 'timeout', 'stall', 'cadence', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride', 'perItem', 'shardProof', 'pipeline', 'landedFromMain', 'exactTreeCheck', 'sprintBarTests', 'ledgerMainReds', 'priorityOrder', 'first', 'auditOnly', 'splitRed', 'trunkRemote'].includes(key)) || ![undefined, 'separate'].includes(config.landing.publish))) {
     problems.push('"landing" has optional environment: { platform, arch, node }, "timeout", "stall" (no-progress limit, default 10m) and "cadence" durations, "parallel": true for concurrent candidate gates, "first": item ids to land ahead of the accept order, and "publish": "separate" to land locally and push through pullboard publish');
   } else if (config.landing?.environment !== undefined && environmentProblem(config.landing.environment)) {
     problems.push(`"landing.environment" ${environmentProblem(config.landing.environment)}`);
@@ -323,6 +338,7 @@ export function configProblems(config) {
   if (config.queue?.contention !== undefined && typeof config.queue.contention !== 'boolean') problems.push('"queue.contention" is a boolean, off by default; true makes next start the least contended ready item and wait on a hot file');
   if (config.queue?.contentionThreshold !== undefined && (typeof config.queue.contentionThreshold !== 'number' || !Number.isFinite(config.queue.contentionThreshold) || config.queue.contentionThreshold <= 0)) problems.push('"queue.contentionThreshold" is a number above zero, 1 by default: the score at which next makes an item wait on a hot file');
   if (config.landing?.exactTreeCheck !== undefined && typeof config.landing.exactTreeCheck !== 'boolean') problems.push('"landing.exactTreeCheck" is a boolean, off by default: on, the store refuses to move main to a tree with no green exact-tree record');
+  if (config.landing?.sprintBarTests !== undefined && typeof config.landing.sprintBarTests !== 'boolean') problems.push('"landing.sprintBarTests" is a boolean, off by default: on, the Sprint proof also runs every batch item\'s frozen bar tests on the exact staged tree');
   if (config.landing?.ledgerMainReds !== undefined && typeof config.landing.ledgerMainReds !== 'boolean') problems.push('"landing.ledgerMainReds" is a boolean, off by default: on, a land job counts a red in a file the test ledger records red on main at its base as main\'s own');
   if (config.landing?.priorityOrder !== undefined && typeof config.landing.priorityOrder !== 'boolean') problems.push('"landing.priorityOrder" is a boolean, off by default: on, the lander takes accepted items in the order next uses (person-urgent or pinned, milestone position, then accept order)');
   if (config.landing?.shardProof !== undefined && typeof config.landing.shardProof !== 'boolean') problems.push('"landing.shardProof" is a boolean, off by default; true spreads a landing\'s proof over runner shard jobs');
@@ -466,6 +482,9 @@ export function configProblems(config) {
   if (config.verify?.queueAccept !== undefined && typeof config.verify.queueAccept !== 'boolean') {
     problems.push('"verify.queueAccept" is true or false; true makes verify accept queue its frozen check as a runner job and return');
   }
+  if (config.verify?.reviewFolder !== undefined && typeof config.verify.reviewFolder !== 'boolean') {
+    problems.push('"verify.reviewFolder" is true or false; true lets a review use a detached folder at the submitted commit');
+  }
   if (config.verify?.requireRowRewrite !== undefined && typeof config.verify.requireRowRewrite !== 'boolean') {
     problems.push('"verify.requireRowRewrite" is true or false; true makes a restructure move refuse while an open item cites a spec row whose text changed with no rewrite edit');
   }
@@ -514,7 +533,7 @@ export function configProblems(config) {
   if (notPlain(config.lanes)) {
     problems.push('"lanes" maps lane names to { owns, specs, starts }');
   } else {
-    for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane));
+    for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane, root));
   }
   const products = config.products;
   if (notPlain(products)) {
@@ -546,7 +565,7 @@ export function loadConfig(root) {
   if (!existsSync(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  const config = configFromSource(readFileSync(file, 'utf8'));
+  const config = configFromSource(readFileSync(file, 'utf8'), root);
   return { ...config, practice: doctrineFile(root, config.practice) };
 }
 
@@ -565,14 +584,14 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
-export function configFromSource(source) {
+export function configFromSource(source, root) {
   let raw;
   try { raw = JSON.parse(source); }
   catch { throw new Refused('BAD_CONFIG', 'pullboard.json is not valid JSON; restore the coordinator configuration'); }
   if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
-  const problems = configProblems(config);
+  const problems = configProblems(config, root);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);
   return {

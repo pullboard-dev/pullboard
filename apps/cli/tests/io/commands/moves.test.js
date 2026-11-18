@@ -29,9 +29,9 @@ test('cli.io-commands-moves.moves-prints-each-table-s-compares-disagreements: cl
   const box = recorded(t);
   const ran = await runCliInProcess(['moves'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-  assert.match(ran.stdout, /claim\s+shadow\s+2\s+1\s+2026-11-15T12:00:00\.000Z/u);
+  assert.match(ran.stdout, /claim\s+live\s+2\s+1\s+2026-11-15T12:00:00\.000Z/u);
   assert.match(ran.stdout, /disagreed on #9 at 2026-11-15T12:00:00\.000Z: events\.0\.detail\.leaseUntil/u);
-  assert.match(ran.stdout, /submit\s+none\s+0\s+0\s+never/u);
+  assert.match(ran.stdout, /submit\s+live\s+0\s+0\s+never/u);
 });
 
 test('cli.io-commands-moves.moves-json-gives-each-table-a-state: clause 2: moves --json gives each table a state of live, shadow or none [C7,#8378]', async t => {
@@ -40,9 +40,10 @@ test('cli.io-commands-moves.moves-json-gives-each-table-a-state: clause 2: moves
   const report = JSON.parse(ran.stdout);
   const tables = (report.result ?? report).tables;
   const state = name => tables.find(row => row.table === name).state;
-  assert.equal(state('claim'), 'shadow');
+  assert.equal(state('claim'), 'live', 'the claim table is live by default (#8395)');
   assert.equal(state('release'), 'live');
-  assert.equal(state('submit'), 'none');
+  assert.equal(state('submit'), 'live');
+  assert.deepEqual(['start', 'complete', 'outbox'].map(name => state(name)), ['none', 'none', 'none'], 'hand-off and outbox stay off by default');
   assert.deepEqual(tables.find(row => row.table === 'claim').lastDisagreements.map(row => row.id), [9]);
 });
 
@@ -59,13 +60,15 @@ const SHADOWS = Object.fromEntries(['claim', 'commit', 'submit', 'start', 'compl
   .map(table => [table, { compared: 1, disagreed: 0, since: '2026-11-16T00:00:00.000Z', lastDisagreedAt: null, last: [] }]));
 const TABLES = ['backbone', 'claim', 'hop', 'job', 'landing', 'lease', 'outbox', 'pulled', 'reclaim', 'release', 'reopen', 'submit', 'verify', 'withdraw'];
 const row = (rows, table) => rows.find(entry => entry.table === table);
+/** Machine settings with every moves.live switch off but the ones named: since #8395 six of them default on, so a test of the off state says so. */
+const offWith = on => ({ moves: { live: { claim: false, submit: false, handoff: false, outcome: false, job: false, reopen: false, reclaim: false, outbox: false, ...on } } });
 
 test('cli.io-commands-moves.commit-compares-read-live-under-moves-live: clause 1: commit compares read live under moves.live.submit, start and complete under moves.live.handoff [C7,#9188]', () => {
-  const off = movesReport(SHADOWS, TABLES, {});
+  const off = movesReport(SHADOWS, TABLES, offWith({}));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(off, table).state), ['shadow', 'shadow', 'shadow', 'shadow']);
-  const submitOn = movesReport(SHADOWS, TABLES, { moves: { live: { submit: true } } });
+  const submitOn = movesReport(SHADOWS, TABLES, offWith({ submit: true }));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(submitOn, table).state), ['live', 'live', 'shadow', 'shadow']);
-  const handoffOn = movesReport(SHADOWS, TABLES, { moves: { live: { handoff: true } } });
+  const handoffOn = movesReport(SHADOWS, TABLES, offWith({ handoff: true }));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(handoffOn, table).state), ['shadow', 'shadow', 'live', 'live']);
 });
 
@@ -86,7 +89,7 @@ test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each 
     reopen: 'moves.live.reopen', start: 'moves.live.handoff', submit: 'moves.live.submit', verify: null, withdraw: null,
   });
   const allOn = movesReport(SHADOWS, TABLES, { moves: { live: { claim: true, submit: true, handoff: true, outcome: true, job: true, reopen: true, outbox: true } } });
-  assert.deepEqual(allOn.filter(entry => entry.state !== 'live').map(entry => entry.table), ['backbone', 'reclaim'], 'every table with a writer reads live once its switch is on');
+  assert.deepEqual(allOn.filter(entry => entry.state !== 'live').map(entry => entry.table), ['backbone'], 'every table with a writer reads live once its switch is on; reclaim is live by default (#8395)');
 });
 
 {
@@ -110,3 +113,41 @@ test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each 
     for (const table of Object.keys(LIVE_SWITCH)) assert.equal(rows.filter(entry => entry.table === table).length, 1, `${table} listed once`);
   });
 }
+
+/** The recorded fixture board plus the live jobs the backbone reads: a main test job it serves, a gate job for an item that was never claimed (unserved), and one job of a kind it does not list. */
+function withJobs(t) {
+  const box = recorded(t);
+  const at = Date.now();
+  withFixtureBoard(boardFile(box), board => {
+    const now = '2026-11-17T12:00:00.000Z';
+    board.db.prepare('INSERT INTO item (item_id, item_lane, item_title, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(8, 'core', 'never claimed', 'open', 'core-1', now, now);
+    const job = board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_candidate, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const step = board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'offered', ?, ?)");
+    for (const [id, kind, itemId] of [['main:1', 'main-test', null], ['gate:8', 'gate', 8], ['odd:8', 'odd-kind', 8]]) {
+      job.run(id, kind, itemId, 'c'.repeat(40), 'offered', at, at);
+      step.run(id, JSON.stringify({ needs: [], request: { submit: { agentId: 'core-1', digest: 'd'.repeat(64) } } }), at);
+    }
+  });
+  return box;
+}
+
+const backboneRow = async box => (await runCliInProcess(['moves', '--json'], { cwd: box.root, env: box.env }).then(ran => { const report = JSON.parse(ran.stdout); return (report.result ?? report).tables; })).find(entry => entry.table === 'backbone');
+
+test('cli.io-commands-moves.backbone-row-counts-the-live-jobs-it-compared: clause 1: moves --json gives the backbone row compared as served plus unserved jobs offered in the last 24 hours and disagreed as the unserved ones, from readBackboneRecords [C7,#10584]', async t => {
+  const row = await backboneRow(withJobs(t));
+  assert.equal(row.compared, 2);
+  assert.equal(row.disagreed, 1);
+  assert.deepEqual(row.lastDisagreements.map(entry => entry.id), [8]);
+  assert.match(row.lastDisagreements[0].differs, /^gate:8 \(serves\.gate\)$/u);
+});
+
+test('cli.io-commands-moves.backbone-row-reads-shadow-once-compared: clause 2: the backbone row reads state shadow once compared is 1 or more, and map with none [C7,#10584]', async t => {
+  assert.equal((await backboneRow(withJobs(t))).state, 'shadow');
+  const none = await backboneRow(recorded(t));
+  assert.deepEqual([none.state, none.compared, none.disagreed], ['map', 0, 0]);
+});
+
+test('cli.io-commands-moves.backbone-row-lists-unreadable-jobs-by-kind: clause 3: the JSON backbone row lists the unreadable counts per job kind, and a board with none lists none [C7,#10584]', async t => {
+  assert.deepEqual((await backboneRow(withJobs(t))).unreadable, { 'odd-kind': 1 });
+  assert.deepEqual((await backboneRow(recorded(t))).unreadable, {});
+});
