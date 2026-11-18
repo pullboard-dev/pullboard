@@ -42,7 +42,7 @@ function race(box, first, second, id) {
   return Promise.all([one(first), one(second)]);
 }
 
-test('verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async t => {
+test('cli.journeys-spec-e2e-next.verify-runs-at-the-submitted-commit: verify runs at the submitted commit, against the criterion frozen at claim [V3, V7, V9, V19]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders a heading');
   await box.runIn(box.web, 'claim', '1');
@@ -82,7 +82,7 @@ test('verify runs at the submitted commit, against the criterion frozen at claim
   assert.match(ledger, /\| 1 \| web \| Page \| G1 \| web-1 \(fixture-model\) \| coordinator \(unknown\) \|/);
 });
 
-test('two agents racing for one item: exactly one wins, every time [B2]', async () => {
+test('cli.journeys-spec-e2e-next.two-agents-racing-for-one-item: two agents racing for one item: exactly one wins, every time [B2]', async () => {
   const box = project();
   const second = join(box.dir, 'web-2');
   box.git(box.repo, 'worktree', 'add', '-q', second, '-b', 'web/two');
@@ -98,7 +98,7 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
   }
 });
 
-test('next --verify can reserve a named submitted review and default to the lowest free one [V15]', async () => {
+test('cli.journeys-spec-e2e-next.next-verify-can-reserve-a-named: next --verify can reserve a named submitted review and default to the lowest free one [V15]', async () => {
   const box = project();
   const reviewers = [];
   for (const name of ['api-1', 'api-2']) {
@@ -161,7 +161,7 @@ test('next --verify can reserve a named submitted review and default to the lowe
   assert.match(lowest.out, new RegExp(`next to verify: #${first} First review, built by web-1`));
 });
 
-test('a deleted spec row is refused at commit; spec check finds any id gone from history or cited [S8, S9]', async () => {
+test('cli.journeys-spec-e2e-next.a-deleted-spec-row-is-refused: a deleted spec row is refused at commit; spec check finds any id gone from history or cited [S8, S9]', async () => {
   const box = project();
   const spec = join(box.repo, 'SPEC.md');
   writeFileSync(spec, SPEC.replace(/- G2 .*\n/, ''));

@@ -56,7 +56,7 @@ function fixture(t, tag) {
     main, env };
 }
 
-test('clause 1: gate.runnersOnly on makes the default admission runner-only, so a main comparison never runs locally [C7,#8927]', { timeout: 60000 }, async t => {
+test('cli.journeys-test-runners-only-compare.gate-runnersonly-on-makes-the-default: clause 1: gate.runnersOnly on makes the default admission runner-only, so a main comparison never runs locally [C7,#8927]', { timeout: 60000 }, async t => {
   const box = fixture(t, 'only');
   const started = [];
   await withEnvironment(box.env, async () => {
