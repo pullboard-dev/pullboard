@@ -211,7 +211,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['project.clj', 'deps.edn'], command: (names) => (names.includes('project.clj') ? 'lein test' : 'clojure -M:test') },
     tests: ['test/**/*.clj', '**/*_test.clj'],
     toolchains: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
-    junit: null,
+    junit: { command: `clojure -M:test --plugin kaocha.plugin/junit-xml --junit-xml-file ${JUNIT_DIR}/clojure.xml`, report: `${JUNIT_DIR}/clojure.xml`, needs: 'the kaocha test runner under a :test alias in deps.edn' },
     affected: null,
     // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
     cases: { name: 'clojure', inputs: [], file: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null) },
@@ -266,7 +266,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['Project.toml'], command: juliaCommand },
     tests: ['test/**/*.jl', '**/runtests.jl'],
     toolchains: ['julia'],
-    junit: null,
+    junit: { command: `julia --project -e 'using TestReports; TestReports.test(logfilename="julia.xml", logfilepath="${JUNIT_DIR}")'`, report: `${JUNIT_DIR}/julia.xml`, needs: 'the TestReports package in the project test dependencies' },
     affected: null,
     // Julia's Test suite JUnit report names the testset in classname and no file attribute; Pkg.test runs the one test/runtests.jl.
     cases: { name: 'julia', inputs: [], file: row => (row.classname ? 'test/runtests.jl' : null) },

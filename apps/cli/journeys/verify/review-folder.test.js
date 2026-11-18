@@ -89,7 +89,7 @@ async function submitted(t, { folderOn = false } = {}) {
   return { box, id, head, reviewer };
 }
 
-test('clause 1: with verify.reviewFolder on, next --verify prints a review folder at the submitted commit, and clause 2: the seat checkout HEAD and index are unchanged [C7,#8969]', { timeout: 240_000 }, async t => {
+test('cli.journeys-verify-review-folder.with-verify-reviewfolder-on-next-verify: clause 1: with verify.reviewFolder on, next --verify prints a review folder at the submitted commit, and clause 2: the seat checkout HEAD and index are unchanged [C7,#8969]', { timeout: 240_000 }, async t => {
   const { box, id, head, reviewer } = await submitted(t, { folderOn: true });
   const before = { head: box.git(reviewer, 'rev-parse', 'HEAD').trim(), index: box.git(reviewer, 'ls-files', '-s'), status: box.git(reviewer, 'status', '--porcelain') };
   const next = await ok(box, reviewer, 'next', '--verify', String(id));
@@ -103,7 +103,7 @@ test('clause 1: with verify.reviewFolder on, next --verify prints a review folde
     'clause 2: the seat checkout HEAD and index are unchanged after next --verify');
 });
 
-test('clause 3: with verify.reviewFolder off, next --verify makes no review folder and prints the switch instruction [C7,#8969]', { timeout: 240_000 }, async t => {
+test('cli.journeys-verify-review-folder.with-verify-reviewfolder-off-next-verify: clause 3: with verify.reviewFolder off, next --verify makes no review folder and prints the switch instruction [C7,#8969]', { timeout: 240_000 }, async t => {
   const { box, id, head, reviewer } = await submitted(t);
   const next = await ok(box, reviewer, 'next', '--verify', String(id));
   const text = next.out + next.err;

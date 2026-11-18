@@ -233,3 +233,22 @@ test('landing.junit-files.cmake-titles-registered: clause 3: every cmake test ti
   assert.ok(ids.length >= 3);
   for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
 });
+
+test('landing.junit-files.maven-reads-the-java-row: clause 1: junitFile maven returns the same path junitFile java returns for a Surefire dotted classname [C7]', () => {
+  const row = { classname: 'com.example.CalcTest$Inner' };
+  assert.equal(junitFile('maven', row), 'src/test/java/com/example/CalcTest.java');
+  assert.equal(junitFile('maven', row), junitFile('java', row));
+});
+
+test('landing.junit-files.maven-no-classname-is-null: clause 2: junitFile maven returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('maven', {}), null);
+  assert.equal(junitFile('maven', { classname: '' }), null);
+});
+
+test('landing.junit-files.maven-titles-registered: clause 3: every maven test title here carries an ID starting landing.junit-files.maven with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.maven-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});

@@ -1,9 +1,12 @@
+/** @pullboard-test-input source-cell packages/api */
+/** @pullboard-world-pin reads the board door's own import lines to prove it reaches the stats cell through its light door, never the barrel; a changed specifier fails the case [C7]. */
 /** An unexpected error behind the board API is answered as a generic SERVICE_ERROR and its stack is logged [A2,C7]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { createApiHandler } from '../../index.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
+import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
@@ -366,4 +369,12 @@ test('api.main.board-key-joins-not-moves: clause 3 [P7]: through packages/api/sr
     }
   }
   assert.equal(served.calls.length, 0, 'no command ran as a seat on the board key alone');
+});
+
+test('api.main.stats-through-light: clause 1 [C7]: no import in packages/api/src/io/main.js names the stats barrel, every stats import names the light entry', () => {
+  const source = readFileSync(new URL('../../src/io/main.js', import.meta.url), 'utf8');
+  const specifiers = [...source.matchAll(/from\s+'([^']*\/stats\/[^']*)'/gu)].map((match) => match[1]);
+  assert.ok(specifiers.length > 0, 'the board door still imports stats');
+  assert.deepEqual(specifiers.filter((specifier) => !specifier.endsWith('/stats/light.js')), [], 'every stats import names the light entry');
+  assert.equal(specifiers.includes('../../../stats/index.js'), false, 'the stats barrel is not imported');
 });

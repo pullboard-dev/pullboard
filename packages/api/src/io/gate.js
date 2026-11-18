@@ -747,6 +747,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
+  // Static rows main also has, which the runner's analysis let pass: each is recorded once as a known main red on the item at the job's pinned main [C7,#10567].
+  const knownMain = Array.isArray(receipt?.analysis?.staticKnownMain) ? receipt.analysis.staticKnownMain.filter(row => typeof row?.rule === 'string' && typeof row?.file === 'string') : [];
+  if (knownMain.length) store.recordKnownMainStatic(board, id, { agentId: submit.agentId, findings: knownMain.slice(0, 200), main });
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
   const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
