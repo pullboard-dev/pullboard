@@ -19,12 +19,12 @@ function folder() {
   return { root: fixture.root, files: names.map(name => join(fixture.root, name)), write: fixture.write };
 }
 
-test('clause 1: the digest takes the file list and gives today\'s value for today\'s three files [C7,#9464]', () => {
+test('cli.io-cells-inventory-digest.the-digest-takes-the-file-list-and: clause 1: the digest takes the file list and gives today\'s value for today\'s three files [C7,#9464]', () => {
   assert.equal(inventoryCodeDigest(TODAY), inventoryCodeDigest());
   assert.equal(typeof inventoryCodeDigest(), 'string');
 });
 
-test('clause 1: the digest changes when one file\'s bytes change and not otherwise [C7,#9464]', () => {
+test('cli.io-cells-inventory-digest.the-digest-changes-when-one-file-s: clause 1: the digest changes when one file\'s bytes change and not otherwise [C7,#9464]', () => {
   const { root, files, write } = folder();
   const before = inventoryCodeDigest(files, root);
   assert.equal(inventoryCodeDigest(files, root), before);

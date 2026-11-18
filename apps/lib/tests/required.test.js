@@ -34,7 +34,7 @@ function fixture(t) {
   return { root, board, id, claim };
 }
 
-test('clause 1: required-family claim refuses an unknown builder before freezing; a session-derived family builds and submits [C7,#3078]', t => {
+test('lib.required.required-family-claim-refuses-an-unknown-builder: clause 1: required-family claim refuses an unknown builder before freezing; a session-derived family builds and submits [C7,#3078]', t => {
   const { root, board, id, claim } = fixture(t);
   assert.throws(() => store.claim(board, id, claim), error => error.code === 'UNDECLARED_BUILDER_FAMILY'
     && /join <lane> --family <vendor>/u.test(error.message));
@@ -46,7 +46,7 @@ test('clause 1: required-family claim refuses an unknown builder before freezing
   assert.equal(store.getItem(board, id).item_builder_family, 'anthropic');
 });
 
-test('clause 2: historical unknown claims replay unchanged but a modern required-family submit cannot record NULL [C7,#3078]', t => {
+test('lib.required.historical-unknown-claims-replay-unchanged-but-a: clause 2: historical unknown claims replay unchanged but a modern required-family submit cannot record NULL [C7,#3078]', t => {
   const { board, id, claim } = fixture(t);
   board.executionEngineVersion = BUILDER_FAMILY_REQUIRED_ENGINE - 1;
   store.claim(board, id, claim);

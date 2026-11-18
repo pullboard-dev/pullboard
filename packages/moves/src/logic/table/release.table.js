@@ -89,20 +89,29 @@ function countsToward(reason, wasUntouched, reroute) {
 }
 
 /** A release the holder chose for a quality reason, counted toward the release-twice rule. */
-function chosenQuality(history, release, reroute) {
+function chosenQuality(history, release, reroute, older = false) {
   const d = release.detail ?? {};
   if (!countsToward(d.reasonCode, Boolean(d.untouchedAutoClaim), reroute) || d.review || d.staleClaim || d.goneSeat || d.idleClaim || d.expiredClaim
-    || d.exitHandoff || d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? '') || infraCaused(history, release)) return false;
+    || d.exitHandoff || (!older && (d.blockedOn?.length || INFRA_NOTE.test(d.reason ?? ''))) || infraCaused(history, release)) return false;
   const before = history.filter(e => e.id < release.id && LIFECYCLE.includes(e.kind)).at(-1);
   return before?.kind === 'claim' && before.by === release.by;
 }
 
+/** Is the snapshot a release recorded at an engine before `engine`? A record with no engine stamped (null) is older; a hand-built snapshot with none at all is current. */
+const olderEngine = (snapshot, engine) => Number.isInteger(engine) && (snapshot.engine === null || (Number.isInteger(snapshot.engine) && snapshot.engine < engine));
+
+/** The earlier review release by a seat of the releaser's own family since the latest submit, or null; the snapshot's `reviewReleases` is oldest first. */
+const earlierSameFamilyReview = (before) => {
+  const family = before.actor?.family;
+  return typeof family === 'string' && family ? ((before.reviewReleases ?? []).filter(entry => entry?.family === family).at(-1) ?? null) : null;
+};
+
 /** The two newest chosen quality releases since the last unhold and the last route change, newest first. */
-function lastTwoChosen(s) {
+function lastTwoChosen(s, older = false) {
   const history = numbered(s.history ?? []);
   const unhold = Math.max(0, ...history.filter(e => e.kind === 'unhold_item').map(e => e.id));
   const routeChange = Math.max(0, ...history.filter(e => e.kind === 'escalate' && e.detail?.from !== e.detail?.to).map(e => e.id));
-  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e, s.io?.rerouteUntouched)).reverse().slice(0, 2);
+  return history.filter(e => e.kind === 'release' && e.id > unhold && e.id > routeChange && chosenQuality(history, e, s.io?.rerouteUntouched, older)).reverse().slice(0, 2);
 }
 
 const listReasons = (releases) => [...releases].reverse().map(e => `${e.by}: ${e.detail.reasonCode}${e.detail.reason ? ` (${e.detail.reason})` : ''}`).join('; ');
@@ -115,11 +124,12 @@ const returnsClaim = (before, m) => !m.stale && before.item?.status !== 'submitt
 
 /**
  * The release rules over an injected reason list and stale-limit rule.
- * Snapshot: `{ revision, item, actor: { id, route, joined }, owner, diagnosed, firstRefusalBuilder, items, history, lastClaim, ownerLastClaimId, ownerLastLease, ownerRegisteredPath, io }`.
+ * Snapshot: `{ revision, itemRevision, item, actor: { id, route, joined }, owner, diagnosed, firstRefusalBuilder, items, history, lastClaim, ownerLastClaimId, ownerLastLease, ownerRegisteredPath, io }`.
  * Move: `{ id, actor, root, reason, note, on, now, worktreeSnapshot, stale }`; `stale` is the coordinator's captured observation.
  * Why: each guard below is one fact, so its refusal, its trace and `pullboard explain` never drift apart.
  */
-function releaseRules({ reasons, staleLimits }) {
+function releaseRules(board) {
+  const { reasons, staleLimits } = board;
   /** The first reason a coordinator's captured stale observation cannot release this claim, or null. */
   function staleProblem(s, m) {
     const c = m.stale, row = c.staleClaim, now = Date.parse(m.now);
@@ -129,7 +139,8 @@ function releaseRules({ reasons, staleLimits }) {
     const limit = row?.blocker === true ? limits.blocker : limits.claim;
     const folderGone = typeof row?.seatFolderMissing === 'string' && row.seatFolderMissing === s.ownerRegisteredPath;
     if (s.item.status !== 'claimed' || s.item.owner !== row?.actor || s.item.id !== row?.id || s.item.leaseUntil !== row?.leaseUntil
-      || (c.leaseLapse !== true && !(s.item.leaseUntil > m.now)) || s.ownerLastClaimId !== row?.claimEventId || c.observedRevision !== s.revision) return STALE_CHANGED;
+      || (c.leaseLapse !== true && !(s.item.leaseUntil > m.now)) || s.ownerLastClaimId !== row?.claimEventId
+      || (Number.isSafeInteger(c.itemRevision) ? c.itemRevision !== s.itemRevision : c.observedRevision !== s.revision)) return STALE_CHANGED;
     if (!folderGone && (observed === null || last === null || row.evidence?.complete !== true || row.limitMs !== limit || observed - last < limit)) {
       return 'complete activity evidence does not establish the configured stale interval';
     }
@@ -176,14 +187,17 @@ function releaseRules({ reasons, staleLimits }) {
       staleRelease: { says: 'the release is a coordinator --stale release', holds: (s, m) => stale(m) },
       calibrates: { says: 'a holder released BUDGET or INELIGIBLE at their own route',
         holds: (s, m) => returnsClaim(s.before, m) && chosenByHolder(s.before, m) && ['BUDGET', 'INELIGIBLE'].includes(m.reason) && s.before.actor?.route === s.before.item.route },
+      reviewReleasedTwice: { says: 'this review release is the second by one family since the latest submit, with io.holdAfterTwoReleases on, at the engine that has the rule, on an item with no hold',
+        holds: (s, m) => !m.stale && s.before.item?.status === 'submitted' && s.before.io?.holdAfterTwoReleases === true && !olderEngine(s.before, board.reviewReleaseTwiceEngine)
+          && !s.before.item.holdReason && earlierSameFamilyReview(s.before) !== null },
       releasedTwice: { says: 'this is the second chosen quality release since the last unhold or route change',
-        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && !m.on?.length && !INFRA_NOTE.test(m.note ?? '')
-          && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s).length === 2 },
+        holds: (s, m) => returnsClaim(s.before, m) && m.reason !== 'DIAGNOSIS_WRONG' && !m.stale && claimedByMe(s.before, m) && (olderEngine(s.before, board.releaseTwiceEngine) || (!m.on?.length && !INFRA_NOTE.test(m.note ?? '')))
+          && countsToward(m.reason, untouched(s.before, m), s.before.io?.rerouteUntouched) && !s.before.item.holdReason && lastTwoChosen(s, olderEngine(s.before, board.releaseTwiceEngine)).length === 2 },
     }),
   };
 }
 
-/** The release table: guards in the order today's command throws, then the three outcomes and the two automatic follow-ups. */
+/** The release table: guards in the order today's command throws, then the three outcomes and the automatic follow-ups. */
 function releaseTable({ reasons, staleLimits }, staleProblem) {
   const unknownReason = `a release names why: --reason ${reasons.join('|')} (OTHER also needs --note "what happened")`;
   const dependency = (s, m) => dependencyProblem(s, m)?.message ?? '';
@@ -235,6 +249,12 @@ function releaseTable({ reasons, staleLimits }, staleProblem) {
     followups: Object.freeze([
       { id: 'route-calibration', when: 'calibrates',
         apply: ({ after, move: m }) => escalation(after, `${m.actor} released at the ${after.actor.route} route: ${m.reason}${trimmed(m.note) ? ` (${trimmed(m.note)})` : ''}`) },
+      { id: 'review-released-twice', when: 'reviewReleasedTwice',
+        apply: ({ before, move: m }) => {
+          const first = earlierSameFamilyReview(before);
+          const reason = `Review released twice without a verdict: ${first.by}${first.reason ? ` (${first.reason})` : ''}; ${m.actor} (${trimmed(m.note)})`;
+          return { patch: { holdReason: reason, holdBy: 'coordinator' }, events: [{ kind: 'hold_item', by: 'coordinator', detail: { reason, automatic: 'review-release-twice' } }] };
+        } },
       { id: 'released-twice', when: 'releasedTwice',
         apply: ({ after: s }) => {
           const reasons = listReasons(lastTwoChosen(s));

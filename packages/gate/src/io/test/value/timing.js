@@ -116,3 +116,23 @@ export function censusFileTimes(files, samples, measured, keep) {
   }
   return record;
 }
+
+/**
+ * How many of `files` have a recorded wall time, how many there are, and the share recorded (0 to 1; 0 with no files).
+ * Why: the push plan was sized from guesses when 144 of 2,502 files had a time, and nothing showed it [C7,#10330].
+ *
+ * @param {string} root - A checkout of the repository whose landing-file-times.json is read.
+ * @param {string[]} files - The gate's test files; a leading ./ is ignored and a repeated file counts once.
+ * @param {Record<string, number>} [times] - The recorded times, read from `root` when not given.
+ * @returns {{ recorded: number, total: number, share: number }}
+ */
+export function fileTimesCoverage(root, files, times = readFileTimes(root)) {
+  const list = [...new Set(files.map(file => file.replace(/^\.\//u, '')))];
+  const recorded = list.filter(file => Number.isFinite(times[file])).length;
+  return { recorded, total: list.length, share: list.length ? recorded / list.length : 0 };
+}
+
+/** The plan note for a coverage: "recorded N of M files", flagged when under 90 percent [C7,#10330]. */
+export function fileTimesCoverageNote({ recorded, total, share }) {
+  return `recorded ${recorded} of ${total} files${total && share < 0.9 ? ` (${Math.round(share * 100)} percent, under 90: the plan is sized from guesses)` : ''}`;
+}

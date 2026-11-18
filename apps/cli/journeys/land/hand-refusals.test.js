@@ -16,7 +16,7 @@ function refusal(run) {
   return JSON.parse(run.out).error;
 }
 
-test('clause 1: with landing.byHand off, pullboard land --item N refuses BY_HAND_OFF naming the setting [C7,#3775]', async t => {
+test('cli.journeys-land-hand-refusals.with-landing-byhand-off-pullboard-land: clause 1: with landing.byHand off, pullboard land --item N refuses BY_HAND_OFF naming the setting [C7,#3775]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
@@ -26,7 +26,7 @@ test('clause 1: with landing.byHand off, pullboard land --item N refuses BY_HAND
   assert.match(error.message + (error.next ?? ''), /landing\.byHand/u);
 });
 
-test('clause 2: with it on, a non-coordinator seat is refused COORDINATOR_ONLY and an unaccepted item NOT_ACCEPTED, each with a next step [C7,#3775]', async t => {
+test('cli.journeys-land-hand-refusals.with-it-on-a-non-coordinator: clause 2: with it on, a non-coordinator seat is refused COORDINATOR_ONLY and an unaccepted item NOT_ACCEPTED, each with a next step [C7,#3775]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { waitForCondition } from '../../../tests/fixtures/runner/holders.js';
 
-test('clause 1: the wait helper polls again when its read hits a locked board [E8]', { timeout: 30_000 }, async t => { // budget: hang ceiling; the lock is released after ~200 ms.
+test('cli.journeys-verify-team-verdict-locked.the-wait-helper-polls-again-when: clause 1: the wait helper polls again when its read hits a locked board [E8]', { timeout: 30_000 }, async t => { // budget: hang ceiling; the lock is released after ~200 ms.
   const dir = privateFixtureFiles('verdict-locked-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');

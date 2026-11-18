@@ -71,7 +71,7 @@ async function activated(t) {
   return { repo, base, item, board: identity.id, batches, directory: join(repo, '.git/pullboard/main-audits') };
 }
 
-test('a plain commit on main with no landing batch queues an audit of main\'s tip [C7]', async t => {
+test('lib.io-main-audit-commit.a-plain-commit-on-main-with: a plain commit on main with no landing batch queues an audit of main\'s tip [C7]', async t => {
   const fixture = await activated(t);
   const tip = commit(fixture.repo, 'test/a.test.js', "import {test} from 'node:test';test('a',()=>{throw 1});\n",
     `fix(gate): hand landing\n\nPullboard-Item: #${fixture.item}`);
@@ -90,7 +90,7 @@ test('a plain commit on main with no landing batch queues an audit of main\'s ti
   assert.deepEqual(mainAuditJobs(fixture.repo, openBoardForRead).map(mainAuditKey), [mainAuditKey(job)], 'the same tip is the same obligation');
 });
 
-test('a green audit at main\'s tip clears the queue, and a later hotfix queues from that tip [C7]', async t => {
+test('lib.io-main-audit-commit.a-green-audit-at-main-s: a green audit at main\'s tip clears the queue, and a later hotfix queues from that tip [C7]', async t => {
   const fixture = await activated(t);
   const audited = commit(fixture.repo, 'test/a.test.js', "import {test} from 'node:test';test('a2',()=>{});\n", 'chore: audited');
   saveMainAudit(join(fixture.directory, 'last-green.json'), { version: 1, complete: true, green: true,
@@ -105,7 +105,7 @@ test('a green audit at main\'s tip clears the queue, and a later hotfix queues f
   assert.equal(fixture.batches(), 0);
 });
 
-test('an activated main that has not moved queues no audit [C7]', async t => {
+test('lib.io-main-audit-commit.an-activated-main-that-has-not: an activated main that has not moved queues no audit [C7]', async t => {
   const fixture = await activated(t);
   assert.deepEqual(mainAuditJobs(fixture.repo, openBoardForRead), [], 'activation alone is no retroactive full-suite run');
 });

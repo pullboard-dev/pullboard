@@ -8,6 +8,7 @@ import { beginCleanup } from './cleanup.js';
 import { assertDiskFree } from '../sweep.js';
 import { diskFloorBytes } from '../sweep.js';
 import { sweepRunnerDiskForWorker } from '../sweep.js';
+import { writeTerminalResult } from '../sweep.js';
 import { releaseDrainedLease } from './cleanup.js';
 import { reportCleanupTimeout } from './cleanup.js';
 import { outputSink } from './command.js';
@@ -97,6 +98,8 @@ export async function main(S) {
       S.cleanupStage = 'result receipt';
       await receipt(spec, { ...final, gui }, sink);
       S.resultSent = true;
+      // The delivered result is the job's terminal record: the disk sweep may remove this folder even if the worker dies.
+      try { if (runDirectory) writeTerminalResult(runDirectory); } catch { /* The quiet window still protects the folder. */ }
     } catch (error) {
       try { process.stderr.write(`PULLBOARD_RUNNER_RESULT_UNSENT ${S.workerId} ${String(error?.code ?? error?.name).slice(0, 64)}\n`); } catch { /* A dead transport has no one to tell. */ }
       S.transportDrop();

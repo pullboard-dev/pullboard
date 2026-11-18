@@ -355,6 +355,34 @@ test('#8623 clause 1: stats-history.jsonl, timer.guard.sqlite, timer.json and ve
   assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
   assert.deepEqual(storeWriteProblems(registry, read), []);
   assert.equal(registry.stores['stats-history.jsonl'].owner, 'packages/stats/src/io/time/history.js', 'the module that appends the history owns it');
+  assert.equal(registry.stores['timer.json'].owner, 'packages/gate/src/io/main/audit/state.js', 'the module that writes the timer owns it');
+  assert.equal(registry.stores['timer.guard.sqlite'].owner, 'packages/gate/src/io/main/audit/state.js');
   assert.equal(registry.stores['vendors.json'].kind, 'repo-data', 'vendors.json is only read');
   assert.equal(Object.values(baseline).filter(row => row['stats-history.jsonl']).length, 0, 'no second home names the history file');
+});
+
+test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store passes the write-owner check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+});
+
+test('#10813 clause 1: table:temp is owned by the outbox io module that writes it, and the logic file holds no write call [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:temp'].owner;
+  assert.equal(owner, 'packages/outbox/src/io/relay/undo.js');
+  assert.match(readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8'), /INSERT INTO temp\.moving/u);
+  assert.doesNotMatch(readFileSync(new URL('../../../outbox/src/logic/undo.js', import.meta.url), 'utf8'), /temp\.moving/u);
+  assert.deepEqual(storeOwnerProblems(registry), []);
+});
+
+test('#10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:person_enrollment'].owner;
+  assert.equal(owner, 'apps/relay/src/io/store/enrollment.js');
+  const source = readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8');
+  assert.match(source, /INSERT INTO person_enrollment/u, 'the owner holds the write call');
+  const oldHome = ['apps/relay/src/logic/person/enrollment', 'store.js'].join('/');
+  assert.throws(() => readFileSync(new URL(`../../../../${oldHome}`, import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
 });

@@ -31,7 +31,7 @@ async function costReply(t, box) {
   return (await response.json()).costAnalytics;
 }
 
-test('clause 1: the real cost-analytics reply carries the coordinator usage the board recorded, so the overview shows it [C7,#10111]', async t => {
+test('cli.journeys-stats-cost-coordinator-reply.the-real-cost-analytics-reply-carries: clause 1: the real cost-analytics reply carries the coordinator usage the board recorded, so the overview shows it [C7,#10111]', async t => {
   const box = await fixture(t);
   store.recordCoordinatorUsage(box.board, { session: 'coordinator-session-1', observedAt: 5, records: [{ model: SESSION_MODEL, inputTokens: 10, outputTokens: 4,
     knownInputTokens: 10, knownOutputTokens: 4, wallMs: 0, freshInputTokens: 3, cacheReadInputTokens: 5, cacheWriteInputTokens: 2, unknownReasons: [] }] });
@@ -42,7 +42,7 @@ test('clause 1: the real cost-analytics reply carries the coordinator usage the 
   assert.deepEqual(coordinator.models, [SESSION_MODEL]);
 });
 
-test('clause 1: with no coordinator data the real reply still carries an entry that reads unknown, not zero [C7,#10111]', async t => {
+test('cli.journeys-stats-cost-coordinator-reply.with-no-coordinator-data-the-real: clause 1: with no coordinator data the real reply still carries an entry that reads unknown, not zero [C7,#10111]', async t => {
   const box = await fixture(t);
   const { coordinator } = await costReply(t, box);
   assert.equal(coordinator.sessions, 0);

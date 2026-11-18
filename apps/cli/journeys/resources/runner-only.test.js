@@ -29,7 +29,7 @@ function succeeded(result) {
   return result;
 }
 
-test('clause 1: native submit runner-only refuses before its frozen body and opt-out still executes it [C7,Q1,V4]', async () => {
+test('cli.journeys-resources-runner-only.native-submit-runner-only-refuses-before: clause 1: native submit runner-only refuses before its frozen body and opt-out still executes it [C7,Q1,V4]', async () => {
   const box = helpers.project('true');
   const marker = join(box.dir, 'submit-frozen-body');
   const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;

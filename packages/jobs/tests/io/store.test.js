@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
+import { setWriteHold } from '../../index.js';
 import { jobView } from '../../index.js';
 import { jobsOf } from '../../index.js';
 import { leasedJobs } from '../../index.js';
@@ -85,4 +87,33 @@ test('jobs.store.leased-live-only: leasedJobs lists only a kind\'s jobs with a l
   assert.deepEqual(leasedJobs(db, { kind: 'gate', now: 1200 }).map(job => job.id), ['live']);
   assert.deepEqual(leasedJobs(db, { kind: 'gate', now: 1600 }), [], 'the lease lapsed');
   assert.throws(() => leasedJobs(db, {}), refused('JOB_FIELDS'));
+});
+
+/** A recording stub hold: every call lands in `calls` in order. */
+function stubHold(calls) {
+  return { prepare: () => { calls.push('prepare'); return 'marker'; }, begin: (db, marker) => { calls.push(`begin:${marker}`); return 'record'; },
+    finish: (record, outcome) => calls.push(`finish:${record}:${outcome}`), discard: marker => calls.push(`discard:${marker}`) };
+}
+
+test('jobs.store.hold-port-brackets-write: clause 1: with a stub hold set through setWriteHold, a write through atomically() calls prepare, begin, then finish with released after COMMIT or rolled-back after ROLLBACK, in that order [C7]', t => {
+  const db = database(t);
+  const calls = [];
+  setWriteHold(stubHold(calls));
+  t.after(() => setWriteHold(null));
+  atomically(db, () => { calls.push('work'); });
+  assert.deepEqual(calls, ['prepare', 'begin:marker', 'work', 'finish:record:released']);
+  calls.length = 0;
+  assert.throws(() => atomically(db, () => { throw new Error('boom'); }), /boom/);
+  assert.deepEqual(calls, ['prepare', 'begin:marker', 'finish:record:rolled-back']);
+});
+
+test('jobs.store.hold-port-skips-savepoint: clause 2: an atomically() call nested inside a caller transaction calls none of the hold functions [C7]', t => {
+  const db = database(t);
+  const calls = [];
+  setWriteHold(stubHold(calls));
+  t.after(() => setWriteHold(null));
+  db.exec('BEGIN IMMEDIATE');
+  atomically(db, () => { calls.push('work'); });
+  db.exec('COMMIT');
+  assert.deepEqual(calls, ['work']);
 });
