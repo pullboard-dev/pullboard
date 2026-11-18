@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/** */
 /** The needs reader takes projectState from a module that loads no server [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

@@ -85,3 +85,11 @@ test('view.stable.logic-render-summary-registered: clause 1: [C7,U148,#10638] ev
   const { findings } = registryFindings(slice, records);
   assert.deepEqual(findings.filter((finding) => !finding.startsWith('registry:')), [], 'a test in the slice lacks an ID or a record');
 });
+
+test('view.stable.logic-rest-registered: clause 1: [C7,U148,#10636] every test under logic top-level files, page, panel and pipeline carries a view.<area>.<slug> title ID and a record', () => {
+  const records = loadRecords();
+  const slice = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') })).filter(({ file }) => /^logic\/(?:[^/]+\.test\.js|page\/|panel\/|pipeline\/)/u.test(file.slice(DIR.length + 1)));
+  assert.ok(slice.length > 0, 'the slice has test files');
+  const { findings } = registryFindings(slice, records);
+  assert.deepEqual(findings.filter((finding) => !finding.startsWith('registry:')), [], 'a test in the slice lacks an ID or a record');
+});

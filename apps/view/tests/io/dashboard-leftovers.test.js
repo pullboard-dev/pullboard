@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/page/actions.js */
 /** @pullboard-world-pin reads the shipped page script source to prove the phone detail reveal. */
 /** #7403: the Dashboard gate card is as tall as its rows, runner rows read alike, a phone Items row opens below the nav [N26]. */
 import assert from 'node:assert/strict';

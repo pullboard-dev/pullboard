@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/item/rows.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css */
 /** Stage colors are one set of tokens, used the same way on every screen [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
