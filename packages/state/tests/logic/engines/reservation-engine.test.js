@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/state */
 /** @pullboard-test-loads packages/state/light.js packages/state/src/io/engine/numbers.js */
 /** @pullboard-world-pin: the clause reads the committed engines folder and engine table, because the leaf must be numbered by the real landing merge code over the real leaves. */
 /** RESERVATION_ENGINE is exported by the light state door and is the newest engine when it lands [C7]. */
@@ -45,7 +46,7 @@ function boardAtLanding(t) {
   return root;
 }
 
-test('clause 1: RESERVATION_ENGINE is exported from packages/state/light.js and is greater than every other engine constant [C7]', t => {
+test('state.logic-engines-reservation-engine.clause-1-reservation-engine-is-exported: clause 1: RESERVATION_ENGINE is exported from packages/state/light.js and is greater than every other engine constant [C7]', t => {
   assert.equal(typeof light.RESERVATION_ENGINE, 'number', 'the light door exports RESERVATION_ENGINE');
   const root = boardAtLanding(t);
   const { assigned } = assignEngineNumbers(root);
