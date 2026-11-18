@@ -133,70 +133,109 @@ export function installRegistryMergeCase() {
   });
 }
 
-/** The same-base merge proof: two independent move items merge, allocate and replay with no snapshot conflict, judged by three registry-suite children on side-by-side copies of the tree. Called inside its own test body so it is never started at file load [C7,V4]. */
-export async function registryMergeProof() {
+/**
+ * Build the merged fixture repository of two independent move items from one main in `directory`, timing each step;
+ * past 170 s a step fails with the phase table instead of being killed silent [C7].
+ */
+function mergedFixture(directory) {
   const started = Date.now();
   const phases = [];
-  /** Record elapsed seconds at a named step; past 150 s the proof fails with the table instead of being killed silent [C7]. */
   const mark = label => { phases.push(`${label} ${((Date.now() - started) / 1000).toFixed(0)}`); if (Date.now() - started > 170000) throw new Error(`registry merge proof phases (s): ${phases.join('; ')}`); };
+  const root = join(directory, 'repo');
+  mkdirSync(root);
+  unpackRelease('HEAD', root);
+  mark('unpack');
+  run(root, 'git', ['init', '-b', 'main']);
+  mark('init');
+  // The fixture repo is throwaway: storing the whole tree uncompressed and unsynced makes its adds and commits several times faster [C7].
+  for (const [key, value] of [['core.compression', '0'], ['core.looseCompression', '0'], ['core.fsync', 'none'], ['gc.auto', '0']]) run(root, 'git', ['config', key, value]);
+  // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
+  run(root, process.execPath, ['--input-type=module', '-e',
+    "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; assignEngineNumbers(process.cwd());"]);
+  mark('assign');
+  commit(root, 'fixture base');
+  mark('base');
+  run(root, 'git', ['checkout', '-b', 'alpha']);
+  addFeature(root, 'seedMergeAlpha', 'SEED_MERGE_ALPHA_ENGINE');
+  commit(root, 'first independent move');
+  run(root, 'git', ['checkout', '-b', 'beta', 'main']);
+  addFeature(root, 'seedMergeBeta', 'SEED_MERGE_BETA_ENGINE');
+  commit(root, 'second independent move');
+  mark('features');
+  run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
+  assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
+  const shared = ['packages/state/src/io/engine.js', 'packages/store/src/io/board/ports.js', 'apps/cli/src/logic/step/words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
+  assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
+  return { root, mark };
+}
+
+/** Allocate the merged fixture's two placeholders as the landing producer does, into the real merge commit. */
+function allocateFixture(root, mark) {
+  // Allocation is the normal landing producer, not a hand-written record in either feature.
+  const allocation = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e',
+    "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; console.log(JSON.stringify(assignEngineNumbers(process.cwd())));"]));
+  mark('allocate');
+  assert.equal(allocation.assigned.length, 2);
+  const numbers = allocation.assigned.map(entry => entry.number);
+  assert.equal(numbers[1], numbers[0] + 1, 'independent placeholders take distinct consecutive landing allocations');
+  for (const number of numbers) assert.ok(allocation.files.includes(`packages/state/data/history/${number}.json`));
+  run(root, 'git', ['add', '.']);
+  run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '--amend', '--no-edit']);
+  assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
+  mark('commit');
+  return numbers;
+}
+
+/** Run `work` in a private temporary directory that is removed afterwards. */
+async function inFixtureDirectory(work) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-registry-merge-'));
-  try {
-    const root = join(directory, 'repo');
-    mkdirSync(root);
-    unpackRelease('HEAD', root);
-    mark('unpack');
-    run(root, 'git', ['init', '-b', 'main']);
-    mark('init');
-    // The fixture repo is throwaway: storing the whole tree uncompressed and unsynced makes its adds and commits several times faster [C7].
-    for (const [key, value] of [['core.compression', '0'], ['core.looseCompression', '0'], ['core.fsync', 'none'], ['gc.auto', '0']]) run(root, 'git', ['config', key, value]);
-    // The base is a landed snapshot: seal its existing placeholders before the two independent feature moves.
-    run(root, process.execPath, ['--input-type=module', '-e',
-      "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; assignEngineNumbers(process.cwd());"]);
-    mark('assign');
-    commit(root, 'fixture base');
-    mark('base');
-    run(root, 'git', ['checkout', '-b', 'alpha']);
-    addFeature(root, 'seedMergeAlpha', 'SEED_MERGE_ALPHA_ENGINE');
-    commit(root, 'first independent move');
-    run(root, 'git', ['checkout', '-b', 'beta', 'main']);
-    addFeature(root, 'seedMergeBeta', 'SEED_MERGE_BETA_ENGINE');
-    commit(root, 'second independent move');
-    mark('features');
-    run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'merge', '--no-edit', 'alpha']);
-    assert.equal(run(root, 'git', ['diff', '--name-only', '--diff-filter=U']), '', 'the two feature contracts merge without hand editing');
-    const shared = ['packages/state/src/io/engine.js', 'packages/store/src/io/board/ports.js', 'apps/cli/src/logic/step/words.js', 'apps/cli/tests/fixtures/move/registry/baseline.json', 'packages/state/data/history'];
-    assert.equal(run(root, 'git', ['diff', 'main', '--', ...shared]), '', 'neither move edits a consumer or the legacy golden');
-    // The three registry-suite runs (merged, allocated, edited record) each judge their own copy of the tree, so they run side by side instead of one after another [C7].
-    const mergedCopy = join(directory, 'merged');
-    copyTree(root, mergedCopy);
-    mark('merged copy');
-    const mergedRun = registryChild(mergedCopy);
-    // Allocation is the normal landing producer, not a hand-written record in either feature.
-    const allocation = JSON.parse(run(root, process.execPath, ['--input-type=module', '-e',
-      "import {assignEngineNumbers} from './packages/state/src/io/engine/numbers.js'; console.log(JSON.stringify(assignEngineNumbers(process.cwd())));"]));
-    mark('allocate');
-    assert.equal(allocation.assigned.length, 2);
-    const numbers = allocation.assigned.map(entry => entry.number);
-    assert.equal(numbers[1], numbers[0] + 1, 'independent placeholders take distinct consecutive landing allocations');
-    for (const number of numbers) assert.ok(allocation.files.includes(`packages/state/data/history/${number}.json`));
-    run(root, 'git', ['add', '.']);
-    run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '--amend', '--no-edit']);
-    assert.equal(run(root, 'git', ['rev-list', '--parents', '-n', '1', 'HEAD']).trim().split(' ').length, 3, 'allocated records belong to the real merge commit, as at landing');
-    const allocatedCopy = join(directory, 'allocated');
-    mark('commit');
-    copyTree(root, allocatedCopy);
-    mark('allocated copy');
-    const allocatedRun = registryChild(allocatedCopy);
+  try { return await work(directory); } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+/**
+ * The same-base merge proof, first of three: two independent move items merge from one main and the merged tree passes
+ * every nonrecursive registry oracle in one registry-suite child. Each of the three registry-suite runs (merged,
+ * allocated, edited record) is its own journey file, so the runner shards them instead of one file holding all three
+ * suites past the per-file kill on a loaded runner (#10662). Called inside its own test body, never at file load [C7,V4].
+ */
+export async function registryMergeProof() {
+  await inFixtureDirectory(async directory => {
+    const { root, mark } = mergedFixture(directory);
+    const merged = await registryChild(root);
+    mark('child');
+    assert.equal(merged.status, 0, `${merged.stdout}\n${merged.stderr}`);
+    assert.match(merged.stdout, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
+  });
+}
+
+/** The same-base merge proof, second of three: the landing allocation of the merged tree passes every registry oracle [C7,V4]. */
+export async function registryAllocationProof() {
+  await inFixtureDirectory(async directory => {
+    const { root, mark } = mergedFixture(directory);
+    allocateFixture(root, mark);
+    const allocated = await registryChild(root);
+    mark('child');
+    assert.equal(allocated.status, 0, `${allocated.stdout}\n${allocated.stderr}`);
+    assert.match(allocated.stdout, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
+  });
+}
+
+/** The same-base merge proof, third of three: shipped and legacy engine records are frozen, and the real registry check rejects an edited one [C7,V4]. */
+export async function registryFrozenProof() {
+  await inFixtureDirectory(async directory => {
+    const { root, mark } = mergedFixture(directory);
+    const numbers = allocateFixture(root, mark);
     const leaves = readEngineLeaves(join(root, 'packages/state/src/logic/engines'));
     const git = (...args) => run(root, 'git', args);
     const frozen = `packages/state/data/history/${numbers[0]}.json`;
     const bytes = readFileSync(join(root, frozen), 'utf8');
     writeFileSync(join(root, frozen), `${bytes} `);
     assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${frozen}`), 'editing a shipped record fails even when its JSON meaning is unchanged');
-    const editedCopy = join(directory, 'edited');
-    copyTree(root, editedCopy);
-    mark('edited copy');
-    const negativeRun = registryChild(editedCopy);
+    const negative = await registryChild(root);
+    mark('child');
+    assert.equal(negative.status, 1, `${negative.stdout}\n${negative.stderr}`);
+    assert.match(negative.stdout, /frozen engine record changed/u, 'the real registry check rejects the edited record');
+    assert.match(negative.stdout, /# fail 1\b/u, 'only the immutable-history guard is red');
 
     writeFileSync(join(root, frozen), bytes);
     assert.deepEqual(historyProblems(root, leaves, git), [], 'restoring the exact bytes restores the guard');
@@ -212,18 +251,5 @@ export async function registryMergeProof() {
 
     writeFileSync(join(root, legacy), `${legacyBytes} `);
     assert.ok(historyProblems(root, leaves, git).includes(`frozen engine record changed: ${legacy}`), 'the one legacy record is frozen too');
-
-    mark('before children');
-    const [merged, allocated, negative] = await Promise.all([mergedRun, allocatedRun, negativeRun]);
-    mark('children');
-    assert.equal(merged.status, 0, `${merged.stdout}\n${merged.stderr}`);
-    assert.match(merged.stdout, /# fail 0\b/u, 'the merged tree passes every nonrecursive registry oracle');
-    assert.equal(allocated.status, 0, `${allocated.stdout}\n${allocated.stderr}`);
-    assert.match(allocated.stdout, /# fail 0\b/u, 'the allocated merged tree passes every registry oracle too');
-    assert.equal(negative.status, 1, `${negative.stdout}\n${negative.stderr}`);
-    assert.match(negative.stdout, /frozen engine record changed/u, 'the real registry check rejects the edited record');
-    assert.match(negative.stdout, /# fail 1\b/u, 'only the immutable-history guard is red');
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+  });
 }
