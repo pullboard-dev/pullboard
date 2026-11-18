@@ -154,6 +154,7 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testLoadRerunEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
   requireFactQuoteEnabled,
