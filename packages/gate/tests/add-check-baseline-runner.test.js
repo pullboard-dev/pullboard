@@ -11,7 +11,7 @@ import { runFixtureGit } from './fixtures/child.js';
 import { policyRepository } from '../../store/tests/fixtures/submit.js';
 import { fixtureMachineSettings } from './fixtures/testkit.js';
 import { fixtureProjectPolicy } from './fixtures/testkit.js';
-import { executionServices } from 'fixtures/execution.js';
+import { executionServices } from './fixtures/execution.js';
 import { HOST } from './fixtures/runner/ssh.js';
 import { installSshStandIn } from './fixtures/runner/ssh.js';
 import { measureBaseline } from '../src/io/check/baseline/worker.js';
