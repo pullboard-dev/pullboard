@@ -29,10 +29,13 @@ test('cli.io-cells-submit-checks.the-snapshot-pair-differs-only-by-the: clause 1
 test('cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems: clause 1: an unchanged candidate returns no problems with the services the submit gate passes [C7,#10939]', (t) => {
   const pair = cellsSnapshotPair(t);
   // The same services apps/cli/src/io/submit/gate.js passes requireSubmitCells, taken from the same gate imports.
-  const problems = cellsSnapshotProblems(pair.main.root, pair.candidate.root, {
+  // The two folders are separate repositories, so the changed files are given: an unchanged candidate changes none.
+  const result = cellsSnapshotProblems(pair.main.root, pair.candidate.root, {
+    acceptedMain: pair.main.commit,
+    files: [],
     parsers: { importsIn, commonJsIn },
     withImportParseCache,
     cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
   });
-  assert.deepEqual(problems, []);
+  assert.deepEqual(result.problems, []);
 });
