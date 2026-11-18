@@ -24,7 +24,7 @@ import { main } from '../../tests/fixtures/native.js';
 import * as store from '../../../../packages/store/index.js';
 import { boundedQueuedRedLines } from '../../../../packages/store/index.js';
 
-test('clause 1: defaults, move refusals and the init loop never suggest a timed wait [N42,C7]', () => {
+test('cli.journeys-init-defaults.defaults-move-refusals-and-the-init: clause 1: defaults, move refusals and the init loop never suggest a timed wait [N42,C7]', () => {
   for (const [code, step] of Object.entries({ ...DEFAULT_NEXT_STEPS, ...NEXT_STEPS })) {
     assert.doesNotMatch(step, /--wait/iu, code);
     assert.doesNotMatch(step, /\bwait (?:for|until|on)\b/iu, code);
@@ -44,12 +44,12 @@ test('clause 1: defaults, move refusals and the init loop never suggest a timed 
   });
 });
 
-test('clause 1: worker loop step 2 says next printed the bar and show is for thread and history [N41,C7]', () => {
+test('cli.journeys-init-defaults.worker-loop-step-2: clause 1: worker loop step 2 says next printed the bar and show is for thread and history [N41,C7]', () => {
   assert.match(SEAT_LOOP, /\n2\. .next. printed your bar; .pullboard show <id>. only for the thread and history\.\n/u);
   assert.doesNotMatch(SEAT_LOOP, /your bar, frozen at claim/u);
 });
 
-test('clause 1: a real init into an empty project writes AGENTS.md step 2 as next printed the bar [N41,C7]', async t => {
+test('cli.journeys-init-defaults.real-init-writes-agents-step-2: clause 1: a real init into an empty project writes AGENTS.md step 2 as next printed the bar [N41,C7]', async t => {
   const box = initFixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   const initialized = await box.output('init');
@@ -59,7 +59,7 @@ test('clause 1: a real init into an empty project writes AGENTS.md step 2 as nex
   assert.doesNotMatch(written, /your bar, frozen at claim/u);
 });
 
-test('native held item and lane claim messages offer work without telling the seat to wait [N42,C7]', async t => {
+test('cli.journeys-init-defaults.native-held-item-and-lane-claim: native held item and lane claim messages offer work without telling the seat to wait [N42,C7]', async t => {
   const box = await fixture(t);
   const heldItem = box.add('Held item');
   const itemHold = await cli(box, box.root, ['hold', String(heldItem), '--reason', 'fixture item hold']);
@@ -78,7 +78,7 @@ test('native held item and lane claim messages offer work without telling the se
   assert.doesNotMatch(JSON.stringify(laneClaim.document.error), /\bwait\b|--wait/iu);
 });
 
-test('clause 2: plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
+test('cli.journeys-init-defaults.plain-next-reserves-an-eligible-review: clause 2: plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
   const box = await fixture(t);
   const build = box.add('Build available now');
   const review = box.add('Review available now', { criterion: 'Large frozen bar. '.repeat(2000) });
@@ -101,7 +101,7 @@ test('clause 2: plain next reserves an eligible review before a build, even with
   assert.equal(store.getItem(box.board, build).item_owner, seat.id);
 });
 
-test('plain next skips the builders own submitted source and claims other work [N41,V1,C7]', async t => {
+test('cli.journeys-init-defaults.plain-next-skips-the-builders-own: plain next skips the builders own submitted source and claims other work [N41,V1,C7]', async t => {
   const box = await fixture(t);
   const submitted = box.add('Already submitted');
   box.submit(submitted);
@@ -121,7 +121,7 @@ test('plain next skips the builders own submitted source and claims other work [
   assert.ok(Buffer.byteLength(taken.out + taken.err) <= 2048);
 });
 
-test('clause 2 and clause 3: an empty plain next exits zero with a bounded end-turn answer in text and JSON [N41,N42,C7]', async t => {
+test('cli.journeys-init-defaults.clause-2-and-clause-3-an: clause 2 and clause 3: an empty plain next exits zero with a bounded end-turn answer in text and JSON [N41,N42,C7]', async t => {
   const box = await fixture(t, { family: 'require' });
   const ownSession = box.add('Ineligible review');
   box.submit(ownSession);
@@ -142,7 +142,7 @@ test('clause 2 and clause 3: an empty plain next exits zero with a bounded end-t
 });
 
 
-test('selection shares the complete relaxation queue per threshold and reservation rechecks current authority [N41,V1,H16,C7]', t => {
+test('cli.journeys-init-defaults.selection-shares-the-complete-relaxation-queue: selection shares the complete relaxation queue per threshold and reservation rechecks current authority [N41,V1,H16,C7]', t => {
   const board = fixtureBoard(t);
   let now = new Date('2026-01-01T00:00:00.000Z');
   board.clock = { now: () => new Date(now) };
@@ -199,7 +199,7 @@ test('selection shares the complete relaxation queue per threshold and reservati
   assert.ok(activityReads <= 2, `${activityReads} activity reads after the activity window changed`);
 });
 
-test('clause 3: the default loop bounds queued-red notices so twelve reds stay under 2 KB [C7,N41]', () => {
+test('cli.journeys-init-defaults.the-default-loop-bounds-queued-red: clause 3: the default loop bounds queued-red notices so twelve reds stay under 2 KB [C7,N41]', () => {
   const reds = Array.from({ length: 12 }, (_, index) => ({ id: 2100 + index, title: 'x'.repeat(200),
     leaseUntil: '2026-11-04T08:00:00.000Z', error: { code: 'TEST_FAILURE', message: 'm'.repeat(2000), next: 'fix it' } }));
   const lines = boundedQueuedRedLines(reds);

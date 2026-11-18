@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
@@ -14,6 +15,10 @@ import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { runnerCommitPort } from '../../index.js';
+import { MACHINE_DEFAULTS } from '../../../config/index.js';
+import { runnerCommitReportEnabled } from '../../../config/index.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 
 /** The renderer the API takes as a port: a refusal becomes its public error body. */
 function refusalDocument(error) {
@@ -169,4 +174,82 @@ test('api.jobs.receipt-parts-refused: clause 2: a receipt part from a runner not
   assert.equal(db.prepare('SELECT job_step AS step FROM job WHERE job_id = ?').get(claim.job).step, 'claimed', 'the job stays claimed');
   call({ action: 'receiptPart', part: { index: 1, count: 2, text: text.slice(half) } });
   assert.equal(call({ action: 'receipt', receipt }).recorded, true, 'the part posted again replaces the wrong one');
+});
+
+/** A private machine home for this test holding these settings, restored after it. */
+function machineWith(t, settings) {
+  const home = join(privateFixtureFiles('pullboard-jobs-home-').root, 'machine-home');
+  mkdirSync(home, { recursive: true });
+  if (settings) fixtureMachineSettings(home, settings);
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+}
+
+/** A loopback board API whose jobs port is wired as packages/api/src/io/main.js wires it: the runnerCommit port for this root, on when `enabled` is or, unnamed, when this machine's runners.reportCommit is. */
+async function loopbackQueue(t, db, root, enabled) {
+  const handler = createApiHandler({ refusalDocument,
+    authenticate: () => ({ local: true }),
+    board: (id) => ({ id }),
+    jobs: (board, body) => jobQueueCall(db, body, { mode: 'pull', trunk: () => root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(root, enabled ?? runnerCommitReportEnabled()) : null }),
+  });
+  const server = createServer(handler);
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { handler.close(); server.close(done); server.closeIdleConnections(); }));
+  return async (body) => {
+    const response = await fetchFresh(`http://127.0.0.1:${server.address().port}/api/v1/boards/fixture/jobs`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: response.status, text: await response.text() };
+  };
+}
+
+test('api.jobs.claim-names-runner-commit: clause 1: with runners.reportCommit on, every claim answer over the loopback API, with a job or empty, names runnerCommit, the commit the board\'s trunk main ref points at [C7,#10819]', async (t) => {
+  const repo = cellRepo(t, { real: true });
+  machineWith(t, { 'runners.reportCommit': true });
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'gate:commit', kind: 'gate', needs: ['node22'] });
+  const jobs = await loopbackQueue(t, db, repo.root, undefined);
+
+  const empty = JSON.parse((await jobs({ action: 'claim', runner: 'r-thin', capabilities: [] })).text);
+  assert.deepEqual(empty, { version: 1, claim: null, runnerCommit: repo.commit }, 'an empty claim answer names the trunk main commit');
+  const won = JSON.parse((await jobs({ action: 'claim', runner: 'r-a', capabilities: ['node22'] })).text);
+  assert.equal(won.claim.job, 'gate:commit');
+  assert.equal(won.trunk, repo.root);
+  assert.equal(won.runnerCommit, repo.commit, 'a claim that hands out a job names it too');
+
+  repo.put('runner.js', 'export const moved = 1;\n');
+  const moved = repo.commitAll();
+  assert.notEqual(moved, repo.commit);
+  const busy = JSON.parse((await jobs({ action: 'claim', runner: 'r-a', capabilities: ['node22'] })).text);
+  assert.deepEqual(busy, { version: 1, claim: null, runnerCommit: moved }, 'a busy runner\'s next claim names the commit main moved to');
+});
+
+test('api.jobs.claim-runner-commit-null: clause 2: a board whose trunk ref cannot be read answers runnerCommit null, and the claim is otherwise unchanged [C7,#10819]', async (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-no-ref-');
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'gate:noref', kind: 'gate', needs: [] });
+  const jobs = await loopbackQueue(t, db, root, true);
+  const won = JSON.parse((await jobs({ action: 'claim', runner: 'r-a', capabilities: [] })).text);
+  assert.deepEqual(Object.keys(won), ['version', 'claim', 'trunk', 'runnerCommit']);
+  assert.equal(won.runnerCommit, null, 'a folder with no Git ref names no commit');
+  assert.deepEqual([won.claim.job, won.claim.attempt, won.trunk], ['gate:noref', 1, root], 'the claim itself is today\'s');
+  assert.equal(jobView(db, 'gate:noref').leaseOwner, 'r-a');
+  for (const read of [() => { throw Object.assign(new Error('unreadable'), { code: 'EACCES' }); }, () => 'ref: refs/heads/main', () => null]) {
+    assert.deepEqual(jobQueueCall(db, { action: 'claim', runner: 'r-b', capabilities: [] }, { mode: 'pull', runnerCommit: read }), { claim: null, runnerCommit: null }, 'a ref read that throws or names no commit answers null');
+  }
+});
+
+test('api.jobs.claim-runner-commit-off: clause 3: with runners.reportCommit off (the default) the claim answer is byte-for-byte today\'s [C7,#10819]', async (t) => {
+  const repo = cellRepo(t, { real: true });
+  machineWith(t, null);
+  assert.equal(MACHINE_DEFAULTS['runners.reportCommit'], false, 'the setting defaults off');
+  assert.equal(runnerCommitReportEnabled(), false);
+  assert.equal(runnerCommitPort(repo.root, runnerCommitReportEnabled()), null, 'off, the API passes no runnerCommit port');
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'gate:off', kind: 'gate', needs: [] });
+  const jobs = await loopbackQueue(t, db, repo.root, undefined);
+  const won = await jobs({ action: 'claim', runner: 'r-a', capabilities: [] });
+  const claim = JSON.parse(won.text).claim;
+  assert.equal(won.text, JSON.stringify({ version: 1, claim, trunk: repo.root }), 'a claim with a job carries only claim and trunk');
+  assert.equal((await jobs({ action: 'claim', runner: 'r-b', capabilities: [] })).text, '{"version":1,"claim":null}', 'an empty claim answer is exactly today\'s');
+  assert.equal(JSON.stringify(jobQueueCall(db, { action: 'claim', runner: 'r-c', capabilities: [] }, { mode: 'pull', runnerCommit: null })), '{"claim":null}', 'no port is the call as it was');
 });

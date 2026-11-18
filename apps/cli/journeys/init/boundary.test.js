@@ -36,14 +36,14 @@ function sources() {
   }));
 }
 
-test('the core names no model, engine or vendor; secret patterns may name the keys they catch [P5]', () => {
+test('cli.journeys-init-boundary.the-core-names-no-model-engine: the core names no model, engine or vendor; secret patterns may name the keys they catch [P5]', () => {
   const found = sources().flatMap(({ file, lines }) =>
     lines.flatMap((line, index) => (MODELS.test(line) && !SECRET_LABELS.test(line) ? [`${file}:${index + 1}: ${line.trim()}`] : [])),
   );
   assert.deepEqual(found, []);
 });
 
-test('clause 1: only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
+test('cli.journeys-init-boundary.only-explicit-relay-commands-open-outbound: clause 1: only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
   const allowed = (file, line) =>
     // The relay transport: the one place the sync you turn on reaches the relay (#408 signing reads go through it).
     (file === 'packages/person/src/io/adapter.js' && line.trim() === 'export const realRelayAdapter = createRelayAdapter((url, options) => globalThis.fetch(url, options));') ||

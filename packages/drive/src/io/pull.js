@@ -422,6 +422,29 @@ async function dropCheckout(git, cache, { folder, primary }, exclusive = work =>
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
 const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
 
+/** The only names a job request may set for its job: test-only fixture switches, never PATH, HOME or a loader option [C7,#10848]. */
+export const JOB_ENV_NAME = /^(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+$/u;
+// Budget: a fixture switch is a short flag; a longer value is a payload, which belongs in the request's input.
+const JOB_ENV_VALUE_CHARS = 1024;
+
+/**
+ * The variables a job request's env map sets, checked: every name a fixture switch, every value a short string.
+ * Why: a variable set in the seat's shell around pullboard test never reached the runner job, so hooks-on proofs took
+ * throwaway probe commits (#10842); the request carries it instead, and nothing outside the fixture names rides along.
+ *
+ * @param {unknown} requested - The request's env map; absent or null sets nothing.
+ * @returns {Record<string, string>}
+ */
+export function requestedJobEnvironment(requested) {
+  if (requested === undefined || requested === null) return {};
+  if (typeof requested !== 'object' || Array.isArray(requested)) throw new Refused('JOB_ENV_REFUSED', 'a job request\'s env is a map of variable names to strings; next: offer the job again with a map');
+  for (const [key, value] of Object.entries(requested)) {
+    if (!JOB_ENV_NAME.test(key)) throw new Refused('JOB_ENV_REFUSED', `a job request may set only PULLBOARD_FIXTURE_* or FIXTURE_* variables, not ${key.slice(0, 80)}; next: drop it from the request`);
+    if (typeof value !== 'string' || value.length > JOB_ENV_VALUE_CHARS || value.includes('\0')) throw new Refused('JOB_ENV_REFUSED', `${key} in a job request is not a string of at most ${JOB_ENV_VALUE_CHARS} characters; next: shorten it`);
+  }
+  return { ...requested };
+}
+
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
  * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder and a machine home inside the job's HOME.
@@ -432,9 +455,11 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
  * @param {string} name - The job's checkout name.
  * @param {string} job - The job id, carried as PULLBOARD_RUNNER_JOB.
  * @param {NodeJS.ProcessEnv} [host] - The runner service's environment, read for PATH and the passed names only.
+ * @param {unknown} [requested] - The job request's env map: fixture switches the job's own caller set, over the host's [#10848].
  * @returns {{ env: Record<string, string>, folder: string }}
  */
-export function jobEnvironment(cache, name, job, host = process.env) {
+export function jobEnvironment(cache, name, job, host = process.env, requested = null) {
+  const asked = requestedJobEnvironment(requested);
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
   // One cache per runner that every job's keyed caches outlive the job in; a job's own HOME and TMPDIR start empty (#8233).
@@ -445,7 +470,7 @@ export function jobEnvironment(cache, name, job, host = process.env) {
   // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
   // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
   const machine = join(home, '.pullboard');
-  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
+  return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
 }
 
 /**
@@ -737,13 +762,14 @@ export function heldKinds() {
  * @param {{ nap: (ms: number) => Promise<void> }} [options.wake] - runners.localWake: an idle wait that also ends when an offering command signals a new job (watchWake); without it the idle wait is the full idleMs [#10409].
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<unknown> }} [options.runnerCode] - With it, a claim answer's runnerCommit that differs from the installed code stops claiming; held jobs finish and post, the code is rebuilt from that commit, and the serve returns restart naming it (#10800).
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
  * @param {boolean} [options.pulledProfilePaths] - gate.pulledProfilePaths: copy each gate phase's timing profile into the job's kept folder and name it on the phase row as profileKept; default off.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, ledger = heldKinds(), runnerCode = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -908,7 +934,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null;
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -921,12 +947,20 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
         ref = typeof request.ref === 'string' ? request.ref : null;
+        requestedEnv = request.env ?? null;
         // A gate frozen with exclusive check timing holds the runner: nothing else is claimed from here until it ends [C7,#8187].
         timed = request.input?.data?.checkTiming === true;
         if (timed) exclusive = claim.job;
       }
     }
     known();
+    // A request whose env names anything but a fixture switch never runs here: it goes back naming JOB_ENV_REFUSED [#10848].
+    try { requestedJobEnvironment(requestedEnv); }
+    catch (refusal) {
+      const reason = `[${refusal.code}] ${refusal.message}`; say(`releasing ${claim.job}: ${reason}`);
+      await reliably({ action: 'release', ...held, reason }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
+      return { job: claim.job, outcome: 'released' };
+    }
     const requestMs = Date.now() - requestStart;
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
@@ -962,7 +996,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
-    const job = jobEnvironment(cache, name, claim.job), tag = randomBytes(8).toString('hex');
+    const job = jobEnvironment(cache, name, claim.job, process.env, requestedEnv), tag = randomBytes(8).toString('hex');
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
     const kept = keepFolder(cache, claim.job, claim.attempt);
     // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
@@ -1023,6 +1057,9 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let exclusive = null;
   // The drain: whether it was announced, and when the trunk was last probed [#9024].
   let drained = false, probedAt = 0;
+  // Loaded only by a serve handed a runnerCode port, so no cold command pays for it (the closure budgets).
+  const codeWatch = runnerCode ? (await import('./pull/runner-code.js')).runnerCodeWatch(runnerCode, say) : null;
+  let restart = null;
   const start = (claim, trunk) => {
     const slot = free.shift();
     let task, known;
@@ -1065,20 +1102,27 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       if (once) { say('not claiming: the machine is over its load share'); break; }
       await Promise.race([nap(idleMs), ...active]); continue;
     }
-    if (!answer.claim) {
+    const updating = await codeWatch?.due(answer.runnerCommit);
+    if (!answer.claim && !updating) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
       await Promise.race([wake ? (stopped ? Promise.race([wake.nap(idleMs), stopped]) : wake.nap(idleMs)) : nap(idleMs), ...active]); continue;
     }
-    lastTrunk = answer.trunk;
-    const task = start(answer.claim, answer.trunk);
-    if (once) { await task; break; }
-    // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
-    await Promise.race([task.learned, task]);
+    if (answer.claim) {
+      lastTrunk = answer.trunk;
+      const task = start(answer.claim, answer.trunk);
+      if (once) { await task; break; }
+      // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
+      if (!updating) await Promise.race([task.learned, task]);
+    }
+    if (updating) {
+      await Promise.all(active);
+      if (!failure && await codeWatch.apply(updating)) { restart = updating; break; }
+    }
   }
   await Promise.all(active);
   await pruning;
   slotName.release();
   if (failure) throw failure;
-  return { jobs, waits, slots };
+  return { jobs, waits, slots, ...(restart ? { restart } : {}) };
 }

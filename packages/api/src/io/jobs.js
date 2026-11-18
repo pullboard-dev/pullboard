@@ -888,10 +888,19 @@ export function jobArtifacts(db, job) {
   return readArtifactSteps(db, String(job ?? ''));
 }
 
+/** The commit a runnerCommit port reads, or null when the ref cannot be read or names no commit: a claim never fails on it [C7,#10819]. */
+function reportedCommit(read) {
+  try { const commit = read(); return typeof commit === 'string' && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(commit) ? commit : null; }
+  catch { return null; }
+}
+
 /**
  * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'shardReceipts' | 'release' | 'progress' | 'artifact' | 'receiptPart' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
+ * With a runnerCommit port (runners.reportCommit on), every claim answer, with a job or empty, also names the commit
+ * the board's trunk main ref points at, or null when it cannot be read, so an idle or busy runner learns what code to
+ * match; without one the answer is today's [C7,#10819].
  *
  * A receipt newly recorded is handed to `onReceipt`, which applies it to the board (a gate's result to its item); its
  * answer rides back as `applied`. An apply that refuses leaves the receipt recorded and says why, so a runner's retried
@@ -899,15 +908,16 @@ export function jobArtifacts(db, job) {
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {Record<string, any>} body
- * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
+ * @param {{ mode: string, now?: number, trunk?: () => string | null, runnerCommit?: (() => string | null) | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, runnerCommit = null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, except, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
     const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, except: except ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
-    return { claim, ...(claim ? { trunk: trunk() } : {}) };
+    const answer = { claim, ...(claim ? { trunk: trunk() } : {}) };
+    return runnerCommit ? { ...answer, runnerCommit: reportedCommit(runnerCommit) } : answer;
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
   if (action === 'renew') return renewJob(db, { job, runner, token, now, hop });
