@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const file = name => readFileSync(new URL('../../src/io/' + name, import.meta.url), 'utf8');
 
-test('clause 1: Spec and Doctrine group headers carry no Approve all and use the sheet level-2 header [N26]', () => {
+test('view.x-io-spec-rows.clause-1-spec-and-doctrine-group-headers: clause 1: Spec and Doctrine group headers carry no Approve all and use the sheet level-2 header [N26]', () => {
   const render = file('page/render.js'), actions = file('page/actions.js'), css = file('main.css');
   assert.doesNotMatch(render + actions + css, /data-section-approve|spec-section-approve|dataset\.sectionApprove/u, 'no section approval control is drawn, handled or styled');
   assert.match(render, /<div class="spec-section-head doctrine-section-head"><h3 class="hd2">/u, 'the group header is the level-2 header');
@@ -15,7 +15,7 @@ test('clause 1: Spec and Doctrine group headers carry no Approve all and use the
   assert.doesNotMatch(css, /#spec-list h4/u, 'and so is its rule');
 });
 
-test('clause 2: rows end refs and test paths in an ellipsis inside the row, and the phone tabs stay inside the card [N26]', () => {
+test('view.x-io-spec-rows.clause-2-rows-end-refs-and-test: clause 2: rows end refs and test paths in an ellipsis inside the row, and the phone tabs stay inside the card [N26]', () => {
   const css = file('main.css');
   assert.match(css, /:is\(#spec-list, #doctrine-list\) \.spec-record \{ min-width: 0; overflow: hidden; \}/u, 'a row clips to its card');
   assert.match(css, /\.spec-record \.meta > \* \{[^}]*min-width: 0;[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'refs, reasons and test paths shrink with an ellipsis');
