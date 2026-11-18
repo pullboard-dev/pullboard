@@ -15,7 +15,7 @@ import { runFixtureChildAsync } from '../../../fixtures/child.js';
 const PREFIX = "import { cpSync, readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
 const options = { file: 'test/data-reads.test.js', moves: [['packages/git/index.js', 'packages/git/src/io/main.js']], readSource: () => null };
 
-test('a read whose path can name a moved source file is still reported [C7]', () => {
+test('gate.logic-test-source-edits.a-read-whose-path-can: a read whose path can name a moved source file is still reported [C7]', () => {
   const result = fixtureSourceEdits(PREFIX + "const code = join(root, 'packages/git/index.js');\nreadFileSync(code);", options);
   assert.equal(result.excluded, undefined);
   assert.ok(result.edits.length || result.problems.length, 'the source-path read is an edit or a problem');
@@ -24,7 +24,7 @@ test('a read whose path can name a moved source file is still reported [C7]', ()
   assert.match(unknown.problems[0], /unproven input expression or root/);
 });
 
-test('a repo-root file with a moved asset basename is distinct from the moved path [C7]', () => {
+test('gate.logic-test-source-edits.a-repo-root-file-with: a repo-root file with a moved asset basename is distinct from the moved path [C7]', () => {
   const move = { file: 'test/blueprint-reads.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/data/blueprints/pullboard.json']], mentionsOnly: true };
   const root = fixtureSourceEdits(PREFIX + "readFileSync('pullboard.json'); readFileSync(unknown);", move);
   assert.deepEqual(root.problems, [], 'a known root file does not make an unrelated read part of this move');
@@ -59,7 +59,7 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
   assert.ok(shadow.problems.length, 'a shadowed reader cannot claim the native root-file exemption');
 });
 
-test('a proven realpath of a fresh fixture remains distinct from a repository asset [C7]', () => {
+test('gate.logic-test-source-edits.a-proven-realpath-of-a: a proven realpath of a fresh fixture remains distinct from a repository asset [C7]', () => {
   const prefix = "import { readFileSync, mkdtempSync, realpathSync } from 'node:fs'; import { join, resolve, dirname } from 'node:path'; import { tmpdir } from 'node:os';\n";
   const move = { file: 'test/fixture-root.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/data/blueprints/pullboard.json']], mentionsOnly: true };
   const safe = fixtureSourceEdits(prefix + "const dir = realpathSync(mkdtempSync(join(tmpdir(), 'demo-'))); const root = join(dir, 'repo'); readFileSync(join(root, 'pullboard.json'));", move);
@@ -74,7 +74,7 @@ test('a proven realpath of a fresh fixture remains distinct from a repository as
   }
 });
 
-test('board database and fixture data reads are excluded and each is named with its reason [C7]', () => {
+test('gate.logic-test-source-edits.board-database-and-fixture-data: board database and fixture data reads are excluded and each is named with its reason [C7]', () => {
   // A `default` keyword in scope defeats the constant-folding leaf proof, as a real test body does, so only the data-root rule can clear these.
   const cases = [
     ["const mode = { default: 1 };\nconst dbFile = join(repo, '.git', 'pullboard', 'board.sqlite');\nreadFileSync(dbFile);", 'dbFile', 'board.sqlite'],
@@ -89,7 +89,7 @@ test('board database and fixture data reads are excluded and each is named with 
   }
 });
 
-test('a data-looking name shared with a moved source file stays reported [C7]', () => {
+test('gate.logic-test-source-edits.a-data-looking-name-shared: a data-looking name shared with a moved source file stays reported [C7]', () => {
   const result = fixtureSourceEdits(PREFIX + "const dbFile = join(repo, 'board.sqlite');\nreadFileSync(dbFile);",
     { ...options, moves: [['src/board.sqlite', 'packages/board/src/shell/board.sqlite']] });
   assert.equal(result.excluded, undefined);
@@ -116,7 +116,7 @@ function assertUnprovenFixture(body) {
   assert.equal(result.excluded, undefined, body);
 }
 
-test('closed local helper calls classify real repository YAML without trusting the parameter name [C7]', () => {
+test('gate.logic-test-source-edits.closed-local-helper-calls-classify: closed local helper calls classify real repository YAML without trusting the parameter name [C7]', () => {
   const source = FLOW_PREFIX + `
 const ROOT = resolve(import.meta.dirname, '../../../../../..');
 function workflowText(path) { return readFileSync(path, 'utf8'); }
@@ -129,7 +129,7 @@ const second = workflowText(resolve(ROOT, '.github/workflows/ci.yml'));
   assert.equal(editedFixture(source, result.edits), source, 'repository workflow bytes and all callers remain unchanged');
 });
 
-test('a closed helper reading moved implementation rewrites its actual source and preserves destinations and assertions [C7]', () => {
+test('gate.logic-test-source-edits.a-closed-helper-reading-moved: a closed helper reading moved implementation rewrites its actual source and preserves destinations and assertions [C7]', () => {
   const source = FLOW_PREFIX + `
 function sourceText(path) { return readFileSync(path, 'utf8'); }
 const code = sourceText(new URL('../packages/git/index.js', import.meta.url));
@@ -146,7 +146,7 @@ assert.equal(code.includes('packages/git/index.js'), true);
   assert.deepEqual(fixtureSourceEdits(rewritten, options).edits, [], 'an actual-home source is not rewritten again');
 });
 
-test('mixed, dynamic and escaped local helper arguments keep the source read unknown [C7]', () => {
+test('gate.logic-test-source-edits.mixed-dynamic-and-escaped-local: mixed, dynamic and escaped local helper arguments keep the source read unknown [C7]', () => {
   const helper = "function text(path) { return readFileSync(path, 'utf8'); }\n";
   for (const body of [
     helper + "text(new URL('../../../../../../.github/workflows/cla.yml', import.meta.url)); text(mystery);",
@@ -157,7 +157,7 @@ test('mixed, dynamic and escaped local helper arguments keep the source read unk
   ]) assertUnprovenFixture(body);
 });
 
-test('an explicit factory return binds only its actual fixture member to generated bytes [C7]', () => {
+test('gate.logic-test-source-edits.an-explicit-factory-return-binds: an explicit factory return binds only its actual fixture member to generated bytes [C7]', () => {
   const source = FLOW_PREFIX + `
 function makeBox() {
   const dir = mkdtempSync(join(tmpdir(), 'source-flow-'));
@@ -175,7 +175,7 @@ const observed = readFileSync(box.marker, 'utf8');
   assert.equal(editedFixture(source, result.edits), source, 'generated fixture input is classified without changing its bytes');
 });
 
-test('a fixture field spelling does not authorize a different receiver or a source-returning factory [C7]', () => {
+test('gate.logic-test-source-edits.a-fixture-field-spelling-does: a fixture field spelling does not authorize a different receiver or a source-returning factory [C7]', () => {
   const factory = `
 function makeBox() {
   const dir = mkdtempSync(join(tmpdir(), 'source-flow-'));
@@ -192,7 +192,7 @@ const box = makeBox(); readFileSync(box.marker, 'utf8');
 `);
 });
 
-test('factory member assignment, prototype writes, shadowing, spreads and unknown branches stay unknown [C7]', () => {
+test('gate.logic-test-source-edits.factory-member-assignment-prototype-writes: factory member assignment, prototype writes, shadowing, spreads and unknown branches stay unknown [C7]', () => {
   const factory = `
 function makeBox() {
   const dir = mkdtempSync(join(tmpdir(), 'source-flow-'));
@@ -231,7 +231,7 @@ const box = makeBox();
   ]) assertUnprovenFixture(body);
 });
 
-test('copying implementation into a temporary fixture never excuses the original moved source [C7]', () => {
+test('gate.logic-test-source-edits.copying-implementation-into-a-temporary: copying implementation into a temporary fixture never excuses the original moved source [C7]', () => {
   const source = FLOW_PREFIX + `
 function makeBox() {
   const dir = mkdtempSync(join(tmpdir(), 'source-flow-'));
@@ -253,7 +253,7 @@ readFileSync(box.marker, 'utf8');
 });
 
 /** A generated private config is exact site data; a bundled source with the same basename stays a move obligation. */
-test('blueprint config declarations retain actual-source and exact-site negatives [C7,CD64]', () => {
+test('gate.logic-test-source-edits.blueprint-config-declarations-retain-actual: blueprint config declarations retain actual-source and exact-site negatives [C7,CD64]', () => {
   const file = 'test/blueprints-data-read.fixture.js';
   const moves = [['src/blueprints/pullboard.json', 'packages/blueprints/data/blueprints/pullboard.json']];
   const expression = "join(box.repo, 'pullboard.json')";
@@ -277,13 +277,13 @@ test('blueprint config declarations retain actual-source and exact-site negative
   assert.deepEqual(actual.matchedDataReads ?? [], []);
 });
 
-test('a real syntax error names its fixture file through the batch parser [C7,P3]', () => {
+test('gate.logic-test-source-edits.a-real-syntax-error-names: a real syntax error names its fixture file through the batch parser [C7,P3]', () => {
   const result = withCellLintParser(() => fixtureSourceEdits("import { readFileSync } from 'node:fs';\nconst broken = ;\n",
     { file: 'test/broken-fixture.js', moves: [['packages/git/index.js', 'packages/git/src/io/main.js']] }));
   assert.match(result.problems.join('\n'), /test\/broken-fixture\.js: fixture source does not compile/u);
 });
 
-test('a real compiler process failure retains its exit, stderr and fixture name [C7,P3]', () => {
+test('gate.logic-test-source-edits.a-real-compiler-process-failure: a real compiler process failure retains its exit, stderr and fixture name [C7,P3]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-probe-failure-'));
   const preload = join(directory, 'fail-compiler.mjs');
   writeFileSync(preload, "if(process.argv.includes('--compile')){process.stderr.write('owned fixture compiler failed\\n');process.exit(23);}\n");
@@ -306,7 +306,7 @@ test('a real compiler process failure retains its exit, stderr and fixture name 
   }
 });
 
-test('shared compiler rotations complete every request under a bounded heap [C7,P3]', async () => {
+test('gate.logic-test-source-edits.shared-compiler-rotations-complete-every: shared compiler rotations complete every request under a bounded heap [C7,P3]', async () => {
   const entry = new URL('../../../../../codemap/index.js', import.meta.url).href;
   const script = `import {withCellLintParser} from ${JSON.stringify(entry)};
 const source='export const values=['+Array.from({length:1000},(_,i)=>i).join(',')+'];';

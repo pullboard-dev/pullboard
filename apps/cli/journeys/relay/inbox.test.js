@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 
-test('opening a relay journal installs delivery storage before the first link envelope [E32,H16,H17]', async t => {
+test('cli.journeys-relay-inbox.opening-a-relay-journal-installs-delivery: opening a relay journal installs delivery storage before the first link envelope [E32,H16,H17]', async t => {
   const { DatabaseSync } = await import('node:sqlite');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-link-opener-'));
   const boardId = 'a'.repeat(32);
@@ -42,7 +42,7 @@ test('opening a relay journal installs delivery storage before the first link en
   finally { upgraded.close(); }
 });
 
-test('a signed two-sided link carries only its disclosure mode and refuses a cycle [E32,H16,H17]', async t => {
+test('cli.journeys-relay-inbox.a-signed-two-sided-link-carries: a signed two-sided link carries only its disclosure mode and refuses a cycle [E32,H16,H17]', async t => {
   const loaded = await import('../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
   assert.equal(loaded.error, undefined, 'the shared production board-link boundary must exist');
   const api = loaded.api;
@@ -100,7 +100,7 @@ test('a signed two-sided link carries only its disclosure mode and refuses a cyc
     position: 9, rows: [{ board: child.reference.boardId, id: 8, state: 'claimed', title: 'private' }] }).rows, []);
 });
 
-test('sealed board-link delivery authenticates both boards and retains exact retries after restart [E32,H16,H17]', async t => {
+test('cli.journeys-relay-inbox.sealed-board-link-delivery-authenticates-both: sealed board-link delivery authenticates both boards and retains exact retries after restart [E32,H16,H17]', async t => {
   const loaded = await import('../../../../packages/store/index.js').then(api => ({ api }), error => ({ error }));
   assert.equal(loaded.error, undefined, 'the common authenticated delivery dispatcher must exist');
   const transportApi = loaded.api;

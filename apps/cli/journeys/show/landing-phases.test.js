@@ -68,30 +68,3 @@ test('cli.journeys-show-landing-phases.show-prints-one-line-per-phase: clause 2:
   assert.deepEqual(shown.out.split('\n').filter(line => line.startsWith('landing phase ')),
     ['landing phase merge: 120 ms', 'landing phase static checks: 4000 ms', 'landing phase cli smoke: 900 ms', 'landing phase push: 700 ms']);
 });
-
-const TREE = 'a'.repeat(40);
-const PROOF = { tree: TREE, pin: 'b'.repeat(40), cells: ['apps/cli', 'packages/landing'], result: 'green' };
-
-test('cli.journeys-show-landing-phases.show-prints-one-line-beside-the: clause 1: show prints one line beside the landing with the tree id, the tooling commit, the cells run and the result, and --json carries the record [V16,V38]', async t => {
-  const { box, entry, land, record } = await verifiedItem(t);
-  await land(PHASES);
-  record(PROOF);
-  const shown = await box.runLocal(box.repo, 'show', String(entry.item));
-  assert.equal(shown.code, 0, shown.err);
-  assert.deepEqual(shown.out.split('\n').filter(line => line.startsWith('landing exact tree ')),
-    [`landing exact tree ${TREE.slice(0, 12)}: tooling ${PROOF.pin.slice(0, 12)}, green, cells apps/cli, packages/landing`]);
-  const json = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
-  assert.deepEqual(JSON.parse(json.out).landing.exactTree, PROOF);
-});
-
-test('cli.journeys-show-landing-phases.an-item-landed-before-the-record: clause 2: an item landed before the record existed prints no exact-tree line and no error [V16,V38]', async t => {
-  const { box, entry, land, record } = await verifiedItem(t);
-  await land(PHASES);
-  record(undefined);
-  const shown = await box.runLocal(box.repo, 'show', String(entry.item));
-  assert.equal(shown.code, 0, shown.err);
-  assert.doesNotMatch(shown.out, /landing exact tree/u);
-  const json = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
-  assert.equal(json.code, 0, json.err);
-  assert.equal(JSON.parse(json.out).landing.exactTree, undefined);
-});

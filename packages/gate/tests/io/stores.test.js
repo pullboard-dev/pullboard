@@ -376,3 +376,13 @@ test('#10813 clause 1: table:temp is owned by the outbox io module that writes i
   assert.doesNotMatch(readFileSync(new URL('../../../outbox/src/logic/undo.js', import.meta.url), 'utf8'), /temp\.moving/u);
   assert.deepEqual(storeOwnerProblems(registry), []);
 });
+
+test('#10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:person_enrollment'].owner;
+  assert.equal(owner, 'apps/relay/src/io/store/enrollment.js');
+  const source = readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8');
+  assert.match(source, /INSERT INTO person_enrollment/u, 'the owner holds the write call');
+  const oldHome = ['apps/relay/src/logic/person/enrollment', 'store.js'].join('/');
+  assert.throws(() => readFileSync(new URL(`../../../../${oldHome}`, import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
+});

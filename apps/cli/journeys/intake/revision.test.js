@@ -15,7 +15,7 @@ function refusal(result, expected) {
   assert.equal(JSON.parse(result.out || result.err).error.code, expected, result.out + result.err);
 }
 
-test('a returned outside pull request cannot be claimed as native build work [V1,V3]', async t => {
+test('cli.journeys-intake-revision.a-returned-outside-pull-request-cannot: a returned outside pull request cannot be claimed as native build work [V1,V3]', async t => {
   // The bar's test path must exist on trusted main, or the claim refuses BAR_PATH_MISSING first.
   const box = intakeFixture(t, { baseFiles: { 'test/contribution.test.js': "import { test } from 'node:test';\ntest('trusted placeholder', () => {});\n" } });
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
@@ -27,7 +27,7 @@ test('a returned outside pull request cannot be claimed as native build work [V1
   assert.equal(item.item_built_by, 'outside:github:outside-contributor');
 });
 
-test('an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', async t => {
+test('cli.journeys-intake-revision.an-outside-author-revision-is-re: an outside author revision is re-intaken only after normal return and clears exact-commit approval [V1,V3,B26]', async t => {
   const box = intakeFixture(t);
   const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
@@ -46,7 +46,7 @@ test('an outside author revision is re-intaken only after normal return and clea
 });
 
 
-test('outside process-execution detection and unreadable files explain their owner holds [B26,V3]', t => {
+test('cli.journeys-intake-revision.outside-process-execution-detection-and-unreadable: outside process-execution detection and unreadable files explain their owner holds [B26,V3]', t => {
   const box = intakeFixture(t);
   advanceOutsideFixture(box, 'lib/plain.js', "import { execFile } from 'node:child_process'; export const run = () => execFile('true');\n", ['apps/relay/src/io/deploy/outside.js']);
   advanceOutsideFixture(box, 'assets/opaque.bin', Buffer.from([0, 255, 254]));

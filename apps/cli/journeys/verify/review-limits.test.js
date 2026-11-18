@@ -20,7 +20,7 @@ function queue(t) {
   return { board, id: item.item_id };
 }
 
-test('clause 1: a seat declaring not-same-family is never offered same-family reviews by next --verify [O2,V15]', t => {
+test('cli.journeys-verify-review-limits.a-seat-declaring-not-same-family: clause 1: a seat declaring not-same-family is never offered same-family reviews by next --verify [O2,V15]', t => {
   const { board, id } = queue(t);
   const limited = cellSeat(board, { lane: 'review', path: '/limited', family: 'Fixture-Builder', reviewLimits: ['not-same-family'] });
   assert.equal(store.nextFor(board, { agentId: limited.id, lane: 'review', verify: true }).item, null, 'the limited seat is offered nothing');
@@ -30,7 +30,7 @@ test('clause 1: a seat declaring not-same-family is never offered same-family re
   assert.equal(store.nextFor(board, { agentId: other.id, lane: 'review', verify: true }).item.item_id, id, 'the limit only refuses its own family');
 });
 
-test('clause 2: a seat with no declared limits is offered reviews as before [O2,V15]', t => {
+test('cli.journeys-verify-review-limits.a-seat-with-no-declared-limits: clause 2: a seat with no declared limits is offered reviews as before [O2,V15]', t => {
   const { board, id } = queue(t);
   const open = cellSeat(board, { lane: 'review', path: '/open', family: 'Fixture-Builder' });
   assert.equal(store.nextFor(board, { agentId: open.id, lane: 'review', verify: true }).item.item_id, id);
