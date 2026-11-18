@@ -63,6 +63,7 @@ export const setupHelp = `Set up
   pullboard relay pair --new-browser    sign in and pair one more browser; existing browsers stay paired
   pullboard relay canary [on|off|status|run|watch]  opt this linked seat into minute sealed round-trip monitoring
   pullboard relay on --all [--url <address>] [--name <computer>]  link every registered project after one sign-in; pair the phone once
+  pullboard relay on --all --only <name>  link just that one board and clear its exclusion
                                         keep this command open until pairing finishes; later projects link on registration
   pullboard relay devices [--verbose]   paired phones and joined computers by name, with paired date, last seen and boards
                                         --verbose adds each id and phone key fingerprint

@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../fixtures/e2e.js';
 import { fixtureProjectPolicy } from '../fixtures/testkit.js';
 import { joinFixtureSeat } from '../fixtures/testkit.js';
+import { stopFixtureLocalRunner } from '../fixtures/runner/local-stop.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -18,7 +19,8 @@ async function queued() {
   fixtureProjectPolicy(box.repo, { config });
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: set verify.queueAccept');
-  // The queued job is the proof here; the loopback runner is not waited on, so the check stays running.
+  // The queued job is the proof here: the loopback runner is stopped, not merely unwaited, so the check cannot finish between the accept and the second reviewer's call.
+  stopFixtureLocalRunner(join(box.dir, 'machine-home'));
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   const first = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--json');
   assert.equal(first.code, 0, first.stdout + first.stderr);
@@ -29,7 +31,7 @@ async function queued() {
   return { box, holder, second };
 }
 
-test('clause 1: next --verify on an item whose queued accept check is running does not hand it to a second reviewer [C7,V4]', async () => {
+test('cli.io-verify-queue-holder.next-verify-on-an-item-whose-queued: clause 1: next --verify on an item whose queued accept check is running does not hand it to a second reviewer [C7,V4]', async () => {
   const { box, holder, second } = await queued();
   const taken = await box.runLocal(second, 'next', '--verify', '1', '--json');
   assert.notEqual(taken.code, 0, 'a second reviewer is refused');
@@ -37,7 +39,7 @@ test('clause 1: next --verify on an item whose queued accept check is running do
   assert.match(taken.stdout + taken.stderr, new RegExp(holder, 'u'), 'the refusal names the holder');
 });
 
-test('clause 1: verify on an item whose queued accept check is running refuses a second reviewer and names the holder [C7,V4]', async () => {
+test('cli.io-verify-queue-holder.verify-on-an-item-whose-queued-accept: clause 1: verify on an item whose queued accept check is running refuses a second reviewer and names the holder [C7,V4]', async () => {
   const { box, holder, second } = await queued();
   for (const decision of [['accept', '--note', 'read the diff against the bar'], ['reject', '--reason', 'BEHAVIOR_MISMATCH', '--note', 'the diff skips the bar clause']]) {
     const refused = await box.runLocal(second, 'verify', '1', ...decision, '--json');

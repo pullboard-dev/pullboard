@@ -22,7 +22,7 @@ export async function boardStatePorts() { return {}; }
   return 'data:text/javascript,' + encodeURIComponent(source);
 }
 
-test('clause 1: close() ends a busy state worker within 2 s, before its work would end [A2,C7]', async (t) => {
+test('api.state-close.close-ends-busy-state-worker: clause 1: close() ends a busy state worker within 2 s, before its work would end [A2,C7]', async (t) => {
   const channel = `materializer-close-${process.pid}`;
   const listener = new BroadcastChannel(channel);
   t.after(() => listener.close());
@@ -38,7 +38,7 @@ test('clause 1: close() ends a busy state worker within 2 s, before its work wou
   assert.equal(outcome, 'terminated', 'the worker ran its work to its end after the close');
 });
 
-test('clause 1: a process holding a materializer with queued builds exits within 2 s of close() [A2,C7]', async () => {
+test('api.state-close.process-holding-materializer-queued-builds: clause 1: a process holding a materializer with queued builds exits within 2 s of close() [A2,C7]', async () => {
   // The child's worker is blocked for 20 s, as a queued build on a large board blocks it; only the grace timer ends it.
   const source = `import { BroadcastChannel } from 'node:worker_threads';
 const { startStateMaterializer } = await import(${JSON.stringify(new URL('../../../src/io/state/materializer.js', import.meta.url).href)});
@@ -57,7 +57,7 @@ materializer.close();`;
   assert.ok(took < 5_000, `the process took ${took} ms to exit after close(), with 2 s of grace`); // budget: declared ceiling, the clause allows 5 s for a busy process to exit after close().
 });
 
-test('clause 1: the 2 s grace timer is cleared when the worker exits, so no timer outlives an idle worker [A2,C7]', async () => {
+test('api.state-close.grace-timer-cleared-when-worker: clause 1: the 2 s grace timer is cleared when the worker exits, so no timer outlives an idle worker [A2,C7]', async () => {
   // The child prints `closing` only when, after the worker has exited, no timer is left holding the process.
   const source = `const { startStateMaterializer } = await import(${JSON.stringify(new URL('../../../src/io/state/materializer.js', import.meta.url).href)});
 const { BroadcastChannel } = await import('node:worker_threads');

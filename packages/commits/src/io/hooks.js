@@ -48,6 +48,7 @@ import { parseCommitMessage } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
+import { secretsIn } from "../logic/secrets.js";
 import { planRowChange } from "../logic/change/row/plan.js";
 import { baselineRowChange } from "../logic/change/row/tier.js";
 import { tierRowChange } from "../logic/change/row/tier.js";
@@ -70,24 +71,6 @@ const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 const ZERO_SHA = /^0+$/;
 const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
-
-/**
- * Secrets by kind, most specific first, so a line is named once by what it most likely is.
- */
-const SECRETS = [
-  ['Anthropic key', /sk-ant-[A-Za-z0-9_-]{20,}/],
-  ['OpenAI key', /sk-proj-[A-Za-z0-9_-]{32,}/],
-  ['OpenAI key', /(?<![A-Za-z0-9-])sk-(?:None-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/],
-  ['AWS access key', /AKIA[0-9A-Z]{16}/],
-  ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
-  ['GitHub token', /gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}/],
-  ['Slack token or webhook', /xox[abprs]-[A-Za-z0-9-]{10,}|hooks\.slack\.com\/services\/[A-Za-z0-9/]+/],
-  ['Stripe live key', /(sk|rk)_live_[A-Za-z0-9]{20,}/],
-  ['Cloudflare token', /cfut_[A-Za-z0-9_-]{20,}/],
-  ['npm token', /npm_[A-Za-z0-9]{36}/],
-  ['assigned secret', /(api[_-]?key|secret|token|password)['"]?\s*[:=]\s*['"]([A-Za-z0-9/+_=-]{20,})['"]/i],
-  ['env-style secret', /^\s*(export\s+)?[A-Z][A-Z0-9_]*(SECRET|KEY|TOKEN|PASSWORD)[A-Z0-9_]*\s*=\s*[A-Za-z0-9/+_=-]{20,}\s*$/],
-];
 
 /**
  * Problems with a commit message's header: format, length, case, trailing period.
@@ -332,7 +315,9 @@ function fillRecords(root, revision, map, paths, directory = null) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
       if (directory && !map.has(path)) map.set(path, []);
-      map.get(path)?.push(record);
+      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
+      const records = map.get(path);
+      if (records && !records.includes(record)) records.push(record);
     }
   }
 }
@@ -479,31 +464,6 @@ export function addedLines(diff) {
   return added;
 }
 
-/** Recognize only the complete public negative-auth object property, never a literal prefix or continuation. */
-function publicFixtureAssignment(match, text) {
-  return /^secret[ \t]*:[ \t]*(['"])not-the-listener-secret\1$/u.test(match[0])
-    && /[{,][ \t]*$/u.test(text.slice(0, match.index))
-    && /^[ \t]*\}/u.test(text.slice(match.index + match[0].length));
-}
-
-/**
- * Added lines that look like secrets, named by kind and place. Values are never echoed back.
- *
- * @param {{ path: string, line: number, text: string }[]} added
- * @returns {string[]}
- */
-export function secretsIn(added) {
-  return added.flatMap((entry) => {
-    const found = SECRETS.find(([kind, pattern]) => kind === 'assigned secret'
-      // This public negative-auth fixture predates history transfer; it is never a credential.
-      // Inspect every assignment so the sentinel cannot conceal a second value on the same line.
-      ? [...entry.text.matchAll(new RegExp(pattern.source, 'gi'))]
-        .some(match => !publicFixtureAssignment(match, entry.text))
-      : pattern.test(entry.text));
-    return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
-  });
-}
-
 /**
  * Re-check every commit in base..head for committed secrets and header-rule breaks, reading git directly so a
  * skipped hook (`--no-verify`) hides nothing. Reuses the SECRETS table and the header rule above (A8).
@@ -570,7 +530,7 @@ export function preCommitProblems(context) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const touchedPaths = new Set(touched), writtenPaths = new Set(written);
@@ -657,8 +617,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path), read: planRead,
+    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },

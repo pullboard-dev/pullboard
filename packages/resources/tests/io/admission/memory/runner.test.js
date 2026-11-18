@@ -59,7 +59,7 @@ finally { for (const entry of pending) entry.control.cancel = true; for (const l
   assert.equal(result.status, 0, `${result.context}\n${result.stdout}\n${result.stderr}`);
 }
 
-test('clause 1: with every other runner busy, a queued browser run is admitted to the idle kept runner studio-host [C7]', async t => {
+test('resources.runner.with-every-other-runner-busy-a: clause 1: with every other runner busy, a queued browser run is admitted to the idle kept runner studio-host [C7]', async t => {
   await scenario(t, `
 const first = await hold('browser-1', { browser: true });
 const second = await hold('browser-2', { browser: true });
@@ -82,7 +82,7 @@ assert.equal(on('studio-host'), 2);
 `);
 });
 
-test('clause 1: a queued gate run waits while a timed check waits, then the timed check gets studio-host once its lent runs end [C7]', async t => {
+test('resources.runner.a-queued-gate-run-waits-while: clause 1: a queued gate run waits while a timed check waits, then the timed check gets studio-host once its lent runs end [C7]', async t => {
   await scenario(t, `
 for (let n = 0; n < 4; n++) await hold('fill-' + n);
 assert.equal(on('mini-a') + on('mini-b'), 4, 'ordinary runs fill every slot on the other runners');
@@ -101,7 +101,7 @@ assert.equal(timedLease.timing, true);
 `);
 });
 
-test('clause 2: the runner wait line names the kept-runner reason for a skipped runner instead of queue priority [C7]', async t => {
+test('resources.runner.the-runner-wait-line-names-the: clause 2: the runner wait line names the kept-runner reason for a skipped runner instead of queue priority [C7]', async t => {
   await scenario(t, `
 for (let n = 0; n < 4; n++) await hold('fill-' + n);
 const lent = await hold('lent-1');

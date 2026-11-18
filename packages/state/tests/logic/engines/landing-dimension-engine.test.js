@@ -7,7 +7,7 @@ import { eventKindEngine } from '../../../light.js';
 import { eventKindRefusal } from '../../../light.js';
 import { ENGINE_VERSION } from '../../../light.js';
 
-test('clause 2: pull_out, pulled and published are declared at the landing-dimension engine [M1]', () => {
+test('state.logic-engines-landing-dimension-engine.clause-2-pull-out-pulled-and-published: clause 2: pull_out, pulled and published are declared at the landing-dimension engine [M1]', () => {
   for (const kind of ['pull_out', 'pulled', 'published']) {
     assert.equal(EVENT_KIND_ENGINES[kind], 'LANDING_DIMENSION_ENGINE');
     assert.equal(eventKindEngine(kind), LANDING_DIMENSION_ENGINE);
@@ -16,7 +16,7 @@ test('clause 2: pull_out, pulled and published are declared at the landing-dimen
   for (const kind of ['merged', 'claim', 'withdraw']) assert.equal(eventKindEngine(kind), null, 'older kinds stay ungated');
 });
 
-test('clause 3: a board recorded below the landing-dimension engine refuses a pull_out event and names the upgrade [M1]', () => {
+test('state.logic-engines-landing-dimension-engine.clause-3-a-board-recorded-below-the: clause 3: a board recorded below the landing-dimension engine refuses a pull_out event and names the upgrade [M1]', () => {
   const older = { executionEngineVersion: LANDING_DIMENSION_ENGINE - 1 };
   const refusal = eventKindRefusal(older, 'pull_out');
   assert.equal(refusal.code, 'ENGINE_VERSION');

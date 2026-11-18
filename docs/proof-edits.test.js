@@ -1,3 +1,4 @@
+/** @pullboard-test-loads docs/proof/lanes-and-commits-mutants.mjs */
 /** @pullboard-world-pin: clauses 1 and 3 read the proof mutant lists and the repository files their edits quote, which are the files a moved line breaks. */
 /** Every edit in the proof mutant lists quotes text that is in its named file on main, so a moved line cannot leave a mutant that changes nothing [C7,#8568,#8572]. */
 import assert from 'node:assert/strict';

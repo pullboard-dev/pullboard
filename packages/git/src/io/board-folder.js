@@ -10,5 +10,16 @@ import { repoInfo } from './main.js';
  * @returns {string} The absolute path.
  */
 export function boardFolderFile(root, name) {
-  return join(repoInfo(root).commonDir, 'pullboard', name);
+  return commonBoardFolderFile(repoInfo(root).commonDir, name);
+}
+
+/**
+ * The same path when the caller already holds the common Git directory, so it spawns no Git.
+ *
+ * @param {string} commonDir - The repository's common Git directory.
+ * @param {string} name - The store's file name.
+ * @returns {string} The absolute path.
+ */
+export function commonBoardFolderFile(commonDir, name) {
+  return join(commonDir, 'pullboard', name);
 }

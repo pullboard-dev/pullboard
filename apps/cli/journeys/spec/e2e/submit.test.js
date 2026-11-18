@@ -23,7 +23,7 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('a red gate refuses submit [V4]', async t => {
+test('cli.journeys-spec-e2e-submit.a-red-gate-refuses-submit-v4: a red gate refuses submit [V4]', async t => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -31,7 +31,7 @@ test('a red gate refuses submit [V4]', async t => {
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.equal((await box.runIn(box.web, 'claim', '1')).code, 0);
   const item = `${box.web}-item-1`;
-  assert.equal(commitFile(box, item, 'web/red.html', 'candidate', 'feat(web): red gate witness [G1]').status, 0);
+  assert.equal((await commitFile(box, item, 'web/red.html', 'candidate', 'feat(web): red gate witness [G1]')).status, 0);
   // A pulled submit queues its gate; the red receipt keeps the item out of review and is the refusal the builder reads [V4,C7,#7725].
   const queued = await box.runIn(item, 'submit', '1', '--json');
   assert.equal(queued.code, 0, queued.err + queued.out);
@@ -41,7 +41,7 @@ test('a red gate refuses submit [V4]', async t => {
   assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', async () => {
+test('cli.journeys-spec-e2e-submit.pre-push-runs-the-gate-once: pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', async () => {
   const box = project();
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);
@@ -53,13 +53,13 @@ test('pre-push runs the gate once per tree and pushes only the checked-out commi
   const elsewhere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one:web/one');
   assert.equal(elsewhere.status, 0, 'web/one is at the same commit as main, so it is what is checked out');
   assert.match(`${elsewhere.stdout}${elsewhere.stderr}`, /the gate passed on this exact tree; not running it twice/, 'the second push of a passed tree skips the gate');
-  commitFile(box, box.web, 'web/b.html', 'b', 'feat(web): second page [G1]');
+  await commitFile(box, box.web, 'web/b.html', 'b', 'feat(web): second page [G1]');
   const notHere = box.tryGit(box.repo, 'push', '-q', 'origin', 'web/one');
   assert.notEqual(notHere.status, 0);
   assert.match(notHere.stderr, /is not checked out/);
 });
 
-test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', async t => {
+test('cli.journeys-spec-e2e-submit.next-claims-the-next-free-item: next claims the next free item in its folder; --verify names the next to check [N2,B5]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
   await fixtureAdd(box.runIn, box.repo, 'web', 'Second page', '--specs', 'G1', '--after', '1');
@@ -71,7 +71,7 @@ test('next claims the next free item in its folder; --verify names the next to c
   assert.match(first.out, new RegExp(`when it is built and committed: cd ${box.web}-item-1 && pullboard submit 1`));
   assert.match((await box.runIn(box.web, 'next')).out, /you hold #1: Page/);
   const item = `${box.web}-item-1`;
-  assert.equal(commitFile(box, item, 'web/a.html', 'a', 'feat(web): page [G1]').status, 0);
+  assert.equal((await commitFile(box, item, 'web/a.html', 'a', 'feat(web): page [G1]')).status, 0);
   // A pulled submit only queues its gate; the item stays claimed until the receipt applies, so wait for it before asking next.
   const submitted = await box.runIn(item, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.err || submitted.out);

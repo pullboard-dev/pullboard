@@ -73,7 +73,7 @@ try {
   return JSON.parse(result.stdout);
 }
 
-test('a line of 20 fresh requests beside 40 live holders and 40 waiters is admitted within 3 s, each turn probing nothing [C7]', async t => {
+test('resources.latency.a-line-of-20-fresh-requests: a line of 20 fresh requests beside 40 live holders and 40 waiters is admitted within 3 s, each turn probing nothing [C7]', async t => {
   const { results, kept, waiting } = await measuredLine(t);
   assert.equal(results.length, REQUESTS, 'every queued requester is polled and admitted');
   assert.equal(kept, HOLDERS, 'no live holder is freed by the cached sweep');

@@ -102,6 +102,8 @@ import {
 } from '../../../../../packages/commits/index.js';
 import {
   checkImplies,
+  checklistEvidenceProblem,
+  checklistReceipt,
   parseImplies,
 } from '../../../../../packages/state/index.js';
 import * as itemSessions from '../../../../../packages/items/index.js';
@@ -168,6 +170,21 @@ import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
+import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
+import { gateComponentTier } from '../../../../../packages/config/index.js';
+
+/** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
+export function trunkMovedOverlapText(paths) {
+  return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}; ask another agent to re-review against current main`;
+}
+
+/** The refusal text when main moved again during the one review retry [C7,U159]. */
+export function trunkMovedAgainText(from, to, reach) {
+  return `main moved again from ${from} to ${to} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; ask another agent to re-review against current main`;
+}
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
@@ -272,6 +289,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   let verificationProfile = null;
   let verificationOutput = null;
   let verificationQuarantine = null;
+  let checklistNote = null;
   let accepted = null;
   let acceptedLandingCommit = null;
   let landedVerdict = false;
@@ -312,10 +330,12 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (item.item_status === 'withdrawn' && item.item_merged_commit) {
       landedVerdict = true;
       return await ordered(ctx, board, 'verify', [id, { agentId: me.id, decision, reason: values.reason, note: textArg(ctx.io, values, 'note') ?? '',
-        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true }]);
+        head: item.item_merged_commit, digest: item.item_frozen_digest ?? '', policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, landed: true,
+        // The setting is read here, where the reject is issued; the move trusts only this recorded argument [#9637].
+        ...(decision === 'REJECT' && rejectKeepsCheck() ? { keepCheck: true } : {}) }]);
     }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
-    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
+    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
@@ -327,6 +347,11 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (implies) checkImplies(board, implies);
     const policy = itemPolicy(root, item);
     ctx = { ...ctx, config: policy.config };
+    // An item with no test check is verified only against its review checklist: the board refuses a line that names
+    // no file, link or quoted passage before any accept, and the reviewer judges only what the lines show (#996).
+    const thread = decision === 'ACCEPT' ? store.itemThread(board, id) : [];
+    if (decision === 'ACCEPT') { const problem = checklistEvidenceProblem(item, thread); if (problem) throw problem; }
+    checklistNote = decision === 'ACCEPT' ? checklistReceipt(item, thread) : null;
     const fromPacket = packetAcceptance(ctx, board, item, decision, reReview, values.read);
     const commit = resolveCommit(root, item.item_commit);
     if (!commit) throw new Refused('NOT_AT_COMMIT', `check out the submitted commit first: ${cdTo(root)} git switch --detach ${item.item_commit.slice(0, 12)}`);
@@ -368,7 +393,15 @@ export async function verifyHere(ctx, id, { second, values }) {
           unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
-        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
+        // With submit.composeAsObject on, a stale re-review is offered on a fresh object composition of current main and this head [C7,U159].
+        const composed = composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events,
+          composeAsObject: submitComposeAsObject(), composeMain: composeSubmissionMain });
+        if (composed.commit !== checkedCommit) {
+          checkedCommit = composed.commit;
+          checkedLabel = 'main-composed review';
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} with the reviewed head for the re-review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composed;
       };
       let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
@@ -379,7 +412,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         knownMain = null;
         if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
-        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
+        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests, componentTier: gateComponentTier() });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
@@ -481,9 +514,8 @@ export async function verifyHere(ctx, id, { second, values }) {
         // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
-        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
-        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
-          `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedOverlapText(moved.overlap));
         if (moved && !knownMain) {
           unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
@@ -494,7 +526,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
           if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
-            throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; merge the latest main and re-review the clean composition`);
+            throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedAgainText(trunk.commit, currentTrunk.commit, reach));
           }
           checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
           checkedLabel = `retry composition ${checkedCommit}`;
@@ -520,7 +552,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + readNote + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + readNote + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (checklistNote ? `\n${checklistNote}` : '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -550,7 +582,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     ctx.io.say(`#${id} accept queued: the frozen check is runner job ${result.checkJob}; the review is reserved to ${result.reservedTo}, and the verdict records when the check finishes.`);
     return 0;
   }
-  const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  const primary = { id, ...result, ...(checklistNote ? { reviewEvidence: checklistNote } : {}), ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
   if (result.decision === 'SELECTOR_GAP') {
     ctx.io.say(`Recorded a selector gap for #${id}; repair item #${result.repairItem} is open. #${id} remains submitted for review.`);
@@ -560,7 +592,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
-    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${result.decision === 'ACCEPT' && checklistNote ? '; review evidence proved it' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) {
     let automatic = true;

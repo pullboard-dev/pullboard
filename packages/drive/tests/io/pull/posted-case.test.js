@@ -45,14 +45,14 @@ async function serveRedJob(t, lines, status, setting) {
 
 const RED = [frame('apps/a.test.js', 'clause 1: alpha', true), frame('apps/b.test.js', 'clause 2: beta', false), frame('apps/c.test.js', 'clause 3: gamma', false), frame('apps/d.test.js', 'clause 4: delta', false)];
 
-test('clause 1: with runners.postedLineNamesCase on, the posted line for a red test job ends with the first failing case and a count of the other failing cases (#9084) [C7]', { timeout: 60_000 }, // budget: one node job and a git checkout.
+test('drive.posted-case.with-runners-postedlinenamescase-on-the: clause 1: with runners.postedLineNamesCase on, the posted line for a red test job ends with the first failing case and a count of the other failing cases (#9084) [C7]', { timeout: 60_000 }, // budget: one node job and a git checkout.
 async t => {
   const line = await serveRedJob(t, RED, 1, true);
   assert.ok(line?.startsWith('posted test:red: exit 1'), line);
   assert.ok(line.endsWith('; first failing case: apps/b.test.js::clause 2: beta, +2 more'), line);
 });
 
-test('clause 2: with runners.postedLineNamesCase off the posted line is the unchanged one, and a red job with no outcome frame posts it with no case named, also when the setting is on (#9084) [C7]', { timeout: 120_000 }, // budget: two node jobs and two git checkouts.
+test('drive.posted-case.with-runners-postedlinenamescase-off-the: clause 2: with runners.postedLineNamesCase off the posted line is the unchanged one, and a red job with no outcome frame posts it with no case named, also when the setting is on (#9084) [C7]', { timeout: 120_000 }, // budget: two node jobs and two git checkouts.
 async t => {
   assert.equal(await serveRedJob(t, RED, 1, undefined), 'posted test:red: exit 1');
   assert.equal(await serveRedJob(t, RED, 1, false), 'posted test:red: exit 1');

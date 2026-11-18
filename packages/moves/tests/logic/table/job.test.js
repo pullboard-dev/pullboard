@@ -19,7 +19,7 @@ const ask = (name, more = {}) => ({ name, runner: 'r1', token: 't1', ...more });
 const run = (snapshot, move) => runTable(TABLE, RULES, snapshot, move);
 const refusal = (snapshot, move) => run(snapshot, move).refused?.code;
 
-test('offer creates an offered job once, and offering it again changes nothing [C7,#8239]', () => {
+test('moves.job.offer-creates-an-offered-job-once-and: offer creates an offered job once, and offering it again changes nothing [C7,#8239]', () => {
   const made = run({ job: null, now: NOW }, { name: 'offer', kind: 'land' });
   assert.deepEqual(made.via, ['offer']);
   assert.deepEqual(made.patch.job, { kind: 'land', step: 'offered', attempt: 0, owner: null, leaseUntil: 0, claim: null });
@@ -30,7 +30,7 @@ test('offer creates an offered job once, and offering it again changes nothing [
   assert.deepEqual(GATE_JOB_KINDS, ['gate', 'gate-shard', 'land', 'review']);
 });
 
-test('claim takes an offered or lapsed job, hands out the token and counts the attempt; a live lease, a queued or done job and a missing job refuse [C7,#8239]', () => {
+test('moves.job.claim-takes-an-offered-or-lapsed-job: claim takes an offered or lapsed job, hands out the token and counts the attempt; a live lease, a queued or done job and a missing job refuse [C7,#8239]', () => {
   const offered = snap({ job: job({ step: 'offered', attempt: 0, owner: null, leaseUntil: 0, claim: null }) });
   const taken = run(offered, ask('claim', { runner: 'r2', token: 't2' }));
   assert.deepEqual(taken.via, ['claim']);
@@ -45,14 +45,14 @@ test('claim takes an offered or lapsed job, hands out the token and counts the a
   assert.equal(refusal({ job: null, now: NOW }, ask('claim')), 'JOB_MISSING');
 });
 
-test('the twelfth claim ends the job as a runaway instead of handing it out [C7,#8239]', () => {
+test('moves.job.the-twelfth-claim-ends-the-job-as: the twelfth claim ends the job as a runaway instead of handing it out [C7,#8239]', () => {
   const lapsed = snap({ job: job({ attempt: MAX, leaseUntil: NOW - 1 }) });
   const ended = run(lapsed, ask('claim', { runner: 'r2', token: 't2' }));
   assert.deepEqual([ended.via, ended.patch.job.step, ended.patch.job.owner, ended.events], [['runaway'], 'done', null, [{ kind: 'job.step', step: 'runaway', attempt: MAX }]]);
   assert.equal(run(snap({ job: job({ attempt: MAX - 1, leaseUntil: NOW - 1 }) }), ask('claim')).via[0], 'claim');
 });
 
-test('renew extends the holder, reads false for a released claim, and refuses JOB_LEASE_MOVED for any other token or runner, even after the lease lapsed [C7,#8239]', () => {
+test('moves.job.renew-extends-the-holder-reads-false-for: renew extends the holder, reads false for a released claim, and refuses JOB_LEASE_MOVED for any other token or runner, even after the lease lapsed [C7,#8239]', () => {
   const later = NOW + 10 * LEASE_MS;
   const renewed = run(snap({ now: later }), ask('renew'));
   assert.deepEqual([renewed.via, renewed.patch.job.leaseUntil], [['renew'], later + LEASE_MS]);
@@ -63,7 +63,7 @@ test('renew extends the holder, reads false for a released claim, and refuses JO
   assert.equal(refusal({ job: null, now: NOW }, ask('renew')), 'JOB_MISSING');
 });
 
-test('release backs the job off 30 s doubling to 5 minutes, or frees it at once when asked and free, and is a no-op for a claim that lost the lease [C7,#8239]', () => {
+test('moves.job.release-backs-the-job-off-30-s: release backs the job off 30 s doubling to 5 minutes, or frees it at once when asked and free, and is a no-op for a claim that lost the lease [C7,#8239]', () => {
   const backed = run(snap({ job: job({ attempt: 3 }) }), ask('release'));
   assert.deepEqual([backed.via, backed.patch.job.owner, backed.patch.job.leaseUntil, backed.events], [['release'], null, NOW + 120_000, [{ kind: 'job.step', step: 'released', attempt: 3, runner: 'r1' }]]);
   assert.deepEqual([1, 2, 3, 4, 5, 6, 20, 99].map(releaseBackoff), [30_000, 60_000, 120_000, 240_000, 300_000, 300_000, 300_000, 300_000]);
@@ -73,7 +73,7 @@ test('release backs the job off 30 s doubling to 5 minutes, or frees it at once 
   assert.equal(refusal(snap(), ask('release', { token: 'x' })), 'JOB_LEASE_MOVED');
 });
 
-test('progress records for the holder and refuses JOB_DONE once the receipt is in; a receipt ends the job, and the same receipt again changes nothing [C7,#8239]', () => {
+test('moves.job.progress-records-for-the-holder-and-refuses: progress records for the holder and refuses JOB_DONE once the receipt is in; a receipt ends the job, and the same receipt again changes nothing [C7,#8239]', () => {
   const live = run(snap(), ask('progress'));
   assert.deepEqual([live.via, live.patch.job, live.events], [['progress'], job(), [{ kind: 'job.step', step: 'progress', attempt: 1 }]]);
   const done = job({ step: 'done', owner: null, leaseUntil: 0 });
@@ -87,7 +87,7 @@ test('progress records for the holder and refuses JOB_DONE once the receipt is i
   assert.equal(refusal(snap({ job: done }), ask('receipt', { runner: 'r2' })), 'JOB_LEASE_MOVED');
 });
 
-test('a shards ask is for the land job\'s own runner: another kind is JOB_NOT_LAND, a stale claim JOB_LEASE_MOVED, a missing job JOB_MISSING [C7,#8239]', () => {
+test('moves.job.a-shards-ask-is-for-the-land: a shards ask is for the land job\'s own runner: another kind is JOB_NOT_LAND, a stale claim JOB_LEASE_MOVED, a missing job JOB_MISSING [C7,#8239]', () => {
   assert.deepEqual(run(snap({ job: job({ kind: 'land' }) }), ask('shards')).via, ['shards']);
   assert.equal(refusal(snap(), ask('shards')), 'JOB_NOT_LAND');
   assert.equal(refusal(snap({ job: job({ kind: 'land' }) }), ask('shards', { token: 'x' })), 'JOB_LEASE_MOVED');
@@ -96,7 +96,7 @@ test('a shards ask is for the land job\'s own runner: another kind is JOB_NOT_LA
   assert.equal(JOB_QUEUE_MOVES.length, 7);
 });
 
-test('the job queue needs its lease and claim cap handed in [C7,#8239]', () => {
+test('moves.job.the-job-queue-needs-its-lease-and: the job queue needs its lease and claim cap handed in [C7,#8239]', () => {
   assert.throws(() => jobEngine({ leaseMs: 0, maxAttempts: 12 }), { code: 'JOB_RULE' });
   assert.throws(() => jobEngine({ leaseMs: LEASE_MS }), { code: 'JOB_RULE' });
   const short = jobEngine({ leaseMs: 7, maxAttempts: 1 });
@@ -130,7 +130,7 @@ function generate(g) {
   return { snapshot: { job: name === 'offer' && g.int(2) === 0 ? null : base, now: NOW }, move, breaks };
 }
 
-test('generated cases reach every job row and never write while refusing [C7,#8239]', () => {
+test('moves.job.generated-cases-reach-every-job-row-and: generated cases reach every job row and never write while refusing [C7,#8239]', () => {
   const report = tableCases(TABLE, RULES, generate, { seed: 8239, count: 1500 });
   assert.deepEqual(report.writingRefusals, []);
   assert.deepEqual(report.unreached.outcomes, []);

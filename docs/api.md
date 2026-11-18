@@ -45,7 +45,7 @@ An accepted item that has not landed can carry `item_verdict_state` in CLI `show
 
 Freshness never rewrites the stored ACCEPT or its verdict row. New accept/reject event details carry `review: {commit, trunk, paths}`: the original submitted commit, the known reviewed trunk, and sorted unique submitted paths. Existing receipts replay with their recorded engine and remain unchanged. Older acceptances without captured review metadata use a conservative claim-base bound and may require a new review after upgrading. Recorded or physically landed work no longer needs this freshness check, except when an older in-flight landing records a different tree from its newer checked review. That append-only `landing-review-moved` receipt projects `STALE_VERDICT` with `landingCode: "LAND_ITEM_MOVED"` and the exact `checked` head beside the immutable landed commit. The coordinator creates a separate correction item; the already-landed original cannot be reopened or re-reviewed. When the checked composition reaches the known trunk, this derived warning clears. A replica missing its checked Git objects retains the warning and the correction-item guidance.
 
-For a stale acceptance, merge current main into the submitted work and commit a clean review HEAD. Another agent runs `pullboard verify <id> accept --note "what was re-reviewed"`; its frozen check runs at that combined HEAD, and a new verdict appends to the history while retaining the original submitted commit. A main move during the check refuses `VERDICT_TRUNK_MOVED` and requires another review. `resume` keeps stale acceptances out of its merge list. `land` excludes stale items (and reports their file and commit); when none remain ready, it refuses `STALE_VERDICT`. Nothing in this observation changes the approved criterion or grants person authority.
+For a stale acceptance, another agent re-reviews against current main. With `submit.composeAsObject` off, the builder first merges current main into the submitted work and commits a clean review HEAD. With it on, nobody merges: the reviewer's re-review composes current main with the reviewed head as a throwaway object under `refs/pullboard/compose/<item>/<main12>` and checks that composition, and the freshness rule above applies to a composition commit exactly as to a builder's merge commit. Another agent runs `pullboard verify <id> accept --note "what was re-reviewed"`; its frozen check runs at that combined commit, and a new verdict appends to the history while retaining the original submitted commit. A main move during the check refuses `VERDICT_TRUNK_MOVED` and requires another review. `resume` keeps stale acceptances out of its merge list. `land` excludes stale items (and reports their file and commit); when none remain ready, it refuses `STALE_VERDICT`. Nothing in this observation changes the approved criterion or grants person authority.
 
 When a submit edits an existing test, `pullboard.json`, a githook or a file named by a gate command, it records the supplied `--infra "<why>"` note or drafts one from the diff. The submit event records `infra: {note, files}`, and `pullboard show` displays it to the reviewer. A new test file needs no note.
 
@@ -235,6 +235,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `compact` | `version:number`, `days:number`, `jobs:number`, `rows:number`, `before:number`, `after:number` |
 | `contribute` | `version:number`, `file:string`, `shape:string`, `ok:boolean`, `failures:array` |
 | `explain` | `version:number`, `table:string`, `guards:array`, `outcomes:array` |
+| `field` | `version:number`, `field:object` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
@@ -324,6 +325,7 @@ The causes, each with its owner:
 | `ROUTE_UNSERVED` | open current work on a route that no active agent can take; `detail.items` names them | the coordinator, who starts an agent on the route |
 | `ITEM_UNTAKEABLE` | an open item that no active agent in its lane can take on its route | the coordinator |
 | `IDLE_AGENT` | an agent with no claim, review or event for 30 minutes while open work in its lane is one it could take | the agent itself |
+| `SEAT_NO_MODEL` | an active seat with no recorded model, or the model `unknown`; the finding's subject is the seat id | the coordinator |
 | `RANK_INVERSION` | a claim whose holder could take an earlier-ranked item that sits free; `detail.ahead` names it | the holder |
 
 An agent is active while it holds a claim or review, has submitted work still awaiting review, or had an event or shout in the last 30 minutes. Queue faults read the queue's own order, so `pullboard queue` and health agree.

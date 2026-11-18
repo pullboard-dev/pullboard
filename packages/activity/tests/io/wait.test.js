@@ -16,7 +16,7 @@ function fakeKit() {
   return { watch, schedule, cancel, callbacks, scheduled };
 }
 
-test('clause 2: file-watch callbacks are coalesced: a burst of changes runs one refresh, not one per file [C7]', t => {
+test('activity.wait.coalesced-refresh: clause 2: file-watch callbacks are coalesced: a burst of changes runs one refresh, not one per file [C7]', t => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   const inputs = Array.from({ length: 20 }, (_, index) => `/${name}/input-${index}`);
@@ -35,7 +35,7 @@ test('clause 2: file-watch callbacks are coalesced: a burst of changes runs one 
   assert.equal(waiter.version(), before + 2);
 });
 
-test('closing a waiter cancels its pending pass [C7]', () => {
+test('activity.wait.close-cancels-pass: closing a waiter cancels its pending pass [C7]', () => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   const waiter = fileChangeWaiter([`/${name}/input`], kit);
@@ -47,7 +47,7 @@ test('closing a waiter cancels its pending pass [C7]', () => {
   assert.equal(waiter.version(), 0, 'a closed waiter never wakes');
 });
 
-test('clause 2: a costly wake spaces the next pass by a multiple of its cost, capped, and a quiet change is not delayed [C7]', () => {
+test('activity.wait.costly-wake-spacing: clause 2: a costly wake spaces the next pass by a multiple of its cost, capped, and a quiet change is not delayed [C7]', () => {
   const kit = fakeKit();
   const name = `nonexistent-${process.pid}`;
   let clock = 1000, cost = 100;

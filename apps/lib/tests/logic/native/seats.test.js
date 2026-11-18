@@ -71,7 +71,7 @@ function timed(action) {
   return performance.now() - started;
 }
 
-test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, submit and verdict and report busy share and p50/p99 per command', t => {
+test('lib.logic-native-seats.clause-1-1-000-simulated-seats: [C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, submit and verdict and report busy share and p50/p99 per command', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-scale-'));
   // @pullboard-board-file journey: the board sits where the native CLI keeps it inside a repository
   const board = openBoard(repositoryBoardFile(directory));
@@ -85,9 +85,10 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   }
   requireFixtureReviewFamilies(board);
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_lane = 'core'").get().n, SEATS);
+  const FILLER_ITEMS = 300;
   // A copy-sized board: a few hundred open items besides the ones the seats move.
-  const filler = Array.from({ length: 300 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
-  assert.equal(filler.length, 300);
+  const filler = Array.from({ length: FILLER_ITEMS }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `open ${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }));
+  assert.equal(filler.length, FILLER_ITEMS);
   // Three sets of items the seats move, one per measurement round (see the remeasure note below).
   const movedSets = Array.from({ length: ROUNDS }, (_, round) => Array.from({ length: 30 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core', title: `moved ${round}.${n}`, criterion: 'prove', specIds: ['C7'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' })));
   const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit: COMMIT, verify: { policy: 'any', family: 'off' } } }), digest: 'digest:bar' });
@@ -126,7 +127,7 @@ test('[C7,#3008] clause 1: 1,000 simulated seats drive heartbeat, next, claim, s
   assert.deepEqual(scaleProblems(report), []);
 });
 
-test('[C7,#3008] clause 2: the scale test fails when writer busy share passes 50%, p99 next passes 200 ms or a write p99 passes 2 s', () => {
+test('lib.logic-native-seats.clause-2-the-scale-test-fails: [C7,#3008] clause 2: the scale test fails when writer busy share passes 50%, p99 next passes 200 ms or a write p99 passes 2 s', () => {
   const quick = Array.from({ length: 100 }, () => 1);
   const base = { heartbeat: quick, next: quick, shout: quick, claim: quick, submit: quick, verdict: quick };
   assert.deepEqual(scaleProblems(scaleReport(base)), [], 'a fast board passes');

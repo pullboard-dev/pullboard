@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { functionsIn } from './fixtures/functions.js';
 
-test('generator shell plans retain their real refusal bodies in the lifecycle audit [M1,M4,C7]', () => {
+test('gate.generator.generator-shell-plans-retain-their: generator shell plans retain their real refusal bodies in the lifecycle audit [M1,M4,C7]', () => {
   const source = readFileSync(new URL('../src/io/run/shell.js', import.meta.url), 'utf8');
   const body = functionsIn(source).get('shellExecution');
   assert.ok(body, 'the shared generator is a reachable named function');
@@ -14,7 +14,7 @@ test('generator shell plans retain their real refusal bodies in the lifecycle au
   }
 });
 
-test('the lifecycle source model recognizes synchronous and asynchronous generator declarations [M1,M4,C7]', () => {
+test('gate.generator.lifecycle-source-model-recognizes-synchronous: the lifecycle source model recognizes synchronous and asynchronous generator declarations [M1,M4,C7]', () => {
   for (const declaration of ['function*', 'async function*', 'export function*', 'export async function*']) {
     const source = `${declaration} execution() {\n  yield command;\n  throw new Refused('GENERATOR_PROBE', 'must remain audited');\n}\n`;
     const functions = functionsIn(source);

@@ -217,7 +217,7 @@ test('#6746 clause 1: build.js is the one home of writeTimer and the maintenance
 test('#6746 clause 2: the store-homes baseline drops the scheduler timer rows, 2 of 4 [CD2]', () => {
   const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
   assert.equal(baseline['apps/cli/src/io/worktree/maintenance/scheduler.js'], undefined);
-  assert.deepEqual(baseline['apps/cli/src/io/tool/build.js'], { 'timer.guard.sqlite': 1, 'timer.json': 1 });
+  assert.equal(baseline['apps/cli/src/io/tool/build.js'], undefined, 'build.js reaches the timer files through timerFiles and keeps no ceiling [#10207]');
 });
 
 test('#6739 clause 1: a ${...} template registers by its literal stem, and a name with no literal word registers as the unlisted stem *.json [CD2]', () => {
@@ -251,7 +251,7 @@ test('#6742 clause 1: every store owner in the registry holds a write call, is r
   const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
   assert.deepEqual(storeWriteProblems(registry, read), []);
   assert.ok(Object.values(registry.stores).filter(row => row.kind === 'repo-data').length >= 19, 'read-only data files are marked repo-data');
-  assert.ok(registry.writeOwnerDebt.length <= 10, 'the debt list only shrinks');
+  assert.ok(registry.writeOwnerDebt.length <= 4, 'the debt list only shrinks');
 });
 
 test('#6742 clause 1: a new store whose owner writes nothing is refused, and a repaired debt row must leave the list [CD2]', () => {
@@ -288,6 +288,17 @@ test('#8620 clause 1: code-map.json, last-green.json, models.json, path-map.json
   assert.equal(registry.stores['last-green.json'].owner, 'packages/gate/src/io/main/audit/state.js');
   assert.equal(registry.stores['post-land-suite.json'].owner, 'packages/landing/src/io/post/land.js');
   for (const store of ['models.json', 'path-map.json']) assert.equal(registry.stores[store].kind, 'repo-data', `${store} is only read`);
+});
+
+test('#8622 clause 1: pullboard-item.json, pullboard-runner-policy.json, recovery.json and relay-health.sqlite are off writeOwnerDebt, each owned by its writer, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  const settled = ['pullboard-item.json', 'pullboard-runner-policy.json', 'recovery.json', 'relay-health.sqlite'];
+  assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['pullboard-item.json'].owner, 'packages/items/src/io/claim.js');
+  assert.equal(registry.stores['recovery.json'].owner, 'packages/sync/src/io/git/repair.js');
+  assert.equal(registry.stores['relay-health.sqlite'].owner, 'packages/link/src/io/relay/canary/health.js');
 });
 
 test('#8752 clause 1: publish.json is off writeOwnerDebt, owned by the landing pause module that writes it, and publish writes through that owner, with no store-homes ceiling raised [CD2]', () => {
@@ -334,4 +345,25 @@ test('#7015 clause 1: no store-file site in any package or app builds its name f
 
 test('#7013 clause 1: no store-file site under packages/link builds its name from a stemless template [CD2]', () => {
   assert.deepEqual(stemlessIn('packages/link/'), [], 'name each file from the link registry const storeName(key)');
+});
+
+test('#8623 clause 1: stats-history.jsonl, timer.guard.sqlite, timer.json and vendors.json are off writeOwnerDebt, each owned by its writer or marked repo-data, with no store-homes ceiling raised [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const baseline = JSON.parse(readFileSync(new URL(`../../../../${STORE_BASELINE}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  const settled = ['stats-history.jsonl', 'timer.guard.sqlite', 'timer.json', 'vendors.json'];
+  assert.deepEqual(settled.filter(store => registry.writeOwnerDebt.includes(store)), []);
+  assert.deepEqual(storeWriteProblems(registry, read), []);
+  assert.equal(registry.stores['stats-history.jsonl'].owner, 'packages/stats/src/io/time/history.js', 'the module that appends the history owns it');
+  assert.equal(registry.stores['timer.json'].owner, 'packages/gate/src/io/main/audit/state.js', 'the module that writes the timer owns it');
+  assert.equal(registry.stores['timer.guard.sqlite'].owner, 'packages/gate/src/io/main/audit/state.js');
+  assert.equal(registry.stores['vendors.json'].kind, 'repo-data', 'vendors.json is only read');
+  assert.equal(Object.values(baseline).filter(row => row['stats-history.jsonl']).length, 0, 'no second home names the history file');
+});
+
+test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store passes the write-owner check [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const read = file => { try { return readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8'); } catch { return undefined; } };
+  assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
+  assert.deepEqual(storeWriteProblems(registry, read), []);
 });

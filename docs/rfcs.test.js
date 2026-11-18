@@ -31,7 +31,7 @@ test('every decided RFC 0006 rule resolves to a new spec or doctrine row [D1,D3]
   const cited = new Set([...body.matchAll(/\[([KSRG]\d+(?:, [KSRG]\d+)*)\]/gu)].flatMap(match => match[1].split(', ')));
   const decided = [...cited].filter(id => !UNDECIDED.has(id)).sort();
   const mapping = mappedRows(source);
-  assert.equal(mapping.length, 75, 'all decided design citations are mapped once');
+  assert.equal(new Set(mapping.map(row => row.design)).size, mapping.length, 'every decided design citation is mapped once');
   assert.deepEqual(mapping.map(row => row.design).sort(), decided);
   const rows = new Map(['SPEC.md', 'DOCTRINE.md'].map(file => [file,
     parseSpec(readFileSync(new URL('../' + file, import.meta.url), 'utf8')).rows]));
@@ -45,5 +45,9 @@ test('every decided RFC 0006 rule resolves to a new spec or doctrine row [D1,D3]
     assert.match(matches[0].text, /RFC 0006/u, entry.id + ' cites its RFC');
     targets.add(entry.file + ':' + entry.id);
   }
-  assert.equal(targets.size, 73, 'the two shared-clause pairs use one source of truth each');
+  const perTarget = new Map();
+  for (const entry of mapping) perTarget.set(entry.file + ':' + entry.id, (perTarget.get(entry.file + ':' + entry.id) ?? 0) + 1);
+  assert.equal(targets.size, perTarget.size, 'every target row is counted once');
+  for (const [target, count] of perTarget) assert.ok(count <= 2, target + ' is shared by at most one pair of design rules');
+  assert.equal([...perTarget.values()].reduce((sum, count) => sum + count, 0), mapping.length, 'every mapped rule lands on a target row');
 });

@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { watch } from 'node:fs';
 import { reviveFixtureLocalRunner } from '../runner/local-start.js';
+import { CLI_ENTRY } from '../runner/entry.js';
 
 /** The tail of the machine's local runner log, so a gate that never settles shows what the runner saw. */
 function runnerLog(machineHome) {
@@ -108,7 +109,7 @@ export async function settleSubmit(t, box, submitted, options) {
   const pid = submitted.localRunner?.pid;
   if (pid) t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } });
   // A relay-linked checkout or a stopped runner (a gate switch, runnerSwitchedEnv) starts none of its own [P7,#5821].
-  reviveFixtureLocalRunner(box.repo, box.env);
+  reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
   const gateJob = await settledGateJob(box, submitted.item ?? submitted.id, options);
   return { ...submitted, gate: gateJob.gate, gateJob };
 }
@@ -133,7 +134,7 @@ export function verifySettledSync(box, cwd, args) {
     const answer = box.run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
     if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(box.run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
-    reviveFixtureLocalRunner(box.repo, box.env);
+    reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
 }
@@ -145,7 +146,7 @@ export async function verifySettled(box, run, cwd, args) {
     const answer = await run(cwd, ...args);
     if (answer.code === 0 || !/NOT_SUBMITTED/u.test(`${answer.err ?? ''}${answer.out ?? ''}`)) return answer;
     if (Date.now() > deadline) return { ...answer, err: `${answer.err ?? ''}\n${gateFacts(await run(cwd, 'show', args[1], '--json', '--no-next'))}\nlocal runner log:\n${runnerLog(box.env.PULLBOARD_MACHINE_HOME)}` };
-    reviveFixtureLocalRunner(box.repo, box.env);
+    reviveFixtureLocalRunner(box.repo, box.env, { entry: CLI_ENTRY });
     // Read again on the next change in the local runner's folder (a log line per claim and receipt, a heartbeat every 5 s).
     await new Promise(resolve => {
       let watcher = null;

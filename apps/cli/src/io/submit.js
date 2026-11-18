@@ -10,18 +10,42 @@ import { checkoutHead } from '../../../../packages/git/index.js';
 import { commandObservation } from '../../../../packages/git/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { selectTestTiers } from '../../../../packages/gate/index.js';
+import { junitCases } from '../../../../packages/gate/index.js';
+import { junitClauseTicks } from '../../../../packages/gate/index.js';
 import { recordReviewPacket } from '../../../../packages/verify/index.js';
 import { barTestFiles } from '../../../../packages/verify/index.js';
 import { criterionClauses } from '../../../../packages/state/index.js';
+import { clauseTicks } from '../../../../packages/state/index.js';
+import { clauseMarks } from '../../../../packages/commits/index.js';
 import { gateCoveredFiles } from '../../../../packages/state/index.js';
 import { testCaseTitles } from '../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { frozenRowGates } from '../../../../packages/verify/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';
 import { primaryCheckoutRoot } from './worktree.js';
+
+/**
+ * The note a submit records with its clause marks under submit.clauseMarks: each numbered clause of the frozen bar, met with the evidence its tick cites or not marked.
+ * Why a note: the reviewer reads the item's thread, so the marks sit beside the diff without a new record kind [C7,#9440].
+ * The text never begins "clause N [kind]:", so no reader takes it for a tick.
+ *
+ * @param {object} item - The held item, with its frozen bar.
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {string} commit - The head being submitted.
+ * @returns {string | null} The note text, or null when the bar has no clauses.
+ */
+export function clauseMarksNote(item, thread, commit) {
+  const ticks = [...clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head: commit })].map(([clause, tick]) => ({ clause, evidence: tick.evidence }));
+  const marks = clauseMarks(item.item_criterion, ticks);
+  if (!marks.length) return null;
+  const met = marks.filter(mark => mark.ticked).length;
+  return `Submit clause marks at ${commit.slice(0, 12)}: ${met} of ${marks.length} met. ${marks.map(mark => `${mark.number} ${mark.ticked ? `met${mark.evidence ? ` (${mark.evidence})` : ''}` : 'not marked'}`).join('; ')}.`;
+}
 
 /**
  * The paths with uncommitted changes in a worktree, untracked files included.
@@ -239,3 +263,33 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   return 0;
 }
 
+
+/**
+ * The tick notes a JUnit report earns at submit, with gate.junitReport set: one note per unticked [test] clause whose named
+ * cases all passed in the report the builder's checkout holds, and one line per failing case naming its clause. Why: a
+ * non-Node project's test command writes JUnit, not TAP, so the case names it reports are the only account of which clause
+ * passed. A report older than the head (by commit time), outside the checkout, absent or damaged earns nothing, so a stale
+ * run never ticks a clause; with the setting unset this is never called and submit selects gate files as before [C7,#9727].
+ *
+ * @param {string} root - The builder's checkout.
+ * @param {object} item - The held item, with its frozen bar.
+ * @param {object[]} thread - The item's thread, oldest first.
+ * @param {string} head - The commit being submitted.
+ * @param {string} report - The gate.junitReport path, relative to root.
+ * @returns {{ notes: string[], failed: { number: number, name: string }[] }}
+ */
+export function junitTickNotes(root, item, thread, head, report) {
+  const none = { notes: [], failed: [] };
+  if (!report || isAbsolute(report) || report.split(/[\\/]/u).includes('..')) return none;
+  let xml, modified;
+  try { xml = readFileSync(join(root, report), 'utf8'); modified = Math.floor(statSync(join(root, report)).mtimeMs / 1000); } catch { return none; }
+  const committed = Number(tryGit(root, ['show', '-s', '--format=%ct', head]).stdout);
+  if (!Number.isFinite(committed) || modified < committed) return none;
+  const read = junitCases(xml);
+  if (read.reason) return none;
+  const ticked = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
+  const clauses = criterionClauses(item.item_criterion ?? '').filter(clause => !ticked.has(clause.number));
+  const result = junitClauseTicks(read.cases, clauses.map(({ number, kind }) => ({ number, kind: kind ?? 'test' })));
+  const notes = result.ticked.map(number => `clause ${number} [test]: JUnit report ${report} at ${head.slice(0, 12)}: every case named for clause ${number} passed (${read.cases.filter(row => row.outcome === 'pass' && new RegExp(`^clause\\s+${number}\\s*:`, 'iu').test(row.name)).map(row => row.name).slice(0, 5).join('; ')})`);
+  return { notes, failed: result.failed };
+}

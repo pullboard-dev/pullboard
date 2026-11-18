@@ -38,7 +38,7 @@ function fixture(t) {
 }
 
 /** Private compiler imports must not initialize the unrelated public controller facade. */
-test('private compiler stays independent while the public facade still initializes eagerly [C7,P3]', t => {
+test('runners.generation.private-compiler-stays-independent-while-the: private compiler stays independent while the public facade still initializes eagerly [C7,P3]', t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyPackageFiles(ROOT, installed);
@@ -67,7 +67,7 @@ await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'pack
   assert.match(backEdge.stderr, /FACADE_EAGER_MARKER/);
 });
 
-test('moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
+test('runners.generation.moved-controller-step-bodies-stay-bound: moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
   const installed = mkdtempSync(join(tmpdir(), 'pullboard-controller-generation-'));
   t.after(() => rmSync(installed, { recursive: true, force: true }));
   copyPackageFiles(ROOT, installed);

@@ -4,17 +4,27 @@ import { Refused } from '../../../../kernel/light.js';
 const SETTING = 'bar.dryRunReview';
 
 /**
- * Read the board's default-off bar.dryRunReview line setting.
+ * Read the board's default-off bar.dryRunReview line setting: false (off), true (on) or 'ab' (alternate items between on and off).
  * Why: the checklist costs every submitter output, so a board opts in; a malformed stored value refuses rather than guessing.
  */
-export function dryRunReviewEnabled(board) {
+export function dryRunReviewMode(board) {
   const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`line_setting:${SETTING}`);
   if (!row) return false;
   let value;
   try { value = JSON.parse(row.meta_value); }
   catch { throw new Refused('LINE_SETTING_RANGE', 'the stored bar.dryRunReview setting is malformed; restore its recorded board value before changing policy'); }
-  if (typeof value !== 'boolean') throw new Refused('LINE_SETTING_RANGE', 'the stored bar.dryRunReview setting is not on or off; restore its recorded board value before changing policy');
+  if (typeof value !== 'boolean' && value !== 'ab') throw new Refused('LINE_SETTING_RANGE', 'the stored bar.dryRunReview setting is not off, on or ab; restore its recorded board value before changing policy');
   return value;
+}
+
+/**
+ * The arm an item receives: null when the setting is off, 'on' when on, and under ab 'on' for an even item id and 'off' for an odd one.
+ * Why: the id alone decides, so a replay or a second look assigns the same arm with no stored coin flip.
+ */
+export function dryRunReviewArm(mode, id) {
+  if (mode === false) return null;
+  if (mode === true) return 'on';
+  return Number(id) % 2 === 0 ? 'on' : 'off';
 }
 
 /** The "edge cases:" line of a builder's bar-check note, or null when none was recorded. */

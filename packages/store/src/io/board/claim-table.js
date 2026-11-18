@@ -53,7 +53,8 @@ export function claimDecision(board, id, { options, plan }) {
     const found = itemById(board, dep);
     if (found?.item_id !== undefined) deps[dep] = { status: found.item_status, lane: found.item_lane, merged: Boolean(found.item_merged_commit), leaseUntil: found.item_lease_until, gateInFlight: Boolean(pendingSubmitHandoff(board, found)) };
   }
-  const now = board.clock.now().toISOString();
+  // The writer's own instant, so the table's leaseUntil adds leaseMs to the same moment the writer did (a second clock read differs by milliseconds).
+  const now = (plan.instant ?? board.clock.now()).toISOString();
   const actorClaims = db.prepare("SELECT * FROM item WHERE item_owner=? AND item_status='claimed' ORDER BY item_id").all(agentId)
     .map(mine => ({ id: mine.item_id, leaseUntil: mine.item_lease_until, parentId: mine.item_parent_id, verdict: mine.item_verdict ?? null, builtBy: mine.item_built_by ?? null,
       awaitingGateOrReview: Array.isArray(gateWaits) ? gateWaits.includes(mine.item_id) : awaitingGateOrReview(board, itemById(board, mine.item_id)) }));
@@ -74,7 +75,7 @@ export function claimDecision(board, id, { options, plan }) {
     deferred: { barProblem: null, lineCapacity: null, reworkRouting: plan.reworkRouting()?.applies ? { applies: true } : null, exitContinuation: null,
       submitAdmission: plan.admission ?? null, submitOutcome: plan.outcome ?? null } };
   const move = { id, actor: agentId, leaseMs: options.leaseMs, itemFolder: options.itemFolder === true, autoNext: options.autoNext === true, reviewSkipped,
-    adoptCorrection: plan.adopts === true, routeCap: options.routeCap ?? null, exitRules: options.exitRules ?? null, exitClaimKey: options.exitClaimKey, factId: randomUUID() };
+    adoptCorrection: plan.adopts === true, routeCap: options.routeCap ?? null, shapedStrong: options.shapedStrong === true, exitRules: options.exitRules ?? null, exitClaimKey: options.exitClaimKey, factId: randomUUID() };
   return runClaimTable(snapshot, move);
 }
 

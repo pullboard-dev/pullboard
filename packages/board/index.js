@@ -1,6 +1,5 @@
-/** @pullboard-module-loads packages/board/src/logic/ports.js */
 /** The board composition root: opens a real board with every package port composed, so packages and their tests open boards without an app [C7]. */
-import { createRequire } from 'node:module';
+import { providers } from './src/io/providers.js';
 import * as store from '../store/index.js';
 import {
   addMilestone,
@@ -11,12 +10,6 @@ import {
   removeMilestone,
   roadmap,
   shipMilestone,
-} from '../store/index.js';
-import {
-  openBoardStore,
-  requireRuntimePorts,
-  openBoardForRead as readBoard,
-  systemClock,
 } from '../store/index.js';
 
 import { leaseEngine } from '../moves/light.js';
@@ -29,12 +22,17 @@ import { reopenEngine } from '../moves/light.js';
 import { verifyEngine } from '../moves/light.js';
 import { landingEngine } from '../moves/light.js';
 import { pulledEngine } from '../moves/light.js';
+import { reclaimEngine } from '../moves/light.js';
 import { provideMoveTables } from '../store/index.js';
+import { provideCoordinatorMilestoneRelease } from '../store/index.js';
+import { coordinatorMilestoneRelease } from '../stats/light.js';
 
 import * as self from './index.js';
 
 // The store runs the move tables but never imports the moves cell, which reads the store; this root sees both and hands them over [C7].
-provideMoveTables({ leaseEngine, releaseEngine, runTable, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine, landingEngine, pulledEngine });
+provideMoveTables({ leaseEngine, releaseEngine, runTable, withdrawEngine, claimEngine, submitEngine, reopenEngine, verifyEngine, landingEngine, pulledEngine, reclaimEngine });
+// The store answers a milestone ship through the stats release this root hands it, so the store needs no stats edge of its own [C7].
+provideCoordinatorMilestoneRelease(coordinatorMilestoneRelease);
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
 const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
@@ -84,68 +82,9 @@ export { closeBoard } from '../store/index.js';
 /** The app above names its installed test runner through this door, so it imports one cell for the board and its proof binding [C7]. */
 export { bindProofRunner } from '../verify/index.js';
 
-const requireModule = createRequire(import.meta.url);
-let composed = null;
-let viewLoader = null;
-/** The package providers, loaded on the first call that needs them: a board that only reads never pays for the ~600 modules behind them [C7]. */
-function providers() {
-  if (composed) return composed;
-  composed = requireModule('./src/logic/ports.js');
-  composed.useBoardView(() => viewLoader);
-  return composed;
-}
+export { bindBoardView } from './src/io/providers.js';
 
-/**
- * Name how the view app's projections load. The app above this package supplies it, so the board never imports an app [C7].
- * Until it is named, a projection call refuses rather than guess; the loader runs at the first projection, never here.
- */
-export function bindBoardView(load) { viewLoader = typeof load === 'function' ? load : null; }
-
-/** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
-export function nativeBoardPorts() { return providers().nativeBoardPorts({ openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification }); }
-
-/** Freeze explicit provider bags without changing the function or canonical operation identities. */
-function freezeRuntimePorts(ports) {
-  requireRuntimePorts(ports);
-  for (const name of ['nativePorts', 'enginePorts', 'guards', 'lifecycle', 'query', 'auth', 'sourceAdvanceReceipts', 'verification']) Object.freeze(ports[name]);
-  return Object.freeze(ports);
-}
-
-/** Open the physical store with fully composed providers before migrations, guards or proof warming run. */
-export function openBoard(file, clock = systemClock, { ports = nativeBoardPorts(), ...options } = {}) {
-  return openBoardStore(file, clock, { ...options, ports: freezeRuntimePorts(ports) });
-}
-
-/** Serve a port bag from the connection's first read of it; a later assignment replaces it like any other property. */
-function lazyPort(board, name, read) {
-  Object.defineProperty(board, name, {
-    enumerable: true,
-    configurable: true,
-    get: read,
-    set(value) { Object.defineProperty(board, name, { value, enumerable: true, configurable: true, writable: true }); },
-  });
-}
-
-/** Give native read consumers the same capabilities without migrating or changing the light CLI read path; the providers load when a consumer first reads a port. */
-export function openBoardForRead(file, clock = systemClock, { ports = null, connection = null } = {}) {
-  const board = readBoard(file, clock, { connection });
-  if (!board) return board;
-  let runtimePorts = null;
-  const composedPorts = () => runtimePorts ??= freezeRuntimePorts(ports ?? nativeBoardPorts());
-  lazyPort(board, 'runtimePorts', composedPorts);
-  lazyPort(board, 'nativePorts', () => composedPorts().nativePorts);
-  lazyPort(board, 'enginePorts', () => composedPorts().enginePorts);
-  return board;
-}
-
-/** Execute an authenticated draft with the native composition root's explicit store ports. */
-export function draftSpecRow(board, options) { return providers().applySpecRowDraft(board, options, board.nativePorts); }
-
-/** Execute a person revision decision without changing its native engine operation shape. */
-export function decideSpecRevisions(board, options) { return providers().applySpecRevisionDecisions(board, options, board.nativePorts); }
-
-/** Record a row verdict through the same native query, transaction and event capabilities. */
-export function recordRowVerification(board, options) { return providers().applyRowVerification(board, options, board.nativePorts); }
+export { nativeBoardPorts, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification } from './src/io/open.js';
 
 /** Actual public operations remain owned by their providers, which load at the first call; the raw board bridge expires with #1776. */
 export function advanceItemSource(...args) { return providers().advanceItemSource(...args); }

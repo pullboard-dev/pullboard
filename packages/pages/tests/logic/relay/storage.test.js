@@ -8,7 +8,7 @@ import { presentationShout } from '../../../index.js';
 import { relayStorage } from '../../../index.js';
 import { relayStorageLine } from '../../../index.js';
 
-test('only a recognized old route response is a legacy page route, never an auth or uncertain refusal [H15,H17]', () => {
+test('pages.storage.only-a-recognized-old-route-response: only a recognized old route response is a legacy page route, never an auth or uncertain refusal [H15,H17]', () => {
   assert.equal(legacyPageRoute({ relayVersion: 1, httpStatus: 404 }), true);
   assert.equal(legacyPageRoute({ relayVersion: 1, httpStatus: 400, code: 'BAD_REQUEST' }), true);
   for (const error of [null, {}, { relayVersion: 1, httpStatus: 400, code: 'OTHER' }, { relayVersion: 1, httpStatus: 401 }, { relayVersion: 2, httpStatus: 404 }, { httpStatus: 404 }]) {
@@ -16,7 +16,7 @@ test('only a recognized old route response is a legacy page route, never an auth
   }
 });
 
-test('storage status keeps only validated credential-free fields, and its line reports megabytes [H15]', () => {
+test('pages.storage.storage-status-keeps-only-validated-credential: storage status keeps only validated credential-free fields, and its line reports megabytes [H15]', () => {
   const status = { account: { id: 'u_1', login: 'corey', token: 'secret' }, usedBytes: 2_500_000, limitBytes: 10_000_000, extra: true };
   assert.deepEqual(relayStorage(status), { account: { id: 'u_1', login: 'corey' }, usedBytes: 2_500_000, limitBytes: 10_000_000 });
   assert.equal(relayStorageLine(status), 'relay storage: account corey, 2.5 MB used of 10.0 MB');
@@ -26,7 +26,7 @@ test('storage status keeps only validated credential-free fields, and its line r
   }
 });
 
-test('an addressed shout resolves from a decoded snapshot, with its decision state, and refuses what the snapshot lacks [C7,H5]', () => {
+test('pages.storage.an-addressed-shout-resolves-from-a: an addressed shout resolves from a decoded snapshot, with its decision state, and refuses what the snapshot lacks [C7,H5]', () => {
   const shouts = [{ shout_id: 1, shout_decision: 1 }, { shout_id: 2, shout_answers: 1 }, { shout_id: 3, shout_decision: 1 }, { shout_id: 4 }];
   assert.deepEqual(presentationShout({ shouts }, 1), { shout_id: 1, shout_decision: 1, decision_state: 'answered', decision_answer: shouts[1] });
   assert.deepEqual(presentationShout({ shouts }, 3), { shout_id: 3, shout_decision: 1, decision_state: 'open', decision_answer: null });
@@ -37,7 +37,7 @@ test('an addressed shout resolves from a decoded snapshot, with its decision sta
 
 const item = (id, over = {}) => ({ id, title: `Item ${id}`, lane: 'core', criterion: 'long text', brief: 'brief', verdicts: [], history: [{ at: 1 }], thread: [], ...over });
 
-test('the first screen drops item detail and shout history and keeps everything else when it already fits [H15,H17]', () => {
+test('pages.storage.the-first-screen-drops-item-detail: the first screen drops item detail and shout history and keeps everything else when it already fits [H15,H17]', () => {
   const presentation = { version: 1, config: { name: 'board' }, shouts: [{ shout_id: 1 }], state: { items: [item(1), item(2)], milestones: ['m'] } };
   const first = currentSnapshotPresentation(presentation);
   assert.deepEqual(first.state.items, [{ id: 1, title: 'Item 1', lane: 'core' }, { id: 2, title: 'Item 2', lane: 'core' }]);
@@ -46,7 +46,7 @@ test('the first screen drops item detail and shout history and keeps everything 
   assert.equal(presentation.state.items[0].criterion, 'long text', 'the source is untouched');
 });
 
-test('an oversized presentation is cut to arrays and text that fit the first-screen limit, keeping its schema [H15,H17]', () => {
+test('pages.storage.an-oversized-presentation-is-cut-to: an oversized presentation is cut to arrays and text that fit the first-screen limit, keeping its schema [H15,H17]', () => {
   const items = Array.from({ length: 6000 }, (_, id) => item(id, { notes: 'n'.repeat(300) }));
   const first = currentSnapshotPresentation({ version: 1, config: {}, state: { items, extra: 'e'.repeat(10_000) } });
   assert.ok(Buffer.byteLength(JSON.stringify(first)) <= CURRENT_SNAPSHOT_BYTES);
@@ -56,7 +56,7 @@ test('an oversized presentation is cut to arrays and text that fit the first-scr
   assert.equal(first.version, 1);
 });
 
-test('a presentation without an item list is not a snapshot and is refused [H15]', () => {
+test('pages.storage.a-presentation-without-an-item-list: a presentation without an item list is not a snapshot and is refused [H15]', () => {
   for (const bad of [null, {}, { state: {} }, { state: { items: 'no' } }]) {
     assert.throws(() => currentSnapshotPresentation(bad), error => error.code === 'RELAY_SNAPSHOT');
   }

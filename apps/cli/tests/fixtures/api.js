@@ -35,6 +35,7 @@ import { JSON_SHAPES } from '../../../../packages/config/index.js';
 import { fetchFresh } from './http.js';
 import { startFixtureLocalRunner } from './runner/local-start.js';
 import { whenRunnerSettles } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { stopFixtureLocalRunner } from './runner/local-stop.js';
 import { safeFixtureDiagnostic } from './child.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
@@ -394,7 +395,7 @@ export async function submitSettled(t, box, move, id, agent) {
     // Only policy committed to trunk grants the override (mainPolicy reads trunk), so commit it or the board still offers land jobs whose push fails and retries.
     runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
     runFixtureGit(['commit', '-q', '-m', 'chore: fixture lands by hand'], { cwd: box.root, env: box.env, stdio: 'pipe' });
-    startFixtureLocalRunner(box.env, box.root);
+    startFixtureLocalRunner(box.env, box.root, { entry: CLI_ENTRY });
     box.localRunnerStarted = true;
   }
   const result = await move({ verb: 'submit', item: id, agent });

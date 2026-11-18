@@ -133,19 +133,20 @@ test('clock windows retain cached reads and refresh exact boundaries and backwar
   await observe(2 * HOUR - 1, 1);
   const twoHours = await observe(2 * HOUR, 2);
   assert.equal(twoHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 0, 'pace excludes its exact lower boundary');
-  const threeHours = await observe(3 * HOUR, 3);
+  // Idle minutes patch on read (4d943265f2), so a stable pace interval keeps its build while idle time still advances.
+  const threeHours = await observe(3 * HOUR, 2);
   /** Idle minutes as a reader derives them: items carry no idle clock (461f2e43b1), only last activity and the read's observedAt. */
   const idle = state => Math.floor((Date.parse(state.observedAt) - Date.parse(state.items[0].progress.lastActivity)) / 60_000);
   assert.equal(idle(threeHours) - idle(twoHours), 60, 'idle time refreshes without a native move [B35]');
-  await observe(2.5 * HOUR, 4); // A backwards clock rebuilds even without crossing a pace boundary.
-  const sixHours = await observe(6 * HOUR, 5);
+  await observe(2.5 * HOUR, 3); // A backwards clock rebuilds even without crossing a pace boundary.
+  const sixHours = await observe(6 * HOUR, 4);
   assert.equal(sixHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last6h, 0);
-  const backwards = await observe(2 * HOUR - 1, 6);
+  const backwards = await observe(2 * HOUR - 1, 5);
   assert.equal(backwards.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 3, 'a backwards clock restores the proper earlier window');
-  const day = await observe(24 * HOUR, 7);
+  const day = await observe(24 * HOUR, 6);
   assert.equal(day.blocks.length, 1, 'the block remains visible at its exact inclusive boundary');
   assert.equal(day.milestones.find(row => row.name === 'Clock pace').summary.pace.last24h, 0);
-  const expired = await observe(24 * HOUR + 1, 8);
+  const expired = await observe(24 * HOUR + 1, 7);
   assert.equal(expired.blocks.length, 0, 'the block expires on the next millisecond');
   assert.deepEqual(exportBoard(box.board), inputs, 'all clock-only reads preserve native business inputs');
 });

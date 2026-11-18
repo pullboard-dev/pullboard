@@ -37,7 +37,7 @@ function fixture(t) {
   return { board, id, builder, freeze, advance, claim, project, submit };
 }
 
-test('a retained-claim refreeze stays claimed and its following submit remains visible [N26,C7]', t => {
+test('api.claim.retained-claim-refreeze-stays-claimed: a retained-claim refreeze stays claimed and its following submit remains visible [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   f.advance();
@@ -57,7 +57,7 @@ test('a retained-claim refreeze stays claimed and its following submit remains v
   assert.equal(submitted.items[0].since, store.events(f.board, { itemId: f.id }).findLast(event => event.event_kind === 'submit').event_at);
 });
 
-test('a refreeze without a retained claim records a hand-back before a new claim and submit [N26,C7]', t => {
+test('api.claim.refreeze-without-retained-claim-records: a refreeze without a retained claim records a hand-back before a new claim and submit [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   f.submit();
@@ -73,7 +73,7 @@ test('a refreeze without a retained claim records a hand-back before a new claim
   assert.equal(f.project().moveCounts['claimed>submitted:submit'], 2);
 });
 
-test('native patch attach and remove events both count the declared patch route [N26,C7]', t => {
+test('api.claim.native-patch-attach-remove-events: native patch attach and remove events both count the declared patch route [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   f.submit();
@@ -85,7 +85,7 @@ test('native patch attach and remove events both count the declared patch route 
   assert.equal(state.moveCounts['submitted>submitted:patch'], 2);
 });
 
-test('seeded native merge-only receipts count one carry rather than a second ordinary submit [N26,C7]', t => {
+test('api.claim.seeded-native-merge-only-receipts: seeded native merge-only receipts count one carry rather than a second ordinary submit [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   // This seeds projection inputs only; it does not claim to validate a Git merge or a carried verdict.
@@ -97,7 +97,7 @@ test('seeded native merge-only receipts count one carry rather than a second ord
   assert.equal(state.items[0].stage, 'accepted');
 });
 
-test('claimed native patch attach and remove preserve the following ordinary submit [N26,C7]', t => {
+test('api.claim.claimed-native-patch-attach-remove: claimed native patch attach and remove preserve the following ordinary submit [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   store.attachItemPatch(f.board, f.id, { agentId: 'coordinator', key: 'claimed', commit: COMMIT, author: f.builder,
@@ -111,7 +111,7 @@ test('claimed native patch attach and remove preserve the following ordinary sub
   assert.equal(state.items[0].stage, 'submitted');
 });
 
-test('a genuine accepted rehome import counts the recorded rehome_import kind [N26,C7]', t => {
+test('api.claim.genuine-accepted-rehome-import-counts: a genuine accepted rehome import counts the recorded rehome_import kind [N26,C7]', t => {
   const f = fixture(t);
   f.claim();
   f.submit();
@@ -134,7 +134,7 @@ test('a genuine accepted rehome import counts the recorded rehome_import kind [N
   assert.equal(state.items[0].stage, 'accepted');
 });
 
-test('a genuine outside intake counts the recorded outside-intake kind as the intake move [N26,C7]', t => {
+test('api.claim.genuine-outside-intake-counts-recorded: a genuine outside intake counts the recorded outside-intake kind as the intake move [N26,C7]', t => {
   const f = fixture(t);
   const text = '{"rows":[]}';
   const outside = store.intakeOutside(f.board, { agentId: 'coordinator',

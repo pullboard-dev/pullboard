@@ -1,7 +1,17 @@
+/**
+ * Keep only rows whose typed field `name` holds `value`; no filter (null, or an empty name) returns the rows unchanged [C7,#1321].
+ * Pure, so the Items list and the Roadmap share one rule and the filter stays off until a person types one.
+ */
+export function filterByField(rows, filter = null) {
+  if (!filter || typeof filter.name !== 'string' || filter.name === '') return rows;
+  const want = String(filter.value ?? '');
+  return rows.filter(row => Array.isArray(row.fields) && row.fields.some(field => field?.name === filter.name && String(field.value ?? '') === want));
+}
+
 /** Select and order the Items view from explicit observations, without reading browser or board globals. */
 export function selectItemsView({ items, query = '', matchedIds = [], readyIds = [], stateById, state, lane, pipeline = false,
   dashboardList = null, dashboardNext = [], selectedId = null, currentBoard = true, adding = false, addressDetail = null,
-  tab = 'items', snapshot = false, ids = [], finished = null }) {
+  tab = 'items', snapshot = false, ids = [], finished = null, fieldFilter = null }) {
   const matched = new Set(matchedIds);
   const named = new Set(ids);
   const ready = new Set(readyIds);
@@ -11,8 +21,8 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
   const gatedOf = item => observations.get(item.id)?.gated === true;
   const mergedOf = item => observations.get(item.id)?.merged === true;
   // A search looks through every state, and so does a list of named items: landed work is withdrawn once met, and a count of it must still open.
-  const matching = (query || state === 'ids' ? items : items.filter(item => item.status !== 'withdrawn'))
-    .filter(item => !query || matched.has(item.id));
+  const matching = filterByField((query || state === 'ids' ? items : items.filter(item => item.status !== 'withdrawn'))
+    .filter(item => !query || matched.has(item.id)), fieldFilter);
 
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
   if (state === 'building') names.building = 'Building';

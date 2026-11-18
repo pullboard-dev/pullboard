@@ -8,7 +8,6 @@ import {
   lstatSync,
   openSync,
   readFileSync,
-  readdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../git/light.js';
@@ -61,20 +60,4 @@ export function gitSyncMarkerLinked(root) {
 export function gitSyncRecoveryNeeded(root) {
   const { marker } = gitSyncFiles(root);
   return existsSync(marker) || existsSync(marker + '.lock');
-}
-
-/** Read bounded recovery summaries, never quarantined marker contents or pending user moves. */
-export function readGitSyncRepairs(root) {
-  const { quarantine } = gitSyncFiles(root);
-  let names;
-  try { names = readdirSync(quarantine).filter(name => /^git-sync-[A-Za-z0-9-]+$/u.test(name)).sort().slice(-100); }
-  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-  return names.flatMap(name => {
-    try {
-      const path = join(quarantine, name, 'recovery.json'), stat = lstatSync(path);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16384) return [];
-      const row = JSON.parse(readFileSync(path, 'utf8'));
-      return row?.version === 1 && typeof row.at === 'string' && Array.isArray(row.artifacts) ? [row] : [];
-    } catch { return []; /* Interrupted evidence publication cannot stop the health reader. */ }
-  });
 }

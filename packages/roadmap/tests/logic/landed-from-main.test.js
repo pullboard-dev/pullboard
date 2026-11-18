@@ -19,7 +19,7 @@ function board() {
   return { board: { clock, db }, ports, reader, reads };
 }
 
-test('clause 1: with landing.landedFromMain on, an item whose commit is on main with no merge record is landed in the milestone and in its progress [C7]', () => {
+test('roadmap.logic-landed-from-main.clause-1-with-landing-landedfrommain-on: clause 1: with landing.landedFromMain on, an item whose commit is on main with no merge record is landed in the milestone and in its progress [C7]', () => {
   const { board: fixture, ports, reader, reads } = board();
   const onMain = landedOnMain('/repo', { landing: { landedFromMain: true } }, { reader });
   assert.deepEqual(reads, ['/repo'], 'the setting reads main once');
@@ -30,7 +30,7 @@ test('clause 1: with landing.landedFromMain on, an item whose commit is on main 
   assert.equal(workProgress(fixture, { onMain }).get(6).stage, 'accepted', 'a recorded merge that main lacks is not landed');
 });
 
-test('clause 2: with landing.landedFromMain off, the default, the milestone and progress read the recorded merge as before [C7]', () => {
+test('roadmap.logic-landed-from-main.clause-2-with-landing-landedfrommain-off: clause 2: with landing.landedFromMain off, the default, the milestone and progress read the recorded merge as before [C7]', () => {
   const { board: fixture, ports, reader, reads } = board();
   for (const config of [undefined, {}, { landing: {} }, { landing: { landedFromMain: false } }]) {
     const onMain = landedOnMain('/repo', config, { reader });

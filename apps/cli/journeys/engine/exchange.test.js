@@ -2,6 +2,8 @@ import { AGENT_GRANT_ENGINE } from '../../../../packages/state/src/logic/engines
 /**
  * The v1 board exchange keeps each SQLite row, including lifecycle history and sequence counters.
  */
+import { journeyCall } from '../../tests/fixtures/e2e.js';
+import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { repositoryBoardFile } from '../../tests/fixtures/board/submit.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import assert from 'node:assert/strict';
@@ -12,7 +14,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import {
-  runFixtureChild,
   runFixtureGit,
 } from '../../tests/fixtures/child.js';
 import { tmpdir } from 'node:os';
@@ -95,7 +96,7 @@ function gitRepo(root) {
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: {} }));
 }
 
-test('round trips every board row, state, history and AUTOINCREMENT counter [A7]', () => {
+test('cli.journeys-engine-exchange.round-trips-every-board-row-state: round trips every board row, state, history and AUTOINCREMENT counter [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const target = emptyBoard(directory, 'target.sqlite');
@@ -119,7 +120,7 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
   }
 });
 
-test('clause 1: import reports exactly the tables an export carried, with job and job_step only while they hold rows [C7]', () => {
+test('cli.journeys-engine-exchange.import-reports-exactly-the-tables-an: clause 1: import reports exactly the tables an export carried, with job and job_step only while they hold rows [C7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const empty = emptyBoard(directory, 'empty.sqlite');
@@ -145,7 +146,7 @@ test('clause 1: import reports exactly the tables an export carried, with job an
   }
 });
 
-test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
+test('cli.journeys-engine-exchange.a5-imported-event-logs-refuse-future: [A5] imported event logs refuse future formats and upgrade older formats', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const target = emptyBoard(directory, 'target.sqlite');
@@ -177,7 +178,7 @@ test('[A5] imported event logs refuse future formats and upgrade older formats',
   }
 });
 
-test('export keeps a single SQLite snapshot while another connection writes [A7]', () => {
+test('cli.journeys-engine-exchange.export-keeps-a-single-sqlite-snapshot: export keeps a single SQLite snapshot while another connection writes [A7]', () => {
   const directory = tempDirectory();
   const file = repositoryBoardFile(directory);
   const source = openBoard(file);
@@ -230,7 +231,7 @@ function writeAcceptedItem(board) {
   store.verify(board, item, { agentId: 'web-2', decision: 'ACCEPT', note: 'the check passed', head: 'b'.repeat(40), digest: 'digest:written during export', policy: 'any' });
 }
 
-test('import refuses a board with rows and leaves it unchanged [A7]', () => {
+test('cli.journeys-engine-exchange.import-refuses-a-board-with-rows: import refuses a board with rows and leaves it unchanged [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const target = emptyBoard(directory, 'target.sqlite');
@@ -247,7 +248,7 @@ test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   }
 });
 
-test('import refuses an export from another version before writing [A7]', () => {
+test('cli.journeys-engine-exchange.import-refuses-an-export-from-another: import refuses an export from another version before writing [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const target = emptyBoard(directory, 'target.sqlite');
@@ -264,7 +265,7 @@ test('import refuses an export from another version before writing [A7]', () => 
   }
 });
 
-test('export and import CLI commands exchange a versioned document between real repos [A7]', async () => {
+test('cli.journeys-engine-exchange.export-and-import-cli-commands-exchange: export and import CLI commands exchange a versioned document between real repos [A7]', async () => {
   const directory = tempDirectory();
   const sourceRoot = join(directory, 'source');
   const targetRoot = join(directory, 'target');
@@ -283,24 +284,26 @@ test('export and import CLI commands exchange a versioned document between real 
     GIT_COMMITTER_EMAIL: 'exchange@example.invalid',
     PULLBOARD_HOME: join(directory, 'home'),
   };
-  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  /** One CLI call in this process (a real process under PULLBOARD_JOURNEY_MODE=process), recorded for the parity check [C7]. */
+  const cli = (cwd, ...args) => journeyCall({ dir: directory, env, cwd, args, bin: BIN, inProcess: () => runCliInProcess(args, { cwd, env }) });
   try {
     // An import recipient starts without its own declared coordinator metadata.
     const initEnv = { ...env };
     delete initEnv.PULLBOARD_MODEL;
-    const initialized = runFixtureChild(process.execPath, [BIN, 'init', '--verbose'], { cwd: targetRoot, env: initEnv, encoding: 'utf8' });
+    const initialized = await journeyCall({ dir: directory, env: initEnv, cwd: targetRoot, args: ['init', '--verbose'], bin: BIN,
+      inProcess: () => runCliInProcess(['init', '--verbose'], { cwd: targetRoot, env: initEnv }) });
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
     assert.match(initialized.stdout, /coordinator/i);
 
-    const exported = cli(sourceRoot, 'export', '--json');
+    const exported = await cli(sourceRoot, 'export', '--json');
     assert.equal(exported.status, 0, exported.stderr || exported.stdout);
     const document = JSON.parse(exported.stdout);
     writeFileSync(join(directory, 'board.json'), JSON.stringify(document));
-    const imported = cli(targetRoot, 'import', join(directory, 'board.json'));
+    const imported = await cli(targetRoot, 'import', join(directory, 'board.json'));
     assert.equal(imported.status, 0, imported.stderr || imported.stdout);
     assert.match(imported.stdout, /imported version 1 board tables/);
 
-    const reexported = cli(targetRoot, 'export', '--json');
+    const reexported = await cli(targetRoot, 'export', '--json');
     assert.equal(reexported.status, 0, reexported.stderr || reexported.stdout);
     assert.deepEqual(JSON.parse(reexported.stdout), document, 'a board initialized by pullboard can receive the full export');
 
@@ -310,9 +313,9 @@ test('export and import CLI commands exchange a versioned document between real 
     } finally {
       store.closeBoard(importedBoard);
     }
-    const status = cli(targetRoot, 'status');
+    const status = await cli(targetRoot, 'status');
     assert.equal(status.status, 0, status.stderr || status.stdout);
-    const listed = cli(targetRoot, 'list', '--all');
+    const listed = await cli(targetRoot, 'list', '--all');
     assert.equal(listed.status, 0, listed.stderr || listed.stdout);
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -320,7 +323,7 @@ test('export and import CLI commands exchange a versioned document between real 
 });
 
 
-test('import preserves other metadata and refuses malformed fresh identities [A2,A7]', () => {
+test('cli.journeys-engine-exchange.import-preserves-other-metadata-and-refuses: import preserves other metadata and refuses malformed fresh identities [A2,A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   try {
@@ -346,7 +349,7 @@ test('import preserves other metadata and refuses malformed fresh identities [A2
 });
 
 
-test('fresh-init approval baselines are disposable only with exact setup history [A2,A7,S1]', () => {
+test('cli.journeys-engine-exchange.fresh-init-approval-baselines-are-disposable: fresh-init approval baselines are disposable only with exact setup history [A2,A7,S1]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const setup = openBoard(join(directory, 'setup.sqlite'));
@@ -391,7 +394,7 @@ test('fresh-init approval baselines are disposable only with exact setup history
 });
 
 
-test('fresh-init grant markers permit pairing without admitting other history [A2,A7,E21]', () => {
+test('cli.journeys-engine-exchange.fresh-init-grant-markers-permit-pairing: fresh-init grant markers permit pairing without admitting other history [A2,A7,E21]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(directory);
   const setup = openBoard(join(directory, 'setup.sqlite'));
@@ -436,7 +439,7 @@ test('fresh-init grant markers permit pairing without admitting other history [A
 });
 
 
-test('raw exports require the real command-phase provider before reading the database [A7,C7]', () => {
+test('cli.journeys-engine-exchange.raw-exports-require-the-real-command: raw exports require the real command-phase provider before reading the database [A7,C7]', () => {
   assert.throws(() => exportBoard({ get db() { throw new Error('database touched'); } }),
     { name: 'TypeError', message: 'exportBoard needs beginCommandPhase' });
 });

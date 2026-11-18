@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/gate/tests/fixtures/testkit.js */
 /** Keep fixture creation behind one live-rule-aware testkit helper [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

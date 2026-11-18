@@ -52,7 +52,7 @@ function compare(root, commit, file) {
   return compareMainFailures(root, { tests: [{ file, passed: false }] }, undefined, '', { commit });
 }
 
-test('a main test result records the main commit and the time with each file result [C7]', { timeout: 120000 }, async t => {
+test('landing.receipt.a-main-test-result-records-the: a main test result records the main commit and the time with each file result [C7]', { timeout: 120000 }, async t => {
   const box = fixture(t);
   const main = box.sh('rev-parse', 'HEAD');
   const before = Date.now();
@@ -64,7 +64,7 @@ test('a main test result records the main commit and the time with each file res
   assert.ok(Date.parse(row.at) >= before - 1000 && Date.parse(row.at) <= Date.now() + 1000, `the result carries its time, got ${row.at}`);
 });
 
-test('a green then a red for one file on consecutive main commits names the single landing between them [C7]', { timeout: 180000 }, async t => {
+test('landing.receipt.a-green-then-a-red-for: a green then a red for one file on consecutive main commits names the single landing between them [C7]', { timeout: 180000 }, async t => {
   const box = fixture(t);
   const green = box.sh('rev-parse', 'HEAD');
   box.sh('checkout', '-qb', 'item-42');

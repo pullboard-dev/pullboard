@@ -41,7 +41,7 @@ function repoWithTwoCommits() {
   return { repo, first, second, third };
 }
 
-test('clause 1: pinFor(commit) returns {tree, tooling} and bundleFor(tree) writes a bundle keyed by tree id, reused when present [C7]', () => {
+test('pin.keyed.pin-and-bundle: clause 1: pinFor(commit) returns {tree, tooling} and bundleFor(tree) writes a bundle keyed by tree id, reused when present [C7]', () => {
   const { repo, first, second, third } = repoWithTwoCommits();
   const pin = pinFor(repo, second);
   assert.equal(pin.tree, runFixtureGit(['-C', repo, 'rev-parse', `${second}^{tree}`]));
@@ -68,7 +68,7 @@ test('clause 1: pinFor(commit) returns {tree, tooling} and bundleFor(tree) write
   assert.equal(existsSync(`${made.path}.${process.pid}.partial`), false);
 });
 
-test('clause 1: a bad tree id or unknown commit is refused with a code [C7]', () => {
+test('pin.keyed.refuses-bad-tree: clause 1: a bad tree id or unknown commit is refused with a code [C7]', () => {
   const { repo } = repoWithTwoCommits();
   const bundles = privateFixtureFiles('pullboard-pin-bad-').root;
   assert.throws(() => bundleFor(repo, '../escape', bundles), { code: 'PIN_TREE_INVALID' });
@@ -94,7 +94,7 @@ function repoWithOldAndNew() {
   return { repo, old, landed };
 }
 
-test('clause 1: packages/pin writes the tooling pin for a landed commit, and toolingFor returns the last landing tree as tooling and the seat own tree as source [C7]', () => {
+test('pin.tooling.landing-writes-pin: clause 1: packages/pin writes the tooling pin for a landed commit, and toolingFor returns the last landing tree as tooling and the seat own tree as source [C7]', () => {
   const { repo, old, landed } = repoWithOldAndNew();
   assert.equal(toolingPin(repo), null, 'no landing yet, no pin');
   assert.equal(toolingFor(repo, old).tooling, treeOf(repo, old), 'without a pin the seat runs its own tree');
@@ -111,7 +111,7 @@ test('clause 1: packages/pin writes the tooling pin for a landed commit, and too
   assert.equal(seat.pinned, true);
 });
 
-test('clause 1: a corrupt tooling pin is refused with a code and an unknown landing writes nothing [C7]', () => {
+test('pin.tooling.corrupt-pin-refused: clause 1: a corrupt tooling pin is refused with a code and an unknown landing writes nothing [C7]', () => {
   const { repo } = repoWithOldAndNew();
   assert.throws(() => writeToolingPin(repo, 'no-such-commit'), { code: 'PIN_COMMIT_UNKNOWN' });
   assert.equal(toolingPin(repo), null);
@@ -131,7 +131,7 @@ function repoWithTree() {
   return { repo, tree: pinFor(repo, 'HEAD').tree };
 }
 
-test('clause 1: temp folders are caches named by tree id and a missing cache is rebuilt from the bundle [C7]', () => {
+test('pin.cache.rebuilt-from-bundle: clause 1: temp folders are caches named by tree id and a missing cache is rebuilt from the bundle [C7]', () => {
   const { repo, tree } = repoWithTree();
   const where = { cacheRoot: privateFixtureFiles('pullboard-pin7-cache-').root, bundles: privateFixtureFiles('pullboard-pin7-bundles-').root };
   const first = cacheFor(repo, tree, where);
@@ -146,7 +146,7 @@ test('clause 1: temp folders are caches named by tree id and a missing cache is 
   assert.equal(existsSync(`${again.path}.${process.pid}.partial`), false);
 });
 
-test('clause 1: a sweep never breaks a queued job, it keeps named trees and the next read rebuilds the rest [C7]', () => {
+test('pin.cache.sweep-keeps-queued: clause 1: a sweep never breaks a queued job, it keeps named trees and the next read rebuilds the rest [C7]', () => {
   const { repo, tree } = repoWithTree();
   const where = { cacheRoot: privateFixtureFiles('pullboard-pin7-cache-').root, bundles: privateFixtureFiles('pullboard-pin7-bundles-').root };
   const { path } = cacheFor(repo, tree, where);
@@ -159,7 +159,7 @@ test('clause 1: a sweep never breaks a queued job, it keeps named trees and the 
   assert.throws(() => cachePath(where.cacheRoot, '../x'), { code: 'PIN_TREE_INVALID' });
 });
 
-test('clause 2: [C7] an edited or unsigned tooling pin file is refused before any run uses it', () => {
+test('pin.signing.unsigned-refused: clause 2: [C7] an edited or unsigned tooling pin file is refused before any run uses it', () => {
   const { repo, old, landed } = repoWithOldAndNew();
   writeToolingPin(repo, landed);
   const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');
@@ -177,7 +177,7 @@ test('clause 2: [C7] an edited or unsigned tooling pin file is refused before an
   assert.deepEqual(toolingPin(repo), { tree: pin.tree, commit: pin.commit }, 'the landing rewrites it signed');
 });
 
-test('clause 1: [C7] the first gate after an upgrade signs a pin file written before signing existed, once', () => {
+test('pin.signing.upgrade-signs-once: clause 1: [C7] the first gate after an upgrade signs a pin file written before signing existed, once', () => {
   const { repo, landed } = repoWithOldAndNew();
   writeToolingPin(repo, landed);
   const file = join(repo, '.git', 'pullboard', 'tooling-pin.json');

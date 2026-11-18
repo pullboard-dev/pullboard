@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { waitForCondition } from '../../../apps/cli/tests/fixtures/runner/holders.js';
+import { waitForCondition } from './fixtures/runner/holders.js';
 
 const REPO = resolve(import.meta.dirname, '../../..');
 const RESOURCE = 'liveness-test';
@@ -47,7 +47,7 @@ function fixture(t) {
   return { dir, home, holderScript: join(dir, 'holder.cjs'), rerunScript: join(dir, 'rerun.cjs') };
 }
 
-test('clause 2: a holder whose process dies is freed at once and its captured request re-run exactly once [C7]', async t => {
+test('gate.slots.holder-whose-process-dies-freed: clause 2: a holder whose process dies is freed at once and its captured request re-run exactly once [C7]', async t => {
   const { dir, home, holderScript, rerunScript } = fixture(t);
   const env = { PULLBOARD_MACHINE_HOME: home, PULLBOARD_STALE_HOLDER_MS: '1000', PULLBOARD_HOLDER_KILL_GRACE_MS: '500' };
   for (const [key, value] of Object.entries(env)) process.env[key] = value;
@@ -123,7 +123,7 @@ function shortWindows(t, home) {
   t.after(() => { for (const key of Object.keys(env)) delete process.env[key]; });
 }
 
-test('a holder blocked in a synchronous gate run keeps a fresh heartbeat and is never signalled [C7]', async t => {
+test('gate.slots.holder-blocked-synchronous-gate-run: a holder blocked in a synchronous gate run keeps a fresh heartbeat and is never signalled [C7]', async t => {
   const { dir, home } = fixture(t);
   shortWindows(t, home);
   const { takeResource } = await import(pathToFileURL(join(REPO, 'packages/resources/index.js')).href);
@@ -151,7 +151,7 @@ test('a holder blocked in a synchronous gate run keeps a fresh heartbeat and is 
   assert.equal(terminated, 0, 'the blocked holder is never signalled');
 });
 
-test('the out-of-loop heartbeat stops once the run returns and once its holder dies [C7]', async t => {
+test('gate.slots.out-loop-heartbeat-stops-once: the out-of-loop heartbeat stops once the run returns and once its holder dies [C7]', async t => {
   const { dir, home } = fixture(t);
   shortWindows(t, home);
   const returned = await blockedHolder(t, dir, 1);
@@ -176,7 +176,7 @@ function holderDb(t, row) {
   return db;
 }
 
-test('clause 1 and clause 2: a local holder is alive while its PID answers with the recorded start, however stale its heartbeat; dead or reused PIDs are freed at once [C7]', async t => {
+test('gate.slots.local-holder-alive-while-pid: clause 1 and clause 2: a local holder is alive while its PID answers with the recorded start, however stale its heartbeat; dead or reused PIDs are freed at once [C7]', async t => {
   const { reclaimHolders } = await import(pathToFileURL(join(REPO, 'packages/resources/src/io/liveness.js')).href);
   const now = Date.now(), ancient = now - 60 * 60_000;
   const held = db => db.prepare('SELECT COUNT(*) AS n FROM holder').get().n;
@@ -218,7 +218,7 @@ test('clause 1 and clause 2: a local holder is alive while its PID answers with 
   assert.equal(held(confirmed), 0, 'a mismatch the fresh read confirms is freed');
 });
 
-test('clause 1: a really blocked holder past the hung window is never reclaimed while its process lives [C7]', async t => {
+test('gate.slots.really-blocked-holder-past-hung: clause 1: a really blocked holder past the hung window is never reclaimed while its process lives [C7]', async t => {
   const { dir, home, holderScript, rerunScript } = fixture(t);
   const env = { PULLBOARD_MACHINE_HOME: home };
   for (const [key, value] of Object.entries(env)) process.env[key] = value;
@@ -242,7 +242,7 @@ test('clause 1: a really blocked holder past the hung window is never reclaimed 
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM liveness_event WHERE kind IN ('terminate', 'freed')").get().n, 0, 'and is never signalled or freed');
 });
 
-test('clause 3: a runner lease on another host still counts as troubled by its stale heartbeat timestamp [C7]', async t => {
+test('gate.slots.runner-lease-another-host-still: clause 3: a runner lease on another host still counts as troubled by its stale heartbeat timestamp [C7]', async t => {
   const { troubledRunners } = await import(pathToFileURL(join(REPO, 'packages/resources/src/io/runner/pick.js')).href);
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
@@ -252,7 +252,7 @@ test('clause 3: a runner lease on another host still counts as troubled by its s
   assert.deepEqual([...troubledRunners(db, now, 60_000)], ['far'], 'only the remote lease whose timestamp stopped is troubled');
 });
 
-test('clause 1 and clause 2: controller custody keeps a live holder whose start was read another way, and both reclaim paths share one comparison [C7]', async t => {
+test('gate.slots.controller-custody-keeps-live-holder: clause 1 and clause 2: controller custody keeps a live holder whose start was read another way, and both reclaim paths share one comparison [C7]', async t => {
   const { differentStart } = await import(pathToFileURL(join(REPO, 'packages/resources/src/io/liveness.js')).href);
   const recorded = 'Mon Nov  4 01:00:00 2026';
   assert.equal(differentStart({ started: 'linux:1730000000:123' }, recorded), false, 'a fallback read after a ps failure is unknown, so alive');

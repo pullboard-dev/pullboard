@@ -30,12 +30,12 @@ import { docsRepository } from '../../tests/fixtures/generated/docs.js';
 import { addDocumentedCommand } from '../../tests/fixtures/generated/docs.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
 
-test('committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
+test('clause 2: committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
   assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '../../../..'), undefined, { openBoard }), [], 'run node docs/tools/update-docs.js');
 });
 
 // Real processes by design: each call runs a script or command of the copied candidate repository (a command that exists only in the copy), which the in-process dispatcher of this checkout cannot answer (#8276).
-test('one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {
+test('clause 2: one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {
   const box = docsRepository(t);
   for (const file of GENERATED_DOC_PATHS) {
     const path = join(box.root, file), before = readFileSync(path, 'utf8');
@@ -59,7 +59,7 @@ test('one command detects and repairs each stale output while retaining authored
   assert.deepEqual(JSON.parse(box.node('docs/tools/update-docs.js', '--json').stdout).changed, [], 'second refresh is idempotent');
 });
 
-test('two command items from one main regenerate real Git conflicts without a builder edit [C7,V4,A1,A5]', t => {
+test('clause 2: two command items from one main regenerate real Git conflicts without a builder edit [C7,V4,A1,A5]', t => {
   const box = docsRepository(t), base = box.git('rev-parse', 'HEAD');
   box.git('checkout', '-qb', 'alpha');
   addDocumentedCommand(box, 'fixture-alpha');
@@ -97,7 +97,7 @@ test('two command items from one main regenerate real Git conflicts without a bu
   }
 });
 
-test('authored narrative conflicts stay real while v1/v2 receipts retain their engine floors [C7,H16]', t => {
+test('clause 2: authored narrative conflicts stay real while v1/v2 receipts retain their engine floors [C7,H16]', t => {
   const box = docsRepository(t), base = box.git('rev-parse', 'HEAD'), file = join(box.root, 'docs/api.md');
   const original = readFileSync(file, 'utf8');
   box.git('checkout', '-qb', 'left'); writeFileSync(file, original.replace(/^#[^\n]+/u, '# Left narrative'));
@@ -118,7 +118,7 @@ test('authored narrative conflicts stay real while v1/v2 receipts retain their e
   assert.ok(reopenMove.minimumEngine([1, { computedConflict: { version: 1 } }]) < MECHANICAL_MERGE_ENGINE);
 });
 
-test('duplicate or symlinked command declarations refuse before any generated copy changes [C7,A1]', t => {
+test('clause 2: duplicate or symlinked command declarations refuse before any generated copy changes [C7,A1]', t => {
   const box = docsRepository(t);
   const copies = new Map(GENERATED_DOC_PATHS.map(file => [file, readFileSync(join(box.root, file))]));
   const file = join(box.root, 'apps/cli/src/io/command-docs/duplicate.json');

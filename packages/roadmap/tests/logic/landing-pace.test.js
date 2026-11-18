@@ -6,7 +6,7 @@ import {
   qualifyingLandingTimes,
 } from '../../index.js';
 
-test('withdrawn items with recorded merges count once alongside verified landings [N26,C7]', () => {
+test('roadmap.logic-landing-pace.withdrawn-items-with-recorded-merges: withdrawn items with recorded merges count once alongside verified landings [N26,C7]', () => {
   const now = Date.parse('2026-11-10T18:00:00Z');
   const items = new Map([
     [1, { item_status: 'verified', item_merged_commit: 'verified-merge' }],

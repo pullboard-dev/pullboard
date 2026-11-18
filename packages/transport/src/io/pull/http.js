@@ -76,10 +76,10 @@ function reply(response, status, body) {
  * Why: plain HTTP, JSON and a tar keep any sandbox able to speak it with curl, tar, sh and an Ed25519 signer.
  *
  * @param {ReturnType<typeof import('../pull.js').pullAdapter>} adapter
- * @returns {import('http').Server} A server, not yet listening.
+ * @returns {(request: import('http').IncomingMessage, response: import('http').ServerResponse) => Promise<void>} The request listener, for a server that also answers other routes.
  */
-export function pullServer(adapter) {
-  return createWireServer(async (request, response) => {
+export function pullHandler(adapter) {
+  return async (request, response) => {
     try {
       const [, root, route, name] = requestPath(request.url).split('/');
       if (root !== 'pull') return reply(response, 404, { code: 'PULL_ROUTE', message: 'no such pull route' });
@@ -90,7 +90,8 @@ export function pullServer(adapter) {
         return reply(response, 200, job);
       }
       if (request.method === 'GET' && route === 'bundle') {
-        const path = adapter.bundle(bearer(request), name);
+        const path = await adapter.bundle(bearer(request), name);
+        if (!path) return reply(response, 404, { code: 'PULL_TREE', message: 'the board has no bundle for that tree' });
         response.writeHead(200, { 'content-type': 'application/x-tar' });
         return createReadStream(path).pipe(response);
       }
@@ -104,7 +105,17 @@ export function pullServer(adapter) {
       if (!response.headersSent) reply(response, error instanceof Refused ? 403 : 400, { code: error.code ?? 'PULL_REQUEST', message: error.message });
       else response.destroy();
     }
-  });
+  };
+}
+
+/**
+ * The board's HTTP face of a pull adapter as a server of its own, not yet listening.
+ *
+ * @param {ReturnType<typeof import('../pull.js').pullAdapter>} adapter
+ * @returns {import('http').Server}
+ */
+export function pullServer(adapter) {
+  return createWireServer(pullHandler(adapter));
 }
 
 /**

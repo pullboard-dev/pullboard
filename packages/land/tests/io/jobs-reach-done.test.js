@@ -14,19 +14,19 @@ const ended = (db, id) => {
   return { step: view.step, owner: view.leaseOwner, failed: view.steps.find(step => step.name === 'failed')?.payload.code ?? null };
 };
 
-test('a landing run that throws ends with a failed step and done, with no owner [C7]', async t => {
+test('land.jobs.throw-ends-done: a landing run that throws ends with a failed step and done, with no owner [C7]', async t => {
   const db = cellBoard(t, ':memory:').db;
   await assert.rejects(driveLanding(db, { owner: 'lander', id: 'land:run', run: async () => { throw Object.assign(new Error('boom'), { code: 'LAND_BOOM' }); } }), /boom/);
   assert.deepEqual(ended(db, 'land:run'), { step: 'done', owner: null, failed: 'LAND_BOOM' });
 });
 
-test('a landing run that stalls ends with a failed step and done, with no owner [C7]', async t => {
+test('land.jobs.stall-ends-done: a landing run that stalls ends with a failed step and done, with no owner [C7]', async t => {
   const db = cellBoard(t, ':memory:').db;
   await driveLanding(db, { owner: 'lander', id: 'land:stall', run: async () => ({ stalled: true, stallDescription: 'no progress' }) });
   assert.deepEqual(ended(db, 'land:stall'), { step: 'done', owner: null, failed: 'LAND_STALLED' });
 });
 
-test('a finish sequence stopped by LAND_PROOF_NOT_GREEN ends with a failed step and done, and stays so when resumed [C7]', async t => {
+test('land.jobs.proof-not-green-stays-done: a finish sequence stopped by LAND_PROOF_NOT_GREEN ends with a failed step and done, and stays so when resumed [C7]', async t => {
   const repo = cellRepo(t);
   repo.put('feature.txt', 'candidate\n');
   const candidate = repo.commitAll();

@@ -35,7 +35,7 @@ function fixture(files, allowedEdges) {
   return inputs.root;
 }
 
-test('clause 1: the edge ratchet lists the six durable cells and refuses any backwards edge between them, even a declared one [C7]', () => {
+test('gate.io-edges-durable.the-edge-ratchet-lists-the-six: clause 1: the edge ratchet lists the six durable cells and refuses any backwards edge between them, even a declared one [C7]', () => {
   assert.deepEqual(Object.keys(DURABLE_CELLS), ['jobs', 'drive', 'transport', 'receipt', 'pin', 'land'], 'the ratchet lists the six cells');
   assert.deepEqual(durableEdgeProblems(REPO), [], 'today\'s tree keeps the durable table');
 

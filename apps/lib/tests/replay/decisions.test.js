@@ -82,7 +82,7 @@ function replayWithDifferentShells(one, two, move, sequence, at) {
   }
 }
 
-test('captured person decisions and coordinator apply replay identically without touching checkout files [B26,H3,H16,S18,S19]', (t) => {
+test('lib.replay-decisions.captured-person-decisions-and-coordinator-apply: captured person decisions and coordinator apply replay identically without touching checkout files [B26,H3,H16,S18,S19]', (t) => {
   const { directory, source, copies: [one, two] } = decisionCopies(t);
   const sentinel = join(directory, 'SPEC.md');
   writeFileSync(sentinel, 'leave this checkout file alone\n');
@@ -157,7 +157,7 @@ test('captured person decisions and coordinator apply replay identically without
   assert.equal(readFileSync(sentinel, 'utf8'), sentinelBefore, 'board-only engine operations never rewrite SPEC.md');
 });
 
-test('engine 12 records preserved decline text and replays a separate reason [S18,S19,H16]', (t) => {
+test('lib.replay-decisions.engine-12-records-preserved-decline-text: engine 12 records preserved decline text and replays a separate reason [S18,S19,H16]', (t) => {
   assert.ok(ENGINE_VERSION >= 12, 'engine 12 decline semantics hold in every later engine');
   const { source, copies: [one, two] } = decisionCopies(t);
   const preserved = {

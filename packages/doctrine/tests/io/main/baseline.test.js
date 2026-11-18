@@ -69,7 +69,7 @@ function hold(box, commit) {
   return holdDoctrine(box.item, { mainCommit: box.frozen, commit, timeoutMs: 60000 });
 }
 
-test('an item that keeps main\'s over-cap file unchanged is held against current main\'s measured count [C7]', () => {
+test('doctrine.io-main-baseline.an-item-that-keeps-main-s-over-cap-file: an item that keeps main\'s over-cap file unchanged is held against current main\'s measured count [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   commitAll(box.item, 'feat: change the app');
@@ -80,7 +80,7 @@ test('an item that keeps main\'s over-cap file unchanged is held against current
   assert.equal(result.holds, true);
 });
 
-test('an item that moves main\'s over-cap file is not refused RATCHET_ROSE [C7]', () => {
+test('doctrine.io-main-baseline.an-item-that-moves-main-s-over-cap-file: an item that moves main\'s over-cap file is not refused RATCHET_ROSE [C7]', () => {
   const box = repo();
   mkdirSync(join(box.item, 'src/view'));
   git(box.item, 'mv', 'src/view.css', 'src/view/view.css');
@@ -92,7 +92,7 @@ test('an item that moves main\'s over-cap file is not refused RATCHET_ROSE [C7]'
   assert.equal(result.holds, true);
 });
 
-test('an item that adds a second problem to that file is refused RATCHET_ROSE [C7]', () => {
+test('doctrine.io-main-baseline.an-item-that-adds-a-second-problem-to: an item that adds a second problem to that file is refused RATCHET_ROSE [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', 'main');
   writeFileSync(join(box.item, 'src/view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
@@ -101,7 +101,7 @@ test('an item that adds a second problem to that file is refused RATCHET_ROSE [C
     && error.message.includes('rose to 2, was 1') && error.message.includes('src/view.css:4:/* OVER again */'));
 });
 
-test('a second hold on the same main commit reads main\'s measured count from the machine-wide cache [C7]', () => {
+test('doctrine.io-main-baseline.a-second-hold-on-the-same-main-commit: a second hold on the same main commit reads main\'s measured count from the machine-wide cache [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', 'main');
   writeFileSync(join(box.item, 'src/view.css'), `${CSS}/* OVER the cap */\n/* OVER again */\n`);
@@ -119,7 +119,7 @@ test('a second hold on the same main commit reads main\'s measured count from th
   rmSync(folder, { recursive: true, force: true });
 });
 
-test('a rule added on main after the frozen base holds the item [C7]', () => {
+test('doctrine.io-main-baseline.a-rule-added-on-main-after-the-frozen: a rule added on main after the frozen base holds the item [C7]', () => {
   const box = repo({ mainRules: [RULE, '- C10 [approved, must] Scripts carry no TODO markers. | gate: check grep -rn TODO src || true | count: 0'] });
   git(box.item, 'merge', '-q', '--no-edit', 'main');
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2; // TODO\n');
@@ -127,7 +127,7 @@ test('a rule added on main after the frozen base holds the item [C7]', () => {
   assert.throws(() => hold(box, commit), (error) => error.code === 'RATCHET_ROSE' && error.message.includes('C10 Scripts carry no TODO markers. rose to 1, was 0'));
 });
 
-test('a declared count above main\'s measured total never loosens the baseline [C7]', () => {
+test('doctrine.io-main-baseline.a-declared-count-above-main-s-measured: a declared count above main\'s measured total never loosens the baseline [C7]', () => {
   const box = repo({ mainRules: [RULE.replace('count: 0', 'count: 2')] });
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   commitAll(box.item, 'feat: change the app');
@@ -138,7 +138,7 @@ test('a declared count above main\'s measured total never loosens the baseline [
   assert.equal(result.holds, true);
 });
 
-test('a candidate that is exactly current main is measured against current main, not the older frozen main it was handed [C7]', () => {
+test('doctrine.io-main-baseline.a-candidate-that-is-exactly-current-main: a candidate that is exactly current main is measured against current main, not the older frozen main it was handed [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--ff-only', 'main');
   const [result] = hold(box, box.main);
@@ -147,7 +147,7 @@ test('a candidate that is exactly current main is measured against current main,
   assert.equal(result.holds, true);
 });
 
-test('a candidate that does not contain current main is composed with it, never refused for that alone [C7]', () => {
+test('doctrine.io-main-baseline.a-candidate-that-does-not-contain: a candidate that does not contain current main is composed with it, never refused for that alone [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app without main');

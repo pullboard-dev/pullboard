@@ -10,6 +10,14 @@ export function agentSessionDigest(environment = process.env) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
+/**
+ * Record that a board move's usage checkpoint is due. The cost cell loads at the call, not with this door, so a command that never moves the board
+ * (show, whoami) pays nothing for it, and a move pays for the checkpoint file alone, not the stats barrel [C7].
+ */
+export async function checkpointAfterMove(...call) {
+  return (await import('./src/io/cost/checkpoint.js')).checkpointAfterMove(...call);
+}
+
 export {
   hasInputSplit,
 } from './src/logic/split.js';
@@ -23,6 +31,8 @@ export { coordinatorMilestoneRelease } from './src/io/actions.js';
 export { pipelineStats } from './src/logic/pipeline.js';
 export { proofStats, proofAgentIds } from './src/io/main.js';
 export { readCapacity } from './src/io/capacity.js';
+export { readMaxUsefulBuilders } from './src/io/useful.js';
+export { usefulBuilderLines } from './src/logic/capacity/useful.js';
 export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
 export { recordUsageBatch } from './src/io/cost/batch.js';
 export { recordSharedUsage } from './src/io/cost/shared.js';

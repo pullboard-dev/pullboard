@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-cell apps/cli packages/runners */
 /** Test the CI-like test runner's discovery and name-pattern selection against a copied runner [C7, S13]. */
 import { copyPackageFiles } from '../../../../../packages/runners/index.js';
+import { runDiscoveryChild } from '../../fixtures/discovery-child.js';
 import assert from 'node:assert/strict';
 import {
   runFixtureExecFile as execFileSync,
@@ -142,29 +143,23 @@ function discoveryFixture(t, sourceRoot = fileURLToPath(new URL('../../../../../
   const marker = join(root, 'ran-once');
   writeFileSync(join(tests, 'one.test.js'), `import { test } from 'node:test';
 import { appendFileSync } from 'node:fs';
-test('one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x'));
+test('cli.io-commands-test-discovery.one-discovered-test: one discovered test', () => appendFileSync(${JSON.stringify(marker)}, 'x'));
 `);
   return { root, bin, marker };
 }
 
 /** Run default discovery and require exactly one fixture execution. */
 function runDiscovery({ root, bin, marker }) {
-  const launchEnv = { ...process.env };
-  delete launchEnv.NODE_TEST_CONTEXT;
-  const result = spawnSync(process.execPath, ['--test', '--import', join(root, 'apps/cli/src/io/run/tests.js')], {
-    cwd: root,
-    encoding: 'utf8',
-    env: launchEnv,
-  });
+  const result = runDiscoveryChild(root, join(root, 'apps/cli/src/io/run/tests.js'));
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(readFileSync(marker, 'utf8'), 'x', 'one test ran exactly once under default discovery');
 }
 
-test('default discovery runs one fixture and does not recurse into the runner [C7, S13]', (t) => {
+test('cli.io-commands-test-discovery.default-discovery-runs-one-fixture-and-does: default discovery runs one fixture and does not recurse into the runner [C7, S13]', (t) => {
   runDiscovery(discoveryFixture(t));
 });
 
-test('discovery follows a new runner src import and its transitive dependency [C7, S13]', (t) => {
+test('cli.io-commands-test-discovery.discovery-follows-a-new-runner-src-import: discovery follows a new runner src import and its transitive dependency [C7, S13]', (t) => {
   const source = mkdtempSync(join(tmpdir(), 'pullboard-discovery-source-'));
   t.after(() => rmSync(source, { recursive: true, force: true }));
   mkdirSync(join(source, 'bin'));
@@ -179,7 +174,7 @@ test('discovery follows a new runner src import and its transitive dependency [C
 });
 
 
-test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-that-matches-no-test: a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
@@ -224,7 +219,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED [C7,S13]',
 });
 
 
-test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-that-matches-no-test-2: a name pattern that matches no test fails with NO_TESTS_MATCHED in a landing [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const runner = realpathSync(join(box.root, 'apps/cli/src/io/run/tests.js'));
   const file = join(box.root, 'test/one.test.js');
@@ -247,7 +242,7 @@ test('a name pattern that matches no test fails with NO_TESTS_MATCHED in a landi
 });
 
 
-test('runner option values that resemble a name pattern remain values [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.runner-option-values-that-resemble-a-name: runner option values that resemble a name pattern remain values [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   const empty = join(box.root, 'test/empty.test.js');
   writeFileSync(empty, 'export {};\n');
@@ -261,7 +256,7 @@ test('runner option values that resemble a name pattern remain values [C7,S13]',
 });
 
 
-test('a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
+test('cli.io-commands-test-discovery.a-name-pattern-with-sharded-discovery-keeps: a name pattern with sharded discovery keeps its filter [C7,S13]', (t) => {
   const box = discoveryFixture(t);
   writeFileSync(join(box.root, 'pullboard.json'), JSON.stringify({ landingShards: 2 }));
   writeFileSync(join(box.root, '.gitignore'), 'ran-once\n');

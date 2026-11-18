@@ -495,13 +495,21 @@ function firstCpuOption(source, bindings, quoted, argument) {
       const literal = bindings.strings.find(value => value.start === start);
       const object = bindings.code[start] === '{' ? sourceParts(bindings.code, start + 1, '}') : null;
       const end = object ? object.end + 1 : literal?.end;
-      if (end !== undefined && /^(?:[ \t]*[;,\r\n]|\s*$)/u.test(bindings.code.slice(end))) [from, to] = [start, end];
+      if (end !== undefined && declarationEnds(bindings.code.slice(end))) [from, to] = [start, end];
     }
   }
   // A complete string/template is a title; every unresolved expression may instead be options.
   if (bindings.strings.some(value => value.start === from && value.end === to)) return false;
   if (stringConcatenation(bindings, from, to)) return false;
   return cpuOption(source, bindings.code, quoted, [from, to]);
+}
+
+/** A declaration ends at `;`, `,`, the end, or a newline whose next token cannot continue the expression. */
+function declarationEnds(rest) {
+  if (/^(?:[ \t]*[;,]|\s*$)/u.test(rest)) return true;
+  if (!/^[ \t]*\r?\n/u.test(rest)) return false;
+  // A line starting with an operator, call, index or member access continues the value (no ASI), so it may be options.
+  return !/^\s*(?:[&|?+\-*\/%<>=^.(\[`]|in\b|instanceof\b)/u.test(rest);
 }
 
 /** A string literal joined only by top-level + always evaluates to a string, so it is a title, never options. */

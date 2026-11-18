@@ -22,7 +22,7 @@ export function lineSettingsCommand(io, { second, rest, values = {} }, { actOn, 
     return 0;
   }
   if (!second || rest.length !== 1) throw new Refused('USAGE', 'pullboard settings line <name> <value> --reason "why" --window \'{"windowMinutes":60}\'');
-  const value = second === 'focusMilestone' ? (rest[0] === 'off' ? false : rest[0]) : rest[0] === 'on' ? true : rest[0] === 'off' ? false : Number(rest[0]);
+  const value = second === 'focusMilestone' ? (rest[0] === 'off' ? false : rest[0]) : rest[0] === 'ab' ? 'ab' : rest[0] === 'on' ? true : rest[0] === 'off' ? false : Number(rest[0]);
   return actOn(io, async (ctx, board, me) => {
     const change = await ordered(ctx, board, 'setLineSetting', [{ agentId: me.id, key: second, value,
       reason: values.reason, window: parseWindow(values.window) }]);

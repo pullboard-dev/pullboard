@@ -14,6 +14,7 @@ import { LEAKS } from "../../logic/needs/list.js";
 import { PLAIN_FALLBACK } from "../../logic/needs/list.js";
 import { plainNeedWords } from "../../logic/needs/list.js";
 import { ruleListModel } from "../../logic/rules.js";
+import { filterByField } from "../../logic/selection.js";
 import { selectItemsView } from "../../logic/selection.js";
 import { overlapHtml } from "../../logic/overlap.js";
 import { patchKeyedRows } from "../../logic/page/rows.js";
@@ -44,6 +45,7 @@ const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const itemPanelModel = (${itemPanelModel.toString()});
 const itemPanelHtml = (${itemPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
+const filterByField = (${filterByField.toString()});
 const selectItemsView = (${selectItemsView.toString()});
 const patchKeyedRows = (${patchKeyedRows.toString()});
 const rowWindow = (${rowWindow.toString()});
@@ -280,6 +282,15 @@ function paintItemsWindow() {
 // The parts that scroll on their own: each keeps its place through any draw (#6613).
 const SCROLLED_PARTS = ['proj-list', 'item-list', 'chain', 'detail', 'pipeline', 'feed', 'agents', 'spec-list', 'spec-detail', 'doctrine-list', 'doctrine-detail', 'activity', 'roadmap-panel', 'dashboard', 'insights-pipeline', 'cost'];
 /**
+ * Run fn once, after the browser has painted the change just made: on the next frame, then on a fresh turn. Why: a press
+ * should show its result at once and let the heavier redraw follow; a page with no frames runs it on the next turn.
+ */
+function afterPaint(fn) {
+  const frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next();
+  frame(() => setTimeout(fn, 0));
+}
+
+/**
  * Draw the page from the store (#6613). The sidebar and the chrome are drawn on every call; the shown tab's pane is
  * drawn unless this is a tab switch and the pane still shows what it was drawn from. Every part is written through
  * store.paint, so a live update rewrites only the parts whose markup changed, and each scrolled part keeps its place.
@@ -361,7 +372,7 @@ function render({ tab: switching = false } = {}) {
     const history = readCostHistory(p, switching);
     store.paint($('cost'), costPaneHtml(history, p));
   }
-  if (roadmapBehind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'roadmap') render(); }, 0));
+  if (roadmapBehind) afterPaint(() => { if (view.tab === 'roadmap') render(); });
   if (draw && !roadmapBehind && view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
@@ -423,7 +434,7 @@ function render({ tab: switching = false } = {}) {
       quick: switching,
     });
     // A switch drew the last model at once; the up-to-date one follows once that frame is on screen.
-    if (behind) (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (next) => next())(() => setTimeout(() => { if (view.tab === 'dashboard') render(); }, 0));
+    if (behind) afterPaint(() => { if (view.tab === 'dashboard') render(); });
   } else if (view.tab === 'items') {
     // Items opens on its items: questions and sentinels wait in one collapsed group above them, repeats folded [N26].
     // With nothing for the person, the top of Items holds the one quiet Rulings line.
@@ -589,10 +600,6 @@ function render({ tab: switching = false } = {}) {
   }
 
   if (draw && view.tab === 'shouts') {
-  if ($('hold-lane').dataset.lanes !== working.join()) {
-    $('hold-lane').dataset.lanes = working.join();
-    $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
-  }
   // Every #id in a shout that names an item opens it, whatever stands next to it. The ids are found in
   // the raw text and each piece is escaped on its own, so an apostrophe's &#39; is never read as one;
   // a number that names no item stays text. A path:lines@commit reference opens that code (B23). It
@@ -700,9 +707,6 @@ function render({ tab: switching = false } = {}) {
     activeAgent: view.agent, allAgents: view.allAgents, idleOpen: Boolean(view.open.idle) });
   if (panelSelection.idle.some((agent) => agent.agentId === view.agent)) view.open.idle = true;
   store.paint($('agents'), agentsPanelHtml({ ...panelSelection, idleOpen: Boolean(view.open.idle) }, { now: panelNow, dashboardHref: tabHref('dashboard') }));
-  const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
-  if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
-  store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
 
   }
 
@@ -801,7 +805,17 @@ function render({ tab: switching = false } = {}) {
     store.paint($(kind + '-detail'), row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3 class="hd2">Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>');
   }
 
-  if (draw && view.tab === 'activity') activityView.draw(p, switching);
+  // The Lanes fold and its hold form sit on Activity, so Activity draws them: drawn with Shouts, a release or hold made there never repainted (#10661).
+  if (draw && view.tab === 'activity') {
+    if ($('hold-lane').dataset.lanes !== working.join()) {
+      $('hold-lane').dataset.lanes = working.join();
+      $('hold-lane').innerHTML = working.map(lane => '<option>' + esc(lane) + '</option>').join('');
+    }
+    const held = new Map(p.holds.map((h) => [h.hold_lane, h]));
+    if (held.size && $('lanes-fold')) $('lanes-fold').open = true;
+    store.paint($('lanes'), working.map((l) => '<div class="lane"><span><b>' + esc(l) + '</b> ' + (held.has(l) ? '<span class="chip no" title="held by ' + esc(agentName(held.get(l).hold_by)) + '">held by ' + esc(agentName(held.get(l).hold_by)) + '</span> <span class="muted">' + linked(held.get(l).hold_reason, titles) + '</span>' : '<span class="chip ok">open</span>') + '</span>' + (held.has(l) ? '<button class="ghost" data-release="' + esc(l) + '" type="button">Release</button>' : '') + '</div>').join(''));
+    activityView.draw(p, switching);
+  }
   if (draw && !roadmapBehind) store.paneDrawn(view.tab, store.paneKey(view, $('q').value));
   showTab();
   drawPageControls();

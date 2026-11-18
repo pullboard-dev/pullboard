@@ -80,7 +80,7 @@ function socketChild(mode, home) {
   });
 }
 
-test('a socket closed before the first write fails the request, not the process [C7,N26]', t => {
+test('sync.local.closed-socket-fails-request: a socket closed before the first write fails the request, not the process [C7,N26]', t => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-local-fetch-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   // The control deliberately injects the known failure class. It does not claim to explain
@@ -100,7 +100,7 @@ test('a socket closed before the first write fails the request, not the process 
   }
 });
 
-test('local HTTP keeps response streams, request bodies, redirects and abort reasons [C7,N26]', async t => {
+test('sync.local.keeps-streams-and-redirects: local HTTP keeps response streams, request bodies, redirects and abort reasons [C7,N26]', async t => {
   const observed = [];
   const server = createServer(async (request, response) => {
     if (request.url === '/hang') return;

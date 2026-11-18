@@ -212,6 +212,23 @@ function addedWorktree(root, folder, head) {
 }
 
 /**
+ * The host folder for one seat's item, left at a commit on a detached head for its submit to run in.
+ * Why one writer: a bundled and a pushed submit both place their commit here, so remote-items has one home.
+ *
+ * @param {string} root - The board host's checkout.
+ * @param {{ agent: string, item: number, head: string }} place
+ * @returns {string} The folder.
+ */
+export function placeRemoteItem(root, { agent, item, head }) {
+  const folder = join(repoInfo(root).commonDir, 'pullboard', 'remote-items', `${agent}-item-${item}`);
+  const placed = existsSync(folder)
+    ? tryGit(folder, ['checkout', '--quiet', '--force', '--detach', head]).status === 0 && tryGit(folder, ['clean', '-fdq']).status === 0
+    : addedWorktree(root, folder, head);
+  if (!placed) throw new Refused('COMMITS_REFUSED', `the board host could not check out ${head.slice(0, 12)} in ${folder}; remove that folder on the host and submit again`);
+  return folder;
+}
+
+/**
  * Check one move's carried commits against the claim, index them under refs/pullboard/remote/<agent>/item-<id>, and
  * return the host folder whose detached head is the seat's commit, for the submit to run in.
  * @param {string} root the board host's checkout
@@ -242,10 +259,5 @@ export function receiveCommits(root, body, seat, readBoard, getItem) {
   const indexed = gitBytes(root, ['index-pack', '--stdin', '--fix-thin', '--strict'], pack);
   if (indexed.status !== 0) throw new Refused('COMMITS_REFUSED', `the board host could not index the bundle (${String(indexed.stderr).split('\n')[0]}); submit again from the clone`);
   if (tryGit(root, ['update-ref', `refs/pullboard/remote/${agent}/item-${item}`, commits.head]).status !== 0) throw new Refused('COMMITS_REFUSED', `the board host could not record ${commits.head.slice(0, 12)}; submit again from the clone`);
-  const folder = join(repoInfo(root).commonDir, 'pullboard', 'remote-items', `${agent}-item-${item}`);
-  const placed = existsSync(folder)
-    ? tryGit(folder, ['checkout', '--quiet', '--force', '--detach', commits.head]).status === 0 && tryGit(folder, ['clean', '-fdq']).status === 0
-    : addedWorktree(root, folder, commits.head);
-  if (!placed) throw new Refused('COMMITS_REFUSED', `the board host could not check out ${commits.head.slice(0, 12)} in ${folder}; remove that folder on the host and submit again`);
-  return folder;
+  return placeRemoteItem(root, { agent, item, head: commits.head });
 }

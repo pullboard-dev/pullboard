@@ -13,11 +13,17 @@ import { submitted } from '../../tests/fixtures/verdict-check.js';
 import { clean } from '../../tests/fixtures/verdict-check.js';
 
 test('accept records green in its event and JSON after a real frozen check [V19,V8]', async () => {
+  const started = Date.now();
+  /** Print the elapsed seconds at each step, so a slow run on a loaded runner names the step it stalled in [C7]. */
+  const step = (name) => process.stderr.write(`check-checked step ${name}: ${((Date.now() - started) / 1000).toFixed(1)} s\n`);
   const box = sandbox();
   try {
     const { repo, web } = await project(box);
+    step('project ready');
     const checked = await submitted(box, repo, web, 'Checked accept', 'node --check web/item-1.js');
+    step('item submitted');
     await succeeds(box, repo, 'check', String(checked.id), '--yes'); // Diagnostics must not block an existing frozen check while main is detached for review.
+    step('first check green');
     const checkedSource = join(repo, 'web', `item-${checked.id}.js`);
     const originalSource = readFileSync(checkedSource, 'utf8');
     writeFileSync(checkedSource, 'const = ;\n'); // Keep the negative compiler case unambiguous; Node22 can silently accept invalid detected-ESM .js (#65202).
@@ -28,10 +34,13 @@ test('accept records green in its event and JSON after a real frozen check [V19,
     // Process-level by nature: the failure-diagnostics notice comes from a child the check starts, which in-process dispatch does not reproduce.
     const redCheck = box.spawn(repo, 'check', String(checked.id), '--yes', '--json');
     assert.equal(redCheck.code, 1, safeFixtureDiagnostic(JSON.stringify({ phase: 'real check after direct compiler red', redCheck, source: readFileSync(checkedSource, 'utf8') }), box.env));
+    step('red check done');
     assert.equal(JSON.parse(redCheck.out).green, false);
     assert.match(redCheck.err, /failure diagnostics could not finish \(NO_POLICY\).*original result stays red/u);
     writeFileSync(checkedSource, originalSource);
+    step('red check asserted, accept starting');
     const checkedJson = JSON.parse(await succeeds(box, repo, 'verify', String(checked.id), 'accept', '--as', 'coordinator', '--note', 'the frozen check passed', '--json'));
+    step('accept done');
     assert.equal(checkedJson.check, 'green');
     const checkedEvent = JSON.parse(await succeeds(box, repo, 'log', String(checked.id), '--json')).events.find((event) => event.event_kind === 'accept');
     assert.equal(JSON.parse(checkedEvent.event_detail).check, 'green');

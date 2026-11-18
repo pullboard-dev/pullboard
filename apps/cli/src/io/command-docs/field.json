@@ -1,0 +1,7 @@
+{
+  "name": "field",
+  "help": "  pullboard field declare <name> <text|choice|number> [--choices a,b]   declare a typed item field; needs items.typedFields on\n  pullboard field set <id> <name> <value>   set an item's value for a declared field; a wrong type is refused with FIELD_TYPE\n",
+  "required": {
+    "field": "object"
+  }
+}

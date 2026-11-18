@@ -14,10 +14,14 @@ import { staticMemoOn } from '../../../../../packages/config/index.js';
 /** The rule code the gate reports a red static stage under. */
 export const STATIC_RULE = 'STATIC_RED';
 
-/** The `path:line: text` rows a static check prints, one per finding. */
+/** The `path:line: text` rows a static check prints, plus its `keyless:<path>: <text>` rows (a finding with no line), in output order. */
 function findingRows(output) {
-  return String(output ?? '').split('\n').map(line => /^(\S+?):(\d+): (.+)$/u.exec(line.trim())).filter(Boolean)
-    .map(match => ({ rule: STATIC_RULE, file: match[1], line: Number(match[2]), text: match[3] }));
+  return String(output ?? '').split('\n').map(line => line.trim()).map(line => {
+    const keyless = /^keyless:(\S+?): (.+)$/u.exec(line);
+    if (keyless) return { rule: STATIC_RULE, file: keyless[1], line: null, text: keyless[2] };
+    const keyed = /^(\S+?):(\d+): (.+)$/u.exec(line);
+    return keyed ? { rule: STATIC_RULE, file: keyed[1], line: Number(keyed[2]), text: keyed[3] } : null;
+  }).filter(Boolean);
 }
 
 /**
@@ -35,7 +39,7 @@ export function runStaticStage(io, root, { command = mainPolicy(root).config.sta
   const run = runShell(root, command, { readOnlyGit: true });
   const findings = findingRows(run.output);
   io.result?.({ green: run.isGreen, findings });
-  for (const row of findings) io.say(`${row.rule} ${row.file}:${row.line}: ${row.text}`);
+  for (const row of findings) io.say(`${row.rule} ${row.file}${row.line === null ? '' : `:${row.line}`}: ${row.text}`);
   if (run.isGreen) io.say('static stage green: the gate will not return STATIC_RED for this tree');
   else if (!findings.length) io.say(`${STATIC_RULE} the static stage failed with no file:line finding:\n${String(run.output).trim().slice(-1500)}`);
   return run.isGreen ? 0 : 1;

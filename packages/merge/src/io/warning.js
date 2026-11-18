@@ -1,4 +1,5 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
@@ -73,15 +74,20 @@ export async function warnMainMoved({ root, board, trunk, write, say }, reads) {
       const next = '; git merge main in your worktree, resolve, commit and resubmit';
       const path = JSON.stringify(file);
       say(prefix + path + next);
-      const width = 400 - prefix.length - next.length - 20;
+      const width = 400 - prefix.length - next.length - 30;
+      const pathDigest = createHash('sha1').update(path).digest('hex').slice(0, 12);
       const pieces = [''];
       for (const character of path) {
         if (pieces.at(-1).length + character.length > width) pieces.push('');
         pieces[pieces.length - 1] += character;
       }
       for (const [index, piece] of pieces.entries()) {
-        const text = prefix + piece + (pieces.length > 1 ? ` (${index + 1}/${pieces.length})` : '') + next;
-        const exists = board.db.prepare('SELECT 1 FROM shout WHERE shout_to=? AND shout_from=? AND shout_text=?').get(`item:${warning.item}`, 'coordinator', text);
+        // A long path's pieces carry a digest of the whole path, so two paths that share a piece are told apart [#3094].
+        const part = pieces.length > 1 ? ` (${index + 1}/${pieces.length} ${pathDigest})` : '';
+        const text = prefix + piece + part + next;
+        // The text carries the trunk sha, which moves on every landing; one head and file is told once (#3094).
+        const told = `${warning.head.slice(0, 12)} conflicts in ${piece}${part}${next}`;
+        const exists = board.db.prepare('SELECT 1 FROM shout WHERE shout_to=? AND shout_from=? AND instr(shout_text, ?) > 0').get(`item:${warning.item}`, 'coordinator', told);
         if (!exists) await write('shout', [{ from: 'coordinator', to: `item:${warning.item}`, item: warning.item, text, lanes: [] }]);
       }
     }

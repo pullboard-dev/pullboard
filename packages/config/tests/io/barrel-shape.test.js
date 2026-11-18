@@ -6,29 +6,33 @@ import * as light from '../../light.js';
 
 const FILE = new URL('../../light.js', import.meta.url);
 
-/** Every name the config light door exported before it was reflowed [C7]. */
+/** Every name the config light door exports: those from before it was reflowed [C7], plus settings readers added since. */
 const BEFORE = [
   'CONFIG_FILE',
   'COORDINATOR',
   'DOCTRINE_FILE',
   'LEGACY_DOCTRINE_FILE',
   'boardRemote',
+  'browserFreeChecksEnabled',
   'configFromSource',
   'doctrineFile',
   'environmentProblem',
   'gitSyncMarkerLinked',
   'healthDiskFloorGb',
+  'hunkFreshnessEnabled',
   'listThinRead',
   'loadConfig',
   'loadMachineSettings',
   'maintenanceDurations',
   'namedImportSelectionOn',
+  'readThinCommands',
+  'reofferInfraEndEnabled',
   'retireIdleSeatHours',
   'submitProofOnly',
   'validateRunner',
 ];
 
-test('clause 1: light.js lines stay short, names sit one per line sorted, paths are grouped sorted [C7]', () => {
+test('config.io-barrel-shape.clause-1-light-js-lines-stay-short-names: clause 1: light.js lines stay short, names sit one per line sorted, paths are grouped sorted [C7]', () => {
   const text = readFileSync(FILE, 'utf8');
   for (const line of text.split('\n')) assert.ok(line.length <= 120, `line too long: ${line.slice(0, 60)}`);
   const statements = [...text.matchAll(/export \{([^}]*)\} from ('[^']+');/g)];
@@ -43,6 +47,6 @@ test('clause 1: light.js lines stay short, names sit one per line sorted, paths 
   assert.deepEqual(paths, [...new Set(paths)].sort());
 });
 
-test('clause 2: light.js exports exactly the names it did before the reflow [C7]', () => {
+test('config.io-barrel-shape.clause-2-light-js-exports-exactly-the: clause 2: light.js exports exactly the names it did before the reflow [C7]', () => {
   assert.deepEqual(Object.keys(light).sort(), BEFORE);
 });

@@ -8,7 +8,7 @@ import {
   git,
   cellGitEnvironment,
 } from './git.js';
-import { cellsCacheDirectory } from './scripts/cache.js';
+import { cellsCacheDirectory } from './cache-files.js';
 import { withCellSourceSnapshots } from './git.js';
 import { readPlan } from './scripts/plan.js';
 import { unplanned } from './scripts/plan.js';

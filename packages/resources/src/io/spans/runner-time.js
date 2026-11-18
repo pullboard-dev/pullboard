@@ -5,6 +5,7 @@
  * The jobs cell keeps the daily files beside the gate spans; `pullboard gate-health` reads them.
  */
 import { appendGateSpan } from '../../../../jobs/index.js';
+import { readRunnerTime } from '../../../../jobs/index.js';
 import { runnerTimeFolder } from '../../../../jobs/index.js';
 import { repoInfo } from '../../../../git/light.js';
 
@@ -37,4 +38,21 @@ export function recordRunnerTime(root, { startedAt, endedAt = Date.now(), host =
     appendGateSpan(runnerTimeFolder(commonDir), line);
     return line;
   } catch { return null; /* Telemetry is diagnostic; the run's own result stands without it. */ }
+}
+
+/**
+ * The total milliseconds of recorded runner time whose item or kind is empty, which the report counts as unattributed.
+ * Why: it shows how much runner time no item is charged for.
+ *
+ * @param {string} root - A checkout of the repository the spans were recorded for.
+ * @param {{ since?: number, now?: number }} [window] - Only dispatches that ended at or after `since` (default: all).
+ * @returns {number} Milliseconds; 0 when every span names both, or when the root is no repository.
+ */
+export function unattributedRunnerTime(root, { since = 0, now = Date.now() } = {}) {
+  try {
+    const commonDir = repoInfo(root)?.commonDir;
+    if (!commonDir) return 0;
+    const spans = readRunnerTime(runnerTimeFolder(commonDir), { since, now });
+    return Math.round(spans.filter(span => !span.item || !span.kind).reduce((sum, span) => sum + span.minutes * 60_000, 0));
+  } catch { return 0; /* A reader of telemetry never throws. */ }
 }

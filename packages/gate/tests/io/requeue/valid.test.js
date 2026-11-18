@@ -12,8 +12,8 @@ import { awaitNestedRun } from '../../../index.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
 /** Reuse the private two-runner resources, settings, Git source, and SSH stand-in from #2657. */
 function fixture(t) {
@@ -41,7 +41,7 @@ async function execute(box, source) {
   return result.stdout;
 }
 
-test('an unpinned run requeues off a lost runner and dispatches without BAD_RESOURCE_METADATA [C7]', async t => {
+test('gate.io-requeue-valid.an-unpinned-run-requeues-off-a: an unpinned run requeues off a lost runner and dispatches without BAD_RESOURCE_METADATA [C7]', async t => {
   const box = fixture(t);
   const requests = join(box.directory, 'requests.jsonl');
   writeFileSync(join(box.bin, 'package.json'), JSON.stringify({ type: 'module' }));

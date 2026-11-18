@@ -67,3 +67,47 @@ export function liftConditionalHold(board, event, logEvent, setItem) {
   logEvent(board, 'coordinator', 'unhold_item', event.item_id, { reason: item.item_hold_reason,
     until: condition.kind, holdEventId: condition.holdEventId, triggerEventId: event.event_id });
 }
+
+const DONE = new Set(['landed', 'withdrawn']);
+
+/** True when every item a hold reason names has landed or been withdrawn; a reason naming none is never settled [C7]. Pure: no board writes. */
+export function settledHoldReason(reason, statusOf) {
+  const ids = [...new Set(String(reason ?? '').match(/#\d+/g) ?? [])];
+  return ids.length > 0 && ids.every(id => DONE.has(statusOf(id.slice(1))));
+}
+
+/** True when a parent has at least one child and every child has landed or been withdrawn [C7]. */
+export function parentHoldSettled(childStatuses) {
+  return childStatuses.length > 0 && childStatuses.every(status => DONE.has(status));
+}
+
+/** How the board names an item's state for the settled rules: landed (merged), withdrawn, or its own status. */
+function settledStatus(row) {
+  return row?.item_merged_commit ? 'landed' : row?.item_status;
+}
+
+/**
+ * With holds.liftSettled on, lift a hold whose reason names only landed or withdrawn items, or a parent hold whose children
+ * are all done, on the board write that records main moving, an item landing or an item withdrawn. An automatic released-twice hold is left to its own lift.
+ * Why: a hold waits for work that may already be done, and nobody was told to look again (#2962).
+ *
+ * @param {object} board the open board; `board.liftSettledHolds` is the setting, off unless true
+ * @param {object} event the event just written
+ * @param {Function} logEvent writes an event
+ * @param {Function} setItem patches an item
+ */
+export function liftSettledHolds(board, event, logEvent, setItem) {
+  if (board.liftSettledHolds !== true || !['main-moved', 'merged', 'withdraw'].includes(event.event_kind)) return;
+  const find = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?');
+  const kids = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_parent_id=?');
+  const held = board.db.prepare(`SELECT item_id,item_hold_reason FROM item WHERE item_hold_reason IS NOT NULL AND item_hold_reason NOT LIKE 'Released twice%'`).all();
+  for (const item of held) {
+    if (item.item_id === event.item_id) continue;
+    const settled = settledHoldReason(item.item_hold_reason, id => settledStatus(find.get(Number(id))))
+      || parentHoldSettled(kids.all(item.item_id).map(settledStatus));
+    if (!settled) continue;
+    forgetHoldMaintenance(board, item.item_id);
+    setItem(board, item.item_id, { item_hold_reason: null, item_hold_by: null, item_hold_at: null }, event.event_at);
+    logEvent(board, 'coordinator', 'unhold_item', item.item_id, { reason: item.item_hold_reason, cause: 'settled', triggerEventId: event.event_id });
+  }
+}

@@ -22,7 +22,7 @@ import { toolSourcePath } from '../../../index.js';
 import { fixture } from '../../fixtures/package-files.js';
 import { controllerFixture } from '../../fixtures/package-files.js';
 
-test('a loaded controller refuses changed private compiler bytes before an optional rescan [C7,P3]', async t => {
+test('runners.installed.a-loaded-controller-refuses-changed-private: a loaded controller refuses changed private compiler bytes before an optional rescan [C7,P3]', async t => {
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyRunnerPackage(resolve(import.meta.dirname, '../../../../..'), installed);
@@ -40,7 +40,7 @@ test('a loaded controller refuses changed private compiler bytes before an optio
   assert.deepEqual(snapshot.currentRunnerTooling(installed, loaded), runnerPackage(installed));
 });
 
-test('an installed worker follows Node import-pattern prefix precedence [C7,P3]', t => {
+test('runners.installed.an-installed-worker-follows-node-import: an installed worker follows Node import-pattern prefix precedence [C7,P3]', t => {
   const f = fixture(t, ['src', 'apps', 'packages']);
   f.write('package.json', JSON.stringify({ type: 'module', files: ['src', 'apps', 'packages'], imports: {
     '#a/*/long': './packages/less/src/*.js', '#a/b/*': './packages/more/src/*.js',
@@ -60,7 +60,7 @@ test('an installed worker follows Node import-pattern prefix precedence [C7,P3]'
   assert.equal(result.stdout.trim(), 'longest-prefix');
 });
 
-test('an installed worker executes a prefix-only Node builtin without copying it [C7,P3]', t => {
+test('runners.installed.an-installed-worker-executes-a-prefix: an installed worker executes a prefix-only Node builtin without copying it [C7,P3]', t => {
   const f = fixture(t);
   f.write('apps/runner/src/io/scripts/worker.js', "import {DatabaseSync} from 'node:sqlite'; const db=new DatabaseSync(':memory:'); console.log(db.prepare('SELECT 42 AS value').get().value); db.close();\n");
   const capsule = runnerPackage(f.root);
@@ -74,7 +74,7 @@ test('an installed worker executes a prefix-only Node builtin without copying it
   assert.equal(result.stdout.trim(), '42', 'the genuine builtin executes in the installed worker');
 });
 
-test('an installed worker executes coverage with its source-relative reporter dependency [C7,P3]', t => {
+test('runners.installed.an-installed-worker-executes-coverage-with: an installed worker executes coverage with its source-relative reporter dependency [C7,P3]', t => {
   const f = fixture(t);
   f.write('apps/runner/src/io/scripts/reporter.js', "export default async function* report(events) { for await (const event of events) if(event.type==='test:coverage') yield 'REAL_COVERAGE\\n'; }\n");
   const bodyMarker = join(f.directory, 'coverage-body.json');
@@ -99,7 +99,7 @@ test('an installed worker executes coverage with its source-relative reporter de
   assert.match(body.node, /^v\d+\./u);
 });
 
-test('a loaded controller refuses changes to every derived runtime file before rescanning [C7,P3]', t => {
+test('runners.installed.a-loaded-controller-refuses-changes-to: a loaded controller refuses changes to every derived runtime file before rescanning [C7,P3]', t => {
   const f = fixture(t);
   f.write('apps/runner/src/io/scripts/worker.js', "import '../../../../../packages/leaf/src/value.js';\n");
   f.write('packages/runners/index.js', 'export const controller = true;\n');
@@ -120,7 +120,7 @@ test('a loaded controller refuses changes to every derived runtime file before r
   assert.deepEqual(currentRunnerTooling(f.root, loaded), runnerPackage(f.root));
 });
 
-test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
+test('runners.installed.controller-provider-freshness-follows-its-real: controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
   const { installed } = controllerFixture(t);
   const loaded = captureRunnerTooling(installed);
   const unrelated = join(installed, 'packages/state/src/logic/engines/engine-next.js'); // check-timing-engine.js is composed through the state light door
@@ -133,7 +133,7 @@ test('controller provider freshness follows its real package composition, not un
     'the actual transitive lifecycle provider still requires a fresh controller');
 });
 
-test('the actual async controller retains fresh bridging and rejects a stale derived runtime before dispatch [C7,P3]', t => {
+test('runners.installed.the-actual-async-controller-retains-fresh: the actual async controller retains fresh bridging and rejects a stale derived runtime before dispatch [C7,P3]', t => {
   const f = controllerFixture(t);
   const script = `import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

@@ -50,7 +50,7 @@ async function serve(t, board, handBackUnrunnable) {
   return serveRunner({ git: pullGit, board: BOARD, runner: 'mill', capabilities: [], cache: root, once: true, fetchImpl: board.fetchImpl, handlers, trunkPack: async () => {}, handBackUnrunnable });
 }
 
-test('clause 1: with jobs.handBackUnrunnable on, a runner given a land job whose shardProof run is missing releases it before any fetch, in the claim call, with a LAND_UNRUNNABLE reason [test] [C7,#9249]', async t => {
+test('runners.land-handback-reason.with-jobs-handbackunrunnable-on-a-runner: clause 1: with jobs.handBackUnrunnable on, a runner given a land job whose shardProof run is missing releases it before any fetch, in the claim call, with a LAND_UNRUNNABLE reason [test] [C7,#9249]', async t => {
   const board = boardBehindFetch(t, LAND);
   const served = await serve(t, board, true);
   assert.deepEqual(served.jobs.map(entry => [entry.job, entry.outcome]), [[JOB, 'released']]);
@@ -58,7 +58,7 @@ test('clause 1: with jobs.handBackUnrunnable on, a runner given a land job whose
   assert.match(released.payload.reason, /\[LAND_UNRUNNABLE\].*shardProof was moved to the job request/u);
 });
 
-test('clause 2: the reason is in the job\'s steps and a second runner does not receive the job until the backoff passes [test] [C7,#9249]', async t => {
+test('runners.land-handback-reason.the-reason-is-in-the-job: clause 2: the reason is in the job\'s steps and a second runner does not receive the job until the backoff passes [test] [C7,#9249]', async t => {
   const board = boardBehindFetch(t, LAND);
   await serve(t, board, true);
   const released = jobView(board.db, JOB).steps.find(step => step.name === 'released');
@@ -67,7 +67,7 @@ test('clause 2: the reason is in the job\'s steps and a second runner does not r
   assert.equal(board.claim('anvil', released.at + 30_001)?.attempt, 2, 'offered again once the backoff passed');
 });
 
-test('clause 1: with jobs.handBackUnrunnable off (the default) the same land job is started as before and no unrunnable reason is recorded [test] [C7,#9249]', async t => {
+test('runners.land-handback-reason.with-jobs-handbackunrunnable-off-the-default: clause 1: with jobs.handBackUnrunnable off (the default) the same land job is started as before and no unrunnable reason is recorded [test] [C7,#9249]', async t => {
   const board = boardBehindFetch(t, LAND);
   await serve(t, board, false);
   const released = jobView(board.db, JOB).steps.find(step => step.name === 'released');

@@ -24,7 +24,7 @@ function repository(t) {
   return { primary, linked, shim, log };
 }
 
-test('clause 1: next, show and claim start no relay link (relay.js linkFile git read) - relayLinked on a checkout root runs no git [C7]', async t => {
+test('link.order.read-commands-start-no-link: clause 1: next, show and claim start no relay link (relay.js linkFile git read) - relayLinked on a checkout root runs no git [C7]', async t => {
   const { primary, linked, shim, log } = repository(t);
   const savedPath = process.env.PATH;
   process.env.PATH = `${shim}:${savedPath}`;
@@ -36,7 +36,7 @@ test('clause 1: next, show and claim start no relay link (relay.js linkFile git 
   assert.equal(fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '', '', 'the link path comes from reading .git, not from git');
 });
 
-test('clause 2: next, show and claim start no worktree-maintenance timer or canonical() git call - the quiet set holds exactly them [C7]', () => {
+test('link.order.quiet-set-starts-no-timer: clause 2: next, show and claim start no worktree-maintenance timer or canonical() git call - the quiet set holds exactly them [C7]', () => {
   const source = fs.readFileSync(join(ROOT, 'apps/cli/src/io/cli-main/run.js'), 'utf8');
   assert.match(source, /const QUIET_COMMANDS = new Set\(\['next', 'show', 'claim'\]\);/u);
   assert.match(source, /!QUIET_COMMANDS\.has\(parsed\?\.positionals\[0\]\)\) \{\s*\/\/ The foreground command already read/u);

@@ -191,8 +191,7 @@ function placeControls() {
 function pageControl(target) {
   const kind = target.dataset.pageCtl, value = target.tagName === 'SELECT' ? target.value : target.dataset.value ?? '';
   // The control answers at once: it shows its new state and the address takes it now; the page redraws on the next turn.
-  const later = (then) => requestAnimationFrame(() => setTimeout(then, 0));
-  if (kind === 'new') { view.adding = true; later(() => { render(); $('add-title').focus(); }); return; }
+  if (kind === 'new') { view.adding = true; afterPaint(() => { render(); $('add-title').focus(); }); return; }
   if (kind === 'state') view.state = value;
   else if (kind === 'lane') view.lane = value || null;
   else if (kind === 'view') { view.itemsView = value === 'pipeline' ? 'pipeline' : 'list'; view.addressDetail = null; }
@@ -267,7 +266,7 @@ function switchTab(tab, detail = null) {
   openTab(tab, detail);
   render({ tab: true });
   if (started === undefined || typeof requestAnimationFrame !== 'function') return;
-  requestAnimationFrame(() => setTimeout(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } }, 0));
+  afterPaint(() => { try { performance.measure('pullboard tab ' + view.tab, { start: started }); } catch { /* an old browser keeps no measure */ } });
 }
 
 /**
@@ -466,7 +465,7 @@ function openFound(target) {
 
 /** Show an item's detail, on another project's board when root names one. */
 function pick(id, root = view.root) {
-  view.adding = false;
+  dismissResult(); view.adding = false;
   if (root !== view.root) return switchTo(root, id);
   if (itemDetails.get(root + '\\n' + id)?.error) itemDetails.delete(root + '\\n' + id);
   view.tab = 'items';
@@ -622,7 +621,7 @@ function moveMessage(move, result) {
   if (move.verb === 'add') return 'added #' + result.item.item_id;
   if (move.verb === 'shout') return 'shouted to ' + move.args.to;
   if (move.verb === 'answer') return 'answered #' + move.item;
-  if (move.verb === 'spec-approve') return 'approved rows ' + move.args.ids + ' (pending apply)';
+  if (move.verb === 'spec-approve') return (${scope.approveMessage})(move.args.ids, result);
   if (move.verb === 'spec-decline') return 'declined rows ' + move.args.ids + ' (pending apply)';
   if (move.verb === 'spec-answer') return 'answered row ' + move.args.row + ' (pending apply)';
   if (move.verb === 'sentinel-approve') return 'approved sentinel ' + move.args.name;
@@ -660,7 +659,7 @@ function fitRow(f) {
   return '<div class="fit-row" data-fit="' + esc(f.target) + '"><div class="meta"><b>' + esc(f.target) + '</b><span class="chip">' + esc(f.decision) + '</span><span class="chip">unverified draft, recorded as ' + esc(f.recordedAs) + '</span></div>' + (f.text ? '<div>' + esc(f.text) + '</div>' : '') + (f.reason ? '<div>Reason: ' + esc(f.reason) + '</div>' : '') + '<div class="muted">Blueprint source: ' + esc(f.blueprint.name + ' v' + f.blueprint.version + ' ' + (f.kind === 'item' ? 'starter' : f.kind) + ' ' + f.key + ': ' + f.source) + '</div></div>';
 }
 
-/** Render escaped decision feedback beside the affected Spec row (B26, N26). */
+/** Render escaped decision feedback beside the affected Spec row (B26, N26); it stays until the next pick or decision, never on a timer, so nothing shifts under a pointer. */
 function specFeedback(feedback) {
   return '<div class="spec-feedback ' + feedback.tone + '" role="status">' + esc(feedback.text) + '</div>';
 }
@@ -807,10 +806,13 @@ async function decideRow(kind, command, args, anchor) {
       // Center an offscreen pick: nearest can round a half-pixel edge just outside the viewport.
       if (rect && (rect.top < 0 || rect.bottom > innerHeight)) picked.scrollIntoView({ block: 'center', behavior: 'instant' });
     }
-    if (!requestMode || feedback.status === 'done') setTimeout(() => { if (view.specFeedback === feedback) { view.specFeedback = null; render(); } }, 6000);
+    // The notice stays until the next pick or decision: a timer removing it would shift the page under a pointer.
   }
   return requestMode ? Boolean(feedback.requestId) && feedback.status !== 'refused' : feedback.tone === 'ok';
 }
+
+/** Hide the last move's result panel on the next pick or arrow move, never by timer (#9529). */
+function dismissResult() { const out = $('console'); if (out && !out.hidden && out.textContent !== 'running…' && out.textContent !== 'Request waiting…') out.hidden = true; }
 
 /**
  * Run a public API move beside its action and let only the latest one own the console and timer. The move's own
@@ -832,7 +834,6 @@ async function act(command, args, anchor) {
   const root = view.root;
   const latest = () => run === view.acting && root === view.root;
   view.request = null;
-  clearTimeout(view.closing);
   out.hidden = false;
   out.className = 'console';
   out.textContent = requestMode ? 'Request waiting…' : 'running…';
@@ -851,8 +852,6 @@ async function act(command, args, anchor) {
       out.textContent = requestMode ? requestNotice(request) : asked ? 'Sent to the coordinator.' : '$ pullboard ' + move.label + '\\n' + moveMessage(move.body, result.result);
       if (requestMode) view.request = { root, id: request.id, run };
       out.scrollIntoView({ block: 'center' });
-      // What went through says so and then steps aside; a refusal stays until the person closes it.
-      if (!requestMode || request.status === 'done') view.closing = setTimeout(() => { if (latest()) out.hidden = true; }, 6000);
     }
     // The result was already revealed. A late refresh must not scroll after the person aims at the next action.
     refreshThrough(result?.event?.event_id).catch((error) => { $('live').textContent = 'offline: ' + String(error.message || error); });
@@ -1129,10 +1128,10 @@ document.addEventListener('click', (event) => {
     }
     t.setAttribute('aria-expanded', String(open));
     if (panel) panel.hidden = !open;
-    requestAnimationFrame(() => setTimeout(() => {
+    afterPaint(() => {
       render();
       [...$('roadmap').querySelectorAll('[data-roadmap-key]')].find((head) => head.dataset.roadmapKey === key)?.focus({ preventScroll: true });
-    }));
+    });
     return;
   }
   if ('roadmapPage' in t.dataset) { view.roadmapPage = { release: t.dataset.roadmapPage, page: Number(t.dataset.page) || 1, per: view.roadmapPage?.per ?? 25 }; address(); render(); return; }
@@ -1177,8 +1176,8 @@ document.addEventListener('click', (event) => {
   // A spec or doctrine row is 'kind:id'; an Activity row carries a bare item number and is the Activity page's own to handle.
   else if (t.dataset.row?.includes(':')) {
     const [kind, id] = t.dataset.row.split(':');
-    view.row[kind] = id;
-    view.addressDetail = id;
+    dismissResult(); view.row[kind] = id;
+    view.addressDetail = id; view.specFeedback = null;
     address();
     render();
     $(kind + '-list').focus({ preventScroll: true });
@@ -1233,7 +1232,7 @@ for (const kind of ['spec', 'doctrine']) $(kind + '-list').addEventListener('key
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault();
     const next = ids[Math.min(ids.length - 1, Math.max(0, at + (event.key === 'ArrowDown' ? 1 : -1)))];
-    if (next && next !== view.row[kind]) { view.row[kind] = next; view.addressDetail = next; address(); render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
+    if (next && next !== view.row[kind]) { dismissResult(); view.row[kind] = next; view.addressDetail = next; view.specFeedback = null; address(); render(); event.currentTarget.querySelector('.srow.on')?.scrollIntoView({ block: 'nearest' }); }
   } else if (event.key === 'Enter' && view.row[kind]) {
     event.preventDefault();
     $(kind + '-detail').scrollIntoView({ block: 'start', behavior: 'instant' });
@@ -1460,7 +1459,7 @@ async function loadTransport() {
     return transport;
   })();
   try { return await transportLoading; }
-  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say(error.message + ' Check your connection, then reload this page.'); throw error; }
+  catch (error) { transportLoadError = error; pageStartup(document.documentElement).say((${scope.startupFailureLine})(error, ${scope.relayCauseMessage})); throw error; }
   finally { transportLoading = null; }
 }
 

@@ -48,13 +48,13 @@ function fixtureCommand(box, cwd, ...args) {
   return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
 }
 
-test('submit leaves a dependency fast-forwarded in out of the files it records [N21]', async () => {
+test('cli.journeys-resume-e2e-more.submit-leaves-a-dependency-fast-forwarded: submit leaves a dependency fast-forwarded in out of the files it records [N21]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Dependency', '--specs', 'G1');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--after', '1');
   const second = (await box.runLocal(box.repo, 'worktree', 'web')).out.match(/^made (\S+) /)[1];
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
+  await commitFile(box, box.web, 'web/dep.html', 'dep', 'feat(web): the dependency [G1]');
   assert.equal((await box.runLocal(box.web, 'submit', '1')).code, 0);
   await settledGateJob(box, 1); // under pull the gate settles on the runner; verify before it fails NOT_SUBMITTED [C7,#7283]
   box.git(box.repo, 'switch', '-q', '--detach', 'web/one');
@@ -62,16 +62,16 @@ test('submit leaves a dependency fast-forwarded in out of the files it records [
   box.git(box.repo, 'switch', '-q', 'main');
   (await box.runLocal(second, 'claim', '2'));
   box.git(second, 'merge', '-q', '--ff-only', 'web/one');
-  commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
+  await commitFile(box, second, 'web/page.html', 'page', 'feat(web): the page [G1]');
   assert.equal((await box.runLocal(second, 'submit', '2')).code, 0);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'show', '2', '--json')).out).item_files, 'web/page.html');
 });
 
-test('verify and escalate take a note from a file, exactly as written [V12]', async () => {
+test('cli.journeys-resume-e2e-more.verify-and-escalate-take-a-note: verify and escalate take a note from a file, exactly as written [V12]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
   await settledGateJob(box, 1);
   const note = 'ran `npm test` with $HOME unset: "it failed"\nthen restored it';
@@ -90,7 +90,7 @@ test('verify and escalate take a note from a file, exactly as written [V12]', as
   assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /--note-file <file>/);
 });
 
-test('the help keeps every command description apart from its usage [N37]', async () => {
+test('cli.journeys-resume-e2e-more.the-help-keeps-every-command-description: the help keeps every command description apart from its usage [N37]', async () => {
   const box = sandbox();
   // Process-level: the help outside any repository is the real binary's own output.
   const help = box.run(box.dir, 'help', '--all').out;
@@ -109,7 +109,7 @@ test('the help keeps every command description apart from its usage [N37]', asyn
   );
 });
 
-test('output into a reader that stops early ends quietly [N24]', async () => {
+test('cli.journeys-resume-e2e-more.output-into-a-reader-that-stops: output into a reader that stops early ends quietly [N24]', async () => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   for (let n = 0; n < 40; n++) {
     const added = await fixtureCommand(box, box.repo, 'add', 'web', `Item ${n}`, '--specs', 'G1', '--wait');
@@ -127,7 +127,7 @@ test('output into a reader that stops early ends quietly [N24]', async () => {
   assert.equal(code, 0);
 });
 
-test('pullboard suggests no timed wait: next steps end at work or end-your-turn [N25]', async () => {
+test('cli.journeys-resume-e2e-more.pullboard-suggests-no-timed-wait-next: pullboard suggests no timed wait: next steps end at work or end-your-turn [N25]', async () => {
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
@@ -135,7 +135,7 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Second', '--specs', 'G1', '--after', '1');
   (await box.runLocal(box.web, 'claim', '1'));
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   (await box.runLocal(box.web, 'submit', '1'));
   const idle = (await box.runLocal(box.web, 'next'));
   assert.match(idle.out, /nothing for this seat: end your turn/, JSON.stringify(idle));
@@ -149,7 +149,7 @@ test('pullboard suggests no timed wait: next steps end at work or end-your-turn 
   assert.doesNotMatch(agents, /--wait 30/);
 });
 
-test('submit names the item and the way out when a cited row was retired after the claim [V11]', async () => {
+test('cli.journeys-resume-e2e-more.submit-names-the-item-and-the: submit names the item and the way out when a cited row was retired after the claim [V11]', async () => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   box.web = join(box.dir, 'web-1');
   box.git(box.repo, 'worktree', 'add', '-q', box.web, '-b', 'web/one');
@@ -160,7 +160,7 @@ test('submit names the item and the way out when a cited row was retired after t
   assert.equal(added.code, 0, added.err);
   const claimed = await fixtureCommand(box, box.web, 'claim', '1');
   assert.equal(claimed.code, 0, claimed.err);
-  const built = commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  const built = await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   assert.equal(built.status, 0, built.stderr);
   writeFileSync(join(box.repo, 'SPEC.md'), SPEC.replace('- G1 [approved, must] The page renders. | gate: web test', '- G1 [retired] The page renders.'));
   box.git(box.repo, 'commit', '-qam', 'docs(spec): retire G1');
@@ -171,7 +171,7 @@ test('submit names the item and the way out when a cited row was retired after t
   assert.equal(JSON.parse((await fixtureCommand(box, box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', async () => {
+test('cli.journeys-resume-e2e-more.worktree-prints-the-opening-lines-of: worktree prints the opening lines of a subagent\'s prompt, with its folder and identity [I7]', async () => {
   const box = sandbox();
   const repo = join(box.dir, "my app's $PULLBOARD_PATH_PROBE");
   mkdirSync(repo);

@@ -5,13 +5,13 @@ import { successfulNext } from '../../../../../packages/config/index.js';
 import { DEFAULT_NEXT_STEPS } from '../../../../../packages/state/index.js';
 import { refuseNextIdle } from '../../../index.js';
 
-test('the default next step of every command is next --take, never a --wait hint [C7,#2905]', () => {
+test('cli.logic-step-words.the-default-next-step-of-every-command: the default next step of every command is next --take, never a --wait hint [C7,#2905]', () => {
   for (const command of ['next', 'show', 'submit', 'claim', 'status', 'list'])
     assert.doesNotMatch(successfulNext(command, {}), /--wait/u, command);
   assert.equal(successfulNext('submit', {}), 'pullboard next --take');
 });
 
-test('an idle next names next --take, in its message and its next: line [C7,#2905]', () => {
+test('cli.logic-step-words.an-idle-next-names-next-take-in: an idle next names next --take, in its message and its next: line [C7,#2905]', () => {
   assert.doesNotMatch(DEFAULT_NEXT_STEPS.NOTHING_FREE, /--wait/u);
   const out = [];
   let refusal;

@@ -28,7 +28,7 @@ import {
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
-test('local heartbeats revive a seat without changing exported history or a remote copy [B3,A7]', async (t) => {
+test('cli.journeys-resume-presence-heartbeat.local-heartbeats-revive-a-seat-without: local heartbeats revive a seat without changing exported history or a remote copy [B3,A7]', async (t) => {
   const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
   const { exportBoard, importBoard } = await import('../../../../../packages/store/index.js');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-local-'));
@@ -51,7 +51,7 @@ test('local heartbeats revive a seat without changing exported history or a remo
   assert.equal(heartbeatSeat(board, 'missing-seat'), false);
 });
 
-test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
+test('cli.journeys-resume-presence-heartbeat.a-relay-reader-sees-the-same: a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
   const { createE2eHelpers } = await import('../../../tests/fixtures/e2e.js');
   const { relaySnapshot } = await import('../../../../../packages/pages/index.js');
   const { exportBoard, importBoard } = await import('../../../../../packages/store/index.js');
@@ -82,7 +82,7 @@ test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', 
   assert.equal(store.agentById(remote, id).presence, 'live');
 });
 
-test('status reads and explicit hooks heartbeat without a shared board write [B3,I6]', async (t) => {
+test('cli.journeys-resume-presence-heartbeat.status-reads-and-explicit-hooks-heartbeat: status reads and explicit hooks heartbeat without a shared board write [B3,I6]', async (t) => {
   const { createE2eHelpers } = await import('../../../tests/fixtures/e2e.js');
   const { readFileSync } = await import('node:fs');
   const { DatabaseSync } = await import('node:sqlite');
@@ -127,7 +127,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   assert.equal(local.prepare('SELECT n FROM writes').get().n, 1, 'a separate CLI process in the same minute performs no additional heartbeat write');
 });
 
-test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]', async (t) => {
+test('cli.journeys-resume-presence-heartbeat.an-imported-board-never-inherits-a: an imported board never inherits a same-path coordinator heartbeat [B3,A7]', async (t) => {
   const { exportBoard, importBoard } = await import('../../../../../packages/store/index.js');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-identity-'));
   const clock = { now: () => new Date('2026-10-24T12:00:00Z') };
@@ -147,7 +147,7 @@ test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]
   assert.equal(store.agentById(local, 'coordinator').heartbeatAt, null);
 });
 
-test('plain status counts large seat history and hides gone seats behind --all [B3,C7]', async (t) => {
+test('cli.journeys-resume-presence-heartbeat.plain-status-counts-large-seat-history: plain status counts large seat history and hides gone seats behind --all [B3,C7]', async (t) => {
   const { createE2eHelpers } = await import('../../../tests/fixtures/e2e.js');
   const { heartbeatSeat } = await import('../../../../../packages/store/index.js');
   const { JSON_SHAPES } = await import('../../../../../packages/config/index.js');
@@ -157,17 +157,18 @@ test('plain status counts large seat history and hides gone seats behind --all [
   let at = Date.now() - 40 * 60_000;
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   const gone = [];
-  for (let index = 0; index < 100; index += 1) gone.push(store.register(board, { lane: 'api', path: join(box.dir, `history-${index}`) }));
+  const HISTORY_SEATS = 100;
+  for (let index = 0; index < HISTORY_SEATS; index += 1) gone.push(store.register(board, { lane: 'api', path: join(box.dir, `history-${index}`) }));
   at = Date.now() - 11 * 60_000;
   const idle = store.register(board, { lane: 'api', path: join(box.dir, 'idle-seat') });
   at = Date.now();
   heartbeatSeat(board, 'coordinator');
   heartbeatSeat(board, 'web-1');
-  assert.equal(store.listAgents(board).filter(seat => seat.presence === 'gone').length, 100);
+  assert.equal(store.listAgents(board).filter(seat => seat.presence === 'gone').length, HISTORY_SEATS);
   store.closeBoard(board);
   const plain = await box.runIn(box.web, 'status');
   assert.equal(plain.code, 0, plain.err + plain.out);
-  assert.match(plain.out, /seats: 2 live, 1 idle, 100 gone/u);
+  assert.match(plain.out, new RegExp(`seats: 2 live, 1 idle, ${HISTORY_SEATS} gone`, 'u'));
   assert.ok(plain.out.includes(`${idle}: idle`));
   assert.ok(gone.every(id => !plain.out.includes(`${id}: gone`)), 'plain status never prints historical gone rows');
   const all = await box.runIn(box.web, 'status', '--all');
@@ -176,8 +177,8 @@ test('plain status counts large seat history and hides gone seats behind --all [
   const structured = await box.runIn(box.web, 'status', '--json');
   assert.equal(structured.code, 0, structured.err + structured.out);
   const summary = JSON.parse(structured.out);
-  assert.deepEqual(summary.presenceCounts, { live: 2, idle: 1, gone: 100 });
-  assert.equal(summary.agents.length, 103, 'JSON may retain full history per outside1705');
+  assert.deepEqual(summary.presenceCounts, { live: 2, idle: 1, gone: HISTORY_SEATS });
+  assert.equal(summary.agents.length, 2 + 1 + HISTORY_SEATS, 'JSON may retain full history per outside1705');
   assert.equal(JSON_SHAPES.commands.heartbeat.required.seat, 'string|null');
   assert.equal(JSON_SHAPES.commands.heartbeat.required.heartbeatAt, 'string|null');
 });

@@ -2,9 +2,24 @@ import { localDependencyIds } from "../../../../../items/light.js";
 import { itemFiles } from "../../../../../items/light.js";
 /** Read item activity without duplicating a landing's immutable board-wide receipt [R2,N26]. */
 
-/** Include a batch's main-moving receipt only for the exact item ids that receipt records. */
+/** The columns an event row has in both the hot table and event_archive, so the two read as one list [C7,#9335]. */
+const EVENT_COLUMNS = 'event_id, event_at, event_by, event_kind, item_id, event_detail';
+
+/** Whether this board file has the event_archive table (an older board has none, and reads only the hot table). */
+export function hasEventArchive(db) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'event_archive'").get());
+}
+
+/** The events of one item that the archiver moved out of the hot table, oldest first; none on a board with no archive [#9335]. */
+export function archivedItemEvents(board, id) {
+  if (!hasEventArchive(board.db)) return [];
+  return board.db.prepare(`SELECT ${EVENT_COLUMNS} FROM event_archive WHERE item_id = ? ORDER BY event_id`).all(id);
+}
+
+/** Include a batch's main-moving receipt only for the exact item ids that receipt records; archived events of the item come first. */
 export function itemActivity(board, id) {
-  return board.db.prepare(`
+  const archived = archivedItemEvents(board, id).filter(event => event.event_kind !== 'usage' && event.event_kind !== 'shared-usage');
+  const hot = board.db.prepare(`
     SELECT * FROM event WHERE item_id = ? AND event_kind NOT IN ('usage','shared-usage')
     UNION ALL
     SELECT * FROM event WHERE item_id IS NULL AND event_kind = 'main-moved'
@@ -14,6 +29,7 @@ export function itemActivity(board, id) {
       )
     ORDER BY event_id
   `).all(id, id);
+  return archived.length ? [...archived, ...hot].sort((a, b) => a.event_id - b.event_id) : hot;
 }
 
 

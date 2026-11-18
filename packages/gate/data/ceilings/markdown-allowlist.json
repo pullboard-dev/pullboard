@@ -37,6 +37,8 @@
     { "pattern": "docs/arbiter-design.md", "reason": "temporary: under review (Corey's checklist)" },
     { "pattern": "docs/decomposer-design.md", "reason": "temporary: under review (Corey's checklist)" },
     { "pattern": "docs/design/*.md", "reason": "temporary: under review (Corey's checklist)" },
-    { "pattern": "docs/unblock.md", "reason": "temporary: under review (Corey's checklist)" }
+    { "pattern": "docs/unblock.md", "reason": "temporary: under review (Corey's checklist)" },
+    { "pattern": "docs/formats/*.md", "reason": "temporary: under review (Corey's checklist)" },
+    { "pattern": "docs/studies/*.md", "reason": "temporary: under review (Corey's checklist)" }
   ]
 }

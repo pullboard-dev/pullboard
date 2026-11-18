@@ -15,7 +15,7 @@ import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const reply = document => ({ status: 200, json: async () => document });
 
-test('#8250 clause 1: an idle runner serve ends the moment it is stopped, though its idle wait is ten minutes [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute idle wait, so a slow exit fails by timeout.
+test('runners.idle-stop.n8250-clause-1-an-idle-runner: #8250 clause 1: an idle runner serve ends the moment it is stopped, though its idle wait is ten minutes [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute idle wait, so a slow exit fails by timeout.
   async t => {
     const { root: cache } = privateFixtureFiles('pullboard-idle-stop-cache-');
     t.after(() => rmSync(cache, { recursive: true, force: true }));
@@ -30,7 +30,7 @@ test('#8250 clause 1: an idle runner serve ends the moment it is stopped, though
     assert.deepEqual((await running).jobs, []);
   });
 
-test('#8250 clause 1: an idle local runner ends the moment it is stopped, though its heartbeat wait is ten minutes, and removes its state and lock [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute heartbeat wait, so a slow exit fails by timeout.
+test('runners.idle-stop.n8250-clause-1-an-idle-local: #8250 clause 1: an idle local runner ends the moment it is stopped, though its heartbeat wait is ten minutes, and removes its state and lock [C7]', { timeout: 30_000 }, // budget: only the stop can end a ten-minute heartbeat wait, so a slow exit fails by timeout.
   async t => {
     const { root: folder } = privateFixtureFiles('pullboard-idle-stop-local-');
     t.after(() => rmSync(folder, { recursive: true, force: true }));
@@ -47,7 +47,7 @@ test('#8250 clause 1: an idle local runner ends the moment it is stopped, though
     assert.equal(existsSync(join(folder, 'state.json')) || existsSync(join(folder, 'lock')), false);
   });
 
-test('#8250 clause 1: a stop that lands while a receipt write is in flight lets that write finish before the runner exits [C7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
+test('runners.idle-stop.n8250-clause-1-a-stop-that: #8250 clause 1: a stop that lands while a receipt write is in flight lets that write finish before the runner exits [C7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
   async t => {
     const { root: trunk } = privateFixtureFiles('pullboard-idle-stop-trunk-');
     const { root: cache } = privateFixtureFiles('pullboard-idle-stop-held-');
@@ -76,4 +76,37 @@ test('#8250 clause 1: a stop that lands while a receipt write is in flight lets 
     log.push('serve returned');
     assert.deepEqual(log, ['receipt written', 'serve returned']);
     assert.equal(jobs[0].outcome, 'posted');
+  });
+
+test('runners.idle-stop.c7-two-offered-jobs-are-claimed-within-5-s: #10523 clause 1: a runner with two free slots claims two offered pulled jobs within 5 s of their enqueuedAt, on a fake clock, without an idle wait between them [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+  async t => {
+    const { root: trunk } = privateFixtureFiles('pullboard-claim-latency-trunk-');
+    const { root: cache } = privateFixtureFiles('pullboard-claim-latency-cache-');
+    t.after(() => { rmSync(trunk, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
+    const sh = (...args) => runFixtureGit(['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', ...args], { cwd: trunk });
+    sh('init', '-q', '-b', 'main');
+    writeFileSync(join(trunk, 'tracked.txt'), 'one\n');
+    sh('add', '.');
+    sh('commit', '-q', '-m', 'one');
+    const commit = sh('rev-parse', 'HEAD');
+    // The fake clock: each board call takes 100 ms, and an idle wait takes its whole length; real time never enters the bar.
+    let clock = 0;
+    const enqueuedAt = 0, claimedAt = {}, receipts = [], offered = ['j1', 'j2'];
+    const fetchImpl = async (_url, { body }) => {
+      const call = JSON.parse(body);
+      clock += 100;
+      if (call.action === 'claim') {
+        const job = offered.shift();
+        if (job) claimedAt[job] = clock;
+        return reply({ trunk, claim: job ? { job, attempt: 1, token: `t-${job}`, candidate: commit, base: commit, run: ['node', '-e', 'console.log("ran")'] } : null });
+      }
+      if (call.action === 'receipt') receipts.push(call.receipt);
+      return reply({ ok: true, renewed: true });
+    };
+    const stop = new AbortController();
+    const sleep = ms => new Promise(done => setTimeout(() => { clock += ms; if (receipts.length === 2) stop.abort(); done(); }, 5));
+    const served = await serveRunner({ git: pullGit, board: BOARD, runner: 'r-latency', capabilities: [], cache, jobs: 2, cores: 2, signal: stop.signal, fetchImpl, sleep, timing: { idleMs: 6_000 } });
+    assert.equal(served.slots, 2);
+    assert.equal(receipts.length, 2);
+    for (const job of ['j1', 'j2']) assert.ok(claimedAt[job] - enqueuedAt <= 5_000, `${job} was claimed ${claimedAt[job] - enqueuedAt} ms after its enqueuedAt, over the 5000 ms bar`);
   });

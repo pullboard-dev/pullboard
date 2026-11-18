@@ -42,7 +42,7 @@ function withSettings(settings, read) {
   }
 }
 
-test('clause 1: with claim.refuseOffMainHead on, claim in a folder whose HEAD is not on main refuses CLAIM_HEAD_OFF_MAIN with a clear next step [C7,#9104]', t => {
+test('moves.claim-head.refuse-on: clause 1: with claim.refuseOffMainHead on, claim in a folder whose HEAD is not on main refuses CLAIM_HEAD_OFF_MAIN with a clear next step [C7,#9104]', t => {
   const { root, git, commit } = repository(t);
   git('checkout', '-q', '--detach', 'main');
   commit('early.txt', 'committed before claiming\n');
@@ -60,7 +60,7 @@ test('clause 1: with claim.refuseOffMainHead on, claim in a folder whose HEAD is
   assert.equal(offMainHeadRefusal(root, { trunk: 'main', enabled: true }), null, 'a folder on an older main commit claims');
 });
 
-test('clause 2: with claim.refuseOffMainHead off (the default), claim takes a folder off main as before, and the setting is described [C7,#9104]', t => {
+test('moves.claim-head.refuse-off: clause 2: with claim.refuseOffMainHead off (the default), claim takes a folder off main as before, and the setting is described [C7,#9104]', t => {
   const { root, git, commit } = repository(t);
   git('checkout', '-q', '--detach', 'main');
   commit('early.txt', 'committed before claiming\n');

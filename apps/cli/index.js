@@ -28,7 +28,7 @@ export { MainSpecMerged as cliClaim$MainSpecMerged, claimFreezer as cliClaim$cla
 export { PULLBOARD_COMMANDS, cockpitPage as cliCockpitRenderer$cockpitPage } from "./src/io/cockpit/renderer.js";
 export { landAfterAcceptance, run as commandsLand$run } from "./src/io/commands/land.js";
 export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run, submitHere } from "./src/io/commands/submit.js";
-export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/io/generated/docs.js";
+export { generatedDocDrift, generatedDocs, regenerateStagedDocs, writeGeneratedDocs } from "./src/io/generated/docs.js";
 export { context as context } from "./src/io/entry.js";
 export { withBoard as withBoard } from "./src/io/entry.js";
 export { withBoardRead as withBoardRead } from "./src/io/context.js";
@@ -48,3 +48,4 @@ export { planWorkerScale, workerWindowHours } from './src/io/scale.js';
 export { requireNonEmptySubmit } from './src/io/empty.js';
 export { usageCheckpointWorkerEntrypoint } from './src/io/checkpoint.js';
 export { cellsSnapshotProblems, landedCutItemRows, policyProblems, requireSubmitCells, touchedCells } from "./src/io/cells-submit-checks.js";
+export { warmFixtureMemo } from './src/io/fixture-memo-warm.js';

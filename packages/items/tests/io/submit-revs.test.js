@@ -21,7 +21,7 @@ function fakeGit() {
     spawn() { throw new Error('no streaming Git here'); } } };
 }
 
-test('clause 2: the retry, the auto path and the head read share one memoized HEAD and tree answer [C7,#6500]', () => {
+test('items.submit-revs.shared-memo: clause 2: the retry, the auto path and the head read share one memoized HEAD and tree answer [C7,#6500]', () => {
   const { launches, adapter } = fakeGit();
   withGitAdapter(adapter, () => {
     const first = headRevs(ROOT);
@@ -32,7 +32,7 @@ test('clause 2: the retry, the auto path and the head read share one memoized HE
   assert.equal(launches.filter(line => /\^\{tree\}$/u.test(line)).length, 1, 'the tree is asked once');
 });
 
-test('clause 1: a submit-side HEAD read never asks for HEAD^, the first-parent log or the trunk config [C7,#6500]', () => {
+test('items.submit-revs.no-parent-reads: clause 1: a submit-side HEAD read never asks for HEAD^, the first-parent log or the trunk config [C7,#6500]', () => {
   const { launches, adapter } = fakeGit();
   withGitAdapter(adapter, () => { headRevs(ROOT); });
   assert.equal(launches.filter(line => /HEAD\^(?!\{)/u.test(line)).length, 0);

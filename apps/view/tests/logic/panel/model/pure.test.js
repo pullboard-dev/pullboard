@@ -13,7 +13,7 @@ const agent = (agentId, lastMoveAt = null) => ({ agentId, name: agentId, nameHtm
 const item = (id, values = {}) => ({ id, status: 'open', state: 'open', stale: false, titleTextHtml: 'item ' + id,
   titleHtml: '<b>item ' + id + '</b>', stateHtml: '<span class="chip">open</span>', briefStateHtml: '<span class="chip">open</span>', ...values });
 
-test('Agents selection preserves holding rank, recent filtering, picked idle expansion and actions [N26]', () => {
+test('view.x-panel-model-pure.agents-selection-preserves-holding-rank-recent-filtering: Agents selection preserves holding rank, recent filtering, picked idle expansion and actions [N26]', () => {
   const agents = [agent('builder'), agent('reviewer'), agent('idle', new Date(now - 30 * 60_000).toISOString()), agent('quiet', new Date(now - 2 * 60 * 60_000).toISOString())];
   const items = [
     item(1, { status: 'claimed', state: 'building', holder: 'builder' }),
@@ -59,7 +59,7 @@ const feedMessages = [
 ];
 const shoutsView = (values = {}) => shoutsModel({ messages: feedMessages, openIds: [1], personAskIds: [1], items: itemFacts, startOfToday: today, seen: { base: today, read: {} }, ...values });
 
-test('clause 1: a thread is one row with its messages and a reply box only while it is open, and one thread opens at a time [N26]', () => {
+test('view.x-panel-model-pure.clause-1-a-thread-is-one-row: clause 1: a thread is one row with its messages and a reply box only while it is open, and one thread opens at a time [N26]', () => {
   const closed = shoutsHtml(shoutsView(), format);
   assert.equal([...closed.matchAll(/class="sx-th[ "]/gu)].length, 3, 'one row per thread today: the ask, #613 and the notices; the older #9 is folded');
   assert.doesNotMatch(closed, /class="sx-tp"|class="sx-reply"/u, 'no thread is open');
@@ -79,7 +79,7 @@ test('clause 1: a thread is one row with its messages and a reply box only while
   assert.doesNotMatch(shoutsHtml(shoutsView({ openKey: 'item:613' }), { ...format, readOnly: true }), /sx-reply/u, 'a read-only page never offers a reply');
 });
 
-test('clause 2: asks for the person sit first, unread is bold from the viewer mark, automated notices are muted, each row has stage, sender and kind [N26]', () => {
+test('view.x-panel-model-pure.clause-2-asks-for-the-person-sit: clause 2: asks for the person sit first, unread is bold from the viewer mark, automated notices are muted, each row has stage, sender and kind [N26]', () => {
   const view = shoutsView({ seen: { base: today + 5e6, read: {} } });
   assert.deepEqual(view.needs.map((thread) => thread.key), ['item:4698'], 'the ask waiting on the person');
   assert.ok(!view.threads.some((thread) => thread.key === 'item:4698'), 'an ask is not listed twice');
@@ -91,18 +91,18 @@ test('clause 2: asks for the person sit first, unread is bold from the viewer ma
   assert.match(html, /<span class="sx-snd coord"><i class="sx-si coord">/u, 'the coordinator has its own icon');
   const thread = (key) => [...view.needs, ...view.threads, ...view.earlier.threads].find((entry) => entry.key === key);
   assert.equal(thread('item:613').unread, false, 'the person spoke last, so it is read');
-  assert.equal(thread('none').unread, true, 'a notice newer than the mark is unread');
-  assert.equal(thread('none').quiet, true, 'an automated notice is muted');
+  assert.equal(thread('from:sentinel').unread, true, 'a notice newer than the mark is unread');
+  assert.equal(thread('from:sentinel').quiet, true, 'an automated notice is muted');
   assert.match(html, /class="sx-th unread quiet"/u);
   assert.match(html, /<span class="sx-ud" role="img" aria-label="unread">/u);
-  const read = shoutsView({ seen: { base: today + 5e6, read: { none: today + 99e5 } } });
-  assert.equal([...read.threads].find((entry) => entry.key === 'none').unread, false, 'opening a thread moves its own mark');
+  const read = shoutsView({ seen: { base: today + 5e6, read: { 'from:sentinel': today + 99e5 } } });
+  assert.equal([...read.threads].find((entry) => entry.key === 'from:sentinel').unread, false, 'opening a thread moves its own mark');
   assert.equal(shoutsView({ seen: { base: null, read: {} } }).since.unread, 0, 'with no mark yet nothing is unread');
   assert.match(html, /Since you left <time class="long"[^>]*>1m<\/time>: <b>1<\/b> thread with new shouts · <span class="amb">1 ask<\/span> waits for your answer/u);
   assert.match(html, /data-mark-read/u);
 });
 
-test('clause 3: older days fold into one Earlier row, and the agents rail is one line per agent with sent back first and idle folded [N26]', () => {
+test('view.x-panel-model-pure.clause-3-older-days-fold-into-one: clause 3: older days fold into one Earlier row, and the agents rail is one line per agent with sent back first and idle folded [N26]', () => {
   const view = shoutsView();
   assert.deepEqual(view.earlier.threads.map((thread) => thread.key), ['item:9'], 'everything older than today');
   const closed = shoutsHtml(view, format);

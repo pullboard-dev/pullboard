@@ -20,7 +20,7 @@ function catalog({ pending = false, accepted = false } = {}) {
   return { entries, itemOf: id => items.get(id) ?? null };
 }
 
-test('a new C7 item skips an earlier unshipped release whose items all landed and goes to the later open one [C7,N26]', () => {
+test('roadmap.logic-placement.a-new-c7-item-skips-an-earlier-unshipped: a new C7 item skips an earlier unshipped release whose items all landed and goes to the later open one [C7,N26]', () => {
   const { entries, itemOf } = catalog();
   const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf);
   assert.equal(placed.milestone, 'Open release');
@@ -29,21 +29,21 @@ test('a new C7 item skips an earlier unshipped release whose items all landed an
   assert.equal(lane.milestone, 'Open release', 'the lane rule skips the landed release too');
 });
 
-test('an earlier release that still holds unlanded C7 work keeps taking new C7 items [C7,N26]', () => {
+test('roadmap.logic-placement.an-earlier-release-that-still-holds: an earlier release that still holds unlanded C7 work keeps taking new C7 items [C7,N26]', () => {
   const { entries, itemOf } = catalog({ pending: true });
   const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf);
   assert.equal(placed.milestone, 'Old release');
   assert.equal(placed.rule, 'spec rows');
 });
 
-test('an accepted C7 item not yet merged keeps its release live for new C7 items [C7,N26]', () => {
+test('roadmap.logic-placement.an-accepted-c7-item-not-yet-merged-keeps: an accepted C7 item not yet merged keeps its release live for new C7 items [C7,N26]', () => {
   const { entries, itemOf } = catalog({ accepted: true });
   const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf);
   assert.equal(placed.milestone, 'Old release', 'accepted but unlanded work is still unlanded');
   assert.equal(placed.rule, 'spec rows');
 });
 
-test('a move replayed under an engine before the live-release rule keeps its recorded placement [C7,N26]', () => {
+test('roadmap.logic-placement.a-move-replayed-under-an-engine-before: a move replayed under an engine before the live-release rule keeps its recorded placement [C7,N26]', () => {
   const { entries, itemOf } = catalog();
   const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf, { liveReleases: false });
   assert.equal(placed.milestone, 'Old release');

@@ -73,7 +73,7 @@ test('emitted page script splits decision ids on whitespace [N26]', () => {
 test('a decision on two spec rows splits their ids on whitespace [B26,N26]', async () => {
   const served = pageScriptPart4({});
   const start = served.indexOf('async function decideRow(');
-  const end = served.indexOf('\n}\n\n/**\n * Run a public API move', start) + 2;
+  const end = served.indexOf('\n}\n', start) + 2;
   assert.ok(start >= 0 && end > start, 'the test extracts the production decideRow from the served page script');
   const window = { scrollY: 275, scrolls: [], scrollTo(position) { this.scrolls.push(position); } };
   const rowsFor = (kind, ids) => ids.map((id) => ({ dataset: { row: `${kind}:${id}` }, getBoundingClientRect: () => ({ top: 20, bottom: 40 }), scrollIntoView() { throw Error('the next row is already visible'); } }));

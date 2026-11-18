@@ -20,6 +20,7 @@ import {
   privateFixtureFiles,
   runFixtureChild,
   runFixtureGit,
+  runFixtureSetupGit,
 } from '../child.js';
 import { runCliInProcess } from '../process.js';
 import { relocateBoard } from './relocate-board.js';
@@ -52,6 +53,27 @@ const templates = new Map();
 /** How many real inits the fixture has run, so a test can show a second case with the same options ran none. */
 let initRuns = 0;
 process.on('exit', () => { for (const dir of templates.values()) rmSync(dir, { recursive: true, force: true }); });
+
+/**
+ * The argv of a printed `pullboard ...` command that a shell would read as plain words, or null when it needs a real shell.
+ * Why: a recorded setup answer then runs through the dispatcher in this process; quotes group words as sh does, and any other
+ * shell syntax (pipes, expansion, redirects, escapes, a second command) keeps the sh -c path [C7,#10413].
+ *
+ * @param {string} command - The command resume printed, as written.
+ * @returns {string[] | null} The words after `pullboard`, or null.
+ */
+export function pullboardWords(command) {
+  const words = [];
+  let word = null, quote = null;
+  for (const ch of String(command).trim()) {
+    if (quote) { if (ch === quote) quote = null; else if (quote === '"' && /[$`\\]/u.test(ch)) return null; else word += ch; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; word ??= ''; } else if (/\s/u.test(ch)) { if (word !== null) { words.push(word); word = null; } } else if (/[|&;<>$`\\(){}*?~#!]/u.test(ch)) return null;
+    else word = (word ?? '') + ch;
+  }
+  if (quote) return null;
+  if (word !== null) words.push(word);
+  return words[0] === 'pullboard' && words.length > 1 ? words.slice(1) : null;
+}
 
 /** The number of real `init` runs this process's release fixtures have made [C7,#9122]. */
 export function releaseInitRuns() { return initRuns; }
@@ -108,12 +130,14 @@ export function releaseFixture(t, { previous = null, version = '0.8.7', changelo
   const runLocal = (cwd, ...args) => journeyCall({ dir: root, env, cwd, args, inProcess: () => runCliInProcess(args, { cwd, env }), real: () => run(cwd, ...args) });
   /** Run Git with this fixture's private identity and configuration. */
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
+  /** Run Git for a setup step no case is about: a commit skips the repository's hooks, which each cost a Node start of the copied CLI [C7,#10413]. */
+  const setupGit = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
   if (previous) {
     const record = join(repo, '.git', 'pullboard-checkout', 'resume-version');
     mkdirSync(join(repo, '.git', 'pullboard-checkout'), { recursive: true });
     writeFileSync(record, `${previous}\n`);
   }
-  return { root, repo, run, runLocal, git, env };
+  return { root, repo, run, runLocal, git, setupGit, env };
 }
 
 
