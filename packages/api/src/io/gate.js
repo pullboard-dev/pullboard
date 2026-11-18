@@ -1200,6 +1200,16 @@ export function returnedItemNote(reason, why) {
   return reason === 'conflict' ? `${why}; merge current main, resolve the conflict, commit and resubmit` : `${why}; fix it, commit and resubmit (submit composes current main)`;
 }
 
+/** The files a land job's merge output names as conflicting, in order and without repeats; none when the output names none. */
+function conflictedFiles(detail) {
+  const files = [];
+  for (const line of String(detail ?? '').split('\n')) {
+    const file = /Merge conflict in (.+?)\s*$/u.exec(line)?.[1];
+    if (file && !files.includes(file)) files.push(file);
+  }
+  return files;
+}
+
 /**
  * Settle the items a land receipt gives back, as 0.9.3's landing did: each red or colliding item goes back to its
  * builder with its accept withdrawn, or under separate publish parks on a hold, and its note leads with the receipt's
@@ -1223,7 +1233,14 @@ function returnLandedReds(board, job, named, receipt, separate) {
     const why = `land job ${job} ${row.reason === 'conflict' ? 'could not merge it' : row.reason === 'hook' ? 'had its push refused' : 'checked the merged tree red'}: ${first}`.slice(0, 400);
     try {
       // A static guard red is the item's own source, not a held landing: it goes back to its builder as the inline lander did [#7492].
-      if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
+      // A plain merge conflict under separate publish needs only a main merge: the accept stays, as pullboard reopen --conflict keeps it, and the builder sees the item [C7].
+      const files = separate && !row.guard && row.reason === 'conflict' ? conflictedFiles(row.detail ?? receipt.detail) : [];
+      const forMerge = files.length > 0 && SHA.test(receipt.base ?? '');
+      if (forMerge) {
+        store.reopen(board, row.id, { agentId: 'coordinator', conflict: { files, trunk: receipt.base }, note: returnedItemNote(row.reason, why) });
+        if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
+      }
+      else if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
       else {
         store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: returnedItemNote(row.reason, why) });
         if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
