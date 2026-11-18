@@ -92,3 +92,13 @@ test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each car
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
   assert.equal(ids.length, 40, 'all 40 tests of the logic b files are registered');
 });
+
+test('gate.registry.io-a: clause 2: [C7,U148] the io top-level a test files each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['assumptions', 'budgets', 'clone', 'edges', 'engine-lazy-door', 'imports', 'keepalive'];
+  const files = names.map((name) => join(DIR, 'io', `${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
+  assert.equal(ids.length, 31, 'all 31 tests of the io top-level a files are registered');
+});
