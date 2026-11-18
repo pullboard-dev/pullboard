@@ -591,6 +591,17 @@ export function checkoutHead(root) {
 }
 
 /**
+ * A checkout's index file, found from its .git marker without launching Git, or undefined when the layout is not a plain one.
+ *
+ * @param {string} root
+ * @returns {string | undefined}
+ */
+export function checkoutIndexFile(root) {
+  const location = fileLocation(root);
+  return location ? join(location.gitDir, 'index') : undefined;
+}
+
+/**
  * A branch's commit in a checkout's repository, read from Git's ref files, or undefined when Git must answer.
  *
  * @param {string} root
