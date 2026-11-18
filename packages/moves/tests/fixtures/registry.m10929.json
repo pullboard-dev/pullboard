@@ -26,5 +26,31 @@
       "packages/moves/src/logic/table/release.table.js",
       "packages/moves/src/io/table/board-release.js"
     ]
+  },
+  "moves.selection.derived-gate-port": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with ports.derivedGateAtHead returning a reader, nextSelection.pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is"
+    },
+    "why": "Without this test, a regression where with ports.derivedGateAtHead returning a reader, nextSelection.pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
+  },
+  "moves.selection.derived-gate-port-absent": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "with no derivedGateAtHead port, or a port returning null, nextSelection.pick returns the same item as before and no reader reaches nextFor"
+    },
+    "why": "Without this test, a regression where with no derivedGateAtHead port, or a port returning null, nextSelection.pick returns the same item as before and no reader reaches nextFor would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/moves/src/io/selection.js"
+    ]
   }
 }
