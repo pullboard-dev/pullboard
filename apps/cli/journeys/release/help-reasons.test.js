@@ -17,9 +17,10 @@ test('cli.journeys-release-help-reasons.reason-effects: clause 1: help release p
   const box = await fixture(t);
   const help = await cli(box, box.seats.actor.path, ['help', 'release']);
   assert.equal(help.code, 0, help.out + help.err);
-  for (const reason of COUNTED) assert.match(reasonLine(help.out, reason), /: counts toward the release-twice hold/u, `${reason} is listed as counted`);
-  for (const reason of UNCOUNTED) assert.match(reasonLine(help.out, reason), /does not count toward the release-twice hold/u, `${reason} is listed as not counted`);
-  assert.match(help.out, /INELIGIBLE, BLOCKED, BUDGET and ROUTED_ELSEWHERE count toward the release-twice hold; OTHER and TAKEN_OVER do not/u);
+  const text = help.document.help;
+  for (const reason of COUNTED) assert.match(reasonLine(text, reason), /: counts toward the release-twice hold/u, `${reason} is listed as counted`);
+  for (const reason of UNCOUNTED) assert.match(reasonLine(text, reason), /does not count toward the release-twice hold/u, `${reason} is listed as not counted`);
+  assert.match(text, /INELIGIBLE, BLOCKED, BUDGET and ROUTED_ELSEWHERE count toward the release-twice hold; OTHER and TAKEN_OVER do not/u);
 });
 
 /** Two seats in turn claim the item and release it with the reason; true when the item is then held. */
