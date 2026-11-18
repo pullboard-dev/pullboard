@@ -20,6 +20,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { unverifiedSubmissions } from '../../../../../packages/store/index.js';
+import { recordedWriteLock } from '../../../../../packages/store/index.js';
 import { testResults } from '../../../../../packages/store/index.js';
 import { redNow } from '../../../../../packages/gate/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -125,23 +126,13 @@ function publishItemRef(root, remote, entry) {
 }
 
 /**
- * Run `work` under the board's write lock, or inside the caller's transaction when one is open.
+ * Run `work` under the board's write lock, or inside the caller's transaction when one is open; the hold is recorded in
+ * board-writes.jsonl and by a write-holders marker, as every board write is.
  * Why: two accepts at once each chose the same items and offered overlapping jobs (#7728); under the lock the second
- * offer sees the first one's jobs and names none of their items [C7].
+ * offer sees the first one's jobs and names none of their items. A raw lock left a 347 s stall with no recorded holder (#11026) [C7].
  */
-function underBoardWriteLock(db, work) {
-  try { db.exec('BEGIN IMMEDIATE'); } catch (error) {
-    if (/within a transaction/u.test(String(error?.message))) return work();
-    throw error;
-  }
-  try {
-    const result = work();
-    db.exec('COMMIT');
-    return result;
-  } catch (error) {
-    db.exec('ROLLBACK');
-    throw error;
-  }
+export function underBoardWriteLock(board, work) {
+  return recordedWriteLock(board, work, 'offerPulledLanding');
 }
 
 /**
@@ -260,7 +251,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     const expect = listed.status === 0 && /^[0-9a-f]{40}/u.test(listed.stdout) ? listed.stdout.slice(0, 40) : policy.commit;
     // runs_store on: queueRun makes its own board transaction (intent, move, confirm), so the offers cannot sit inside this raw write lock; their ids are minted from the items, so a retried offer reuses its job [B2,P7].
     const queue = queueFor(board, 'coordinator', { file: ctx.file });
-    return (queue ? work => work() : work => underBoardWriteLock(board.db, work))(() => {
+    return (queue ? work => work() : work => underBoardWriteLock(board, work))(() => {
       // A concurrent accept may have offered some of these since they were chosen; those stay with its job [C7,#7728].
       const fresh = ids ? new Set() : openLandingItems(board.db);
       const free = items.filter(entry => !fresh.has(entry.id));
