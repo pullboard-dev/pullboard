@@ -115,3 +115,38 @@ test('verify.freshness.composed-off: clause 3: with the setting off the STALE_VE
   error => error.code === 'STALE_VERDICT' && error.message.includes(expected), 'a stale re-review whose checkout lacks main is refused as before');
   assert.equal(git(r.dir, 'for-each-ref', `refs/pullboard/compose/7/${clash.slice(0, 12)}`), '', 'no composition is written');
 });
+
+test('verify.freshness.reprove-red-kept: clause 1: with landing.composedEquality on, an item reopened by a landing re-proof red keeps its accepted verdict when main changed no file its review covered [C7,U159]', t => {
+  const r = repo(t);
+  const unrelated = r.moveMain('c.txt', { 1: 'main c one' });
+  const reopened = { item_id: 7, item_status: 'open', item_commit: r.composition, item_claim_head: r.base };
+  const projector = main => verdictProjector(r.dir, {}, { main }, {
+    events: () => [], acceptedVerdict: () => ({ review: { trunk: r.main1, head: r.composition, paths: ['a.txt'] } }),
+    verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+  assert.deepEqual(projector(unrelated).reopened(reopened, { composedEquality: true }), { keep: true });
+  assert.equal(projector(unrelated).state(reopened), null, 'a plain read of an open item still projects nothing');
+});
+
+test('verify.freshness.reprove-red-stale: clause 2: a reopened item loses its verdict as STALE_VERDICT when main at landing changed a file the review covered [C7,U159]', t => {
+  const r = repo(t);
+  const clash = r.moveMain('a.txt', { 2: 'main line two' });
+  const reopened = { item_id: 7, item_status: 'open', item_commit: r.composition, item_claim_head: r.base };
+  const result = verdictProjector(r.dir, {}, { main: clash }, {
+    events: () => [], acceptedVerdict: () => ({ review: { trunk: r.main1, head: r.composition, paths: ['a.txt'] } }),
+    verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' }).reopened(reopened, { composedEquality: true });
+  assert.equal(result.keep, false);
+  assert.equal(result.stale.code, 'STALE_VERDICT');
+  assert.equal(result.stale.file, 'a.txt', 'the stale state names the changed file');
+  assert.equal(result.stale.commit, clash, 'and the main commit that changed it');
+});
+
+test('verify.freshness.reprove-red-off: clause 3: with the setting off a reopened item verdict follows the rules of today and is not kept [C7,U159]', t => {
+  const r = repo(t);
+  const unrelated = r.moveMain('c.txt', { 1: 'main c one' });
+  const reopened = { item_id: 7, item_status: 'open', item_commit: r.composition, item_claim_head: r.base };
+  const projector = verdictProjector(r.dir, {}, { main: unrelated }, {
+    events: () => [], acceptedVerdict: () => ({ review: { trunk: r.main1, head: r.composition, paths: ['a.txt'] } }),
+    verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main' });
+  assert.deepEqual(projector.reopened(reopened), { keep: false });
+  assert.deepEqual(projector.reopened(reopened, { composedEquality: false }), { keep: false });
+});
