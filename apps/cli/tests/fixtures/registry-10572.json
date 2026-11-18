@@ -1,4 +1,0 @@
-{
-  "cli.journeys-show-derived-state.a-current-table-answers-the-verdict": {"proves":{"specs":["C7"],"claim":"With health.derivedState on and the table current for main, show prints the table's verdict state, the same one the projector computes."},"why":"Without it, a regression where show ignores the derived-state table, or prints a state that differs from the computed one, would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/show/derived-state.test.js"]},
-  "cli.journeys-show-derived-state.an-older-table-or-the-setting-off-computes": {"proves":{"specs":["C7"],"claim":"With the table swept at an older main commit, or with the setting off, show computes the verdict state itself."},"why":"Without it, a regression where show reads a table that is not current for main would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/show/derived-state.test.js"]}
-}
