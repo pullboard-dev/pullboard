@@ -197,7 +197,8 @@ export function agentAt(board, path) {
   const agent = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
   if (!agent) return agent;
   const model = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_model:${agent.agent_id}`)?.meta_value ?? null;
-  return withSeatPresence(board, [{ ...agent, agent_model: model, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
+  const role = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_role:${agent.agent_id}`)?.meta_value ?? null;
+  return withSeatPresence(board, [{ ...agent, agent_model: model, agent_role: role, agent_parent_session: agentParent(board, agent.agent_id) }])[0];
 }
 
 /** The board's time source and a snapshot over an open read-only connection, with the native engine thresholds [C7]. */
