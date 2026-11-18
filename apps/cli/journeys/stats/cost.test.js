@@ -95,7 +95,7 @@ async function costProject(model) {
   return { ...box, web };
 }
 
-test('an item records the tokens and cost its seats spent [N2]', async () => {
+test('cli.journeys-stats-cost.an-item-records-the-tokens-and: an item records the tokens and cost its seats spent [N2]', async () => {
   const box = await costProject('fixture-claude');
   const second = join(box.dir, 'second-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
@@ -202,7 +202,7 @@ test('an item records the tokens and cost its seats spent [N2]', async () => {
   }
 });
 
-test('an item records the tokens and cost its seats spent after metadata-only appends [N2]', () => {
+test('cli.journeys-stats-cost.an-item-records-the-tokens-and-2: an item records the tokens and cost its seats spent after metadata-only appends [N2]', () => {
   const box = helpers.sandbox();
   const file = join(box.dir, 'native-session.jsonl');
   const source = { provider: 'claude', file };
@@ -224,7 +224,7 @@ test('an item records the tokens and cost its seats spent after metadata-only ap
 });
 
 
-test('an item records the tokens and cost its seats spent when metadata precedes a shared interval [N2]', () => {
+test('cli.journeys-stats-cost.an-item-records-the-tokens-and-3: an item records the tokens and cost its seats spent when metadata precedes a shared interval [N2]', () => {
   const box = helpers.project('true');
   const info = { commonDir: join(box.repo, '.git') };
   const session = 'shared-metadata-native-fixture';
@@ -253,7 +253,7 @@ test('an item records the tokens and cost its seats spent when metadata precedes
   assert.equal(repeated.records[0].outputTokens, group.records[0].outputTokens, 'metadata and retries never charge shared native output twice');
 });
 
-test('an item records the tokens and cost its seats spent with an empty native usage file [N2]', async () => {
+test('cli.journeys-stats-cost.an-item-records-the-tokens-and-4: an item records the tokens and cost its seats spent with an empty native usage file [N2]', async () => {
   for (const provider of ['claude', 'codex']) {
     const model = `fixture-${provider}`;
     const box = await costProject(model);
@@ -298,7 +298,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
   }
 });
 
-test('usage totals use existing stats and show surfaces without a separate cost root [N2,A1]', async () => {
+test('cli.journeys-stats-cost.usage-totals-use-existing-stats-and: usage totals use existing stats and show surfaces without a separate cost root [N2,A1]', async () => {
   const box = helpers.project('true');
   const result = await box.runLocal(box.repo, 'stats', '--json');
   assert.equal(result.code, 0, result.out);
@@ -310,7 +310,7 @@ test('usage totals use existing stats and show surfaces without a separate cost 
   assert.notEqual(separate.code, 0, 'the small CLI has no separate cost command');
 });
 
-test('clause 1: a budget setting is optional, off by default and validated [N2]', () => {
+test('cli.journeys-stats-cost.a-budget-setting-is-optional-off: clause 1: a budget setting is optional, off by default and validated [N2]', () => {
   const fixture = privateFixtureFiles('pullboard-budget-setting-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = fixture.root;
@@ -329,7 +329,7 @@ test('clause 1: a budget setting is optional, off by default and validated [N2]'
 
 const model = 'm';
 
-test('clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
+test('cli.journeys-stats-cost.a-budget-reads-ok-warn-at: clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   const now = Date.parse('2026-11-08T12:00:00Z');
@@ -348,7 +348,7 @@ test('clause 1: a budget reads ok, warn at 80 percent and stop at the limit [N2]
   assert.equal(board_({ dailyUsd: 7, totalUsd: 1000 }).state, 'stop', 'either limit stops');
 });
 
-test('clause 2: with no budget set budgetState returns ok with no limit [N2]', () => {
+test('cli.journeys-stats-cost.with-no-budget-set-budgetstate-returns: clause 2: with no budget set budgetState returns ok with no limit [N2]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   db.prepare('INSERT INTO board_meta VALUES(?,?)').run('cost:1:a', JSON.stringify({ observedAt: 0, records: [{ model, inputTokens: 0, outputTokens: 5 }] }));
@@ -382,7 +382,7 @@ async function budgetFixture() {
   return { box, ids, claude, limit, run: args => runCliInProcess(args, { cwd: box.web, env }) };
 }
 
-test('clause 1: a budget at stop refuses a new claim naming the spend, the limit and the next step [N2]', async () => {
+test('cli.journeys-stats-cost.a-budget-at-stop-refuses-a: clause 1: a budget at stop refuses a new claim naming the spend, the limit and the next step [N2]', async () => {
   const fixture = await budgetFixture();
   // $110 recorded against a $50 total limit.
   fixture.limit(50);
@@ -402,7 +402,7 @@ test('clause 1: a budget at stop refuses a new claim naming the spend, the limit
   assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
 });
 
-test('clause 2: an item already claimed still renews and releases when the budget is at stop [N2]', async () => {
+test('cli.journeys-stats-cost.an-item-already-claimed-still-renews: clause 2: an item already claimed still renews and releases when the budget is at stop [N2]', async () => {
   const fixture = await budgetFixture();
   fixture.limit(50);
   const renewed = await fixture.run(['claim', String(fixture.ids[0])]);
@@ -411,7 +411,7 @@ test('clause 2: an item already claimed still renews and releases when the budge
   assert.equal(released.status, 0, 'the held claim releases: ' + released.stdout + released.stderr);
 });
 
-test('clause 1: a budget at 80 percent shows in the capacity report, with spend and limit, and no budget shows no line [N2]', () => {
+test('cli.journeys-stats-cost.a-budget-at-80-percent-shows: clause 1: a budget at 80 percent shows in the capacity report, with spend and limit, and no budget shows no line [N2]', () => {
   const fixture = privateFixtureFiles('pullboard-budget-report-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = fixture.root;
@@ -436,7 +436,7 @@ test('clause 1: a budget at 80 percent shows in the capacity report, with spend 
   }
 });
 
-test('clause 1: a budget at 80 percent warns in Needs you [N2]', () => {
+test('cli.journeys-stats-cost.a-budget-at-80-percent-warns: clause 1: a budget at 80 percent warns in Needs you [N2]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE board_meta(meta_key TEXT PRIMARY KEY, meta_value TEXT)');
   const now = new Date('2026-11-08T12:00:00Z');

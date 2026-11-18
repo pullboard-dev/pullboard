@@ -21,7 +21,7 @@ async function document(box, root, ...args) {
   return JSON.parse(result.out);
 }
 
-test('an approval baseline is ordered once with authenticated engine68 replay [H16,S1,P6]', t => {
+test('cli.journeys-spec-approval-baseline-part2.an-approval-baseline-is-ordered-once: an approval baseline is ordered once with authenticated engine68 replay [H16,S1,P6]', t => {
   const first = openBoard(':memory:');
   const replica = openBoard(':memory:');
   t.after(() => { store.closeBoard(first); store.closeBoard(replica); });
@@ -81,7 +81,7 @@ for (const change of ['metadata changed', 'metadata missing']) {
   });
 }
 
-test('an invalid baseline stays diagnostic while flag work remains usable and refuse stays strict [A9,H16,S1,P6]', async t => {
+test('cli.journeys-spec-approval-baseline-part2.an-invalid-baseline-stays-diagnostic-while: an invalid baseline stays diagnostic while flag work remains usable and refuse stays strict [A9,H16,S1,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
