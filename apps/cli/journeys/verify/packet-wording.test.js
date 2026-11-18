@@ -43,7 +43,7 @@ async function ok(box, cwd, ...args) {
   return result;
 }
 
-test('clauses 1-3: the packet names what covers a clause, what does not, and accept says what was read [F6]', { timeout: 240_000 }, async t => {
+test('cli.journeys-verify-packet-wording.the-packet-names-what-covers-a: clauses 1-3: the packet names what covers a clause, what does not, and accept says what was read [F6]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });
