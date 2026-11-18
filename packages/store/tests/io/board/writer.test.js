@@ -16,6 +16,7 @@ import { ENGINE_VERSION } from '../../../../state/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
+import { submitFixture } from '../../fixtures/submit.js';
 import { temporaryRepository } from '../../fixtures/submit.js';
 import { serveBoardWriter } from '../../../src/io/board/writer.js';
 
@@ -191,7 +192,7 @@ test('store.io-board-writer.gate-run-reprepares-when-stale: clause 2: a recordGa
   assert.equal(gateRunEvents(f).length, 1, 'the run is recorded once');
 });
 
-/** A real board file with a claimed item moved to submitted, and native ports whose conflict checks record whether a write transaction was open. */
+/** A real board file with a submitted item, and native ports whose conflict checks record whether a write transaction was open. */
 function reopenFixture(t, onPrepare = () => {}) {
   const repo = temporaryRepository(t, 'pullboard-reopen-prepare-');
   mkdirSync(join(repo, '.git', 'pullboard'));
@@ -201,7 +202,7 @@ function reopenFixture(t, onPrepare = () => {}) {
   const seat = cellSeat(board, { lane: 'core', path: '/builder', family: 'Reopen Vendor', route: 'mid' });
   const id = cellItem(board, { lane: 'core', title: 'Reopen', criterion: 'one', route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }).item_id;
   store.claim(board, id, { agentId: seat.id, lane: 'core', leaseMs: 7_200_000, freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: DIGEST }) });
-  board.db.prepare("UPDATE item SET item_status='submitted', item_commit=? WHERE item_id=?").run(SHA, id);
+  submitFixture(board, id, { agentId: seat.id, commit: SHA, tree: SHA });
   const probe = new DatabaseSync(file);
   probe.exec('PRAGMA busy_timeout = 0');
   t.after(() => probe.close());
