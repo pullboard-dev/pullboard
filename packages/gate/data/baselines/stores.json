@@ -1529,7 +1529,7 @@
     },
     "table:verdict": {
       "kind": "table",
-      "owner": "packages/verify/src/logic/verdict/assurance.js"
+      "owner": "packages/verify/src/io/review/independence.js"
     },
     "table:vault": {
       "kind": "table",
