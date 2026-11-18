@@ -128,6 +128,7 @@ export {
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
+  reviewHoldAfterTwoReleases,
   releaseStaleItemRevision,
   holdsRequireOwner,
   nextIdleBlockers,

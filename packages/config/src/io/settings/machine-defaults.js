@@ -160,6 +160,7 @@ export const MACHINE_DEFAULTS = {
   'release.rerouteUntouched': false,
   'release.staleItemRevision': false,
   'review.canonicalFamilies': false,
+  'review.holdAfterTwoReleases': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
