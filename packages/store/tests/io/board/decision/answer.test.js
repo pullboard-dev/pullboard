@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { answerDecision } from "../../../../index.js";
+import { claim } from "../../../../index.js";
 import { shout } from "../../../../index.js";
 import { TYPED_REQUEST_CAUSES } from "../../../../src/io/requests.js";
 import { fixtureBoard } from "../../../../../board/tests/fixtures/board.js";
@@ -17,6 +18,7 @@ function openDecision(t) {
   cellSeat(board, { lane: "coordinator", path: "/answer-root" });
   const builder = cellSeat(board, { lane: "web", path: "/answer-root/web-1" }).id;
   const item = cellItem(board, { lane: "web", title: "Answer a decision with a cause", criterion: "The page renders.", specIds: ["G1"] }).item_id;
+  claim(board, item, { agentId: builder, lane: "web", leaseMs: 7_200_000, freeze: () => ({ text: '{"rows":[]}', digest: "d".repeat(64) }) });
   const ask = shout(board, { from: builder, to: "coordinator", item, text: "Which interface should this expose?", decision: true, options: ["Local", "Shared"], lanes: LANES });
   return { board, ask };
 }
