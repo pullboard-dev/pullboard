@@ -78,9 +78,9 @@ import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
-/** The detached review folder for a submitted commit, or null when this clone cannot make one: the commit then reads by the ordinary switch line [C7,#8969]. */
+/** The detached review folder for a submitted commit, or the reason this clone could not make one: the commit then reads by the ordinary switch line [C7,#8969]. */
 function reviewFolderAt(ctx, commit) {
-  try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch { return null; }
+  try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch (error) { return { failed: String(error.message ?? error).split('\n')[0] }; }
 }
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
@@ -336,7 +336,8 @@ async function nextWithProgress(io, values, progress) {
         else {
           // verify.reviewFolder (off by default): the review reads a detached folder at the submitted commit, so this seat's own checkout stays where it is [C7,#8969].
           const folder = ctx.config.verify?.reviewFolder === true ? reviewFolderAt(ctx, item.item_commit) : null;
-          if (folder) io.say(`review folder at that commit: ${folder.folder} (read it there; this checkout is untouched)`);
+          if (folder?.failed) io.say(`no review folder: ${folder.failed}`);
+          if (folder?.folder) io.say(`review folder at that commit: ${folder.folder} (read it there; this checkout is untouched)`);
           else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
         }
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
