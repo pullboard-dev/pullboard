@@ -20,7 +20,7 @@ async function otherAgent(box, other) {
   return run;
 }
 
-test('a milestone edit naming an offline item follows that item when another machine takes its number first [B26,H16,H17]', async (t) => {
+test('cli.journeys-relay-outbox-part2.a-milestone-edit-naming-an-offline: a milestone edit naming an offline item follows that item when another machine takes its number first [B26,H16,H17]', async (t) => {
   // The milestone is part of the linked baseline, as on a board that already had one before the outage.
   const { box, other } = await twoMachines(t, 'Added before the outage', {
     beforeLink: async (unlinked) => {

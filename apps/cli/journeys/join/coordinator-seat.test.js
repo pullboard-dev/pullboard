@@ -24,7 +24,7 @@ async function joinCoordinatorFrom(box, name) {
   return { seat, joined };
 }
 
-test('clause 1: with join.coordinatorSeat on, join coordinator in a worktree registers coordinator-<n> and the main checkout stays the coordinator [C7,#10573]', async t => {
+test('cli.journeys-join-coordinator-seat.on-registers-coordinator-n: clause 1: with join.coordinatorSeat on, join coordinator in a worktree registers coordinator-<n> and the main checkout stays the coordinator [C7,#10573]', async t => {
   const box = crossLaneFixture(t);
   allowCoordinatorSeat(box);
   const { seat, joined } = await joinCoordinatorFrom(box, 'coordseat');
@@ -37,7 +37,7 @@ test('clause 1: with join.coordinatorSeat on, join coordinator in a worktree reg
   assert.ok(agents.some(agent => agent.agent_id === 'coordinator'), 'the main checkout seat is still the board coordinator');
 });
 
-test('clause 2: that seat stages SPEC.md and pullboard hook pre-commit passes with no outside-lane refusal [C7,#10573]', async t => {
+test('cli.journeys-join-coordinator-seat.seat-stages-spec-and-hook-passes: clause 2: that seat stages SPEC.md and pullboard hook pre-commit passes with no outside-lane refusal [C7,#10573]', async t => {
   const box = crossLaneFixture(t);
   allowCoordinatorSeat(box);
   const { seat, joined } = await joinCoordinatorFrom(box, 'coordspec');
@@ -49,7 +49,7 @@ test('clause 2: that seat stages SPEC.md and pullboard hook pre-commit passes wi
   assert.doesNotMatch(hook.out + hook.err, /outside/iu);
 });
 
-test('clause 3: with join.coordinatorSeat off, join coordinator in a worktree still refuses NO_LANE [C7,#10573]', async t => {
+test('cli.journeys-join-coordinator-seat.off-still-refuses-no-lane: clause 3: with join.coordinatorSeat off, join coordinator in a worktree still refuses NO_LANE [C7,#10573]', async t => {
   const box = crossLaneFixture(t);
   const { joined } = await joinCoordinatorFrom(box, 'coordoff');
   assert.notEqual(joined.code, 0, 'join is refused');

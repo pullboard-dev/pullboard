@@ -91,7 +91,7 @@ async function titles(machine) {
   return (await machine.cli('export')).document.tables.item.map((row) => row.item_title);
 }
 
-test('clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
+test('cli.journeys-relay-rebuild-resume.the-outbox-rebuild-resumes-from-its: clause 1: the outbox rebuild resumes from its last step after a stop at each step [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other } = await queuedBehindRemoteWork(t);
   for (const step of ['undo', 'apply', 'settle', 'reapply', 'write']) {
     assert.equal(await stopAfter(box, step), true, `the rebuild reached ${step}`);
@@ -110,7 +110,7 @@ test('clause 1: the outbox rebuild resumes from its last step after a stop at ea
   }
 });
 
-test('clause 2: an outbox whose base is behind its own receipts is reconciled, not refused [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
+test('cli.journeys-relay-rebuild-resume.an-outbox-whose-base-is-behind: clause 2: an outbox whose base is behind its own receipts is reconciled, not refused [B26,H16,H17]', { timeout: 280_000 }, async (t) => {
   const { box, other } = await queuedBehindRemoteWork(t);
   // Stop after the ordered records apply, then lose the rebuild's marker as a rebuild by an older version never wrote one.
   assert.equal(await stopAfter(box, 'apply'), true);

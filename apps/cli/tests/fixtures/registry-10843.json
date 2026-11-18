@@ -10,7 +10,10 @@
     "kind": "cell unit",
     "inputs": [
       "apps/cli/src/io/add.js",
-      "apps/cli/tests/fixtures/next/take.js"
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js",
+      "apps/cli/tests/fixtures/runner/ssh.js"
     ]
   },
   "cli.io-add.lanes-on-refused": {
@@ -24,7 +27,10 @@
     "kind": "cell unit",
     "inputs": [
       "apps/cli/src/io/add.js",
-      "apps/cli/tests/fixtures/next/take.js"
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js",
+      "apps/cli/tests/fixtures/runner/ssh.js"
     ]
   },
   "cli.io-add.lanes-off-edit-brief": {
@@ -38,7 +44,44 @@
     "kind": "cell unit",
     "inputs": [
       "apps/cli/src/io/add.js",
-      "apps/cli/tests/fixtures/next/take.js"
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js",
+      "apps/cli/tests/fixtures/runner/ssh.js"
+    ]
+  },
+  "cli.io-add.ssh-runner-baseline-measured": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With an ssh-registered runner and no runner serve, a waited add measures its check baseline red at main and returns."
+    },
+    "why": "Without it, a regression where the baseline is queued for a serve that never pulls would leave a waited add silent for two minutes and the baseline pending forever.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/add.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js",
+      "apps/cli/tests/fixtures/runner/ssh.js"
+    ]
+  },
+  "cli.io-add.served-runner-baseline-queued": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With a runner serve claiming from the board queue, the add leaves its baseline an open check-baseline runner job and starts no worker."
+    },
+    "why": "Without it, a regression that sends every baseline to a local worker would bring back the pile of local runners on the board machine (#10787).",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/add.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/e2e.js",
+      "apps/cli/tests/fixtures/testkit.js",
+      "apps/cli/tests/fixtures/runner/ssh.js"
     ]
   }
 }

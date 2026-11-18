@@ -18,7 +18,7 @@ async function go(box, root, ...args) {
   return result.out;
 }
 
-test('clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', async () => {
+test('cli.journeys-verify-team-repair.a-checkout-or-trunk-moving-during: clause 1: a checkout or trunk moving during verification cannot acquire proof [E8]', async () => {
   const box = helpers.project();
   const reviewer = join(box.dir, 'moving-reviewer');
   const moveHead = join(box.dir, 'move-review-head');

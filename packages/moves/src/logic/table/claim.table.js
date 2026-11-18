@@ -45,6 +45,8 @@ const FREEZE_CODES = Object.freeze(['UNKNOWN_SPEC', 'A5_GRAMMAR_VERSION', 'NO_PO
 
 const leaseLive = (s, item) => item.status === 'claimed' && ((item.leaseUntil ?? '') > s.now || item.gateInFlight === true);
 const isRenewal = (s, m) => s.item.owner === m.actor && leaseLive(s, s.item);
+/** A child is free only beside its own parent, the sub-agent case; a child of a parent this seat does not hold counts like a top-level claim (#10846). */
+const freeChild = (s, parentId) => parentId !== null && s.actorClaims.some(c => c.id === parentId && c.leaseUntil > s.now);
 const isRework = (s, m) => s.item.verdict === 'REJECT' && s.item.builtBy === m.actor;
 const routeIndex = (route) => ROUTES.indexOf(route);
 const cappedRoute = (route, cap) => (cap && routeIndex(cap) < routeIndex(route) ? cap : route);
@@ -54,7 +56,7 @@ const refreshes = (s, m) => Boolean(s.io.policyRefresh && !s.io.policyRefresh.re
 /** Whether the criterion freezes: the first claim, an adopted correction, or a lane-policy refresh. */
 const freezes = (s, m) => s.item.frozenDigest === null || adopts(s, m) || refreshes(s, m);
 /** The N a new top-level item-folder claim is held to, or null when the claim is not one. */
-const seatCapFor = (s, m) => (!isRenewal(s, m) && m.itemFolder === true && s.item.parentId === null && !isRework(s, m) ? s.io.seatCap ?? null : null);
+const seatCapFor = (s, m) => (!isRenewal(s, m) && m.itemFolder === true && !freeChild(s, s.item.parentId) && !isRework(s, m) ? s.io.seatCap ?? null : null);
 
 /** Fields of an unadopted coordinator correction since the last refreeze. */
 export function pendingRefreeze(s) {
@@ -116,12 +118,12 @@ function oneClaimProblem(s, m) {
   if (live.length >= LIVE_CLAIM_CAP) return 'you already hold ten live claims; submit or release one before claiming another';
   const cap = seatCapFor(s, m);
   if (cap) {
-    const top = live.filter(c => c.parentId === null && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
-    if (top.length >= cap.n) return `you already hold ${top.map(c => `#${c.id}`).join(', ')}; a seat holds up to ${cap.n} (${cap.how}); submit or release one first (child items are free)`;
+    const top = live.filter(c => !freeChild(s, c.parentId) && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
+    if (top.length >= cap.n) return `you already hold ${top.map(c => `#${c.id}`).join(', ')}; a seat holds up to ${cap.n} (${cap.how}); submit or release one first (children of an item you hold are free)`;
   }
-  if (m.itemFolder === true || s.item.parentId !== null || isRework(s, m)) return null;
-  const other = live.find(c => c.parentId === null && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
-  return other ? `you already hold #${other.id}; submit or release it first (child items are free)` : null;
+  if (m.itemFolder === true || freeChild(s, s.item.parentId) || isRework(s, m)) return null;
+  const other = live.find(c => !freeChild(s, c.parentId) && !(c.verdict === 'REJECT' && c.builtBy === m.actor));
+  return other ? `you already hold #${other.id}; submit or release it first (children of an item you hold are free)` : null;
 }
 
 /** A shell `cd` that quotes only paths that need it, as the CLI's does. */
