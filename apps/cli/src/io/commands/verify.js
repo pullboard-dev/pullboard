@@ -20,6 +20,7 @@ import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
+import { changedHunks } from '../../../../../packages/verify/index.js';
 import { composesUnchanged } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -177,8 +178,9 @@ import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
 
 /** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
-export function trunkMovedOverlapText(paths) {
-  return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}; ask another agent to re-review against current main`;
+export function trunkMovedOverlapText(paths, hunks = []) {
+  const named = hunks.length ? `, at ${hunks.map(({ file, header }) => `${JSON.stringify(file)} ${JSON.stringify(header)}`).join(', ')}` : '';
+  return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}${named}; ask another agent to re-review against current main`;
 }
 
 /** The refusal text when main moved again during the one review retry [C7,U159]. */
@@ -515,7 +517,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
         const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
-        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedOverlapText(moved.overlap));
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedOverlapText(moved.overlap, changedHunks(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: moved.overlap })));
         if (moved && !knownMain) {
           unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
