@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { deliverHealthNotices } from '../../../src/logic/board/receipts.js';
+import { healthTargets } from '../../../src/logic/board/receipts.js';
 import { HEALTH_QUIET_ENGINE } from '../../../../state/light.js';
 
 const finding = (key) => ({ key, cause: 'STUCK_BUILD', item: 7, subject: '#7', title: 'sits', since: '2026-11-18T00:00:00Z', why: 'no commit', owner: 'core-1', next: 'ask the builder' });
@@ -27,4 +28,21 @@ test('store.logic-board-receipts.clause-2-older-engine-still-shouts-resolved: cl
   const { shouts, logs } = deliver(HEALTH_QUIET_ENGINE - 1);
   assert.deepEqual(logs, [['old', true], ['new', false]]);
   assert.deepEqual(shouts.map(([, text]) => text.split(':')[0]), ['Resolved', 'Stuck']);
+});
+
+const context = (engine) => ({ engine, coordinator: 'coordinator', person: 'corey', lanes: ['core'], agents: [{ agent_id: 'core-1' }] });
+
+test('store.logic-board-receipts.clause-1-only-the-owner-hears: clause 1: from HEALTH_QUIET_ENGINE healthTargets returns only a known owner, and the coordinator only for an unknown owner or a coordinator cause [A6,H16,#1479]', () => {
+  const ctx = context(HEALTH_QUIET_ENGINE);
+  assert.deepEqual(healthTargets(finding('a'), ctx), ['core-1'], 'a known owner alone hears a stuck build');
+  assert.deepEqual(healthTargets({ ...finding('b'), owner: 'ghost-9' }, ctx), ['coordinator'], 'an unknown owner leaves it to the coordinator');
+  assert.deepEqual(healthTargets({ ...finding('c'), owner: null }, ctx), ['coordinator'], 'no owner leaves it to the coordinator');
+  for (const cause of ['UNLANDED_CONFLICT', 'UNLANDED_WAITING', 'UNLANDED_READY', 'UNLANDED_STACKED', 'DECISION_UNANSWERED', 'REQUEST_UNANSWERED', 'STALE_ROW_DECISION']) {
+    assert.deepEqual(healthTargets({ ...finding('d'), cause }, ctx), ['coordinator', 'core-1'], `${cause} still reaches the coordinator`);
+  }
+});
+
+test('store.logic-board-receipts.clause-2-older-engine-targets-unchanged: clause 2: below HEALTH_QUIET_ENGINE healthTargets still returns the coordinator and the known owner [A6,H16,#1479]', () => {
+  assert.deepEqual(healthTargets(finding('a'), context(HEALTH_QUIET_ENGINE - 1)), ['coordinator', 'core-1']);
+  assert.deepEqual(healthTargets({ ...finding('b'), owner: 'ghost-9' }, context(HEALTH_QUIET_ENGINE - 1)), ['coordinator']);
 });
