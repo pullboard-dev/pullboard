@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { awaitNestedRun } from '../../../index.js';
 import { runFixtureChildAsync } from '../../fixtures/child.js';
 import { runFixtureGit } from '../../fixtures/child.js';
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../fixtures/execution.js';
 import { HOST } from '../../fixtures/runner/ssh.js';
 import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 
