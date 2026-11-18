@@ -133,6 +133,29 @@ export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
   return pulled;
 }
 
+/** How long an unsettled sharded gate keeps its claim, counted from the gate job's creation: the gate's own deadline. */
+export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
+
+/**
+ * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
+ * still open, or every shard is done but the combined result has not applied (no `note:shards.settled` step), and the
+ * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
+ * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
+ * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
+ */
+export function gateShardsUnsettled(board, item) {
+  try {
+    const gate = board.db.prepare(`SELECT job_id, job_created FROM job WHERE job_kind = 'gate' AND job_item = ?
+      ORDER BY job_created DESC, rowid DESC LIMIT 1`).get(item.item_id);
+    if (!gate || !(board.clock.now().getTime() - gate.job_created < GATE_SETTLE_HOLD_MS)) return false;
+    const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step <> 'done') AS open FROM job
+      WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
+    if (!shards.total) return false;
+    if (shards.open > 0) return true;
+    return board.db.prepare("SELECT 1 FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' LIMIT 1").get(gate.job_id) === undefined;
+  } catch { return false; } // an older board has no job tables, so it holds no shards
+}
+
 /**
  * Read only new-engine queue observations; historical selection has no new metadata. The record lives on the item's
  * gate job in the job tables, the one place hand-off state is kept [C7].
@@ -167,6 +190,9 @@ export function awaitingGateOrReview(board, item) {
   if (pendingSubmitHandoff(board, item)) return true;
   // A pulled gate job still offered or held by a runner is the same wait, with no hand-off record [P7].
   if (item.item_status === 'claimed' && pulledGateRecords(board.db, item.item_id).has(item.item_id)) return true;
+  // So is a done gate job whose proof shards have not settled: the claim stays held for the result, but it is not
+  // buildable work, so next hands the seat new work instead of "you hold" (#10959). A settled red stops counting here.
+  if (item.item_status === 'claimed' && gateShardsUnsettled(board, item)) return true;
   const job = item.item_status === 'claimed' ? submitHandoff(board, item.item_id) : null;
   return Boolean(job) && job.agentId === item.item_owner && job.digest === item.item_frozen_digest && job.state === 'green';
 }

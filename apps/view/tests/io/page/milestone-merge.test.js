@@ -27,7 +27,7 @@ const PACE = { last2h: 2, last6h: 6, last24h: 20 };
 const MOVED = { last2h: 4, last6h: 12, last24h: 30 };
 const base = () => ({ sequence: 1, milestones: Array.from({ length: 50 }, (_, n) => milestone(`m${n}`, n + 3, PACE)) });
 
-test('clause 1: with state.milestoneDelta on, a delta of one milestone leaves the other 49 unchanged [C7,#9849]', () => {
+test('view.x-io-page-milestone-merge.clause-1-with-state-milestonedelta-on-a: clause 1: with state.milestoneDelta on, a delta of one milestone leaves the other 49 unchanged [C7,#9849]', () => {
   const state = base();
   const changed = milestone('m7', 2, PACE);
   const merged = pageMerge(true)(state, { replace: { sequence: 2 }, merge: { milestones: { key: 'id', set: [changed] } } });
@@ -36,7 +36,7 @@ test('clause 1: with state.milestoneDelta on, a delta of one milestone leaves th
   assert.deepEqual(merged.milestones.filter((_, n) => n !== 7), state.milestones.filter((_, n) => n !== 7));
 });
 
-test('clause 2: a moved pace alone gives every milestone the forecast a full state would [C7,#9849]', () => {
+test('view.x-io-page-milestone-merge.clause-2-a-moved-pace-alone-gives: clause 2: a moved pace alone gives every milestone the forecast a full state would [C7,#9849]', () => {
   const state = base();
   const merged = pageMerge(true)(state, { replace: { sequence: 2 }, merge: {}, milestonePace: MOVED });
   const full = state.milestones.map((entry) => milestone(entry.id, entry.summary.left, MOVED));
@@ -44,7 +44,7 @@ test('clause 2: a moved pace alone gives every milestone the forecast a full sta
   assert.notDeepEqual(merged.milestones[0].summary.estimate, state.milestones[0].summary.estimate, 'the forecast really moved with the pace');
 });
 
-test('clause 3: with the setting off the delta is applied as sent and nothing is derived [C7,#9849]', () => {
+test('view.x-io-page-milestone-merge.clause-3-with-the-setting-off-the: clause 3: with the setting off the delta is applied as sent and nothing is derived [C7,#9849]', () => {
   const state = base();
   const delta = { replace: { sequence: 2 }, merge: {}, milestonePace: MOVED };
   const merged = pageMerge(false)(state, delta);
