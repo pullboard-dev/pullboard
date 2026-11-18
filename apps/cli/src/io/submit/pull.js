@@ -307,6 +307,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // A phase that wrote its timing profile beside its log in the checkout names it on its row, so the runner keeps it with the sanitized log [C7,#7301].
+  const profileFile = join(root, role + '.log.profile.json'), profilePath = existsSync(profileFile) ? profileFile : null;
   const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
   const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
@@ -333,7 +335,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
