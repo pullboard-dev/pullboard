@@ -1,4 +1,5 @@
 // pullboard: browser
+/** @pullboard-test-input apps/cli/tests/fixtures/person/trusted.js */
 /** @pullboard-test-gui */
 /** @pullboard-test-loads apps/relay/src/io/browser/passkeys.js apps/relay/src/io/browser/client.js apps/relay/src/io/passkeys.js src/person-signing.js apps/cli/tests/fixtures/person/trusted.js */
 /** A real browser passkey confirms a person move a terminal started, with the person present, once [E22,H16]. */
@@ -19,7 +20,7 @@ import {
 } from '../../tests/fixtures/relay/client.js';
 import { stableChrome } from '../../tests/fixtures/cockpit/stable.js';
 
-test('a passkey on the paired browser confirms a terminal-started person move once [E22,H16]', {
+test('cli.journeys-settings-browser.a-passkey-on-the-paired-browser: a passkey on the paired browser confirms a terminal-started person move once [E22,H16]', {
   skip: !findChromeExecutable() && 'Chrome is not installed', timeout: relayWorkBudgetMs(20),
 }, async (t) => { // budget: hang ceiling for real CLI runs, Chrome and relay calls; not a speed target.
   // WebAuthn needs a domain for its RP id, so this relay is reached as localhost, not 127.0.0.1.

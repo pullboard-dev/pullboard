@@ -44,7 +44,7 @@ function project(t) {
   return { root, env, git, inProcess: run };
 }
 
-test('verbose init exposes one confirmation command for its own writes [I1,I2,D1,D2]', async (t) => {
+test('cli.journeys-gate-newcomer.verbose-init-exposes-one-confirmation-command: verbose init exposes one confirmation command for its own writes [I1,I2,D1,D2]', async (t) => {
   const box = project(t);
   box.git('config', 'user.name', 'Newcomer Fixture');
   box.git('config', 'user.email', 'newcomer@example.invalid');
@@ -88,7 +88,7 @@ test('verbose init exposes one confirmation command for its own writes [I1,I2,D1
   assert.equal(box.git('diff', '--cached', '--name-only'), '');
 });
 
-test('an agent that runs init continues setup in the same session [I1,I2]', async (t) => {
+test('cli.journeys-gate-newcomer.an-agent-that-runs-init-continues: an agent that runs init continues setup in the same session [I1,I2]', async (t) => {
   const human = project(t);
   for (const marker of AGENT_SHELL_MARKERS) delete human.env[marker];
   const humanResult = await human.inProcess('init');
@@ -111,7 +111,7 @@ test('an agent that runs init continues setup in the same session [I1,I2]', asyn
   assert.match(agentDetails.stdout, /new skills load next session, and setup does not need them/u);
 });
 
-test('init detects language gates and gives an example in the same ecosystem [I1,I2]', async (t) => {
+test('cli.journeys-gate-newcomer.init-detects-language-gates-and-gives: init detects language gates and gives an example in the same ecosystem [I1,I2]', async (t) => {
   const cases = [
     ['pyproject.toml', '[project]\nname = "example"\n', 'pytest'],
     ['pytest.ini', '', 'pytest'],
@@ -148,7 +148,7 @@ test('init detects language gates and gives an example in the same ecosystem [I1
   assert.doesNotMatch(rerun.stdout, /if this board has no build/u);
 });
 
-test('a command started under a held checkout acts under it, and a hook that must wait names the holder and stops [I1,I2]', async (t) => {
+test('cli.journeys-gate-newcomer.a-command-started-under-a-held: a command started under a held checkout acts under it, and a hook that must wait names the holder and stops [I1,I2]', async (t) => {
   const box = project(t);
   box.git('config', 'user.name', 'Newcomer');
   box.git('config', 'user.email', 'newcomer@example.invalid');

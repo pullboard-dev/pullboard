@@ -1,4 +1,4 @@
-/** The store milestones module releases through a provided coordinatorMilestoneRelease when one is set, and through its import otherwise [C7,H16]. */
+/** The store milestones module releases through a provided coordinatorMilestoneRelease when one is set, and refuses without one, having no stats import [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../../../store/index.js';
@@ -20,12 +20,10 @@ function fixture(t) {
   return { board, ship, shipped };
 }
 
-test('board.milestones-provider.with-provider-set-the-module-still: clause 2: with no provider set the module still answers through its current import, so shipping records the stats gauge [C7,H16]', t => {
+test('board.milestones-provider.with-provider-set-the-module-still: clause 2: with no provider set shipping is refused naming NO_MILESTONE_RELEASE, as the module has no stats import to fall back on [C7,H16]', t => {
   const box = fixture(t);
-  box.ship();
-  const recorded = box.shipped().coordinatorActions;
-  assert.ok(recorded.gauge, 'the imported release computed a gauge');
-  assert.equal(recorded.previous, null);
+  provideCoordinatorMilestoneRelease(null);
+  assert.throws(() => box.ship(), error => error.code === 'NO_MILESTONE_RELEASE' || /NO_MILESTONE_RELEASE/u.test(String(error.message)));
 });
 
 test('board.milestones-provider.provided-release-the-one-shipmilestone-calls: clause 1: a provided release is the one shipMilestone calls and its answer is what the ship event records [C7,H16]', t => {

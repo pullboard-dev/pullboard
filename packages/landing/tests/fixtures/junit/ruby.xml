@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: rspec --format RspecJunitFormatter --out rspec.xml (rspec_junit_formatter).
+     Case names read "clause N: ..." as the example descriptions would write them. No tool is needed to read it. -->
+<testsuite name="rspec" tests="3" skipped="1" failures="1" errors="0" time="0.012" timestamp="2026-11-17T12:00:00+00:00" hostname="runner">
+  <properties/>
+  <testcase classname="spec.calc_spec" name="clause 1: adds two numbers" file="./spec/calc_spec.rb" time="0.001"></testcase>
+  <testcase classname="spec.calc_spec" name="clause 2: halves a number" file="./spec/calc_spec.rb" time="0.002">
+    <failure message="expected: 2&#10;     got: 1&#10;&#10;(compared using ==)" type="RSpec::Expectations::ExpectationNotMetError">Failure/Error: expect(half(4)).to eq(2)
+
+  expected: 2
+       got: 1
+
+  (compared using ==)
+# ./spec/calc_spec.rb:9:in `block (2 levels) in &lt;top (required)&gt;'</failure>
+  </testcase>
+  <testcase classname="spec.calc_spec" name="clause 3: later" file="./spec/calc_spec.rb" time="0.000">
+    <skipped/>
+  </testcase>
+</testsuite>

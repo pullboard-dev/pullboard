@@ -12,21 +12,21 @@ async function withIdleChild(check) {
   try { await check(child.pid); } finally { child.kill('SIGKILL'); await new Promise(resolve => child.once('exit', resolve)); }
 }
 
-test('clause 1: with the setting on, a test child process runs at a lower priority than the CLI [C7,#8509]', async () => {
+test('cli.io-run-priority.with-the-setting-on-a-test-child: clause 1: with the setting on, a test child process runs at a lower priority than the CLI [C7,#8509]', async () => {
   await withIdleChild(async pid => {
     assert.equal(lowerTestPriority(pid, { enabled: true }), true);
     assert.ok(getPriority(pid) > getPriority(process.pid), `child ${getPriority(pid)} vs CLI ${getPriority(process.pid)}`);
   });
 });
 
-test('clause 2: with the setting off, a test child process keeps the CLI\'s priority [C7,#8509]', async () => {
+test('cli.io-run-priority.with-the-setting-off-a-test-child: clause 2: with the setting off, a test child process keeps the CLI\'s priority [C7,#8509]', async () => {
   await withIdleChild(async pid => {
     assert.equal(lowerTestPriority(pid, { enabled: false }), false);
     assert.equal(getPriority(pid), getPriority(process.pid));
   });
 });
 
-test('a refused priority change leaves the process as it was and does not throw [C7,#8509]', () => {
+test('cli.io-run-priority.a-refused-priority-change-leaves-the-process: a refused priority change leaves the process as it was and does not throw [C7,#8509]', () => {
   const refused = () => { throw new Error('EPERM'); };
   assert.equal(lowerTestPriority(0, { enabled: true, setPriority: refused }), false);
 });

@@ -84,7 +84,7 @@ function rootFixture(t) {
   return { root, base };
 }
 
-test('a landing batch that unseals the root package passes the guard with its root journeys left out [C7,CD44]', t => {
+test('gate.io-shards-landing-complete.a-landing-batch-that-unseals-the: a landing batch that unseals the root package passes the guard with its root journeys left out [C7,CD44]', t => {
   const { root, base } = rootFixture(t);
   const head = commit(root, { 'lib/root.js': 'export const root = 2;\n', 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = selectTestTiers(root, { base, commit: head });
@@ -92,7 +92,7 @@ test('a landing batch that unseals the root package passes the guard with its ro
   assert.doesNotThrow(() => requireSealedSkips(root, plan), 'the landing plan reaches its gate');
 });
 
-test('an ordinary submit touching the same packages passes, and a dropped real unit still refuses [C7,CD44]', t => {
+test('gate.io-shards-landing-complete.an-ordinary-submit-touching-the-same: an ordinary submit touching the same packages passes, and a dropped real unit still refuses [C7,CD44]', t => {
   const { root, base } = rootFixture(t);
   commit(root, { 'lib/root.js': 'export const root = 3;\n', 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] }, { base });
@@ -105,7 +105,7 @@ test('an ordinary submit touching the same packages passes, and a dropped real u
 });
 
 
-test('global policy changes keep unsealed importer units and defer root cross-package journeys [C7]', t => {
+test('gate.io-shards-landing-complete.global-policy-changes-keep-unsealed-importer: global policy changes keep unsealed importer units and defer root cross-package journeys [C7]', t => {
   const { root, base } = rootFixture(t);
   const head = commit(root, { 'package.json': '{"type":"module","name":"changed-policy"}\n',
     'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const zero = 0;\n' });

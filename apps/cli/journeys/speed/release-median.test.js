@@ -18,7 +18,7 @@ function median(samples) {
   return [...samples].sort((a, b) => a - b)[Math.floor(samples.length / 2)];
 }
 
-test(`clause 1: the release median on the 2,500-item board measures 289 ms and is held under ${BUDGET_MS} ms (target ${TARGET_MS} ms), in-process [C7]`, async (t) => {
+test('cli.journeys-speed-release-median.the-release-median-on-the-2: clause 1: [C7] the release median on the 2,500-item board measures 289 ms and is held under ' + BUDGET_MS + ' ms (target ' + TARGET_MS + ' ms), in-process', async (t) => {
   const box = largeBoard(t);
   const db = new DatabaseSync(box.board, { readOnly: true });
   const ids = db.prepare("SELECT item_id AS id FROM item WHERE item_title LIKE 'Seeded item %' ORDER BY item_id LIMIT ?").all(RUNS).map((row) => Number(row.id));

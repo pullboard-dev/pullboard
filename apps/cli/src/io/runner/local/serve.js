@@ -17,6 +17,8 @@ import { localBoards } from '../../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../../packages/drive/index.js';
 import { processAlive } from '../../../../../../packages/drive/index.js';
 import { serveLocalRunner } from '../../../../../../packages/drive/index.js';
+import { runnerSettingOn } from '../../../../../../packages/drive/index.js';
+import { machineSettingsFile } from '../../../../../../packages/resources/light.js';
 import { pullGit } from '../git.js';
 import { Refused } from '../../../../../../packages/kernel/index.js';
 import { runLandingJob } from '../../../../../../packages/landing/index.js';
@@ -47,8 +49,8 @@ async function serveLocal(io) {
   try {
     const projects = () => localBoards(folder).map(root => ({ root, name: basename(root), project: basename(root), added: '' }));
     const served = await serveLocalRunner({ folder, open: () => loopbackBoardApi(io, { projects, secret: randomBytes(18).toString('base64url') }),
-      capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
-      admit: ({ running }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running }) });
+      wakeOnOffer: runnerSettingOn(machineSettingsFile(), 'runners.localWake'), capabilities: [...hostCapabilities(), BOARD_HOST], handlers: { land }, git: pullGit, signal: stop.signal, say,
+      admit: ({ running, held }) => localLoadAdmits({ load: loadavg()[0], cores: availableParallelism(), share: localLoadShare(), running, held }) });
     if (!served.served) say(`a local runner already runs on this machine (pid ${served.pid})`);
     return 0;
   } finally {

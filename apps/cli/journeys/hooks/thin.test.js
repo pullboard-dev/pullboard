@@ -44,7 +44,7 @@ function full(box, cwd, args, extraEnv = {}) {
   return counted(box, cwd, { ...extraEnv, PULLBOARD_HOOK_FULL: '1' }, args);
 }
 
-test('clause 1: pre-commit outside an agent session loads at most 1,000 modules and exits as the full path does [H24]', () => {
+test('cli.journeys-hooks-thin.pre-commit-outside-an-agent-session: clause 1: pre-commit outside an agent session loads at most 1,000 modules and exits as the full path does [H24]', () => {
   const box = e2e.project('true');
   const thin = counted(box, box.web, {}, ['pre-commit']);
   const reference = full(box, box.web, ['pre-commit']);
@@ -54,7 +54,7 @@ test('clause 1: pre-commit outside an agent session loads at most 1,000 modules 
   assert.equal(thin.err, reference.err);
 });
 
-test('clause 1: commit-msg outside an agent session loads at most 1,000 modules and matches the full path for an accepted and a blocked message [H24]', () => {
+test('cli.journeys-hooks-thin.commit-msg-outside-an-agent-session: clause 1: commit-msg outside an agent session loads at most 1,000 modules and matches the full path for an accepted and a blocked message [H24]', () => {
   const box = e2e.project('true');
   for (const [label, text] of [['accepted', 'feat(web): thing [G1]\n'], ['blocked', 'not a conventional message\n']]) {
     const file = join(box.dir, `${label}.msg`);

@@ -9,4 +9,4 @@ export { prepareMergeOnlySubmit } from './src/io/only/submit.js';
 export { mergeOnlyBasis, mergeOnlyProblem, mergeOnlySourceValid, mergeOnlyLandingProblem } from './src/io/only/verdict.js';
 export { MAIN_MERGE_LABEL, conflictFiles, requireTrunkConflict, reopenConflict, conflictProblem, TRUNK_CONFLICT_CAUSE, conflictDetail, mainMergeFor, mainMergeLines, mainMergesFor, reopenedLine, returnedHeadNotice } from './src/io/trunk/conflict.js';
 export { automaticLandingEnabled, requireManualLanding, landAcceptedItems } from './src/io/automatic.js';
-export { mergeSubmissionMain } from './src/io/auto.js';
+export { composeRef, composeSubmissionMain, mergeSubmissionMain } from './src/io/auto.js';

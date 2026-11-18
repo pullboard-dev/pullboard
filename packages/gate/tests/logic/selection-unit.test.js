@@ -13,13 +13,13 @@ const FILES = [
   'src/App/App.csproj', 'src/App/Program.cs', 'apps/web/mix.exs', 'apps/web/lib/web.ex', 'Root.sln',
 ];
 
-test('clause 1: gate.selectionUnit is a described setting with file, package, crate and project, default file [C7]', () => {
+test('gate.logic-selection-unit.gate-selectionunit-is-a-described-setting: clause 1: gate.selectionUnit is a described setting with file, package, crate and project, default file [C7]', () => {
   assert.equal(MACHINE_DEFAULTS['gate.selectionUnit'], 'file');
   assert.ok(describeSetting('gate.selectionUnit'));
-  assert.deepEqual(SELECTION_UNITS, ['file', 'package', 'crate', 'project']);
+  assert.deepEqual(SELECTION_UNITS, ['file', 'package', 'crate', 'project', 'module']);
 });
 
-test('clause 2: selectionUnits maps file, package, crate and project from the manifest list alone [C7]', () => {
+test('gate.logic-selection-unit.selectionunits-maps-file-package-crate-and: clause 2: selectionUnits maps file, package, crate and project from the manifest list alone [C7]', () => {
   assert.deepEqual(selectionUnits('file', ['./b.js', 'a.js', 'a.js'], FILES), { units: ['a.js', 'b.js'], full: false, reason: null });
   assert.deepEqual(selectionUnits('package', ['pkg/a/a.go', 'pkg/a/a_test.go', 'cmd/app/main.go'], FILES).units, ['cmd/app', 'pkg/a']);
   assert.deepEqual(selectionUnits('crate', ['crates/x/src/lib.rs', 'crates/y/Cargo.toml'], FILES).units, ['crates/x', 'crates/y']);
@@ -27,7 +27,7 @@ test('clause 2: selectionUnits maps file, package, crate and project from the ma
   assert.deepEqual(selectionUnits('project', ['Root.sln'], FILES).units, ['.']);
 });
 
-test('clause 3: a path with no unit above it, or the binary unit, returns full true with a reason [C7]', () => {
+test('gate.logic-selection-unit.a-path-with-no-unit-above: clause 3: a path with no unit above it, or the binary unit, returns full true with a reason [C7]', () => {
   const orphan = selectionUnits('crate', ['crates/x/src/lib.rs', 'README.md'], FILES);
   assert.equal(orphan.full, true);
   assert.deepEqual(orphan.units, []);

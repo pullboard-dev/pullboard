@@ -1,0 +1,49 @@
+{
+  "cli.io-cli-main-run.short-commands-keep-claim": {
+    "proves": {
+      "specs": [
+        "B3",
+        "C7"
+      ],
+      "claim": "Separate short read commands (show, list, whoami) from a claimed seat each renew its presence, so the seat-gone sweep keeps a claim whose seat runs one command every 60 s."
+    },
+    "why": "Without it, a regression where reads stop beating would again release the claim of any agent driving the board one SSH command at a time two minutes after its last write.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/cli-main/run.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/process.js"
+    ]
+  },
+  "cli.io-cli-main-run.quiet-seat-loses-claim": {
+    "proves": {
+      "specs": [
+        "B3",
+        "C7"
+      ],
+      "claim": "A claimed seat that runs no command for 3 minutes is returned by the same sweep as seat-gone."
+    },
+    "why": "Without it, a regression that kept every claim alive would pass the first case while dead seats held their claims forever.",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/cli-main/run.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/process.js"
+    ]
+  },
+  "cli.io-cli-main-run.beat-reads-command-clock": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A command run through main() with an injected clock stamps the seat's presence beat with that clock's time, not the wall clock's."
+    },
+    "why": "Without it, a beat stamped by the wall clock lands in a fake-clock board's future, so a killed holder never looks gone and its claim never lapses (the liveness claim-step journeys went red on main).",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/cli-main/run.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/process.js"
+    ]
+  }
+}

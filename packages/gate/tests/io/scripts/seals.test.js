@@ -62,7 +62,7 @@ function sealAll(root, store, rev) {
   for (const row of sealStatus(root, { rev, store })) recordSeal(store, { package: row.package, hash: row.hash, receipts: [`receipt-${row.package}`], tests: [] });
 }
 
-test('changing one internal file unseals only its package; a changed front door unseals its importers and nothing else [C7,CD44]', t => {
+test('gate.io-scripts-seals.changing-one-internal-file-unseals-only: changing one internal file unseals only its package; a changed front door unseals its importers and nothing else [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const inner = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   assert.deepEqual(unsealedPackages(root, { base: first, head: inner }).unsealed.map(row => row.package), ['packages/base']);
@@ -75,7 +75,7 @@ test('changing one internal file unseals only its package; a changed front door 
   assert.deepEqual(unsealedPackages(root, { base: door, head: asset }).unsealed.map(row => row.package), ['packages/base'], 'assets key their package');
 });
 
-test('an unchanged package keeps its seal and receipts across commits; the command lists what a change unseals [C7,CD44]', t => {
+test('gate.io-scripts-seals.an-unchanged-package-keeps-its-seal: an unchanged package keeps its seal and receipts across commits; the command lists what a change unseals [C7,CD44]', t => {
   const { root, first, store } = fixture(t);
   sealAll(root, store, first);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const one = 1;\n' });
@@ -90,7 +90,7 @@ test('an unchanged package keeps its seal and receipts across commits; the comma
   assert.equal(shown.stdout, 'packages/base  files\npackages/user  front door packages/base/index.js\n2 unsealed, 2 keep their seal\n');
 });
 
-test('a package hash is stable across checkouts and machines [C7,CD44]', t => {
+test('gate.io-scripts-seals.a-package-hash-is-stable-across: a package hash is stable across checkouts and machines [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const copy = mkdtempSync(join(tmpdir(), 'pullboard-seals-clone-'));
   t.after(() => rmSync(copy, { recursive: true, force: true }));
@@ -103,7 +103,7 @@ test('a package hash is stable across checkouts and machines [C7,CD44]', t => {
   assert.deepEqual(hashes(again), hashes(here));
 });
 
-test('control: a selection that hides a real change from its run fails, so skip logic never reports a false green [C7,CD44]', t => {
+test('gate.io-scripts-seals.control-a-selection-that-hides-a: control: a selection that hides a real change from its run fails, so skip logic never reports a false green [C7,CD44]', t => {
   const { root, first, store } = fixture(t);
   sealAll(root, store, first);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const two = 2;\n' });
@@ -113,7 +113,7 @@ test('control: a selection that hides a real change from its run fails, so skip 
   assert.throws(() => checkSkippedSeals(root, { rev: head, skipped: hidden, store }), { code: 'SEAL_STALE', message: /packages\/user/u });
 });
 
-test('a committed cell plan owns its legacy paths: changing one unseals the declared cell, and unrelated packages keep their seals [C7,CD44]', t => {
+test('gate.io-scripts-seals.a-committed-cell-plan-owns-its: a committed cell plan owns its legacy paths: changing one unseals the declared cell, and unrelated packages keep their seals [C7,CD44]', t => {
   const { root, store } = fixture(t);
   const planned = commit(root, {
     'packages/codemap/data/plan/cells.json': JSON.stringify({ version: 1, cells: [{ order: 1, name: 'legacy', file: 'packages/codemap/data/plan/01-legacy.json' }] }),

@@ -12,7 +12,7 @@ import { lifecycleHelp } from '../../../../../packages/state/index.js';
 import { footerHelp } from './footer.js';
 
 const publicSetupHelp = setupHelp.replace(
-  'pullboard join <lane> --model <name> [--route light] [--family <name>]',
+  'pullboard join <lane> --model <name> [--level light] [--family <name>]',
   'pullboard join <lane> --model <name> [--family <name>]');
 
 export const HELP_SOURCE_SECTIONS = Object.freeze([
