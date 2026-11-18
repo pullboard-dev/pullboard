@@ -1,0 +1,4 @@
+{
+  "cli.logic-new-package.anatomy-paths": {"proves":{"specs":["C7"],"claim":"newPackageFiles returns the cell anatomy as paths under packages/<name>, and the front door opens with a one-line doc comment carrying the purpose."},"why":"Without it, a generated cell could miss a door or its registry files, or lose its purpose line, unnoticed.","kind":"cell unit","inputs":["apps/cli/src/logic/new-package.js","apps/cli/src/logic/new-package.json"]},
+  "cli.logic-new-package.refuses-non-kebab": {"proves":{"specs":["C7"],"claim":"newPackageFiles refuses a name that is not lowercase kebab-case."},"why":"Without it, a bad name would create a folder no other tool can find.","kind":"cell unit","inputs":["apps/cli/src/logic/new-package.js"]}
+}
