@@ -6,6 +6,7 @@ import { answerDecision } from "../../../../index.js";
 import { shout } from "../../../../index.js";
 import { TYPED_REQUEST_CAUSES } from "../../../../src/io/requests.js";
 import { fixtureBoard } from "../../../../../board/tests/fixtures/board.js";
+import { cellItem } from "../../../fixtures/cell.js";
 import { cellSeat } from "../../../fixtures/cell.js";
 
 const LANES = ["coordinator", "web"];
@@ -15,7 +16,8 @@ function openDecision(t) {
   const board = fixtureBoard(t);
   cellSeat(board, { lane: "coordinator", path: "/answer-root" });
   const builder = cellSeat(board, { lane: "web", path: "/answer-root/web-1" }).id;
-  const ask = shout(board, { from: builder, to: "coordinator", text: "Which interface should this expose?", decision: true, options: ["Local", "Shared"], lanes: LANES });
+  const item = cellItem(board, { lane: "web", title: "Answer a decision with a cause", criterion: "The page renders.", specIds: ["G1"] }).item_id;
+  const ask = shout(board, { from: builder, to: "coordinator", item, text: "Which interface should this expose?", decision: true, options: ["Local", "Shared"], lanes: LANES });
   return { board, ask };
 }
 
