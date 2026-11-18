@@ -266,7 +266,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['Project.toml'], command: juliaCommand },
     tests: ['test/**/*.jl', '**/runtests.jl'],
     toolchains: ['julia'],
-    junit: null,
+    junit: { command: `julia --project -e 'using TestReports; TestReports.test(logfilename="julia.xml", logfilepath="${JUNIT_DIR}")'`, report: `${JUNIT_DIR}/julia.xml`, needs: 'the TestReports package in the project test dependencies' },
     affected: null,
     // Julia's Test suite JUnit report names the testset in classname and no file attribute; Pkg.test runs the one test/runtests.jl.
     cases: { name: 'julia', inputs: [], file: row => (row.classname ? 'test/runtests.jl' : null) },
