@@ -38,13 +38,10 @@ export { boardLandingEngine } from "./src/io/table/board-landing.js";
 export { readReleaseRecords } from "./src/io/table/release-records.js";
 export { boardReleaseEngine } from "./src/io/table/board-release.js";
 export { readClaimRecords } from "./src/io/table/claim-records.js";
-/** U152 backbone reader, loaded at the call so the hot commands that load this door load no new module [C7,#10580]. */
-export async function readBackboneRecords(...args) { return (await import("./src/io/table/backbone-records.js")).readBackboneRecords(...args); }
-export async function backboneSummary(...args) { return (await import("./src/io/table/backbone-records.js")).backboneSummary(...args); }
 export { boardClaimEngine } from "./src/io/table/board-claim.js";
 export { boardSubmitEngine } from "./src/io/table/board-submit.js";
 export { readSubmitRecords } from "./src/io/table/submit-records.js";
-export { explainReport, judgeAllReport, loadMoveTable, replayReport } from "./src/io/table/report.js";
+export { backboneSummary, explainReport, judgeAllReport, loadMoveTable, readBackboneRecords, replayReport } from "./src/io/table/report.js";
 export { loadMoveTableAtTag } from "./src/io/table/at-tag.js";
 export { LEASE_MOVES, leaseEngine } from "./src/logic/table/lease.table.js";
 export { GATE_JOB_KINDS, JOB_QUEUE_MOVES, jobEngine, releaseBackoff } from "./src/logic/table/job.table.js";
