@@ -42,6 +42,8 @@ import {
   storedOwnedRequestState,
 } from './notice.js';
 import {
+  detectInstallContext,
+  homeScreenStepNeeded,
   registerApp,
   requestPairingPersistence,
 } from './install.js';
@@ -358,7 +360,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
   function keepPairingStorage() {
     persistenceRequest ??= requestPairingPersistence().then(kept => {
       const current = document.getElementById('pairing-storage-notice');
-      if (kept || homeLineDismissed(localStorage)) { current?.remove(); return; }
+      if (!homeScreenStepNeeded({ kept, ...detectInstallContext() }) || homeLineDismissed(localStorage)) { current?.remove(); return; }
       const main = document.querySelector('main');
       // The answer comes later: a board lost meanwhile, or access lost, leaves no line about keeping it.
       if (!main || accessLost || current || paired.size === 0) return;
