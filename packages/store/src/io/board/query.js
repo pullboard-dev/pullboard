@@ -398,7 +398,7 @@ export function agentModel(board, id) {
 
 /** Attach an agent's model to a row from the legacy stable agent table. */
 export function withModel(board, agent) {
-  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
+  return agent ? withSeatPresence(board, [{ ...withDerivedFamily(board, agent), agent_model: agentModel(board, agent.agent_id), agent_role: board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_role:${agent.agent_id}`)?.meta_value ?? null, agent_parent_session: agentParent(board, agent.agent_id) }])[0] : agent;
 }
 
 /**
