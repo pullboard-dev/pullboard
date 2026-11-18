@@ -16,6 +16,7 @@ import { phaseReceiptId } from '../../../jobs/index.js';
 import { releaseBackoffMs } from '../../../jobs/index.js';
 import { readPayload } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
+import { atomically } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
@@ -219,13 +220,19 @@ function pulledProofFiles(receipt) {
  * Record the submit admission a green pulled gate's receipts are reusable under: a renewal of the builder's own live claim
  * that names the judged commit and tree, the witness the controller's submit recorded when its gate was admitted.
  * Why: review reuses a submit's proof only from receipts linked to such a witness (reusableSubmitProof) [C7,H16].
+ * When the seat's newest claim event already carries a witness for the same commit and tree that no other job's receipt
+ * names, that witness is returned and no new one is minted: a second admission after the first apply's receipts left
+ * review finding no receipt after the newest admission, so it re-ran the tiers (#10862, #10954) [C7,P7].
  *
  * @returns {{ id: string, commit: string, tree: string } | null} The witness, or null when the claim cannot take one (the submit still applies).
  */
-function recordSubmitAdmission(board, { id, item, candidate, submit }) {
+function recordSubmitAdmission(board, { id, item, candidate, submit, job = null }) {
   const left = Date.parse(item.item_lease_until) - board.clock.now().getTime();
   if (!(left > 0)) return null;
-  const witness = { id: randomUUID(), commit: candidate, tree: submit.companion?.tree ?? submit.tree };
+  const tree = submit.companion?.tree ?? submit.tree;
+  const held = liveAdmission(board, { id, agentId: submit.agentId, commit: candidate, tree, job });
+  if (held) return held;
+  const witness = { id: randomUUID(), commit: candidate, tree };
   try {
     store.admitSubmit(board, id, { agentId: submit.agentId, lane: item.item_lane, leaseMs: left, freeze: () => null, submitAdmission: witness });
     return witness;
@@ -233,6 +240,25 @@ function recordSubmitAdmission(board, { id, item, candidate, submit }) {
     if (!error?.code) throw error;
     return null;
   }
+}
+
+/**
+ * The witness the seat's newest claim or renewal carries, when it names this commit and tree and every proof-run receipt
+ * linked to it is this gate job's own (phaseReceiptId), so reusing it never makes a phase's receipt ambiguous; else null.
+ */
+function liveAdmission(board, { id, agentId, commit, tree, job }) {
+  const newest = board.db.prepare("SELECT event_id AS at, event_detail AS detail FROM event WHERE item_id = ? AND event_by = ? AND event_kind IN ('claim', 'renew') ORDER BY event_id DESC LIMIT 1").get(id, agentId);
+  let witness = null;
+  try { witness = newest ? JSON.parse(newest.detail).submitAdmission ?? null : null; } catch { return null; }
+  if (!witness?.id || witness.commit !== commit || witness.tree !== tree) return null;
+  const own = new Set(Object.keys(SUBMIT_PHASES).map(role => job ? phaseReceiptId(job, role) : null));
+  const runs = board.db.prepare("SELECT event_detail AS detail FROM event WHERE item_id = ? AND event_kind = 'proof-run' AND event_id > ?").all(id, newest.at);
+  for (const row of runs) {
+    let run = null;
+    try { run = JSON.parse(row.detail).receipt ?? null; } catch { continue; }
+    if (run?.submitAdmission === witness.id && !own.has(run.id)) return null;
+  }
+  return { id: witness.id, commit: witness.commit, tree: witness.tree };
 }
 
 /** The offer a job was made with, its request read back whole, or null. runs: as latestGateJob [#9149]. */
@@ -362,15 +388,45 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   if (remaining) return { applied: false, outcome: 'waiting', remaining };
   const gateReceipt = postedReceipt(board.db, parent)?.receipt;
   if (!gateReceipt?.gate?.proofPlan) return { applied: false, outcome: 'not-shard' };
+  const now = Number.isFinite(ports.receiptNow) ? ports.receiptNow : Date.now();
+  // The last shard's post and every board process's claim reconcile reach here at once; one claims the apply, the rest return (#10862) [C7,P7].
+  if (!claimShardSettle(board.db, parent, now)) return { applied: false, outcome: 'already-settling' };
   const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })), { signatures: ports.settleOnMainReceipt === true });
-  const applied = applyGateReceipt(board, { job: parent, receipt: combined }, ports);
+  let applied;
+  try { applied = applyGateReceipt(board, { job: parent, receipt: combined }, ports); }
+  catch (error) {
+    // A refused apply hands the claim back, so the next claim's reconcile tries it again (#10181).
+    noteLease(board.db, parent, SHARDS_SETTLING, { released: true }, now);
+    throw error;
+  }
   // The parent notes it settled, whatever the outcome, so settleDoneShardGates never applies it twice [C7,P7].
-  noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome }, Number.isFinite(ports.receiptNow) ? ports.receiptNow : Date.now());
+  noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome }, now);
   return applied;
 }
 
 /** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
 const SHARDS_SETTLED = 'shards.settled';
+/** The note step the one process applying a sharded gate's result holds while it applies. */
+const SHARDS_SETTLING = 'shards.settling';
+// Budget: a settle claim a process holds this long without its settled note is a lost process's; the next claim takes it over [P7].
+const SETTLING_LEASE_MS = 10 * 60_000;
+
+/**
+ * Claim the one apply of a sharded gate's result: in one immediate transaction, which serializes every process on the
+ * board file, note it settling unless it is settled or another live claim holds it. True when this caller won.
+ * Why: the apply ran before its settled note was written, so concurrent appliers each minted a submit admission and
+ * only the first one's receipts were recorded; review then found no receipt after the newest admission (#10862) [C7,P7].
+ */
+function claimShardSettle(db, job, now) {
+  return atomically(db, () => {
+    const rows = db.prepare('SELECT job_step_name AS name, job_step_at AS at, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_name IN (?, ?)').all(job, `note:${SHARDS_SETTLED}`, `note:${SHARDS_SETTLING}`);
+    if (rows.some(row => row.name === `note:${SHARDS_SETTLED}`)) return false;
+    const held = row => row.name === `note:${SHARDS_SETTLING}` && !/"released":true/u.test(row.payload) && now - row.at < SETTLING_LEASE_MS;
+    if (rows.some(held)) return false;
+    noteLease(db, job, SHARDS_SETTLING, { pid: process.pid }, now);
+    return true;
+  });
+}
 // Budget: the reconcile looks back one day for a sharded gate whose last apply was lost; an older claim has a newer gate or none.
 const SETTLE_LOOKBACK_MS = 24 * 60 * 60_000;
 
@@ -751,13 +807,13 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
   const knownMain = Array.isArray(receipt?.analysis?.staticKnownMain) ? receipt.analysis.staticKnownMain.filter(row => typeof row?.rule === 'string' && typeof row?.file === 'string') : [];
   if (knownMain.length) store.recordKnownMainStatic(board, id, { agentId: submit.agentId, findings: knownMain.slice(0, 200), main });
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
-  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
+  const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit, job }) });
   const trialNotes = [];
   // A green gate's phases become the item's native proof-run receipts before its submission, as today's submit records them [P7].
   let phaseReceipts = [];
   const owned = ownershipOnly(receipt), proved = receipt?.status === 0 && receipt?.gate?.green === true || owned;
   if (proved) {
-    const admission = receipt?.status === 0 && receipt?.gate?.green === true && !submit.companion ? recordSubmitAdmission(board, { id, item, candidate, submit }) : null;
+    const admission = receipt?.status === 0 && receipt?.gate?.green === true && !submit.companion ? recordSubmitAdmission(board, { id, item, candidate, submit, job }) : null;
     try { phaseReceipts = recordPhaseReceipts(board, { job, receipt, id, candidate, main, submit, check: offered.check, admission }); }
     catch (error) {
       // A receipt the board refuses is named on the thread; the gate's result still applies, so the item is never stranded.
