@@ -1,7 +1,7 @@
 /** A sharded gate's result applies once, however many board processes reach it at once, so review reuses its submit proof [C7,P7,#10862,#10954]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { Worker } from 'node:worker_threads';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
@@ -20,7 +20,7 @@ import { postReceipt } from '../../../index.js';
 const FILES = ['web/a.test.js', 'web/b.test.js', 'web/c.test.js', 'web/d.test.js'];
 const PROOF = `node --test ${FILES.map(file => `'./${file}'`).join(' ')}`;
 const ENVIRONMENT = { node: process.version, platform: process.platform, arch: process.arch };
-// Budget: the six appliers start together after this delay, long enough for every child to open the board first.
+// Budget: the six appliers start together after this delay, long enough for every thread to open the board first.
 const START_DELAY_MS = 1500;
 
 /**
@@ -73,36 +73,43 @@ function reuse(board, id, head, tree) {
     expectedPlan: { check: '', files: FILES, full: false, deferred: false, proofCommand: PROOF, tiered: false } });
 }
 
-/** One applier in its own process on the board file: the shard post's apply, or a pull claim whose reconcile settles done gates. */
-const CHILD = `
-const [file, root, job, mode, runner, start] = process.argv.slice(1);
-const { openCellBoard, closeCellBoard } = await import(${JSON.stringify(new URL('../../../../store/tests/fixtures/cell.js', import.meta.url).href)});
-const api = await import(${JSON.stringify(new URL('../../../index.js', import.meta.url).href)});
-const board = openCellBoard(file, undefined, { gitRoot: root });
-board.gitRoot = root;
-board.db.exec('PRAGMA busy_timeout = 30000');
-while (Date.now() < Number(start)) { /* every applier starts at the same moment */ }
-let outcome;
-try {
-  outcome = mode === 'post' ? api.applyShardReceipt(board, { job }).outcome : (api.boardJobQueueCall(board, { action: 'claim', runner, capabilities: [] }, { mode: 'pull' }), 'claimed');
-} catch (error) { outcome = 'error ' + (error?.code ?? '') + ' ' + error?.message; }
-closeCellBoard(board);
-process.stdout.write(JSON.stringify(outcome));
+/**
+ * One applier on its own board connection in its own thread, as each board process holds its own: the shard post's
+ * apply, or a pull claim whose reconcile settles done gates. Each thread blocks only itself, so the appliers truly overlap.
+ */
+const APPLIER = `
+const { workerData, parentPort } = require('node:worker_threads');
+(async () => {
+  const { file, root, job, mode, runner, start, fixture, api: door } = workerData;
+  const { openCellBoard, closeCellBoard } = await import(fixture);
+  const api = await import(door);
+  const board = openCellBoard(file, undefined, { gitRoot: root });
+  board.gitRoot = root;
+  board.db.exec('PRAGMA busy_timeout = 30000');
+  while (Date.now() < start) { /* every applier starts at the same moment */ }
+  let outcome;
+  try {
+    outcome = mode === 'post' ? api.applyShardReceipt(board, { job }).outcome : (api.boardJobQueueCall(board, { action: 'claim', runner, capabilities: [] }, { mode: 'pull' }), 'claimed');
+  } catch (error) { outcome = 'error ' + (error && error.code || '') + ' ' + (error && error.message); }
+  closeCellBoard(board);
+  parentPort.postMessage(outcome);
+})();
 `;
+const FIXTURE_URL = new URL('../../../../store/tests/fixtures/cell.js', import.meta.url).href;
+const API_URL = new URL('../../../index.js', import.meta.url).href;
 
-/** Run one applier process to its end and read the outcome it printed. */
+/** Run one applier thread to its end and read the outcome it posted. */
 function applier(repo, last, mode, runner, start) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--input-type=module', '-e', CHILD, repo.boardFile, repo.root, last, mode, runner, String(start)], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });
-    let out = '', err = '';
-    child.stdout.on('data', chunk => { out += chunk; });
-    child.stderr.on('data', chunk => { err += chunk; });
-    child.on('error', reject);
-    child.on('close', code => code === 0 ? resolve(JSON.parse(out)) : reject(new Error(`applier ${mode} exited ${code}: ${err.slice(-2000)}`)));
+    const worker = new Worker(APPLIER, { eval: true, workerData: { file: repo.boardFile, root: repo.root, job: last, mode, runner, start, fixture: FIXTURE_URL, api: API_URL } });
+    let outcome = null;
+    worker.on('message', value => { outcome = value; });
+    worker.on('error', reject);
+    worker.on('exit', code => code === 0 && outcome !== null ? resolve(outcome) : reject(new Error(`applier ${mode} exited ${code}`)));
   });
 }
 
-test('api.gate-apply-once.concurrent-applies-submit-once: clause 1: six board processes applying one done sharded gate at once (the shard post and the pull claim reconcile) submit it once under one admission, and review reuses its proof [C7,P7,#10862]', async t => {
+test('api.gate-apply-once.concurrent-applies-submit-once: clause 1: six board connections applying one done sharded gate at once (the shard post and the pull claim reconcile) submit it once under one admission, and review reuses its proof [C7,P7,#10862]', async t => {
   const { repo, board, item, head, tree, last } = doneShardedGate(t);
   const start = Date.now() + START_DELAY_MS;
   const modes = ['post', 'claim', 'post', 'claim', 'post', 'claim'];
