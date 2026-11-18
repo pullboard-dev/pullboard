@@ -49,7 +49,7 @@ apps/cli/src/core/next-step-words.js	apps/cli/src/logic/step/words.js
 apps/cli/src/core/public-export-guard.js	apps/cli/src/logic/exports.js
 apps/cli/src/core/runner-loss-health.js	apps/cli/src/logic/runner/loss.js
 apps/cli/src/core/static-prose-commands.js	apps/cli/src/logic/prose.js
-apps/cli/src/core/sweep.js	apps/cli/src/logic/sweep.js
+apps/cli/src/core/sweep.js	apps/cli/src/io/sweep/problems.js
 apps/cli/src/core/why-flag.js	apps/cli/src/logic/why.js
 apps/cli/src/shell/cli-board-read.js	apps/cli/src/io/board/read.js
 apps/cli/src/shell/cli-context.js	apps/cli/src/io/context.js
@@ -474,7 +474,7 @@ apps/relay/src/core/pairing-http.js	apps/relay/src/logic/pairing/http.js
 apps/relay/src/core/pairing-store.js	apps/relay/src/logic/pairing/store.js
 apps/relay/src/core/passkey-http.js	apps/relay/src/logic/http/passkey.js
 apps/relay/src/core/person-enrollment-http.js	apps/relay/src/logic/person/enrollment/http.js
-apps/relay/src/core/person-enrollment-store.js	apps/relay/src/logic/person/enrollment/store.js
+apps/relay/src/core/person-enrollment-store.js	apps/relay/src/io/store/enrollment.js
 apps/relay/src/core/service-worker.js	apps/relay/src/logic/worker.js
 apps/relay/src/core/upload-status.js	apps/relay/src/logic/status.js
 apps/relay/src/shell/app.webmanifest	apps/relay/src/io/app.webmanifest
@@ -748,7 +748,7 @@ bin/cell-lints.js	packages/codemap/src/io/cell/scripts/lints.js
 bin/cells-audit-backlog.js	packages/codemap/src/io/cells/backlog.js
 bin/cells-data-reads.js	packages/codemap/src/io/cells/reads.js
 bin/cells-engine-stays.js	packages/codemap/src/io/cells/retain.js
-bin/cells-inventory-cache.js	packages/codemap/src/io/cells/scripts/cache.js
+bin/cells-inventory-cache.js	apps/cli/src/io/cells/cache.js
 bin/cells-move-fixtures.js	packages/codemap/src/io/cells/move/fixtures.js
 bin/cells-move-mentions.js	packages/codemap/src/io/cells/move/mentions.js
 bin/cells-move-tool.js	packages/codemap/src/io/cells/move/tool.js
@@ -1250,7 +1250,7 @@ packages/gate/src/core/git-wait-reporter.js	packages/gate/src/logic/reporter/git
 packages/gate/src/core/load-bearing.js	packages/gate/src/logic/load/bearing.js
 packages/gate/src/core/package-cli-reach.js	packages/gate/src/logic/reach.js
 packages/gate/src/core/perf-budgets.js	packages/gate/src/logic/budgets.js
-packages/gate/src/core/preload-policy.js	packages/gate/src/logic/preload.js
+packages/gate/src/core/preload-policy.js	packages/gate/src/io/preload.js
 packages/gate/src/core/test-conversion.js	packages/gate/src/logic/test/conversion.js
 packages/gate/src/core/test-file-budget.js	packages/gate/src/logic/test/budget/file.js
 packages/gate/src/core/test-progress.js	packages/gate/src/logic/test/progress.js
@@ -1655,7 +1655,7 @@ packages/landing/index.js	packages/landing/index.js
 packages/landing/src/core/automatic-landing-retry.js	packages/landing/src/logic/retry.js
 packages/landing/src/core/item-refusal.js	packages/landing/src/logic/refusal.js
 packages/landing/src/core/land-collisions.js	packages/landing/src/logic/land/collisions.js
-packages/landing/src/core/land-local-guard.js	packages/landing/src/logic/land/guard.js
+packages/landing/src/core/land-local-guard.js	packages/landing/src/io/land/guard.js
 packages/landing/src/core/land-why.js	packages/landing/src/logic/land/why.js
 packages/landing/src/core/landing-batch-history.js	packages/landing/src/logic/batch/history.js
 packages/landing/src/core/landing-batch-size.js	packages/landing/src/logic/batch/size.js

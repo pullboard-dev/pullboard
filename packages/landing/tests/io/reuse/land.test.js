@@ -7,7 +7,7 @@ const treeOf = rev => trees[rev] ?? null;
 const submit = (extra = {}, proof = {}) => [{ event_id: 1, event_kind: 'submit', event_detail: JSON.stringify({
   commit: 'c1', tree: 'treeC', policyCommit: 'main1', tooling: 'treeTools', gateGreen: true, submissionProof: { full: false, deferred: false, files: ['test/a.test.js'], ...proof }, ...extra }) }];
 
-test('clause 1: review reuses the submit proof only when commit, tree, base and tooling tree are unchanged, else names what changed [C7]', () => {
+test('landing.land.review-reuses-the-submit-proof-only: clause 1: review reuses the submit proof only when commit, tree, base and tooling tree are unchanged, else names what changed [C7]', () => {
   const item = { item_id: 7, item_frozen_digest: 'd' };
   const events = submit({ criterionDigest: 'd' });
   const base = { item, commit: 'c1', tree: 'treeC', main: 'main1', tooling: 'treeTools', check: '', affectedTests: 'node --test', gate: 'true', expectedPlan: null };

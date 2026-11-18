@@ -35,7 +35,7 @@ export function reserveReview(board, id, who) {
   return atomic(board, () => {
     const found = getItem(board, id);
     // A witness the board no longer supports is never rebuilt in the lock: the writer prepares again outside it.
-    if (known.witness && found && !confirmFamilyRelaxation(board, found, known.witness, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy)) {
+    if (known.witness && found && !confirmFamilyRelaxation(board, found, known.witness, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, reviewHeartbeats)) {
       throw new Refused('BOARD_BUSY', 'the review queue changed between the look and the write; run next --verify again');
     }
     return reserveWithin(board, id, { ...who, reviewHeartbeats, prepared: { witness: known.witness } });
@@ -88,8 +88,8 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
   if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
   const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
   const witness = !enabled || !found ? null
-    : prepared ? (prepared.witness ? confirmFamilyRelaxation(board, found, prepared.witness, agentId, familyRelaxAt, policy, familyPolicy) : null)
-      : reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy);
+    : prepared ? (prepared.witness ? confirmFamilyRelaxation(board, found, prepared.witness, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) : null)
+      : reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy, null, reviewHeartbeats);
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,

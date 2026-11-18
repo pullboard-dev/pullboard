@@ -1,8 +1,8 @@
 /** Liveness of a submit gate's driver: its drive job's row on the board and the process it names [C7]. */
-import { exactStart } from '../../../../packages/gate/index.js';
-import { gateDriverEnded } from '../../../../packages/drive/index.js';
-import { gateDriverGone } from '../../../../packages/drive/index.js';
-import { readGateDrive } from '../../../../packages/drive/index.js';
+import { exactStart } from '../../../../packages/gate/light.js';
+import { gateDriverEnded } from '../../../../packages/drive/light.js';
+import { gateDriverGone } from '../../../../packages/drive/light.js';
+import { readGateDrive } from '../../../../packages/drive/light.js';
 
 /**
  * A driver that never started or whose drive job ended proves death; so does an absent process or a different exact

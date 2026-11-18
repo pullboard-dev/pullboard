@@ -61,7 +61,7 @@ function fixture(t, historicalSeats = false) {
   return { board, root, author, reviewer, claim, submit, setting, advance: ms => { at += ms; } };
 }
 
-test('capacity counts distinct review actors in the same bounded flow window, not their lane [N2,H16]', t => {
+test('lib.capacity-line.capacity-counts-distinct-review-actors-in-the: capacity counts distinct review actors in the same bounded flow window, not their lane [N2,H16]', t => {
   const f = fixture(t), first = f.submit('first'), second = f.submit('second');
   assert.equal(lineCapacitySnapshot(f.board).activeReviewers, 1, 'no observations retains the denominator floor');
   store.reserveReview(f.board, first, { agentId: f.reviewer, leaseMs: HOUR, policy: 'any' });
@@ -76,7 +76,7 @@ test('capacity counts distinct review actors in the same bounded flow window, no
   assert.throws(() => lineCapacitySnapshot(f.board, { windowMinutes: Infinity }), { code: 'USAGE' });
 });
 
-test('WIP counts live claims and pending submissions, refuses atomically, and preserves renewals [N2,B13,H16]', t => {
+test('lib.capacity-line.wip-counts-live-claims-and-pending-submissions: WIP counts live claims and pending submissions, refuses atomically, and preserves renewals [N2,B13,H16]', t => {
   const f = fixture(t), waiting = f.submit();
   const a = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'one live claim' });
   const b = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'new claim' });
@@ -94,7 +94,7 @@ test('WIP counts live claims and pending submissions, refuses atomically, and pr
   assert.equal(store.getItem(f.board, b).item_owner, f.reviewer, 'off restores ordinary claim behavior');
 });
 
-test('the offered oldest review respects the actual claim caller policy and author independence [N2,B13,H16]', t => {
+test('lib.capacity-line.the-offered-oldest-review-respects-the-actual: the offered oldest review respects the actual claim caller policy and author independence [N2,B13,H16]', t => {
   const f = fixture(t), waiting = f.submit();
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'blocked new work' });
   f.setting('wipPerReviewer', 1.5);
@@ -102,7 +102,7 @@ test('the offered oldest review respects the actual claim caller policy and auth
   assert.throws(() => f.claim(id, f.reviewer, { reviewPolicy: 'coordinator' }), error => error.code === 'LINE_WIP_LIMIT' && !error.message.includes(`review oldest waiting item #${waiting}`));
 });
 
-test('old recorded claims ignore new capacity while new claims retain the feature floor on replay [N2,H16]', t => {
+test('lib.capacity-line.old-recorded-claims-ignore-new-capacity-while: old recorded claims ignore new capacity while new claims retain the feature floor on replay [N2,H16]', t => {
   const f = fixture(t, true); f.submit(); f.submit(); f.setting('wipPerReviewer', 1.5);
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'old recorded claim' });
   const snapshot = exportBoard(f.board);
@@ -123,7 +123,7 @@ test('old recorded claims ignore new capacity while new claims retain the featur
   assert.equal(store.getItem(replica, id).item_status, 'open');
 });
 
-test('the total cap covers builds and submitted work together without rounding a fractional allowance [N2,R1,H16]', t => {
+test('lib.capacity-line.the-total-cap-covers-builds-and-submitted: the total cap covers builds and submitted work together without rounding a fractional allowance [N2,R1,H16]', t => {
   const f = fixture(t), first = f.submit('first'), second = f.submit('second');
   store.reserveReview(f.board, first, { agentId: f.reviewer, leaseMs: HOUR, policy: 'any' });
   store.reserveReview(f.board, second, { agentId: 'coordinator', leaseMs: HOUR, policy: 'any' });
@@ -136,7 +136,7 @@ test('the total cap covers builds and submitted work together without rounding a
   assert.equal(store.getItem(f.board, fourth).item_status, 'open');
 });
 
-test('legacy submissions without recorded submit history still consume native WIP [N2,H16]', t => {
+test('lib.capacity-line.legacy-submissions-without-recorded-submit-history-still: legacy submissions without recorded submit history still consume native WIP [N2,H16]', t => {
   const f = fixture(t), waiting = f.submit();
   const original = store.events(f.board, { itemId: waiting });
   const legacy = exportBoard(f.board);

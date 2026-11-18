@@ -15,7 +15,7 @@ const { nativeCommit, nativeFixture } = hookFixtures({ runFixtureChild, runFixtu
 
 
 
-test('installed pre-commit refuses tag-based foreign edit and deletion shortcuts [L3]', (t) => {
+test('doctrine.hooks-tags-and-heads.installed-pre-commit-refuses-tag-based: installed pre-commit refuses tag-based foreign edit and deletion shortcuts [L3]', (t) => {
   const edited = nativeFixture(t);
   writeFileSync(join(edited.lane, 'core', 'file'), 'lane core\n');
   let result = edited.git(edited.lane, 'add', '-A');
@@ -57,7 +57,7 @@ test('installed pre-commit refuses tag-based foreign edit and deletion shortcuts
   assert.match(result.stderr, /outside the core lane: view\/file/u);
 });
 
-test('installed pre-commit refuses a hand-written MERGE_HEAD already in HEAD [L3]', (t) => {
+test('doctrine.hooks-tags-and-heads.installed-pre-commit-refuses-a-hand: installed pre-commit refuses a hand-written MERGE_HEAD already in HEAD [L3]', (t) => {
   const box = nativeFixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   let result = box.git(box.lane, 'add', '-A');
@@ -89,7 +89,7 @@ test('installed pre-commit refuses a hand-written MERGE_HEAD already in HEAD [L3
   assert.match(result.stderr, /outside the core lane: view\/file/u);
 });
 
-test('installed pre-commit matches an exact foreign path during a merge [L3]', (t) => {
+test('doctrine.hooks-tags-and-heads.installed-pre-commit-matches-an-exact: installed pre-commit matches an exact foreign path during a merge [L3]', (t) => {
   const box = nativeFixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   let result = box.git(box.lane, 'add', '-A');

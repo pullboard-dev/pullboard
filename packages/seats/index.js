@@ -50,6 +50,7 @@ export {
 } from './src/io/agent/session.js';
 export {
   agentTree,
+  idleSeats,
   agentTreeLines,
   agentsReport,
 } from './src/io/agent/tree.js';
@@ -127,6 +128,7 @@ export {
   rejectedItemEscalation,
   recordRejectedItemRoute,
 } from './src/logic/route/escalation.js';
+export { lightShaped } from './src/logic/route/shaped.js';
 export {
   seatAddress,
   addressedSeat,
@@ -179,7 +181,9 @@ export {
 export {
   originRepository,
 } from './src/logic/github/origin.js';
-export { MODEL_TIERS, modelTier } from './src/logic/tier.js';
+export { ESCALATE_AFTER_BOUNCES, MODEL_TIERS, modelTier, routeByTier } from './src/logic/tier.js';
+export { itemTierPin } from './src/logic/tier-pin.js';
+export { bouncesAtTier } from './src/logic/tier-bounces.js';
 export {
   WATCHDOG_GRACE_MS,
   planClaimWatchdog,
@@ -187,4 +191,6 @@ export {
 } from './src/io/watchdog.js';
 export { claimWorktreeSnapshot } from './src/io/untouched.js';
 export { readSeatTiming, seatLedger, seatLines, worktreeActivity } from './src/io/ledger.js';
-export { CHECKPOINT_PARTS, buildCheckpoint } from './src/logic/checkpoint.js';
+export { CHECKPOINT_MOMENTS, CHECKPOINT_PARTS, buildCheckpoint, checkpointText, readCheckpoint } from './src/logic/checkpoint.js';
+export { runtimeProfile } from './src/io/runtime-profile.js';
+export { seatLaunchConfig } from './src/io/launch.js';

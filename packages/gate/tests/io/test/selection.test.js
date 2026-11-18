@@ -42,7 +42,7 @@ function selected(box, base, commit, files) {
   return result;
 }
 
-test('quoted input markers in leading prose leave real static importer closures known [V4,C7]', t => {
+test('gate.io-test-selection.quoted-input-markers-in-leading-prose: quoted input markers in leading prose leave real static importer closures known [V4,C7]', t => {
   const box = graph(t);
   const prose = '/**\n * Example header: /** @pullboard-test-input fixtures/missing.json *\\/\n */\n';
   box.put('src/prose.js', prose + 'export const value = 1;\n');
@@ -62,7 +62,7 @@ test('quoted input markers in leading prose leave real static importer closures 
   assert.ok(testClosures(box.root, changed).closures.get('test/reader.test.js').files.includes('input.json'));
 });
 
-test('malformed, unmatched and unsafe real input annotations retain conservative fallback [V4,C7]', t => {
+test('gate.io-test-selection.malformed-unmatched-and-unsafe-real-input: malformed, unmatched and unsafe real input annotations retain conservative fallback [V4,C7]', t => {
   for (const header of [
     '/** @pullboard-test-input */',
     '/* @pullboard-test-input fixtures/existing.json */',
@@ -88,7 +88,7 @@ test('malformed, unmatched and unsafe real input annotations retain conservative
   }
 });
 
-test('declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
+test('gate.io-test-selection.declared-global-file-readers-and-ordinary: declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
   const box = graph(t);
   box.put('src/widget.js', 'export const gate = 1;\n');
   box.put('test/widget.test.js', "import '../src/widget.js';\n");
@@ -102,7 +102,7 @@ test('declared global-file readers and ordinary global module importers select t
   selected(box, gate, metadata, ['packages/gate/tests/logic/reach.test.js']);
 });
 
-test('declared non-JS inputs preserve old and new readers through deletion and glob expansion [V4,C7]', t => {
+test('gate.io-test-selection.declared-non-js-inputs-preserve-old: declared non-JS inputs preserve old and new readers through deletion and glob expansion [V4,C7]', t => {
   const box = graph(t);
   box.put('fixtures/first.json', '{"value":1}\n');
   box.put('fixtures/second.json', '{"value":2}\n');
@@ -116,7 +116,7 @@ test('declared non-JS inputs preserve old and new readers through deletion and g
   selected(box, deleted, added, ['test/data.test.js']);
 });
 
-test('declared computed and CommonJS loaders retain transitive dependencies in selections and closures [V4,C7]', t => {
+test('gate.io-test-selection.declared-computed-and-commonjs-loaders-retain: declared computed and CommonJS loaders retain transitive dependencies in selections and closures [V4,C7]', t => {
   const box = graph(t);
   box.put('src/loader.cjs', '/** @pullboard-module-loads src/value.js */\nmodule.exports = () => require(process.env.TARGET);\n');
   box.put('test/commonjs.test.js', "import '../src/loader.cjs';\n");
@@ -130,7 +130,7 @@ test('declared computed and CommonJS loaders retain transitive dependencies in s
   assert.ok(closure.files.includes('src/value.js'));
 });
 
-test('dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
+test('gate.io-test-selection.dependency-only-changes-retain-roots-with: dependency-only changes retain roots with an undeclared CommonJS reader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
   rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.cjs', "module.exports = require('./value.js');\n");
@@ -145,7 +145,7 @@ test('dependency-only changes retain roots with an undeclared CommonJS reader wi
   selected(box, base, commit, ['test/reader.test.js']);
 });
 
-test('dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
+test('gate.io-test-selection.dependency-only-changes-retain-roots-with-2: dependency-only changes retain roots with an undeclared computed product loader without selecting known unrelated roots [V4,C7]', t => {
   const box = graph(t);
   rmSync(join(box.root, 'test/value.test.js'));
   box.put('src/reader.js', "const target = './value.js'; export const value = await import(target);\n");
@@ -160,7 +160,7 @@ test('dependency-only changes retain roots with an undeclared computed product l
   selected(box, base, commit, ['test/reader.test.js']);
 });
 
-test('unresolved data and executable loaders remain named full fallbacks without evaluating code [V4,C7]', t => {
+test('gate.io-test-selection.unresolved-data-and-executable-loaders-remain: unresolved data and executable loaders remain named full fallbacks without evaluating code [V4,C7]', t => {
   const box = graph(t);
   const base = box.commit();
   box.put('unknown.bin', 'opaque input\n');
@@ -175,11 +175,13 @@ test('unresolved data and executable loaders remain named full fallbacks without
   box.put('src/opaque.js', 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url); export const value = require(process.env.OTHER);\n');
   const after = box.commit();
   const loader = selectAffectedTests(box.root, { base: before, commit: after });
-  assert.equal(loader.full, true);
+  // A changed opaque loader selects its importers and stays a named unresolved root; it no longer selects every test [C7].
+  assert.equal(loader.full, false, loader.reason);
+  assert.deepEqual(loader.files, ['test/opaque.test.js']);
   assert.match(loader.reason, /CommonJS.*src\/opaque\.js/u);
 });
 
-test('declaration text inside executable strings cannot hide an unknown non-JS input [V4,C7]', t => {
+test('gate.io-test-selection.declaration-text-inside-executable-strings-cannot: declaration text inside executable strings cannot hide an unknown non-JS input [V4,C7]', t => {
   const box = graph(t);
   box.put('test/fake.test.js', 'const banner = `/** @pullboard-test-input hidden.json */`;\n');
   const base = box.commit();
@@ -190,33 +192,48 @@ test('declaration text inside executable strings cannot hide an unknown non-JS i
   assert.match(result.reason, /hidden\.json/u);
 });
 
-for (const [field, value] of Object.entries({ type: 'commonjs', imports: { '#alias': './src/value.js' },
-  exports: './src/value.js', dependencies: { opaque: '1.0.0' }, scripts: { test: 'node different.js' }, engines: { node: '>=24' } })) {
-  test(`package ${field} effects cannot be narrowed by an explicit package reader [V4,C7]`, t => {
-    const box = graph(t);
-    box.put('packages/gate/tests/logic/reach.test.js', '/** @pullboard-test-input package.json */\n');
-    const base = box.commit();
-    box.put('package.json', JSON.stringify({ type: 'module', private: true, [field]: value }) + '\n');
-    const commit = box.commit();
-    const result = selectAffectedTests(box.root, { base, commit });
-    assert.equal(result.full, true, 'declared data reads cannot erase implicit runtime effects');
-    assert.match(result.reason, /package|CommonJS/u);
-  });
+/** An explicit package.json reader cannot narrow away an implicit runtime effect of the named package field. */
+function packageFieldEffect(t, field, value) {
+  const box = graph(t);
+  box.put('packages/gate/tests/logic/reach.test.js', '/** @pullboard-test-input package.json */\n');
+  const base = box.commit();
+  box.put('package.json', JSON.stringify({ type: 'module', private: true, [field]: value }) + '\n');
+  const commit = box.commit();
+  const result = selectAffectedTests(box.root, { base, commit });
+  assert.equal(result.full, true, 'declared data reads cannot erase implicit runtime effects');
+  assert.match(result.reason, /package|CommonJS/u);
 }
 
-for (const path of ['pullboard.json', 'package-lock.json', '.githooks/pre-commit']) {
-  test(`implicit ${path} effects retain their named full fallback [V4,C7]`, t => {
-    const box = graph(t);
-    const base = box.commit();
-    box.put(path, '{}\n');
-    const after = box.commit();
-    const result = selectAffectedTests(box.root, { base, commit: after });
-    assert.equal(result.full, true);
-    assert.ok(result.reason.includes(path), result.reason);
-  });
+/** A change to an implicit root file keeps its named full fallback. */
+function implicitFileEffect(t, path) {
+  const box = graph(t);
+  const base = box.commit();
+  box.put(path, '{}\n');
+  const after = box.commit();
+  const result = selectAffectedTests(box.root, { base, commit: after });
+  assert.equal(result.full, true);
+  assert.ok(result.reason.includes(path), result.reason);
 }
 
-test('a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
+test('gate.io-test-selection.package-type-effects-cannot-be-narrowed: package type effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'type', 'commonjs'));
+
+test('gate.io-test-selection.package-imports-effects-cannot-be-narrowed: package imports effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'imports', { '#alias': './src/value.js' }));
+
+test('gate.io-test-selection.package-exports-effects-cannot-be-narrowed: package exports effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'exports', './src/value.js'));
+
+test('gate.io-test-selection.package-dependencies-effects-cannot-be-narrowed: package dependencies effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'dependencies', { opaque: '1.0.0' }));
+
+test('gate.io-test-selection.package-scripts-effects-cannot-be-narrowed: package scripts effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'scripts', { test: 'node different.js' }));
+
+test('gate.io-test-selection.package-engines-effects-cannot-be-narrowed: package engines effects cannot be narrowed by an explicit package reader [V4,C7]', t => packageFieldEffect(t, 'engines', { node: '>=24' }));
+
+test('gate.io-test-selection.implicit-pullboardjson-effects-retain-their: implicit pullboard.json effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, 'pullboard.json'));
+
+test('gate.io-test-selection.implicit-package-lockjson-effects-retain-their: implicit package-lock.json effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, 'package-lock.json'));
+
+test('gate.io-test-selection.implicit-githooks-pre-commit-effects-retain-their: implicit .githooks/pre-commit effects retain their named full fallback [V4,C7]', t => implicitFileEffect(t, '.githooks/pre-commit'));
+
+test('gate.io-test-selection.a-declared-data-symlink-cannot-supply: a declared data symlink cannot supply complete in-repository reader custody [V4,C7]', t => {
   const box = graph(t);
   box.put('test/data.test.js', '/** @pullboard-test-input input.json */\n');
   box.put('input.json', '{}\n');
@@ -230,7 +247,7 @@ test('a declared data symlink cannot supply complete in-repository reader custod
 });
 
 
-test("an explicit data header preserves the same reader's leading source-tree declaration [V4,C7]", t => {
+test('gate.io-test-selection.an-explicit-data-header-preserves-the: an explicit data header preserves the same reader\'s leading source-tree declaration [V4,C7]', t => {
   const box = graph(t);
   box.put('input.json', '{}\n');
   box.put('test/tree.test.js', '/** @pullboard-test-input input.json */\n/** @pullboard-test-input source-tree */\n');
@@ -241,7 +258,7 @@ test("an explicit data header preserves the same reader's leading source-tree de
 });
 
 
-test('exact named TypeScript stripping supplies a non-loader import edge without executing it [V4,C7]', t => {
+test('gate.io-test-selection.exact-named-typescript-stripping-supplies-a: exact named TypeScript stripping supplies a non-loader import edge without executing it [V4,C7]', t => {
   const box = graph(t);
   box.put('src/utility.js', 'import { stripTypeScriptTypes } from "node:module"; export const parse = text => stripTypeScriptTypes(text);\n');
   box.put('test/utility.test.js', "import '../src/utility.js';\n");
@@ -252,7 +269,7 @@ test('exact named TypeScript stripping supplies a non-loader import edge without
   assert.equal(testClosures(box.root, after).closures.get('test/utility.test.js').reason, '');
 });
 
-test('non-loader utility recognition cannot hide mixed, namespace, default or executable loading [V4,C7]', t => {
+test('gate.io-test-selection.non-loader-utility-recognition-cannot-hide: non-loader utility recognition cannot hide mixed, namespace, default or executable loading [V4,C7]', t => {
   const box = graph(t);
   box.put('test/utility.test.js', "import '../src/utility.js';\n");
   const sources = [
@@ -270,7 +287,9 @@ test('non-loader utility recognition cannot hide mixed, namespace, default or ex
     box.put('src/utility.js', source + '\n');
     const after = box.commit();
     const result = selectAffectedTests(box.root, { base, commit: after });
-    assert.equal(result.full, true, source);
-    assert.match(result.reason, /CommonJS|dynamic import/u);
+    // The changed loader file is an unresolved root retained by name; the unrelated tests stay out [C7].
+    assert.equal(result.full, false, source);
+    assert.deepEqual(result.files, ['test/utility.test.js'], source);
+    assert.match(result.reason, /CommonJS|dynamic import/u, source);
   }
 });

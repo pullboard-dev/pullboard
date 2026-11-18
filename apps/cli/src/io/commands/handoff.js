@@ -8,6 +8,7 @@ import { withBoard } from '../entry.js';
 import { tryGit } from '../../../../../packages/git/index.js';
 import { itemHandoff } from '../../../../../packages/state/light.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 
 const STILL_TO_WRITE = ['what you own and what is unfinished', 'principles and taste behind decisions',
   'open threads, questions and next steps', 'files outside this repository and where they are',
@@ -70,7 +71,14 @@ export async function run(io, { first, second, rest, values }) {
       await cleanupMaintenanceLifecycle(ctx, me.id, { path: outgoing.agent_path, agent: current.outgoing,
         item: current.item, retired: true, completedTakeover: true });
     }
-    print(io, current, card(board, current.outgoing), store.itemThread(board, handoff.item).filter(row => row.type === 'fact'));
+    const resume = card(board, current.outgoing);
+    // seat.checkpoints (off by default): the outgoing seat records its five-part checkpoint on the hand-off item [C7,#8552].
+    if (values.take === undefined) await recordCheckpoint(ctx, board, { item: handoff.item, agent: me.id, moment: 'handoff', parts: {
+      done: resume.moves.slice(-5).map(move => `${move.event_kind}${move.item_id ? ` #${move.item_id}` : ''}`),
+      left: resume.claims.map(item => `#${item.item_id} ${item.item_title}`),
+      decisions: resume.asks.filter(({ answers }) => !answers.length).map(({ ask }) => `open ask #${ask.shout_id}: ${ask.shout_text}`),
+      evidence: [`worktree ${resume.worktree.path} on ${resume.worktree.branch ?? 'unavailable'}`] } }, ordered);
+    print(io, current, resume, store.itemThread(board, handoff.item).filter(row => row.type === 'fact'));
     return 0;
   });
 }

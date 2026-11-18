@@ -25,7 +25,7 @@ export async function run(io, { first, second, rest }) {
   const ctx = context(io);
   // Only a repo whose committed doctrine carries a check takes a machine slot for it.
   const rules = checkRulesAt(ctx.info.root, 'HEAD', ctx.config.practice).length
-    ? await withGateSlot(ctx.info.root, () => doctrineReport(ctx.info.root, ctx.config), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: resourceAgent(ctx), kind: 'doctrine', onWait: io.gateWaitReporter(io) })
+    ? await withGateSlot(ctx.info.root, () => doctrineReport(ctx.info.root, ctx.config), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: resourceAgent(ctx), kind: 'doctrine', item: 'doctrine check', onWait: io.gateWaitReporter(io) })
     : [];
   io.result?.({ rules });
   if (!rules.length) io.say('no committed doctrine rule carries a check; add one as | gate: check <command> | count: N');

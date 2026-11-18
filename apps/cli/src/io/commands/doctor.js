@@ -9,7 +9,11 @@ import {
 import { boardRemote } from '../../../../../packages/config/index.js';
 import { roleHosts } from '../../../../../packages/config/index.js';
 import { trunkRemote } from '../../../../../packages/config/index.js';
+import { withBoard } from '../context.js';
 import { withBoardRead } from '../context.js';
+import { runsStoreOn } from '../../../../../packages/store/index.js';
+import { reconcilerLine } from '../reconcile.js';
+import { settleOnce } from '../reconcile.js';
 import {
   bareWorktreeFinding,
   tryGit,
@@ -41,6 +45,7 @@ import { trunkUpdateInsteadProblem } from '../landing/checkout.js';
 import { anyRunnerLive } from '../runner/local.js';
 import { residentDaemons } from '../resident/daemons.js';
 import { appDaemonProblems } from '../../logic/runner/daemons.js';
+import { toolchainProblems } from '../../logic/runner/toolchains.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 
 /** `pullboard doctor --hosts`: one line per role naming the hosts and ports it needs, for a sandbox allowlist [P7]. */
@@ -81,6 +86,11 @@ export async function run(io, { values = {} } = {}) {
     message: `gate job ${job.id} waited over 2 min with no runner`,
     next: 'run pullboard runner add <ssh-host> or pullboard submit again to start the local runner' });
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
+  const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
+  problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
+  // A managed repo with no background git maintenance slows every git command as loose objects pile up (#10782).
+  const maintenanceProblem = (await import('../init/git-maintenance.js')).gitMaintenanceProblem(ctx.info.root, ctx.info.commonDir);
+  if (maintenanceProblem) problems.push(maintenanceProblem);
   const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
   if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();
@@ -92,7 +102,11 @@ export async function run(io, { values = {} } = {}) {
   if (oversizedSnapshot) problems.push({ code: 'RELAY_SNAPSHOT_LIMIT',
     message: formatSnapshotLimit(oversizedSnapshot),
     next: 'reduce the sealed board snapshot below the relay limit, then run pullboard status' });
-  io.result?.({ problems, agentHooks });
+  // With the runs_store flag on, one reconciler tick settles board-and-runs disagreements and names what it settled [B2,P7].
+  const incompatibleBoard = problems.some(problem => incompatible.has(problem.code));
+  const settled = !incompatibleBoard && withBoardRead(ctx, board => runsStoreOn(board.db)) ? withBoard(ctx, board => settleOnce(board, ctx.file)) : null;
+  io.result?.({ problems, agentHooks, ...(settled ? { reconciled: settled } : {}) });
+  if (settled) io.say(reconcilerLine(settled));
   for (const hook of agentHooks.filter(hook => hook.configured)) io.say(`${hook.vendor} agent hooks: ${hook.events.join(', ') || 'not installed'}${hook.trust ? '; trust unverified: the Stop reminder may be off; review /hooks' : ''}`);
   if (!problems.length) {
     io.say('board is clean');

@@ -20,6 +20,7 @@ import { repoInfo } from '../../../../../packages/git/index.js';
 import { withFileLock } from '../../../../../packages/outbox/index.js';
 import { readMainAudit } from '../../../../../packages/gate/index.js';
 import { saveMainAudit } from '../../../../../packages/gate/index.js';
+import { SETTLED_FILE } from '../../../../../packages/gate/index.js';
 import { landingLeaseState } from '../../../../../packages/store/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingResource } from '../../../../../packages/landing/index.js';
@@ -36,5 +37,5 @@ if (extra.length || typeof root !== 'string' || !isAbsolute(root)
 process.env.PULLBOARD_TEST_REUSE = '0';
 await runSourceAdvances(root, token, {
   nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
-  executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, runSubmitGate, withFileLock, readMainAudit, saveMainAudit, landingLeaseState, openLandingJob, takeLandingResource,
+  executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, runSubmitGate, withFileLock, readMainAudit, saveMainAudit, settledFile: SETTLED_FILE, landingLeaseState, openLandingJob, takeLandingResource,
 });

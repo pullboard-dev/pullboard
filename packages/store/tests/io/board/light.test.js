@@ -18,7 +18,7 @@ function fixture(t) {
   return { board, id, item: store.getItem(board, id) };
 }
 
-test('merge acceptance ports preserve native no-acceptance and immutable refusal semantics [V1,V4,H16]', (t) => {
+test('store.io-board-light.merge-acceptance-ports-preserve-native-no: merge acceptance ports preserve native no-acceptance and immutable refusal semantics [V1,V4,H16]', (t) => {
   const { board, id, item } = fixture(t);
   const before = store.events(board);
   let reads = 0;
@@ -42,7 +42,7 @@ test('merge acceptance ports preserve native no-acceptance and immutable refusal
   assert.deepEqual(store.events(board), before, 'read-side provenance never records native moves');
 });
 
-test('missing merge ports and reader failures remain explicit rather than granting carry [V1,V4,H16,C7]', (t) => {
+test('store.io-board-light.missing-merge-ports-and-reader-failures: missing merge ports and reader failures remain explicit rather than granting carry [V1,V4,H16,C7]', (t) => {
   const { board, id, item } = fixture(t);
   assert.throws(() => mergeOnlyBasis(board, item), /explicit acceptedVerdict read port/u);
   assert.throws(() => mergeOnlySourceValid('/unused', board, item), /explicit acceptedVerdict read port/u);

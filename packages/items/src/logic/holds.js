@@ -33,7 +33,7 @@ export function applyItemHold(board, id, { agentId, reason, until, owner, deadli
     // An owner means the hold lapses: one day out unless the caller names a deadline; the instant is the board's own clock, so replicas agree [C7,#8539].
     const record = named ? { owner: named, deadline: deadline === undefined ? new Date(Date.parse(at) + 86_400_000).toISOString() : new Date(Date.parse(deadline)).toISOString() } : null;
     if (record) rememberHoldOwner(board, id, record);
-    logEvent(board, agentId, 'hold_item', id, { reason: text, ...(condition === null ? {} : { until: condition }), ...(record ?? {}) });
+    logEvent(board, agentId, 'hold_item', id, { reason: text, ...(condition === null ? {} : { until: condition }), ...(requireOwner === true ? { requireOwner: true } : {}), ...(record ?? {}) });
     if (condition !== null) rememberHoldCondition(board, id, { kind: condition, heldAt: at, holdEventId: board.lastEvent.event_id });
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_AUTO_ENGINE) postRigorNotices(board, board.lastEvent);
     return itemHold(board, id);

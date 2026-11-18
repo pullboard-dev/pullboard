@@ -146,6 +146,20 @@ export function setJobRow(db, job, { step, attempt, owner = null, leaseUntil = n
 }
 
 /**
+ * Keep an unowned job from every claim until `until`: claim takes only a job whose lease_until has passed.
+ * Why: a land job offered again after trunk-busy waits a backoff, so trunk can settle before it tries again (#9102).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {number} until
+ * @param {{now?: number}} [options]
+ * @returns {boolean} True when the unowned job now waits until `until`.
+ */
+export function holdJob(db, job, until, { now = Date.now() } = {}) {
+  return db.prepare('UPDATE job SET job_lease_until = ?, job_updated = ? WHERE job_id = ? AND job_lease_owner IS NULL').run(until, now, String(job)).changes === 1;
+}
+
+/**
  * Point a queued job at the commit it runs at, as its candidate and base, before it is offered to runners.
  *
  * Why: a main-test job is queued by main's tree id, which a runner cannot check out; the board names the main commit

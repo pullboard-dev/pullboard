@@ -86,3 +86,53 @@ export function readFileTimes(root) {
   } catch { return {}; }
 }
 
+
+/** Each file's last measured samples, oldest first, as a census write kept them; none when the record holds none [C7]. */
+export function readFileSamples(root) {
+  try {
+    const value = JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
+    return Object.fromEntries(Object.entries(value?.samples ?? {}).filter(([, list]) => Array.isArray(list) && list.length && list.every(ms => Number.isFinite(ms) && ms >= 0)));
+  } catch { return {}; }
+}
+
+/**
+ * The record a census writes: only files in `keep` (the tracked test list), each measured file keeping its last two
+ * samples and planned by the lower one. Why: per-file times swing 4-16x with runner load, so one loaded sample would
+ * swell a job, and files gone from main would hold hundreds of planned minutes forever [C7].
+ *
+ * @param {Record<string, number>} files - The record's current plan weights.
+ * @param {Record<string, number[]>} samples - The record's current samples, oldest first.
+ * @param {Record<string, number>} measured - This census's per-file times.
+ * @param {Iterable<string>} keep - Every file the census may keep.
+ * @returns {{ version: 1, files: Record<string, number>, samples: Record<string, number[]> }}
+ */
+export function censusFileTimes(files, samples, measured, keep) {
+  const record = { version: 1, files: {}, samples: {} };
+  for (const file of new Set(keep)) {
+    const ms = measured[file], prior = samples[file]?.at(-1) ?? files[file];
+    const pair = Number.isFinite(ms) ? (Number.isFinite(prior) ? [prior, ms] : [ms]) : samples[file];
+    if (pair) { record.samples[file] = pair; record.files[file] = Math.min(...pair); }
+    else if (Number.isFinite(files[file])) record.files[file] = files[file];
+  }
+  return record;
+}
+
+/**
+ * How many of `files` have a recorded wall time, how many there are, and the share recorded (0 to 1; 0 with no files).
+ * Why: the push plan was sized from guesses when 144 of 2,502 files had a time, and nothing showed it [C7,#10330].
+ *
+ * @param {string} root - A checkout of the repository whose landing-file-times.json is read.
+ * @param {string[]} files - The gate's test files; a leading ./ is ignored and a repeated file counts once.
+ * @param {Record<string, number>} [times] - The recorded times, read from `root` when not given.
+ * @returns {{ recorded: number, total: number, share: number }}
+ */
+export function fileTimesCoverage(root, files, times = readFileTimes(root)) {
+  const list = [...new Set(files.map(file => file.replace(/^\.\//u, '')))];
+  const recorded = list.filter(file => Number.isFinite(times[file])).length;
+  return { recorded, total: list.length, share: list.length ? recorded / list.length : 0 };
+}
+
+/** The plan note for a coverage: "recorded N of M files", flagged when under 90 percent [C7,#10330]. */
+export function fileTimesCoverageNote({ recorded, total, share }) {
+  return `recorded ${recorded} of ${total} files${total && share < 0.9 ? ` (${Math.round(share * 100)} percent, under 90: the plan is sized from guesses)` : ''}`;
+}

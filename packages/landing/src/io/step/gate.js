@@ -7,13 +7,15 @@ import { landingRunFiles } from '../../../../gate/index.js';
 import { testTierCommand } from '../../../../gate/index.js';
 import { VALUE_GATE } from '../../../../gate/index.js';
 import { gateStages } from '../../../../gate/index.js';
+import { detectLanguages } from '../../../../gate/index.js';
 import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
 import { runnerExecutionServices } from '../../../../runners/index.js';
 import { landingExecutionServices } from '../shards.js';
-import { runLocalLandingGuard } from '../../logic/land/guard.js';
-import { requireNoRunnerRefusalOnlyRed } from '../../logic/land/guard.js';
+import { runLocalLandingGuard } from '../land/guard.js';
+import { requireNoRunnerRefusalOnlyRed } from '../land/guard.js';
+import { pipelineBase } from './base.js';
 import { createHash } from 'node:crypto';
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -28,6 +30,12 @@ import { headCommit } from '../../../../git/index.js';
 import { headTree } from '../../../../git/index.js';
 import { isClean } from '../../../../git/index.js';
 import { runGate } from '../../../../gate/index.js';
+import { runProfiledShellAsync } from '../../../../gate/index.js';
+import { pinRunMain } from '../../../../gate/index.js';
+import { withLandingGateSlot } from '../../../../gate/index.js';
+import { landingControllerPlacement } from '../../../../gate/index.js';
+import { testsNeedBrowser } from '../../../../gate/index.js';
+import { testsNeedGui } from '../../../../gate/index.js';
 import { runStaticChecks } from '../../../../gate/index.js';
 import { readGateReceipt } from '../../../../gate/index.js';
 import { receiptStore } from '../../../../gate/index.js';
@@ -53,8 +61,96 @@ import { knownMainLine } from '../known/main.js';
 import { fileKnownMainReds } from '../known/main.js';
 import { liveWaiverProjection } from './failures.js';
 import { mergeGroup } from './merge.js';
+import { sayGateSplit } from '../timing.js';
 import { timedPhase } from '../timing.js';
 import { landingOperations } from './merge.js';
+import { gateComponentTier } from '../../../../config/index.js';
+import { gateJunitReport } from '../../../../config/index.js';
+import { landingJunitFailures } from '../../../../config/index.js';
+import { landingCargoFailures } from '../../../../config/index.js';
+import { readJunitReport } from './junit-report.js';
+import { carriedMainOutcome } from '../main/red.js';
+
+/** The gate functions the local landing guard calls, passed to it so its logic file never imports the gate door [C7,#8567]. */
+const GUARD_PORTS = Object.freeze({ runProfiledShellAsync, pinRunMain, withLandingGateSlot, landingControllerPlacement, testsNeedBrowser, testsNeedGui, runnerExecutionServices, landingExecutionServices });
+
+/**
+ * The ports of the Sprint proof on the batch's tip: the changed paths, the code that ran, the static checks and one cell's own tests [V37].
+ * Why here: the static checks and the guard's runner placement are this step's; the proof file imports nothing.
+ * A cell with no test file has nothing to run and is green; the tests run under the guard's slot, on a runner when the machine is runners-only.
+ */
+export function sprintPorts(state) {
+  const root = state.batch.root;
+  const directory = join(dirname(root), 'logs');
+  let plan;
+  /** Run the tests of these files under the guard's slot: a cell with no test file has nothing to run and is green. */
+  const runFiles = async (files, label, { required = false } = {}) => {
+    const command = plan?.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
+    if (!command) return required && files.length ? { isGreen: false, output: 'no test command is configured (affectedTests), so these test files cannot run' } : { isGreen: true };
+    mkdirSync(directory, { recursive: true });
+    const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label,
+      onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
+    return { isGreen: run.isGreen === true, output: run.output };
+  };
+  /** The tier plan of the changed packages, read once; a repository without tiers selects by import reach [V37]. */
+  const tiers = () => (plan ??= { tiers: selectTestTiers(root, { base: state.batch.base, commit: state.batch.tip, runner: state.config.affectedTests, componentTier: gateComponentTier() }) });
+  return {
+    // landing.sprintBarTests on: the batch items' frozen bar tests run on this exact tree besides the cells' own tests [U147].
+    ...(state.config.landing?.sprintBarTests === true ? { runBar: barTestPort(state, (files, label, options) => { tiers(); return runFiles(files, label, options); }) } : {}),
+    changedFiles: () => git(root, ['diff', '--no-renames', '--name-only', state.batch.base, state.batch.tip]).split('\n').filter(Boolean),
+    pin: () => headCommit(state.root),
+    runStatic: () => runStaticChecks(root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
+      agent: 'coordinator', onWait: state.onWait, runnerAdmission: { landing: true, itemCheck: false, shortEligible: false } })
+      .then(run => ({ isGreen: run === null || run.isGreen !== false, output: run?.output }), error => ({ isGreen: false, output: error?.message })),
+    runCell: async cell => {
+      // The change's own cells are the units the tier plan selects for the changed packages; a repository without tiers selects by import reach [V37].
+      tiers();
+      const named = plan.tiers ? plan.tiers.units : (plan.reach ??= selectAffectedTests(root, { base: state.batch.base, commit: state.batch.tip, suites: state.config.affectedSuites }).files);
+      const run = await runFiles(named.filter(file => file.startsWith(`${cell}/`)), `sprint-${cell.replace('/', '-')}`);
+      return run.isGreen ? run : { ...run, files: [...new Set(landingFailures(run.output ?? '', root).map(failure => failure.file).filter(Boolean))] };
+    },
+    // One rerun of a red file on the same tree, and main's own receipt for that file: the flake rule of the Sprint proof [V37].
+    rerunFile: file => runFiles([file], `sprint-rerun-${file.replace(/[^a-z0-9]+/giu, '-').slice(-40)}`),
+    mainReceipt: file => {
+      const outcome = carriedMainOutcome(state.root, file)?.files[0];
+      return outcome ? { result: outcome.result, main: outcome.main, receiptId: outcome.receiptId } : null;
+    },
+  };
+}
+
+/**
+ * The Sprint proof's bar-test port: the union of every batch item's frozen bar test files, run once on the exact staged tree [U147].
+ * Why: the white paper's "proven" is the exact tree that lands passing the tests frozen with the bar; the cells' own files cannot say that.
+ * An item whose frozen bar names no readable file list, or a named file the staged tree lacks, or no test command, is refused naming the item (and file).
+ * The item and event readers come from the state when it carries them (a test's board), else the board.
+ *
+ * @param {any} state The landing state.
+ * @param {(files: string[], label: string, options?: { required?: boolean }) => Promise<{ isGreen: boolean, output?: string }>} runFiles Runs the files under the guard's slot.
+ */
+export function barTestPort(state, runFiles) {
+  const root = state.batch.root;
+  const readItem = state.readItem ?? (id => store.getItem(state.board, id));
+  const readEvents = state.readEvents ?? (id => store.events(state.board, { itemId: id }));
+  return async () => {
+    const items = [];
+    for (const entry of state.batch.items) {
+      let detail = {};
+      try { detail = JSON.parse(readEvents(entry.id).findLast(row => row.event_kind === 'submit')?.event_detail ?? '{}') ?? {}; } catch { detail = {}; }
+      const files = criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail);
+      if (files === null) return { isGreen: false, refused: true, item: entry.id, items, output: `the frozen bar of item #${entry.id} names no readable list of test files` };
+      const absent = files.find(file => !existsSync(join(root, file)));
+      if (absent) return { isGreen: false, refused: true, item: entry.id, file: absent, items, output: `the frozen bar test ${absent} of item #${entry.id} is missing from the staged tree` };
+      items.push({ item: entry.id, files });
+    }
+    const union = [...new Set(items.flatMap(row => row.files))].sort();
+    if (!union.length) return { isGreen: true, items };
+    const run = await runFiles(union, 'sprint-bar', { required: true });
+    if (run.isGreen) return { isGreen: true, items };
+    const red = [...new Set(landingFailures(run.output ?? '', root).map(failure => failure.file).filter(Boolean))];
+    if (!red.length) return { isGreen: false, refused: true, item: items[0].item, items, output: run.output };
+    return { ...run, items, files: red };
+  };
+}
 
 /** Quote a command argument without allowing shell interpolation. */
 export function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }
@@ -76,7 +172,7 @@ function batchAffectedTests(state, readEvents, readItem) {
   // plan never stops landing, so repos whose checks are not literal Node test commands still land (#2897).
   const registry = selectRegistryGuards(root, state.config.registryGuards, { base: state.batch.base, git });
   const mandatory = [...new Set([...(state.config.submitInvariants ?? []), ...registry])].sort();
-  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
+  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests, componentTier: gateComponentTier() });
   if (testTiers) {
     requireSealedSkips(root, testTiers);
     // The README badge files the landing itself writes select nothing; counted as changes they sent the whole batch to
@@ -324,6 +420,16 @@ export function gateGroup(state, label, options) {
   return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
 }
 
+/**
+ * The one language a project root is gated in, or null when it has none, several, or one per folder.
+ * Why: a JUnit row maps a case to a file by its language, and a guess in a multi-language repo would name the wrong file [C7,#10591].
+ */
+export function landingJunitLanguage(root) {
+  const entries = detectLanguages(root);
+  const languages = new Set(entries.map(entry => entry.language));
+  return languages.size === 1 && entries.every(entry => !entry.folder) ? entries[0].language : null;
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
@@ -353,11 +459,13 @@ async function runGateGroup(state, label, options) {
   state.say(`gate ${label}: ${subset || config[VALUE_GATE] === true ? `${files.length} files` : 'the full plan'} selected; running`);
   const gate = await (subset
     ? runLocalLandingGuard(state.batch.root, config, { files, directory, label, onWait: state.onWait,
-      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
+      waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext }, GUARD_PORTS)
     // Every file runs to completion: a fail-fast stop at main's first known red left the rest unrun, so the gate could
     // never be compared with main and one red test blocked every landing [C7,#3167].
     : runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, collectAll: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext, shard: landingGateShard(state, files) }));
+  // The gate job's marks split the gate phase: submitted is queued, need or ready is the runner's claim, done is the result [C7,B3].
+  sayGateSplit(state.say, { queuedAt: gate.phases?.submitted, claimedAt: gate.phases?.need ?? gate.phases?.ready, resultAt: gate.phases?.done });
   state.say(`gate ${label}: run finished ${gate.isGreen ? 'green' : 'red'}`);
   state.say(`gate ${label}: ${runLedger(gate.log)}`);
   if (testTiers) requireTestTierAccount(gate, files);
@@ -368,12 +476,18 @@ async function runGateGroup(state, label, options) {
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
     throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed while the gate ran; inspect ${logPath} and restore the recorded batch before adopting`);
   }
-  const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root));
+  // With landing.junitFailures on and gate.junitReport set, the report names failing cases too; a report that cannot be
+  // read is recorded and the output parse stands, never a refusal of the step [C7].
+  const reportPath = landingJunitFailures() ? gateJunitReport() : null;
+  const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
+  if (report?.code || report?.unreadable?.length) state.say(`gate ${label}: JUnit report ${reportPath} ${report.code ? `not used (${report.code}); parsing the output` : `skipped ${report.unreadable.join(', ')}`}`);
+  const junit = { ...(report?.xml ? { junitFailures: true, junitXml: report.xml, junitLanguage: landingJunitLanguage(state.batch.root) } : {}), cargoFailures: landingCargoFailures() };
+  const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   // A red run whose only non-green shards are runner refusals decided nothing: it is retried as a landing fault and
   // never reaches diagnosis or the repeat guard [C7,#3693].
   requireNoRunnerRefusalOnlyRed({ ...gate, failures, logPath });
-  const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
+  const result = { ...gate, failures, ...(report?.code ? { junitCode: report.code } : {}), accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
   // An item lands unless its own change breaks a case that passes on main, so every landing compares main [C7,#3073]:
   // cases red there too are filed as Main red and never charged to the items.
@@ -390,7 +504,7 @@ async function runGateGroup(state, label, options) {
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
     submissions: state.batch.items.map(({ id, commit }) => ({ id, commit })),
-    failures: [...new Set((gate.blockingVerdict ? failures : landingFailures(gate.output, state.batch.root, { excludeCancelled: true })).map(failure => failure.file).filter(Boolean))],
+    failures: [...new Set((gate.blockingVerdict ? failures : landingFailures(gate.output, state.batch.root, { excludeCancelled: true, ...junit })).map(failure => failure.file).filter(Boolean))],
     fileTimes: landingFileTimes(state.batch.root, gate.profile) };
   const warnings = gate.environment ? environmentWarnings(state.board, state.batch.items, gate.environment) : [];
   for (const warning of warnings) state.say(`#${warning.item} was checked on ${environmentLabel(warning.recorded)}; this landing ran on ${environmentLabel(warning.landing)}`);
@@ -438,11 +552,14 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   if (!existsSync(batch.root)) {
     mkdirSync(dirname(batch.root), { recursive: true });
     checkLeaseNow();
-    git(root, ['worktree', 'add', '--detach', batch.root, batch.base]);
+    git(root, ['worktree', 'add', '--detach', batch.root, pipelineBase({ config, board }, batch)]);
   }
   board.quarantineEnabled = () => config.flakes?.quarantine === true;
   const state = { root, board, config, batch, write, say, onWait, checkLease, checkLeaseNow, checkAtCommit, landingPorts,
     culprits: [], flaky: false, gates: new Map(), diagnosed: new Map() };
+  // With landing.pipeline on, the batch gates on main plus the earlier batch's merge; its record names that base [C7,#8937].
+  const base = pipelineBase(state, batch);
+  if (base !== batch.base) await save(state, { base });
   const build = await mergeGroup(state, entries);
   await save(state, { ...build });
   // A conflicting prefix is not its requested composition. Never test the smaller accidental tree.

@@ -1,8 +1,10 @@
-/** @pullboard-module-loads packages/moves/src/logic/table/lease.table.js packages/moves/src/logic/table/run.js packages/moves/src/logic/table/submit.table.js packages/moves/src/logic/table/withdraw.table.js packages/moves/src/logic/table/claim.table.js packages/moves/src/logic/table/release.table.js packages/moves/src/logic/table/job.table.js packages/moves/src/logic/table/reopen.table.js */
+/** @pullboard-module-loads packages/moves/src/logic/table/lease.table.js packages/moves/src/logic/table/run.js packages/moves/src/logic/table/submit.table.js packages/moves/src/logic/table/withdraw.table.js packages/moves/src/logic/table/claim.table.js packages/moves/src/logic/table/release.table.js packages/moves/src/logic/table/job.table.js packages/moves/src/logic/table/reopen.table.js packages/moves/src/logic/table/pulled.table.js */
 /** The move registry's next steps and the move tables, without the freezer, selection and the rest the cell index also loads [C7]. */
 import { createRequire } from 'node:module';
 import { withMoveNextSteps as withRegistrySteps } from './src/io/registry.js';
 export { MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor } from './src/io/registry.js';
+/** The claim-head refusal, so a claim need not load the cell index's freezer and selection modules [C7,#9895]. */
+export { offMainHeadRefusal } from './src/io/claim-head.js';
 
 /**
  * Add the moves' own next steps to the default guidance.
@@ -48,4 +50,8 @@ export const releaseEngine = tableOnDemand('./src/logic/table/release.table.js',
 export const jobEngine = tableOnDemand('./src/logic/table/job.table.js', 'jobEngine');
 /** The reopen move table's engine, for the store's reopen writer's shadow compare [C7,#8388]. */
 export const reopenEngine = tableOnDemand('./src/logic/table/reopen.table.js', 'reopenEngine');
+/** The reclaim table's engine, for the store's stale-state maintenance shadow compare [C7,#9367]. */
+export const reclaimEngine = tableOnDemand('./src/logic/table/reclaim.table.js', 'reclaimEngine');
+/** The landing-pulled table's engine, for the store's pulled writer to run [M2,R3,#9098]. */
+export const pulledEngine = tableOnDemand('./src/logic/table/pulled.table.js', 'pulledEngine');
 

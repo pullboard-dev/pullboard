@@ -299,13 +299,15 @@ function cellsAt(root, commit) {
  * starts a test. It returns rather than refuses because submit and verify reach it; only show names the refusal.
  * `mainReceiptIds` are the submit's main comparison receipts; the board's recorded main runs are tried too.
  */
-function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [], thread = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
+export function buildReviewPacket(root, { item, submit, receipts, baseline, mainRuns = [], thread = [] }, { now = new Date(), commonDir = null, errors = [], mainReceiptIds = [] } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
   const excused = submit && submit.gateGreen !== true ? excusedMainReds(submit, receipts) : pulledMainOwned(submit);
   if (!submit || (submit.gateGreen !== true && !excused) || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
-  const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
+  let base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
+  // A hotfix head already in main's history is its own merge base, which diffs to nothing: review it against its parent [C7,#9446].
+  if (main && base === head) base = gitRead(root, ['rev-parse', `${head}^`]).trim();
   const stat = gitRead(root, ['diff', '--stat', '--no-color', base, head]).trimEnd();
   let patch = gitRead(root, ['diff', '--no-color', '--no-ext-diff', base, head]);
   const truncated = Buffer.byteLength(patch) > PATCH_LIMIT;

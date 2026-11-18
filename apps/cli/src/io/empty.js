@@ -1,6 +1,8 @@
 /** A submit whose head changes nothing against main is refused before any gate is queued [C7]. */
 import { Refused } from '../../../../packages/kernel/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
+import { clauseTicks } from '../../../../packages/state/index.js';
+import { criterionClauses } from '../../../../packages/state/index.js';
 
 /**
  * The worktree folders of the repository that hold commits citing the item and differ from main.
@@ -42,15 +44,35 @@ export function landedHotfix(root, id, commit, main) {
 }
 
 /**
+ * Whether an item is proof-only: every clause is declared command, measurement or reasoning and carries its own kind of tick.
+ * Why: such an item (#8477, whose three [command] clauses were recorded as facts) has nothing to change, so an empty head is its honest submission (#9105).
+ * A [test], [screenshot] or undeclared clause always needs a change.
+ * @param {object} item the claimed item row
+ * @param {object[]} thread the item's thread, oldest first
+ * @param {string} commit the head being submitted
+ * @returns {boolean}
+ */
+export function proofOnlyTicked(item, thread, commit) {
+  const clauses = criterionClauses(item.item_criterion);
+  if (!clauses.length || !clauses.every(clause => ['command', 'measurement', 'reasoning'].includes(clause.kind))) return false;
+  const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head: commit });
+  return clauses.every(clause => ticks.get(clause.number)?.kind === clause.kind);
+}
+
+/**
  * Refuse EMPTY_SUBMIT when the commit's tree equals main's, naming the folder that holds the item's commits.
  * @param {string} root the submitting checkout
  * @param {number|string} id the item id
  * @param {string} commit the head being submitted, after main is composed in
  * @param {string} main the accepted main commit
+ * @param {{ proofOnly?: () => boolean, proofShaped?: () => boolean }} [allow] proofOnly reads submit.proofOnly and the item's ticks; proofShaped reads only the ticks, so the refusal can name the setting
  * @returns {void}
  */
-export function requireNonEmptySubmit(root, id, commit, main) {
-  if (tryGit(root, ['diff', '--quiet', main, commit]).status === 0 && !landedHotfix(root, id, commit, main)) {
+export function requireNonEmptySubmit(root, id, commit, main, { proofOnly = () => false, proofShaped = () => false } = {}) {
+  if (tryGit(root, ['diff', '--quiet', main, commit]).status === 0 && !landedHotfix(root, id, commit, main) && !proofOnly()) {
+    if (proofShaped()) {
+      throw new Refused('EMPTY_SUBMIT', `this head has no change against main, and #${id} is a proof-only item with every clause ticked; turn on submit.proofOnly to submit it with no change`);
+    }
     const [folder] = itemCommitFolders(root, id, main);
     throw new Refused('EMPTY_SUBMIT', folder
       ? `this head has no change against main; the commits for #${id} are in ${folder}, so cd there and run pullboard submit ${id}`

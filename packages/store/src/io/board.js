@@ -40,6 +40,7 @@ import { atomic } from "./board/event/log.js";
 import { logEvent } from "./board/event/log.js";
 import { verdictReviewProblem } from "../../../verify/index.js";
 import { verdictsFor } from "../../../verify/index.js";
+import { verdictReads } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../items/index.js";
@@ -78,7 +79,9 @@ import { editItem } from "./board/edit.js";
 import { validateItemEdit } from "./board/edit.js";
 import { attachItemPatch } from "./board/patch/attach.js";
 import { objectItemPatch } from "./board/patch/attach.js";
-import { removeItemPatch } from "./board/patch/remove.js";
+import { applyItemPatchRemoval } from "../../../items/index.js";
+import { getItem as itemForPatch } from "./board/query.js";
+import { invalidateItemPatch } from "./board/patch/attach.js";
 import { prepareClaim as preparedClaim } from "./board/claim.js";
 import { claim as applyPreparedClaim } from "./board/claim.js";
 import { admitSubmit as applySubmitAdmission } from "./board/claim.js";
@@ -93,6 +96,7 @@ import { reserveReview } from "./board/reserve/review.js";
 import { reserveNextReview } from "./board/reserve/next.js";
 import { verify } from "./board/verify.js";
 import { verdictEvidence } from "./board/verify.js";
+import { prepareVerdictFacts } from "./board/verify.js";
 import { reopen } from "./board/reopen.js";
 import { merged } from "./board/merged.js";
 import { withdraw } from "./board/withdraw.js";
@@ -119,7 +123,7 @@ import { recordLandingFlake } from "./board/record/landing/flake.js";
 import { finishLandingBatch } from "./board/batch.js";
 import { intakeOutside } from "./board/outside/intake.js";
 import { applyRehomeItem } from "./board/apply/rehome.js";
-import { approveOutside } from "./board/outside/approve.js";
+import { approveOutside as applyOutsideApproval } from "./outside.js";
 import { setLaneLead } from "./board/lane/lead.js";
 import { activityDeliveryState } from "./board/delivery.js";
 import { activityInterruptWasDelivered } from "./board/delivery.js";
@@ -158,11 +162,19 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board/facade.js";
+
+/** Stop applying native bytes without discarding their historical author exclusions; joined from board/patch/remove.js so a cold command loads one module fewer [C7]. */
+function removeItemPatch(board, id, options) {
+  return applyItemPatchRemoval(board, id, options, { atomic, logEvent, getItem: itemForPatch, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+}
+
+/** Record the person's exact-commit owner approval; joined from board/outside/approve.js so a cold command loads one module fewer [C7]. */
+function approveOutside(board, id, options) { return applyOutsideApproval(board, id, options, atomic); }
 export { setBarReady, signBar, seatFamily, canonicalFamily } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./baseline/check.js";
 
 export { atomic, logEvent };
-export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
+export { verdictReviewProblem, verdictReads, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect, closeLandingTestDefect } from "../logic/board/landing/test/defects.js";
 export { recordSelectorGap, selectorGapCandidate } from "../logic/board/gap.js";
 export { relandAccepted, acceptedRelandCandidate, relandConflictRecorded } from "../logic/board/reland.js";
@@ -390,7 +402,7 @@ export { EVIDENCE_KINDS } from "../logic/board/audience.js";
 
 export { openDecisions } from "./board/query.js";
 
-export { inbox } from "../logic/board/inbox.js";
+export { inbox, enqueueInboxMark, flushInboxMarks, takeInboxMarks } from "../logic/board/inbox.js";
 
 export { unreadCount } from "./board/query.js";
 
@@ -477,6 +489,7 @@ export {
   reserveNextReview,
   verify,
   verdictEvidence,
+  prepareVerdictFacts,
   reopen,
   merged,
   withdraw,
@@ -537,6 +550,6 @@ export function admitSubmit(board, id, options) {
   return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, prepareRecaptureSubmitHandoff, recaptureSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
 
 export { createItemSlice } from "./board/item/slice.js";

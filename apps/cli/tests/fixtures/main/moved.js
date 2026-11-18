@@ -4,7 +4,11 @@
 import { stopFixtureLocalRunner } from '../runner/local-stop.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { linkSync } from 'node:fs';
+import { readlinkSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -13,6 +17,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
@@ -45,20 +50,62 @@ export function quietWindow(now = Date.now()) {
   };
 }
 
+/** Hardlink a tree, or copy where a path is mutable or the link is refused; a file written in place would reach the shared inode, so only never-rewritten files are linked. */
+function mirror(from, to, copy = () => false, base = from) {
+  mkdirSync(to, { recursive: true });
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    const source = join(from, entry.name), target = join(to, entry.name);
+    if (entry.isDirectory()) { mirror(source, target, copy, base); continue; }
+    if (entry.isSymbolicLink()) { symlinkSync(readlinkSync(source), target); continue; }
+    if (copy(relative(base, source))) { copyFileSync(source, target); continue; }
+    try { linkSync(source, target); } catch { copyFileSync(source, target); }
+  }
+}
+
+let template = null;
+/**
+ * One package copy and one committed `.tooling` repo per process, built on first use and removed at exit.
+ * Every fixture's scratch folder lives under the template root, so one folder per process is the only temp folder and links stay on one filesystem.
+ * Why: every fixture used to copy the package twice and hash ~6,000 files in `git add`; the copy and the hashing are identical
+ * every time, so later fixtures link the files and reuse the git objects, which keeps the composed bytes real and tracked [C7,H16].
+ */
+function packageTemplate() {
+  if (template) return template;
+  const root = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
+  const gitEnv = { ...process.env, HOME: join(root,'home'), GIT_CONFIG_GLOBAL:'/dev/null', GIT_CONFIG_NOSYSTEM:'1',
+    GIT_AUTHOR_NAME:'Fixture', GIT_AUTHOR_EMAIL:'fixture@example.invalid', GIT_COMMITTER_NAME:'Fixture', GIT_COMMITTER_EMAIL:'fixture@example.invalid' };
+  process.on('exit',()=>{try{rmSync(root,{recursive:true,force:true});}catch{/* Best effort: the system temp folder is swept anyway. */}});
+  const pkg = join(root,'pkg'), repo = join(root,'repo');
+  mkdirSync(pkg);
+  const shipped = copyPackageFiles(fileURLToPath(SOURCE),pkg);
+  mirror(pkg,join(repo,'.tooling'));
+  const run = (...args) => { const out = runFixtureChild('git',args,{cwd:repo,env:gitEnv,encoding:'utf8'}); assert.equal(out.status,0,out.context ?? out.stderr); };
+  run('init','-q','-b','main');
+  // Linking changes ctime, which would make every linked file look modified to the first `git add`.
+  run('config','core.trustctime','false');
+  run('add','-A');run('commit','-q','-m','chore: installed package tooling');
+  template = { root, pkg, repo, shipped, count: 0 };
+  return template;
+}
+
 /**
  * Copy actual installed code, create a real tracked project and seed one explicitly synthetic prior acceptance.
  * Why manual landing by default: under pull the board's automatic lander offers a land job for the accepted item, and the
  * loopback local runner lands it into the fixture's own checkout, racing the source-advance worker this fixture observes.
  */
 export async function mainMovedFixture(t, { conflict = false, generated = false, red = false, submitted = false, dirty = false, outside = false, selective = false, blocked = false, manualLanding = true } = {}) {
-  const scratch = mkdtempSync(join(tmpdir(),'pullboard-main-moved-'));
+  const parts = packageTemplate();
+  const scratch = join(parts.root,`fixture-${++parts.count}`);
+  mkdirSync(scratch);
   const installed = join(scratch,'installed'), repo = join(scratch,'repo'), machine = join(scratch,'machine');
   for (const folder of [installed,repo,machine]) mkdirSync(folder);
-  copyPackageFiles(fileURLToPath(SOURCE),installed);
   let shipped = [];
+  mirror(parts.pkg,installed);
   if (!selective) {
-    const tooling = join(repo,'.tooling');
-    shipped = copyPackageFiles(fileURLToPath(SOURCE),tooling);
+    shipped = parts.shipped;
+    rmSync(repo,{recursive:true,force:true});
+    // Link the committed tooling and its git objects; copy the mutable git state (index, refs, config, HEAD).
+    mirror(parts.repo,repo,path=>path.startsWith('.git')&&!path.startsWith(join('.git','objects')));
     mkdirSync(join(repo,'apps/cli'),{recursive:true});
     writeFileSync(join(repo,'apps/cli/pullboard.js'),`/** @pullboard-module-loads .tooling/apps/cli/pullboard.js */\nimport {spawnSync} from 'node:child_process';\nimport {fileURLToPath} from 'node:url';\nconst entry=fileURLToPath(new URL('../../.tooling/apps/cli/pullboard.js',import.meta.url));\nconst child=spawnSync(process.execPath,[...process.execArgv,entry,...process.argv.slice(2)],{stdio:'inherit'});\nif(child.error)throw child.error;\nif(child.signal)process.kill(process.pid,child.signal);\nelse process.exitCode=child.status??1;\n`);
   }
@@ -88,7 +135,8 @@ export async function mainMovedFixture(t, { conflict = false, generated = false,
   writeFileSync(join(repo,'test/check.test.js'),`import {test} from 'node:test';import assert from 'node:assert/strict';import {writeFileSync,existsSync} from 'node:fs';import {execFileSync} from 'node:child_process';import {feature} from '../web/feature.js';import {other} from '../web/other.js';test('actual exact composed behavior',()=>{console.log('SOURCE_ADVANCE_BODY');${blocked?`writeFileSync(${JSON.stringify(gateEntered)},'entered');const end=Date.now()+30000;while(!existsSync(${JSON.stringify(gateRelease)})&&Date.now()<end)Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,10);assert.ok(existsSync(${JSON.stringify(gateRelease)}),'test-owned source gate is released');`:''}assert.equal(feature,'accepted');assert.equal(other,'base');${dirty?"writeFileSync('web/other.js',\"export const other = 'dirty';\\n\");writeFileSync('untracked-after-check.txt','actual child output');execFileSync('git',['init','-q','nested-child-repo']);writeFileSync('nested-child-repo/body.txt','actual nested Git fixture');":''}});\n`);
   if (selective) writeFileSync(join(repo,'test/unrelated.test.js'),`import {test} from 'node:test';test('unrelated project body',()=>console.log('UNRELATED_BODY'));\n`);
   writeFileSync(join(repo,'docs/lifecycle.md'),'base declaration artifact\n');
-  git(repo,'init','-q','-b','main');git(repo,'add','-A');git(repo,'commit','-q','-m','chore: actual main-movement base');
+  if (selective) git(repo,'init','-q','-b','main');
+  git(repo,'add','-A');git(repo,'commit','-q','-m','chore: actual main-movement base');
   if (!selective) assert.deepEqual(git(repo,'ls-files','-z','--','.tooling').split('\0').filter(Boolean).sort(),shipped.map(file=>'.tooling/'+file).sort(),'every complete installed package byte is tracked in the composed source');
   const base = git(repo,'rev-parse','HEAD'), candidate = join(scratch,'candidate');
   git(repo,'worktree','add','--detach',candidate,base);

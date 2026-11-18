@@ -90,7 +90,7 @@ function provenFinished(head, items, now) {
 }
 
 /** A live claim, review lease, or unmerged submitted/verified item keeps its owning tree protected. */
-function itemObligation(item, now) {
+export function itemObligation(item, now) {
   if (item.item_status === 'claimed') return 'claim';
   const reviewUntil = timestamp(item.item_review_until);
   if (item.item_review_by && reviewUntil !== null && reviewUntil > now) return 'review-reservation';

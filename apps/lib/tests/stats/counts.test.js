@@ -1,13 +1,18 @@
 /** Event-derived submission, rejection and merge counts preserve historical acceptance proof [R1,R2]. */
 import { events as readStatsEvents } from '../../../../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../../../../packages/verify/index.js';
+import { DERIVED_SETTING } from '../../../../packages/verify/index.js';
+import { derivedProofCounter } from '../../../../packages/verify/index.js';
+import { derivedRows } from '../../../../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { submitFixture } from '../../../cli/tests/fixtures/board/submit.js';
+import { repositoryBoardFile } from '../../../cli/tests/fixtures/board/submit.js';
 import { addItem } from '../../../../packages/store/index.js';
 import { atomic } from '../../../../packages/store/index.js';
 import { claim } from '../../../../packages/store/index.js';
@@ -28,6 +33,9 @@ import { proofStats as legacyProofStats } from '../fixtures/legacy.js';
 import { proofStats } from '../../../../packages/stats/index.js';
 import { eventCounts } from '../../../../packages/stats/index.js';
 
+// The counters are read from the derived database, which the dual write fills while this setting is on (#8910, #8961).
+process.env[DERIVED_SETTING] = '1';
+
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
 
@@ -41,8 +49,11 @@ const TREE_TWO = 'tree-two';
 /** Create a real SQLite board with a mutable deterministic clock and close it after the test. */
 function fixture(t) {
   let at = new Date('2026-01-01T00:00:00.000Z');
-  const board = openBoard(':memory:', { now: () => new Date(at) });
-  t.after(() => closeBoard(board));
+  // A file board, because the derived database attaches beside a board file only.
+  const dir = privateFixtureFiles('pullboard-counts-').root;
+  // @pullboard-board-file persistence: the derived database attaches beside a board file only
+  const board = openBoard(repositoryBoardFile(dir), { now: () => new Date(at) });
+  t.after(() => { closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   /** Advance the deterministic board clock for the next public lifecycle move. */
   const setTime = (value) => { at = new Date(value); };
   setTime('2026-01-01T00:00:00.000Z');
@@ -165,7 +176,7 @@ function resequenceEvents(document, history) {
   if (counter) counter.seq = document.tables.event.length;
 }
 
-test('[R1,R2] repeated submissions and rejections count attempts while merges count distinct items', (t) => {
+test('lib.stats-counts.repeated-submissions-and-rejections-count-attempts: [R1,R2] repeated submissions and rejections count attempts while merges count distinct items', (t) => {
   const { board } = rejectedThenMerged(t);
   const counts = eventCounts(board, {}, statsReadPorts);
   assert.deepEqual(counts, {
@@ -181,7 +192,7 @@ test('[R1,R2] repeated submissions and rejections count attempts while merges co
   assert.equal(getItem(board, 1).item_status, 'verified');
 });
 
-test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance still proves a merge', (t) => {
+test('lib.stats-counts.date-and-timestamp-windows-are-inclusive: [R1,R2] date and timestamp windows are inclusive and earlier acceptance still proves a merge', (t) => {
   const { board } = rejectedThenMerged(t);
   assert.deepEqual(eventCounts(board, { since: '2026-01-05' }, statsReadPorts), {
     since: '2026-01-05T00:00:00.000Z',
@@ -205,7 +216,7 @@ test('[R1,R2] date and timestamp windows are inclusive and earlier acceptance st
   }, 'the acceptance before the selected window remains proof for the later merge');
 });
 
-test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => {
+test('lib.stats-counts.empty-windows-normalize-cleanly-and-invalid: [R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => {
   const { board } = rejectedThenMerged(t);
   assert.deepEqual(eventCounts(board, { since: '2026-02-01' }, statsReadPorts), {
     since: '2026-02-01T00:00:00.000Z',
@@ -221,7 +232,7 @@ test('[R1,R2] empty windows normalize cleanly and invalid dates refuse', (t) => 
   assert.throws(() => eventCounts(board, { since: '2026-01-07T10:00:00+00:00' }, statsReadPorts), { code: 'BAD_SINCE' });
 });
 
-test('[R1,R2] imported historical merges without a matching current acceptance remain anomalies', (t) => {
+test('lib.stats-counts.imported-historical-merges-without-a-matching: [R1,R2] imported historical merges without a matching current acceptance remain anomalies', (t) => {
   const { board, id } = rejectedThenMerged(t);
   const original = exportBoard(board);
   const accepts = original.tables.event.filter((event) => event.item_id === id && event.event_kind === 'accept');
@@ -259,7 +270,7 @@ test('[R1,R2] imported historical merges without a matching current acceptance r
 });
 
 
-test('[R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
+test('lib.stats-counts.proof-stats-counters-match-a-full: clause 1: [R1,R2,C7] proof stats counters match a full re-parse after every event', t => {
   const f = fixture(t);
   const { board } = f;
   let parsed = [];
@@ -296,11 +307,13 @@ test('[R1,R2,C7] proof stats counters match a full re-parse after every event', 
     const appended = events(board).filter(event => event.event_id > previous).map(event => event.event_id);
     assert.deepEqual(parsed, appended, 'each appended event is decoded once into its counters');
     same(board);
+    assert.equal(derivedProofCounter(board, 'summary').last, events(board).at(-1).event_id, 'the derived database holds the counters up to the latest event');
     assert.deepEqual(parsed, appended, 'reading counters never reparses earlier event details');
   }
   const document = exportBoard(board);
   assert.equal(document.tables.board_meta.some(row => row.meta_key.startsWith('local:proof-stats:')), false,
     'derived counters are not native exported state');
+  assert.ok(derivedRows(board).length > 0, 'the counters live in the derived database instead');
   const restored = importedBoard(t, document);
   same(restored);
   const restoredParses = [];

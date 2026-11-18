@@ -1,4 +1,5 @@
 /** `pullboard stats agents`: per-seat claims, submits and landings per hour, the most items held at once and the wait after a submit or test start, read-only over the board [C7,#6136]. */
+import { boardRunsReader } from '../../../../../../packages/store/index.js';
 import {
   agentFlow,
   agentFlowLines,
@@ -27,7 +28,7 @@ export function runAgents(io, ctx, { second, rest, values }) {
   }
   const until = values.until === undefined ? ctx.clock.now().getTime() : instant(values.until);
   const from = until - flowWindowMinutes(values.window ?? '24h') * 60_000;
-  const agents = withBoard(ctx, board => agentFlow(readAgentFlowEvents(board.db, { until }), { from, until }, readSeatActions(board.db, { from, until })));
+  const agents = withBoard(ctx, board => agentFlow(readAgentFlowEvents(board.db, { until }), { from, until }, readSeatActions(board.db, { from, until, runs: boardRunsReader(board, ctx.file) })));
   io.result?.({ agents });
   for (const line of agentFlowLines(agents)) io.say(line);
   return 0;

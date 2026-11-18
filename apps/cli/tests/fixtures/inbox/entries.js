@@ -3,7 +3,7 @@
 import * as store from '../../../../../packages/store/index.js';
 import { openBoard } from '../../../../lib/index.js';
 
-/** The board with inbox.keepUntilActed on, the builder seat, and helpers that shout it a kind, read its entries and act on one. */
+/** The board with inbox.keepUntilActed on (and `escalate(interval, minutesLater)` sweeping aged entries), the builder seat, and helpers that shout it a kind, read its entries and act on one. */
 export function entryBoard(t) {
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
@@ -14,5 +14,6 @@ export function entryBoard(t) {
   const shout = (kind, text) => store.shout(board, { from: 'coordinator', to: seat, text, lanes: ['core'], kind });
   /** Read the inbox the way a seat does, consuming its unread cursor, so a kept entry is shown to outlive the read. */
   const read = () => store.inbox(board, seat);
-  return { board, seat, shout, read, entries: () => store.openEntries(board, seat), act: (id, action) => store.recordEntryAction(board, seat, id, action) };
+  return { board, seat, shout, read, entries: () => store.openEntries(board, seat), escalate: (minutes, laterMinutes) => store.escalateEntries(board, { minutes, nowMs: Date.now() + laterMinutes * 60_000, coordinator: 'coordinator' }),
+    act: (id, action) => store.recordEntryAction(board, seat, id, action) };
 }

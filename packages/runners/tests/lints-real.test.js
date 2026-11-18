@@ -37,14 +37,30 @@ function fixture(t) {
   return { root, put, remove, git, report: () => { git('add', '-A'); return cellLintReport(root, { importsIn, commonJsIn }); } };
 }
 
-test('the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
-  const root = fileURLToPath(new URL('../../../', import.meta.url)), report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
+let realRepository = null;
+/** This repository's cell lint report and committed baseline, built once: the report is the slow part, and both real-repository cases below read the same one. */
+function realReport() {
+  const root = fileURLToPath(new URL('../../../', import.meta.url));
+  realRepository ??= { root, report: cellLintReport(root, { importsIn, commonJsIn }), baseline: readCellLintBaseline(root) };
+  return realRepository;
+}
+
+test('runners.lints-real.a-report-over-the-real-repository: clause 2: a report over the real repository succeeds and prints with the growth against the committed index.json, as --report does [C7,CD64]', () => {
+  // lints.js --report is cellLintReport, then cellLintGrowth against the stored baseline, printed as JSON: the same calls, over the same tree, without a second multi-minute report.
+  const { report, baseline } = realReport();
+  const growth = cellLintGrowth(report, baseline);
+  assert.ok(Array.isArray(growth), 'the real index.json binds boundaries-012 and strays-001, so the growth is computed');
+  assert.doesNotThrow(() => JSON.stringify({ ...report, growth }, null, 2), 'the report prints');
+});
+
+test('runners.lints-real.the-actual-repository-gate-enforces-strict: the actual repository gate enforces strict cell debt and reports temporary named transition rises [C7,CD64]', () => {
+  const { report, baseline } = realReport();
   const growth = cellLintGrowth(report, baseline);
   for (const row of growth.filter(row => row.advisory)) console.log(`advisory item #${row.item} until #${row.until}: ${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
   assert.deepEqual(cellLintGrowth(report, baseline, { enforcedOnly: true }), [], 'normal npm test keeps all non-transition debt strict without updating the baseline');
 });
 
-test('the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
+test('runners.lints-real.the-actual-discovered-command-loader-reaches: the actual discovered command loader reaches command run and its literal helper without excusing unused exports [C7,CD62]', t => {
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
@@ -61,7 +77,7 @@ test('the actual discovered command loader reaches command run and its literal h
   assert.ok(report.metrics.unreachable.findings.some(row => row.key === 'src/not-a-command.js'));
 });
 
-test('an export used only through a literal dynamic import of a shim is reachable; a non-literal dynamic import is named unknown [C7,CD62]', t => {
+test('runners.lints-real.an-export-used-only-through-a: an export used only through a literal dynamic import of a shim is reachable; a non-literal dynamic import is named unknown [C7,CD62]', t => {
   const box = fixture(t);
   box.put('packages/sample/index.js', 'export const value = 1, lazy = 2, destructured = 3, other = 4;\n');
   box.put('src/shim-sample.js', "export { lazy, destructured } from '../packages/sample/index.js';\n");
@@ -78,7 +94,7 @@ test('an export used only through a literal dynamic import of a shim is reachabl
   assert.ok(computed.unknown.some(row => row.file === 'apps/demo/index.js' && row.reason.includes('computed')), 'the non-literal import is named in the output');
 });
 
-test('discovered command reach requires the exact kernel front door and discovery body [C7,CD62]', t => {
+test('runners.lints-real.discovered-command-reach-requires-the-exact: discovered command reach requires the exact kernel front door and discovery body [C7,CD62]', t => {
   const box = fixture(t);
   const source = fileURLToPath(new URL('../../../', import.meta.url));
   copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>

@@ -1,6 +1,9 @@
 {
   "name": "pullboard",
   "itemSizeBudget": 150,
+  "map": {
+    "slice": true
+  },
   "gate": "npm run gate",
   "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
@@ -9,6 +12,8 @@
   "pushGate": { "shardMinutes": 40 },
   "landing": {
     "manualOverride": false,
+    "ledgerMainReds": true,
+    "shardProof": true,
     "publish": "separate",
     "perItem": false,
     "parallel": true,
@@ -142,7 +147,9 @@
     "unrelatedTrunkMoves": true,
     "composeAtAdmission": true,
     "family": "prefer",
-    "familyRelaxAt": 5
+    "familyRelaxAt": 5,
+    "folderTicks": true,
+    "titleTicks": true
   },
   "check": {
     "timeout": "60m"
@@ -308,6 +315,7 @@
         "apps/cli/journeys/shout/overlap.test.js",
         "apps/cli/journeys/shout/prose.test.js",
         "apps/cli/journeys/shout/references.test.js",
+        "apps/cli/journeys/shout/references-part2.test.js",
         "apps/cli/journeys/shout/rows.test.js",
         "apps/cli/journeys/shout/journeys/search-ages.test.js",
         "apps/cli/journeys/shout/journeys/search-capture.test.js",
@@ -391,7 +399,8 @@
     "packages/gate/data/baselines/cli-launches.json",
     "packages/codemap/data/plan/45-app-view.json",
     "packages/codemap/data/plan/47-app-view.json",
-    "apps/cli/journeys/view/detail.test.js"
+    "apps/cli/journeys/view/detail.test.js",
+    "packages/gate/tests/fixtures/registry.json"
   ],
   "commits": {
     "requireIds": [
@@ -425,7 +434,7 @@
   "claims": {
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
-    "perSeat": 5
+    "perSeat": 1
   },
   "protect": {
     "blocked": [

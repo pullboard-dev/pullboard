@@ -29,8 +29,13 @@ function label(value, fallback) {
   return typeof value === 'string' && /^[A-Za-z0-9_./:-]{1,100}$/u.test(value) ? value : fallback;
 }
 
+/** Keep a board file's absolute path, which may hold spaces, only when it is bounded and single-line [C7]. */
+function absolutePath(value) {
+  return typeof value === 'string' && value.startsWith('/') && value.length <= 1024 && !/[\u0000-\u001f]/u.test(value) ? value : null;
+}
+
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, allWrites = false }) {
+export function recordBoardHold({ command, seat, item, pid, durationMs, outcome, acquiredAt, phase, phaseMs, move, step, stepMs, boardFile, allWrites = false }) {
   if (!Number.isFinite(durationMs) || (!allWrites && durationMs <= BOARD_HOLD_MS && !holdLogAll())) return;
   let fd;
   try {
@@ -41,6 +46,8 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
       heldMs: Math.round(durationMs), ...(allWrites ? { durationMs: Math.round(durationMs), pid: Number.isSafeInteger(pid) && pid > 0 ? pid : null } : {}), outcome: label(outcome, 'released'),
+      // The board file's absolute path, so live-board latency can be told apart from test boards in the same machine log [C7].
+      boardFile: absolutePath(boardFile),
       phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null,
       // The move body's name (the command when no move body ran) and its slowest named step, so a long native-move hold is readable to its cause [#3336].
       move: label(move ?? command, null), step: phase === 'native-move' ? label(step, null) : null,
@@ -58,10 +65,10 @@ export function recordBoardHold({ command, seat, item, pid, durationMs, outcome,
 }
 
 /** Read a bounded tail, explicitly qualifying a report that cannot cover the entire retained log. */
-function retainedHolds() {
+function retainedHolds(file = boardHoldLog()) {
   let fd;
   try {
-    fd = openSync(boardHoldLog(), constants.O_RDONLY | constants.O_NOFOLLOW);
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
     const stat = fstatSync(fd);
     if (!stat.isFile()) throw new Error('hold log is not a regular file');
     const start = Math.max(0, stat.size - MAX_READ_BYTES), buffer = Buffer.alloc(stat.size - start);
@@ -115,26 +122,39 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
     }).sort((a, b) => b.slowestMs - a.slowestMs || a.command.localeCompare(b.command)) };
 }
 
-/**
- * The median and 90th percentile of every recorded hold in a window, so a hold fix can be measured. Short holds exist
- * in the log only while the machine records every hold (PULLBOARD_BOARD_HOLD_LOG_ALL=1); otherwise this reads the long ones.
- *
- * @param {{ since?: number | string, until?: number | string }} [window]
- * @returns {{ count: number, medianMs: number | null, p90Ms: number | null, available: boolean }}
- */
-export function boardHoldPercentiles({ since, until = Date.now() } = {}) {
-  const end = typeof until === 'number' ? until : Date.parse(until);
-  const start = since === undefined ? end - DAY_MS : typeof since === 'number' ? since : Date.parse(since);
-  const retained = retainedHolds(), held = [];
+/** Parse a retained log's version-1 rows that fall in the window, keeping only valid held durations. */
+function windowHolds(retained, start, end, boardFile) {
+  const held = [];
   for (const line of retained.text.split('\n').filter(Boolean)) {
     let row;
     try { row = JSON.parse(line); } catch { continue; }
     const at = typeof row?.at === 'string' ? Date.parse(row.at) : NaN;
-    if (row?.version === 1 && Number.isFinite(at) && at >= start && at < end && Number.isSafeInteger(row.heldMs) && row.heldMs >= 0) held.push(row.heldMs);
+    if (row?.version !== 1 || !Number.isFinite(at) || at < start || at >= end || !Number.isSafeInteger(row.heldMs) || row.heldMs < 0) continue;
+    if (boardFile !== undefined && row.boardFile !== boardFile) continue;
+    held.push(row.heldMs);
   }
-  held.sort((a, b) => a - b);
+  return held.sort((a, b) => a - b);
+}
+
+/**
+ * The median and 90th percentile of the holds in a window, so a hold fix can be measured. It reads the every-write log
+ * when that log exists, so the median counts every write; with none it falls back to the holds log, which keeps only
+ * holds over a second (unless PULLBOARD_BOARD_HOLD_LOG_ALL=1), and marks the result overSecondOnly [C7].
+ *
+ * @param {{ since?: number | string, until?: number | string, boardFile?: string }} [window]
+ * @returns {{ count: number, medianMs: number | null, p90Ms: number | null, available: boolean, log: string, source: 'every-write' | 'over-a-second', overSecondOnly: boolean }}
+ */
+export function boardHoldPercentiles({ since, until = Date.now(), boardFile } = {}) {
+  const end = typeof until === 'number' ? until : Date.parse(until);
+  const start = since === undefined ? end - DAY_MS : typeof since === 'number' ? since : Date.parse(since);
+  const writes = retainedHolds(boardWritesLog());
+  const everyWrite = writes.available;
+  const log = everyWrite ? boardWritesLog() : boardHoldLog();
+  const retained = everyWrite ? writes : retainedHolds();
+  const held = windowHolds(retained, start, end, boardFile);
   const at = fraction => held[Math.min(held.length - 1, Math.ceil(fraction * held.length) - 1)];
-  return { count: held.length, medianMs: held.length ? at(0.5) : null, p90Ms: held.length ? at(0.9) : null, available: retained.available };
+  return { count: held.length, medianMs: held.length ? at(0.5) : null, p90Ms: held.length ? at(0.9) : null, available: retained.available,
+    log, source: everyWrite ? 'every-write' : 'over-a-second', overSecondOnly: !everyWrite && !holdLogAll() };
 }
 
 /** Keep absent or bounded history explicit instead of presenting an unmeasured total as zero. */
@@ -170,4 +190,17 @@ export function longestRecentHolds({ now = Date.now(), limit = 5, windowMs = 3_6
       stepMs: Number.isSafeInteger(row.stepMs) ? row.stepMs : null, heldMs: row.heldMs });
   }
   return rows.sort((a, b) => b.heldMs - a.heldMs).slice(0, limit);
+}
+
+/**
+ * Every retained hold-log row, parsed and unfiltered, for readers that judge them by board file and age.
+ *
+ * @returns {object[]} Version-1 rows; empty when the machine log is unavailable.
+ */
+export function holdLogRows() {
+  const rows = [];
+  for (const line of retainedHolds().text.split('\n').filter(Boolean)) {
+    try { const row = JSON.parse(line); if (row?.version === 1) rows.push(row); } catch { /* A torn line is not a row. */ }
+  }
+  return rows;
 }

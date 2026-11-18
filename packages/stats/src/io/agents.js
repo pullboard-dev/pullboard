@@ -24,15 +24,16 @@ export function readAgentFlowEvents(db, { until }) {
  * test's start is the moment its run was queued, and the queue records which seat asked.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{from: number, until: number}} window - epoch ms
+ * @param {{from: number, until: number, runs?: {db: import('node:sqlite').DatabaseSync | null} | null}} window - epoch ms; `runs`: with runs_store on, the read-only runs holder the test-run job rows come from instead of the board [B2,#9014]
  * @returns {{tests: {seat: string, at: number}[], actions: {seat: string, at: number}[]}}
  */
-export function readSeatActions(db, { from, until }) {
+export function readSeatActions(db, { from, until, runs = null }) {
   const actions = db.prepare('SELECT event_by AS seat, event_at AS at FROM event WHERE event_at >= ? ORDER BY event_id')
     .all(new Date(from).toISOString()).map(row => ({ seat: row.seat, at: Date.parse(row.at) }));
   const tests = [];
-  if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) {
-    const rows = db.prepare(`SELECT s.job_step_at AS at, s.job_step_payload AS payload FROM job_step s JOIN job j ON j.job_id = s.job_step_job
+  const jobs = runs ? runs.db : db;
+  if (jobs?.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) {
+    const rows = jobs.prepare(`SELECT s.job_step_at AS at, s.job_step_payload AS payload FROM job_step s JOIN job j ON j.job_id = s.job_step_job
       WHERE j.job_kind = 'test-run' AND s.job_step_name = 'queued' AND s.job_step_at >= ? ORDER BY s.job_step_id`).all(from);
     for (const row of rows) {
       let seat;

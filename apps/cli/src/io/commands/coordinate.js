@@ -2,6 +2,8 @@
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { listItems } from '../../../../../packages/store/index.js';
 import { context } from '../entry.js';
+import { listenerLines } from '../coordinate/listener.js';
+import { startLines } from '../coordinate/listener.js';
 import { withBoardRead } from '../board/read.js';
 import { resumeHere } from './resume.js';
 
@@ -35,7 +37,7 @@ export async function run(io, { first }) {
   const code = await resumeHere(io, { state: 'off' }, false, {});
   if (code !== 0) return code;
   const ctx = context(io);
-  const lanes = await withBoardRead(ctx, board => lanesWithWork(listItems(board, { all: true })));
-  for (const line of addAgentLines(lanes)) io.say(line);
+  const { lanes, listener } = await withBoardRead(ctx, board => ({ lanes: lanesWithWork(listItems(board, { all: true })), listener: listenerLines(board, 'coordinator') }));
+  for (const line of [...listener, ...startLines(lanes), ...addAgentLines(lanes)]) io.say(line);
   return 0;
 }

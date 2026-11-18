@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -12,6 +14,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { createE2eHelpers } from './e2e.js';
+import { JOURNEY_MODE } from './e2e.js';
+import { parityRecord } from './e2e.js';
 import { fixtureAdd } from './testkit.js';
 import { fixtureMachineSettings } from './testkit.js';
 import { openKitBoard } from './board.js';
@@ -45,7 +49,7 @@ export function submitGatePlan(root, config, options) {
 export async function submitGateAdmission(root) { record(root, 'admission'); return { browser: false, gui: false }; }
 `,
   'packages/landing/index.js': 'export function withMainCheckout() {}\n',
-  'packages/codemap/src/io/cells/scripts/cache.js': 'export function transferredCellsInventories() { return null; }\n',
+  'apps/cli/src/io/cells/cache.js': 'export function transferredCellsInventories() { return null; }\n',
   'bin/cells-submit-checks.js': `import { record } from './record.js';
 export async function requireSubmitCells(root) { record(root, 'cells'); return { cells: ['fixture'], existingCuts: [] }; }
 `,
@@ -58,13 +62,23 @@ export async function holdDoctrineAsync(root) { record(root, 'doctrine'); return
   'apps/cli/src/io/static/checks.js': `import { record } from '../../../../../bin/record.js';
 record(process.cwd(), 'static');
 `,
-  // The proof holds its job open a moment, so the host is sampled while all the gates run at once.
+  // A phase's timing profile sits beside its kept log, named for it, as the gate's own does: `<log>.profile.json` in the runner's kept folder, which a loopback runner makes the job's checkout; written only in a pulled job (the gate entry sets PULLBOARD_PULLED_JOB for its phases), so an item add or inline gate leaves no file [C7,#7301].
+  'bin/profile.js': `import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+export function writeProfile(role) { if (process.env.PULLBOARD_PULLED_JOB) writeFileSync(join(process.cwd(), role + '.log.profile.json'), JSON.stringify({ phase: role, standIn: true })); }
+`,
+  // The proof holds its job open a moment, so the host is sampled while all the gates run at once; it writes the ACCEPT timing profile.
   'bin/proof.js': `import { record } from './record.js';
+import { writeProfile } from './profile.js';
 record(process.cwd(), 'proof');
+writeProfile('proof');
 Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
 `,
   'DOCTRINE.md': '# Doctrine\n\n## D · Rules\n- D1 [approved, must] The fixture rule holds. | gate: check true | count: 0\n',
 };
+
+/** The item check that makes the stand-in gate write the check phase's timing profile; pass it as pullProject's `check`. Why inline: a bar naming a file path must be one a lane owns, so the check names none. */
+export const PROFILED_CHECK = `node -e 'process.env.PULLBOARD_PULLED_JOB && require("node:fs").writeFileSync(["check", "log", "profile", "json"].join("."), JSON.stringify({ phase: "check", standIn: true }))'`;
 
 /** Processes on this host whose command line names the board's sandbox: a dispatcher, driver or worker the submit left behind. */
 export function hostProcesses(dir) {
@@ -93,7 +107,7 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
   box.git(box.repo, 'commit', '-q', '-m', 'chore: stand-in trusted tooling [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   /** Add item n; every item after the first names the first as no duplicate. */
-  const add = (n, first) => fixtureAdd(box.runAsync, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
+  const add = (n, first) => fixtureAdd(box.runIn, box.repo, 'web', `Pulled gate ${n}`, '--specs', 'G1', '--criterion', `Gate ${n} runs on a runner.`, '--check', check(n), '--accept-green', 'stand-in check keeps passing', '--wait', '--json', ...(first ? ['--not-duplicate-of', `${first} numbered fixture item`] : []));
   const ids = [];
   const head = await add(1);
   assert.equal(head.code, 0, head.err);
@@ -111,16 +125,28 @@ export async function pullProject(t, count, { check = () => 'true', gate = { run
 }
 
 /**
+ * A quick board move (claim, bar) answered by the box's warm worker thread, or by a real process under PULLBOARD_JOURNEY_MODE=process,
+ * with a parity record per call when PULLBOARD_PARITY_RECORD is set. Why: a sync helper cannot await runIn, and a claim costs a Node start-up [C7,U149].
+ * Submit stays a real process: it hands the gate job on and can outlast runSync's wait.
+ */
+function quick(box, cwd, ...args) {
+  const result = JOURNEY_MODE === 'process' ? box.run(cwd, ...args) : box.runSync(cwd, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir: box.dir, env: box.env, cwd, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
+/**
  * Claim, commit and submit one item from its own folder; the submit must return green at once.
  * `change` names the one file the item commits; by default a fresh web/<id>.txt. `compose` turns bar readiness on after the
  * claim (a bar frozen before activation stays claimable), so the gate composes the change with main on the runner [C7].
  */
 export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate ${id}\n`, subject: `feat(web): pulled gate ${id} [G1]` }, { compose = false } = {}) {
-  const claimed = box.run(box.web, 'claim', String(id), '--json');
-  assert.equal(claimed.code, 0, claimed.err);
-  if (compose) assert.equal(box.run(box.repo, 'bar', 'ready', 'on').code, 0);
+  const claimed = quick(box, box.web, 'claim', String(id), '--json');
+  assert.equal(claimed.code, 0, `${claimed.err}\n${claimed.out}`);
+  if (compose) assert.equal(quick(box, box.repo, 'bar', 'ready', 'on').code, 0);
   const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
   assert.equal(box.helpers.commitFile(box, folder, change.path, change.body, change.subject).status, 0);
+  // Real process: submit hands the gate job on and can outlast the worker's wait.
   const submitted = box.run(folder, 'submit', String(id), '--json');
   assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
   return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
@@ -136,10 +162,11 @@ export function submitOne(box, id, change = { path: `web/${id}.txt`, body: `gate
  */
 export function submitAll(box, ids) {
   return Promise.all(ids.map(async id => {
-    const claimed = await box.runAsync(box.web, 'claim', String(id), '--json');
+    const claimed = await box.runIn(box.web, 'claim', String(id), '--json');
     assert.equal(claimed.code, 0, claimed.err);
     const folder = JSON.parse(claimed.out).itemFolder ?? box.web;
     assert.equal(box.helpers.commitFile(box, folder, `web/${id}.txt`, `gate ${id}\n`, `feat(web): pulled gate ${id} [G1]`).status, 0);
+    // Real process: submit hands the gate job on and can outlast the worker's wait.
     const submitted = await box.runAsync(folder, 'submit', String(id), '--json');
     assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
     return { folder, commit: box.git(folder, 'rev-parse', 'HEAD'), document: JSON.parse(submitted.out) };
@@ -177,18 +204,40 @@ export async function pullQueue(t, box, { queue } = {}) {
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
 /**
+ * The environment a served runner starts with: the box's own, with every PULLBOARD_ variable removed so it sees a clean
+ * machine, plus `env`. Only when `machineSettings` is given does it also get a machine home of its own holding exactly
+ * those settings, so a journey can switch one machine setting on in the runner process and nothing else [P7,#7301].
+ *
+ * @param {object} box - The fixture box.
+ * @param {string} runner - The runner name; its settings home is `<name>-machine` in the box's runner home.
+ * @param {Record<string, string>} [env] - Extra variables.
+ * @param {object} [machineSettings] - Machine settings for the runner process, such as `{ gate: { pulledProfilePaths: true } }`.
+ * @returns {Record<string, string>}
+ */
+export function runnerEnv(box, runner, env = {}, machineSettings) {
+  const clean = { ...box.env };
+  for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
+  const extra = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
+  if (machineSettings) {
+    const home = join(box.runnerHome, `${runner}-machine`);
+    mkdirSync(home, { recursive: true });
+    fixtureMachineSettings(home, machineSettings);
+    extra.PULLBOARD_MACHINE_HOME = home;
+  }
+  return { ...clean, ...extra };
+}
+
+/**
  * Run `pullboard runner serve <url> --once` as its own process, with no board environment, and resolve its exit and output.
  * The stand-in tooling records its steps beside the runner's cache, since a runner's checkout is a worktree whose .git is a file.
  * Why it serves again: --once exits on an empty queue, and a test's seat may offer its job only after the serve starts.
  */
-export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_000 } = {}) {
-  env = { PULLBOARD_FIXTURE_STEPS: join(box.runnerHome, `${runner}-steps.jsonl`), ...env };
-  const clean = { ...box.env };
-  for (const key of Object.keys(clean)) if (key.startsWith('PULLBOARD_')) delete clean[key];
+export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_000, machineSettings } = {}) {
+  const clean = runnerEnv(box, runner, env, machineSettings);
   const until = Date.now() + deadlineMs;
   for (;;) {
     const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--once', '--as', runner, '--directory', join(box.runnerHome, runner)],
-      { cwd: box.runnerHome, env: { ...clean, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+      { cwd: box.runnerHome, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', chunk => { output += chunk; });
     child.stderr.on('data', chunk => { output += chunk; });
@@ -196,6 +245,51 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
     // Each new process is its own pause: its startup takes longer than a seat takes to offer its job.
     if (served.code !== 0 || !/nothing to claim/u.test(served.output) || Date.now() > until) return served;
   }
+}
+
+/**
+ * Start `pullboard runner serve <url> --as <runner>` as its own process that keeps serving, for a journey that acts while it serves.
+ * Resolves once the serve prints its first line (its stop handlers are on by then) with the runner's pid and environment, a
+ * stop() that signals that one pid, and closed, which resolves with the serve's exit code after it ends. The environment is
+ * runnerEnv's, so machineSettings reach the runner process as serveOnce passes them [P7,#7301,#9880].
+ *
+ * @param {object} box - The fixture box.
+ * @param {string} url - The board URL the runner is given.
+ * @param {string} runner - The runner name.
+ * @param {Record<string, string>} [env] - Extra variables.
+ * @param {{ machineSettings?: object, readyMs?: number }} [options]
+ * @returns {Promise<{ pid: number, env: Record<string, string>, output: () => string, stop: () => void, closed: Promise<number | null> }>}
+ */
+export async function serveBackground(box, url, runner, env = {}, { machineSettings, readyMs = 60_000 } = {}) {
+  const clean = runnerEnv(box, runner, env, machineSettings);
+  const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--as', runner, '--directory', join(box.runnerHome, runner)],
+    { cwd: box.runnerHome, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  const closed = new Promise(done => child.once('close', code => done(code)));
+  const first = new Promise(done => {
+    const heard = chunk => { output += chunk; done(); };
+    child.stdout.on('data', heard); child.stderr.on('data', heard);
+    child.once('close', done);
+  });
+  await Promise.race([first, new Promise(done => setTimeout(done, readyMs).unref())]);
+  return { pid: child.pid, env: clean, output: () => output, stop: () => { try { process.kill(child.pid, 'SIGTERM'); } catch { /* it already exited */ } }, closed };
+}
+
+/**
+ * A gate receipt's phase rows with `profileKept` on each row whose timing profile sits beside its kept log in `folder`:
+ * `<kept>.profile.json`, as the gate writes it. A row with no kept log, or no profile there, comes back unchanged.
+ * Why: the shipped runner names the profiles it kept the same way, and the board reads them back by role [C7,#7301].
+ *
+ * @param {string} folder - The job's kept folder.
+ * @param {{ phases?: object[] }} gate - The parsed gate receipt.
+ * @returns {object} The receipt, with profileKept on the rows whose profile is in the folder.
+ */
+function keepProfiles(folder, gate) {
+  if (!Array.isArray(gate?.phases)) return gate;
+  return { ...gate, phases: gate.phases.map(phase => {
+    const name = typeof phase?.kept === 'string' ? `${phase.kept}.profile.json` : null;
+    return name && existsSync(join(folder, name)) ? { ...phase, profileKept: name } : phase;
+  }) };
 }
 
 /**
@@ -222,7 +316,8 @@ export async function loopbackRunner(t, box) {
   /** Run a taken job's argv in its checkout and post its one receipt; observe() runs on each event the job's process emits. */
   const run = async ({ held, input, folder }, observe = () => {}) => {
     const { run: argv, input: stdin } = input.request;
-    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job }, stdio: ['pipe', 'pipe', 'pipe'] });
+    // The job's kept folder is its checkout, so each phase's sanitized log and timing profile land beside each other there [C7,#7301].
+    const child = spawn(argv[0] === 'node' ? process.execPath : argv[0], argv.slice(1), { cwd: folder, env: { ...env, PULLBOARD_FIXTURE_JOB: held.job, PULLBOARD_RUNNER_OUTPUT: folder }, stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
     // Each step a part records is written while the job's processes are alive, so a sample there sees them running.
     const steps = watch(join(folder, '.git'), observe);
@@ -233,9 +328,10 @@ export async function loopbackRunner(t, box) {
     const status = await new Promise(done => child.once('close', done)).finally(() => steps.close());
     const line = Buffer.concat(out).toString('utf8').split('\n').find(row => row.startsWith(GATE_RECEIPT));
     assert.ok(line, `job ${held.job} printed no receipt:\n${Buffer.concat(out).toString('utf8').slice(-4000)}`);
-    const gate = JSON.parse(line.slice(GATE_RECEIPT.length));
-    await call({ action: 'receipt', ...held, receipt: { status, gate } });
-    return { job: held.job, folder, status, gate };
+    const gate = keepProfiles(folder, JSON.parse(line.slice(GATE_RECEIPT.length)));
+    const receipt = { status, gate, output: { runner: held.runner, folder } };
+    await call({ action: 'receipt', ...held, receipt });
+    return { job: held.job, folder, status, gate, receipt };
   };
   return { board, take, run };
 }

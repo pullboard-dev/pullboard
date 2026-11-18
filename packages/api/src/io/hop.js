@@ -59,7 +59,7 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
   const waiting = { status: 'claimed', commit: candidate, digest: candidate };
   const write = (name, at = epoch) => gateHopMove(db, { item, actor: runner, enabled: true, decide: row => {
     // A hop that is over at another candidate is the resubmitted item's old hop: the new candidate's create replaces it, keeping its epoch so no old claim's epoch comes back [C7,#8353].
-    const replaced = name === 'create' && row && overAt(row, candidate);
+    const replaced = name === 'create' && row && reopens(row, candidate);
     const answer = decide({ item: waiting, hop: replaced ? null : row, now }, { name, actor: runner, epoch: at });
     if (answer.refused) return { refused: answer.refused };
     return { hop: replaced ? { ...answer.patch.hop, epoch: Math.max(answer.patch.hop.epoch, row.epoch) } : answer.patch.hop };
@@ -75,16 +75,40 @@ export function moveGateClaimHop(db, hop, { item, candidate, runner, move, epoch
     // A first claim finds no row: the table creates the queued hop, then the same claim acquires it.
     ensureGateHopTable(db);
     const row = readGateHop(db, item);
-    if (!row || overAt(row, candidate)) write('create');
+    if (!row || reopens(row, candidate)) write('create');
     // A runner that released this gate job still owns its live hop: its re-claim steps the hop at its own epoch instead of waiting out its own lease [C7,#8439].
     else if (ownLiveHop(db, row, { item, candidate, runner, job, now })) return write('step', row.epoch);
     return write('acquire');
   } catch (error) {
     if (error.code === 'HOP_HELD') throw new Refused('HOP_FENCED', error.message, 'leave the gate job to the runner that owns its hop; claim again once its lease lapses');
-    // A step from a claim whose hop was ended or moved to a resubmitted candidate is a stale owner, fenced like a replaced epoch [C7,#8353].
-    if (move === 'step' && STALE_STEP.has(error.code)) throw new Refused('HOP_FENCED', `${runner} at epoch ${epoch} no longer owns the hop on #${item}: ${error.message}`, 'stop work on this gate job: the item was resubmitted');
+    // A step or finish from a claim whose hop was ended or moved to a resubmitted candidate is a stale owner, fenced like a replaced epoch [C7,#8353].
+    if ((move === 'step' || move === 'finish') && STALE_STEP.has(error.code)) throw new Refused('HOP_FENCED', `${runner} at epoch ${epoch} no longer owns the hop on #${item}: ${error.message}`, 'stop work on this gate job: the item was resubmitted');
     throw error;
   }
+}
+
+/**
+ * Free the item's hop as a stopping runner hands back its gate job's lease: the table's fenced step checks the runner still drives the hop at its claim's epoch,
+ * and the hop's lease then ends at `now`, so the next runner's claim acquires it at once (a new epoch, so the stopped claim stays fenced) instead of being refused HOP_FENCED until it lapses [C7,#8700].
+ * Why only a hop this runner still drives: a hop already over, taken by another runner or lapsed has nothing of this claim's to free, so it is left as it is.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ table: NonNullable<typeof hopTable> }} hop - From gateClaimHop.
+ * @param {{ job: string, runner: string, epoch: number, now: number, leaseMs?: number }} release - job: the gate job released; epoch: the hop epoch its claim took.
+ * @returns {{ freed: boolean }}
+ */
+export function freeGateHop(db, hop, { job, runner, epoch, now, leaseMs = LEASE_MS }) {
+  const { job_item: item, job_candidate: candidate } = db.prepare('SELECT job_item, job_candidate FROM job WHERE job_id = ?').get(job);
+  ensureGateHopTable(db);
+  const row = readGateHop(db, item);
+  if (row?.state !== 'driven' || row.owner !== runner || row.epoch !== epoch || row.commit !== candidate || leaseLapsed(row.leaseUntil, now)) return { freed: false };
+  const decide = hop.table(leaseMs);
+  const waiting = { status: 'claimed', commit: candidate, digest: candidate };
+  gateHopMove(db, { item, actor: runner, enabled: true, decide: read => {
+    const answer = decide({ item: waiting, hop: read, now }, { name: 'step', actor: runner, epoch });
+    return answer.refused ? { refused: answer.refused } : { hop: { ...answer.patch.hop, leaseUntil: now - 1 } };
+  } });
+  return { freed: true };
 }
 
 /** Refusals a step gets when its hop was ended or replaced by a resubmit rather than taken at a later epoch. */
@@ -97,6 +121,15 @@ const STALE_STEP = new Set(['HOP_OVER', 'HOP_ITEM_MOVED', 'HOP_MISSING']);
 function ownLiveHop(db, row, { item, candidate, runner, job, now }) {
   if (row.state !== 'driven' || row.owner !== runner || row.commit !== candidate || leaseLapsed(row.leaseUntil, now)) return false;
   return !db.prepare("SELECT 1 FROM job WHERE job_kind = 'gate' AND job_item = ? AND job_lease_owner = ? AND job_lease_until >= ? AND job_id <> ?").get(item, runner, now, job ?? '');
+}
+
+/**
+ * Whether a claim at this candidate starts a fresh hop over the row: one over at another candidate (a resubmit's old hop), or one done at
+ * this candidate (its earlier gate finished, and the gate was offered again). Why done reopens: a finished gate marks its hop done [#8464],
+ * so without this a retried gate at the same candidate was refused HOP_OVER and never ran. A hop ended at this candidate stays over: a resubmit ended it.
+ */
+function reopens(row, candidate) {
+  return overAt(row, candidate) || (row.state === 'done' && row.commit === candidate);
 }
 
 /** Whether the hop row is over (done or ended) and was for another candidate than this one. */

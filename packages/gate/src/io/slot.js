@@ -118,7 +118,7 @@ export function rotateRunners(runners, avoided, tried) {
 
 /** Snapshot required canonical operations before admission; functions remain private process-local lease state. */
 export function requireGateExecutionServices(value) {
-  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunner', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
+  const runners = ['sampleRunnerLoad', 'localRunnerDescriptor', 'carriedRunnerTrunk', 'probeRunnerTransport', 'probeRunnerHealth', 'runOnRunnerAsync', 'effectiveRunners', 'refreshRunnerMeasurements'];
   const landing = ['captureReleaseQueue', 'constrainedLandingHost', 'releaseExecutors'];
   if (!runners.every(name => typeof value?.runners?.[name] === 'function')
     || !landing.every(name => typeof value?.landing?.[name] === 'function')) {
@@ -277,7 +277,7 @@ export function gateRunnerLoadPolicy(settings) {
   const measured = (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
   // One runner kept for timed checks (#2512): picked by measured headroom unless gate.timingRunner names one or is false.
   return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90,
-    timingRunner: settings?.gate?.timingRunner ?? 'auto' };
+    timingRunner: settings?.gate?.timingRunner ?? 'auto', requiredToolchains: settings?.['runners.requiredToolchains'] ?? null };
 }
 
 /**

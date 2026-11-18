@@ -15,16 +15,20 @@ function decidedEvent({ kind, by, detail }) {
  * The reopen table's answer for a reopen the writer has just worked out, over the item row as it stood before the move.
  * Why the writer's derived facts go in: what git, the landing batches and the verdict lookup answered are the table's inputs (its replay takes them from history the same way); the table decides the rest.
  *
- * @param {{ before: object | undefined, agentId: string, joined: boolean, note: string, cause?: unknown, conflict?: { files: string[], trunk: string } | null, withdrawVerdict: boolean, supersedes?: number, landingFailure?: object, conflictAccepted: boolean, withdrawnVerdict?: { acceptEventId?: number } | null, conflictNote: string, derivedCause?: object, causeOverrides?: boolean, reservation?: object, conflictDetail?: object, computedConflict?: unknown }} call
+ * `actor.granted` is the writer's own authority answer for a reported conflict: reopenAuthority has already accepted the seat (a computed conflict the board checked, or a listed agent on the older engine) before the table is asked.
+ * `pace`, `history` and `redGate` come only for a non-steady item: its frozen pace, its landing events and the red gate note a landed sprint submission is returned with [M2,#9209].
+ * @param {{ before: object | undefined, agentId: string, joined: boolean, note: string, pace?: string, history?: object[], redGate?: string, cause?: unknown, conflict?: { files: string[], trunk: string } | null, withdrawVerdict: boolean, supersedes?: number, landingFailure?: object, conflictAccepted: boolean, withdrawnVerdict?: { acceptEventId?: number } | null, conflictNote: string, derivedCause?: object, causeOverrides?: boolean, reservation?: object, conflictDetail?: object, computedConflict?: unknown }} call
  * @param {number} id
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] } | { threw: string }}
  */
 export function reopenDecision(id, call) {
-  const { before, agentId, joined, note, cause, conflict, withdrawVerdict, supersedes, landingFailure, conflictAccepted, withdrawnVerdict, derivedCause, causeOverrides, reservation, conflictDetail, computedConflict } = call;
+  const { before, agentId, joined, note, cause, conflict, withdrawVerdict, supersedes, landingFailure, conflictAccepted, withdrawnVerdict, derivedCause, causeOverrides, reservation, conflictDetail, computedConflict, pace, history, redGate } = call;
   const forMerge = conflict !== undefined && conflict !== null;
-  const snapshot = { actor: { id: agentId, joined },
-    item: before ? { id, status: before.item_status, commit: before.item_commit, mergedCommit: before.item_merged_commit ?? null } : null,
-    landing: landingFailure ? { accepted: supersedes, failure: landingFailure } : {},
+  const snapshot = { actor: { id: agentId, joined, ...(forMerge ? { granted: true } : {}) },
+    item: before ? { id, status: before.item_status, commit: before.item_commit, mergedCommit: before.item_merged_commit ?? null,
+      ...(pace ? { builtBy: before.item_built_by ?? null, owner: before.item_owner ?? null } : {}) } : null,
+    landing: landingFailure ? { accepted: supersedes, failure: landingFailure } : redGate ? { accepted: undefined, failure: redGate } : {},
+    ...(pace ? { pace, history: history ?? [] } : {}),
     conflict: forMerge ? { accepted: conflictAccepted, supersedes, detail: conflictDetail, computed: computedConflict } : {},
     cause: { derived: derivedCause ?? {}, overrides: causeOverrides !== false },
     reservation: reservation ?? {},

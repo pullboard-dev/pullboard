@@ -38,6 +38,7 @@ import { lex } from '../../../../../kernel/index.js';
 import { runnerWorkerFiles } from '../../../../index.js';
 import { retainEnginePaths } from '../../../../index.js';
 import { cachedCellsRun } from '../../../../index.js';
+import { importCuts } from '../../../../index.js';
 import { checkCuts } from '../plan/cuts.js';
 import { fileCuts } from '../plan/cuts.js';
 import { refreshPlanCuts } from '../../../../index.js';
@@ -60,9 +61,12 @@ import { moveDeclarationFiles } from '../../../../index.js';
 import { createFixtureMemo } from '../../../../index.js';
 import { checkCommandDefinition } from '../../../../../git/index.js';
 import { receiptDigest } from '../../../../../git/index.js';
+import { heavyLocalHoldEnabled } from '../../../../../config/index.js';
+import { loadMachineSettings } from '../../../../../config/index.js';
+import { withHeavyLocalWork } from '../../../../../resources/index.js';
 import { foreignNodeOptions } from '../../../../../kernel/index.js';
-import { cellsCacheDirectory } from './cache.js';
-import { publishCacheEntry } from './cache.js';
+import { cellsCacheDirectory } from '../cache-files.js';
+import { publishCacheEntry } from '../cache-files.js';
 import { placeTests } from '../placement.js';
 import { planTestMove } from '../placement.js';
 import { applyTestMove } from '../placement.js';
@@ -389,7 +393,7 @@ function fileItems(root, plan, yes) {
 }
 
 /** Run one mode from the command line. */
-function main(argv) {
+export function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
   if (mode === '--engine-stays') {
@@ -482,8 +486,11 @@ function main(argv) {
       const plan = readPlan(target), inventory = cellInventory(target, { importsIn, commonJsIn });
       let problems = 0;
       // Strict: no accepted inventory, so no accepted-wildcard allowance; every hidden edge into any later cell is named by file.
+      // The path map, process entries, retired rows and cut groups do not vary by cell: compute them once per sweep, not once per cell.
+      const map = readPathMap(target);
+      const shared = { map, retired: retiredProblems(target, plan, inventory), groups: importCuts(plan), entries: entryPlacementProblems(target, plan, inventory.files, map) };
       for (const cell of plan.cells) {
-        for (const problem of checkCuts(target, plan, cell.name, { allLaterCells: true, temporaryExceptions: false, inventory })) {
+        for (const problem of checkCuts(target, plan, cell.name, { allLaterCells: true, temporaryExceptions: false, inventory, shared })) {
           console.error(`${cell.name} --cuts-all: ${problem}`);
           problems++;
         }
@@ -520,4 +527,14 @@ function main(argv) {
   throw new Refused('CELLS_PLAN_MODE', 'use node packages/codemap/src/io/cells/scripts/plan.js --place <path> --cell <cell> [--entry] (or --stay [--owner <cell>]) | --stay <path> --owner <cell> | --engine-stays <cell> <path>... | --cuts-all | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --place-tests | --move-tests <cell> [<path>...] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+/**
+ * Run main, and with machine.holdHeavyAboveLoad on make the heavy modes (--check, --moved) wait in the local resource line above the load ceiling; off, run exactly as before.
+ * Why: a plan check re-reads the whole tree, and a loaded machine must not take another heavy job [C7,#10078].
+ */
+export async function mainHeld(argv) {
+  const mode = argv[0] ?? '--check';
+  if ((mode !== '--check' && mode !== '--moved') || !heavyLocalHoldEnabled()) return main(argv);
+  return withHeavyLocalWork(`cells-plan ${mode}`, () => main(argv), { settings: loadMachineSettings, root: resolve('.') });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) mainHeld(process.argv.slice(2)).then(code => { process.exitCode = code; });

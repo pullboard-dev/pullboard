@@ -57,3 +57,19 @@ export function runnerRate(rates, host) {
   const card = rates && typeof rates === 'object' && Object.hasOwn(rates, host) ? rates[host] : undefined;
   return card === undefined ? null : parseRunnerRate(card, host);
 }
+
+/** Minutes in one payoff month: a 30-day month, so a card's price spreads evenly over its life. */
+const MINUTES_PER_MONTH = 30 * 24 * 60;
+
+/**
+ * What one runner minute costs: the purchase price over its payoff minutes, plus the power it draws.
+ * Why: a plain per-minute figure lets a runner minute be compared with any other cost of a minute.
+ *
+ * @param {unknown} card a rate card (checked with parseRunnerRate)
+ * @param {string} [host] the runner the card belongs to, for refusal text
+ * @returns {number} cost per minute, in the card's price unit
+ */
+export function costPerMinute(card, host = 'this runner') {
+  const { price, months, watts, kwhPrice } = parseRunnerRate(card, host);
+  return price / (months * MINUTES_PER_MONTH) + (watts / 1000) * kwhPrice / 60;
+}

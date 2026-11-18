@@ -45,25 +45,30 @@ export function recordBlock(commonDir, block) {
 const TAIL_SLACK_MS = 3_600_000;
 
 /**
- * The ledger text from `offset` to the end. A read that starts mid-file drops its first partial line.
+ * The ledger bytes from `offset` to the end, read once into an unfilled buffer and cut to what was read.
  *
  * @param {string} file
  * @param {number} offset
- * @returns {string}
+ * @returns {Buffer}
  */
-function readFrom(file, offset) {
+export function readLedgerBytes(file, offset) {
   const fd = openSync(file, 'r');
   try {
-    const bytes = Buffer.alloc(fstatSync(fd).size - offset);
+    const bytes = Buffer.allocUnsafe(Math.max(0, fstatSync(fd).size - offset));
     let length = 0;
     while (length < bytes.length) {
       const count = readSync(fd, bytes, length, bytes.length - length, offset + length);
       if (count === 0) break;
       length += count;
     }
-    const text = bytes.subarray(0, length).toString('utf8');
-    return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
+    return bytes.subarray(0, length);
   } finally { closeSync(fd); }
+}
+
+/** The ledger text in `bytes` read from `offset`; a read that starts mid-file drops its first partial line. */
+function ledgerText(bytes, offset) {
+  const text = bytes.toString('utf8');
+  return offset > 0 ? text.slice(text.indexOf('\n') + 1) : text;
 }
 
 /**
@@ -124,19 +129,25 @@ function stampOf(line) {
  * only drop another key from a returned block's pending keys, never the block itself.
  *
  * @param {string} commonDir
- * @param {{ since?: Date, mentioning?: string[] }} [options]
+ * @param {{ since?: Date, mentioning?: string[], read?: (file: string, offset: number) => Buffer }} [options] - `read` replaces the
+ *   ledger reader, for a test that counts reads.
  * @returns {any[]}
  */
-export function readBlocks(commonDir, { since, mentioning } = {}) {
+export function readBlocks(commonDir, { since, mentioning, read = readLedgerBytes } = {}) {
   const file = join(commonDir, BLOCKS_FILE);
   if (!existsSync(file)) return [];
   const from = since ? since.getTime() : -Infinity;
   const size = statSync(file).size;
   let text;
-  for (let window = 262_144; ; window *= 2) {
+  if (!since) {
+    // With no bound every line counts, so the whole ledger is read once; a ledger naming none of the words is never decoded.
+    const bytes = read(file, 0);
+    if (mentioning && !mentioning.some(word => bytes.includes(word))) return [];
+    text = ledgerText(bytes, 0);
+  } else for (let window = 262_144; ; window *= 2) {
     const offset = Math.max(0, size - window);
-    text = readFrom(file, offset);
-    if (offset === 0 || since && reachesBefore(text, from - TAIL_SLACK_MS)) break;
+    text = ledgerText(read(file, offset), offset);
+    if (offset === 0 || reachesBefore(text, from - TAIL_SLACK_MS)) break;
   }
   if (mentioning && !mentioning.some(word => text.includes(word))) return [];
   const blocks = new Map();

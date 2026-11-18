@@ -40,3 +40,22 @@ export function requireFileLease(db, item, actor, lease, now) {
       `take other work with pullboard next, or retry once #${holder.item_id} is submitted; a file many items share belongs in claims.fileLeaseHubs`);
   }
 }
+
+/**
+ * Where a submission's changed files part from the files the item was predicted to change.
+ * Why: a prediction is only worth leasing on once its misses are on record; hub files are shared by design, so neither side counts them.
+ *
+ * @param {any} item the submitted item, as the board holds it
+ * @param {string[]} changed the files this submission changed
+ * @param {string[]} [hubs] files many items share
+ * @returns {{ predicted: string[], changed: string[], missed: string[], unpredicted: string[] } | null} null when nothing was predicted or the two agree
+ */
+export function fileMiss(item, changed, hubs = []) {
+  const skip = new Set(hubs);
+  const predicted = predictedFiles(item).filter(file => !skip.has(file));
+  const actual = [...new Set(changed)].filter(file => !skip.has(file));
+  if (!predicted.length) return null;
+  const missed = predicted.filter(file => !actual.includes(file));
+  const unpredicted = actual.filter(file => !predicted.includes(file));
+  return missed.length || unpredicted.length ? { predicted, changed: actual, missed, unpredicted } : null;
+}

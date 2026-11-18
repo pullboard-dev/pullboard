@@ -25,6 +25,30 @@ function recordOf(payload) {
   try { return JSON.parse(payload).record ?? undefined; } catch { return undefined; }
 }
 
+/** True while the board keeps run records on its run rows (board_meta runs_store). */
+function runsStoreOn(db) {
+  return db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1';
+}
+
+/**
+ * The hand-off records the board's run rows hold, newest first, as {item, record}: one item's, or every item's.
+ * Why: with runs_store on a gate job's record is its run row's run_record, written in the move that saved it [B2,M3].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number | null} item - Read this one item, or every item when null.
+ * @param {boolean} [live] - Only items not yet verified or withdrawn.
+ * @returns {Generator<{ item: number, record: Record<string, any> }>}
+ */
+function* runRecordRows(db, item, live = false) {
+  if (db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name = 'run'").get().n !== 1) return;
+  const rows = db.prepare(`SELECT run_item AS item, run_record AS record FROM run WHERE run_kind = 'gate' AND run_record IS NOT NULL
+    ${item === null ? 'AND run_item IS NOT NULL' : 'AND run_item = ?'}${live ? " AND run_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
+    ORDER BY run_updated DESC, rowid DESC`).iterate(...(item === null ? [] : [item]));
+  for (const row of rows) {
+    try { yield { item: row.item, record: JSON.parse(row.record) }; } catch { /* an unreadable record is no record */ }
+  }
+}
+
 /**
  * The item's current submit hand-off record: the record on the newest step of its gate jobs, read from the job
  * tables the jobs cell writes. Undefined when no gate job step carries one.
@@ -37,6 +61,7 @@ function recordOf(payload) {
  * @returns {Record<string, any> | undefined}
  */
 export function handoffRecord(db, item) {
+  if (runsStoreOn(db)) return runRecordRows(db, item).next().value?.record;
   if (!hasJobTables(db)) return undefined;
   const rows = db.prepare(`SELECT s.job_step_payload AS payload FROM job j JOIN job_step s ON s.job_step_job = j.job_id
     WHERE j.job_kind = 'gate' AND j.job_item = ? ORDER BY s.job_step_id DESC`).iterate(item);
@@ -63,6 +88,10 @@ export function handoffRecord(db, item) {
  */
 export function handoffRecords(db, { live = false } = {}) {
   const records = new Map();
+  if (runsStoreOn(db)) {
+    for (const row of runRecordRows(db, null, live)) if (!records.has(row.item)) records.set(row.item, row.record);
+    return records;
+  }
   if (!hasJobTables(db)) return records;
   const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
     JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
@@ -104,6 +133,29 @@ export function pulledGateRecords(db, only = null, nowMs = Date.now()) {
   return pulled;
 }
 
+/** How long an unsettled sharded gate keeps its claim, counted from the gate job's creation: the gate's own deadline. */
+export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
+
+/**
+ * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
+ * still open, or every shard is done but the combined result has not applied (no `note:shards.settled` step), and the
+ * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
+ * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
+ * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
+ */
+export function gateShardsUnsettled(board, item) {
+  try {
+    const gate = board.db.prepare(`SELECT job_id, job_created FROM job WHERE job_kind = 'gate' AND job_item = ?
+      ORDER BY job_created DESC, rowid DESC LIMIT 1`).get(item.item_id);
+    if (!gate || !(board.clock.now().getTime() - gate.job_created < GATE_SETTLE_HOLD_MS)) return false;
+    const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step <> 'done') AS open FROM job
+      WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
+    if (!shards.total) return false;
+    if (shards.open > 0) return true;
+    return board.db.prepare("SELECT 1 FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' LIMIT 1").get(gate.job_id) === undefined;
+  } catch { return false; } // an older board has no job tables, so it holds no shards
+}
+
 /**
  * Read only new-engine queue observations; historical selection has no new metadata. The record lives on the item's
  * gate job in the job tables, the one place hand-off state is kept [C7].
@@ -115,11 +167,19 @@ export function submitHandoff(board, id) {
   return record === undefined ? null : structuredClone(record);
 }
 
-/** An active immutable job frees its holder to claim ordinary work without making it reviewable. */
-export function pendingSubmitHandoff(board, item) {
+/**
+ * An active immutable job frees its holder to claim ordinary work without making it reviewable.
+ *
+ * With `fromJobRow` (submit.pendingFromJobRow, read by the caller) a pulled gate job still offered or held by a runner
+ * counts too, read from the runner job row; the row stops counting once the job ends [C7,P7].
+ */
+export function pendingSubmitHandoff(board, item, { fromJobRow = false } = {}) {
   const job = submitHandoff(board, item.item_id);
-  return item.item_status === 'claimed' && job?.agentId === item.item_owner && job.digest === item.item_frozen_digest
-    && ['queued', 'running'].includes(job.state) ? job : null;
+  if (item.item_status === 'claimed' && job?.agentId === item.item_owner && job.digest === item.item_frozen_digest
+    && ['queued', 'running'].includes(job.state)) return job;
+  if (fromJobRow !== true || item.item_status !== 'claimed') return null;
+  const pulled = pulledGateRecords(board.db, item.item_id).get(item.item_id);
+  return pulled?.agentId === item.item_owner && pulled.digest === item.item_frozen_digest ? pulled : null;
 }
 
 /**
@@ -130,6 +190,9 @@ export function awaitingGateOrReview(board, item) {
   if (pendingSubmitHandoff(board, item)) return true;
   // A pulled gate job still offered or held by a runner is the same wait, with no hand-off record [P7].
   if (item.item_status === 'claimed' && pulledGateRecords(board.db, item.item_id).has(item.item_id)) return true;
+  // So is a done gate job whose proof shards have not settled: the claim stays held for the result, but it is not
+  // buildable work, so next hands the seat new work instead of "you hold" (#10959). A settled red stops counting here.
+  if (item.item_status === 'claimed' && gateShardsUnsettled(board, item)) return true;
   const job = item.item_status === 'claimed' ? submitHandoff(board, item.item_id) : null;
   return Boolean(job) && job.agentId === item.item_owner && job.digest === item.item_frozen_digest && job.state === 'green';
 }

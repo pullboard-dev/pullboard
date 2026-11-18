@@ -209,7 +209,10 @@ export function dashboardModel(project, history, { now, complete = true, working
     // With the notch's list empty or absent, a seat that moved in the last 20 minutes is between items at least, so a board whose agents just finished still lists them (#7945); a list that names agents is the only one.
     const named = Array.isArray(working) && working.length > 0;
     const atWork = named ? working.includes(agent.id) : agent.current.length > 0 || agent.last > now - 20 * 60_000;
-    agent.group = !atWork ? 'quiet' : agent.current.some(entry => entry.kind === 'build') ? 'building' : agent.current.length ? 'reviewing' : 'between items';
+    // A build claim the board read marks stalled or waiting is held, not built: it groups apart from building [C7,#3021].
+    const idleClaim = entry => ['stalled', 'waiting'].includes(entry.item?.claimHealth?.state);
+    agent.group = !atWork ? 'quiet' : agent.current.some(entry => entry.kind === 'build' && !idleClaim(entry)) ? 'building'
+      : agent.current.some(entry => entry.kind === 'build') ? 'stalled' : agent.current.length ? 'reviewing' : 'between items';
   }
   // The server's own four-hour counts stand in while the browser's history is incomplete; never a guess from a partial log.
   const recent = project.dashboardRecent && typeof project.dashboardRecent === 'object' ? project.dashboardRecent : null;

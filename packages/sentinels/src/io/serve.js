@@ -4,12 +4,15 @@ import { Refused } from "../../../kernel/index.js";
 import { listProjects } from "../../../seats/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
+import { lapsedSweepEnabled } from "../../../config/index.js";
 import { startRelayCanaryWatch } from "../../../link/index.js";
 
 /** Ten minutes is the declared background cadence, not a test performance budget. */
 export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;
 /** A dead landing worker is replaced within two minutes, so its cheap pid check runs every minute (#2912). */
 export const LANDING_LIVENESS_INTERVAL_MS = 60_000;
+/** Lapsed claims are expired every minute behind health.lapsedSweep, so a lapsed lease never waits past two minutes (#8923). */
+export const LAPSED_SWEEP_INTERVAL_MS = 60_000;
 /** The wait audit runs every minute, so no hold, wait or process sits over its budget unseen for longer (C7). */
 const WAITS_AUDIT_INTERVAL_MS = 60_000;
 
@@ -50,7 +53,8 @@ function refreshCanary(cli, root, signal) {
 /** Start after the view listens; `cli` is the CLI entry each scan child runs, named by the caller so this package reaches no app; `recover` replaces a landing worker whose pid died mid-batch (#2912, passed in by the view so this cell imports no landing code); scans use the ordinary sentinel command so each board's off switch and ordering apply. */
 export function startServeSentinel({ projectRoot, cli, run = (root, signal, words, degradedIsExpected) => refreshBoard(cli, root, signal, words, degradedIsExpected), projects = listProjects,
   every = setInterval, cancel = clearInterval, enabled = sentinelRunsFor, onError = () => {}, runCanary = (root, signal) => refreshCanary(cli, root, signal), canary = startRelayCanaryWatch, recover = async () => false, liveEvery = setInterval, liveCancel = clearInterval,
-  audit = (root, signal) => run(root, signal, ['waits', 'record', '--json'], true) } = {}) {
+  audit = (root, signal) => run(root, signal, ['waits', 'record', '--json'], true),
+  lapsedOn = lapsedSweepEnabled, lapse = (root, signal) => run(root, signal, ['sentinel', 'run', '--lapsed-only', '--json']) } = {}) {
   const canaryWatch = canary({ run: (config, { io }) => runCanary(config.root, io.relaySignal), onError });
   const lifetime = new AbortController();
   let pending = null;
@@ -99,13 +103,29 @@ export function startServeSentinel({ projectRoot, cli, run = (root, signal, word
   };
   const waits = liveEvery(auditTick, WAITS_AUDIT_INTERVAL_MS);
   waits.unref?.();
+  let lapsing = null;
+  /** One lapsed-claim pass at a time; a failure is reported and the next minute tries again. */
+  const lapseTick = () => {
+    if (lapsing || lifetime.signal.aborted || !lapsedOn()) return lapsing;
+    lapsing = Promise.resolve().then(async () => {
+      const roots = projectRoot ? [projectRoot] : projects().map(project => project.root);
+      for (const root of new Set(roots)) {
+        if (lifetime.signal.aborted) break;
+        try { if (enabled(root)) await lapse(root, lifetime.signal); }
+        catch (error) { if (!lifetime.signal.aborted) onError(error); }
+      }
+    }).catch(onError).finally(() => { lapsing = null; });
+    return lapsing;
+  };
+  const lapses = liveEvery(lapseTick, LAPSED_SWEEP_INTERVAL_MS);
+  lapses.unref?.();
   const timer = every(tick, HEALTH_SENTINEL_INTERVAL_MS);
   timer.unref?.();
   return {
     /** Stop the interval and wait for the exact active child to finish shutting down. */
     async close() {
-      cancel(timer); liveCancel(liveness); liveCancel(waits); lifetime.abort();
-      await Promise.all([pending, recovering, auditing, canaryWatch.close()]);
+      cancel(timer); liveCancel(liveness); liveCancel(waits); liveCancel(lapses); lifetime.abort();
+      await Promise.all([pending, recovering, auditing, lapsing, canaryWatch.close()]);
     },
   };
 }

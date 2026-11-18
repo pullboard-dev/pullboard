@@ -4,14 +4,14 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../../fixtures/child.js';
-import { withFixtureBoard } from '../../fixtures/testkit.js';
+import { withFixtureBoard } from '../../fixtures/board.js';
 import { createJob } from '../../../../../packages/jobs/index.js';
 import { jobView } from '../../../../../packages/jobs/index.js';
 import { takeJob } from '../../../../../packages/jobs/index.js';
 import { writeStep } from '../../../../../packages/jobs/index.js';
 import { reclaimPass } from '../../../../../packages/drive/index.js';
 
-test('a lapsed stale shard ends within the five-minute gate progress budget [C7]', async () => {
+test('cli.io-gate-stale-shard-wait.a-lapsed-stale-shard-ends-within-the: a lapsed stale shard ends within the five-minute gate progress budget [C7]', async () => {
   const files = privateFixtureFiles('pullboard-stale-shard-wait-');
   const now = Date.now();
   const old = now - 38 * 60 * 60_000;

@@ -4,7 +4,7 @@
     {
       "order": 63,
       "actor": "coordinator",
-      "detail": "`session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under `coordinator:<session>` with no item)"
+      "detail": "`session`, `observedAt`, `records`, `estimate` (one coordinator session's usage, kept under the board key coordinator:session with no item)"
     }
   ]
 }

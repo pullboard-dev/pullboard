@@ -23,7 +23,7 @@ const AT = '2026-11-09T12:00:00.000Z';
 const NOW = Date.parse(AT);
 const delivery = (over = {}) => classifyActivityDelivery({ agentId: 'core-1', items: [], shouts: [], at: AT, activity: { entries: [], digests: [], cursor: 7 }, ...over });
 
-test('delivery interrupts for what happened to this seat\'s own work and counts the rest [R2,N26]', () => {
+test('activity.delivery.interrupt-own-work: delivery interrupts for what happened to this seat\'s own work and counts the rest [R2,N26]', () => {
   const entries = [
     { eventId: 1, kind: 'reject', recipient: 'core-1' },
     { eventId: 2, kind: 'reject', recipient: 'core-2' },
@@ -48,7 +48,7 @@ test('delivery interrupts for what happened to this seat\'s own work and counts 
   assert.equal(result.cursor, 9);
 });
 
-test('an answer to this seat\'s decision interrupts, and shouts and typed requests stay direct [R2,N26]', () => {
+test('activity.delivery.decision-answer-interrupts: an answer to this seat\'s decision interrupts, and shouts and typed requests stay direct [R2,N26]', () => {
   const shouts = [
     { shout_id: 10, shout_from: 'core-1', shout_decision: 1, shout_answers: null },
     { shout_id: 11, shout_answers: 10 },
@@ -61,7 +61,7 @@ test('an answer to this seat\'s decision interrupts, and shouts and typed reques
   assert.deepEqual(result.entries.map(entry => entry.eventId), [21, 22, 23, 24], 'an answer to someone else\'s decision stays a direct entry');
 });
 
-test('a claim whose lease ends within five minutes interrupts, and a distant, foreign or unclaimed one does not [R2]', () => {
+test('activity.delivery.lease-ending-interrupts: a claim whose lease ends within five minutes interrupts, and a distant, foreign or unclaimed one does not [R2]', () => {
   const lease = ms => new Date(NOW + ms).toISOString();
   const item = (id, over) => ({ item_id: id, item_status: 'claimed', item_owner: 'core-1', item_lease_until: lease(60_000), ...over });
   const result = delivery({ items: [
@@ -97,7 +97,7 @@ const inboxDocument = () => ({
 });
 const renderLines = document => [...document.shouts.map(entry => entry.shout_text), ...document.activity.interrupts.map(entry => entry.text)];
 
-test('a budget big enough keeps everything, and one too small keeps nothing and names what it withheld [R2,N26,H16]', () => {
+test('activity.delivery.budget-big-keeps-all: a budget big enough keeps everything, and one too small keeps nothing and names what it withheld [R2,N26,H16]', () => {
   const whole = budgetInbox(inboxDocument(), 1_000_000, renderLines);
   assert.deepEqual([whole.shouts.length, whole.activity.interrupts.length, whole.activity.entries.length, whole.activity.digests.length], [2, 1, 3, 1]);
   assert.equal(whole.budget.summary, '');
@@ -111,7 +111,7 @@ test('a budget big enough keeps everything, and one too small keeps nothing and 
   assert.equal(none.budget.limit, 1);
 });
 
-test('a middling budget keeps whole groups within its byte limit and never splits a shout\'s text [R2,N26,H16]', () => {
+test('activity.delivery.budget-middling-whole-groups: a middling budget keeps whole groups within its byte limit and never splits a shout\'s text [R2,N26,H16]', () => {
   const limit = measure(budgetInbox(inboxDocument(), 1_000_000, renderLines), renderLines) - 200;
   const trimmed = budgetInbox(inboxDocument(), limit, renderLines);
   const total = trimmed.shouts.length + trimmed.activity.interrupts.length + trimmed.activity.entries.length + trimmed.activity.digests.length;
@@ -120,21 +120,21 @@ test('a middling budget keeps whole groups within its byte limit and never split
   for (const kept of trimmed.shouts) assert.ok([`${'x'.repeat(300)}`, `${'y'.repeat(300)}`].includes(kept.shout_text));
 });
 
-test('only the coordinator actions count as call-outs, and the subject of one is the first item it names [N2,C7]', () => {
+test('activity.callouts.coordinator-actions-only: only the coordinator actions count as call-outs, and the subject of one is the first item it names [N2,C7]', () => {
   for (const text of ['Sentinel: #3 needs a sharper bar', 'Queued gate for #4 is dead', '#5 has two send-backs at strong', 'Stuck: decision #6 unanswered for 2 h', 'A Decision Request from core-1']) {
     assert.equal(actionableCallout(text), true, text);
   }
   for (const text of ['Resolved: #3 needs a sharper bar', 'takeover notice', 'released claim on #4', '', undefined]) assert.equal(actionableCallout(text), false, String(text));
 });
 
-test('a call-out stays open until it is answered, its item changed or its item moved on [N2,C7]', () => {
+test('activity.callouts.open-until-answered: a call-out stays open until it is answered, its item changed or its item moved on [N2,C7]', () => {
   const at = '2026-11-09T11:00:00.000Z';
   const callouts = [{ id: 1, at, text: 'Stuck: decision #3 unanswered' }, { id: 2, at, text: 'Stuck: decision #4 unanswered' }, { id: 3, at, text: 'Stuck: decision #5 unanswered' }, { id: 4, at, text: 'a decision request with no item' }, { id: 5, at, text: 'Stuck: decision #6 unanswered' }];
   const open = openCallouts(callouts, new Set([5]), item => item === 4, item => item !== 5);
   assert.deepEqual(open.map(callout => [callout.id, callout.item]), [[1, 3], [4, null]]);
 });
 
-test('the call-out line speaks only once the oldest is past fifteen minutes, in the singular or plural, naming who to tell [N2,C7]', () => {
+test('activity.callouts.line-after-fifteen-minutes: the call-out line speaks only once the oldest is past fifteen minutes, in the singular or plural, naming who to tell [N2,C7]', () => {
   const at = ms => ({ at: new Date(NOW - ms).toISOString() });
   assert.equal(calloutLine([], NOW, true), null);
   assert.equal(calloutLine([at(CALLOUT_AGE_MS)], NOW, true), null, 'exactly fifteen minutes is not past it');
@@ -144,7 +144,7 @@ test('the call-out line speaks only once the oldest is past fifteen minutes, in 
     '2 unanswered call-outs to the coordinator, oldest 2 h 10 min; the coordinator runs pullboard inbox to see them; tell the person who owns this board');
 });
 
-test('the board\'s call-out line counts the unanswered actionable shouts to the coordinator about items still open [N2,C7]', t => {
+test('activity.callouts.board-line-count: the board\'s call-out line counts the unanswered actionable shouts to the coordinator about items still open [N2,C7]', t => {
   const repo = cellRepo(t);
   const now = new Date('2026-11-09T10:00:00.000Z');
   const board = cellBoard(t, repo.boardFile, { now: () => now });
@@ -159,7 +159,7 @@ test('the board\'s call-out line counts the unanswered actionable shouts to the 
   assert.match(line, /^1 unanswered call-out to the coordinator, oldest 30 min; the coordinator runs pullboard inbox to see it; tell whoever runs the coordinator$/u);
 });
 
-test('a seat idling in next --wait hears each unread shout once and is told the open item it is asked to act on [B3,N2]', t => {
+test('activity.delivery.next-wait-hears-shouts-once: a seat idling in next --wait hears each unread shout once and is told the open item it is asked to act on [B3,N2]', t => {
   const repo = cellRepo(t);
   const board = cellBoard(t, repo.boardFile);
   const asked = cellSeat(board, { lane: 'web', path: `${repo.root}/a` });
@@ -177,7 +177,7 @@ test('a seat idling in next --wait hears each unread shout once and is told the 
   assert.deepEqual(takeWaitShouts({}, seen, ports), { lines: [], item: null }, 'nothing is read twice');
 });
 
-test('the activity cursor replays from the start until saved, and a cursor saved for another agent or board is not trusted [R2,N26]', t => {
+test('activity.delivery.cursor-replay: the activity cursor replays from the start until saved, and a cursor saved for another agent or board is not trusted [R2,N26]', t => {
   const repo = cellRepo(t);
   const fresh = readActivityCursor(repo.root, 'core-1', 'board-a');
   assert.deepEqual([fresh.after, fresh.newsAfter, fresh.sessionStart], [0, 0, true]);

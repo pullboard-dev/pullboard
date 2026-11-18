@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { serveRunner } from '../../index.js';
 import { testGit as pullGit } from '../fixtures/git.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const HOUR = 3_600_000;
@@ -37,7 +37,7 @@ async function serveOnce(cache, id) {
   await serveRunner({ git: pullGit, board: BOARD, runner: id, capabilities: [], cache, jobs: 2, signal: stop.signal, fetchImpl, sleep: async () => { stop.abort(); }, timing: { idleMs: 1 } });
 }
 
-test('restarting serve twice leaves only the current instance slots [P7]', async t => {
+test('drive.prune.restarting-serve-twice-leaves-only: restarting serve twice leaves only the current instance slots [P7]', async t => {
   const { root: cache } = privateFixtureFiles('pullboard-slots-cache-');
   t.after(() => { rmSync(cache, { recursive: true, force: true }); });
   const first = leaveSlots(cache, 'one', [0, 1], 48 * HOUR);
@@ -50,7 +50,7 @@ test('restarting serve twice leaves only the current instance slots [P7]', async
   assert.ok(third.every(path => existsSync(path)), 'the current instance slots stay');
 });
 
-test('a slot another serve changed within the grace stays [P7]', async t => {
+test('drive.prune.a-slot-another-serve-changed: a slot another serve changed within the grace stays [P7]', async t => {
   const { root: cache } = privateFixtureFiles('pullboard-slots-live-');
   t.after(() => { rmSync(cache, { recursive: true, force: true }); });
   const busy = leaveSlots(cache, 'busy', [0], 1000);

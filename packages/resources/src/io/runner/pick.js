@@ -80,6 +80,33 @@ function busyShareFallback(compatible, usage, ceiling, now) {
   return { selected, dispatch: { reason: busy.length === compatible.length ? 'all compatible runners at or above CPU ceiling; falling back to free slots' : 'missing or stale runner CPU readings; falling back to free slots', ceiling } };
 }
 
+/**
+ * The toolchain names a machine requires of every runner, from runners.requiredToolchains ("node,python"); blank, unset
+ * or any non-text value means no filter. Why: a job sent to a runner without the project's toolchain fails there, not here [C7,#3969].
+ */
+export function requiredToolchainNames(text) {
+  return typeof text === 'string' ? text.split(',').map(name => name.trim()).filter(Boolean) : [];
+}
+
+/** Whether a runner's recorded toolchains include every required name; with none required every runner qualifies. */
+export function hasRequiredToolchains(runner, required) {
+  const names = requiredToolchainNames(required);
+  return names.every(name => Object.hasOwn(runner.toolchains ?? {}, name));
+}
+
+/**
+ * The refusal text for a job no registered runner can supply the toolchains for: the names no runner records, or all required names
+ * when each is recorded somewhere but never together; null when some runner can. Why: such a job is refused at the runner choice, not left to wait
+ * for a runner that will never exist [C7,#3970].
+ */
+export function unsuppliedToolchainsMessage(runners, text) {
+  const required = requiredToolchainNames(text);
+  if (!required.length || !runners.length || runners.some(runner => hasRequiredToolchains(runner, text))) return null;
+  const absent = required.filter(name => !runners.some(runner => Object.hasOwn(runner.toolchains ?? {}, name)));
+  const names = absent.length ? absent : required;
+  return `no registered runner records ${names.length > 1 ? 'toolchains' : 'toolchain'} ${names.join(', ')} (${runners.map(runner => runner.host).join(', ')}); register one with pullboard runner add <host> --toolchain ${names.join(',')}, then retry`;
+}
+
 /** A runner whose jobs failed for infrastructure this recently is skipped while a healthy runner is free. */
 const RUNNER_TROUBLE_MS = 15 * 60_000;
 
@@ -104,7 +131,8 @@ export function troubledRunners(db, now, leaseMs) {
  * same for troubled runners. Why browser-free first: flexible work leaves browser slots for browser runs.
  * @returns {{selected: object|null, dispatch: object|undefined}}
  */
-export function pickTieredRunner(compatible, troubled, browser, usage, policy, now) {
+export function pickTieredRunner(allCompatible, troubled, browser, usage, policy, now) {
+  const compatible = allCompatible.filter(runner => hasRequiredToolchains(runner, policy?.requiredToolchains));
   const healthy = compatible.filter(runner => !troubled.has(runner.host));
   let pick = { selected: null, dispatch: undefined };
   for (const pool of [healthy, compatible]) {

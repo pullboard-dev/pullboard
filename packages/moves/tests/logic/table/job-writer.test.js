@@ -31,7 +31,7 @@ function agreed(seen, moves) {
   for (const compare of seen) assert.deepEqual(compare.wrote, compare.decided, `${compare.move} on ${compare.job}`);
 }
 
-test('clause 1: a renew, release or receipt by the claim\'s runner leaves the job row the job table\'s patch names [C7]', t => {
+test('moves.job-writer.a-renew-release-or-receipt-by-the: clause 1: a renew, release or receipt by the claim\'s runner leaves the job row the job table\'s patch names [C7]', t => {
   const { db, seen, id, token } = claimed(t);
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + LEASE_MS + 5_000 }); // a lapsed lease the runner still holds (#6546)
@@ -48,7 +48,7 @@ test('clause 1: a renew, release or receipt by the claim\'s runner leaves the jo
   assert.equal(free.seen[0].wrote.job.leaseUntil, 0);
 });
 
-test('clause 2: a renew, release or receipt from a runner without the current claim is refused JOB_LEASE_MOVED by both the writer and the job table [C7]', t => {
+test('moves.job-writer.a-renew-release-or-receipt-from-a: clause 2: a renew, release or receipt from a runner without the current claim is refused JOB_LEASE_MOVED by both the writer and the job table [C7]', t => {
   const { db, seen, id, token } = claimed(t);
   for (const [runner, held] of [['r-other', token], ['r-holder', 'not-the-token']]) {
     assert.throws(() => renewJob(db, { job: id, runner, token: held, now: T0 + 1_000 }), { code: 'JOB_LEASE_MOVED' });
@@ -59,7 +59,7 @@ test('clause 2: a renew, release or receipt from a runner without the current cl
   assert.ok(seen.every(compare => compare.decided.refused === 'JOB_LEASE_MOVED'));
 });
 
-test('clause 3: a board without the shadow hook runs no job table on these moves [C7]', t => {
+test('moves.job-writer.a-board-without-the-shadow-hook-runs: clause 3: a board without the shadow hook runs no job table on these moves [C7]', t => {
   const { db, seen, id, token } = claimed(t);
   delete db.jobQueueShadow;
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });

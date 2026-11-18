@@ -55,7 +55,6 @@ export const MACHINE_CALLBACKS = {
   },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
   '../packages/gate/src/io/execution.js': {
-    'gateLease.executionServices.runners.runOnRunner': '../packages/runners/src/io/main.js#runOnRunner',
     'gateLease.executionServices.runners.runOnRunnerAsync': '../packages/runners/src/io/main.js#runOnRunnerAsync',
   },
   // Explicit item ports preserve these canonical authority and sandbox refusal paths.

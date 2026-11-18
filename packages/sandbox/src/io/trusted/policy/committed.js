@@ -18,6 +18,8 @@ import {
   cleanGitEnvironment,
   mainCheckout,
   gitPath,
+  resolveCommit,
+  trunkRef,
   pinnedSpecText,
   tryGit,
   repoInfo,
@@ -25,6 +27,7 @@ import {
 import {
   Refused,
 } from '../../../../../kernel/light.js';
+
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
 export function policyGit(root, args, { encoding = 'utf8' } = {}) {
@@ -43,6 +46,23 @@ export function mainPolicy(root) {
   }
   if (!checkout.commit) throw new Refused('NO_POLICY', 'the coordinator checkout has no commit on ' + checkout.branch + '; create its first commit before claiming or running the project gate');
   return policyAt(root, checkout.commit);
+}
+
+/**
+ * Accepted main for a coordinator verifying in the primary checkout: mainPolicy, else the committed tip of the retained
+ * trunk branch while the primary is detached for review (every verify there detaches it).
+ * Why: the policy still comes from a committed tree, never the working tree, and verify accept would otherwise refuse
+ * NO_POLICY in the one place the coordinator runs it. Claim and gate keep mainPolicy's refusal [B34,V6,C7].
+ */
+export function reviewMainPolicy(root) {
+  try { return mainPolicy(root); }
+  catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'NO_POLICY' || mainCheckout(root)) throw error;
+    const retained = trunkRef(root);
+    const commit = retained ? resolveCommit(root, retained) : null;
+    if (!commit) throw error;
+    return policyAt(root, commit);
+  }
 }
 
 export { trunkRef } from '../../../../../git/light.js';

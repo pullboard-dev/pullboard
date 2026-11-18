@@ -41,14 +41,22 @@ const PARSER = [
  * @param {string[]} sources
  * @returns {{ compiles: boolean, imports: string[] }[]}
  */
-function compileSources(sources) {
-  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
+export function compileSources(sources, spawn = spawnSync) {
+  const fresh = missing => compileFresh(missing, spawn);
+  if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return fresh(sources);
   const epoch = JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, PARSER]);
-  return storedCompilations(epoch, sources, compileFresh);
+  return storedCompilations(epoch, sources, fresh);
 }
 
-/** Compile in a child Node, with no stored result consulted. */
-function compileFresh(sources) {
+/** The most time one parser child may take; a loaded runner that exceeds it gets a smaller batch, never a longer wait. */
+const PARSER_TIMEOUT_MS = 10_000;
+
+/**
+ * Compile in a child Node, with no stored result consulted. A batch whose child timed out on a loaded machine is split in
+ * halves and each half retried under the same timeout, so the answer is the same for every source; a lone source that
+ * still times out fails as before [C7].
+ */
+function compileFresh(sources, spawn = spawnSync) {
   // The package parser has an observed stdin/EOF hang. Use a private regular file and bound V8 too.
   const cacheDirectory = importParseScopes.getStore()?.directory;
   if (cacheDirectory) mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
@@ -56,9 +64,13 @@ function compileFresh(sources) {
   const input = join(directory, 'sources.json');
   try {
     writeFileSync(input, JSON.stringify(sources), { mode: 0o600 });
-    const child = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: 10_000, killSignal: 'SIGKILL',
+    const child = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', PARSER, input], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 2 ** 26, timeout: PARSER_TIMEOUT_MS, killSignal: 'SIGKILL',
     });
+    if (child.error?.code === 'ETIMEDOUT' && sources.length > 1) {
+      const half = Math.ceil(sources.length / 2);
+      return [...compileFresh(sources.slice(0, half), spawn), ...compileFresh(sources.slice(half), spawn)];
+    }
     if (child.status !== 0) throw new Error('V8 import parser failed: ' + (child.error?.message ?? child.stderr));
     return JSON.parse(child.stdout);
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -370,6 +382,41 @@ function cpuBindings(source, moduleExports, callable = false, literalCache) {
 }
 
 /** Extract registration calls, including subtests only from a real callback's own context. */
+/** True when a parameter or catch binding of an enclosing function hides `name` at `index`; masked code only [C7]. */
+function bindingShadows(code, index, name) {
+  const mention = new RegExp(`(?<![\\w$])${name.replace(/\$/gu, '\\$')}(?![\\w$])`, 'gu');
+  const binds = text => [...text.matchAll(mention)].some(hit => {
+    const before = text.slice(0, hit.index).trimEnd();
+    if (before.endsWith('=') || (before.endsWith('.') && !before.endsWith('...'))) return false;
+    return !text.slice(hit.index + name.length).trimStart().startsWith(':');
+  });
+  const openOf = close => {
+    let depth = 0;
+    for (let at = close; at >= 0; at--) {
+      if (code[at] === ')') depth++;
+      else if (code[at] === '(' && --depth === 0) return at;
+    }
+    return -1;
+  };
+  let depth = 0;
+  for (let at = index - 1; at >= 0; at--) {
+    if (code[at] === '}') { depth++; continue; }
+    if (code[at] !== '{') continue;
+    if (depth > 0) { depth--; continue; }
+    let head = code.slice(0, at).trimEnd();
+    const arrow = head.endsWith('=>');
+    if (arrow) head = head.slice(0, -2).trimEnd();
+    if (head.endsWith(')')) {
+      const open = openOf(head.length - 1);
+      if (open < 0) continue;
+      const keyword = /([A-Za-z_$][\w$]*)\s*$/u.exec(head.slice(0, open))?.[1];
+      if (!arrow && ['if', 'for', 'while', 'switch', 'with'].includes(keyword)) continue;
+      if (binds(head.slice(open + 1, -1))) return true;
+    } else if (arrow && binds(/([A-Za-z_$][\w$]*)$/u.exec(head)?.[1] ?? '')) return true;
+  }
+  return false;
+}
+
 function cpuCalls(source, bindings) {
   const { code, names } = bindings;
   const contexts = new Set(bindings.namespaces);
@@ -380,6 +427,7 @@ function cpuCalls(source, bindings) {
       const name = match[1];
       if (!names.has(name) && !contexts.has(name)) continue;
       if (code.slice(0, match.index).trimEnd().endsWith('.')) continue;
+      if (names.has(name) && !contexts.has(name) && bindingShadows(code, match.index, name)) continue;
       let at = match.index + name.length;
       while (/\s/u.test(code[at] ?? '') && at < code.length) at++;
       if (code[at] === '.') {
@@ -447,13 +495,21 @@ function firstCpuOption(source, bindings, quoted, argument) {
       const literal = bindings.strings.find(value => value.start === start);
       const object = bindings.code[start] === '{' ? sourceParts(bindings.code, start + 1, '}') : null;
       const end = object ? object.end + 1 : literal?.end;
-      if (end !== undefined && /^(?:[ \t]*[;,\r\n]|\s*$)/u.test(bindings.code.slice(end))) [from, to] = [start, end];
+      if (end !== undefined && declarationEnds(bindings.code.slice(end))) [from, to] = [start, end];
     }
   }
   // A complete string/template is a title; every unresolved expression may instead be options.
   if (bindings.strings.some(value => value.start === from && value.end === to)) return false;
   if (stringConcatenation(bindings, from, to)) return false;
   return cpuOption(source, bindings.code, quoted, [from, to]);
+}
+
+/** A declaration ends at `;`, `,`, the end, or a newline whose next token cannot continue the expression. */
+function declarationEnds(rest) {
+  if (/^(?:[ \t]*[;,]|\s*$)/u.test(rest)) return true;
+  if (!/^[ \t]*\r?\n/u.test(rest)) return false;
+  // A line starting with an operator, call, index or member access continues the value (no ASI), so it may be options.
+  return !/^\s*(?:[&|?+\-*\/%<>=^.(\[`]|in\b|instanceof\b)/u.test(rest);
 }
 
 /** A string literal joined only by top-level + always evaluates to a string, so it is a title, never options. */

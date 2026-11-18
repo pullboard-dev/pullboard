@@ -65,14 +65,36 @@ export async function withFileLock(file, work) {
   }
 }
 
+/** True when SQLite refused only because another connection holds the lock (SQLITE_BUSY or SQLITE_LOCKED). */
+function lockHeld(error) {
+  return error?.errcode === 5 || error?.errcode === 6 || /database is locked|database table is locked/iu.test(String(error?.message));
+}
+
+/**
+ * Take the exclusive lock, waiting asynchronously up to GUARD_WAIT_MS while another process holds it.
+ * Why: SQLite's own busy_timeout sleeps synchronously, which froze this process's event loop for as long as the holder
+ * kept the lock; a holder waiting on a server in this same process (a relay fixture, a served board) could then never be
+ * answered, so both sat until the runner's kill. Polling with a timer keeps the loop serving while the lock is awaited.
+ */
+async function beginExclusive(db) {
+  db.exec('PRAGMA busy_timeout = 0');
+  const deadline = Date.now() + GUARD_WAIT_MS;
+  for (let delay = 2; ; delay = Math.min(delay * 2, 50)) {
+    try { db.exec('BEGIN EXCLUSIVE'); return; }
+    catch (error) {
+      if (!lockHeld(error) || Date.now() >= deadline) throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+}
+
 /** Hold the actual cross-process SQLite lock for one active asynchronous operation and its genuine nested work. */
 async function ownFileLock(file, work) {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   const db = new DatabaseSync(file);
   const owner = { active: true };
   try {
-    db.exec(`PRAGMA busy_timeout = ${GUARD_WAIT_MS}`);
-    db.exec('BEGIN EXCLUSIVE');
+    await beginExclusive(db);
     const context = new Map(OWNERS.getStore() ?? []);
     context.set(file, owner);
     return await OWNERS.run(context, work);

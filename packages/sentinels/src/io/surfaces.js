@@ -15,6 +15,7 @@ import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { runsFilePath } from '../../../store/index.js';
 import { elapsedMs } from '../logic/budgets.js';
 import { storeName } from './store-names.js';
 
@@ -256,7 +257,12 @@ function leaseOwnerPid(owner) {
  * span, whichever is later; a landing run's age is since it started.
  */
 export function readJobs(boardFile, spanFolder, now, census) {
-  const db = readOnly(boardFile);
+  const board = readOnly(boardFile);
+  if (!board) return [];
+  // With runs_store on the job rows live in the runs file beside the board, read only; a missing runs file reads as no jobs [B2,#9014].
+  const runsOn = board.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'runs_store'").get()?.meta_value === '1';
+  const db = runsOn ? readOnly(runsFilePath(boardFile)) : board;
+  if (runsOn) board.close();
   if (!db) return [];
   try {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job'").get()) return [];

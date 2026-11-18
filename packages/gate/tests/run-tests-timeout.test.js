@@ -52,7 +52,7 @@ function outputOf(result) {
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
 }
 
-test('a never-settling test fails by name and later files still report [C7, V10]', (t) => {
+test('gate.run-tests-timeout.settling-test-fails-name-later: a never-settling test fails by name and later files still report [C7, V10]', (t) => {
   assert.equal(DEFAULT_TEST_TIMEOUT_MS, 660_000, '660 seconds exceeds three times the measured 213.2-second slowest test');
   const result = runFixture(t, `import { test } from 'node:test';
 test('before timeout target passes [C7,V10]', () => {});
@@ -69,7 +69,7 @@ test('awaited timeout target [C7,V10]', async (context) => {
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
-test('a synchronous test hang is named while another file reports [C7, V10]', (t) => {
+test('gate.run-tests-timeout.synchronous-test-hang-named-while: a synchronous test hang is named while another file reports [C7, V10]', (t) => {
   const result = runFixture(t, `import { test } from 'node:test';
 test('synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); });
 `);
@@ -79,7 +79,7 @@ test('synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
-test('test-owned synchronous cleanup retains its case budget before file exit [C7,V10]', t => {
+test('gate.run-tests-timeout.test-owned-synchronous-cleanup-retains: test-owned synchronous cleanup retains its case budget before file exit [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 test('cleanup inside the case budget [C7,V10]', t => {
   t.after(() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500));
@@ -90,7 +90,7 @@ test('cleanup inside the case budget [C7,V10]', t => {
   assert.doesNotMatch(outputOf(result), /file-exit timeout/u);
 });
 
-test('a helper-only test file exits after importing the runner [C7, V10]', (t) => {
+test('gate.run-tests-timeout.helper-only-test-file-exits: a helper-only test file exits after importing the runner [C7, V10]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-test-timeout-helper-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const helper = join(root, 'helper.js');
@@ -110,7 +110,7 @@ test('a helper-only test file exits after importing the runner [C7, V10]', (t) =
   assert.equal(result.signal, null, 'the helper exits normally without a test lifecycle');
 });
 
-test('an invalid test-timeout override refuses before running a test [C7, V10]', (t) => {
+test('gate.run-tests-timeout.invalid-test-timeout-override-refuses: an invalid test-timeout override refuses before running a test [C7, V10]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-test-timeout-invalid-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const marker = join(root, 'ran');
@@ -130,7 +130,7 @@ test('must not run [C7,V10]', () => writeFileSync(${JSON.stringify(marker)}, 'ra
   assert.match(outputOf(result), /PULLBOARD_TEST_TIMEOUT_MS must be a positive integer no greater than 2147483647/u);
 });
 
-test('a silent awaited file is HUNG by idle CPU supervision and its sibling still passes [C7,V10]', t => {
+test('gate.run-tests-timeout.silent-awaited-file-hung-idle: a silent awaited file is HUNG by idle CPU supervision and its sibling still passes [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 test('idle target [C7,V10]', async () => {
   setInterval(() => {}, 10000);
@@ -147,7 +147,7 @@ test('idle target [C7,V10]', async () => {
 
 // A case inside its own per-test budget keeps that budget past the file wall (#2827), so the wall bounds a busy
 // file outside any case: a spin in file setup, before a test starts, never waits on a 60-second case budget.
-test('clause 1: a busy file reaches its per-file wall limit and its sibling still passes [C7,V10]', t => {
+test('gate.run-tests-timeout.busy-file-reaches-per-file: clause 1: a busy file reaches its per-file wall limit and its sibling still passes [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 const until = Date.now() + 30000;
 while (Date.now() < until) {}
@@ -161,7 +161,7 @@ test('busy target [C7,V10]', () => {});
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
 });
 
-test('a HUNG landing file stays red and a queued sibling runs after it [C7,V10]', t => {
+test('gate.run-tests-timeout.hung-landing-file-stays-red: a HUNG landing file stays red and a queued sibling runs after it [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 test('landing idle target [C7,V10]', async () => {
   setInterval(() => {}, 10000);
@@ -176,7 +176,7 @@ test('landing idle target [C7,V10]', async () => {
   assert.doesNotMatch(output, /Landing gate stopped early|Files not run:/u);
 });
 
-test('a busy descendant keeps its test file alive far past the idle timeout [C7,V10]', t => {
+test('gate.run-tests-timeout.busy-descendant-keeps-test-file: a busy descendant keeps its test file alive far past the idle timeout [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 test('working child [C7,V10]', () => {
@@ -188,7 +188,7 @@ test('working child [C7,V10]', () => {
   assert.doesNotMatch(outputOf(result), /HUNG file/u);
 });
 
-test('output from a quiet descendant keeps its file alive [C7,V10]', t => {
+test('gate.run-tests-timeout.output-from-quiet-descendant-keeps: output from a quiet descendant keeps its file alive [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 test('output child [C7,V10]', () => {

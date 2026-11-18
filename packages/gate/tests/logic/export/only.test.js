@@ -23,7 +23,7 @@ test('a new export-only file is refused and a listed one passes [C7]', () => {
   assert.deepEqual(exportOnlyProblems(sources, ['src/old.js']).map(row => row.path), ['src/new.js']);
 });
 
-test('the ceilings list only files that are still export-only, sorted [C7]', () => {
+test('clause 1: the ceilings list only files that are still export-only, sorted [C7]', () => {
   const root = join(import.meta.dirname, '../../../../..');
   const { files } = JSON.parse(readFileSync(join(root, EXPORT_ONLY_CEILINGS), 'utf8'));
   assert.deepEqual(files, [...files].sort());

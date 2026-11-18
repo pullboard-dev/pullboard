@@ -150,3 +150,42 @@ export async function unwrapDeviceBoardKey(privateKey, envelope, expected) {
       additionalData: wrapAAD(context), tagLength: 128 }, derived, decode(envelope.ciphertext, 48)));
   } catch { throw new Refused('DEVICE_WRAP_AUTH', 'The wrapped board key could not be authenticated. Pair again.'); }
 }
+
+/**
+ * Wrap one board key to every device in a roster, one envelope each, keyed by deviceId [E16].
+ * Why: removing or adding a member re-wraps to the roster's devices, so each envelope is bound to its own device context.
+ *
+ * @param {Uint8Array} key the board's 32-byte key
+ * @param {{ deviceId: string, publicKey: object }[]} roster the trusted member devices, shaped as the relay machine's state.devices
+ * @param {{ board: string, engine: number }} value the linked board and engine every envelope binds
+ * @returns {Promise<Record<string, object>>}
+ */
+export async function wrapBoardKeyToRoster(key, roster, value) {
+  if (!Array.isArray(roster) || new Set(roster.map(row => row?.deviceId)).size !== roster.length) {
+    throw new Refused('DEVICE_WRAP_BINDING', 'Name each paired device of the roster once.');
+  }
+  const envelopes = {};
+  for (const row of roster) envelopes[row.deviceId] = await wrapDeviceBoardKey(key, row.publicKey, { board: value?.board, device: row.deviceId, engine: value?.engine });
+  return envelopes;
+}
+
+/**
+ * Rotate a board key on member removal: draw a fresh 32-byte key and wrap it to every roster device except the removed one [E16].
+ * Why: the removed device still holds the old key, so only a new key, never wrapped to it, cuts it off from later writes.
+ *
+ * @param {Uint8Array} oldKey the board key being replaced
+ * @param {{ deviceId: string, publicKey: object }[]} roster the trusted member devices before the removal
+ * @param {string} removedDeviceId the device that leaves the roster
+ * @param {{ board: string, engine: number }} value the linked board and engine every envelope binds
+ * @returns {Promise<{ key: Uint8Array, envelopes: Record<string, object> }>}
+ */
+export async function rotateBoardKeyForRoster(oldKey, roster, removedDeviceId, value) {
+  if (!Array.isArray(roster) || !roster.some(row => row?.deviceId === removedDeviceId)) {
+    throw new Refused('DEVICE_WRAP_BINDING', 'Name a paired device of the roster to remove.');
+  }
+  const remaining = roster.filter(row => row.deviceId !== removedDeviceId);
+  let key;
+  do key = platform().getRandomValues(new Uint8Array(32));
+  while (oldKey instanceof Uint8Array && key.length === oldKey.length && key.every((byte, index) => byte === oldKey[index]));
+  return { key, envelopes: await wrapBoardKeyToRoster(key, remaining, value) };
+}

@@ -87,17 +87,18 @@ export async function measureNext(box, command) {
   return samples;
 }
 
-/** Measure claim and release of one filed item per round. */
+/** Measure claim and release of one filed item per round, in this process like next, so a loaded runner's node start-up is not billed to the command [#6998,C7]. */
 export async function measureClaimRelease(box) {
   const dir = seatOnRealSizeBoard(box);
   const samples = { claim: [], release: [] };
-  for (let round = 0; round < ROUNDS; round++) {
+  // Round -1 is a warm-up: the first in-process call loads the command's modules, which a real process pays once per run.
+  for (let round = -1; round < ROUNDS; round++) {
     const id = String(await file(box, `Budget work ${round}`));
-    const claim = timed(box, dir, 'claim', id);
-    samples.claim.push(claim.ms);
+    const claim = await timedIn(box, dir, 'claim', id);
+    if (round >= 0) samples.claim.push(claim.ms);
     assert.equal(claim.code, 0, `claim: ${claim.err}${claim.out}`);
-    const release = timed(box, dir, 'release', id, '--reason', 'OTHER', '--note', 'measured the release', '--no-next');
-    samples.release.push(release.ms);
+    const release = await timedIn(box, dir, 'release', id, '--reason', 'OTHER', '--note', 'measured the release', '--no-next');
+    if (round >= 0) samples.release.push(release.ms);
     assert.equal(release.code, 0, `release: ${release.err}${release.out}`);
   }
   return samples;

@@ -25,7 +25,7 @@ const { sandbox, project } = e2e;
 const CLAUDE_MODEL = 'Claude';
 const OTHER_MODEL = 'Another Model';
 
-test('model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', async () => {
+test('cli.journeys-release-model-labels.model-names-label-cli-actors-without: model names label CLI actors without changing IDs, messages, or the context prompt [O8,O3]', async () => {
   for (const style of ['suffix', 'prefix']) {
     const box = sandbox();
     box.env.PULLBOARD_MODEL = 'Claude';
@@ -194,6 +194,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     assert.equal(selectedError.code, 'NOTHING_FREE');
     assert.ok(selectedError.message.includes('1 item is held by coordinator'), selectedError.message);
 
+    // @pullboard-board-file journey: removes a stored model row from the board the CLI wrote, to replay a legacy board.
     const board = openBoard(join(repo.repo, '.git', 'pullboard', 'board.sqlite'));
     try { board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run('agent_model:web-2'); }
     finally { store.closeBoard(board); }

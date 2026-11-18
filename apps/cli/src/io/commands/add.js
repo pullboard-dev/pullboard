@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 import { requireOwnLaneCheck } from '../lane.js';
 import {
   COORDINATOR,
@@ -16,16 +18,19 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
 import { guardBar } from '../../../../../packages/state/index.js';
+import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
-import { criterionCells } from '../../../../../packages/items/index.js';
-import { checkTestFiles } from '../../../../../packages/items/index.js';
-import { defaultItemRoute } from '../../../../../packages/items/index.js';
 import { ENGINE_VERSION } from '../../../../../packages/state/index.js';
 import { TWO_TIER_DIAGNOSIS_ENGINE } from '../../../../../packages/state/index.js';
+import { criterionCells } from '../../../../../packages/items/index.js';
+import { checkTestFiles } from '../../../../../packages/items/index.js';
+import { shapeRoute } from '../../../../../packages/items/index.js';
 import { requirePersonChannel } from '../../../../../packages/person/index.js';
 import { githubPullClient } from '../../../../../packages/github/index.js';
 import {
@@ -48,6 +53,7 @@ import {
 } from '../../../../../packages/gate/index.js';
 import {
   isLane,
+  listProjects,
 } from '../../../../../packages/seats/index.js';
 import {
   Refused,
@@ -75,9 +81,22 @@ import {
 } from '../entry.js';
 import { anyRunnerLive } from '../runner/local.js';
 
+/** A path in a bar that leaves this board's folder: absolute, home-relative or climbing out with `../`. */
+const LEAVES_BOARD = /(?:^|[\s`'"(\[,])(?:~?\/|\.\.\/)/u;
+
 /**
- * The default route for an add with a check. A diagnosis can only follow the add, so on a board that requires one a
- * light default would refuse DIAGNOSIS_REQUIRED on every plain add; it starts mid, as next already offers it (#3120).
+ * Whether the other-board check can matter: the bar names a path outside this board's folder, or another registered board sits inside it.
+ * Why: the guard module loads only then, so a plain one-board add pays no module load for it [C7].
+ */
+function mayNameOtherBoard(ctx, item) {
+  if (LEAVES_BOARD.test([item.criterion, item.check, item.brief].filter(Boolean).join('\n'))) return true;
+  const root = resolve(ctx.info.root);
+  try { return listProjects({ pruneMissing: false }).some(project => resolve(project.root).startsWith(root + sep)); } catch { return false; }
+}
+
+/**
+ * The route an add files for a shape route. A diagnosis can only follow the add, so on a board that requires one a light
+ * route would refuse DIAGNOSIS_REQUIRED on every plain add; it is filed mid, the route next already offers (#3120, #8628).
  */
 function addedRoute(board, route) {
   return route === 'light' && (board.executionEngineVersion ?? ENGINE_VERSION) >= TWO_TIER_DIAGNOSIS_ENGINE ? 'mid' : route;
@@ -125,9 +144,12 @@ export async function run(io, args) {
     after,
     brief: briefInLane(ctx, first, laneBar.brief),
     reviewFamily: values['review-family'],
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
-    // Mid needs a brief, which a check naming a test file fills in; with neither, the item is strong (#3178).
-    route: values.route ?? (values.check && (checkTestFiles(values.check).length || briefArg(io, values)) ? addedRoute(board, defaultItemRoute(values.criterion ?? '', criterionCells(ctx.info.root))) : 'strong'),
+    // Light when the shape is small, proven and briefed, otherwise strong; an explicit --route wins [C7,#3081].
+    route: values.route ?? addedRoute(board, shapeRoute({ criterion: values.criterion ?? '', check: values.check,
+      // A check naming a test file fills the brief, so it counts as one.
+      brief: briefArg(io, values) || (values.check && checkTestFiles(values.check).length ? 'filled from the check' : '') })),
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
     check: laneBar.check,
@@ -141,7 +163,7 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
-  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()) });
+  const barWarnings = guardBar(item.criterion, { allowLong: Boolean(values['force-size']?.trim()), warnUnnamedTest: addWarnUnnamedTest(), brief: item.brief });
   const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
   const sizeReason = values['force-size']?.trim();
   if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
@@ -162,6 +184,7 @@ export async function run(io, args) {
   requireNoCoordinatorPath(ctx.config, me, item);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
+  await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
@@ -169,7 +192,10 @@ export async function run(io, args) {
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
+  // The guard module loads only when the bar can name another board's files (or --here is given), so a one-board add pays nothing for it [C7].
+  const elsewhere = values.here !== undefined || mayNameOtherBoard(ctx, item) ? (await import('../item/other-board.js')).guardOtherBoard(ctx, item, values.here) : null;
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (elsewhere) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Filed here though its files belong to the ${elsewhere.boards.join(', ')} board: ${elsewhere.reason}` }]);
   if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);
   const piece = split?.paths.length ? await fileCoordinatorPiece(ctx, board, { id, item, split, title, specIds }) : null;
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',

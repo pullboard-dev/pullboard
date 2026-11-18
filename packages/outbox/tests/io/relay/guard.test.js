@@ -12,6 +12,7 @@ import {
 } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
+import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { withFileLock } from '../../../src/io/relay/guard.js';
 
@@ -29,7 +30,7 @@ function fixture(t) {
   return join(directory, 'guard.sqlite');
 }
 
-test('unrelated asynchronous callers cannot enter the same outbox guard together [H21,H16]', async t => {
+test('outbox.guard.unrelated-callers-serialised: unrelated asynchronous callers cannot enter the same outbox guard together [H21,H16]', async t => {
   t.diagnostic(JSON.stringify({ node: process.version, host: hostname(), execPath: process.execPath,
     binarySha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
   const file = fixture(t);
@@ -54,7 +55,7 @@ test('unrelated asynchronous callers cannot enter the same outbox guard together
   assert.deepEqual(order, ['first entered', 'first finished', 'second entered']);
 });
 
-test('a guard permits genuine nested work, independent files and reuse after a thrown operation [H21,H16]', async t => {
+test('outbox.guard.nested-and-reuse: a guard permits genuine nested work, independent files and reuse after a thrown operation [H21,H16]', async t => {
   const file = fixture(t);
   const other = join(file, '..', 'other.sqlite');
   const failure = new Error('fixture operation failed');
@@ -69,7 +70,7 @@ test('a guard permits genuine nested work, independent files and reuse after a t
   assert.deepEqual(order, ['outer', 'nested', 'other file', 'next owner']);
 });
 
-test('a detached descendant cannot reuse an expired guard context while another caller owns it [H21,H16]', async t => {
+test('outbox.guard.expired-context-refused: a detached descendant cannot reuse an expired guard context while another caller owns it [H21,H16]', async t => {
   const file = fixture(t);
   const startChild = barrier();
   const releaseOwner = barrier();
@@ -93,4 +94,23 @@ test('a detached descendant cannot reuse an expired guard context while another 
     await Promise.all([nextOwner, descendant]);
   }
   assert.equal(entered, true, 'the detached caller enters after the current owner releases the guard');
+});
+
+test('outbox.guard.held-guard-awaited: clause 1: a guard held by another connection is awaited without freezing this process event loop [H21,H16]', async t => {
+  const file = fixture(t);
+  // Process-level stand-in: a second SQLite connection is exactly what another process holding the guard looks like.
+  const holder = new DatabaseSync(file);
+  holder.exec('BEGIN EXCLUSIVE');
+  let entered = false;
+  const waiting = withFileLock(file, () => { entered = true; });
+  try {
+    // Each turn of the event loop is observable progress: a guard wait that slept synchronously would never return here.
+    for (let turn = 0; turn < 20; turn++) await setImmediate();
+    assert.equal(entered, false, 'the waiter does not enter while the other connection holds the guard');
+  } finally {
+    holder.exec('COMMIT');
+    holder.close();
+  }
+  await waiting;
+  assert.equal(entered, true, 'the waiter enters once the other connection releases');
 });

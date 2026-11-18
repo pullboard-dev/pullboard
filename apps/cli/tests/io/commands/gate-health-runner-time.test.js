@@ -5,7 +5,7 @@ import { apiHttpFixture } from '../../fixtures/api.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { recordRunnerTime } from '../../../../../packages/resources/index.js';
 
-test('clause 1: gate-health prints runner minutes by purpose read from the sidecar [C7]', async t => {
+test('cli.io-commands-gate-health-runner-time.gate-health-prints-runner-minutes-by-purpose: clause 1: gate-health prints runner minutes by purpose read from the sidecar [C7]', async t => {
   const box = apiHttpFixture(t);
   const end = Date.now();
   recordRunnerTime(box.root, { startedAt: end - 120_000, endedAt: end, host: 'runner-a', item: '4000', kind: 'gate' });
@@ -17,7 +17,7 @@ test('clause 1: gate-health prints runner minutes by purpose read from the sidec
   assert.match(ran.stdout, /landing-smoke\s+1 dispatches\s+1\.0 min/u);
 });
 
-test('clause 2: gate-health reports the unattributed share of runner minutes, in its text and its JSON [C7]', async t => {
+test('cli.io-commands-gate-health-runner-time.gate-health-reports-the-unattributed-share-of: clause 2: gate-health reports the unattributed share of runner minutes, in its text and its JSON [C7]', async t => {
   const box = apiHttpFixture(t);
   const end = Date.now();
   recordRunnerTime(box.root, { startedAt: end - 180_000, endedAt: end, host: 'runner-a', item: '4000', kind: 'gate' });

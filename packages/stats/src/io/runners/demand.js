@@ -9,11 +9,13 @@ function declaredJobs(text) {
  * result or receipt step; a job still in flight with a live lease holds one until now, otherwise until its last update.
  * Jobs run locally (no claim) count under the runner "local".
  *
- * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ since: number, now: number }} options - Only jobs touched at or after since are read.
+ * @param {import('node:sqlite').DatabaseSync} board
+ * @param {{ since: number, now: number, runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} options - Only jobs touched at or after since are read; `runs`: with runs_store on, the read-only runs holder the job rows come from instead of the board [B2,#9014].
  * @returns {{ spans: { job: string, kind: string, runner: string, start: number, end: number, declared: number|null }[], created: number[] }}
  */
-export function readDemandSpans(db, { since, now }) {
+export function readDemandSpans(board, { since, now, runs = null }) {
+  const db = runs ? runs.db : board;
+  if (!db) return { spans: [], created: [] };
   const jobs = db.prepare('SELECT job_id AS id, job_kind AS kind, job_step AS step, job_lease_until AS lease, job_created AS created, job_updated AS updated FROM job WHERE job_updated >= ? OR job_created >= ?').all(since, since);
   const steps = db.prepare("SELECT job_step_job AS job, job_step_name AS name, job_step_payload AS payload, job_step_at AS at FROM job_step WHERE job_step_name IN ('claimed','running','result','receipt') ORDER BY job_step_at, job_step_id").all();
   const by = new Map();

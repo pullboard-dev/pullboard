@@ -1,4 +1,7 @@
 /** Shell scripts a pull-mode runner runs for enqueue, status, pack upload and file fetch; shell and git only, no node [5465,5468]. */
+import { mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 /** The job ids a runner namespace accepts; anything else could escape the queue folders or the shell word. */
 const JOB_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
@@ -17,7 +20,7 @@ export function pullJobId(id) {
 }
 
 /** The runner root as a shell word: its configured folder, or the home default the worker launch uses. */
-function rootWord(runner) { return runner?.root ? pullWord(runner.root) : '"$HOME/.pullboard-runner"'; }
+export function rootWord(runner) { return runner?.root ? pullWord(runner.root) : '"$HOME/.pullboard-runner"'; }
 
 /**
  * Build the enqueue script: stdin is one JSON line (row.json) then the frame bytes.
@@ -161,4 +164,22 @@ for d in queue running done; do
 done
 echo end
 `;
+}
+
+/**
+ * Stage a job's folder in a private local folder: row.json (one JSON line), input, the optional command and the empty wanted file.
+ * Why in JS: the store's write scan can own a row.json written here, but not one a remote shell printf writes (#8753).
+ *
+ * @param {{ id: string, row: object, frame: Buffer, command?: string, now?: number, parent: string }} job - As enqueueRunnerJob takes them; `now` pins enqueuedAt; `parent` is the private folder the stage is made in.
+ * @returns {{ dir: string, files: string[], rowBytes: Buffer }} The staged folder, its file names, and the row.json bytes written.
+ */
+export function stageRunnerJob({ id, row, frame, command = '', now = Date.now(), parent }) {
+  pullJobId(id);
+  const dir = mkdtempSync(join(parent, 'job-'));
+  const rowBytes = Buffer.from(`${JSON.stringify({ version: 1, id, enqueuedAt: now, ...row })}\n`);
+  writeFileSync(join(dir, 'row.json'), rowBytes, { mode: 0o600 });
+  writeFileSync(join(dir, 'input'), frame, { mode: 0o600 });
+  if (command) writeFileSync(join(dir, 'command'), `${command}\n`, { mode: 0o600 });
+  writeFileSync(join(dir, 'wanted'), '', { mode: 0o600 });
+  return { dir, files: ['row.json', 'input', ...(command ? ['command'] : []), 'wanted'], rowBytes };
 }

@@ -101,7 +101,12 @@ import {
 } from '../../../../../packages/person/index.js';
 import {
   createE2eHelpers,
+  JOURNEY_MODE,
+  parityRecord,
 } from '../e2e.js';
+import { appendFileSync } from 'node:fs';
+import { settleLand } from '../land/settle.js';
+import { settleSubmit } from '../submit/settle.js';
 import {
   executeMove,
   serveApi,
@@ -122,7 +127,7 @@ import {
 } from '../../../../relay/index.js';
 import {
   unpackRelease,
-} from '../release/archive.js';
+} from '../../../../../packages/gate/tests/fixtures/release/archive.js';
 import {
   decodeBoardKey,
   seal,
@@ -188,9 +193,45 @@ function withBoard(root, action) {
   finally { store.closeBoard(board); }
 }
 
-/** Run a real fixture CLI command, retaining the refusal or successful document verbatim. */
+/** Commands that stay a real process: they settle pulled jobs or can outlast the worker thread's 45 s wait, or the call is about argv and start-up. */
+const REAL_PROCESS = new Set(['submit', 'verify', 'land', 'test', 'resume', 'tour', 'version']);
+
+/**
+ * One sync fixture call: answered by the box's warm worker thread, or a real process when the command is in REAL_PROCESS, the call
+ * asks for --help, or PULLBOARD_JOURNEY_MODE=process. Appends a parity record for the call when PULLBOARD_PARITY_RECORD is set [C7,U149].
+ */
+function quick(box, root, ...args) {
+  const real = JOURNEY_MODE === 'process' || typeof box.runSync !== 'function' || REAL_PROCESS.has(args[0]) || args.includes('--help');
+  const result = real ? box.run(root, ...args) : box.runSync(root, ...args);
+  if (process.env.PULLBOARD_PARITY_RECORD) appendFileSync(process.env.PULLBOARD_PARITY_RECORD, `${JSON.stringify(parityRecord({ dir: box.dir, env: box.env, cwd: root, args, result: { ...result, status: result.code, stdout: result.out, stderr: result.err } }))}\n`);
+  return result;
+}
+
+/** Commands that run through the box's in-process dispatcher and settle their pulled runner job before they answer [C7,#10464]. */
+const SETTLED_STEPS = new Set(['submit', 'verify', 'land']);
+/** Local runners a settled submit started; stopped when the file ends, as settleSubmit's test context would. */
+const startedRunners = [];
+after(() => { for (const stop of startedRunners.splice(0)) stop(); });
+
+/**
+ * One submit, verify or land through the production dispatcher in this process, refused unless it exits 0.
+ * Why: each as its own node process cost a start-up; a submit waits for its gate job (settleSubmit) and a land for its receipt (settleLand), as #10411 did for repair-landing [C7,#10464].
+ * Returns the command's output text, with the settled document for submit and land.
+ */
+async function settledStep(box, root, args) {
+  const json = args[0] !== 'verify' && !args.includes('--json') ? [...args, '--json'] : args;
+  const result = await box.runIn(root, ...json);
+  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
+  if (args[0] === 'verify') return result.out;
+  const document = JSON.parse(result.out);
+  const settled = args[0] === 'submit' ? await settleSubmit({ after: stop => startedRunners.push(stop) }, box, document) : await settleLand(box, document);
+  return JSON.stringify(settled);
+}
+
+/** Run a fixture CLI command, retaining the refusal or successful document verbatim; submit, verify and land answer as a promise. */
 function run(box, root, ...args) {
-  const result = box.run(root, ...args);
+  if (SETTLED_STEPS.has(args[0]) && typeof box.runIn === 'function' && !args.includes('--help')) return settledStep(box, root, args);
+  const result = quick(box, root, ...args);
   assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
   return result.out;
 }
@@ -407,7 +448,7 @@ function siblingRepo(box, name, project) {
   const repo = join(box.dir, name);
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  assert.equal(box.run(repo, 'init').code, 0);
+  assert.equal(quick(box, repo, 'init').code, 0);
   return { repo, project };
 }
 

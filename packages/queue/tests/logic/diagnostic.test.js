@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { orderedWaiters } from '../../src/logic/order.js';
 
-test('diagnostics pass background work only when every waiter knows the ordering [C7]', () => {
+test('queue.diagnostic.waiters-know-ordering: diagnostics pass background work only when every waiter knows the ordering [C7]', () => {
   const rows = [
     { ticket: 1, diagnosticAware: 1, agent: 'background' },
     { ticket: 2, diagnosticAware: 1, diagnostic: 1, agent: 'diagnose' },

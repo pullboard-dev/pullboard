@@ -87,7 +87,7 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/logic/line/capacity/board.js#oldestCapacityReview': ['../packages/store/src/io/board.js#reviewerChecks'],
   '../apps/cli/src/io/commands/submit.js#submitHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure', '../apps/cli/src/io/entry.js#freezer', '../apps/cli/src/io/claim.js#freezer', '../packages/landing/src/io/main/red.js#compareMainFailures', '../packages/landing/src/io/main/red.js#matchingReworks', '../packages/doctrine/src/io/checks.js#checkRulesAt'],
-  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/index.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
+  '../apps/cli/src/io/submit/pull.js#offerSubmitGate': ['../packages/stats/light.js#checkpointAfterMove', '../packages/stats/src/io/cost/checkpoint.js#checkpointAfterMove'], // A pulled submit's usage checkpoint catches every usage failure as USAGE_PENDING [N2].
   // Machine-verified submit lands after its record, and that landing call is caught like verify's; the same catches as reached at the CLI's moved source (#2886).
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   '../apps/cli/src/io/commands/verify.js#verifyHere': ['../apps/cli/src/io/commands/land.js#landAfterAcceptance', '../packages/flakes/src/io/native.js#observeFailure'],
@@ -119,6 +119,115 @@ const TRANSPORT_BOUNDARIES = new Set(['../packages/link/src/io/relay.js#relayLin
 // This independently ordered bootstrap happens before the requested move; its refusals remain audited above.
 const SETUP_EDGES = { '../apps/cli/src/io/claim.js#ordered': ['../packages/store/index.js#recordSpecApprovalBaseline'] };
 
+/** A file's createRequire bindings: the names it loads modules through at the call. */
+const loadersIn = (source) => new Set([...source.matchAll(/\b(?:const|let)\s+(\w+)\s*=\s*createRequire\(/g)].map(([, name]) => name));
+
+/**
+ * The functions a body calls through a module it requires at the call: `load('./x.js').name(...)`
+ * and `const { name } = load('./x.js')` then `name(...)`, where load is the file's createRequire
+ * binding. Why: claim's criterion freezer loads the moves package at the call to keep commands fast
+ * (#7081, 7dde797e3a); a required module is still a call edge, so every refusal the freezer and the
+ * move tables raise stays in the audit.
+ *
+ * @param {string} file
+ * @param {string} body
+ * @param {string} source
+ * @returns {string[]}
+ */
+function lazyCallees(file, body, source) {
+  const loaders = loadersIn(source);
+  if (!loaders.size) return [];
+  const load = String.raw`(?:${[...loaders].join('|')})\(\s*(['"])(\.{1,2}\/[^'"]+\.js)\1\s*\)`;
+  const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+  const callees = [...body.matchAll(new RegExp(String.raw`${load}\.(\w+)\(`, 'g'))].map(([, , specifier, name]) => `${under(specifier)}#${name}`);
+  for (const [, names, , specifier] of body.matchAll(new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${load}`, 'g'))) {
+    for (const part of names.split(',').map(text => text.trim()).filter(Boolean)) {
+      const [original, local = original] = part.split(/\s*:\s*/);
+      if (new RegExp(String.raw`(?<![\w.])${local}\(`).test(body)) callees.push(`${under(specifier)}#${original}`);
+    }
+  }
+  return callees;
+}
+
+/**
+ * A file's exports bound to an on-demand loader, `export const name = onDemand('./x.js', 'name')`,
+ * where onDemand's body requires the module: each export to the function it loads. Why: the moves
+ * light door hands the board root every table engine this way, loading a table at its first run
+ * (#7081), and the walk must reach the engine itself.
+ *
+ * @param {string} file
+ * @param {string} source
+ * @param {Map<string, string>} bodies
+ * @returns {Map<string, string>}
+ */
+function onDemandExports(file, source, bodies) {
+  const loaders = [...loadersIn(source)];
+  const under = (specifier) => posix.normalize(posix.join(posix.dirname(file), specifier));
+  return new Map([...source.matchAll(/^export const (\w+) = (\w+)\(\s*(['"])(\.{1,2}\/[^'"]+\.js)\3\s*,\s*(['"])(\w+)\5\s*\);$/gm)]
+    .filter(([, , loader]) => loaders.some(name => new RegExp(String.raw`(?<![\w.])${name}\(`).test(bodies.get(loader) ?? '')))
+    .map(([, name, , , specifier, , exported]) => [name, `${under(specifier)}#${exported}`]));
+}
+
+/**
+ * The store runs its move tables through engines the board composition root injects
+ * (provideMoveTables); the store cannot import the moves cell, which reads it [C7]. The walk follows
+ * the injection: a call through the store's getter reaches the engine the root hands over under
+ * that name, read from the root's own call, so a newly injected table is walked with no edit here.
+ */
+const INJECTED_TABLES = { file: '../packages/store/src/logic/board/landing/lease.js', getter: 'moveTables', root: '../packages/board/index.js', provider: 'provideMoveTables' };
+
+/**
+ * The engines a body runs through the injected move tables: `moveTables().name(...)` and
+ * `const { name } = moveTables()` then `name(...)`.
+ *
+ * @param {string} file
+ * @param {string} body
+ * @param {(file: string) => { named: Map<string, string>, source: string }} load
+ * @returns {string[]}
+ */
+function injectedCallees(file, body, load) {
+  const { getter, root, provider } = INJECTED_TABLES;
+  if (file !== INJECTED_TABLES.file || !body.includes(`${getter}()`)) return [];
+  const { named, source } = load(root);
+  const handed = new Set((new RegExp(String.raw`\b${provider}\(\{([^}]*)\}\)`).exec(source)?.[1] ?? '').split(',').map(text => text.trim()).filter(Boolean));
+  const called = [...body.matchAll(new RegExp(String.raw`\b${getter}\(\)\.(\w+)\(`, 'g'))].map(([, name]) => name);
+  for (const [, names] of body.matchAll(new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${getter}\(\)`, 'g'))) {
+    called.push(...names.split(',').map(text => text.trim().split(/\s*:\s*/).at(-1)).filter(name => name && new RegExp(String.raw`(?<![\w.])${name}\(`).test(body)));
+  }
+  return called.filter(name => handed.has(name)).map(name => named.get(name) ?? `${root}#${name}`);
+}
+
+/**
+ * A move table names the refusals its rows raise as data (`code: 'X'`), and the table engine
+ * raises them; the walk reads thrown codes, so reaching a table's engine also reaches its rows.
+ *
+ * @param {string} file
+ * @param {string} source
+ * @returns {string[]}
+ */
+const tableDataCodes = (file, source) => /\/packages\/moves\/src\/logic\/table\/[\w-]+\.table\.js$/u.test(file)
+  ? [...source.matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)].map(([, code]) => code) : [];
+
+const FACTS_BY_SOURCE = new Map();
+/** Local facts (raised codes and callees) of each parsed source, kept apart for caught and uncaught walks so each mode scans its own bodies first. */
+const LOCAL_FACTS = { true: new WeakMap(), false: new WeakMap() };
+/**
+ * The parsed facts of one file's source, shared by every walk in this file. Why: the broken-copy
+ * cases each start a fresh walk over nearly the same tree, and parsing every file again for each
+ * was most of this file's time. The key is the exact source text and its path, so a rewritten file
+ * is parsed on its own and no walk ever sees another's edit; the facts are only read, never changed.
+ *
+ * @param {string} source
+ * @param {string} sourceFile
+ * @returns {ReturnType<typeof sourceFacts>}
+ */
+function factsOf(source, sourceFile) {
+  const key = `${sourceFile}\u0000${source}`;
+  let facts = FACTS_BY_SOURCE.get(key);
+  if (!facts) FACTS_BY_SOURCE.set(key, facts = sourceFacts(source, sourceFile));
+  return facts;
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -133,7 +242,7 @@ function codeWalk(read, { caught = false } = {}) {
   const load = (file) => {
     if (!files.has(file)) {
       const { sourceFile, source } = machineSourceModule(file, read);
-      files.set(file, sourceFacts(source, sourceFile));
+      files.set(file, factsOf(source, sourceFile));
     }
     return files.get(file);
   };
@@ -141,9 +250,13 @@ function codeWalk(read, { caught = false } = {}) {
     if (seen.has(key) || [...skip].some(entry => entry === key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
-    const { bodies, named, spaces, source, stars } = load(file);
+    const parsed = load(file);
+    const { bodies, named, spaces, source, stars } = parsed;
     // A facade may import and re-export the helper; follow its real definition after extraction.
     if (!bodies.has(name) && named.has(name)) return refusalsOf(named.get(name), skip, seen);
+    // An export bound to an on-demand loader is the function it loads.
+    const demanded = !bodies.has(name) && onDemandExports(file, source, bodies).get(name);
+    if (demanded) return refusalsOf(demanded, skip, seen);
     // A public export-star front door retains every concrete provider's refusal path.
     if (!bodies.has(name) && stars.length) {
       const codes = new Set();
@@ -151,18 +264,25 @@ function codeWalk(read, { caught = false } = {}) {
       return codes;
     }
     // Loaded source is fixed within this walk; local scans do not depend on the caller's seen/skip sets.
-    let facts = localFacts.get(key);
+    // The same source parsed once yields the same local facts in any walk of the same mode, except for the one file that reads another file's injection.
+    const shared = file !== INJECTED_TABLES.file;
+    const kept = shared ? LOCAL_FACTS[caught].get(parsed) : undefined;
+    let facts = localFacts.get(key) ?? kept?.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
       const callbacks = CALLBACKS[file];
-      const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
+      const codes = new Set([...[...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]), ...(body ? tableDataCodes(file, source) : [])]);
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
         ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : callbacks?.[`${space}.${callee}`])),
       ];
-      callees.push(...runnerControllerCallees(file, body, source));
+      callees.push(...runnerControllerCallees(file, body, source), ...lazyCallees(file, body, source), ...injectedCallees(file, body, load));
       facts = { codes, callees };
       localFacts.set(key, facts);
+      if (shared) {
+        if (!LOCAL_FACTS[caught].has(parsed)) LOCAL_FACTS[caught].set(parsed, new Map());
+        LOCAL_FACTS[caught].get(parsed).set(key, facts);
+      }
     }
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
@@ -222,8 +342,10 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  // A code a move's own entry reaches is raised by the code, whichever file holds the entry (the pulled submit gate's table replay, for one).
+  for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
   // The lease table names its refusals as data (code: 'X') and the table engine raises them; the walk reads only thrown Refused codes.
   for (const [, code] of read('../packages/moves/src/logic/table/lease.table.js').matchAll(/\bcode: '([A-Z][A-Z0-9_]*)'/g)) raised.add(code);
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
@@ -295,7 +417,7 @@ function statusWriters(read) {
   return writers;
 }
 
-test('clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.every-refusal-code-that-submit-and: clause 1: every refusal code that submit and release raise is declared on that move, and every declared code is raised [C7,M1]', () => {
   const problems = codeProblems(machineRules.MACHINE);
   assert.deepEqual(problems, []);
   assert.deepEqual(problems.filter(problem => /\bis raised by (?:release|reserve|reopen|withdraw|refreeze|claim)\b/u.test(problem)), [],
@@ -316,12 +438,12 @@ test('clause 1: every refusal code that submit and release raise is declared on 
   assert.deepEqual(unraised, [], 'every code listed as not a move is raised by a move or setup code path');
 });
 
-test('clause 1: submit refusals are declared or classified as setup [M1]', () => {
+test('cli.journeys-verify-machine-walk.submit-refusals-are-declared-or-classified: clause 1: submit refusals are declared or classified as setup [M1]', () => {
   const declared = declaredCodes(machineRules.MACHINE, ['submit']);
   for (const code of SUBMIT_REFUSALS) assert.ok(declared.has(code) || code in NOT_MOVES, `${code} is covered by M1`);
   assert.deepEqual(codeProblems(machineRules.MACHINE), [], 'no submit refusal is raised but undeclared');
 });
-test('clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
+test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-declaration: clause 1: a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
   for (const move of noLaneHold.moves) move.guards = move.guards.filter((id) => id !== 'laneOpen');
@@ -337,6 +459,8 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
     'AGENT_APPROVAL_REQUIRED is raised by refreeze but not declared there',
     'BAD_CONFIG is raised by claim but not declared there',
     'BAD_CONFIG is raised by refreeze but not declared there',
+    'BAR_EMPTY is raised by claim but not declared there',
+    'BAR_EMPTY is raised by refreeze but not declared there',
     'NO_POLICY is raised by claim but not declared there',
     'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
@@ -365,7 +489,7 @@ test('clause 1: a broken copy of the declaration fails the check against the cod
   assert.deepEqual(codeProblems(invented), ['WRONG_MOON is declared but the board, CLI and spec parser never raise it']);
 });
 
-test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
+test('cli.journeys-verify-machine-walk.a-broken-copy-of-the-code: a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
     ['../packages/kernel/src/logic/registry.js', /^export function boardLinkRecord\(value\) \{$/m],
     ['../packages/store/src/logic/board/link.js', /^export function readReceivedBoardState\(board, .*$/m],
@@ -437,7 +561,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ]);
 });
 
-test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
+test('cli.journeys-verify-machine-walk.only-moveitem-writes-an-item-s: only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
   const besideSetter = editedSource('../packages/items/src/logic/fields.js', /^export function setItem/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
@@ -458,7 +582,7 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(besideShim), ['../packages/config/src/io/main.js#reopenByKey'], 'the moved body of the old config shim stays scanned');
 });
 
-test('transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.transport-boundaries-keep-a-new-item: transport boundaries keep a new item refusal in ordered dispatch visible [M1,M4,H16]', () => {
   const inDispatch = editedSource('../apps/cli/src/io/claim.js', /^(?:export )?async function ordered\(ctx, board, operation, args(?:, \{ prepareInWriter \} = \{\})?\) \{$/m,
     "$&\n  if (args[0] === 999) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inDispatch).sort(), [
@@ -467,7 +591,7 @@ test('transport boundaries keep a new item refusal in ordered dispatch visible [
   ], 'transport authentication is separate but a dispatcher item guard still belongs to the lifecycle');
 });
 
-test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.bootstrap-refusals-remain-visible-on-their: bootstrap refusals remain visible on their own operation [M1,M4,H16]', () => {
   const source = editedSource('../packages/store/src/io/baseline/spec/approval.js', /^export function recordSpecApprovalBaseline\(board, \{ agentId, baseline \}\) \{$/m,
     "$&\n  throw new Refused('BOOTSTRAP_PROBE', 'repair the baseline');");
   const walk = codeWalk(source, { caught: true });
@@ -475,21 +599,21 @@ test('bootstrap refusals remain visible on their own operation [M1,M4,H16]', () 
   assert.ok(!walk.refusalsOf('../apps/cli/src/io/claim.js#ordered').has('BOOTSTRAP_PROBE'));
 });
 
-test('same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
+test('cli.journeys-verify-machine-walk.same-file-runner-controller-bridges-retain: same-file runner controller bridges retain child refusals in the lifecycle audit [M1,M4,C7]', () => {
   assertRunnerControllerReachability({ codeProblems, codeWalk, editedSource, machine: machineRules.MACHINE });
 });
 
-test('Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
+test('cli.journeys-verify-machine-walk.rigor-historical-data-boundaries-do-not: Rigor historical data boundaries do not hide a new projection refusal [M1,M4]', () => {
   const broken = editedSource('../packages/rigor/src/logic/counter.js', /export function rigorCounterKeys\(event, person\) \{/, "export function rigorCounterKeys(event, person) { if (event.event_kind === 'probe') throw new Refused('RIGOR_PROBE', 'new item eligibility rule');");
   assert.ok(codeProblems(machineRules.MACHINE, broken).includes('RIGOR_PROBE is raised by claim but not declared there'));
 });
 
-test('a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.a-source-walk-scans-local-facts: clause 2: a source walk scans local facts once while retaining caller-specific refusal traversal [C7,M1]', () => {
   assertMachineWalkMemo(codeWalk);
 });
 
 
-test('lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-audit-follows-extracted-package-guards: lifecycle audit follows extracted package guards and catches a new refusal [M1,M4,H16]', () => {
   assertCommitShimRefusals(codeWalk, fromDisk, editedSource, codeProblems, machineRules.MACHINE);
   const file = '../packages/state/src/logic/handoff.js';
   const walk = codeWalk(fromDisk);
@@ -500,7 +624,7 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 });
 
 /** The exact native guard binding remains audited after the canonical root supplies it. */
-test('native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
+test('cli.journeys-verify-machine-walk.native-landing-ports-retain-guard-refusals: native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
   const planted = editedSource('../packages/landing/src/logic/environment.js', /^export function requireVerdict\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('NATIVE_PORT_PROBE', 'planted native guard');");
   const reaches = codeProblems(machineRules.MACHINE, planted);
@@ -509,16 +633,16 @@ test('native landing ports retain guard refusals without trusting unrelated chai
   assert.ok(!codeProblems(machineRules.MACHINE, unrelated).some(problem => problem.startsWith('NATIVE_PORT_PROBE is raised by ')), 'an unrelated property chain does not inherit the real binding');
 });
 
-test('lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-source-walks-follow-sync-shims: lifecycle source walks follow sync shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertSyncFacadeAudit(codeWalk, fromDisk, editedSource);
 });
 
-test('lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
+test('cli.journeys-verify-machine-walk.lifecycle-source-walks-follow-git-shims: lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertGitFacadeAudit(codeWalk, fromDisk, editedSource);
 });
 
 /** The bound storage callback must reach its real body through the moved public facade. */
-test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
+test('cli.journeys-verify-machine-walk.native-store-setup-keeps-the-exact: native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
   const entry = '../apps/lib/src/logic/native.js#openBoard';
   assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
   const planted = editedSource('../packages/store/src/io/board/read/snapshot.js',
@@ -531,5 +655,26 @@ test('native store setup keeps the exact event-log callback refusal reachable [C
   assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));
 });
 
-test('post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE, { land: '../apps/cli/src/io/commands/land.js', verify: '../apps/cli/src/io/commands/verify.js' }));
+test('cli.journeys-verify-machine-walk.post-verdict-landing-catches-do-not: post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE, { land: '../apps/cli/src/io/commands/land.js', verify: '../apps/cli/src/io/commands/verify.js' }));
 
+
+/** Claim's freezer and the move tables load at the call (#7081) and run through engines the board root injects; the walk follows both [C7,M1,M4]. */
+test('cli.journeys-verify-machine-walk.the-walk-follows-a-writer-into: the walk follows a writer into its move table and the freezer it requires, and finds a planted refusal there [C7,M1,M4]', () => {
+  const walk = codeWalk(fromDisk);
+  assert.ok(walk.refusalsOf('../apps/cli/src/io/claim.js#freezer').has('UNKNOWN_SPEC'), 'the CLI freezer reaches the moves freezer it requires at the call');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#claim').has('CLAIM_TABLE_INPUTS'), 'claim reaches the claim table the board root injects');
+  assert.ok(walk.refusalsOf('../packages/store/src/io/board.js#release').has('RELEASE_REASON'), 'release reaches the refusals its table names as row data');
+  const inFreezer = editedSource('../packages/moves/src/io/freezer.js', /^export function criterionFreezer\(.*$/m,
+    "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machineRules.MACHINE, inFreezer).sort(), [
+    'MOON_PHASE is raised by accept and reject but not declared there',
+    'MOON_PHASE is raised by claim but not declared there',
+    'MOON_PHASE is raised by refreeze but not declared there',
+    'MOON_PHASE is raised by submit but not declared there',
+  ], 'claim, refreeze and submit reach the moves freezer; verify reaches it through the freeze check it shares');
+  const inEngine = editedSource('../packages/moves/src/logic/table/claim.table.js', /^export function claimEngine\(board\) \{$/m,
+    "$&\n  if (!board) throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machineRules.MACHINE, inEngine), ['MOON_PHASE is raised by claim but not declared there'], 'a refusal the claim table engine throws is audited on claim');
+  const inRow = editedSource('../packages/moves/src/logic/table/release.table.js', /code: 'RELEASE_REASON'/, "code: 'MOON_PHASE'");
+  assert.deepEqual(codeProblems(machineRules.MACHINE, inRow), ['MOON_PHASE is raised by release but not declared there'], 'a refusal a release table row names is audited on release');
+});

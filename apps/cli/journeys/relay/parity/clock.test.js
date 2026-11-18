@@ -23,6 +23,7 @@ import {
 import { relayPresentation } from '../../../../../packages/pages/index.js';
 import { snapshotState } from '../../../../relay/index.js';
 import { assertReaderParity } from '../../../tests/fixtures/relay/parity/reader.js';
+import { LOCAL_PARITY_FIELDS } from '../../../tests/fixtures/relay/parity/reader.js';
 import { relayClientFixture } from '../../../tests/fixtures/relay/client.js';
 import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 
@@ -30,6 +31,8 @@ import { submitFixture } from '../../../tests/fixtures/board/submit.js';
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 const HOUR = 3_600_000;
+/** The API state read keeps spec and doctrine row ages for a later refresh (5bf1070838), so its first read has none where a relay reader walks history [C7]. */
+const CLOCK_PARITY = [...LOCAL_PARITY_FIELDS, { path: 'rowAgesAt', reason: 'The API state read answers at once and refreshes row ages later; the relay reader computes them in line.' }];
 
 /** Expose a real initialized SQLite board through HTTP with only the existing internal constructor clock port. */
 async function clockFixture(t) {
@@ -60,20 +63,20 @@ async function clockFixture(t) {
   return { ...box, board, base, clock, read, builds: () => builds };
 }
 
-test('native and relay readers expire a person block at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, HTTP and cleanup; clock advancement never sleeps.
+test('cli.journeys-relay-parity-clock.native-and-relay-readers-expire-a: native and relay readers expire a person block at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, HTTP and cleanup; clock advancement never sleeps.
   const box = await clockFixture(t);
   recordBlock(join(box.root, '.git'), { at: new Date(box.base).toISOString(), code: 'PARITY_CLOCK_FIXTURE', command: 'synthetic projection input',
     by: 'coordinator', path: box.root, audience: 'person', reason: 'A private fixture block expires after a day.', step: 'Inspect the unchanged board.' });
   box.clock.value = box.base + 24 * HOUR - 1;
   const before = await box.read();
   assert.equal(before.native.blocks.length, 1, 'the real recorded person block is still within its window');
-  assertReaderParity(before.native, before.relay);
+  assertReaderParity(before.native, before.relay, CLOCK_PARITY);
   const inputs = exportBoard(box.board);
   box.clock.value += 2;
   const after = await box.read();
   assert.deepEqual(exportBoard(box.board), inputs, 'clock advancement makes no native mutation');
   assert.equal(after.relay.blocks.length, 0, 'the fresh production reader expires the recorded block');
-  assertReaderParity(after.native, after.relay);
+  assertReaderParity(after.native, after.relay, CLOCK_PARITY);
 });
 
 /** Seed real lifecycle events with synthetic acceptance metadata; this is not gate, CI or outside-review assurance. */
@@ -96,23 +99,23 @@ function seedLandingPace(box) {
   addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Clock pace', items: [pending] });
 }
 
-test('native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.
+test('cli.journeys-relay-parity-clock.native-and-relay-readers-cross-a: native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.
   const box = await clockFixture(t);
   seedLandingPace(box);
   box.clock.value = box.base + 2 * HOUR - 1;
   const before = await box.read();
   assert.equal(before.native.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 3);
-  assertReaderParity(before.native, before.relay);
+  assertReaderParity(before.native, before.relay, CLOCK_PARITY);
   const inputs = exportBoard(box.board);
   box.clock.value += 2;
   const after = await box.read();
   assert.deepEqual(exportBoard(box.board), inputs, 'clock advancement makes no native mutation');
   assert.equal(after.relay.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 0);
-  assertReaderParity(after.native, after.relay);
+  assertReaderParity(after.native, after.relay, CLOCK_PARITY);
 });
 
 
-test('clock windows retain cached reads and refresh exact boundaries and backwards time [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup and bounded HTTP reads; all clock shifts are immediate.
+test('cli.journeys-relay-parity-clock.clock-windows-retain-cached-reads-and: clock windows retain cached reads and refresh exact boundaries and backwards time [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup and bounded HTTP reads; all clock shifts are immediate.
   const box = await clockFixture(t);
   seedLandingPace(box);
   recordBlock(join(box.root, '.git'), { at: new Date(box.base).toISOString(), code: 'PARITY_BOUNDARY_FIXTURE', command: 'synthetic boundary input',
@@ -122,7 +125,7 @@ test('clock windows retain cached reads and refresh exact boundaries and backwar
   async function observe(offset, expectedBuilds) {
     box.clock.value = box.base + offset;
     const states = await box.read();
-    assertReaderParity(states.native, states.relay);
+    assertReaderParity(states.native, states.relay, CLOCK_PARITY);
     assert.equal(box.builds(), expectedBuilds, 'cache survives stable intervals and refreshes progress or pace boundaries [B35]');
     return states.native;
   }
@@ -130,19 +133,20 @@ test('clock windows retain cached reads and refresh exact boundaries and backwar
   await observe(2 * HOUR - 1, 1);
   const twoHours = await observe(2 * HOUR, 2);
   assert.equal(twoHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 0, 'pace excludes its exact lower boundary');
-  const threeHours = await observe(3 * HOUR, 3);
+  // Idle minutes patch on read (4d943265f2), so a stable pace interval keeps its build while idle time still advances.
+  const threeHours = await observe(3 * HOUR, 2);
   /** Idle minutes as a reader derives them: items carry no idle clock (461f2e43b1), only last activity and the read's observedAt. */
   const idle = state => Math.floor((Date.parse(state.observedAt) - Date.parse(state.items[0].progress.lastActivity)) / 60_000);
   assert.equal(idle(threeHours) - idle(twoHours), 60, 'idle time refreshes without a native move [B35]');
-  await observe(2.5 * HOUR, 4); // A backwards clock rebuilds even without crossing a pace boundary.
-  const sixHours = await observe(6 * HOUR, 5);
+  await observe(2.5 * HOUR, 3); // A backwards clock rebuilds even without crossing a pace boundary.
+  const sixHours = await observe(6 * HOUR, 4);
   assert.equal(sixHours.milestones.find(row => row.name === 'Clock pace').summary.pace.last6h, 0);
-  const backwards = await observe(2 * HOUR - 1, 6);
+  const backwards = await observe(2 * HOUR - 1, 5);
   assert.equal(backwards.milestones.find(row => row.name === 'Clock pace').summary.pace.last2h, 3, 'a backwards clock restores the proper earlier window');
-  const day = await observe(24 * HOUR, 7);
+  const day = await observe(24 * HOUR, 6);
   assert.equal(day.blocks.length, 1, 'the block remains visible at its exact inclusive boundary');
   assert.equal(day.milestones.find(row => row.name === 'Clock pace').summary.pace.last24h, 0);
-  const expired = await observe(24 * HOUR + 1, 8);
+  const expired = await observe(24 * HOUR + 1, 7);
   assert.equal(expired.blocks.length, 0, 'the block expires on the next millisecond');
   assert.deepEqual(exportBoard(box.board), inputs, 'all clock-only reads preserve native business inputs');
 });

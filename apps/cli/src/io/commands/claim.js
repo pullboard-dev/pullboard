@@ -13,7 +13,6 @@ import {
 } from '../../../../../packages/store/index.js';
 import { itemFileCollisions } from '../../../../../packages/items/index.js';
 import { outsideBuildProblem } from '../../../../../packages/items/index.js';
-import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { onTrunk } from '../item/bar.js';
 import { refuseClaimMissingPaths } from '../item/bar.js';
@@ -22,6 +21,8 @@ import { cleanItemFolders } from '../item/folder.js';
 import { claimFolderRefusal } from '../item/folder.js';
 import { claimedFolderProblem } from '../item/folder.js';
 import { openItemFolder } from '../item/folder.js';
+import { trunkBranch } from '../item/folder.js';
+import { offMainHeadRefusal } from '../../../../../packages/moves/light.js';
 import { actOn } from '../board/access.js';
 import {
   MainSpecMerged,
@@ -32,6 +33,7 @@ import {
 } from '../claim.js';
 import { idArg } from '../context.js';
 import { whoAmI } from '../join.js';
+import { sayLag } from '../lag.js';
 
 /** Run `pullboard claim` and return its exit code. */
 export async function run(io, { first }) {
@@ -40,6 +42,7 @@ export async function run(io, { first }) {
   return act(async (ctx, board, me) => {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
+  sayLag(io, ctx);
   cleanItemFolders(ctx, board, me, { spare: true });
   const filed = getItem(board, id);
   // A path missing from main is named before ownership: no lane can build a path that no longer exists (#5709).
@@ -52,6 +55,9 @@ export async function run(io, { first }) {
     const folder = await claimFolderRefusal(ctx, board, me, id, { renewing: filed.item_owner === me.id && isHeld(board, filed) });
     if (folder) throw folder;
   }
+  // With claim.refuseOffMainHead on, a new claim in a folder whose HEAD is not on main refuses before the move [C7,#9104].
+  const offMain = filed && !(filed.item_owner === me.id && isHeld(board, filed)) ? offMainHeadRefusal(ctx.info.root, { trunk: trunkBranch(ctx.info.root) }) : null;
+  if (offMain) throw offMain;
   let result;
   for (;;) {
     try {
@@ -82,7 +88,8 @@ export async function run(io, { first }) {
   io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}),
     ...(folderProblem ? { folderProblem, next: folderProblem.next } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
-  await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
+  // The codemap cell loads only when the board asks for the slice (map.slice), so a plain claim never pays for it [C7].
+  if (ctx.config.map?.slice === true) await (await import('../../../../../packages/codemap/index.js')).sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
   if (itemFolder) io.say(`item folder: ${itemFolder}`);
   if (folderProblem) io.say(`item folder not opened: [${folderProblem.code}] ${folderProblem.message}; the claim is recorded`);

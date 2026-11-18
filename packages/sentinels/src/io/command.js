@@ -1,9 +1,11 @@
 import { wakeReviewCapacity } from './wake.js';
 import { shoutConflictedReviews } from "../../../health/index.js";
+import { shoutLandingSelfCheck } from "../../../health/index.js";
 import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { sweepClaims } from "../../../health/index.js";
+import { sweepLapsedClaims } from "../../../health/index.js";
 import { refreshCapacityOutsideWrite } from "../../../verify/index.js";
 import { atomic } from "../../../store/index.js";
 import { checkpointBoard } from "../../../store/index.js";
@@ -22,6 +24,7 @@ import { sentinels } from "./main.js";
 import { runDueSentinels } from "./runner.js";
 import { withSentinelTrunk } from "./runner.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
+import { landingSelfCheckEnabled } from "../../../config/index.js";
 import { recordedHealthFindings } from "./findings.js";
 import { scanHealthSentinel } from "./findings.js";
 import { readScratchMemory } from "./memory.js";
@@ -36,6 +39,7 @@ export const SENTINEL_OPTIONS = {
   next: { type: 'string' },
   sentinel: { type: 'boolean' },
   'health-only': { type: 'boolean' },
+  'lapsed-only': { type: 'boolean' },
 };
 
 /** Resume reports due watches in one line and never starts their commands. */
@@ -47,7 +51,15 @@ export function resumeSentinels({ ctx, withBoard }) {
 }
 
 /** Scan health, then run due approved watches on pinned trunk unless the observer requests health only. */
-async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly = false }) {
+async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, healthOnly = false, lapsedOnly = false }) {
+  if (lapsedOnly) {
+    // The one-minute lapsed pass: expire lapsed claims and stop, so it stays cheap beside the ten-minute scan [C7,#8923].
+    return withBoard(ctx, async board => {
+      await sweepLapsedClaims(ctx, board, whoAmI(ctx, board).id, ordered);
+      ctx.io.say('Lapsed claims swept.');
+      return 0;
+    });
+  }
   // Dead submit workers end before the board scan, so the sweep never reports a gate as running with no worker (#2627).
   await sweepSubmitHandoffs?.();
   return withBoard(ctx, async board => {
@@ -82,6 +94,8 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
       }
     }
     if (enabled && me.id === 'coordinator' && ctx.info.isMain) { await wakeReviewCapacity(ctx, board, ordered); await shoutConflictedReviews(ctx, board, ordered); }
+    // Landing notices its own broken checks (#10125); behind sentinels.landingSelfCheck, off by default.
+    if (me.id === 'coordinator' && ctx.info.isMain && landingSelfCheck && landingSelfCheckEnabled()) await shoutLandingSelfCheck(ctx, board, ordered, landingSelfCheck);
     const health = recordedHealthFindings(board);
     if (healthOnly || !enabled || !dueSentinels(board).length) {
       ctx.io.result?.({ sentinels: [], health });
@@ -101,9 +115,9 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
  * Keep command parsing separate from the CLI's process and server setup. `stalledGateDrives(db, now)` is the drive
  * cell's detector for gate drives that renew their lease with no step; the health scan shouts each as Stuck.
  */
-export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives }) {
+export async function sentinelCommand({ ctx, words, values, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck }) {
   const [verb, name, ...extra] = words;
-  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, healthOnly: Boolean(values['health-only']) });
+  if (verb === 'run' && !name && !extra.length) return runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensus, sweepSubmitHandoffs, stalledGateDrives, landingSelfCheck, healthOnly: Boolean(values['health-only']), lapsedOnly: Boolean(values['lapsed-only']) });
   if (extra.length || !['propose', 'approve', 'decline'].includes(verb) || !name) {
     throw new Refused('USAGE', 'use pullboard sentinel run, sentinel propose <name> --check "<command>" --every 10m --owner <seat or lane>, sentinel approve <name>, sentinel decline <name> --reason "<why>", or pullboard sentinels');
   }

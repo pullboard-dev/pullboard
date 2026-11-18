@@ -76,16 +76,18 @@ function inventoryPending(commit, message) {
  * file; a killed producer stalled every gate on that tree (CELLS_INVENTORY_PENDING, 6 Nov). The job row now holds
  * who produces and what was produced, so any driver resumes it. The drive cell never imports the gate cell, so
  * the producer is passed in as `produce` from here.
+ * `runs` is the board's runs holder (boardRunsHolder) while runs_store is on: the inventory job's rows then live in the
+ * runs file and are read from it; null (the default, flag off) keeps them on the board [P7,#9112].
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {string} root - Absolute repository root.
  * @param {string} commit - The pinned main commit whose inventory the gate needs.
- * @param {{ owner?: string, read?: (root: string, commit: string) => any, produce?: (root: string, commit: string) => Promise<unknown>,
+ * @param {{ runs?: { db: import('node:sqlite').DatabaseSync } | null, owner?: string, read?: (root: string, commit: string) => any, produce?: (root: string, commit: string) => Promise<unknown>,
  *   beat?: (line: string) => void, waitMs?: number, now?: () => number, sleep?: (ms: number) => Promise<unknown>, pollMs?: number, renewMs?: number }} [options]
  * @returns {Promise<{ available: true, waited: number, job?: string, state?: string }>}
  */
 export async function acceptedCellsFromJob(db, root, commit, { owner = `gate:${process.pid}:${randomUUID()}`, read = readAcceptedCells,
-  produce = (repo, pinned) => produceAcceptedCells(repo, randomUUID(), pinned), beat = () => {}, waitMs = INVENTORY_WAIT_MS, sleep, ...options } = {}) {
+  produce = (repo, pinned) => produceAcceptedCells(repo, randomUUID(), pinned), beat = () => {}, waitMs = INVENTORY_WAIT_MS, sleep, runs = null, ...options } = {}) {
   const ready = read(root, commit);
   if (ready.available) return { ...ready, waited: 0 };
   /** Produce the artifact unless another driver already published it, and return the job's small JSON result. */
@@ -101,7 +103,7 @@ export async function acceptedCellsFromJob(db, root, commit, { owner = `gate:${p
   /** Each wait on another driver's lease beats, so the job log shows the gate is alive. */
   const pause = sleep ?? (ms => new Promise(done => setTimeout(done, ms)));
   const waitBeat = async ms => { beat(`accepted cells inventory for ${commit.slice(0, 12)} is being produced by another driver's cells-inventory job; waiting on its lease`); return pause(ms); };
-  const job = await cellsInventoryJob(db, { ...options, repo: root, commit, owner, produce: make, waitMs, sleep: waitBeat });
+  const job = await cellsInventoryJob(db, { ...options, runs, repo: root, commit, owner, produce: make, waitMs, sleep: waitBeat });
   if (job.state === 'pending') throw inventoryPending(commit, `is still being produced by ${job.holder ?? 'another driver'} after ${Math.round(waitMs / 1000)} s (job ${job.job}); requeue after its cells-inventory job finishes`);
   const found = read(root, commit);
   if (found.available) return { ...found, waited: 1, job: job.job, state: job.state };

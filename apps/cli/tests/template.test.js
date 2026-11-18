@@ -19,7 +19,7 @@ function files(dir) {
   });
 }
 
-test('the project template is built once per process and later cases copy it [C7,#8088]', t => {
+test('cli.template.the-project-template-is-built-once-per: the project template is built once per process and later cases copy it [C7,#8088]', t => {
   const first = createE2eHelpers();
   const second = createE2eHelpers();
   const third = createE2eHelpers();
@@ -34,7 +34,7 @@ test('the project template is built once per process and later cases copy it [C7
   assert.equal(after.templates, 1, 'the process holds one template for the shape');
 });
 
-test('a case with another gate builds its own template; a copy keeps its own gate [C7,#8088]', t => {
+test('cli.template.a-case-with-another-gate-builds-its: a case with another gate builds its own template; a copy keeps its own gate [C7,#8088]', t => {
   const a = createE2eHelpers();
   const b = createE2eHelpers();
   t.after(a.cleanup); t.after(b.cleanup);
@@ -44,7 +44,7 @@ test('a case with another gate builds its own template; a copy keeps its own gat
   assert.equal(JSON.parse(readFileSync(join(green.repo, 'pullboard.json'), 'utf8')).gate, 'true');
 });
 
-test('a copied project is isolated: its paths, seat and writes belong to it alone [C7,#8088]', t => {
+test('cli.template.a-copied-project-is-isolated-its-paths: a copied project is isolated: its paths, seat and writes belong to it alone [C7,#8088]', t => {
   const first = createE2eHelpers();
   const second = createE2eHelpers();
   t.after(first.cleanup); t.after(second.cleanup);
@@ -67,7 +67,7 @@ test('a copied project is isolated: its paths, seat and writes belong to it alon
   assert.equal(b.git(b.web, 'rev-parse', '--show-toplevel').trim(), b.web);
 });
 
-test('clause 1: the template is built once and each later case gets a copy-on-write clone, or a copy where clones are unsupported [C7,#8319]', t => {
+test('cli.template.the-template-is-built-once-and-each: clause 1: the template is built once and each later case gets a copy-on-write clone, or a copy where clones are unsupported [C7,#8319]', t => {
   const boxes = [createE2eHelpers(), createE2eHelpers(), createE2eHelpers()];
   for (const box of boxes) t.after(box.cleanup);
   const before = templateStats();
@@ -81,7 +81,7 @@ test('clause 1: the template is built once and each later case gets a copy-on-wr
   if (process.platform === 'darwin') assert.equal(after.method, 'clone', 'APFS clones');
 });
 
-test('clause 2: two cases writing to their clones never see each other files [C7,#8319]', t => {
+test('cli.template.two-cases-writing-to-their-clones-never: clause 2: two cases writing to their clones never see each other files [C7,#8319]', t => {
   const [builder, first, second] = [createE2eHelpers(), createE2eHelpers(), createE2eHelpers()];
   t.after(builder.cleanup); t.after(first.cleanup); t.after(second.cleanup);
   builder.project('test -f WRITES'); // builds the template, so both cases below are clones of it

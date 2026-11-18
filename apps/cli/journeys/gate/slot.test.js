@@ -23,11 +23,11 @@ const { BIN, sandbox, project, holdingGate, launch, waitFor, gateEvents, commitF
 // Real processes on purpose: every launch() below is a live gate or git push that holds the machine gate slot, and the test
 // proves the slot, its queue order and the children's exit. Only the short CLI calls beside them (settings, resources, claim) run through runIn (#8266).
 
-test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async (t) => {
+test('cli.journeys-gate-slot.submit-needs-a-clean-tree-nothing: submit needs a clean tree, nothing untracked, and the gate green at HEAD [V4, B9]', async (t) => {
   const box = project();
   fixtureAdd(box.run, box.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await box.runLocal(box.web, 'claim', '1')).out, /claimed #1/);
-  commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   writeFileSync(join(box.web, 'web', 'a.html'), 'edited');
   assert.match((await box.runLocal(box.web, 'submit', '1')).err, /DIRTY/);
   box.git(box.web, 'checkout', '--', 'web/a.html');
@@ -43,14 +43,14 @@ test('submit needs a clean tree, nothing untracked, and the gate green at HEAD [
   assert.equal(box.git(box.repo, 'rev-parse', `refs/pullboard/items/1/${head.slice(0, 12)}`), head, 'submit pins the commit');
 });
 
-test('submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
+test('cli.journeys-gate-slot.submit-keeps-its-machine-gate-slot: submit keeps its machine gate slot until the submitted check finishes [V4,Q4]', { skip: 'CONTROLLER_ONLY: deleted with #6832' }, async () => {
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
   assert.equal((await projectBox.runIn(projectBox.repo, 'settings', 'gateSlots', '1')).code, 0);
   fixtureAdd(projectBox.run, projectBox.repo, 'web', 'Page', '--specs', 'G1');
   assert.match((await projectBox.runIn(projectBox.web, 'claim', '1')).out, /claimed #1/);
-  assert.equal(commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]').status, 0);
+  assert.equal((await commitFile(projectBox, projectBox.web, 'web/page.html', 'page', 'feat(web): page [G1]')).status, 0);
   writeFileSync(gate.mode, 'armed');
   const children = [];
   try {
@@ -73,7 +73,7 @@ test('submit keeps its machine gate slot until the submitted check finishes [V4,
   }
 });
 
-test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]', async () => {
+test('cli.journeys-gate-slot.pre-push-keeps-its-machine-gate: pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]', async () => {
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);
@@ -102,7 +102,7 @@ test('pre-push keeps its machine gate slot until the hook check finishes [C3,Q4]
   }
 });
 
-test('explicit and trunk pre-push landings jump the machine gate line and show in resources [Q1,Q2]', async () => {
+test('cli.journeys-gate-slot.explicit-and-trunk-pre-push-landings: explicit and trunk pre-push landings jump the machine gate line and show in resources [Q1,Q2]', async () => {
   const box = sandbox();
   const gate = holdingGate(box);
   const projectBox = project(gate.command, box);

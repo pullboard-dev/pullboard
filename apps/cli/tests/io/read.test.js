@@ -6,8 +6,8 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../fixtures/e2e.js';
-import { openKitBoard } from '../fixtures/testkit.js';
-import { withFixtureBoard } from '../fixtures/testkit.js';
+import { openKitBoard } from '../fixtures/board.js';
+import { withFixtureBoard } from '../fixtures/board.js';
 import { atomic } from '../../../../packages/store/index.js';
 import { withOpenedBoard } from '../../src/io/read.js';
 import { repoInfo } from '../../../../packages/git/index.js';
@@ -41,7 +41,7 @@ function moveMainEvery500ms(t, repo) {
   return stop;
 }
 
-test('claim commits every write while main moves every 500 ms [C7,B2]', t => {
+test('cli.io-read.claim-commits-every-write-while-main-moves: claim commits every write while main moves every 500 ms [C7,B2]', t => {
   const { box, file, ref } = setup(t);
   const stop = moveMainEvery500ms(t, box.repo);
   const tip = () => box.git(box.repo, 'rev-parse', ref).trim();
@@ -63,7 +63,7 @@ test('claim commits every write while main moves every 500 ms [C7,B2]', t => {
     check.db.prepare("SELECT COUNT(*) AS n FROM agent WHERE agent_id LIKE 'moving-main-seat-%'").get().n, 3));
 });
 
-test('a main-dependent submit still refuses POLICY_SNAPSHOT_STALE naming the moved ref [C7,B2]', t => {
+test('cli.io-read.a-main-dependent-submit-still-refuses-policy: a main-dependent submit still refuses POLICY_SNAPSHOT_STALE naming the moved ref [C7,B2]', t => {
   const { box, file, ref } = setup(t);
   let work = 0;
   assert.throws(() => withOpenedBoard(commandContext(box, 'submit'), opened => atomic(opened, () => {

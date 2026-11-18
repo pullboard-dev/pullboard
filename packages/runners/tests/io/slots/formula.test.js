@@ -9,7 +9,7 @@ import { effectiveRunners } from '../../../index.js';
 
 const HOST = 'fixture-runner';
 
-test('the formula leaves a core and 2 GB free and counts 512 MB per slot, 2 GB per browser slot [C7]', () => {
+test('runners.formula.the-formula-leaves-a-core-and: the formula leaves a core and 2 GB free and counts 512 MB per slot, 2 GB per browser slot [C7]', () => {
   assert.deepEqual(computeRunnerSlots({ cores: 10, memoryMB: 16384 }), { slots: 9, browser: 6 });
   assert.deepEqual(computeRunnerSlots({ cores: 2, memoryMB: 16384 }), { slots: 1, browser: 1 });
   assert.deepEqual(computeRunnerSlots({ cores: 32, memoryMB: 4096 }), { slots: 4, browser: 0 }, 'memory caps slots when cores are plentiful');
@@ -18,7 +18,7 @@ test('the formula leaves a core and 2 GB free and counts 512 MB per slot, 2 GB p
   assert.ok(fleet.reduce((a, b) => a + b) > 24, 'six 10-core 16 GB runners offer more than today\'s fixed 24');
 });
 
-test('the gate offers computed slots only when enabled, measured and not declared [C7]', () => {
+test('runners.formula.the-gate-offers-computed-slots-only: the gate offers computed slots only when enabled, measured and not declared [C7]', () => {
   const measured = { host: 'a', slots: 4, browser: 2, cores: 10, memoryMB: 16384 };
   const fixed = { ...measured, host: 'b', fixed: true };
   const bare = { host: 'c', slots: 4, browser: 2 };
@@ -27,7 +27,7 @@ test('the gate offers computed slots only when enabled, measured and not declare
   assert.equal(effectiveRunners({ gate: { measuredSlots: true }, runners: [{ ...measured, browser: 0 }] })[0].browser, 0);
 });
 
-test('all computed mixtures fit their measured budget and inadequate or invalid observations never add capacity [C7]',()=>{
+test('runners.formula.all-computed-mixtures-fit-their-measured: all computed mixtures fit their measured budget and inadequate or invalid observations never add capacity [C7]',()=>{
   for(const cores of [1,2,10,32])for(const memoryMB of [1024,2048,2560,4096,8192,16384]){
     const capacity=computeRunnerSlots({cores,memoryMB});
     for(let browser=0;browser<=capacity.browser;browser++){

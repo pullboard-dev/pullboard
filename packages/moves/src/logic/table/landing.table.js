@@ -1,6 +1,7 @@
 /** The landing moves as pure tables: select a candidate, admit a trunk, record a pushed batch, merge, and what a batch's outcome does next, ported from the pure-core pilot [C7,#8249]. */
 import { Refused } from '../../../../kernel/light.js';
 import { defineRules } from './rules.js';
+import { receiptCounts } from './backbone.table.js';
 import { runTable } from './run.js';
 import { LANDING_NEXT } from './next.js';
 export { LANDING_NEXT } from './next.js';
@@ -12,6 +13,25 @@ const LANDED = Object.freeze(['landed', 'trunk', 'pushed']);
 const RETRYABLE = Object.freeze(['LAND_DIAGNOSTIC', 'SLOT_DB_LOCKED', 'LAND_GATE_TIMEOUT', 'LAND_RUNNER_FAULT']);
 
 const entriesOf = (batch) => batch?.candidates ?? batch?.items ?? [];
+/** The paces that land only verified work: steady (today's landing) and strict. */
+const VERIFIED_PACES = Object.freeze(['steady', 'strict']);
+/** The paces that land submitted work before its verdict. */
+const SUBMITTED_PACES = Object.freeze(['sprint']);
+/** The paces whose landing reads the Always rows and the screen: every pace but steady, where verify already holds the frozen bar and no receipt exists [#8865]. */
+const ALWAYS_PACES = Object.freeze(['sprint', 'strict']);
+/** The statuses a sprint item lands from: submitted work, and work verified before it landed. */
+const SPRINT_LANDS = Object.freeze(['submitted', 'verified']);
+
+/**
+ * Whether an item waits to land under its frozen pace: verified work under steady and strict, submitted or verified work under sprint, never once it has a landing receipt.
+ * Why: the landing select table and the selection walk read one rule, so a sprint item is offered exactly when its row would pass it.
+ *
+ * @param {{ status: string, mergedCommit?: string | null, pace?: string }} item - `pace` is the item's frozen pace; absent is steady.
+ * @returns {boolean}
+ */
+function landingPending(item) {
+  return !item.mergedCommit && (item.pace === 'sprint' ? SPRINT_LANDS.includes(item.status) : item.status === 'verified');
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Pure folds over the recorded batches (latest revision per id, first-seen order).
@@ -150,6 +170,15 @@ function landingRules({ limits, faultCodes, repeatHold }) {
   return defineRules({
     // select
     pending: { says: 'the item is verified and has no landing receipt', holds: (s) => s.item.status === 'verified' && !s.item.mergedCommit },
+    barFrozen: { says: "the item's bar is the one frozen at its claim [A6]", holds: (s) => Boolean(s.item.digest) && s.item.digest === s.item.claimDigest },
+    screened: { says: 'a green, trusted screen receipt covers the item at its commit and frozen digest on the current base', holds: (s) => receiptCounts(s.io.screen, { kind: 'screen', item: s.item, base: s.base }) },
+    suiteGreen: { says: "the setting is off, or a green, trusted, leased full-suite receipt covers the item's group at its commit and digest on the current base [#9325]",
+      holds: (s) => !s.io.strictFullSuite || receiptCounts(s.io.suite, { kind: 'suite', item: s.item, base: s.base }) },
+    suiteGreenOrForced: { says: 'a forced merge goes around the gate, else the suite receipt rule holds [#9326]', reads: ['suiteGreen'], holds: (s, m, fact) => Boolean(reasonOf(m)) || !s.io?.strictFullSuite || fact('suiteGreen') },
+    strictPublishes: { says: 'a strict merge with the full-suite setting on and no forced reason lands and publishes in one step [#9326]', holds: (s, m) => s.io?.strictFullSuite === true && !reasonOf(m) },
+    irreversibleChecked: { says: "the screen's trusted code re-checked secrets and the commit-hook rules over the item's commits [A8]",
+      holds: (s) => s.io.screen?.checks?.secrets === 'green' && s.io.screen?.checks?.hooks === 'green' },
+    pendingSubmitted: { says: 'the item is submitted or verified and has no landing receipt (sprint lands submitted work)', holds: (s) => SPRINT_LANDS.includes(s.item.status) && !s.item.mergedCommit },
     notHeld: { says: 'the item carries no coordinator hold', holds: (s) => !s.item.holdReason },
     verdictFresh: { says: 'the accepted review still composes unchanged on main [io]', holds: (s) => !s.io.staleVerdict },
     notKnownRed: { says: 'the item is not a culprit at this exact commit, or every failing case is waived', holds: (s) => { const k = knownRed(s); return !k || k.tests.every(t => waived(s, t)); } },
@@ -176,6 +205,7 @@ function landingRules({ limits, faultCodes, repeatHold }) {
     // merged
     reasonGiven: { says: 'a forced merge names why it went around the gate', holds: (s, m) => m.forced === undefined || Boolean(reasonOf(m)) },
     mergeable: { says: 'an unforced merge records verified work only', holds: (s, m) => Boolean(reasonOf(m)) || s.item.status === 'verified' },
+    mergeableSubmitted: { says: 'under sprint an unforced merge records submitted or verified work', holds: (s, m) => Boolean(reasonOf(m)) || SPRINT_LANDS.includes(s.item.status) },
     forcedUnfinished: { says: 'a forced merge of an item still open, claimed or submitted', holds: (s, m) => Boolean(reasonOf(m)) && ['open', 'claimed', 'submitted'].includes(s.item.status) },
     // outcome
     leaseLost: { says: 'the batch ended on LAND_LEASE_LOST', holds: (s, m) => m.refusal?.code === 'LAND_LEASE_LOST' },
@@ -212,10 +242,21 @@ const noPatch = () => ({});
 function landingTables(inputs) {
   const { limits } = inputs;
   const guard = (id, requires, code, message, next = LANDING_NEXT[code]) => ({ id, requires, code, message, next });
+  const paced = (paces, row) => ({ ...row, paces });
+  // The Always rows, written once: whatever the pace, nothing lands on a bar changed since claim (A6) or before trusted code re-checked what cannot be taken back (A8).
+  const always = Object.fromEntries([
+    ['a6-bar-frozen', { ...guard('a6-bar-frozen', 'barFrozen', 'CRITERIA_CHANGED', (s) => `#${s.item.id}'s bar changed since its claim`), always: 'A6' }],
+    ['a8-irreversible', { ...guard('a8-irreversible', 'irreversibleChecked', 'LAND_UNCHECKED', (s) => `#${s.item.id} has no trusted re-check of secrets and hook rules`), always: 'A8' }],
+  ].map(([id, row]) => [id, paced(ALWAYS_PACES, row)]));
   const select = Object.freeze({
     name: 'landing-select',
     guards: Object.freeze([
-      guard('pending', 'pending', 'NOT_PENDING', (s) => `#${s.item.id} is ${s.item.mergedCommit ? 'already landed' : s.item.status}`),
+      paced(VERIFIED_PACES, guard('pending', 'pending', 'NOT_PENDING', (s) => `#${s.item.id} is ${s.item.mergedCommit ? 'already landed' : s.item.status}`)),
+      paced(SUBMITTED_PACES, guard('pending-submitted', 'pendingSubmitted', 'NOT_PENDING', (s) => `#${s.item.id} is ${s.item.mergedCommit ? 'already landed' : s.item.status}`)),
+      always['a6-bar-frozen'],
+      paced(SUBMITTED_PACES, guard('screened', 'screened', 'SCREEN_PENDING', (s) => `#${s.item.id} waits for a green screen at ${String(s.item.commit).slice(0, 12)} on this base`)),
+      always['a8-irreversible'],
+      paced(['strict'], guard('strict-full-suite', 'suiteGreen', 'LAND_SUITE_PENDING', (s) => `#${s.item.id} waits for a green full-suite receipt for group ${s.item.group ?? 'none'} at ${String(s.item.commit).slice(0, 12)} on this base`)),
       guard('not-held', 'notHeld', 'ITEM_HELD', (s) => s.item.holdReason),
       guard('verdict-fresh', 'verdictFresh', 'STALE_VERDICT', (s) => s.io.staleVerdict?.reason ?? 'the accepted review is stale'),
       guard('not-known-red', 'notKnownRed', 'LAND_KNOWN_RED', (s) => `#${s.item.id} is known red at this commit`),
@@ -267,12 +308,17 @@ function landingTables(inputs) {
     guards: Object.freeze([
       guard('coordinator', 'coordinatorActs', 'COORDINATOR_ONLY', 'only the coordinator records merges'),
       guard('forced-reason', 'reasonGiven', 'FORCED_REASON', 'a forced merge names why it went around the gate: --forced "<why>"'),
-      guard('verified', 'mergeable', 'NOT_VERIFIED', (s) => `item #${s.item.id} is ${s.item.status}; merge verified work only`),
+      paced(VERIFIED_PACES, guard('verified', 'mergeable', 'NOT_VERIFIED', (s) => `item #${s.item.id} is ${s.item.status}; merge verified work only`)),
+      paced(['strict'], guard('strict-full-suite', 'suiteGreenOrForced', 'LAND_SUITE_PENDING', (s) => `#${s.item.id} waits for a green full-suite receipt for group ${s.item.group ?? 'none'} at ${String(s.item.commit).slice(0, 12)} on this base`)),
+      paced(SUBMITTED_PACES, guard('submitted', 'mergeableSubmitted', 'NOT_VERIFIED', (s) => `item #${s.item.id} is ${s.item.status}; under sprint merge submitted or verified work only`)),
     ]),
     outcomes: Object.freeze([
       { id: 'forced-unfinished', when: 'forcedUnfinished', patch: () => ({ status: 'withdrawn' }), events: (s, m) => [
         { kind: 'withdraw', by: m.actor, detail: { reason: `landed by hand at ${m.commit.slice(0, 12)}: ${reasonOf(m)}` } },
         { kind: 'merged', by: m.actor, detail: { commit: m.commit, forced: true, reason: reasonOf(m), from: s.item.status } }] },
+      { id: 'merge-publish', when: 'strictPublishes', paces: ['strict'], patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
+        { kind: 'merged', by: m.actor, detail: { commit: m.commit } },
+        { kind: 'published', by: m.actor, detail: { commit: m.commit } }] },
       { id: 'merge', patch: (s, m) => ({ mergedCommit: m.commit }), events: (s, m) => [
         { kind: 'merged', by: m.actor, detail: { commit: m.commit, ...(reasonOf(m) ? { forced: true, reason: reasonOf(m), from: s.item.status } : {}) } }] },
     ]),
@@ -337,13 +383,13 @@ export function landingOrder(s, pending, { blockedTurns = true } = {}) {
  * then project up to `staleProbes` unheld items behind it for staleness only. Pure: every io answer comes in `ioFor(id)`.
  *
  * @param {ReturnType<typeof landingEngine>} engine
- * @param {object} s - `{ now, base, items, batches, waivers, unverified, collisionFree, acceptOrder, io }`.
+ * @param {object} s - `{ now, base, items, batches, waivers, unverified, collisionFree, acceptOrder, io }`; an item's `pace` is its frozen pace (absent: steady), and each select runs under it.
  * @param {number} maximum
  * @param {(id: number) => object} [ioFor]
  * @returns {{ ready: object[], blocked: { id: number, code: string, row?: string }[] }}
  */
 export function selectBatch(engine, s, maximum, ioFor = () => ({}), rules = {}) {
-  const pending = Object.values(s.items).filter(item => item.status === 'verified' && !item.mergedCommit);
+  const pending = Object.values(s.items).filter(landingPending);
   const ready = [];
   const blocked = [];
   const touched = {};
@@ -356,7 +402,7 @@ export function selectBatch(engine, s, maximum, ioFor = () => ({}), rules = {}) 
       if (io.staleVerdict) blocked.push({ id: item.id, code: 'STALE_VERDICT' });
       continue;
     }
-    const out = runTable(engine.tables.select, engine.rules, { ...s, item, io, picked: { count: ready.length, touched: { ...touched } } }, { name: 'select', id: item.id });
+    const out = runTable(engine.tables.select, engine.rules, { ...s, item, io, picked: { count: ready.length, touched: { ...touched } }, pace: item.pace }, { name: 'select', id: item.id });
     if (out.refused) { blocked.push({ id: item.id, code: out.refused.code, row: out.refused.row }); continue; }
     for (const file of s.collisionFree ? io.changedFiles ?? [] : []) touched[file] = item.id;
     ready.push(out.events[0].detail);

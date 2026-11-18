@@ -12,8 +12,12 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CODEX_AUTOMATION_FILE } from '../../../../packages/config/index.js';
+import { renderCodexAutomation } from '../../../../packages/config/index.js';
+import { renderWorkerSkill } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 const SKILL_VERSIONS = [
@@ -73,6 +77,7 @@ export const ROLES = {
   verify: 'pullboard-verify',
   run: 'pullboard-run',
   triage: 'pullboard-triage',
+  worker: 'pullboard-worker',
 };
 
 /**
@@ -86,6 +91,8 @@ function shippedSkill(role) {
   if (!name) {
     throw new Refused('NO_ROLE', `no role "${role}"; roles: ${Object.keys(ROLES).join(', ')}`);
   }
+  // The worker loop has no file to drift: it is generated from the one shared seat-loop source (#8550).
+  if (role === 'worker') return renderWorkerSkill();
   return readFileSync(join(SKILLS_DIR, name, 'SKILL.md'), 'utf8');
 }
 
@@ -236,4 +243,22 @@ export function installSkills(root, onWrite = () => {}, tools = ['claude']) {
     notes.push(written.length ? `wrote ${label} skills: ${written.join(', ')}` : `kept the ${label} skills`);
   }
   return notes;
+}
+
+/**
+ * Write the paused Codex automation template for a project that declares Codex, never replacing one that is there.
+ *
+ * @param {string} root
+ * @param {(path: string) => void} [onWrite]
+ * @param {Array<'claude'|'codex'>} [tools]
+ * @returns {string[]} What happened.
+ */
+export function installCodexAutomation(root, onWrite = () => {}, tools = ['claude']) {
+  if (!tools.includes('codex')) return [];
+  const file = join(root, CODEX_AUTOMATION_FILE);
+  if (existsSync(file)) return ['kept the Codex automation template'];
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, renderCodexAutomation());
+  onWrite(CODEX_AUTOMATION_FILE);
+  return [`wrote the paused Codex automation template ${CODEX_AUTOMATION_FILE}`];
 }

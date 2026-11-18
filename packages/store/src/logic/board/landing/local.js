@@ -1,4 +1,6 @@
 /** Physical-board heartbeat state never crosses a relay or export boundary [Q1,Q3,H16]. */
+import { deleteBoardMeta } from '../../../io/board/meta.js';
+import { writeBoardMeta } from '../../../io/board/meta.js';
 export const LANDING_LOCAL_PREFIX = 'local:landing-lease:';
 
 /** Read only an exact invocation's local observation; malformed local state grants no authority. */
@@ -40,4 +42,28 @@ export function rememberLocalLanding(board, entry) {
 /** Forget a completed local invocation without changing shared native history. */
 export function forgetLocalLanding(board, token) {
   board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(LANDING_LOCAL_PREFIX + token);
+}
+
+/** The board_meta key of a head item's step-aside count, under the local landing prefix so no export carries it [C7]. */
+export function stepAsideKey(itemId) { return `${LANDING_LOCAL_PREFIX}stepaside:${itemId}`; }
+
+/** A head item's consecutive lease lapses; 0 when none are recorded or the row is malformed. */
+export function stepAsideCount(board, itemId) {
+  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(stepAsideKey(itemId));
+  try { const count = row && JSON.parse(row.meta_value); return Number.isSafeInteger(count) && count > 0 ? count : 0; } catch { return 0; }
+}
+
+/**
+ * Add one lapsed landing lease to the head item's count and return the new count.
+ * Why: a head item whose landings keep losing their lease should be stepped aside for the next, and that needs the count first [C7].
+ */
+export function countLeaseLapse(board, itemId) {
+  const count = stepAsideCount(board, itemId) + 1;
+  writeBoardMeta(board.db, stepAsideKey(itemId), JSON.stringify(count));
+  return count;
+}
+
+/** Forget a head item's step-aside count, as its landing does. */
+export function clearStepAside(board, itemId) {
+  deleteBoardMeta(board.db, stepAsideKey(itemId));
 }

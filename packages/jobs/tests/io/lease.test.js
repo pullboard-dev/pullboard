@@ -19,13 +19,13 @@ const jobOn = (t, id = 'gate:1') => {
   return db;
 };
 
-test('a lease lapses strictly after its end, and a lease lasts two minutes by default [C7]', () => {
+test('jobs.lease.lapse-boundary: a lease lapses strictly after its end, and a lease lasts two minutes by default [C7]', () => {
   assert.equal(LEASE_MS, 120_000);
   assert.equal(leaseLapsed(100, 100), false);
   assert.equal(leaseLapsed(100, 101), true);
 });
 
-test('takeJob gives the lease to one driver, refuses a second while it is live, and gives it over once it lapsed [C7]', t => {
+test('jobs.lease.take-one-driver: takeJob gives the lease to one driver, refuses a second while it is live, and gives it over once it lapsed [C7]', t => {
   const db = jobOn(t);
   const first = takeJob(db, 'gate:1', 'w1', { now: 1000 });
   assert.equal(first.taken, true);
@@ -40,7 +40,7 @@ test('takeJob gives the lease to one driver, refuses a second while it is live, 
   assert.throws(() => takeJob(db, 'gate:none', 'w1'), error => error.code === 'JOB_MISSING');
 });
 
-test('only the holder renews a live lease, and a lapsed lease cannot be renewed [C7]', t => {
+test('jobs.lease.holder-renews: only the holder renews a live lease, and a lapsed lease cannot be renewed [C7]', t => {
   const db = jobOn(t);
   takeJob(db, 'gate:1', 'w1', { now: 1000, leaseMs: 100 });
   assert.equal(renewLease(db, 'gate:1', 'w2', { now: 1050 }), false);
@@ -49,7 +49,7 @@ test('only the holder renews a live lease, and a lapsed lease cannot be renewed 
   assert.equal(renewLease(db, 'gate:1', 'w1', { now: 1551 }), false, 'a driver that let it lapse takes the job again instead');
 });
 
-test('reclaimLapsed names each lapsed lease with how long ago it ended, oldest first, and leaves live leases alone [C7]', t => {
+test('jobs.lease.reclaim-oldest-first: reclaimLapsed names each lapsed lease with how long ago it ended, oldest first, and leaves live leases alone [C7]', t => {
   const db = jobOn(t, 'a');
   createJob(db, { id: 'b', kind: 'gate', now: 1 });
   createJob(db, { id: 'c', kind: 'gate', now: 1 });
@@ -63,7 +63,7 @@ test('reclaimLapsed names each lapsed lease with how long ago it ended, oldest f
   assert.deepEqual(reclaimLapsed(db, { now: 50 }), []);
 });
 
-test('releaseLease frees the lease for its holder only [C7]', t => {
+test('jobs.lease.release-holder-only: releaseLease frees the lease for its holder only [C7]', t => {
   const db = jobOn(t);
   takeJob(db, 'gate:1', 'w1', { now: 1000 });
   assert.equal(releaseLease(db, 'gate:1', 'w2', { now: 1001 }), false);
@@ -73,7 +73,7 @@ test('releaseLease frees the lease for its holder only [C7]', t => {
   assert.equal(takeJob(db, 'gate:1', 'w2', { now: 1003 }).taken, true, 'a released job is free at once');
 });
 
-test('finishJob marks the job done for its holder or an unleased or lapsed job, but not against a live rival [C7]', t => {
+test('jobs.lease.finish-holder-only: finishJob marks the job done for its holder or an unleased or lapsed job, but not against a live rival [C7]', t => {
   const db = jobOn(t, 'held');
   createJob(db, { id: 'free', kind: 'gate', now: 1 });
   createJob(db, { id: 'old', kind: 'gate', now: 1 });
@@ -88,7 +88,7 @@ test('finishJob marks the job done for its holder or an unleased or lapsed job, 
   assert.equal(jobView(db, 'old').step, 'done');
 });
 
-test('a job released with a backoff still reads as the step it kept, with its lease freed [C7]', t => {
+test('jobs.lease.backoff-keeps-step: a job released with a backoff still reads as the step it kept, with its lease freed [C7]', t => {
   const db = jobOn(t);
   assert.equal(takeJob(db, 'gate:1', 'w1', { now: 1000 }).taken, true);
   db.prepare("UPDATE job SET job_step = 'claimed' WHERE job_id = 'gate:1'").run();

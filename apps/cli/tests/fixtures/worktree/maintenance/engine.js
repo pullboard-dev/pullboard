@@ -181,6 +181,10 @@ export function registerMaintenanceEngineTests() {
     const finished = fx.addTree('finished-seat', { seat: true });
     const incoming = fx.addTree('finished-incoming', { seat: true });
     const orphan = fx.addTree('orphan-tree');
+    // A hand-made tree at a withdrawn item's commit counts as finished (#5733); this one holds work of its own, so it stays an orphan.
+    // Plumbing, not `git commit`: the fixture repository's pre-commit hook refuses commits from a seat folder.
+    fx.box.git(orphan.path, 'update-ref', 'HEAD', fx.box.git(orphan.path, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+      'commit-tree', 'HEAD^{tree}', '-p', 'HEAD', '-m', 'orphan work').trim());
     const scratch = fx.addTree('scratch-tree', { inside: false });
     const item = claimItem(fx, finished.agent, 'Closed work attached to finished seat');
     const head = fx.box.git(finished.path, 'rev-parse', 'HEAD').trim();

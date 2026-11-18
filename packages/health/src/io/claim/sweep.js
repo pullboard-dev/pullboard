@@ -153,3 +153,21 @@ export async function sweepClaims(ctx, board, actor, ordered, ports = {}) {
   try { (ports.closeFinishedAsks ?? closeFinishedAsks)(board, { agentId: actor }); } catch { /* the next pass tries again */ }
   return snapshot;
 }
+
+/**
+ * Expire lapsed claims and nothing else: read board rows and seat presence, no Git, then one ordered stale-state move.
+ * Why: the sentinel must cover lapsed claims on its own before the inline call before each write is removed (#3002); the
+ * View runs this every minute behind health.lapsedSweep, so a lapsed lease is expired within two minutes with no command run [C7,#8923].
+ * @returns {Promise<object|null>} The snapshot the pass acted on, or null when no claim had lapsed.
+ */
+export async function sweepLapsedClaims(ctx, board, actor, ordered, ports = {}) {
+  const snapshot = (ports.captureLapsedClaims ?? captureLapsedClaims)(ctx, board, actor, { lapsedOnly: true });
+  if (!snapshot) return null;
+  const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
+  try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+  catch (error) {
+    // A board that moved while this pass looked is observed again on the next pass.
+    if (error.code !== 'STALE_STATE_CHANGED') throw error;
+  }
+  return snapshot;
+}

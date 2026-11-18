@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/items */
 /** Explicit native session capture never treats an omitted identity as a person shell [V1,B3,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -18,7 +19,7 @@ function fixture(t) {
   return { commonDir };
 }
 
-test('an omitted session capture refuses before creating or reading the local ledger [V1,B3,C7]', t => {
+test('items.parent.omitted-capture-refuses: an omitted session capture refuses before creating or reading the local ledger [V1,B3,C7]', t => {
   const info = fixture(t), item = { item_id: 1 };
   assert.throws(() => requireLedger(info), { code: 'SESSION_LEDGER' });
   assert.throws(() => recordItemSession(info, 1, 'submit'), { code: 'SESSION_LEDGER' });
@@ -30,7 +31,7 @@ test('an omitted session capture refuses before creating or reading the local le
   assert.equal(existsSync(join(info.commonDir, 'pullboard')), false, 'the explicit no-agent result retains its old no-ledger behavior');
 });
 
-test('a captured session retains its recorded self-review refusal and an unrelated positive [V1,B3,C7]', t => {
+test('items.parent.captured-keeps-refusal: a captured session retains its recorded self-review refusal and an unrelated positive [V1,B3,C7]', t => {
   const info = fixture(t), digest = 'a'.repeat(64), item = { item_id: 7 };
   requireLedger(info, digest);
   recordItemSession(info, 7, 'submit', digest);
@@ -41,7 +42,7 @@ test('a captured session retains its recorded self-review refusal and an unrelat
   assert.equal(readFileSync(join(info.commonDir, 'pullboard', 'item-sessions.jsonl'), 'utf8').trim().split('\n').length, 1);
 });
 
-test('review.independence off lets a session that built the item verify, session keeps the refusal [V1,B3,C7]', t => {
+test('items.parent.independence-off: review.independence off lets a session that built the item verify, session keeps the refusal [V1,B3,C7]', t => {
   const info = fixture(t), digest = 'c'.repeat(64), item = { item_id: 9 };
   requireLedger(info, digest);
   recordItemSession(info, 9, 'submit', digest);

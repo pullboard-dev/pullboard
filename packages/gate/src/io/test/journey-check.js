@@ -12,7 +12,7 @@ import { holdShare } from '../../logic/test/journey-check.js';
 import { judgeJourney } from '../../logic/test/journey-check.js';
 import { retagChecked } from '../../logic/test/journey-check.js';
 
-const USAGE = 'usage: journey-check [--limit n] [--cells n] [--faults n] [--budget seconds] [--max-tests n] [--manifest file] [--write] [project-root]\n';
+const USAGE = 'usage: journey-check [--limit n] [--cells n] [--faults n] [--budget seconds] [--max-tests n] [--manifest file] [--only prefix,prefix] [--write] [project-root]\n';
 /** The whole run's time, so a sample always ends and prints its share; 0 means no limit. */
 const DEFAULT_BUDGET_SECONDS = 480;
 /** Cell tests run against one fault at most, so one fault in a hub file cannot take minutes. */
@@ -21,12 +21,17 @@ const NUMBERS = { '--limit': 'limit', '--cells': 'cells', '--faults': 'faults', 
 
 /** Parse the flags into options, or null when anything is unknown or a number is missing. */
 function parse(args) {
-  const options = { limit: Infinity, cells: 3, faults: 6, maxTests: DEFAULT_MAX_TESTS, budget: DEFAULT_BUDGET_SECONDS, manifest: TEST_MANIFEST_FILE, write: false, root: '.' };
+  const options = { limit: Infinity, cells: 3, faults: 6, maxTests: DEFAULT_MAX_TESTS, budget: DEFAULT_BUDGET_SECONDS, manifest: TEST_MANIFEST_FILE, only: null, write: false, root: '.' };
   const rest = [];
   for (let at = 0; at < args.length; at++) {
     const arg = args[at];
     if (arg === '--write') options.write = true;
     else if (arg === '--manifest') options.manifest = args[++at];
+    else if (arg === '--only') {
+      const prefixes = String(args[++at] ?? '').split(',').filter(Boolean);
+      if (!prefixes.length) return null;
+      options.only = prefixes;
+    }
     else if (arg === '--budget') {
       const value = Number(args[++at]);
       if (!Number.isFinite(value) || value < 0) return null;
@@ -97,7 +102,11 @@ export async function runJourneyCheck(args, { mutate, reachOf = testReach, say =
   const root = resolve(options.root);
   const rows = manifestRows(root, options.manifest);
   const deletes = rows.filter(row => row.tag === 'delete').sort((a, b) => (a.file < b.file ? -1 : 1));
-  const sampled = spread(deletes, options.limit);
+  // --only narrows to the named path prefixes before the sample is spread, so a named group is checked whole.
+  const named = options.only ? deletes.filter(row => options.only.some(prefix => row.file.startsWith(prefix))) : deletes;
+  const missing = options.only ? options.only.filter(prefix => !deletes.some(row => row.file.startsWith(prefix))) : [];
+  if (missing.length) return { status: 1, stdout: '', stderr: `no delete-tagged journey starts with ${missing.join(', ')}; next: name a path prefix from the delete tags in ${options.manifest}\n` };
+  const sampled = spread(named, options.limit);
   const reached = reachOf(root);
   const verdicts = [];
   const lines = [];

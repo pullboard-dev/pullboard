@@ -6,6 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as light from '../../../../light.js';
 import * as door from '../../../../index.js';
@@ -13,6 +14,7 @@ import { engineNumber } from '../../../../src/logic/engine/number.js';
 import { ENGINE_NUMBERS } from '../../../../src/logic/engine/table.js';
 import { engineFolderViolations } from '../../../../src/io/engine/folder.js';
 import { ENGINE_REGISTRY } from '../../../../src/io/engine/metadata.js';
+import { readEngineLeaves } from '../../../../src/io/engine/numbers.js';
 
 const ENGINES = new URL('../../../../src/logic/engines/', import.meta.url);
 
@@ -27,15 +29,18 @@ async function eagerNumbers() {
   return numbers;
 }
 
-test('clause 1: every engine number read from leaf text equals the number loading its leaf gives [C7]', async () => {
+test('state.io-engine-numbers-lazy.clause-1-every-engine-number-read-from: clause 1: every engine number read from leaf text equals the number loading its leaf gives [C7]', async () => {
   const eager = await eagerNumbers();
   assert.ok(eager.size >= 190, `found ${eager.size} engine leaves`);
   for (const [name, value] of eager) assert.equal(engineNumber(name), value, `${name} keeps engine ${value}`);
-  assert.deepEqual(Object.keys(ENGINE_NUMBERS).sort(), [...eager.keys()].sort(), 'the generated table lists exactly the landed leaves');
-  assert.equal(engineNumber('NO_SUCH_ENGINE'), Math.max(...eager.values()) + 1, 'a name with no landed leaf reads as the next engine');
+  // A branch's unlanded leaf reads as the next engine and has no table row until its landing merge numbers it (#1101).
+  const landed = readEngineLeaves(fileURLToPath(ENGINES)).filter(leaf => leaf.number !== null);
+  const landedEager = [...eager].filter(([name]) => landed.some(leaf => leaf.name === name));
+  assert.deepEqual(Object.keys(ENGINE_NUMBERS).sort(), landedEager.map(([name]) => name).sort(), 'the generated table lists exactly the landed leaves');
+  assert.equal(engineNumber('NO_SUCH_ENGINE'), Math.max(...landedEager.map(([, value]) => value)) + 1, 'a name with no landed leaf reads as the next engine');
 });
 
-test('clause 1: the light and full state doors give each leaf engine exactly as the leaf declares it [C7]', async () => {
+test('state.io-engine-numbers-lazy.clause-1-the-light-and-full-state-doors: clause 1: the light and full state doors give each leaf engine exactly as the leaf declares it [C7]', async () => {
   const eager = await eagerNumbers();
   let read = 0;
   for (const exports of [light, door]) {
@@ -49,7 +54,7 @@ test('clause 1: the light and full state doors give each leaf engine exactly as 
   assert.equal(light.ENGINE_VERSION, Math.max(...Object.values(ENGINE_REGISTRY)), 'the light door keeps the registry engine version');
 });
 
-test('clause 1: the engine folder check accepts a state door reading its own leaf by name and refuses any other number [C7]', () => {
+test('state.io-engine-numbers-lazy.clause-1-the-engine-folder-check-accepts: clause 1: the engine folder check accepts a state door reading its own leaf by name and refuses any other number [C7]', () => {
   const leaf = { file: 'packages/state/src/logic/engines/sample-engine.js', source: 'export const SAMPLE_ENGINE = 3;\n' };
   const forwards = source => engineFolderViolations([leaf, { file: 'packages/state/light.js', source }]).map(row => row.line);
   assert.deepEqual(forwards("export const SAMPLE_ENGINE = engineNumber('SAMPLE_ENGINE');\n"), []);

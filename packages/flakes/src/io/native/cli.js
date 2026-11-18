@@ -104,7 +104,11 @@ export function verify(ctx, item, command, options, services) {
     pinRunMain(lease, observe);
     lease.quarantines = options.board ? quarantineVerdictSnapshot(options.board) : await services.withBoard(ctx, quarantineVerdictSnapshot);
     lease.proof = { seat: services.resourceAgent(ctx) };
-    const result = runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, services);
+    const appendFact = (id, fact) => {
+      const write = board => services.ordered(ctx, board, 'appendFact', [id, { agentId: services.resourceAgent(ctx), ...fact }]);
+      return options.board ? write(options.board) : services.withBoard(ctx, write);
+    };
+    const result = await runFrozenProof(ctx.info.root, item, { waitMs: lease.waitMs, gateLease: lease }, { ...services, appendFact });
     await recordNativeProof(ctx, item, result, { ...services, proofRunReceipt }, options.board);
     await recordRun(observe, result);
     if (result.state === 'red') await observe({ isGreen: false, output: result.outputPath ? readFileSync(result.outputPath, 'utf8') : result.output,

@@ -37,7 +37,7 @@ function graph(t) {
   return { root,git,put,commit };
 }
 
-test('source loader declarations resolve committed targets and reject unknown boundaries [V4,C7]', (t) => {
+test('gate.logic-test-source-loads.source-loader-declarations-resolve-committed: source loader declarations resolve committed targets and reject unknown boundaries [V4,C7]', (t) => {
   const headers = [
     '/** @pullboard-module-loads src/api.js */',
     '/** @pullboard-module-loads src/missing.js */',
@@ -59,7 +59,9 @@ test('source loader declarations resolve committed targets and reject unknown bo
       assert.equal(selection.full, false, selection.reason);
       assert.deepEqual(selection.files, ['apps/cli/journeys/milestone/api.test.js', 'test/loader.test.js']);
     } else {
-      assert.equal(selection.full, true, header);
+      // clause 1: reaching a file with unknown reads selects its importers and unknown roots, never the whole suite.
+      assert.equal(selection.full, false, header);
+      assert.ok(selection.files.includes('test/loader.test.js'), 'clause 2: the test reaching the unknown file is still selected');
       assert.match(selection.reason, /non-literal dynamic import in reached file src\/loader\.js/u);
     }
     box.put('apps/cli/src/io/run/tests.js', 'export const runner = true;\n');

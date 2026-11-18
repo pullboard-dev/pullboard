@@ -4,8 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { verify } from 'node:crypto';
 import { Refused } from '../../../kernel/light.js';
 import { isObjectId } from '../../../pin/light.js';
-/** The one saveKeyedResult, the pin cell's, re-exported so the runner cell reaches it through this cell and adds no pin edge. */
-export { saveKeyedResult } from '../../../pin/light.js';
+/** The one saveKeyedResult and loadKeyedResult, the pin cell's, re-exported so the runner cell reaches it through this cell and adds no pin edge. */
+export { loadKeyedResult, saveKeyedResult } from '../../../pin/light.js';
 import { mintJobToken } from '../logic/token.js';
 import { readJobToken } from '../logic/token.js';
 import { parseResult } from '../logic/result.js';
@@ -58,7 +58,7 @@ function signedBy(publicKey, text, signature) {
  *
  * @param {{ trusted: string[] | (() => string[]), lease: { take: (job: string, runner: string) => boolean,
  *   renew: (job: string, runner: string) => boolean }, record: (job: string, shard: string, payload: object) => void,
- *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string,
+ *   checkResult: (posted: object) => { valid: boolean, reason?: string, keyId?: string }, bundle: (tree: string) => string | null | Promise<string | null>,
  *   secret?: Buffer, now?: () => number, tokenMs?: number, skewMs?: number, seenMs?: number,
  *   store?: { load: () => (object | null), save: (state: object) => void }, revokedNames?: () => string[] }} ports
  * @returns {object} The adapter: open and probe for the channel interface, and the runner-facing protocol calls.

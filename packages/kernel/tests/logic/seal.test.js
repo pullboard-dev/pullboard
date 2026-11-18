@@ -46,7 +46,7 @@ function refused(code) {
   return (error) => error?.name === 'Refused' && error.code === code;
 }
 
-test('board keys are random 256-bit values with canonical pairing fragments [H15,H17]', async () => {
+test('kernel.seal.board-keys-are-random-256-bit: board keys are random 256-bit values with canonical pairing fragments [H15,H17]', async () => {
   const first = await generateBoardKey();
   const second = await generateBoardKey();
   assert.equal(first.length, 32);
@@ -63,7 +63,7 @@ test('board keys are random 256-bit values with canonical pairing fragments [H15
   assert.throws(() => encodeBoardKey(new Uint8Array(31)), refused('SEAL_KEY'));
 });
 
-test('each sealed kind has a version, fresh 96-bit nonce and full GCM tag [H15,H17]', async () => {
+test('kernel.seal.each-sealed-kind-has-a-version: each sealed kind has a version, fresh 96-bit nonce and full GCM tag [H15,H17]', async () => {
   const key = await generateBoardKey();
   const nonces = new Set();
   for (const kind of ['snapshot', 'move', 'request']) {
@@ -80,7 +80,7 @@ test('each sealed kind has a version, fresh 96-bit nonce and full GCM tag [H15,H
   }
 });
 
-test('unsealing refuses wrong keys, every changed payload byte and every wrong binding [H15,H17]', async () => {
+test('kernel.seal.unsealing-refuses-wrong-keys-every-changed: unsealing refuses wrong keys, every changed payload byte and every wrong binding [H15,H17]', async () => {
   const key = await generateBoardKey();
   const blob = await seal(key, TEXT, binding());
   await assert.rejects(unseal(await generateBoardKey(), blob, binding()), refused('SEAL_AUTH_FAILED'));
@@ -101,13 +101,13 @@ test('unsealing refuses wrong keys, every changed payload byte and every wrong b
   }
 });
 
-test('adjacent board-id and sequence fields cannot collide at their boundary [H15,H17]', async () => {
+test('kernel.seal.adjacent-board-id-and-sequence-fields: adjacent board-id and sequence fields cannot collide at their boundary [H15,H17]', async () => {
   const key = await generateBoardKey();
   const blob = await seal(key, TEXT, binding({ boardId: 'a1', sequence: 0, kind: 'move' }));
   await assert.rejects(unseal(key, blob, binding({ boardId: 'a', sequence: 10, kind: 'move' })), refused('SEAL_AUTH_FAILED'));
 });
 
-test('the header byte remains authenticated when the version refusal guard is removed [H15,H17]', async () => {
+test('kernel.seal.the-header-byte-remains-authenticated-when: the header byte remains authenticated when the version refusal guard is removed [H15,H17]', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-seal-version-mutant-'));
   try {
     const source = readFileSync(new URL('../../src/logic/seal.js', import.meta.url), 'utf8');
@@ -128,7 +128,7 @@ test('the header byte remains authenticated when the version refusal guard is re
   }
 });
 
-test('generate, encode, decode, seal and unseal never write to console or output streams [H15,H17]', () => {
+test('kernel.seal.generate-encode-decode-seal-and-unseal: generate, encode, decode, seal and unseal never write to console or output streams [H15,H17]', () => {
   const moduleUrl = process.env.PULLBOARD_SEAL_MODULE ?? pathToFileURL(resolve(import.meta.dirname, '../../src/logic/seal.js')).href;
   const harness = `
     import { generateBoardKey, encodeBoardKey, decodeBoardKey, seal, unseal } from ${JSON.stringify(moduleUrl)};
@@ -169,7 +169,7 @@ test('generate, encode, decode, seal and unseal never write to console or output
   assert.equal(Number(result.stdout), 0, 'no console, stdout or stderr output was attempted');
 });
 
-test('sealing validates inputs and copies mutable buffers and binding before awaiting [H15,H17]', async () => {
+test('kernel.seal.sealing-validates-inputs-and-copies-mutable: sealing validates inputs and copies mutable buffers and binding before awaiting [H15,H17]', async () => {
   const key = await generateBoardKey();
   for (const where of [null, binding({ boardId: '' }), binding({ kind: 'other' }),
     binding({ sequence: -1 }), binding({ sequence: 1.5 }), binding({ sequence: Number.MAX_SAFE_INTEGER + 1 })]) {
@@ -193,7 +193,7 @@ test('sealing validates inputs and copies mutable buffers and binding before awa
   assert.deepEqual(await decoding, TEXT);
 });
 
-test('headless Chrome loads the unchanged module and exchanges sealed bytes with Node [H15,H17]', { timeout: 60_000 }, async (t) => {
+test('kernel.seal.headless-chrome-loads-the-unchanged-module: headless Chrome loads the unchanged module and exchanges sealed bytes with Node [H15,H17]', { timeout: 60_000 }, async (t) => {
   const executable = findChromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to run the browser interoperability proof.');
   const key = await generateBoardKey();

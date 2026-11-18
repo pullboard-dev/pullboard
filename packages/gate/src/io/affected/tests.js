@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/gate/src/logic/selection-unit.js */
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -11,6 +12,7 @@ import { changedModules } from './graph/delta.js';
 import { forkWithout } from './graph/delta.js';
 import { documentationInputs } from './inputs.js';
 import { unknownRootTests } from './roots.js';
+import { namedReach } from './names.js';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -668,16 +670,40 @@ export function selectDeclaredSuites(changed, suites) {
 }
 
 /**
+ * Pick selection units (Go package, Rust crate, C# or Elixir project) from the changed paths, reading the manifests from the repo file list.
+ * A changed manifest or a path under no unit returns the full gate with its reason; nothing is guessed [C7].
+ *
+ * @param {string} root
+ * @param {string} unit - The gate.selectionUnit value.
+ * @param {string[]} changed - Repo-relative changed paths.
+ * @returns {Promise<{full:boolean, reason:string, files:string[]}>} `files` holds the units.
+ */
+async function selectUnits(root, unit, changed) {
+  try {
+    // Loaded here, never at import: only a non-file selection unit needs it, so a cold read command skips the module [C7].
+    const { changedUnitManifest, selectionUnits } = await import('../../logic/selection-unit.js');
+    if (!changed.length) return { full: true, reason: 'no changed path to select units for', files: [] };
+    const manifest = changedUnitManifest(changed);
+    if (manifest) return { full: true, reason: `SELECTION_UNIT_MANIFEST: ${manifest} changes how every unit builds`, files: [] };
+    const picked = selectionUnits(unit, changed, selectionGit(root, ['ls-files', '-z']).split('\0').filter(Boolean));
+    return { full: picked.full, reason: picked.reason ?? '', files: picked.units };
+  } catch (error) {
+    if (error?.code === 'MAIN_FACTS_BUSY') throw error;
+    return { full: true, reason: `import selection could not be computed: ${error.message}`, files: [] };
+  }
+}
+
+/**
  * Select changed tests and every transitive importer in the old and new trees. Old edges cover
  * deletions and renames; declared tree readers also cover changed test or source inputs. Other filesystem
  * reads and process launches are not import edges, except literal documentation inputs and modules that
  * mention the Pullboard CLI entry (`apps/cli/pullboard.js`), whose imported modules they exercise as subprocesses.
  *
  * @param {string} root
- * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[]}} options
- * @returns {{full:boolean, reason:string, files:string[]}}
+ * @param {{base:string|null, trunk?:string, commit?:string, changed?:string[], namedImports?:boolean, unit?:string}} options - namedImports defaults to gate.namedImportSelection; unit is gate.selectionUnit, and any value but file returns units from the changed paths instead of test files, as a Promise because the unit module loads lazily [C7].
+ * @returns {{full:boolean, reason:string, files:string[]}|Promise<{full:boolean, reason:string, files:string[]}>}
  */
-export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null }) {
+export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', changed, probe = null, suites = null, namedImports, unit = 'file' }) {
   let files = [];
   try {
     if (!base) return { full: true, reason: 'no claim head recorded; the change cannot be selected', files };
@@ -690,6 +716,8 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
       changed = undefined;
     }
     changed ??= selectionGit(root, ['diff', '--no-renames', '--name-only', '-z', base, commit]).split('\0').filter(Boolean);
+    // A selection unit other than file picks units from the changed paths and the repo's manifests, never from the JavaScript import graph [C7].
+    if (unit !== 'file') return selectUnits(root, unit, changed);
     // A repo that declares affectedSuites selects by folder, never by import graph; without the key nothing changes.
     if (suites && typeof suites === 'object' && Object.keys(suites).length) return selectDeclaredSuites(changed, suites);
     const changedDocs = changed.filter(path => DOC.test(path));
@@ -705,10 +733,9 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
     const unsupported = changed.find(path => !MODULE.test(path) && !DOC.test(path)
       && !before.reverse.has(path) && !after.reverse.has(path));
     if (unsupported) return { full: true, reason: `import selection cannot compute the effect of ${unsupported}`, files };
-    // A test whose computed import cannot be read is an unknown root: it and every test importing it always run, and the
-    // rest stay focused, so one unreadable file never forces the whole suite (it planned 1,044 files per landing) [C7].
+    // An unreadable computed import is an unknown root: it and its importers always run, the rest stay focused (it once planned 1,044 files) [C7].
     const reached = new Set(changed);
-    const queue = [...changed];
+    const queue = [...changed], narrow = namedReach(namedImports, reached);
     // Why each path joined: the path that reached it, so a selected test can name its changed file and import chain.
     const via = new Map();
     for (const doc of changed.filter(path => DOC.test(path))) {
@@ -720,12 +747,15 @@ export function selectAffectedTests(root, { base, trunk, commit = 'HEAD', change
         }
       }
     }
+    // A reached file whose own reads are unknown still has known importers; the tests that could load it dynamically are
+    // the unknown roots retained below, so reaching it never selects the whole suite [C7].
     for (let at = 0; at < queue.length; at += 1) {
       const path = queue[at];
       for (const graph of [before, after]) {
-        if (graph.unknown.has(path)) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
+        // A malformed, unmatched or escaping declared test input has no complete reader custody: stay conservative.
+        if (/\bdeclared test input|\bdeclared input\b/u.test(graph.unknown.get(path) ?? '')) return { full: true, reason: `${graph.unknown.get(path)} in reached file ${path}`, files };
         for (const importer of graph.reverse.get(path) ?? []) {
-          if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); queue.push(importer); }
+          if (narrow.reach(graph, path, importer)) { if (!reached.has(importer)) { reached.add(importer); via.set(importer, path); } queue.push(importer); }
         }
       }
     }

@@ -1,3 +1,4 @@
+/** @pullboard-test-input packages/gate/tests/fixtures/testkit.js */
 /** Keep fixture creation behind one live-rule-aware testkit helper [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -50,13 +51,13 @@ async function fixtureAdmissionProof(t) {
       assert.doesNotMatch(`prefix${helperName}Suffix`, usage, 'helper names require real word boundaries');
     }
   }
-  const helper = readFileSync(join(import.meta.dirname, '../../tests/fixtures/testkit.js'), 'utf8');
+  const helper = readFileSync(join(import.meta.dirname, '../../../../packages/gate/tests/fixtures/testkit.js'), 'utf8');
   for (const flag of ['--route', '--brief', '--model']) assert.match(helper, new RegExp(flag));
 }
 
-test('testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
+test('cli.journeys-init-testkit.testkit-fixture-helper-satisfies-live-add: testkit fixture helper satisfies live add and join rules and owns fixture admission flags [C7] clause 1 clause 2', fixtureAdmissionProof);
 
-test('project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
+test('cli.journeys-init-testkit.project-runs-its-setup-init-and: project() runs its setup init and join in the warm worker with no Node launch, unless a test replaced run [C7]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const counted = box => {

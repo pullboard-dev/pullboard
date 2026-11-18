@@ -1,9 +1,9 @@
-/** @pullboard-test-input source-cell apps/view */
 /** #6477: the Dashboard counts stalled and waiting claims apart from building [C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dashboardModel } from '../../../src/io/dashboard/model.js';
 import { dashboardHtml } from '../../../src/logic/render/dashboard.js';
+import { agentFloorModel } from '../../../src/logic/agent/floor/model.js';
 
 const now = Date.parse('2026-11-15T18:00:00Z'), minute = 60_000;
 const until = new Date(now + 30 * minute).toISOString();
@@ -23,7 +23,7 @@ function board() {
   return dashboardModel(project, events, { now, complete: true });
 }
 
-test('clause 1: the building count leaves out the stalled and waiting claims and shows stalled 1 and waiting 1 [C7,N26]', () => {
+test('view.x-io-dashboard-claim-health.clause-1-the-building-count-leaves-out: clause 1: the building count leaves out the stalled and waiting claims and shows stalled 1 and waiting 1 [C7,N26]', () => {
   const model = board();
   assert.equal(model.stages.building, 1, 'only the claim that is building counts as building');
   assert.equal(model.stages.stalled, 1);
@@ -35,10 +35,21 @@ test('clause 1: the building count leaves out the stalled and waiting claims and
   assert.match(html, /<b>1<\/b>waiting/u);
 });
 
-test('clause 1: a board with no stalled or waiting claim shows no such tiles [C7,N26]', () => {
+test('view.x-io-dashboard-claim-health.clause-1-a-board-with-no-stalled: clause 1: a board with no stalled or waiting claim shows no such tiles [C7,N26]', () => {
   const model = board();
   const plain = { ...model, stages: { ...model.stages, stalled: 0, waitingClaims: 0 } };
   const html = dashboardHtml(plain);
   assert.doesNotMatch(html, /<\/b>stalled/u);
   assert.doesNotMatch(html, /<\/b>waiting/u);
+});
+
+test('view.x-io-dashboard-claim-health.clause-3-neither-the-dashboard-nor-the: clause 3: neither the dashboard nor the agent floor counts the stalled claim as building [C7]', () => {
+  const model = board();
+  const floor = agentFloorModel(model, []);
+  const keyOf = id => floor.groups.find(group => group.agents.some(agent => agent.id === id))?.key;
+  assert.equal(keyOf('view-1'), 'building');
+  assert.equal(keyOf('view-2'), 'stalled', 'the stalled claim sits apart from building');
+  assert.equal(keyOf('view-3'), 'stalled', 'the waiting claim sits apart from building');
+  assert.equal(floor.numbers.building, 1);
+  assert.equal(model.stages.building, 1);
 });

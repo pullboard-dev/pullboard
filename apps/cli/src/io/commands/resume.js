@@ -32,7 +32,9 @@ import {
 } from '../../../../../packages/items/index.js';
 import {
   COORDINATOR,
+  hunkFreshnessEnabled,
   loadConfig,
+  submitComposeAsObject,
 } from '../../../../../packages/config/index.js';
 import {
   resumeDoctrineNotes,
@@ -196,7 +198,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       worktreeConfig = mainRoot ? (isMain ? ctx.config : loadConfig(mainRoot)) : null;
     }
     const me = whoAmI(ctx, board);
-    const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }) : null;
+    const projector = diagnostics ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }) : null;
     const all = store.listItems(board, { all: true }).map(item => projector ? projector.project(item) : item);
     foreignBlocked = new Set(all.filter(item => store.foreignBlockers(board, item).length).map(item => item.item_id));
     const pendingMerges = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit)
@@ -301,7 +303,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (!isMain && !json) {
     const { branch, mainRef, behind = 0, ahead = 0 } = sources;
     // Fresh command facts compare the actual primary branch, not an unrelated detached review HEAD.
-    const against = mainRef ? `${ahead} ahead of main, ${behind} behind${behind ? ' (merge main before you submit)' : ''}` : 'main is detached for a verification, so ahead and behind are unknown';
+    const against = mainRef ? `${ahead} ahead of main, ${behind} behind` : 'main is detached for a verification, so ahead and behind are unknown';
     say(`branch ${branch}: ${against}${dirty ? `; ${plural(dirty, 'file')} uncommitted` : ''}`);
   } else if (dirty) {
     say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
@@ -325,7 +327,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   for (const { item, merge } of card.mainMerges) say(mainMergeLines(item, merge, name).join('; '));
   if (isMain && diagnostics && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
   else if (!isMain && diagnostics) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
-  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
     for (const batch of card.landingBatches.filter((entry) => !['landed', 'blocked'].includes(entry.state))) say(`landing ${batch.id}: ${batch.state}, owner ${batch.owner}, tip ${batch.tip}; log ${batch.logPath}; next: pullboard land --adopt`);

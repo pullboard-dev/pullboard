@@ -7,10 +7,12 @@ import { engineFolderViolations } from '../../../../../state/index.js';
 import { emptyCatchProblems } from '../../catch.js';
 import { fileSizeProblems } from '../../file/size.js';
 import { testInputProblems } from '../../test/inputs.js';
+import { requireDeclaredInputsEnabled } from '../../../../../config/index.js';
 import { testWaitSites } from '../../test/waits.js';
 import { testWaitGrowth } from '../../test/waits.js';
 import { relayBoundaryProblems } from '../../relay.js';
 import { cellsEdgeProblems } from '../../edges.js';
+import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 import { assumptionProblems } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
 import { fixedWallMargins } from '../../budgets.js';
@@ -21,10 +23,16 @@ import { exportOnlyProblems } from '../../../logic/export/only.js';
 import { LOAD_BEARING_CEILINGS } from '../../../logic/load/bearing.js';
 import { loadBearingFailures } from '../../../logic/load/bearing.js';
 import { loadBearingJudged } from '../../../logic/load/bearing.js';
+import { MARKDOWN_ALLOWLIST } from '../../../logic/markdown/allowlist.js';
+import { markdownProblems } from '../../../logic/markdown/allowlist.js';
 import { gitSpawnSync } from '../../../../../git/index.js';
 import { compatibilityToggleProblems } from '../../../../../config/index.js';
 import { INVENTORY_FILE } from '../../../../../config/index.js';
 import { storeRegistryCheck } from '../../stores.js';
+import { boardFileOpens } from '../../board/files.js';
+import { boardFileGrowth } from '../../board/files.js';
+import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
+import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
@@ -63,6 +71,18 @@ function movedPaths(root, staged) {
 }
 
 /**
+ * The cells-edges ceilings as the checked tree holds them (the staged rows in the pre-commit), so a row moved in the
+ * commit is judged as moved; the CLI's own copy applies when the tree has none. Why: a seat's hook runs main's CLI,
+ * whose ceiling file cannot see the moved row and read it as a rise (#10242).
+ *
+ * @param {(file: string) => string} text
+ * @returns {{ ceilings?: object }}
+ */
+function stagedCeilings(text) {
+  try { return { ceilings: JSON.parse(text(CELLS_EDGES_CEILINGS)) }; } catch { return {}; }
+}
+
+/**
  * The load-bearing process check over the changed files: new detached children, unrefs, daemon loops and state files
  * outside the drive, transport, jobs and pin cells, against the ceilings file, which may only fall against main's.
  * A checkout with no ceilings file (a project that is not this repository) has nothing to judge.
@@ -95,7 +115,7 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'relay-boundary', run: ({ files, sources, read }) => relayBoundaryProblems([...sources, ...files.filter(file => /^apps\/relay\/src\/io\/deploy\/.*\.[cm]?js$/u.test(file)).map(read)])
     .map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A new cross-cell import or deep import past a cell's index needs a plan declaration (packages/gate/src/io/edges.js).
-  { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text })
+  { name: 'cells-edges', run: ({ root, sources, text }) => cellsEdgeProblems(root, { files: sources.map(row => row.file), read: text, ...stagedCeilings(text) })
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   // A synchronous child process in a module a leased job, driver or producer reaches freezes its lease timer (packages/codemap/src/io/sync-spawn-in-leases.js).
   { name: 'sync-spawn-in-leases', run: ({ root, files, text }) => syncSpawnProblems(root, { read: text, only: files })
@@ -105,7 +125,8 @@ export const STATIC_CHECKS = Object.freeze([
     .map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'import-style', run: ({ sources }) => importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`) },
   // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
-  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
+  // Only changed files are reported, so a change with no JS source has nothing to report and skips the 1.5 s whole-tree proof [C7].
+  { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (!staged && !files.some(file => /\.[cm]?js$/u.test(file)) ? [] : staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/logic/export/only.js).
   { name: 'export-only', run: ({ sources, text }) => {
@@ -113,13 +134,22 @@ export const STATIC_CHECKS = Object.freeze([
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
     return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
+  // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
+  { name: 'markdown-allowlist', run: ({ root, text }) => {
+    let source;
+    try { source = text(MARKDOWN_ALLOWLIST); } catch { return []; } // a project without the allowlist file has nothing to judge
+    try { if (JSON.parse(source)?.enforce !== true) return []; } catch { /* unreadable JSON is reported by markdownProblems */ } // the refusal is opt-in: the allowlist's "enforce" switch defaults off, and an empty stand-in never has it
+    const listed = gitSpawnSync(['ls-files', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    if (listed.status !== 0) throw new Error('cannot list tracked markdown files');
+    return markdownProblems(source, listed.stdout.split('\0').filter(Boolean)).map(row => `${row.path}:${row.line}: ${row.text}`);
+  } },
   // A default export joins only as a declared reporter or a move module (packages/gate/src/logic/export/only.js) [CD22].
   { name: 'default-export', run: ({ sources }) => defaultExportProblems(sources).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'empty-catch', run: growthCheck(emptyCatchProblems) },
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
   // No new style= attribute or element .style write in apps/view; each file keeps main's count and never gains one (packages/gate/src/io/static/inline-style.js).
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
-  { name: 'test-inputs', run: growthCheck(testInputProblems) },
+  { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },
   { name: 'load-bearing', run: loadBearingCheck },
   // A store path or table write outside its owner module, or an unregistered store, refuses [CD2] (packages/gate/src/io/stores.js).
   { name: 'store-registry', run: storeRegistryCheck },
@@ -131,6 +161,12 @@ export const STATIC_CHECKS = Object.freeze([
     let source;
     try { source = text(INVENTORY_FILE); } catch { return []; } // a project without the settings inventory has no toggles to judge
     return compatibilityToggleProblems(source, previous(INVENTORY_FILE) ?? '', now);
+  } },
+  // A changed test that adds an unclassified file-board open past its file's ceiling; silent unless the gate.boardOpensCheck machine setting is on, and it reads only changed test files.
+  { name: 'board-file-opens', run: ({ root, files, read }) => {
+    const tests = files.filter(isTestSource);
+    if (!tests.length || !boardOpensCheckOn()) return [];
+    return tests.flatMap(file => boardFileGrowth(boardFileOpens(read(file).source, file), BOARD_FILE_BASELINE).map(row => `${row.path}:${row.line}: ${row.text}`));
   } },
   { name: 'test-waits', run: ({ root, files, read }) => {
     let baseline;

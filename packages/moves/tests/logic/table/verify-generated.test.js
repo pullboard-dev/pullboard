@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { VERIFY_NEXT } from '../../../index.js';
+import { NATIVE_FLAKE_ENGINE } from '../../../../state/light.js';
 import { boardVerifyEngine } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { seeded } from '../../../index.js';
@@ -91,13 +92,13 @@ function scenario(seed) {
   const lost = one(12); // a board that never recorded the submit
   for (let i = 0; i <= count; i++) (i === at ? () => !lost && push('submit', 'core-1', { commit }) : p(steps))();
   const since = history.findLast(e => e.kind === 'submit')?.id ?? 0;
-  const observations = Array.from({ length: g.int(3) }, (_, i) => ({ id: p([since - 1, since, since + 1 + i, since + 1 + i]), detail: { engine: p([61, 61, 60]),
+  const observations = Array.from({ length: g.int(3) }, (_, i) => ({ id: p([since - 1, since, since + 1 + i, since + 1 + i]), detail: { engine: p([NATIVE_FLAKE_ENGINE, NATIVE_FLAKE_ENGINE, NATIVE_FLAKE_ENGINE - 1]),
     observation: { kind: p(['verify', 'verify', 'submit']), head: p([commit, commit, 'e'.repeat(40)]), original: { green: p([false, false, true]) }, file: p(['test/a.test.js', 'test/a.test.js', 7]), name: p([' keeps order ', 'names it', 3]) } } }));
   const s = { now: NOW, actor: { id: actor, joined: true, route: p(ROUTES.slice(ROUTES.indexOf(route))), family: p(['OpenAI', null, undefined]) },
     item: { id: 42, status: one(8) ? 'verified' : 'submitted', merged: false, commit, frozenDigest: DIGEST, route, lane: p(['core', 'core', 'coordinator']), builtBy: p(['core-1', 'core-1', null]), owner: 'core-1',
       frozen: frozen({ verify: { policy: one(6) ? 'coordinator' : 'any', family: p(['off', 'prefer', 'require']) } }, `c0ffee9${hex(g, p([33, 57, 45]))}`),
       reviewBy: p([null, null, actor, 'core-9']), reviewUntil: p([PAST, NOW, LATER]), effectiveHead: p([null, null, head]), outside: null },
-    history, verdicts, knownItems: [7, 8], actorFlakeObservations: observations, nativeFlakeEngine: 61, lineSettings: { sharpenToPerson: p([true, false, 'yes']) }, nextEventId: id + g.int(3), nextVerdictId: 900 + verdicts.length,
+    history, verdicts, knownItems: [7, 8], actorFlakeObservations: observations, nativeFlakeEngine: NATIVE_FLAKE_ENGINE, lineSettings: { sharpenToPerson: p([true, false, 'yes']) }, nextEventId: id + g.int(3), nextVerdictId: 900 + verdicts.length,
     io: { isMain: false, mainRefusal: null, selfSession: false, staleAcceptance: true, policyRefused: null, commitInHead: p([true, undefined]), root: '/repo', missingCompanions: p([null, null, { keys: [], digest: 'p0' }]),
       checkRefused: null, selectorGap: one(6), reviewHolderFresh: p([true, false, undefined]) },
     deferred: { ...Object.fromEntries(Object.values(DEFERRED).map(key => [key, null])), relaxation: p([null, 'relaxed after 5 minutes']), assurance: p([null, { level: 'two-tier' }]),
@@ -228,9 +229,11 @@ const ok = results.filter(c => !c.result.refused);
 
 test('moves.verify.rows-fire: generated: every guard, outcome and follow-up row of the verify table fires on some seeded case [C7,#8264]', () => {
   const fired = new Set(results.flatMap(c => (c.result.refused ? [c.result.refused.row] : c.result.via)));
-  const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].map(row => row.id);
+  // The seeds run steady, so the rows tagged for other paces are left out here; verify-sprint.test.js fires those [#8868].
+  const steady = (row) => !row.paces || row.paces.includes('steady');
+  const rows = [...TABLE.guards, ...TABLE.outcomes, ...TABLE.followups].filter(steady).map(row => row.id);
   assert.deepEqual(rows.filter(row => !fired.has(row)), []);
-  assert.deepEqual(GUARDS.map(([row]) => row), TABLE.guards.map(row => row.id));
+  assert.deepEqual(GUARDS.map(([row]) => row), TABLE.guards.filter(steady).map(row => row.id));
   assert.ok(ok.length > CASES / 4, `only ${ok.length} accepted verdicts`);
   assert.match(learnt.barKey, /^[0-9a-f]{64}$/u);
 });

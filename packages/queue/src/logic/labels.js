@@ -70,6 +70,58 @@ export function labelRows(declared, items, context = {}) {
   return [...holders.keys()].sort().map(label => {
     const { min = null, max = null } = declared?.[label] ?? {};
     const who = [...holders.get(label)].sort();
-    return { label, min, max, holders: who, unmet: min !== null && who.length < min };
+    return { label, min, max, holders: who, unmet: min !== null && who.length < min, capped: max !== null && who.length >= max };
   });
+}
+
+/**
+ * The labels an item carries that already have as many holders as their declared max, so a pin on it must not win [N2,B13,#9165].
+ * Why pure: `next` and the labels listing both ask it, so the offer and the listing agree on what is capped.
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item, to count each label's holders.
+ * @param {object} item - The item asked about.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {string[]} Sorted capped labels the item carries; empty when it is free to offer.
+ */
+export function cappedLabelsOf(declared, items, item, context = {}) {
+  if (item.item_status === 'claimed') return [];
+  const mine = new Set(itemLabels(item, context));
+  return labelRows(declared, items, context).filter(row => row.capped && mine.has(row.label)).map(row => row.label);
+}
+
+/**
+ * The first candidate, in queue order, that carries no label at its max, or null when every candidate is capped [N2,B13,#9165].
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item.
+ * @param {Array<object>} candidates - Items this agent could serve, in queue order.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {object | null}
+ */
+export function firstUnderLabelMax(declared, items, candidates, context = {}) {
+  return candidates.find(item => !cappedLabelsOf(declared, items, item, context).length) ?? null;
+}
+
+/**
+ * The item a label below its minimum should take next, or null when every minimum is met or nothing fits [N2,B13].
+ * Walks the rows in label order; a label is filled from when it is under its min and under its max, and the first
+ * candidate (the queue's order) carrying it wins. A label at its max is never filled, and a candidate whose milestone
+ * is not open for work (`milestoneOpen === false`) is never picked to fill a minimum.
+ * Why pure: `next` hands in the board's items, the agent's servable candidates in queue order and the open-milestone
+ * flag, so the pick is decided here with no board read and no setting.
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item, to count each label's holders.
+ * @param {Array<object>} candidates - Items this agent could serve, in queue order; `milestoneOpen: false` marks a closed milestone.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {object | null}
+ */
+export function pickForLabelMinimum(declared, items, candidates, context = {}) {
+  for (const row of labelRows(declared, items, context)) {
+    if (!row.unmet || (row.max !== null && row.holders.length >= row.max)) continue;
+    const pick = candidates.find(item => item.milestoneOpen !== false && itemLabels(item, context).includes(row.label));
+    if (pick) return pick;
+  }
+  return null;
 }

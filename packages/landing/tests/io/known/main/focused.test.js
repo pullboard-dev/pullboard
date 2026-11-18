@@ -12,7 +12,7 @@ import { matchingMainFailures } from '../../../../index.js';
 const TARGET = 'apps/cli/journeys/exit/rules.test.js';
 
 /** A complete TAP record remains a case-level match against the same focused main file. */
-test('a focused red main run yields a matching named failure account [B3,C7]', () => {
+test('landing.focused.a-focused-red-main-run-yields: a focused red main run yields a matching named failure account [B3,C7]', () => {
   const root = join(import.meta.dirname, '../../../../../..');
   const output = [
     'TAP version 13', 'not ok 1 - inherited case [B3]', '  ---',
@@ -29,7 +29,7 @@ test('a focused red main run yields a matching named failure account [B3,C7]', (
 });
 
 /** The exact file-red fallback is permitted only for a complete isolated main execution. */
-test('an incomplete named account falls back to a complete per-file isolation verdict [B3,C7]', () => {
+test('landing.focused.an-incomplete-named-account-falls-back: an incomplete named account falls back to a complete per-file isolation verdict [B3,C7]', () => {
   const main = 'a'.repeat(40);
   const candidate = { file: TARGET, name: 'candidate case', signature: 'b'.repeat(64) };
   const comparison = { main, files: [{ file: TARGET, result: 'red', fileIsolation: true }] };
@@ -52,7 +52,7 @@ function redMain() {
 }
 
 /** The main red is checked at an exact committed main and retained as either named or isolated evidence. */
-test('exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async t => {
+test('landing.focused.exit-rules-on-main-is-recorded: exit-rules on main is recorded as a known red by the focused comparison [B3,C7]', { timeout: 240_000 }, async t => {
   const main = redMain();
   t.after(() => rmSync(main.root, { recursive: true, force: true }));
   assert.ok(main.commit, 'the focused comparison pins a committed main');

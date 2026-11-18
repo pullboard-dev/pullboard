@@ -22,6 +22,9 @@ const SOURCE = resolve(import.meta.dirname, '../../../../..');
 /** Two files, two shards: the fan-out is under test, not its volume, and every shard is a whole node process. */
 const NAMES = ['a', 'b'];
 
+/** What a gate child never loads: the apps and packages its entry's import graph does not reach, and every package's own tests and journeys (unreached by any source file). A smaller tree is a faster copy, add, commit, pack and per-shard checkout [C7]. */
+const UNUSED = /^(?:apps\/(?:view|relay|runner)\/|packages\/(?:api|blueprints|board|flakes|github|health|land|mcp|moves|rigor|search|sentinels|shouts|sync)\/|(?:apps|packages)\/[^/]+\/(?:tests|journeys)\/)/u;
+
 let template = null;
 const T0 = Date.now();
 /** A phase mark on stderr, in seconds since the file loaded: it shows where the wait is. */
@@ -59,7 +62,7 @@ function projectTemplate() {
   // The gate under test runs from source, never from the shipped test files: leaving them out shrinks the copy, the commit, and every shard's checkout and cleanup.
   // The fixture has no cell plan: with one, every shard's gate also builds the accepted inventory of the whole source tree, work a name filter never exercises [C7].
   // Docs and the archived board history (22 MB of the 41 MB) are never read by a gate child, and every case and shard copies the project.
-  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file)) });
+  copyPackageFiles(SOURCE, repo, { files: packageFiles(SOURCE).filter(file => !/\.test\.js$/u.test(file) && file !== 'packages/codemap/data/plan/cells.json' && !/^(?:docs|packages\/state\/data)\//u.test(file) && !UNUSED.test(file)) });
   for (const name of NAMES) writeFileSync(join(repo, `test/${name}.test.js`), fixtureTest(name));
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node apps/cli/src/io/run/tests.js', landingShards: 2 }));
   const env = projectEnv(dir);
@@ -105,7 +108,7 @@ async function gate(box, pattern = '^target', extra = [], files = NAMES.map(name
 
 /** The cases share nothing but the read-only template, so they run side by side; each gate child is async for that. */
 describe('name-filtered landing shards [C7]', { concurrency: 10 }, () => {
-test('clause 1: a name-filtered landing gate with landingShards 2 runs as two shards, each with the name filter [C7]', async t => {
+test('landing.filter.a-name-filtered-landing-gate-with: clause 1: a name-filtered landing gate with landingShards 2 runs as two shards, each with the name filter [C7]', async t => {
   // Overlapping globs ride the same gate: each of the two target cases still runs once.
   const run = await gate(await project(t), '^target', [], ['test/*.test.js', 'test/[ab].test.js']);
   assert.equal(run.status, 0, run.context ?? run.stdout + run.stderr);
@@ -114,7 +117,7 @@ test('clause 1: a name-filtered landing gate with landingShards 2 runs as two sh
   assert.equal(cases, 2, 'every shard ran only its target case, and overlapping globs run each of the two target cases once');
 });
 
-test('clause 2: a red in any name-filtered shard fails the gate and names the test; a filter matching nothing fails too [C7]', async t => {
+test('landing.filter.a-red-in-any-name-filtered: clause 2: a red in any name-filtered shard fails the gate and names the test; a filter matching nothing fails too [C7]', async t => {
   const [red, none] = await Promise.all([project(t, 'b').then(box => gate(box)), project(t).then(box => gate(box, '^no such case$'))]);
   assert.notEqual(red.status, 0);
   assert.match(red.stdout + red.stderr, /target b/u, 'the failing case is named');
@@ -123,7 +126,7 @@ test('clause 2: a red in any name-filtered shard fails the gate and names the te
   assert.match(none.stdout + none.stderr, /NO_TESTS_MATCHED/u);
 });
 
-test('clause 1: duplicate paths run once, and every selector option reaches every shard [C7]', async t => {
+test('landing.filter.duplicate-paths-run-once-and-every: clause 1: duplicate paths run once, and every selector option reaches every shard [C7]', async t => {
   const box = await project(t);
   const files = [...NAMES.map(name => `test/${name}.test.js`), 'test/a.test.js', './test/b.test.js'];
   const run = await gate(box, '^target', ['--test-skip-pattern', 'target [b] '], files);
@@ -136,7 +139,7 @@ test('clause 1: duplicate paths run once, and every selector option reaches ever
   ['--test-name-pattern', 'x', '--test-skip-pattern=y', '--test-timeout', '5', '--test-reporter=tap'], 'every option as written; only files drop');
 });
 
-test('clause 1: equivalent spellings of one test file plan onto one shard once [C7]', async () => {
+test('landing.filter.equivalent-spellings-of-one-test-file: clause 1: equivalent spellings of one test file plan onto one shard once [C7]', async () => {
   const { planLandingShards } = await import('../../../index.js');
   const root = '/repo';
   const spellings = ['test/a.test.js', './test/a.test.js', 'test/../test/a.test.js', 'test//a.test.js', 'test/./a.test.js', '/repo/test/a.test.js', 'test/b.test.js', 'test/x/../b.test.js'];
@@ -146,7 +149,7 @@ test('clause 1: equivalent spellings of one test file plan onto one shard once [
   assert.equal(planLandingShards(['test/../test/a.test.js', 'test/a.test.js'], 2).flatMap(shard => shard.files).length, 1, 'no root still folds relative spellings');
 });
 
-test('clause 1: the fan-out expands globs and folds spellings into one file list [C7]', async t => {
+test('landing.filter.the-fan-out-expands-globs-and: clause 1: the fan-out expands globs and folds spellings into one file list [C7]', async t => {
   const { landingFanOutFiles, optionTakesValue } = await import('../../../../gate/index.js');
   const box = await project(t);
   assert.deepEqual(landingFanOutFiles(['test/a.test.js', './test/a.test.js', 'test/b.test.js'], ['--test-name-pattern', 'x'], box.repo, optionTakesValue),
@@ -157,7 +160,7 @@ test('clause 1: the fan-out expands globs and folds spellings into one file list
     'a pattern value that looks like a shard flag is a pattern');
 });
 
-test('clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
+test('landing.filter.a-name-filtered-landing-that-also: clause 1: a name-filtered landing that also carries a caller shard flag refuses USAGE and never fans out [C7]', async t => {
   const { landingFanOutFiles, optionTakesValue } = await import('../../../../gate/index.js');
   const box = await project(t);
   for (const args of [['--test-shard=1/2'], ['--test-shard', '2/2'], ['--test-shard'], ['--test-name-pattern', 'x', '--test-shard'], ['--shard=1/2']]) {
@@ -170,7 +173,7 @@ test('clause 1: a name-filtered landing that also carries a caller shard flag re
   assert.doesNotMatch(run.stdout, /# landing selected cases/u, 'no shard ran');
 });
 
-test('clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', async t => {
+test('landing.filter.a-selector-option-missing-its-value: clause 1: a selector option missing its value refuses as the unsharded run does, and never fans out [C7]', async t => {
   const box = await project(t);
   const gates = ['--test-skip-pattern', '--test-name-pattern'].map(option => gate(box, '^target', [], [...NAMES.map(name => `test/${name}.test.js`), option]));
   for (const [index, option] of ['--test-skip-pattern', '--test-name-pattern'].entries()) {
@@ -181,7 +184,7 @@ test('clause 1: a selector option missing its value refuses as the unsharded run
   }
 });
 
-test('clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
+test('landing.filter.a-caller-test-timeout-reaches-every: clause 2: a caller --test-timeout reaches every shard, so a case that times out unsharded fails the sharded gate [C7]', async t => {
   const extra = ['--test-timeout=3000'];
   const run = await gate(await project(t, null, 'b'), '^target', extra);
   assert.notEqual(run.status, 0, `${extra.join(' ')}: ${run.stdout}${run.stderr}`);
@@ -191,7 +194,7 @@ test('clause 2: a caller --test-timeout reaches every shard, so a case that time
   assert.match(run.stdout, /# landing result: red/u);
 });
 
-test('clause 1: a name filter with no file arguments fans out, and its collection never claims the full suite [C7]', async t => {
+test('landing.filter.a-name-filter-with-no-file: clause 1: a name filter with no file arguments fans out, and its collection never claims the full suite [C7]', async t => {
   const box = await project(t);
   // Only the two fixture files stay tracked tests, so the unfiltered default suite is exactly them.
   const packaged = execFileSync('git', ['ls-files', '*.test.js'], { cwd: box.repo, env: box.env, encoding: 'utf8' }).split('\n').filter(file => file && !file.startsWith('test/'));
@@ -205,7 +208,7 @@ test('clause 1: a name filter with no file arguments fans out, and its collectio
   assert.equal(suite.full, false, 'a filtered run is never a full-suite collection');
 });
 
-test('clause 1: files after -- stay files in every shard, under the caller spelling, even one named like an option [C7]', async t => {
+test('landing.filter.files-after-stay-files-in-every: clause 1: files after -- stay files in every shard, under the caller spelling, even one named like an option [C7]', async t => {
   const box = await project(t);
   writeFileSync(join(box.repo, '-case.test.js'), "import { test } from 'node:test';\ntest('target dash [C7]', () => {});\n");
   execFileSync('git', ['add', '--', '-case.test.js'], { cwd: box.repo, env: box.env });
@@ -219,7 +222,7 @@ test('clause 1: files after -- stay files in every shard, under the caller spell
   assert.deepEqual(landingFanOutFiles(['./test/a.test.js', 'test/a.test.js', '-case.test.js', `${box.repo}/test/b.test.js`], [], box.repo, optionTakesValue),
     ['./test/a.test.js', '-case.test.js', 'test/b.test.js'], 'the first spelling is kept; only an absolute one becomes repository-relative');
 });
-test('clause 1: the fixture repo carries no cell plan index, so no gate child builds the full-tree inventory [C7]', async t => {
+test('landing.filter.the-fixture-repo-carries-no-cell: clause 1: the fixture repo carries no cell plan index, so no gate child builds the full-tree inventory [C7]', async t => {
   const box = await project(t);
   assert.equal(existsSync(join(box.repo, 'packages/codemap/data/plan/cells.json')), false);
   assert.equal(existsSync(join(box.repo, 'packages/codemap/index.js')), true, 'the rest of the source tree is still copied');

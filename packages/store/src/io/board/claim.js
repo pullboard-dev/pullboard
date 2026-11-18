@@ -74,28 +74,50 @@ import {
   logEvent,
 } from "./event/log.js";
 
-/** Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves. */
-function runnerSlots(board) {
-  if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
-  const at = board.clock.now().getTime(), serves = new Map();
-  for (const row of board.db.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
+/**
+ * Free pulled test-run slots: jobs each recently claiming runner declared, less live jobs; null when no runner serves.
+ * The job tables are read from `home`: the board while runs_store is off, the runs file while it is on [B2,#9015].
+ */
+function slotsIn(home, at) {
+  if (!home?.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='job_step'").get()) return null;
+  const serves = new Map();
+  for (const row of home.prepare("SELECT job_step_payload AS payload FROM job_step WHERE job_step_name = 'claimed' AND job_step_at >= ?").all(at - 600_000)) {
     let step = null;
     try { step = JSON.parse(row.payload); } catch { /* an unreadable step declares nothing */ }
     if (typeof step?.runner === 'string' && Number.isSafeInteger(step.jobs) && step.jobs >= 1) serves.set(step.runner, Math.max(serves.get(step.runner) ?? 0, step.jobs));
   }
   if (serves.size === 0) return null;
-  const busy = board.db.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
+  const busy = home.prepare("SELECT count(*) AS n FROM job WHERE job_lease_owner IS NOT NULL AND job_lease_until >= ? AND job_step <> 'done'").get(at).n;
   return Math.max(0, [...serves.values()].reduce((sum, jobs) => sum + jobs, 0) - busy);
+}
+
+/**
+ * The runner slots read once from the runs file, before any board write opens: a snapshot that can be one read old. A claim
+ * takes it as its input and never opens a runs handle inside its own board write [B2,#9015].
+ *
+ * @param {{ clock: { now: () => Date } }} board
+ * @param {{ db: import('node:sqlite').DatabaseSync | null }} runs - The read-only runs holder (boardRunsReader).
+ * @returns {number | null} Free slots, or null when no runner serves or there is no runs file.
+ */
+export function runnerSlotsSnapshot(board, runs) {
+  return slotsIn(runs.db, board.clock.now().getTime());
+}
+
+/** Free pulled test-run slots on the board's own job tables, as before runs_store. */
+function runnerSlots(board) {
+  return slotsIn(board.db, board.clock.now().getTime());
 }
 
 /**
  * How many live top-level build claims one seat may hold, and one line saying how N was found [C7].
  * Why: a seat builds its next item while the last one's tests run; free test-run slots per live seat bound that.
  * perSeat is the claims.perSeat setting the claiming command read, so a replay reads the same number.
+ * With runs_store on the caller reads `runs` (a read-only runs holder) here, before the claim's board write opens, so the runner
+ * slots come from a snapshot; without it the board's own job rows are read as on main [B2,#9015].
  */
-export function claimsPerSeat(board, perSeat = null) {
+export function claimsPerSeat(board, perSeat = null, { runs = null } = {}) {
   if (Number.isSafeInteger(perSeat) && perSeat >= 1) return { n: perSeat, how: `claims.perSeat sets ${perSeat}` };
-  const runners = runnerSlots(board);
+  const runners = runs ? runnerSlotsSnapshot(board, runs) : runnerSlots(board);
   const slots = runners ?? availableParallelism();
   const seats = Math.max(1, withLocalSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent WHERE agent_lane != ?').all(COORDINATOR)).filter(seat => seat.presence === 'live').length);
   const n = Math.min(5, Math.max(1, Math.floor(slots / seats)));
@@ -107,10 +129,10 @@ export function claimsPerSeat(board, perSeat = null) {
  * which of the seat's live claims wait on their own gate here, and the N this computer sizes. A pulled gate's job
  * and the runner slots live only on the computer that submitted, so a replay elsewhere could not see them.
  */
-export function claimAdmission(board, id, agentId, perSeat = null) {
+export function claimAdmission(board, id, agentId, perSeat = null, { runs = null } = {}) {
   const gateWaits = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_id != ? ORDER BY item_id")
     .all(agentId, id).map(row => row.item_id).filter(item => awaitingGateOrReview(board, itemById(board, item)));
-  return { gateWaits, seatCap: claimsPerSeat(board, perSeat).n };
+  return { gateWaits, seatCap: claimsPerSeat(board, perSeat, { runs }).n };
 }
 
 /** A claim's gate waits: the sealed list when the claim carries one, else this computer's own gate records. */
@@ -119,7 +141,7 @@ function waitsOnGate(board, gateWaits, itemId) {
 }
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, perSeat = null, gateWaits = null, seatCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, refreshPolicy = false, reworkRoutingPolicy = null, itemFolder = false, buildBudgetMinutes = 30, routeCap = null, shapedStrong = false, perSeat = null, gateWaits = null, seatCap = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -130,7 +152,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
     throw new Refused('ENGINE_VERSION', `a lane policy refresh requires engine ${AUTOMATIC_DISPATCH_ENGINE}; upgrade Pullboard`);
   }
   const refreshes = refreshPolicy === true && !adopts;
-  const leaseUntil = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+  const instant = board.clock.now();
+  const leaseUntil = new Date(instant.getTime() + leaseMs).toISOString();
   const isRenewal = (item) => item.item_owner === agentId && isHeld(board, item);
   // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
   // builder fixing what a verifier found need not drop its other work to do it.
@@ -162,6 +185,8 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         // Only light work needs a diagnosis; a light seat reaching above its route is refused ROUTE (#2886).
         const diagnosisProblem = route === 'light' && found.item_route === 'light' ? lightDiagnosisProblem(board, found, 'light') : null;
         if (diagnosisProblem) return diagnosisProblem;
+        // next.lightShapedStrong: the caller found this strong item light-shaped, so a light seat may take it (#9568).
+        if (shapedStrong && route === 'light' && found.item_route === 'strong') return null;
         return canTake(route, found.item_route) ? null : new Refused('ROUTE', `item #${id} needs a ${found.item_route} model; ${route === routeOf(board, agentId) ? 'you joined on' : 'the model this session declared serves'} the ${route} route. Take your next item: pullboard next`);
       },
       buildScopeFits: found => isRenewal(found) || (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE ? null : expectedBuildProblem(found, buildBudgetMinutes),
@@ -229,30 +254,32 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       oneLiveClaim: (found) => {
         // Every modern-engine claim respects the cap, including legacy-shaped children and reworks.
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
+        // A child is free only beside its own parent, the sub-agent case; a child of a parent this seat does not hold is a
+        // build claim like any other, or next stacks every slice of an unheld umbrella item on one seat (#10846).
+        const mine = new Set(board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ?")
+          .all(agentId, now(board)).map(row => row.item_id));
+        const counted = item => (item.item_parent_id === null || !mine.has(item.item_parent_id)) && !isRework(item);
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
             .all(agentId, now(board), id).filter(row => !waitsOnGate(board, gateWaits, row.item_id));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
           // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
-          if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
-            const top = held.filter(row => row.item_parent_id === null && !isRework(row));
+          if (itemFolder === true && counted(found)) {
+            const top = held.filter(counted);
             const { n, how } = !Number.isSafeInteger(perSeat) && Number.isSafeInteger(seatCap) && seatCap >= 1
               ? { n: seatCap, how: `the claiming computer sized N = ${seatCap}; claims.perSeat overrides it` } : claimsPerSeat(board, perSeat);
             seatN = n;
-            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
+            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (children of an item you hold are free)`);
           }
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
-        if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
+        if (!counted(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
-          .prepare(
-            `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
-               AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
-               AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
-          )
-          .all(agentId, now(board), id, agentId)
-          .find(row => !waitsOnGate(board, gateWaits, row.item_id));
-        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
+          .prepare(`SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed'
+               AND item_lease_until > ? AND item_id != ?`)
+          .all(agentId, now(board), id)
+          .find(row => counted(row) && !waitsOnGate(board, gateWaits, row.item_id));
+        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (children of an item you hold are free)`) : null;
       },
       rowsInForce: (found) => {
         // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
@@ -274,7 +301,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
+  return { how, leaseUntil, instant, isRenewal, admission, outcome, adopts, refreshes, frozen: () => frozen,
     policyRefreeze: () => policyRefreeze, reworkRouting: () => reworkRouting, seatN: () => seatN };
 }
 
@@ -282,6 +309,18 @@ const PREPARED_CLAIMS = new WeakMap();
 
 /** Preparations of one claim before a board whose claim rows keep changing is reported BOARD_BUSY. */
 const CLAIM_PREPARE_ATTEMPTS = 5;
+
+/**
+ * The item-keyed board_meta key families a claim reads, each as the key text before the item id.
+ * Why: exact keys are served by the meta_key primary key; a LIKE '%:<id>' read cannot use any index and scanned the table.
+ */
+const ITEM_META_FAMILIES = [
+  'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
+  'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
+  'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
+];
 
 /**
  * The rows a prepared claim depends on: the item (its holder, lease, bar and after-links), the state of each
@@ -293,13 +332,14 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
  * @param {number} id
  * @returns {string}
  */
-function claimRows(board, id) {
+export function claimRows(board, id) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null;
   const dependencies = item ? itemDependencies.localDependencyIds(item).map(dependency =>
     board.db.prepare('SELECT item_id,item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency) ?? null) : [];
   const lastEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(id)?.id ?? null;
-  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
-    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id));
+  const keys = ['row_decisions', 'bar_ready_setting', ...ITEM_META_FAMILIES.map(family => `${family}${id}`)];
+  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN (${keys.map(() => '?').join(',')})
+    ORDER BY meta_key`).all(...keys);
   return JSON.stringify({ item, dependencies, lastEvent, meta, refreeze: pendingRefreeze(board, id) });
 }
 
@@ -353,8 +393,8 @@ export function prepareClaim(board, id, options, ports) {
 /**
  * Claim an item, or renew your own claim (B4, B5, B12, V2).
  *
- * One live top-level claim per agent, so nobody hoards; child items are free, which is how
- * sub-agents share a lane. A lapsed claim can be taken. Every item is built in its own lane, the
+ * One live top-level claim per agent, so nobody hoards; a child of an item the claimer holds is free,
+ * which is how sub-agents share a lane, and a child of an unheld parent counts like a top-level item (#10846). A lapsed claim can be taken. Every item is built in its own lane, the
  * coordinator's included, so no agent can build another lane's work from the main checkout. The
  * first claim freezes the criterion: `freeze` returns the text and digest the verdict will later be
  * held to. A fresh claim also records `head`, the commit the work starts from, so submit can name
@@ -373,16 +413,24 @@ export function claim(board, id, options, ports) {
 /**
  * Record a submit admission on the caller's own live claim without ever sleeping: one preparation, one write.
  * Why: an API request records the witness for a pulled green gate, and a request must not park its thread on
- * Atomics.wait; a board that moved under the preparation refuses BOARD_BUSY and the caller skips the witness [C7].
+ * Atomics.wait. Only the claim's own rows can make the preparation stale, as for a plain claim (#6016): under the
+ * whole-board check any heartbeat or fact another process wrote meanwhile refused BOARD_BUSY, the caller skipped the
+ * witness, and review could never reuse that gate's proof (#10942). The one read beyond those rows, that the admission
+ * id is unused, is checked again under the lock against the events written since the snapshot [C7].
  */
 export function admitSubmit(board, id, options, ports) {
   const snapshot = boardWriteSnapshot(board);
   const rows = claimRows(board, id);
   const plan = claimPlan(board, id, options, ports);
   ports.checkedItemMove(board, id, 'claim', plan.how.checks);
-  const binding = { board, id, snapshot, rows, strict: true, plan };
+  const binding = { board, id, snapshot, rows, strict: false, plan, admissionSince: snapshot.eventId };
   if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
   return commitClaim(board, id, Object.freeze({ ...options }), binding, ports);
+}
+
+/** Whether a claim or renewal written after event `since` already used this submit admission id; a primary-key range read. */
+function admissionUsedSince(board, since, admissionId) {
+  return Boolean(board.db.prepare("SELECT 1 FROM event WHERE event_id > ? AND event_kind IN ('claim','renew') AND json_valid(event_detail) AND json_extract(event_detail,'$.submitAdmission.id')=? LIMIT 1").get(since, admissionId));
 }
 
 /** Write a prepared claim under the board write lock; shared by a claim and an admission. */
@@ -405,6 +453,7 @@ function commitClaim(board, id, prepared, binding, ports) {
     const shadow = decided && !live ? { before: board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id, decided } : null;
     // Under the lock only the claim's own rows are compared; the guards below read the current board (#6016).
     if (!claimStillPrepared(board, id, binding)) throw staleBoardRefusal(board, snapshot, 'claim');
+    if (admission && Number.isSafeInteger(binding.admissionSince) && admissionUsedSince(board, binding.admissionSince, admission.id)) throw staleBoardRefusal(board, snapshot, 'claim');
     const item = moveItem(board, id, 'claim', plan.how);
     const frozen = plan.frozen();
     const renewed = isRenewal(item);

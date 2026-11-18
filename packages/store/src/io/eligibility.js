@@ -2,6 +2,29 @@ import * as store from "./board.js";
 import { nextWithReleaseCooldown } from "./cooldown.js";
 import { heldClaim } from "./claim.js";
 import { submitHandoff } from "./submit/handoff/records.js";
+import { itemFiles } from "../../../items/index.js";
+
+/** A path's cell, the codemap cell rule kept here so selection loads no further module [C7,#8907]. */
+function cellOfPath(path) {
+  return /^(?:apps|packages)\/[^/]+(?=\/)/u.exec(path)?.[0] ?? null;
+}
+
+/**
+ * The open items whose named files share a cell with an item another seat holds, so two writers never share a cell [C7,#8907].
+ * Why not the lane folders: with laneMode off they are only labels, so the cell is the unit one seat owns at a time.
+ *
+ * @param {any} board
+ * @param {string} agentId
+ * @returns {number[]}
+ */
+function heldCellItems(board, agentId) {
+  const items = store.listItems(board);
+  const now = board.clock.now().toISOString();
+  const held = new Set(items.filter(item => item.item_status === 'claimed' && item.item_owner !== agentId && item.item_lease_until > now)
+    .flatMap(item => itemFiles(item).map(cellOfPath)).filter(Boolean));
+  if (!held.size) return [];
+  return items.filter(item => item.item_status === 'open' && itemFiles(item).some(file => held.has(cellOfPath(file)))).map(item => item.item_id);
+}
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -12,10 +35,11 @@ import { submitHandoff } from "./submit/handoff/records.js";
  *
  * @param {any} board
  * @param {{ agent_id: string, agent_lane: string }} nativeSeat - The exact seat resolved by the caller.
- * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], reviewHeartbeats?: Map<string, string | null> | null, releaseCooldown?: { minutes: number, now: number } | null }} [options]
+ * `lanes` widens the build search past the seat's lane, as laneMode off does [C7,#8906].
+ * @param {{ lanes?: string[] | null, policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], reviewHeartbeats?: Map<string, string | null> | null, releaseCooldown?: { minutes: number, now: number } | null }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map(), reviewHeartbeats = null, releaseCooldown = null } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, idleBlockers = false, workingFiles = new Map(), reviewHeartbeats = null, releaseCooldown = null, lanes = null } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -37,9 +61,9 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
   if (stopped) return { item: stopped, review: false, held: true, reasons: [] };
 
   // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
-  const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles },
+  const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: lanes ? [...assignedIds, ...heldCellItems(board, agentId)] : assignedIds, observeIdle, idleBlockers, workingFiles, ...(lanes ? { lanes } : {}) },
     releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
-  return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { skips: [...(review.skips ?? []), ...(build.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3), idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
+  return { item: build.item, review: false, held: false, ...(idleBlockers && !build.item ? { blockers: build.blockers ?? [] } : {}), ...(observeIdle && !build.item ? { skips: [...(review.skips ?? []), ...(build.skips ?? [])].filter((row, index, rows) => rows.findIndex(other => other.item === row.item) === index).slice(0, 3), idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }
 
 /**

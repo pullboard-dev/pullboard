@@ -23,11 +23,13 @@ function hostOf(text) { return { cores: field(text, 'cores'), ram: field(text, '
  * posted (held jobs, or any claim within SERVE_RECENT_MS), so a serve that never claimed is unknown to the board.
  * Why one reader: the live view and ops each counted per-service registrations and showed 3 of 120 while runners ran 8 jobs each.
  *
- * @param {import('node:sqlite').DatabaseSync} db - The board, read only.
- * @param {{ now?: number }} [options]
+ * @param {import('node:sqlite').DatabaseSync} board - The board, read only.
+ * @param {{ now?: number, runs?: { db: import('node:sqlite').DatabaseSync | null } | null }} [options] - runs: with runs_store on, the read-only runs holder; the job rows are read from it and not from the board, and a missing runs file reads as no jobs [B2,#9014].
  * @returns {{ serves: { runner: string, claimed: number, jobs: number|null, cores?: number, ram?: number }[], totals: { claimed: number, jobs: number, serves: number } }}
  */
-export function readPulledCapacity(db, { now = Date.now() } = {}) {
+export function readPulledCapacity(board, { now = Date.now(), runs = null } = {}) {
+  const db = runs ? runs.db : board;
+  if (!db) return { serves: [], totals: { claimed: 0, jobs: 0, serves: 0 } };
   const serves = new Map();
   const serve = runner => { if (!serves.has(runner)) serves.set(runner, { runner, claimed: 0, jobs: null }); return serves.get(runner); };
   const note = (entry, jobs, text) => {

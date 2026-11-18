@@ -20,7 +20,7 @@ document.addEventListener('click', (event) => {
   const picked = event.target.closest('#mdrawer [data-tab], #mdrawer [data-needs-list]');
   if (picked && !picked.dataset.later) {
     event.stopPropagation(); setMenu(false); picked.dataset.later = '1';
-    requestAnimationFrame(() => setTimeout(() => { picked.click(); delete picked.dataset.later; }, 0));
+    afterPaint(() => { picked.click(); delete picked.dataset.later; });
   }
 }, true);
 document.addEventListener('keydown', (event) => {

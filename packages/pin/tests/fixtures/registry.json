@@ -1,0 +1,147 @@
+{
+  "pin.keyed.pin-and-bundle": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "pinFor(commit) returns {tree, tooling} and bundleFor(tree) writes a bundle keyed by tree id, reused when present."
+    },
+    "why": "A bundle keyed by tree id is what lets runs reuse the same source.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.keyed.refuses-bad-tree": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a bad tree id or unknown commit is refused with a code."
+    },
+    "why": "Bad input must refuse with a code, not write a pin.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.tooling.landing-writes-pin": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "packages/pin writes the tooling pin for a landed commit, and toolingFor returns the last landing tree as tooling and the seat's own tree as source."
+    },
+    "why": "Runs must use the last landed tooling but the seat's own source.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.tooling.corrupt-pin-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a corrupt tooling pin is refused with a code and an unknown landing writes nothing."
+    },
+    "why": "A corrupt pin must never steer a run.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.cache.rebuilt-from-bundle": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "temp folders are caches named by tree id and a missing cache is rebuilt from the bundle."
+    },
+    "why": "A cache that cannot be rebuilt would be state, not a cache.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.cache.sweep-keeps-queued": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a sweep never breaks a queued job, it keeps named trees and the next read rebuilds the rest."
+    },
+    "why": "A sweep must not break a job already queued.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.signing.unsigned-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "an edited or unsigned tooling pin file is refused before any run uses it."
+    },
+    "why": "An unsigned pin could substitute tooling.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.signing.upgrade-signs-once": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "the first gate after an upgrade signs a pin file written before signing existed, once."
+    },
+    "why": "Upgrades must not strand older pin files.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.keyed.dead-partial-removed": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a state-cache partial whose writer pid is dead is removed on the next write, and a live writer's partial stays."
+    },
+    "why": "Dead writers must not leave partials that block the next write.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/index.js"
+    ]
+  },
+  "pin.registry.complete": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "every pin-cell test has a stable ID and one complete record, and an unregistered test is reported and fails only with tests.registryStrict on."
+    },
+    "why": "Without a record per test a test can be deleted or duplicated with no one noticing what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "packages/pin/tests/fixtures/registry.json"
+    ]
+  },
+  "pin.inputs.declared": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "every pin test file that reads source files carries an input header naming the cells it reads, and none declares the whole tree"
+    },
+    "why": "Affected-test selection can only see the inputs a test declares.",
+    "kind": "contract",
+    "inputs": [
+      "packages/pin/tests/io/keyed.test.js",
+      "packages/pin/tests/io/main.test.js",
+      "packages/pin/tests/registry.test.js"
+    ]
+  }
+}

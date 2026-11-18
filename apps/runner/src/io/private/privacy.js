@@ -1,6 +1,7 @@
 import { runnerPolicyRecord } from '../../../../../packages/sandbox/index.js';
 import { RUNNER_POLICY_FILE } from '../../../../../packages/sandbox/index.js';
 import { TIMING_RUN_ID_ENV } from '../../../../../packages/gate/index.js';
+import { followRenames } from '../../../../../packages/gate/index.js';
 /** Controller-owned private checks: immutable clone, runner protocol and retained sanitized evidence [C7,V4]. */
 import {
   createHash,
@@ -24,7 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { gitSpawnSync } from '../../../../../packages/git/index.js';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
-import { runOnRunner } from '../../../../../packages/runners/index.js';
+import { runOnRunnerAsync } from '../../../../../packages/runners/index.js';
 import { frozenCheckCeilingMs } from '../../../../../packages/config/index.js';
 import {
   privateCheckEnvelope,
@@ -95,8 +96,8 @@ function phaseCopy(raw, phase, path) {
   } finally { closeSync(input); closeSync(output); }
 }
 
-/** Run only under an actual runner lease, preserving raw evidence even when formatting or transport fails. */
-export function runnerPrivateCheck(root, item, command, policy, lease, guard, waitMs, format) {
+/** Run only under an actual runner lease, preserving raw evidence even when formatting or transport fails; the pulled run is awaited (#8504). */
+export async function runnerPrivateCheck(root, item, command, policy, lease, guard, waitMs, format) {
   const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const artifactRoot = join(common, 'pullboard', 'check-output');
   mkdirSync(artifactRoot, { recursive: true, mode: 0o700 });
@@ -108,7 +109,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const checkedSource = { commit: item.item_commit, tree: policyGit(root, ['rev-parse', `${item.item_commit}^{tree}`]).trim() };
   const started = Date.now();
   lease.tracker?.mark('runAt');
-  const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, byLaunch: lease.browserByLaunch,
+  const result = await runOnRunnerAsync(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, runnerStartupMs: lease.runnerStartupMs, browser: lease.browser, byLaunch: lease.browserByLaunch,
     metadata: { ...lease.runMetadata, ...(lease.testOutcomeRunId ? { timingRunId: lease.testOutcomeRunId } : {}), testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
   lease.tracker?.mark('ranAt');
   lease.environment = result.environment ?? null;
@@ -156,13 +157,24 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
  * @param {{ waitMs?: number, gateSlotHeld?: boolean, gateLease?: object, mutate?: (directory: string) => string, guard?: object }} [options] - Queue wait before the private check started;
  *   mutate changes the scratch tree after checkout (a guard revert) and returns a reason when it cannot [C7,V4].
  */
-export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLease, mutate, guard, supplement = '', testTiers } = {}) {
+export function checkAtCommit(root, item, options = {}) {
+  const frozenCommand = frozenCheck(item);
+  if (!frozenCommand) return runCheckAtCommit(root, item, options, []);
+  let renames = [];
+  try { renames = followRenames(root, mappedCheck(root, frozenCommand, { commit: item.item_commit }), { base: item.item_claim_head, commit: item.item_commit }).followed; } catch { /* the check below reports an unreadable policy */ }
+  const ran = runCheckAtCommit(root, item, options, renames);
+  // A runner run returns a promise; a local check returns its result at once. Either way the followed renames ride along [C7,#2969].
+  return typeof ran?.then === 'function' ? ran.then(result => ({ ...result, renames })) : { ...ran, renames };
+}
+
+/** checkAtCommit's work: the same check run, with the renames it already followed passed in. */
+function runCheckAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLease, mutate, guard, supplement = '', testTiers } = {}, followedRenames) {
   const frozenCommand = frozenCheck(item);
   if (!frozenCommand && !supplement) return { state: 'pass', green: true, checked: false, report: '' };
   let command;
   let policy;
   let config;
-  try { policy = itemPolicy(root, item); config = policy.config; command = frozenCommand ? mappedCheck(root, frozenCommand, { commit: item.item_commit }) : '';
+  try { policy = itemPolicy(root, item); config = policy.config; command = frozenCommand ? followRenames(root, mappedCheck(root, frozenCommand, { commit: item.item_commit }), { base: item.item_claim_head, commit: item.item_commit }).command : '';
     if (supplement) command = [command, supplement].filter(Boolean).map(part => `(\n${part}\n)`).join(' && '); }
   catch { return checkResult('unverified', 'policy', '', '', { root, item }); }
   if (gateLease?.runner) {
@@ -173,8 +185,9 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
       return { ...checkResult('unverified', problem, '', '', { root, item }), guardProblem: problem };
     }
     if (mutate && !descriptor) return checkResult('unverified', 'a remote mutation requires a frozen declarative guard', '', '', { root, item });
-    const result = runnerPrivateCheck(root, item, command, policy, gateLease, descriptor, waitMs, checkResult);
-    return testTiers ? { ...result, testTiers, executionCommand: command } : result;
+    // A runner run is pulled and awaited, so this branch returns a promise; a local check returns its result at once.
+    const ran = runnerPrivateCheck(root, item, command, policy, gateLease, descriptor, waitMs, checkResult);
+    return testTiers ? ran.then(result => ({ ...result, testTiers, executionCommand: command })) : ran;
   }
   const install = config.check.install;
   const timeout = frozenCheckCeilingMs(config);

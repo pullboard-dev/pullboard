@@ -7,102 +7,44 @@ const LEASE_WATCH_MS = 5_000;
 import { RunnerDropped } from '../../../gate/light.js';
 import { Refused } from '../../../kernel/index.js';
 import { historyPack } from './pack.js';
-import { loadedToolingFiles } from './tooling/remote.js';
 import { requestFor } from './request.js';
 import { forgetRuntimeHeld } from './runtime.js';
 import { recordRuntimeHeld } from './runtime.js';
 import { spawnSsh } from '../../../transport/index.js';
-import { recordRunnerTime } from '../../../resources/index.js';
-import { recordRunnerDispatch } from '../../../resources/index.js';
 import { resultFrom } from './result.js';
 import { runnerFailure } from './result.js';
 import { readCleanupTimeoutDetails } from '../logic/diagnostics.js';
 import { cleanupProcessText } from '../logic/diagnostics.js';
-import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync } from 'node:fs';
 import { createReadStream } from 'node:fs';
 import { openSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { MAX_OUTPUT_BYTES } from './bridge.js';
+import { RUN_CEILING_MS } from './bridge.js';
+import { bridgeResult } from './bridge.js';
+import { runCeilingMs } from './bridge.js';
+import { runnerUnavailableRefusal } from './bridge.js';
+import { startupDeadline } from './bridge.js';
+import { ownedTransportCompletion } from '../../../transport/index.js';
+import { bridgeDeadlineMs } from './run-async.js';
+export { MAX_OUTPUT_BYTES } from './bridge.js';
+export { RUN_CEILING_MS } from './bridge.js';
+export { bridgeResult } from './bridge.js';
+export { runCeilingMs } from './bridge.js';
+export { runnerUnavailableRefusal } from './bridge.js';
+export { startupDeadline } from './bridge.js';
+export { ownedTransportCompletion } from '../../../transport/index.js';
 import { controllerWake } from './controller/watch.js';
 import { PARENT_PIPE_FD } from './controller/watch.js';
 
-// Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
+
 // Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
 const RECEIPT_GRACE_MS = 500;
-export const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
-
-/** Bound stopping only this owned child and its pipes; local settlement never proves remote cleanup. */
-export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_000 } = {}) {
-  let term, drain, stopping = false, observed = null, force;
-  const forced = new Promise(resolve => { force = resolve; });
-  const exited = (status, signal) => { observed = { status, signal }; };
-  let closed;
-  const complete = new Promise(resolve => { closed = (status, signal) => resolve({ status, signal, forced: false }); });
-  child.once('exit', exited); child.once('close', closed);
-  return {
-    wait: () => Promise.race([complete, forced]),
-    stop() {
-      if (stopping) return;
-      stopping = true;
-      child.stdin?.destroy(); child.kill('SIGTERM');
-      term = setTimeout(() => {
-        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-        drain = setTimeout(() => {
-          child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy(); child.unref();
-          force({ ...(observed ?? { status: null, signal: null }), forced: true });
-        }, drainMs);
-      }, termMs);
-    },
-    dispose() { clearTimeout(term); clearTimeout(drain); child.removeListener('exit', exited); child.removeListener('close', closed); },
-  };
-}
-
-// Budget: after a check's own ceiling and its startup window, the synchronous bridge gets this much more to report before it is killed.
-const BRIDGE_GRACE_MS = 120_000;
-
-/**
- * The longest a synchronous bridge may block its caller: the run's startup window plus its own timeout plus a grace,
- * or null when the request names no timeout (a landing or main comparison keeps its own bound).
- * Why: the verify path's private check on a runner blocks in spawnSync, which froze the slot heartbeat and held
- * runner .52 for 29 minutes with no test process (#6435, #8557); a hang now ends as RUNNER_BRIDGE_DEADLINE [C7].
- *
- * @param {{ runnerWaitDeadline?: number, runnerStartupMs?: number, timeoutMs?: number, privateCheck?: { timeoutMs?: number } }} options
- * @param {number} [now]
- * @returns {number | null}
- */
-export function bridgeDeadlineMs(options, now = Date.now()) {
-  const timeout = options.privateCheck?.timeoutMs ?? options.timeoutMs;
-  if (!Number.isSafeInteger(timeout) || timeout <= 0) return null;
-  const startup = startupDeadline(options, now);
-  return Math.max(0, (startup ?? now) - now) + timeout + BRIDGE_GRACE_MS;
-}
-
-/** Reconstruct the native transport outcome across a fresh controller process. */
-export function bridgeResult(request, result, phase) {
-  if (result.error?.code === 'ETIMEDOUT') {
-    throw new Refused('RUNNER_BRIDGE_DEADLINE', `the runner bridge to ${request.options.runner?.host ?? 'the runner'} ran past its deadline with no result and was ended; its gate slot is released. Rerun the verdict; if it repeats, shout the coordinator with this line`);
-  }
-  let reply;
-  try { reply = JSON.parse(result.stdout); }
-  catch { throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-json'); }
-  if (reply.error?.name === 'Refused') {
-    const prefix = `[${reply.error.code}] `;
-    const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
-    if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
-    if (reply.error.runnerCancellation) refused.runnerCancellation = reply.error.runnerCancellation;
-    if (reply.error.diagnostic) refused.diagnostic = reply.error.diagnostic;
-    throw refused;
-  }
-  if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(request.options.runner.host, reply.error.diagnostic);
-  if (reply.error || result.error || result.status !== 0) throw runnerFailure({ runner: request.options.runner, args: [], phase }, result, 'bridge-exit');
-  return reply.result;
-}
 
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
@@ -115,59 +57,6 @@ export function runOnRunner(root, command, options) {
     ...(bridgeDeadlineMs(options) ? { timeout: bridgeDeadlineMs(options), killSignal: 'SIGKILL' } : {}),
   });
   return bridgeResult(request, child, 'sync-bridge');
-  } finally { installation?.cleanup(); }
-}
-
-/** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
-export async function runOnRunnerAsync(root, command, options) {
-  if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
-  // The dispatch span starts before the tooling export, so the export is attributed, not a gap after admission [C7].
-  const dispatchStart = Date.now();
-  // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)), { shared: true });
-  try {
-  if (!installation) loadedToolingFiles({ rescan: false });
-  const { signal, ...plainOptions } = options;
-  const request = { root, command, options: plainOptions, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
-  const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [installation?.entry ?? runnerControllerEntry(fileURLToPath(new URL('../../../../', import.meta.url))), '--pullboard-runner-controller'], {
-    cwd: root, env: { ...process.env }, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
-  });
-  const output = [], diagnostics = [];
-  let bytes = 0, error;
-  // Budget: retain the synchronous bridge's worst-case JSON escaping limit, never an unbounded child response.
-  const limit = MAX_OUTPUT_BYTES * 6 + 1024 ** 2;
-  const abort = () => child.kill('SIGTERM');
-  signal?.addEventListener('abort', abort, { once: true });
-  if (signal?.aborted) abort();
-  child.stdout.on('data', chunk => {
-    bytes += chunk.length;
-    if (bytes > limit) { error ??= new Error('runner bridge output exceeded its JSON limit'); abort(); }
-    else output.push(chunk);
-  });
-  child.stderr.on('data', chunk => {
-    diagnostics.push(chunk);
-    if (diagnostics.reduce((sum, value) => sum + value.length, 0) > 8192) {
-      const tail = Buffer.concat(diagnostics).subarray(-8192); diagnostics.splice(0, diagnostics.length, tail);
-    }
-  });
-  child.on('error', caught => { error ??= caught; });
-  child.stdin.on('error', caught => { error ??= caught; });
-  child.stdin.end(input);
-  // Each dispatch records its transfer, READY and run spans for an open gate's telemetry [C7].
-  const span = { startedAt: dispatchStart, host: options.runner?.host ?? null, kind: options.metadata?.kind ?? null };
-  const spawned = Date.now();
-  try {
-    const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
-    const result = bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
-    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now() });
-    recordRunnerDispatch({ ...span, endedAt: Date.now(), phases: result?.phases ? { ...result.phases, spawn: spawned } : null });
-    return result;
-  } catch (failure) {
-    recordRunnerTime(root, { ...span, item: options.metadata?.item, endedAt: Date.now(), error: failure });
-    recordRunnerDispatch({ ...span, endedAt: Date.now(), error: failure });
-    throw failure;
-  } finally { signal?.removeEventListener('abort', abort); }
   } finally { installation?.cleanup(); }
 }
 
@@ -260,61 +149,6 @@ export async function serveRunnerController(ports) {
     process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic, runnerCancellation: error.runnerCancellation } }));
     process.exitCode = 1;
   } finally { stopWatching(); custody.close(); }
-}
-
-/**
- * The refusal of a job whose runner went unavailable while it waited for READY. Its diagnostic's reason is
- * runner-unavailable: the gate requeues it as cleanup-unverified, and recordRunnerFailure keeps the runner's existing
- * quarantine instead of writing a second one, so one drop is one quarantine (#3698) [C7].
- *
- * @param {{ runner: { host: string }, spec: { id: string } }} request
- * @param {{ host: string, reason: string }} unavailable - The runner's lease observation.
- * @returns {Refused}
- */
-export function runnerUnavailableRefusal(request, unavailable) {
-  const error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
-  error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
-    unavailable, remoteCleanup: 'unknown' };
-  return error;
-}
-
-/**
- * The time by which this dispatch's worker must print READY: the lease's queue deadline, or a full startup budget
- * from this dispatch's own start when the lease names one and that ends later. Null means no READY bound.
- * Why: the lease's deadline is when its queue wait ends, fixed at admission. A gate ran doctrine for 177 s on its
- * lease and then sent proof batches with that deadline long past, so each batch was cut off before its worker could
- * answer and logged a missed READY on a healthy runner; 15 of 36 gates did so, one 127 times (#3563, 8 Nov) [C7].
- *
- * @param {{ runnerWaitDeadline?: number, runnerStartupMs?: number }} options
- * @param {number} startedAt - When this dispatch began connecting.
- * @returns {number|null}
- */
-export function startupDeadline(options, startedAt) {
-  if (!Number.isSafeInteger(options.runnerWaitDeadline)) return null;
-  if (!Number.isSafeInteger(options.runnerStartupMs) || options.runnerStartupMs <= 0) return options.runnerWaitDeadline;
-  return Math.max(options.runnerWaitDeadline, startedAt + options.runnerStartupMs);
-}
-
-/** How long a gate's run may execute after READY with no result when its request names no timeout of its own. */
-export const RUN_CEILING_MS = 20 * 60_000;
-
-/**
- * The longest this run may execute after READY before the controller ends it as hung, or null when the run carries
- * its own timeout (a landing or trusted check) or is a main comparison, whose files may legitimately run longer.
- * PULLBOARD_RUNNER_RUN_CEILING_MS overrides the ceiling; 0 turns it off.
- * Why: a gate's item check had no run budget, so a hanging test held #2828's gate and its runner slot for 55 minutes
- * and other gates' for 9 and 11 hours, its heartbeats keeping every watch satisfied (9 Nov) [C7].
- *
- * @param {{ timeoutMs?: number, trustedMode?: { timeoutMs?: number }, landing?: boolean, kind?: string }} spec
- * @param {Record<string, string|undefined>} [env]
- * @returns {number|null}
- */
-export function runCeilingMs(spec, env = process.env) {
-  if (spec.timeoutMs || spec.trustedMode?.timeoutMs || spec.landing === true || spec.kind === 'main-red') return null;
-  const configured = env.PULLBOARD_RUNNER_RUN_CEILING_MS;
-  if (configured === undefined || configured === '') return RUN_CEILING_MS;
-  const ms = Number(configured);
-  return Number.isSafeInteger(ms) && ms > 0 ? ms : null;
 }
 
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
@@ -493,14 +327,4 @@ async function runInController(root, command, options, ports) {
     jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); clearTimeout(runCeilingTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
   }
-}
-
-/** Give a pre-upgrade cached self-spawn caller a typed restart without reading input or starting transport. */
-export function refuseLegacyControllerEntry(entry) {
-  if (process.argv[2] !== '--pullboard-runner-controller' || !process.argv[1]) return;
-  try { if (realpathSync(process.argv[1]) !== fileURLToPath(entry)) return; }
-  catch { return; }
-  process.stdout.write(JSON.stringify({ error: { name: 'Refused', code: 'RUNNER_TOOLING_CHANGED',
-    message: 'runner controller entry changed; restart the command from the current committed CLI before retrying' } }));
-  process.exitCode = 1;
 }

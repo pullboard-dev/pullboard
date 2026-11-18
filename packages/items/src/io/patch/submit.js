@@ -130,7 +130,8 @@ export function sealItemPatchSubmit(board, id, options) {
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   try {
     if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)) throw new Error('foreign board');
-    if (headCommitOf(root) !== options.commit) throw new Error('builder moved');
+    // A pulled gate applies its receipt after the builder has moved on; its binding and receipts already name the exact source [P7,C7,#8747].
+    if (!options.pulledPlan && headCommitOf(root) !== options.commit) throw new Error('builder moved');
     const receipts = binding.receiptIds.map(id => readGateReceipt(boardReceiptStore(board), id));
     if (receipts.some(receipt => !receipt || receipt.version !== 2 || receipt.kind !== 'submit'
       || receipt.head !== binding.commit || receipt.tree !== binding.tree || receipt.main !== options.policyCommit

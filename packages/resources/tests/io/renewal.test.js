@@ -67,7 +67,7 @@ function waiters(home, agent) {
   finally { db.close(); }
 }
 
-test('clause 1: a queued gate keeps its queue entry and item lease while its renewal is blocked past the cleanup cutoff, with no RESOURCE_LEASE_LOST [C7]', async (t) => {
+test('resources.renewal.a-queued-gate-keeps-its-queue: clause 1: a queued gate keeps its queue entry and item lease while its renewal is blocked past the cleanup cutoff, with no RESOURCE_LEASE_LOST [C7]', async (t) => {
   const home = machineHome(t);
   const held = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'holder-a', repo: home });
   let sweep = null, before = null, after = null, renewals = 0;
@@ -96,7 +96,7 @@ test('clause 1: a queued gate keeps its queue entry and item lease while its ren
   admitted.release();
 });
 
-test('clause 2: a queued gate whose process is gone is still cleaned up, though its renewal thread was beating [C7]', async (t) => {
+test('resources.renewal.a-queued-gate-whose-process-is: clause 2: a queued gate whose process is gone is still cleaned up, though its renewal thread was beating [C7]', async (t) => {
   let held;
   t.after(() => held?.release());
   const home = machineHome(t);
@@ -122,7 +122,7 @@ await takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'dead-g
   assert.deepEqual(waiters(home, 'dead-gate'), [], 'the dead gate left the queue');
 });
 
-test('clause 1: a renewal that begins as the cached beat thread retires after its idle timeout still advances the queued waiter heartbeat [C7]', async (t) => {
+test('resources.renewal.a-renewal-that-begins-as-the: clause 1: a renewal that begins as the cached beat thread retires after its idle timeout still advances the queued waiter heartbeat [C7]', async (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'pb-lease-retire-')));
   const file = join(home, 'resources.sqlite');
   const db = new DatabaseSync(file);

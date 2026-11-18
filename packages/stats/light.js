@@ -10,6 +10,19 @@ export function agentSessionDigest(environment = process.env) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
+/**
+ * Record that a board move's usage checkpoint is due. The cost cell loads at the call, not with this door, so a command that never moves the board
+ * (show, whoami) pays nothing for it, and a move pays for the checkpoint file alone, not the stats barrel [C7].
+ */
+export async function checkpointAfterMove(...call) {
+  return (await import('./src/io/cost/checkpoint.js')).checkpointAfterMove(...call);
+}
+
+/** The cost analytics page loads at its call, so a board command that never serves it never loads the analytics module [C7]. */
+export function loadCostAnalytics() {
+  return import("./src/io/cost/analytics.js");
+}
+
 export {
   hasInputSplit,
 } from './src/logic/split.js';
@@ -19,11 +32,15 @@ export { itemCost, publicUsage } from './src/io/cost/usage.js';
  * The stats that store, verify, pages and the CLI's exit rules read or write while a board command runs: no runner, agent, review or report readers,
  * so a hot command that opens the board never loads the whole stats cell [C7,R24].
  */
-export { coordinatorMilestoneRelease } from './src/io/actions.js';
+export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/io/actions.js';
+export { coordinatorActionRise } from './src/logic/actions.js';
+export { readWorkFreeReleases } from './src/logic/work/free.js';
 export { pipelineStats } from './src/logic/pipeline.js';
-export { proofStats, proofAgentIds } from './src/io/main.js';
-export { readCapacity } from './src/io/capacity.js';
-export { budgetState, recordCoordinatorUsage, recordUsage } from './src/io/cost.js';
+export { proofStats, proofAgentIds, isProofAgent } from './src/io/main.js';
+export { readCapacity, capacityAtRead } from './src/io/capacity.js';
+export { readMaxUsefulBuilders } from './src/io/useful.js';
+export { usefulBuilderLines } from './src/logic/capacity/useful.js';
+export { budgetClaimRefusal, budgetState, machineBudgetState, recordCoordinatorUsage, recordUsage, coordinatorUsage } from './src/io/cost.js';
 export { recordUsageBatch } from './src/io/cost/batch.js';
 export { recordSharedUsage } from './src/io/cost/shared.js';
 export { exitRulesDecision, exitContextDecision } from './src/logic/exit/rules/policy.js';
@@ -33,5 +50,7 @@ export { CAPACITY_VERSION, emptyCapacityCounter, appendCapacityCounter } from '.
 export { refreshCapacity } from './src/logic/capacity/refresh.js';
 export { emptyReportCounter, appendReportCounter } from './src/logic/flow/report/counter.js';
 export { FLOW_REPORT_VERSION, reportEvent, newReportPolicy } from './src/logic/flow/report.js';
-export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows } from './src/logic/flow.js';
+export { roleOf, moveFlowItem, projectFlowStats, compareFlowWindows, prepareFlowHistory } from './src/logic/flow.js';
 export { barStats } from './src/logic/bar.js';
+/** The capacity lines a status read prints [C7,#8646]. */
+export { capacityLines } from './src/logic/capacity/model.js';

@@ -11,10 +11,10 @@ const turn = () => new Promise(resolve => setImmediate(resolve));
  *
  * @param {{ root: string }} board
  * @param {string} window today, 7d or 30d
- * @param {{ read: (work: (current: any) => any) => any, now: Date, modelPresentation: Function, answers: Map<string, Promise<any>>, costWindowStart: Function, costAnalyticsSliced: Function }} io
+ * @param {{ read: (work: (current: any) => any) => any, now: Date, modelPresentation: Function, answers: Map<string, Promise<any>>, costWindowStart: Function, costAnalyticsSliced: Function, coordinatorUsage?: Function }} io
  * @returns {Promise<any>}
  */
-export function readCostAnalytics(board, window, { read, now, modelPresentation, answers, costWindowStart, costAnalyticsSliced }) {
+export function readCostAnalytics(board, window, { read, now, modelPresentation, answers, costWindowStart, costAnalyticsSliced, coordinatorUsage }) {
   const from = costWindowStart(window, now);
   const revision = read(current => store.costRevision(current)), key = `${board.root}|${window}|${from.toISOString()}|${revision}`;
   const kept = answers.get(key), last = answers.get(`${board.root}|${window}|last`);
@@ -43,7 +43,10 @@ export function readCostAnalytics(board, window, { read, now, modelPresentation,
       read(current => items.push(...store.costItems(current, ids.slice(start, start + 300))));
       await turn();
     }
-    return costAnalyticsSliced({ items, agents, events, window, now, modelPresentation }, turn);
+    // The coordinator claims no item, so its usage rides beside the item totals as one entry the Cost overview draws; absent port, absent entry (#9834) [C7].
+    const coordinator = coordinatorUsage ? read(current => coordinatorUsage(current)) : undefined;
+    const analytics = await costAnalyticsSliced({ items, agents, events, window, now, modelPresentation }, turn);
+    return coordinator ? { ...analytics, coordinator } : analytics;
   })();
   for (const old of answers.keys()) if (old.startsWith(`${board.root}|${window}|`) && !old.endsWith('|last')) answers.delete(old);
   answers.set(key, answer);

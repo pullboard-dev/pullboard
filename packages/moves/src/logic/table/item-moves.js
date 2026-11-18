@@ -44,6 +44,8 @@ const FROM_BOARD = {
   releaseOwnsWork: (s, m) => m.actor === 'coordinator' || s.item?.owner === m.actor || maintenance(m),
   notBuilder: (s, m) => !(s.item?.builder && s.item.builder === m.actor),
   notMerged: (s) => !s.item?.merged,
+  // A spec refreeze reopens verified work only while it is unmerged (store refreeze.js); the CLI may still say it does not hold.
+  specRefreezeAllowed: (s) => s.facts?.specRefreezeAllowed !== false && !(s.item?.status === 'verified' && s.item.merged),
   itemNotHeld: (s) => !s.item?.held,
   notHeldByAnother: (s, m) => !(s.item?.status === 'claimed' && s.item.owner !== m.actor && leaseLive(s.item, m.at)),
   dependenciesVerified: (s) => !s.items || !unmetWaits(s.item, s.items).length,

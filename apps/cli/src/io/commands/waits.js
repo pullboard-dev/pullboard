@@ -3,6 +3,7 @@ import { Refused } from '../../../../../packages/kernel/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { endLostTestRuns } from '../../../../../packages/drive/index.js';
+import { boardRunsHolder } from '../../../../../packages/store/index.js';
 import { handoffQueueDirectory } from '../../../../../packages/resources/index.js';
 import { listResources } from '../../../../../packages/resources/index.js';
 import { machineHome } from '../../../../../packages/resources/index.js';
@@ -14,6 +15,7 @@ import { waitItemFields } from '../../../../../packages/sentinels/index.js';
 import { waitKey } from '../../../../../packages/sentinels/index.js';
 import { waitLines } from '../../../../../packages/sentinels/index.js';
 import { waitsSnapshot } from '../../../../../packages/sentinels/index.js';
+import { writeHolderRecorder } from '../../../../../packages/sentinels/index.js';
 import { context } from '../entry.js';
 import { ordered } from '../entry.js';
 import { whoAmI } from '../entry.js';
@@ -60,6 +62,7 @@ export async function run(io, { first, second, rest = [] } = {}) {
     // Only the coordinator files and releases; another seat's run reports what it saw.
     const filing = me.id === COORDINATOR;
     const outcome = await recordWaits({ ...snapshot, budgets: { ...budgets, file: budgets.file && filing, reclaim: budgets.reclaim } }, {
+      observeHolder: writeHolderRecorder(board.db),
       openKey: key => openWaitKey(board.db, key),
       repeat: async (id, text, pid) => {
         if (pid && waitPidRecorded(board.db, id, pid)) return;
@@ -75,7 +78,7 @@ export async function run(io, { first, second, rest = [] } = {}) {
       },
     });
     // A test run whose lease lapsed and whose worker is gone is marked lost here, so it stops holding a slot.
-    if (budgets.reclaim) for (const run of endLostTestRuns(board.db, { now: ctx.clock.now().getTime() })) outcome.reclaimed.push(`test run ${run.id.slice(0, 8)}: marked lost, its worker${run.pid ? ` pid ${run.pid}` : ''} is gone and its lease lapsed ${Math.round(run.lapsedMs / 60_000)} min ago`);
+    if (budgets.reclaim) for (const run of endLostTestRuns(board.db, { now: ctx.clock.now().getTime(), runs: boardRunsHolder(board, ctx.file) })) outcome.reclaimed.push(`test run ${run.id.slice(0, 8)}: marked lost, its worker${run.pid ? ` pid ${run.pid}` : ''} is gone and its lease lapsed ${Math.round(run.lapsedMs / 60_000)} min ago`);
     io.result?.({ waits: snapshot, recorded: outcome });
     io.say(`waits: ${snapshot.rows.filter(row => row.breach).length} over budget; filed ${outcome.filed.length}, already open ${outcome.deduplicated.length}, reclaimed ${outcome.reclaimed.length}`);
     for (const line of [...outcome.filed.map(row => `#${row.id} ${row.title}`), ...outcome.reclaimed, ...outcome.notes]) io.say(`  ${line}`);

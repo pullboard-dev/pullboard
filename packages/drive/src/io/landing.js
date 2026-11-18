@@ -36,18 +36,20 @@ function bookkeep(write, say) {
  *
  * @param {import('node:sqlite').DatabaseSync} db - The board's SQLite handle.
  * @param {{ owner: string, run: () => Promise<any>, id?: string, now?: () => number, renewMs?: number,
- *   say?: (line: string) => void }} options
+ *   say?: (line: string) => void, runs?: { db: import('node:sqlite').DatabaseSync } | null }} options
+ *   runs: the board's runs holder while runs_store is on (boardRunsHolder); the run's job rows go to its handle and not to `db` [P7,#9080].
  *   run lands the batch and returns the batch engine's result.
  * @returns {Promise<any>} What run returned.
  */
-export async function driveLanding(db, { owner, run, id = landingRunJobId(randomUUID()), now = Date.now, renewMs = RENEW_MS, say = () => {} }) {
+export async function driveLanding(db, { owner, run, id = landingRunJobId(randomUUID()), now = Date.now, renewMs = RENEW_MS, say = () => {}, runs = null }) {
+  const jobs = runs?.db ?? db;
   const held = bookkeep(() => {
-    createJob(db, { id, kind: LANDING_RUN_KIND, now: now() });
-    takeJob(db, id, owner, { now: now() });
-    writeStep(db, id, 'started', { owner }, { now: now() });
+    createJob(jobs, { id, kind: LANDING_RUN_KIND, now: now() });
+    takeJob(jobs, id, owner, { now: now() });
+    writeStep(jobs, id, 'started', { owner }, { now: now() });
   }, say);
   /** Renew the lease while the run lands. */
-  const beat = () => { try { renewLease(db, id, owner, { now: now() }); } catch { /* the next tick retries */ } };
+  const beat = () => { try { renewLease(jobs, id, owner, { now: now() }); } catch { /* the next tick retries */ } };
   const heartbeat = held ? setInterval(beat, renewMs) : null;
   heartbeat?.unref?.();
   try {
@@ -55,16 +57,16 @@ export async function driveLanding(db, { owner, run, id = landingRunJobId(random
     clearInterval(heartbeat);
     // A batch ended for making no progress (#3186, #3477) fails its run and frees the lease, so the next landing starts.
     if (held && result?.stalled) bookkeep(() => {
-      writeStep(db, id, 'failed', { code: 'LAND_STALLED', message: String(result.stallDescription ?? 'the batch made no progress'), ...landingRunSummary(result) }, { now: now() });
-      finishJob(db, id, owner, { now: now() });
+      writeStep(jobs, id, 'failed', { code: 'LAND_STALLED', message: String(result.stallDescription ?? 'the batch made no progress'), ...landingRunSummary(result) }, { now: now() });
+      finishJob(jobs, id, owner, { now: now() });
     }, say);
-    else if (held) bookkeep(() => { writeStep(db, id, 'finished', landingRunSummary(result), { now: now() }); finishJob(db, id, owner, { now: now() }); }, say);
+    else if (held) bookkeep(() => { writeStep(jobs, id, 'finished', landingRunSummary(result), { now: now() }); finishJob(jobs, id, owner, { now: now() }); }, say);
     return result;
   } catch (error) {
     clearInterval(heartbeat);
     if (held) bookkeep(() => {
-      writeStep(db, id, 'failed', { code: error?.code ?? 'ERROR', message: String(error?.message ?? error) }, { now: now() });
-      finishJob(db, id, owner, { now: now() });
+      writeStep(jobs, id, 'failed', { code: error?.code ?? 'ERROR', message: String(error?.message ?? error) }, { now: now() });
+      finishJob(jobs, id, owner, { now: now() });
     }, say);
     throw error;
   }

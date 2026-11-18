@@ -5,7 +5,7 @@ export { LANDING_FAULT_CODES, retryableLandingRefusal, HELD_TRUNK_REFUSALS, LAND
 export * from "./src/io/computed/conflict/receipt.js";
 export * from "./src/io/computed/conflict/return.js";
 export * from "./src/logic/land/collisions.js";
-export * from "./src/logic/land/guard.js";
+export * from "./src/io/land/guard.js";
 export * from "./src/io/land.js";
 export * from "./src/logic/batch/history.js";
 export * from "./src/logic/batch/size.js";
@@ -43,12 +43,14 @@ export * from "./src/io/pause.js";
 export * from "./src/io/trainrecord.js";
 export * from "./src/io/train/receipt.js";
 export * from "./src/io/step/selection.js";
+export { landOneByHand } from "./src/io/land/hand.js";
 export * from "./src/io/step/merge.js";
 export * from "./src/io/step/failures.js";
 export * from "./src/io/step/gate.js";
 export { runLandingCliSmoke, runCommitCliSmoke, recordSmokeReceipt, smokeCandidate, smokeCommit } from "./src/io/smoke.js";
 export * from "./src/io/step/diagnose.js";
 export * from "./src/io/step/publish.js";
+export { PULL_OUT_KIND, pullOutJobId, runPullOutJob } from "./src/io/step/pull.js";
 export * from "./src/io/step/trunk.js";
 export { withoutStaleVerdicts } from "./src/io/pulled/fresh.js";
 export { relandAcceptedItems } from "./src/io/reland.js";
@@ -65,7 +67,10 @@ export { holdRefreshFlight } from './src/io/main/red/refresh/flight.js';
 export { recordLandingAudit, runMergedFollowup, mergedChecksLog } from './src/io/merged/followup.js';
 /** Landing as a runner job: the board offers a row, a runner merges and pushes trunk by compare-and-swap [P7]. */
 export { pushTrunk, runLandingJob, takeLandingJob } from "./src/io/runner/job.js";
+export { landingMainReds } from "./src/logic/main/ledger.js";
 /** Lander v2: the pure queue planner and the chained land job built on it [C7]. */
 export { CHAIN_DEPTH, planBatches, planQueue } from './src/logic/queue.js';
 export { returnLastItem, runChainedLandingJob } from './src/io/runner/chain.js';
 export { IDLE_PROBE_INTERVAL_MS, idleRunnerTick } from "./src/io/idle-runners.js";
+/** The runnerCode port the installed runner service is handed: the runners cell's refresh of the service app folder, through the cell the service already loads [P7,#10825]. */
+export { runnerCodeRefresh } from '../runners/index.js';

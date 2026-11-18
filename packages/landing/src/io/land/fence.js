@@ -2,6 +2,7 @@
 import { tryGit } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
 import { readGateHop } from '../../../../store/index.js';
+import { countLeaseLapse } from '../../../../store/index.js';
 
 // A fixed identity and date make one item and epoch hash to the same fence commit on every clone.
 const FENCE_IDENTITY = { GIT_AUTHOR_NAME: 'pullboard', GIT_AUTHOR_EMAIL: 'hop@pullboard.invalid', GIT_AUTHOR_DATE: '@0 +0000',
@@ -34,8 +35,14 @@ export function hopFencePrevious(root, { item, epoch }) {
   return epoch === 1 ? '' : hopFenceObject(root, { item, epoch: epoch - 1 });
 }
 
-/** The refusal for a push the fence turned away, naming the epoch's commit the remote fence holds now. */
-export function hopFenceRefusal(root, { remote, item, epoch }, pushed) {
+/**
+ * The refusal for a push the fence turned away, naming the epoch's commit the remote fence holds now.
+ * A lost compare-and-set adds one to the step-aside count of the head item when the caller names `step` ({ board, headItem }), the same count a lapsed lease adds to [C7,#8965].
+ */
+export function hopFenceRefusal(root, { remote, item, epoch, step }, pushed) {
+  if (step?.board && step.headItem !== undefined && step.headItem !== null) {
+    try { countLeaseLapse(step.board, step.headItem); } catch { /* The count is a hint; the refusal itself still stands. */ }
+  }
   const holds = tryGit(root, ['ls-remote', remote, hopFenceRef(item)]).stdout.split(/\s+/u)[0] || 'nothing';
   const output = (pushed.stderr || pushed.stdout).split('\n');
   return new Refused('HOP_FENCED', `the land push for #${item} at hop epoch ${epoch} was refused: the fence ${hopFenceRef(item)} holds ${holds.slice(0, 12)}, not this epoch (${output.find(line => line.includes('stale info')) ?? output.find(line => line.includes('rejected')) ?? 'stale lease'})`,

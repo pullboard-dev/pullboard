@@ -26,6 +26,7 @@ import { test } from 'node:test';
 import * as store from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
 import { main } from '../../tests/fixtures/native.js';
+import { journeyCall } from '../../tests/fixtures/e2e.js';
 import { serveApi } from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
@@ -36,14 +37,21 @@ const HOUR = 3_600_000;
 /** An agent that writes a change in its lane; the runner commits it, and a submit with no change is refused (EMPTY_SUBMIT). */
 const COMMITTING_AGENT = "sh -c 'mkdir -p web && echo built > web/built.txt'";
 
-/** Capture the actual CLI with a deterministic board clock and one JSON result. */
+/**
+ * Capture the actual CLI with a deterministic board clock and one JSON result, in this process; under PULLBOARD_JOURNEY_MODE=process
+ * the same call runs as a real process (which keeps the real clock) so the gate's parity check can compare the two, and each call is
+ * recorded when PULLBOARD_PARITY_RECORD is set [C7].
+ */
 async function run(box, cwd, args) {
-  let stdout = '';
-  let stderr = '';
-  const code = await main(args, { cwd, clock: box.clock,
-    stdout: { isTTY: false, write: (part) => { stdout += part; } },
-    stderr: { write: (part) => { stderr += part; } } });
-  return { code, stdout, stderr, data: args.includes('--json') ? JSON.parse(stdout) : null };
+  const answer = await journeyCall({ dir: box.dir, env: box.env, cwd, args: [...args], bin: BIN, inProcess: async () => {
+    let stdout = '';
+    let stderr = '';
+    const code = await main(args, { cwd, clock: box.clock,
+      stdout: { isTTY: false, write: (part) => { stdout += part; } },
+      stderr: { write: (part) => { stderr += part; } } });
+    return { status: code, stdout, stderr };
+  } });
+  return { code: answer.status, stdout: answer.stdout, stderr: answer.stderr, data: args.includes('--json') ? JSON.parse(answer.stdout) : null };
 }
 
 /** Create an isolated real repo, two joined builders (unrouted items are strong, so every seat joins strong), a reviewer and source-backed claim policy. */
@@ -64,7 +72,7 @@ async function project(t, ratio = 3) {
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, stdio: 'pipe', encoding: 'utf8' });
   let at = Date.parse('2026-10-08T12:00:00.000Z');
   const clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
-  const box = { root, dir, clock, git, bin };
+  const box = { root, dir, clock, git, bin, env };
   git(root, 'init', '-q', '-b', 'main');
   // The unattended runner pins attempts with Git from the process environment, which carries no identity.
   git(root, 'config', 'user.name', 'Review fixture'); git(root, 'config', 'user.email', 'review@example.invalid');
@@ -103,7 +111,7 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('[Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
+test('cli.journeys-queue-review.next-hands-out-the-mandatory-review: clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -121,7 +129,7 @@ test('[Q1,V15] next hands out the mandatory review before a new claim [conveyor 
   assert.match(prose.stdout, /reserved for you until/u);
 });
 
-test('[Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
+test('cli.journeys-queue-review.build-records-the-skipped-review-and: [Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -145,7 +153,7 @@ test('[Q1,V15] --build records the skipped review, and held claims renew normall
   assert.equal(invalid.data.error.code, 'USAGE');
 });
 
-test('[Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
+test('cli.journeys-queue-review.an-explicit-build-below-the-configured: [Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
   const box = await project(t, 4);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -174,7 +182,7 @@ test('[Q1,V15,A1] an explicit build below the configured ratio records the skip 
   assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review does not claim the build');
 });
 
-test('[V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
+test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
   const box = await project(t);
   const released = submitted(box);
   const firstReview = submitted(box);
@@ -253,7 +261,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(afterHour.data.item.item_id, hourBoundary, 'the original reviewer is eligible at exactly one hour');
 });
 
-test('[Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
+test('cli.journeys-queue-review.authenticated-api-next-hands-out-the: [Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -284,7 +292,7 @@ test('[Q1,V15,A2] authenticated API next hands out the mandatory review and expl
   assert.equal(claimed.offer, undefined);
 });
 
-test('[Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
+test('cli.journeys-queue-review.the-unattended-runner-keeps-building-and: [Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box, 'true');
@@ -306,7 +314,7 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   assert.equal(store.listItems(box.board).some((item) => item.item_review_by === box.builderId), false, 'the runner reserves no review');
 });
 
-test('[N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
+test('cli.journeys-queue-review.plain-next-follows-recorded-line-capacity: [N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
   const box = await project(t, 99);
   const ids = Array.from({ length: 5 }, () => submitted(box));
   const id = build(box);

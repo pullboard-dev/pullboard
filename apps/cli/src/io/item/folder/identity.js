@@ -2,6 +2,7 @@
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { gitPath } from '../../../../../../packages/git/light.js';
+import { ITEM_MARKER_FILE } from '../../../../../../packages/items/light.js';
 import { itemFolderIdentity } from '../../../../../../packages/items/light.js';
 export { itemFolderPath, writeItemMarker } from '../../../../../../packages/items/light.js';
 export { itemFolderIdentity };
@@ -36,7 +37,7 @@ export function seatRoot(ctx, board, me) {
 export function itemFolderSeat(root) {
   const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
   let marked = true;
-  try { readFileSync(gitPath(root, 'pullboard-item.json')); } catch { marked = false; }
+  try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); } catch { marked = false; }
   if (!marked && !(match && existsSync(match[1]))) return null;
   return { seat: match?.[1] ?? null };
 }
@@ -44,7 +45,7 @@ export function itemFolderSeat(root) {
 /** Name the native renewal for a missing-marker hook without granting checkout authority. */
 export function itemFolderRenewalRefusal(board, root) {
   try {
-    try { readFileSync(gitPath(root, 'pullboard-item.json')); return null; }
+    try { readFileSync(gitPath(root, ITEM_MARKER_FILE)); return null; }
     catch (error) { if (error.code !== 'ENOENT') return null; }
     const match = /^(.*)-item-([1-9]\d*)$/u.exec(root);
     if (!match) return null;

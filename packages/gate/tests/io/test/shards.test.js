@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import { cellProject } from '../../../../store/tests/fixtures/cell.js';
 import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
 import { runFixtureChild } from '../../fixtures/child.js';
-import { HOST } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../../../../apps/cli/tests/fixtures/runner/ssh.js';
+import { HOST } from '../../fixtures/runner/ssh.js';
+import { installSshStandIn } from '../../fixtures/runner/ssh.js';
 import { fixtureMachineSettings } from '../../fixtures/testkit.js';
 
 const HOSTS = [HOST, `${HOST}-second`];
@@ -70,7 +70,7 @@ const result = await runTestShards({ parseProcessCensus, root: ${JSON.stringify(
 console.log(JSON.stringify({ green: result.isGreen, calls, seen, shards: result.shards, log: log.join('') }));`;
 }
 
-test('clause 1: a two-file run splits across two runner slots, one file each [C7,V4]', { timeout: 150_000 }, t => {
+test('gate.io-test-shards.a-two-file-run-splits-across: clause 1: a two-file run splits across two runner slots, one file each [C7,V4]', { timeout: 150_000 }, t => {
   const box = fixture(t);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, box.repo)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
@@ -84,7 +84,7 @@ test('clause 1: a two-file run splits across two runner slots, one file each [C7
   assert.match(measured.log, /# landing shards: 2 balanced by file count/u);
 });
 
-test('clause 2: the injected runner and landing services are the ones called, and missing services are refused [C7,V4]', { timeout: 150_000 }, t => {
+test('gate.io-test-shards.the-injected-runner-and-landing-services: clause 2: the injected runner and landing services are the ones called, and missing services are refused [C7,V4]', { timeout: 150_000 }, t => {
   const box = fixture(t);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, box.repo)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });
@@ -103,7 +103,7 @@ catch (error) { console.log(JSON.stringify({ type: error.constructor.name, messa
   assert.match(refused.message, /explicit runner and landing services/u);
 });
 
-test('clause 1: a runner-only shard leased a runner quarantined in this run ends as infrastructure, never a throw [C7,V4]', { timeout: 150_000 }, t => {
+test('gate.io-test-shards.a-runner-only-shard-leased-a: clause 1: a runner-only shard leased a runner quarantined in this run ends as infrastructure, never a throw [C7,V4]', { timeout: 150_000 }, t => {
   const box = fixture(t, [HOST]);
   const gate = pathToFileURL(join(import.meta.dirname, '../../../index.js')).href;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', scenario(gate, box.repo, true)], { cwd: box.repo, env: box.env, encoding: 'utf8', timeout: 120_000 });

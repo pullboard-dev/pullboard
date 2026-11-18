@@ -51,7 +51,7 @@ async function storage() {
   return { objects, requested, paths, context };
 }
 
-test('sealed JSON exceeds one full index while every uploaded object stays bounded [H15,H17]', async () => {
+test('pages.integrity.sealed-json-exceeds-one-full-index: sealed JSON exceeds one full index while every uploaded object stays bounded [H15,H17]', async () => {
   const box = await storage();
   // Real UTF-8 characters cross leaf boundaries; this forces a second index level, not a larger manifest.
   const value = { marker: 'nested page fixture', text: '🙂'.repeat(Math.ceil(PAGE_BYTES * (PAGE_FANOUT + 1) / 4)) };
@@ -65,7 +65,7 @@ test('sealed JSON exceeds one full index while every uploaded object stays bound
   assert.ok(box.objects.get(reference.id).children.length >= 2, 'a later bounded index combines the complete group and its remainder');
 });
 
-test('private reuse preserves authenticated old pages without disclosing their fingerprints [H15,H17]', async () => {
+test('pages.integrity.private-reuse-preserves-authenticated-old-pages: private reuse preserves authenticated old pages without disclosing their fingerprints [H15,H17]', async () => {
   const box = await storage();
   const value = { text: 'retained history '.repeat(PAGE_BYTES / 8) };
   const first = await writeSealedValue(value, box.context);
@@ -77,7 +77,7 @@ test('private reuse preserves authenticated old pages without disclosing their f
   assert.ok([...box.objects.values()].every(object => !Object.hasOwn(object, 'fingerprint')));
 });
 
-test('wrong board, position, ciphertext and subtree lengths cannot become snapshot data [H15,H17]', async () => {
+test('pages.integrity.wrong-board-position-ciphertext-and-subtree: wrong board, position, ciphertext and subtree lengths cannot become snapshot data [H15,H17]', async () => {
   const box = await storage();
   const reference = await writeSealedValue({ marker: 'authenticated synthetic data' }, box.context);
   const remembered = [];
@@ -96,7 +96,7 @@ test('wrong board, position, ciphertext and subtree lengths cannot become snapsh
   assert.equal(remembered.length, 1, 'tampered ciphertext cannot add or replace cached evidence');
 });
 
-test('a selected-value reader stops fetching when its consumer stops or has no allocation budget [H15,H17]', async () => {
+test('pages.integrity.a-selected-value-reader-stops-fetching: a selected-value reader stops fetching when its consumer stops or has no allocation budget [H15,H17]', async () => {
   const box = await storage();
   const reference = await writeSealedValue({ text: 'x'.repeat(PAGE_BYTES * 3) }, box.context);
   box.requested.length = 0;
@@ -109,7 +109,7 @@ test('a selected-value reader stops fetching when its consumer stops or has no a
   assert.equal(box.requested.length, 2, 'only the index and first leaf were fetched');
 });
 
-test('an authenticated gzip bomb refuses before a complete oversized page is allocated [H15,H17]', async () => {
+test('pages.integrity.an-authenticated-gzip-bomb-refuses-before: an authenticated gzip bomb refuses before a complete oversized page is allocated [H15,H17]', async () => {
   const box = await storage();
   const plain = Buffer.concat([Buffer.from('pullboard-sealed-page/1\n'), Buffer.of(1), Buffer.alloc(PAGE_BYTES + 1)]);
   const bytes = await seal(box.context.key, gzipSync(plain), { boardId: box.context.boardId, kind: 'snapshot', sequence: 7 });
@@ -118,7 +118,7 @@ test('an authenticated gzip bomb refuses before a complete oversized page is all
   await assert.rejects(readSealedValue({ id, sequence: 7, bytes: PAGE_BYTES + 1 }, box.context), { code: 'SNAPSHOT_PAGE_FORMAT' });
 });
 
-test('a sealed directory exposes only its selected child and carries its pinned-root path [H15,H17]', async () => {
+test('pages.integrity.a-sealed-directory-exposes-only-its: a sealed directory exposes only its selected child and carries its pinned-root path [H15,H17]', async () => {
   const box = await storage();
   const selected = await writeSealedValue({ marker: 'SELECTED_ENCRYPTED_HISTORY_VALUE' }, box.context);
   const unrelated = await writeSealedValue({ marker: 'UNRELATED_ENCRYPTED_HISTORY_VALUE' }, box.context);

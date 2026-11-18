@@ -61,7 +61,7 @@ function cellMove(box, moves) {
   return git(box.root, 'rev-parse', 'HEAD');
 }
 
-test('the 1561-line src/view.css moved by the cells path map to apps/view/src/shell/view.css keeps the C9 count [D1,C7]', () => {
+test('doctrine.io-main-moves.the-1561-line-src-view-css-moved-by-the: the 1561-line src/view.css moved by the cells path map to apps/view/src/shell/view.css keeps the C9 count [D1,C7]', () => {
   const box = repo();
   const commit = cellMove(box, [{ from: 'src/view.css', to: 'apps/view/src/shell/view.css', body: lines('moved view', 1561) }]);
   assert.doesNotMatch(git(box.root, 'diff', '--name-status', '--find-renames', box.main, commit), /^R/mu, 'Git sees no rename');
@@ -70,7 +70,7 @@ test('the 1561-line src/view.css moved by the cells path map to apps/view/src/sh
   assert.equal(result.holds, true);
 });
 
-test('growing the moved file by 100 lines still raises the C9 count and refuses [D1,C7]', () => {
+test('doctrine.io-main-moves.growing-the-moved-file-by-100-lines: growing the moved file by 100 lines still raises the C9 count and refuses [D1,C7]', () => {
   const box = repo();
   const commit = cellMove(box, [{ from: 'src/view.css', to: 'apps/view/src/shell/view.css', body: lines('moved view', 1661) }]);
   assert.throws(() => holdDoctrine(box.root, { mainCommit: box.main, commit, timeoutMs: 60000 }),

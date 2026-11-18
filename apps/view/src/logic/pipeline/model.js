@@ -67,12 +67,23 @@ export function itemStagePresentation(item, { gated = false, landingBatchAt = nu
     stage = 'Building';
     const builder = item.claim?.by || item.owner;
     detail = builder ? 'by ' + builder : 'under a build lease';
+    // A claim the board read marks stalled or waiting holds the item but builds nothing, so it never reads as Building [C7,#3021].
+    const health = item.claimHealth;
+    if (health?.state === 'stalled') {
+      stage = 'Claimed';
+      detail = 'stalled' + (Number.isFinite(health.idleMinutes) ? ' · ' + health.idleMinutes + ' min' : '');
+    } else if (health?.state === 'waiting') {
+      stage = 'Claimed';
+      detail = 'waiting on ' + ((health.waitingOn || []).map((id) => '#' + id).join(', ') || 'another item');
+    }
   } else if (status === 'open' && gated) {
     stage = 'Blocked';
     detail = item.blockedBy?.length ? 'by #' + item.blockedBy[0] : gateDetail || 'on hold';
   } else if (status === 'open') {
     stage = 'Ready';
     detail = item.route ? item.route + ' route' : 'ready for a builder';
+    // An auto-released claim leaves its handoff pin on the item for the next builder [C7,#3021].
+    if (item.claimHealth?.handoffRef) detail = 'handed off · ' + item.claimHealth.handoffRef;
   } else {
     stage = 'Ready';
     detail = 'stage unavailable';

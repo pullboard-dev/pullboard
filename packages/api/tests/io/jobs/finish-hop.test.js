@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { test } from 'node:test';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
-import { temporaryDirectory } from '../../../../../apps/cli/tests/fixtures/board.js';
+import { temporaryDirectory } from '../../../../board/tests/fixtures/board.js';
 import { readGateHop } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { gateClaimHop } from '../../../index.js';
@@ -34,7 +34,7 @@ provideGateHopTable(leaseMs => ({ hop, now }, { name, actor, epoch }) => {
   return name === 'finish' ? { patch: { hop: { ...hop, state: 'done', owner: null } } } : { patch: { hop: { ...hop, leaseUntil: now + leaseMs } } };
 });
 
-test('clause 1: a gate job whose receipt is posted leaves its hop row done, and a retried post leaves it done [C7,#8464]', t => {
+test('api.jobs-finish-hop.gate-job-whose-receipt-posted: clause 1: a gate job whose receipt is posted leaves its hop row done, and a retried post leaves it done [C7,#8464]', t => {
   const db = board(t);
   const taken = claimJob(db, { runner: 'r1', now: 5000, leaseMs: LEASE, hop: gateClaimHop(true) });
   assert.equal(readGateHop(db, ITEM).state, 'driven', 'a claimed gate drives its hop');
@@ -46,7 +46,7 @@ test('clause 1: a gate job whose receipt is posted leaves its hop row done, and 
   assert.equal(readGateHop(db, ITEM).state, 'done');
 });
 
-test('clause 1: with gate.fencedHop off, a posted receipt writes no hop row [C7,#8464]', t => {
+test('api.jobs-finish-hop.gate-fencedhop-off-posted-receipt: clause 1: with gate.fencedHop off, a posted receipt writes no hop row [C7,#8464]', t => {
   const db = board(t);
   const taken = claimJob(db, { runner: 'r1', now: 5000, leaseMs: LEASE, hop: gateClaimHop(false) });
   postReceipt(db, { job: taken.job, runner: 'r1', token: taken.token, receipt: { ok: true }, now: 6000, leaseMs: LEASE, hop: gateClaimHop(false) });

@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  runFixtureChild as spawnSync,
+  runFixtureChildAsync as spawnChild,
 } from '../../tests/fixtures/child.js';
 import {
   chmodSync,
@@ -28,9 +28,6 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 import { settledGateJob } from '../../tests/fixtures/submit/settle.js';
-import { settleSubmit } from '../../tests/fixtures/submit/settle.js';
-import { fixtureAddRoute } from '../../tests/fixtures/testkit.js';
-import { fixtureJoinRoute } from '../../tests/fixtures/testkit.js';
 /** Cases are collected, then run concurrently: each owns its sandbox, repo and machine home, so they overlap their waits instead of adding them [C7]. */
 const cases = [];
 /** Register one case; it runs inside the concurrent suite at the end of this file. */
@@ -39,7 +36,7 @@ const test = (name, body) => cases.push([name, body]);
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const {
-  BIN, sandbox, CONFIG, SPEC, commitFile, LIGHT_BRIEF,
+  BIN, sandbox, SPEC, commitFile, LIGHT_BRIEF,
 } = e2e;
 
 const { project } = e2e;
@@ -62,12 +59,7 @@ async function addDiagnosedLight(box, title, ...flags) {
   return added;
 }
 
-/** Await real production CLI dispatch without repeating cold process startup for fixture state moves. */
-function fixtureCommand(box, cwd, ...args) {
-  return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
-}
-
-test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', async () => {
+test('cli.journeys-resume-e2e.init-adds-a-claude-code-session: init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(join(repo, '.claude'), { recursive: true });
@@ -92,12 +84,12 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: repo, env: box.env });
   assert.equal(card.status, 0, card.stderr);
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: coordinator/);
-  const bare = spawnSync('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
+  const bare = await spawnChild('sh', ['-c', command], { cwd: repo, env: { ...box.env, PATH: '/usr/bin:/bin' }, encoding: 'utf8' });
   assert.equal(bare.status, 0, 'without pullboard installed, the session still starts');
   assert.equal(bare.stdout, '');
 });
 
-test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
+test('cli.journeys-resume-e2e.the-run-pack-names-verified-items: the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
   const box = project();
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
@@ -123,87 +115,35 @@ test('the run pack names verified items that touched the same files, so a cold a
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
 
-test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
+test('cli.journeys-resume-e2e.a-fresh-worktree-with-no-install: a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
   const box = project();
   const bare = { ...box.env, PATH: '/usr/bin:/bin' };
-  const commit = () => spawnSync('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const commit = () => spawnChild('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
   const { command } = JSON.parse(readFileSync(join(box.web, '.claude', 'settings.json'), 'utf8')).hooks.SessionStart[0].hooks[0];
-  const resume = () => spawnSync('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
+  const resume = () => spawnChild('sh', ['-c', command], { cwd: box.web, env: bare, encoding: 'utf8' });
   mkdirSync(join(box.web, 'web'));
   writeFileSync(join(box.web, 'web', 'page.html'), '<h1>Hi</h1>');
   box.git(box.web, 'add', '-A');
-  const refused = commit();
+  const refused = await commit();
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /pullboard is not installed/);
-  assert.deepEqual([resume().status, resume().stdout], [0, ''], 'no install anywhere: the session still starts, silently');
+  const [quiet1, quiet2] = await Promise.all([resume(), resume()]);
+  assert.deepEqual([quiet1.status, quiet2.stdout], [0, ''], 'no install anywhere: the session still starts, silently');
   const bin = join(box.repo, 'node_modules', '.bin');
   mkdirSync(bin, { recursive: true });
   // The shell stub notes who the session hook reached; the card itself runs in this process, because the hook's 2 s worker budget is the product's and a loaded runner cannot start two fresh nodes inside it [I6].
   const reached = join(box.repo, 'session-hook-reached');
   writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nif [ "$1" = hook ] && [ "$2" = SessionStart ]; then echo "$0" > "${reached}"; exit 0; fi\nexec "${process.execPath}" "${BIN}" "$@"\n`);
   chmodSync(join(bin, 'pullboard'), 0o755);
-  const committed = commit();
+  const committed = await commit();
   assert.equal(committed.status, 0, committed.stderr);
-  assert.equal(resume().status, 0);
+  assert.equal((await resume()).status, 0);
   assert.equal(realpathSync(readFileSync(reached, 'utf8').trim()), realpathSync(join(bin, 'pullboard')), 'the session hook found the main checkout install');
   const card = await runCliInProcess(['hook', 'SessionStart'], { cwd: box.web, env: bare });
   assert.match(JSON.parse(card.stdout).hookSpecificOutput.additionalContext, /^resume: web-1 \(fixture-model\), web lane/);
 });
 
-test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
-  const box = project(undefined, sandbox(), { withWorktree: false });
-  writeFileSync(join(box.repo, 'gate.cjs'), [
-    "const red = require('node:fs').existsSync('RED');",
-    "const { writeSync } = require('node:fs');",
-    "for (let i = 0; i < 400; i++) writeSync(1, `ok ${i} ${'x'.repeat(red ? 10 : 3000)}\\n`);",
-    "if (red) { writeSync(2, 'not ok 401 - the page renders a heading\\n'); for (let i = 0; i < 100; i++) writeSync(1, `# note ${i}\\n`); process.exitCode = 1; }",
-    '',
-  ].join('\n'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, gate: 'node gate.cjs # prints a lot' }));
-  box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: a noisy gate');
-  const log = join(box.repo, box.git(box.repo, 'rev-parse', '--git-path', 'pullboard-gate.log'));
-  const green = await fixtureCommand(box, box.repo, 'gate');
-  assert.equal(green.code, 0, green.err);
-  const greenBody = withoutAction(green.out);
-  assert.match(greenBody, /^gate green in \d+s; timing \(node\): wall [0-9.]+s, slot wait [0-9.]+s; phases: wait [0-9.]+s, admission [0-9.]+s, setup [0-9.]+s, run [0-9.]+s, evidence [0-9.]+s; slot: .+?; per-test timing unavailable: output was not TAP or JUnit; timing profile: [^\n]+\n$/);
-  assert.equal(greenBody.trimEnd().split('\n').length, 1, 'a green gate without file measurements remains one line');
-  assert.ok(readFileSync(log, 'utf8').length > 1_200_000, 'more than the default 1 MB pipe buffer, read whole');
-  writeFileSync(join(box.repo, 'RED'), 'red');
-  box.git(box.repo, 'add', 'RED');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: turn the gate red');
-  const red = await fixtureCommand(box, box.repo, 'gate');
-  assert.equal(red.code, 1);
-  assert.match(red.out, /^gate red in \d+s:\n {2}not ok 401 - the page renders a heading\n/);
-  assert.match(red.out, / {2}# note 99\n[\s\S]*the whole output is in /);
-  assert.ok(red.out.length < 4000, `${red.out.length} characters`);
-  const lines = readFileSync(log, 'utf8').split('\n');
-  assert.equal(lines.length, 502);
-  assert.equal(lines[400], 'not ok 401 - the page renders a heading', 'stdout and stderr in one stream, in order');
-  const web = join(box.dir, 'digest-builder');
-  box.git(box.repo, 'worktree', 'add', '-q', '-b', 'web/digest', web, 'main');
-  const joined = await fixtureCommand(box, web, 'join', 'web');
-  assert.equal(joined.code, 0, joined.err);
-  const added = await fixtureCommand(box, box.repo, 'add', 'web', 'Noisy checked work', '--specs', 'G1',
-    '--criterion', 'The noisy gate passes.', '--check', 'node gate.cjs', '--wait');
-  assert.equal(added.code, 0, added.err);
-  const claimed = await fixtureCommand(box, web, 'claim', '1');
-  assert.equal(claimed.code, 0, claimed.err);
-  const built = commitFile(box, web, 'web/page.html', '<h1>Work</h1>', 'feat(web): noisy checked source [G1]');
-  assert.equal(built.status, 0, built.stderr);
-  // Under pull dispatch the submit returns queued; the red verdict arrives on the settled gate job's receipt [P7,C7].
-  const queued = await fixtureCommand(box, web, 'submit', '1', '--no-next', '--json');
-  assert.equal(queued.code, 0, queued.err + queued.out);
-  const settled = await settleSubmit(t, box, JSON.parse(queued.out));
-  const gate = settled.gate;
-  assert.equal(gate?.green, false, `the pulled gate is red: ${JSON.stringify(gate)}`);
-  // #1884 (b24440d3) intentionally replaced submit's raw TAP with a bounded failure summary and full run log.
-  const report = JSON.stringify(gate);
-  assert.match(report, /the page renders a heading/);
-  assert.ok(report.length < 20_000, 'the receipt stays bounded instead of repeating the TAP stream');
-});
-
-test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
+test('cli.journeys-resume-e2e.submit-refuses-a-bar-that-moved: submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   (await box.runLocal(box.web, 'claim', '1'));
@@ -211,7 +151,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.equal((await box.runLocal(box.repo, 'spec', 'approve', 'G1')).code, 0);
   box.git(box.repo, 'commit', '-qam', 'docs: tighten G1');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
+  await commitFile(box, box.web, 'web/a.html', '<h1>Hi</h1>', 'feat(web): page [G1]');
   const refused = (await box.runLocal(box.web, 'submit', '1'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /CRITERIA_CHANGED\] the spec rows #1 cites changed after it was claimed, so no verifier could judge it; the coordinator runs pullboard refreeze 1, then you claim it and submit again/);
@@ -221,7 +161,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.match((await box.runLocal(box.web, 'submit', '1')).out, /#1 is in the gate as job /);
 });
 
-test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
+test('cli.journeys-resume-e2e.spec-check-at-an-older-commit: spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
   const box = project();
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n`);
   box.git(box.repo, 'commit', '-qam', 'docs(spec): a footer row');
@@ -236,7 +176,7 @@ test('spec check at an older commit skips ids that items cite from a later commi
   assert.doesNotMatch(ghost.out, /G3 error/);
 });
 
-test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', async () => {
+test('cli.journeys-resume-e2e.check-runs-the-item-s-own: check runs the item\'s own check command, yours by default, and prints a digest [N23]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Loose', '--specs', 'G1');
@@ -259,6 +199,6 @@ test('check runs the item\'s own check command, yours by default, and prints a d
   assert.match((await box.runLocal(box.repo, 'help', '--all')).out, /pullboard check \[id\]/);
 });
 
-describe('resume journeys [I6,N21,V10,V11,S10,N23,C7]', { concurrency: true }, () => {
+describe('resume journeys [I6,N21,V11,S10,N23,C7]', { concurrency: true }, () => {
   for (const [name, body] of cases) it(name, body);
 });

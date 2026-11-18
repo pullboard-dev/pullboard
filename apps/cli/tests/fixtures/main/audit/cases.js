@@ -28,7 +28,7 @@ const SOURCE=new URL('../../../../../../',import.meta.url);
 function git(root,env,...args) {const ran=spawnSync('git',args,{cwd:root,env,encoding:'utf8'});assert.equal(ran.status,0,ran.stderr);return ran.stdout.trim();}
 import { mainAuditFixture } from './project.js';
 
-test('production main audit waits for real FF, collects both failures, routes both, and never repeats completion [C7,V4,H16]',{timeout:120_000},async t=>{
+test('clause 1: clause 2: production main audit waits for real FF, collects both failures, routes both, and never repeats completion [C7,V4,H16]',{timeout:120_000},async t=>{
   const box=await mainAuditFixture(t,{landingShards:1});
   await box.runWorker();
   assert.equal(existsSync(join(box.directory,box.key+'.json')),false,'native finish before actual FF is not audit execution');

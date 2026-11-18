@@ -27,13 +27,13 @@ function claimed(t, shadow, decide) {
   return { db, id: 'gate:record', token: claim.token };
 }
 
-test('clause 3: with moves.shadow off (the default) the job writer runs no table and records no compare [C7,#8381]', t => {
+test('api.jobs-job-shadow-record.moves-shadow-off-default-job: clause 3: with moves.shadow off (the default) the job writer runs no table and records no compare [C7,#8381]', t => {
   const { db, id, token } = claimed(t, undefined, () => { throw new Error('the table must not run'); });
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
   assert.equal(readShadow({ db }, 'job'), null);
 });
 
-test('clause 2: with moves.shadow on, a matching renew adds one compare and no disagreement to the job table\'s counts [C7,#8381]', t => {
+test('api.jobs-job-shadow-record.moves-shadow-matching-renew-adds: clause 2: with moves.shadow on, a matching renew adds one compare and no disagreement to the job table\'s counts [C7,#8381]', t => {
   const { db, id, token } = claimed(t, true, holderRenews());
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
   assert.throws(() => renewJob(db, { job: id, runner: 'r-other', token, now: T0 + 2_000 }), { code: 'JOB_LEASE_MOVED' });
@@ -42,7 +42,7 @@ test('clause 2: with moves.shadow on, a matching renew adds one compare and no d
   assert.equal(counts.disagreed, 0, `the job table agreed: ${JSON.stringify(counts.last)}`);
 });
 
-test('clause 1: with moves.shadow on, a renew whose job table answer differs adds one disagreement naming the job and the field [C7,#8381]', t => {
+test('api.jobs-job-shadow-record.moves-shadow-renew-whose-job: clause 1: with moves.shadow on, a renew whose job table answer differs adds one disagreement naming the job and the field [C7,#8381]', t => {
   const { db, id, token } = claimed(t, true, holderRenews(T0 + 7));
   renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
   releaseJob(db, { job: id, runner: 'r-holder', token, reason: 'stopping', now: T0 + 2_000 });
@@ -52,10 +52,34 @@ test('clause 1: with moves.shadow on, a renew whose job table answer differs add
   assert.deepEqual(counts.last.map(({ id: job, differs }) => ({ job, differs })), [{ job: id, differs: 'job.leaseUntil' }, { job: id, differs: 'job.owner' }]);
 });
 
-test('clause 1: a job table that throws is recorded as a disagreement and never refuses the runner\'s move [C7,#8381]', t => {
+test('api.jobs-job-shadow-record.job-table-throws-recorded-disagreement: clause 1: a job table that throws is recorded as a disagreement and never refuses the runner\'s move [C7,#8381]', t => {
   const { db, id, token } = claimed(t, true, () => { throw new Error('broken table'); });
   assert.equal(renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 }).renewed, true);
   const counts = readShadow({ db }, 'job');
   assert.equal(counts.disagreed, 1);
   assert.match(counts.last[0].differs, /^threw /u);
+});
+
+test('api.jobs-job-shadow-record.job-table-row-writer-refuses: clause 1: a job table row the writer refuses is recorded as a disagreement with the writer\'s refusal code [C7,#9803]', t => {
+  // The table yields a row for the stranger where the writer refuses JOB_LEASE_MOVED: the compare row names the writer's code.
+  const { db, id, token } = claimed(t, true, (snapshot) => ({ patch: { job: snapshot.job } }));
+  assert.throws(() => renewJob(db, { job: id, runner: 'r-other', token, now: T0 + 1_000 }), { code: 'JOB_LEASE_MOVED' });
+  const counts = readShadow({ db }, 'job');
+  assert.equal(counts.disagreed, 1);
+  assert.equal(counts.last[0].refusal, 'JOB_LEASE_MOVED');
+  assert.equal(counts.last[0].id, id);
+});
+
+test('api.jobs-job-shadow-record.agreeing-compare-row-row-disagreement: clause 2: an agreeing compare and a row-for-row disagreement record no refusal field [C7,#9803]', t => {
+  const { db, id, token } = claimed(t, true, holderRenews());
+  renewJob(db, { job: id, runner: 'r-holder', token, now: T0 + 1_000 });
+  assert.throws(() => renewJob(db, { job: id, runner: 'r-other', token, now: T0 + 2_000 }), { code: 'JOB_LEASE_MOVED' });
+  const agreed = readShadow({ db }, 'job');
+  assert.equal(agreed.disagreed, 0);
+  assert.deepEqual(agreed.last, []);
+  const other = claimed(t, true, holderRenews(T0 + 7));
+  renewJob(other.db, { job: other.id, runner: 'r-holder', token: other.token, now: T0 + 1_000 });
+  const differ = readShadow({ db: other.db }, 'job');
+  assert.equal(differ.disagreed, 1);
+  assert.equal('refusal' in differ.last[0], false);
 });

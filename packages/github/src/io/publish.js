@@ -11,7 +11,6 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../store/index.js';
 import { runGate } from '../../../gate/index.js';
@@ -24,6 +23,7 @@ import { landingRemote } from '../../../landing/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { publishPullRequests } from './pr/publish.js';
 import { publishStateFile } from '../../../landing/index.js';
+import { writePublishState } from '../../../landing/index.js';
 
 /** Where publish remembers the last head it found red, so the same head is not run again. */
 function stateFile(root) {
@@ -95,7 +95,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     // Push from the worktree that ran the suite, so the pre-push hook reads that run's green stamp instead of rerunning it.
     if (gate.isGreen) {
       // Landing depends on the full-suite verdict, independently of whether the subsequent network push succeeds.
-      writeFileSync(stateFile(root), JSON.stringify({ green: head, published, receipt: gate.receiptId ?? null }) + '\n');
+      writePublishState(root, { green: head, published, receipt: gate.receiptId ?? null });
       const pushed = tryGit(directory, ['push', remote, `HEAD:refs/heads/${branch}`]);
       if (pushed.status !== 0) throw new Refused('LAND_PUSH', `the landing push failed: ${pushed.stderr || pushed.stdout}; inspect the remote and hooks, then run pullboard publish again`);
     }
@@ -104,7 +104,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
     if (existsSync(directory)) rmSync(directory, { recursive: true, force: true });
   }
   if (gate.isGreen) {
-    writeFileSync(stateFile(root), JSON.stringify({ published: head, receipt: gate.receiptId ?? null }) + '\n');
+    writePublishState(root, { published: head, receipt: gate.receiptId ?? null });
     say(`published ${branch} at ${head.slice(0, 12)}: the whole suite passed`);
     return { head, published: true, red: [] };
   }
@@ -112,7 +112,7 @@ export async function publishTrunk({ root, board, config, say, onWait, onFailure
   const files = [...new Set(failures.map(failure => failure.file).filter(Boolean))];
   const touched = touchedBy(root, board, published, head, files);
   const red = failures.map(failure => ({ file: failure.file, name: failure.name, items: failure.file ? touched.get(failure.file) : [] }));
-  writeFileSync(stateFile(root), JSON.stringify({ red: head, published, receipt: gate.receiptId ?? null, failures: red }) + '\n');
+  writePublishState(root, { red: head, published, receipt: gate.receiptId ?? null, failures: red });
   say(`${branch} at ${head.slice(0, 12)} is red and was not pushed; ${red.length} failing ${red.length === 1 ? 'test' : 'tests'}:`);
   for (const entry of red) {
     say(`  ${entry.file ?? '(no file)'}: ${entry.name}; ${entry.items.length ? 'touched by ' + entry.items.map(id => `#${id}`).join(', ') : 'touched by no item landed since the last published head'}`);

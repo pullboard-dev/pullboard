@@ -20,9 +20,12 @@ function agentRow(board, id) {
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */
 export function itemFolderPath(root, id) { return join(dirname(root), `${basename(root)}-item-${id}`); }
 
+/** The item marker's file name under the worktree's Git metadata; writeItemMarker writes it, so this module owns the store. */
+export const ITEM_MARKER_FILE = 'pullboard-item.json';
+
 /** Marker is private to this worktree's Git metadata, never part of the project. */
 export function writeItemMarker(path, seat, item) {
-  writeFileSync(gitPath(path, 'pullboard-item.json'), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
+  writeFileSync(gitPath(path, ITEM_MARKER_FILE), JSON.stringify({ version: 1, seat, item }) + '\n', { mode: 0o600 });
 }
 
 /**

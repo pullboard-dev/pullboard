@@ -1,4 +1,6 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { readFileSync } from 'node:fs';
@@ -72,6 +74,7 @@ export async function run(io, args) {
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
+    ...(values.readiness === undefined ? {} : { readinessCommand: values.readiness }),
     ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
@@ -101,6 +104,7 @@ export async function run(io, args) {
     const before = store.getItem(board, id);
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
+    await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {

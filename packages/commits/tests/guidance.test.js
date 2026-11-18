@@ -19,7 +19,7 @@ function boardProofGuidance(text, surface) {
     `${surface} cannot also demand an undefined proof system beyond the bar`);
 }
 
-test('the guidance names the gate and the verdict as the proof and forbids private evidence folders [I1,I3,V4]', () => {
+test('commits.guidance.the-guidance-names-the-gate-and-the: the guidance names the gate and the verdict as the proof and forbids private evidence folders [I1,I3,V4]', () => {
   for (const hook of HOOKS) {
     boardProofGuidance(hookScript(hook), `installed ${hook} hook`);
   }

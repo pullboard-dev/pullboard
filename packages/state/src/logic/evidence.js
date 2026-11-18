@@ -30,7 +30,7 @@ export function requireCriterionEvidence(criterion) {
  * Refuse a criterion with a plain fault, naming the fix, and return the warnings for the rest.
  *
  * @param {string|undefined} criterion
- * @param {{ allowLong?: boolean }} [options]
+ * @param {{ allowLong?: boolean, warnUnnamedTest?: boolean, brief?: string }} [options]
  * @returns {{ code: string, clause: number, message: string }[]}
  */
 export function guardBar(criterion, options) {

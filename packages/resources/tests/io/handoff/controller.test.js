@@ -18,13 +18,13 @@ function resourceSources() {
     .map(name => join('packages/resources/src', String(name)));
 }
 
-test('clause 1: apps/lib/src/io/handoff/dispatcher.js and apps/cli/src/io/gate/drive.js are gone [C7]', () => {
+test('resources.controller.apps-lib-src-io-handoff-dispatcher: clause 1: apps/lib/src/io/handoff/dispatcher.js and apps/cli/src/io/gate/drive.js are gone [C7]', () => {
   for (const file of ['apps/lib/src/io/handoff/dispatcher.js', 'apps/cli/src/io/gate/drive.js']) {
     assert.equal(existsSync(join(REPO, file)), false, `${file} still exists`);
   }
 });
 
-test('clause 2: resources exports no dispatch entry and no resources source launches the dispatcher or gate drive [C7]', () => {
+test('resources.controller.resources-exports-no-dispatch-entry-and: clause 2: resources exports no dispatch entry and no resources source launches the dispatcher or gate drive [C7]', () => {
   for (const name of ['drainHandoffQueue', 'ensureHandoffDispatcher', 'recoverHandoffDispatcher', 'handoffDispatcherMayBeDead', 'finishRunningWorkers', 'repeatingSweep']) {
     assert.equal(name in resources, false, `resources still exports ${name}`);
   }
@@ -43,13 +43,13 @@ function trackedSources() {
     .filter(file => file.endsWith('.js') && !/\/(tests|journeys|fixtures|node_modules)\//u.test(file));
 }
 
-test('#6580 clause 1: apps/cli/src/io/submit/handoff/worker.js is gone [C7]', () => {
+test('resources.controller.n6580-clause-1-apps-cli-src: #6580 clause 1: apps/cli/src/io/submit/handoff/worker.js is gone [C7]', () => {
   for (const file of ['apps/cli/src/io/submit/handoff/worker.js', 'packages/runners/src/io/handoff/capacity.js']) {
     assert.equal(existsSync(join(REPO, file)), false, `${file} still exists`);
   }
 });
 
-test('#6580 clause 2: no code path starts the handoff worker cap or the lifeline [C7]', () => {
+test('resources.controller.n6580-clause-2-no-code-path: #6580 clause 2: no code path starts the handoff worker cap or the lifeline [C7]', () => {
   for (const name of ['onDispatcherLifelineEnd', 'releaseLifelines', 'handoffWorkerCapacity', 'handoffWorkerCapacityDetail', 'recordHandoffCap', 'handoffCapLine', 'HANDOFF_WORKER_LIFELINE_ENV', 'HANDOFF_LIFELINE_RELEASE', 'HANDOFF_WORKER_RESOURCE']) {
     assert.equal(name in resources, false, `resources still exports ${name}`);
   }

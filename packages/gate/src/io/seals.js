@@ -227,3 +227,25 @@ export function checkSkippedSeals(root, { rev = 'HEAD', skipped, store = sealSto
   const broken = skipped.filter(name => !hashes.has(name) || !sealOf(store, name, hashes.get(name).hash)).sort();
   if (broken.length) throw new Refused('SEAL_STALE', `skipped without a seal at their current hash: ${broken.join(', ')}; run their tests`);
 }
+
+/**
+ * Every package at a revision as sealed or unsealed; an unsealed one names the newest commit that changed its hash.
+ * Why scan a window: the breaking change is the first commit, walking the first-parent line back from the revision, whose
+ * first parent hashed the package differently (a side branch's commits are never adjacent pairs, so a merge is judged against its real parent); a change older than the window is reported as null rather than guessed.
+ *
+ * @param {string} root
+ * @param {{ rev?: string, store?: string, depth?: number }} options
+ * @returns {{ package: string, hash: string, sealed: boolean, receipts: string[], sealedAt: string | null, change: { commit: string, subject: string } | null }[]}
+ */
+export function sealedCells(root, { rev = 'HEAD', store = sealStoreFile(root), depth = 40 } = {}) {
+  const rows = sealStatus(root, { rev, store });
+  if (rows.every(row => row.seal)) return rows.map(row => ({ package: row.package, hash: row.hash, sealed: true, receipts: row.seal.receipts, sealedAt: row.seal.sealedAt, change: null }));
+  const log = git(root, ['log', '--first-parent', `--max-count=${depth}`, '--format=%H%x09%s', rev]).toString('utf8').split('\n').filter(Boolean).map(line => line.split('\t'));
+  const hashes = packageHashesAt(root, log.map(([commit]) => commit));
+  return rows.map(row => {
+    if (row.seal) return { package: row.package, hash: row.hash, sealed: true, receipts: row.seal.receipts, sealedAt: row.seal.sealedAt, change: null };
+    const at = hashes.findIndex((_, index) => hashes[index + 1]?.get(row.package)?.hash !== row.hash);
+    const found = at >= 0 && (at + 1 < log.length || log.length < depth) ? log[at] : null;
+    return { package: row.package, hash: row.hash, sealed: false, receipts: [], sealedAt: null, change: found ? { commit: found[0], subject: found[1] ?? '' } : null };
+  });
+}

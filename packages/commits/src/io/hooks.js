@@ -41,12 +41,14 @@ import {
   configFromSource,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
+  loadConfig,
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../logic/message.js";
 import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../logic/import-only-change.js";
 import { movedImportTargets } from "../logic/import-only-change.js";
+import { secretsIn } from "../logic/secrets.js";
 import { planRowChange } from "../logic/change/row/plan.js";
 import { baselineRowChange } from "../logic/change/row/tier.js";
 import { tierRowChange } from "../logic/change/row/tier.js";
@@ -69,24 +71,6 @@ const EMOJI_RE = /\p{Extended_Pictographic}|\p{Regional_Indicator}|⃣|️/u;
 const EXEMPT_RE = /^(Merge |Revert "|fixup! |squash! |amend! )/;
 const ZERO_SHA = /^0+$/;
 const MAX_SECRET_DIFF_BYTES = 8 * 1024 * 1024;
-
-/**
- * Secrets by kind, most specific first, so a line is named once by what it most likely is.
- */
-const SECRETS = [
-  ['Anthropic key', /sk-ant-[A-Za-z0-9_-]{20,}/],
-  ['OpenAI key', /sk-proj-[A-Za-z0-9_-]{32,}/],
-  ['OpenAI key', /(?<![A-Za-z0-9-])sk-(?:None-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}/],
-  ['AWS access key', /AKIA[0-9A-Z]{16}/],
-  ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
-  ['GitHub token', /gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}/],
-  ['Slack token or webhook', /xox[abprs]-[A-Za-z0-9-]{10,}|hooks\.slack\.com\/services\/[A-Za-z0-9/]+/],
-  ['Stripe live key', /(sk|rk)_live_[A-Za-z0-9]{20,}/],
-  ['Cloudflare token', /cfut_[A-Za-z0-9_-]{20,}/],
-  ['npm token', /npm_[A-Za-z0-9]{36}/],
-  ['assigned secret', /(api[_-]?key|secret|token|password)['"]?\s*[:=]\s*['"]([A-Za-z0-9/+_=-]{20,})['"]/i],
-  ['env-style secret', /^\s*(export\s+)?[A-Z][A-Z0-9_]*(SECRET|KEY|TOKEN|PASSWORD)[A-Z0-9_]*\s*=\s*[A-Za-z0-9/+_=-]{20,}\s*$/],
-];
 
 /**
  * Problems with a commit message's header: format, length, case, trailing period.
@@ -117,6 +101,18 @@ function headerProblems(header, rules) {
   }
   if (subject.endsWith('.')) problems.push('remove the period at the end of the subject');
   return { problems, type: match[1] };
+}
+
+/**
+ * Header problems alone (format, length, case, period) for one commit header; git-written merges, reverts and fixups are exempt.
+ * Why: trusted re-checks need the header rule without a spec or a claim (A8).
+ *
+ * @param {string} header
+ * @param {any} rules - The `commits` settings.
+ * @returns {string[]}
+ */
+export function commitHeaderProblems(header, rules) {
+  return EXEMPT_RE.test(header) ? [] : headerProblems(header, rules).problems;
 }
 
 /** Name usable approved citations, or the real draft-and-approval path when none are available. */
@@ -319,7 +315,9 @@ function fillRecords(root, revision, map, paths, directory = null) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
       if (directory && !map.has(path)) map.set(path, []);
-      map.get(path)?.push(record);
+      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
+      const records = map.get(path);
+      if (records && !records.includes(record)) records.push(record);
     }
   }
 }
@@ -466,29 +464,28 @@ export function addedLines(diff) {
   return added;
 }
 
-/** Recognize only the complete public negative-auth object property, never a literal prefix or continuation. */
-function publicFixtureAssignment(match, text) {
-  return /^secret[ \t]*:[ \t]*(['"])not-the-listener-secret\1$/u.test(match[0])
-    && /[{,][ \t]*$/u.test(text.slice(0, match.index))
-    && /^[ \t]*\}/u.test(text.slice(match.index + match[0].length));
-}
-
 /**
- * Added lines that look like secrets, named by kind and place. Values are never echoed back.
+ * Re-check every commit in base..head for committed secrets and header-rule breaks, reading git directly so a
+ * skipped hook (`--no-verify`) hides nothing. Reuses the SECRETS table and the header rule above (A8).
  *
- * @param {{ path: string, line: number, text: string }[]} added
- * @returns {string[]}
+ * @param {string} repo - A checkout root the trusted caller owns.
+ * @param {string} base - Exclusive start of the range.
+ * @param {string} head - Inclusive end of the range.
+ * @param {{ rules?: any }} [options] - `rules` defaults to the repo's `commits` settings, or the built-in ones when it has none.
+ * @returns {{ commit: string, kind: 'secret' | 'header', problem: string }[]} Findings, empty when the range is clean.
  */
-export function secretsIn(added) {
-  return added.flatMap((entry) => {
-    const found = SECRETS.find(([kind, pattern]) => kind === 'assigned secret'
-      // This public negative-auth fixture predates history transfer; it is never a credential.
-      // Inspect every assignment so the sentinel cannot conceal a second value on the same line.
-      ? [...entry.text.matchAll(new RegExp(pattern.source, 'gi'))]
-        .some(match => !publicFixtureAssignment(match, entry.text))
-      : pattern.test(entry.text));
-    return found ? [`${found[0]} at ${entry.path}:${entry.line}`] : [];
-  });
+export function recheckRange(repo, base, head, { rules } = {}) {
+  const commitRules = rules ?? (existsSync(join(repo, CONFIG_FILE)) ? loadConfig(repo) : configFromSource('{}')).commits;
+  const listed = tryGit(repo, ['rev-list', '--reverse', `${base}..${head}`]);
+  if (listed.status !== 0) throw new Refused('RANGE_UNREADABLE', `cannot list ${base}..${head}: ${listed.stderr}; pass commits this checkout holds`);
+  const findings = [];
+  for (const commit of listed.stdout.split('\n').filter(Boolean)) {
+    const header = git(repo, ['log', '-1', '--format=%s', commit]);
+    for (const problem of commitHeaderProblems(header, commitRules)) findings.push({ commit, kind: 'header', problem });
+    const diff = git(repo, ['diff-tree', '--root', '-p', '-m', '--first-parent', '-U0', '--no-commit-id', '--no-ext-diff', '--no-textconv', '--no-color', commit], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    for (const problem of secretsIn(addedLines(diff))) findings.push({ commit, kind: 'secret', problem });
+  }
+  return findings;
 }
 
 /**
@@ -533,7 +530,7 @@ export function preCommitProblems(context) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const touchedPaths = new Set(touched), writtenPaths = new Set(written);
@@ -583,20 +580,24 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);
   const ownershipConfig = committedLaneConfig(root);
+  // laneMode off: the lane folders are only labels, so the cells of the files the claimed item's bar names are its own [C7,#8907].
+  const ownCells = ownershipConfig.laneMode === 'off' ? claimedCells(root, boardFile, agent, approvedRowPorts) : new Set();
+  /** The lane labels of a path this seat may not change; none when its cell is one of the claimed item's. */
+  const outside = (path) => (ownCells.has(cellOfPath(path)) ? [] : outOfLane(ownershipConfig, agent.agent_lane, [path]));
   const mergeTouched = mergeHeads ? [...new Set([...touched, ...mergeHeads.flatMap((mergeHead) => stagedPaths(root, mergeHead).touched)])] : touched;
   if (readCache) readCache.paths = [...new Set([...readCache.paths, ...mergeTouched])];
   // Keeping either parent's exact content of a foreign file is accepted unchanged; when that file had a real conflict
   // in this merge, the resolution still names its owner (#860).
   const kept = mergeHeads && !preMergeHook
-    ? mergeTouched.filter((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
+    ? mergeTouched.filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
     : [];
   kept.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   const ownershipTouched = mergeHeads
-    ? mergeTouched.filter((path) => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length || !unchangedMergePath(root, path, mergeHeads))
+    ? mergeTouched.filter((path) => !outside(path).length || !unchangedMergePath(root, path, mergeHeads))
     : touched;
   const mainOnlyStaged = mergeHeads ? new Set() : stagedMainOnlyPaths(root, ownershipTouched);
   const foreignPaths = ownershipTouched.filter((path) => !mainOnlyStaged.has(path)
-    && outOfLane(ownershipConfig, agent.agent_lane, [path]).length);
+    && outside(path).length);
   const resolved = mergeHeads && !preMergeHook
     ? foreignPaths.filter((path) => resolvedMergeConflictPath(root, path, mergeHeads))
     : [];
@@ -611,17 +612,17 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   prefetchBlobs(root, checkedForeign.flatMap(path => ['HEAD', ':index'].map(revision => importFileEntry(root, revision, path)?.oid).filter(Boolean)));
   const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
+    ownNewFile: path => !outside(path).length
       && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
         || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
   })]));
   const tierChanges = new Map(checkedForeign.map(path => [path, tierRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    ownsFile: file => !outside(file).length,
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path), read: planRead,
+    ownsFile: file => !outside(file).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
@@ -638,7 +639,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     || planChanges.get(path).allowed || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
   for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
-    .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
+    .flatMap((path) => outside(path).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
       return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
@@ -687,6 +688,32 @@ export function deletedGateProblems(root, config) {
     }
   }
   return problems;
+}
+
+/** A path's cell, the codemap cell rule kept here so the hook loads no further module [C7,#8907]. */
+function cellOfPath(path) {
+  return /^(?:apps|packages)\/[^/]+(?=\/)/u.exec(path)?.[0] ?? null;
+}
+
+/** The cells of the files a claimed item's bar names: its `Files:` brief list and its recorded file inventory [C7,#8907]. */
+function namedCells(item) {
+  const listed = /^[ \t]*Files:[ \t]*\n((?:[ \t]*-[ \t]+[^\n]*(?:\n|$))+)/mu.exec(item.item_brief ?? '')?.[1] ?? '';
+  const lines = [...listed.split('\n').map(line => line.replace(/^[ \t]*-[ \t]+/u, '').trim().split(/\s+/u)[0]), ...(item.item_files ?? '').split('\n').map(line => line.trim())];
+  return new Set(lines.map(line => cellOfPath(line.replaceAll('`', ''))).filter(Boolean));
+}
+
+/** The cells the seat's claimed item owns, read from the board without changing it; none when the board cannot say [C7,#8907]. */
+function claimedCells(root, boardFile, agent, { openBoardReadOnly } = {}) {
+  if (!boardFile || !openBoardReadOnly) return new Set();
+  const folder = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  let db;
+  try {
+    db = openBoardReadOnly(boardFile);
+    const claimed = db.prepare("SELECT item_brief, item_files FROM item WHERE item_status='claimed' AND item_owner=?" + (folder ? ' AND item_id=?' : ''))
+      .all(...(folder ? [agent.agent_id, Number(folder)] : [agent.agent_id]));
+    return new Set(claimed.flatMap(item => [...namedCells(item)]));
+  } catch { return new Set(); }
+  finally { db?.close(); }
 }
 
 /** Read lane ownership from the committed checkout, so unstaged settings cannot grant new folders [L1,L3]. */

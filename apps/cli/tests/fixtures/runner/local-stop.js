@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { processAlive } from '../../../../../packages/drive/index.js';
@@ -6,6 +7,18 @@ import { processAlive } from '../../../../../packages/drive/index.js';
 const STOP_MS = 10_000;
 // Budget: a state heartbeat older than 2 min names a pid the runner no longer holds, which may now be another process.
 const FRESH_MS = 120_000;
+
+/**
+ * Whether the process still runs: alive to a signal and not an exited child waiting to be reaped.
+ * Why: a runner the in-process CLI started is a child of this test process; once it has exited it stays a zombie, which a
+ * signal-zero still finds, until this event loop reaps it, and the loop is blocked while the stop waits. So each stop
+ * waited its whole 10 s budget for a runner that had exited within 0.1 s [C7].
+ */
+function running(pid) {
+  if (!processAlive(pid)) return false;
+  const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+  return !String(state.stdout ?? '').trim().startsWith('Z');
+}
 
 /** The live local runner a fixture machine home started, or null when none runs or its heartbeat is stale. */
 function liveRunnerPid(machineHome) {
@@ -31,8 +44,8 @@ export function stopFixtureLocalRunners(machineHomes) {
   const signal = (pid, name) => { try { process.kill(pid, name); } catch { /* it has exited */ } };
   for (const pid of pids) signal(pid, 'SIGTERM');
   const deadline = Date.now() + STOP_MS;
-  while (pids.some(processAlive) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
-  for (const pid of pids) if (processAlive(pid)) signal(pid, 'SIGKILL');
+  while (pids.some(running) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+  for (const pid of pids) if (running(pid)) signal(pid, 'SIGKILL');
   return pids.length;
 }
 

@@ -42,6 +42,8 @@ import {
   storedOwnedRequestState,
 } from './notice.js';
 import {
+  detectInstallContext,
+  homeScreenStepNeeded,
   registerApp,
   requestPairingPersistence,
 } from './install.js';
@@ -62,6 +64,9 @@ import {
 } from './passkeys.js';
 import { readUploadSize } from '../../logic/browser/status.js';
 import { deviceExcludedBoards } from './devices.js';
+import { attachRelayCause } from './status.js';
+import { setRelayStatus } from './status.js';
+import { statusFromLoad } from './status.js';
 
 const CHECKPOINT_WAIT_MS = 15_000;
 const KEYS = 'pullboard.relay.keys.v1';
@@ -143,7 +148,7 @@ async function rawDocumentAt(path, onDenied, options = {}) {
     const error = document.error;
     await checkAuthorization(path, response.status, onDenied, error);
     if (error) throw new Refused(error.code, error.message);
-    throw new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.');
+    throw attachRelayCause(new Refused('RELAY_UNAVAILABLE', 'The relay did not answer. Sign in again or retry.'));
   }
   if (document.version !== 1) throw new Error('This relay API version is unsupported. Upgrade this browser client.');
   return document;
@@ -355,7 +360,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
   function keepPairingStorage() {
     persistenceRequest ??= requestPairingPersistence().then(kept => {
       const current = document.getElementById('pairing-storage-notice');
-      if (kept || homeLineDismissed(localStorage)) { current?.remove(); return; }
+      if (!homeScreenStepNeeded({ kept, ...detectInstallContext() }) || homeLineDismissed(localStorage)) { current?.remove(); return; }
       const main = document.querySelector('main');
       // The answer comes later: a board lost meanwhile, or access lost, leaves no line about keeping it.
       if (!main || accessLost || current || paired.size === 0) return;
@@ -629,7 +634,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
           if (document?.error?.code === 'NO_BOARD' || document?.error?.code === 'NO_SNAPSHOT') waitForFirstSnapshot(entry);
           const refusal = new Refused(document?.error?.code ?? 'RELAY_UNAVAILABLE', document?.error?.message ?? 'The relay stream ended. Refresh this board.');
           if (refusal.code === 'ENGINE_VERSION') refusal.fatal = true;
-          throw refusal;
+          throw attachRelayCause(refusal);
         }
         return response;
       },
@@ -676,6 +681,7 @@ export async function createTransport({ onUpdate = () => {}, onOpenBoard = () =>
     });
     if (device.failure) { failure = device.failure; failureBoard = null; }
     available = document.boards.filter(board => BOARD.test(board.id) && typeof board.repository === 'string');
+    const loaded = statusFromLoad({ openBoard: (available.find(board => board.id === pair?.board) ?? available[0])?.repository ?? null, exclusions }); setRelayStatus(loaded.excluded ? loaded : null); // only an exclusion names a cause here [C7,#9667]
     inventoryLoaded = true;
     waitingBoards = new Map();
     sizeProblems = new Map();

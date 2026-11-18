@@ -48,14 +48,18 @@ export function declaredBoardSchema(initialize) {
   finally { db.close(); }
 }
 
-/** List exact missing, extra, and changed declarations in one actionable compatibility notice. */
+/** The tables a board makes on first use, not in its schema. */
+const OPT_IN_TABLE = /^(?:gate_hop|field_decl|item_field|item_related)\./u;
+
+/** List exact missing, extra, and changed declarations (the opt-in gate hop table may be absent) in one actionable compatibility notice. */
 export function sharedSchemaDiagnostic(db, expected) {
   const actual = boardSchema(db);
   const differences = [];
   for (const kind of ['columns', 'triggers']) {
     const label = kind === 'columns' ? 'column' : 'trigger';
     for (const [name, value] of expected[kind]) {
-      if (!actual[kind].has(name)) differences.push(`${label} only in this worktree: ${name}`);
+      // The gate hop, item-field and related-item tables are opt-in: a board gains each on first use, so its absence is no drift [C7,#8327,#9351].
+      if (!actual[kind].has(name)) { if (!OPT_IN_TABLE.test(name)) differences.push(`${label} only in this worktree: ${name}`); }
       else if (actual[kind].get(name) !== value) differences.push(`different ${label}: ${name}`);
     }
     for (const name of actual[kind].keys()) {

@@ -23,7 +23,7 @@ function submitRow(detail) {
   return { event_kind: 'submit', event_detail: JSON.stringify(detail) };
 }
 
-test('clause 1: a submit admitted on main-owned reds is a proof, so its files plan the landing instead of the full plan [C7]', () => {
+test('landing.full.a-submit-admitted-on-main-owned: clause 1: a submit admitted on main-owned reds is a proof, so its files plan the landing instead of the full plan [C7]', () => {
   const commit = 'c'.repeat(40);
   assert.equal(submitProved(knownMainSubmit(commit)), true);
   assert.equal(submitProved({ commit, gateGreen: true }), true);
@@ -36,7 +36,7 @@ test('clause 1: a submit admitted on main-owned reds is a proof, so its files pl
   assert.equal(submittedSelections([{ id: 3489, commit: 'd'.repeat(40) }], () => [submitRow(knownMainSubmit(commit))], () => []), null, 'another commit\'s submit is not this proof');
 });
 
-test('#6810 clauses 1-2: the in-process landing batch file is gone and its runner is named nowhere in the tree [C7,#6810]', () => {
+test('landing.full.n6810-clauses-1-2-the-in: #6810 clauses 1-2: the in-process landing batch file is gone and its runner is named nowhere in the tree [C7,#6810]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   assert.equal(tracked(root, 'packages/landing/src/io/in'), '');
   // The name is split so this test does not name it; git grep exits 1 when nothing matches.
@@ -47,7 +47,7 @@ test('#6810 clauses 1-2: the in-process landing batch file is gone and its runne
   assert.equal(named, '');
 });
 
-test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file imports either [C7,#6812]', () => {
+test('landing.full.n6812-clauses-1-3-candidates-js: #6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file imports either [C7,#6812]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const gone = ['packages/landing/src/io/candidates.js', 'packages/landing/src/io/step/parallel.js'];
   for (const file of gone) assert.equal(tracked(root, file), '', file);
@@ -65,7 +65,7 @@ test('#6812 clauses 1-3: candidates.js and step/parallel.js are gone and no file
   assert.deepEqual(importers, []);
 });
 
-test('#6817 clauses 1-2: index.js exports nothing from the scheduler and no source calls its timer, owner or wake [C7,#6817]', () => {
+test('landing.full.n6817-clauses-1-2-index-js: #6817 clauses 1-2: index.js exports nothing from the scheduler and no source calls its timer, owner or wake [C7,#6817]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   // The scheduler file is gone (#6818), so index.js has nothing of it to export; no source names its four entry points.
   assert.equal(tracked(root, 'packages/landing/src/io/automatic'), '');
@@ -77,7 +77,7 @@ test('#6817 clauses 1-2: index.js exports nothing from the scheduler and no sour
   assert.deepEqual(callers, []);
 });
 
-test('#6818 clauses 1-3: the scheduler and its test are gone and no landing source reads or writes its pending record or worker log [C7,#6818]', () => {
+test('landing.full.n6818-clauses-1-3-the-scheduler: #6818 clauses 1-3: the scheduler and its test are gone and no landing source reads or writes its pending record or worker log [C7,#6818]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   assert.equal(tracked(root, 'packages/landing/src/io/automatic/scheduler.js'), '');
   assert.equal(tracked(root, 'packages/landing/tests/io/automatic/scheduler.test.js'), '');
@@ -89,7 +89,7 @@ test('#6818 clauses 1-3: the scheduler and its test are gone and no landing sour
   assert.equal(named, '');
 });
 
-test('#6819 clauses 1-2: the train landing module moved into train/ and no file imports its old path [C7,H16,#6819]', () => {
+test('landing.full.n6819-clauses-1-2-the-train: #6819 clauses 1-2: the train landing module moved into train/ and no file imports its old path [C7,H16,#6819]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Built from parts, so this test names no deleted path itself.
   const gone = ['packages/landing/src/io', 'train.js'].join('/');
@@ -107,7 +107,7 @@ test('#6819 clauses 1-2: the train landing module moved into train/ and no file 
   assert.deepEqual(importers, []);
 });
 
-test('#6814 clauses 1-2: the landing receipt reuse path is gone from reuse.js and named nowhere in the tree [C7,#6814]', () => {
+test('landing.full.n6814-clauses-1-2-the-landing: #6814 clauses 1-2: the landing receipt reuse path is gone from reuse.js and named nowhere in the tree [C7,#6814]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   // The name is split so this test does not name it; git grep exits 1 when nothing matches.
   const name = 'landingReceipt' + 'Reuse';
@@ -117,7 +117,7 @@ test('#6814 clauses 1-2: the landing receipt reuse path is gone from reuse.js an
   assert.equal(named, '');
 });
 
-test('#6815 clauses 1-2: the batch gate\'s unit reuse and trunk-move reruns are gone from step/gate.js and named nowhere in the tree [C7,#6815]', () => {
+test('landing.full.n6815-clauses-1-2-the-batch: #6815 clauses 1-2: the batch gate\'s unit reuse and trunk-move reruns are gone from step/gate.js and named nowhere in the tree [C7,#6815]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   // The names are split so this test does not name them; git grep exits 1 when nothing matches.
   for (const name of ['submitted' + 'Units', 'trunkMove' + 'Reruns', 'interacting' + 'Tests']) {

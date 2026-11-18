@@ -5,9 +5,16 @@
  */
 import { gateLedgerHits } from '../../../../../packages/api/index.js';
 import { offerJob } from '../../../../../packages/api/index.js';
+import { queueFor } from '../../../../../packages/api/index.js';
 import { openJob } from '../../../../../packages/api/index.js';
+import { offeredRequest } from '../../../../../packages/api/index.js';
+import { recoverFromJobRow } from '../../../../../packages/config/index.js';
 import { endGateHop } from '../../../../../packages/api/index.js';
+import { endStaleGateJobs } from '../../../../../packages/api/index.js';
+import { gateRunnerAdmission } from '../../../../../packages/config/index.js';
+import { endStaleJobsEnabled } from '../../../../../packages/config/index.js';
 import { submitGateHop } from './hop.js';
+import { recordCheckpoint } from '../seat-checkpoint.js';
 import { pulledGateReds } from '../../../../../packages/api/index.js';
 import { mappedCheck } from '../../../../../packages/codemap/index.js';
 import { browserFreeChecksEnabled } from '../../../../../packages/config/index.js';
@@ -37,6 +44,7 @@ import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
 import { submitTableReplay } from './gate.js';
+import { pushPinToolingEnabled } from '../../../../../packages/config/index.js';
 import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
@@ -47,14 +55,14 @@ import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
-import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
+import { checkpointAfterMove } from '../../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from '../checkpoint.js';
 
 /**
  * The tooling tree that judges this submit (RFC 0007 SC7), for the board to record with the submit it applies, so review
  * reuses the pulled gate's receipts only under the same tooling; an unreadable pin records none and nothing is reused [C7].
  */
-function pulledTooling(root, commit) {
+export function pulledTooling(root, commit) {
   try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
 }
 
@@ -78,6 +86,23 @@ const PLAN_COMMAND_CHARS = 2000;
 const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;
 /** Where the browser journeys look for Chrome (apps/cli/tests/fixtures/chrome.js), besides PULLBOARD_CHROME. */
 const KNOWN_BROWSERS = ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser'];
+
+/**
+ * The refusal line for a pinned analysis that died on an uncaught exception, or null when its output holds no thrown error and stack frame.
+ * Why: the pulled entry once reported only "returned no result", so a builder read main's tooling fault as their own red; the code names it [C7,P7].
+ * It is injected into the gate entry's source, so it uses nothing outside itself.
+ *
+ * @param {string} said The analysis's stderr then stdout.
+ * @returns {string | null}
+ */
+export function analysisCrash(said) {
+  const lines = String(said ?? '').split(/\r?\n/u);
+  const at = lines.findIndex(line => /^\s*at /u.test(line));
+  if (at < 0) return null;
+  const error = lines.slice(0, at).reverse().find(line => /^\w*Error\b/u.test(line.trim()));
+  if (!error) return null;
+  return `RUNNER_TOOLING_CRASH: the pinned analysis tooling crashed on the runner with ${error.trim().slice(0, 300)} at ${lines[at].trim().slice(0, 300)}; the same main will crash again, so shout the coordinator with this line`;
+}
 
 /**
  * The gate job's entry, written into accepted main's archive by the bootstrap: it runs main's analysis entry on the
@@ -170,6 +195,7 @@ const receipt = shard ? { version: 1, kind: 'shard', main: input.main, source: i
   : { version: 1, main: input.analysis.main, source: input.analysis.source, steps: {}, phases: [], environment };
 const timed = (name, work) => { const started = performance.now(); try { return work(); } finally { receipt.steps[name] = Math.round(performance.now() - started); } };
 const tail = text => text.length > 4000 ? text.slice(-4000) : text;
+${analysisCrash.toString()}
 /** The run's own TAP or Node reporter totals, the last ones printed; null when it printed none, so a count is never guessed. */
 const totals = text => {
   const found = {};
@@ -281,6 +307,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // A phase that wrote its timing profile beside its log in the checkout names it on its row, so the runner keeps it with the sanitized log [C7,#7301].
+  const profileFile = join(root, role + '.log.profile.json'), profilePath = existsSync(profileFile) ? profileFile : null;
   const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
   const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
@@ -307,7 +335,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
@@ -321,7 +349,7 @@ let analysis = null;
 try { analysis = JSON.parse(line.slice(line.indexOf(' ') + 1)); } catch { /* reported below */ }
 if (!analysis) {
   const said = String(analysed.stderr ?? '') + String(analysed.stdout ?? ''), kept = keepOutput('analysis.log', Buffer.from(said));
-  receipt.error = 'the analysis returned no result: ' + tail(said);
+  receipt.error = analysisCrash(said) ?? 'the analysis returned no result: ' + tail(said);
   if (kept) receipt.kept = kept;
 }
 else {
@@ -336,6 +364,8 @@ else {
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
     // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
     notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
+    // Static rows main also has ride to the board as data, so it records them as known main reds (gate.knownMainStatic) [C7,#10567].
+    ...(Array.isArray(analysis.staticKnownMain) && analysis.staticKnownMain.length ? { staticKnownMain: analysis.staticKnownMain.slice(0, 200).map(row => ({ rule: row.rule, file: row.file })) } : {}),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
@@ -464,10 +494,23 @@ export function landingShardGate() {
  * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
  * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
  *
- * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string } }} fields
+ * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string }, tooling?: string }} fields - tooling: the pinned tooling tree, when push.pinTooling sends it.
  */
-export function gateShardRequest({ main, source, shard }) {
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main] };
+export function gateShardRequest({ main, source, shard, tooling }) {
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main], ...(tooling ? { tooling } : {}) };
+}
+
+/**
+ * The tooling field a pre-push shard request carries: with push.pinTooling on, the same tooling tree the item gate records
+ * for this commit (pulledTooling), so a shard receipt keys the way a gate receipt does; off or unreadable, none [C7,#9373].
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {boolean} [enabled]
+ * @returns {{ tooling?: string }}
+ */
+export function pushShardTooling(root, commit, enabled = pushPinToolingEnabled()) {
+  return enabled ? pulledTooling(root, commit) : {};
 }
 
 /**
@@ -475,14 +518,17 @@ export function gateShardRequest({ main, source, shard }) {
  * queues a second run of the same source.
  *
  * @param {import('node:sqlite').DatabaseSync} db
- * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
+ * @param {{ item: number, main: string, source: string, request: object, now?: number, hop?: { table: Function } | null, queue?: object | null }} fields - hop: the submit's hop port, null with gate.fencedHop off.
+ *   queue: the board's queue (queueFor) while runs_store is on, so the offer goes through queueRun and the runs file; null writes the board's job rows as before [B2,P7,#7418].
  */
-export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null }) {
+export function offerGateJob(db, { item, main, source, request, now = Date.now(), hop = null, queue = null }) {
   const open = openJob(db, { kind: 'gate', item, candidate: source });
   if (open) return open;
   // With gate.fencedHop on, a resubmit at a new candidate ends the item's open hop, so the old candidate's gate job cannot renew or land [C7,#8353].
   endGateHop(db, hop, { item, candidate: source, now });
-  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now });
+  // With gate.endStaleJobs on, the item's older open gate jobs end as the new candidate is offered [C7,#8816].
+  endStaleGateJobs(db, { item, keep: source, enabled: endStaleJobsEnabled(), now });
+  return offerJob(db, { id: `gate:${item}:${source.slice(0, 12)}:${now.toString(36)}`, kind: 'gate', priority: 'gate', needs: GATE_NEEDS, item, candidate: source, base: main, request, now }, queue);
 }
 
 /**
@@ -510,14 +556,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
  *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean,
- *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null }} submission - files: what the
+ *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null,
+ *   composed?: { main: string, head: string, tree: string } | null }} submission - composed: set when the submitted commit is a submit.composeAsObject composition, so a runner recomputes its tree from main and head and refuses COMPOSITION_MISMATCH [U159]. files: what the
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
  *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null, composed = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
   // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
@@ -531,11 +578,15 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const config = full ? { ...configured, affectedTests: '', submitGate: 'full' } : configured;
   // A repo with no gate command is refused before any job row is written, as the controller path refuses it (NO_GATE).
   if (!config.gate?.trim()) throw missingGate(root);
+  let markAt = Date.now();
+  /** Name the queueing step that just ended on stderr when PULLBOARD_SUBMIT_MARKS is set, as the submit phase marks do, so a plain submit prints nothing extra [C7]. */
+  const mark = step => { if (process.env.PULLBOARD_SUBMIT_MARKS) process.stderr.write(`submit-mark queueing/${step}: ${Date.now() - markAt} ms\n`); markAt = Date.now(); };
   const crossRun = withBoard(ctx, board => {
     board.gitRoot = root;
     return itemCollisionPlan(board, held, listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
+  mark('cross-run');
   const doctrine = hasSubmitRules(root, main.commit, main.config.practice) ? { mainCommit: main.commit, commit, practice: main.config.practice,
     timeoutMs: main.config.check?.timeoutMs, ...(submitRulesNarrowable(root, main.commit, main.config.practice) ? { fast: true } : {}) } : null;
   // A file moved since the claim keeps its frozen bar; the runner executes it at its new path, as the controller gate does [C7].
@@ -543,9 +594,11 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
-    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
+    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen, item_brief: held.item_brief, item_files: held.item_files } } : authorize || null });
+  mark('request');
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;
   // The board applies the receipt as this seat's submit at this bar, tree and change list; a later claim or bar makes it stale [P7].
@@ -555,18 +608,22 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     ...(companion ? { companion } : {}), ...(infra ? { infra } : {}), ...pulledTooling(root, commit) };
   // The board's proof ledger rides along for the files this gate is known to prove, so a runner with an empty store reuses them [P7,CD2].
   withBoard(ctx, board => gateLedgerHits(board.db, request, [...request.input.data.analysis.crossRunTests ?? [], ...files.filter(file => TEST_FILE.test(file))]));
+  mark('ledger');
   git(root, ['update-ref', `refs/pullboard/gate/${id}`, source]);
   // The same pin the controller path writes, so doctor and review find the work whatever the gate's outcome (#7076).
   git(root, ['update-ref', `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, commit]);
-  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop() }));
+  const job = withBoard(ctx, board => offerGateJob(board.db, { item: id, main: main.commit, source, request, hop: submitGateHop(), queue: queueFor(board, me.id, { file: ctx.file }) }));
+  mark('pins-and-offer');
   noteSubmitSession(ctx.info, id, true);
   // The runner's receipt applies the submit with no agent session, so the usage checkpoint the ordered submit took is taken here, as the gate is offered [N2].
   await withBoard(ctx, board => checkpointAfterMove(ctx, board, { agent: me.id, item: id, operation: 'submit' }, { ordered, worker: usageCheckpointWorkerEntrypoint() }));
   await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Gate job ${job.id} offered for ${source.slice(0, 12)}${companion ? ` (companions composed onto ${commit.slice(0, 12)})` : ''} on main ${main.commit.slice(0, 12)}; a runner pulls it and posts its receipt.` }]));
+  // seat.checkpoints (off by default): the submit records what is done and what the gate and review still decide [C7,#8549].
+  await withBoard(ctx, board => recordCheckpoint(ctx, board, { item: id, agent: me.id, moment: 'submit', parts: { done: [`submitted ${commit}`], left: ['gate result and review'], evidence: [`gate job ${job.id}`] } }, ordered));
   // With no registered runners this machine is its own runner: the same pull path, on loopback [P7].
   const host = primaryCheckoutRoot(ctx.info);
-  const local = host ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
+  const local = host && !gateRunnerAdmission().runnerOnly ? await ensureLocalRunner(host) : { running: false, started: false, pid: null };
   // The controller path delivers the activity digest after a submit; the pulled one does as the job is queued, in json too, and the acknowledgment carries its receipt (#7076).
   const delivered = {};
   await deliverSubmitActivity(ctx, id, delivered);
@@ -597,17 +654,60 @@ export async function recoverOfferedGate(ctx, id, recovered) {
   const found = OFFER_NOTE.exec(recovered.args[1]?.text ?? '');
   if (!found || recovered.args[1]?.agentId !== withBoard(ctx, board => whoAmI(ctx, board)).id) return null;
   const [, gateJob, sourceShort, ontoShort] = found;
+  const pinned = pinnedOffer(ctx, id, sourceShort, ontoShort);
+  if (!pinned) return null;
+  await withBoard(ctx, board => ordered(ctx, board, 'appendFact', recovered.args));
+  return acknowledgeRecovered(ctx, id, { gateJob, ...pinned });
+}
+
+/** The gate source and builder head an offer names, as pinned in this checkout, or null when the pins do not match it. */
+function pinnedOffer(ctx, id, sourceShort, ontoShort) {
   let source, commit;
   try {
     source = git(ctx.info.root, ['rev-parse', '--verify', `refs/pullboard/gate/${id}`]).trim();
     commit = ontoShort ? git(ctx.info.root, ['rev-parse', '--verify', `refs/pullboard/items/${id}/${ontoShort}`]).trim() : source;
   } catch { return null; }
-  if (!source.startsWith(sourceShort)) return null;
-  await withBoard(ctx, board => ordered(ctx, board, 'appendFact', recovered.args));
+  return source.startsWith(sourceShort) ? { source, commit, composed: Boolean(ontoShort) } : null;
+}
+
+/** Answer a recovered offer with the acknowledgment the original submit would have printed. */
+async function acknowledgeRecovered(ctx, id, { gateJob, source, commit, composed }) {
   const delivered = {};
   await deliverSubmitActivity(ctx, id, delivered);
-  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(ontoShort ? { composed: source } : {}), gateJob, queued: true, recovered: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: null };
+  const acknowledgment = { id, item: id, commit, pin: `refs/pullboard/items/${id}/${commit.slice(0, 12)}`, ...(composed ? { composed: source } : {}), gateJob, queued: true, recovered: true, ...(delivered.activity ? { activity: delivered.activity } : {}), localRunner: null };
   if (ctx.json) ctx.io.result(acknowledgment);
   else ctx.io.say(`#${id} is in the gate as job ${gateJob}: recovered the original offer, whose reply was lost; a runner pulls it and posts one receipt.`);
   return 0;
+}
+
+/**
+ * The offer a seat's open gate job row for a source holds: the job id and, when companions were composed, the builder
+ * head they were composed onto. Null when no open job of that seat's offers this source (another seat's, another source's).
+ *
+ * @param {object} board
+ * @param {{ me: string, id: number, source: string, file?: string }} fields
+ * @returns {{ job: string, onto: string | null } | null}
+ */
+export function gateOfferFromJobRow(board, { me, id, source, file }) {
+  const runs = queueFor(board, me, { file })?.runs ?? null;
+  const job = openJob(board.db, { kind: 'gate', item: id, candidate: source }, { runs });
+  const request = job ? offeredRequest(board.db, job.id, { runs }) : null;
+  return job && request?.submit?.agentId === me ? { job: job.id, onto: request.submit.companion?.source ?? null } : null;
+}
+
+/**
+ * With submit.recoverFromJobRow on and no held relay note, finish a pulled submit from the gate job row it offered: the
+ * item's open gate job for its pinned source, offered by this seat. Why: the job row already names the job, source and
+ * the head companions were composed onto, so a lost note is no reason to offer again [C7,#9825].
+ *
+ * @returns {Promise<number | null>} null when the setting is off, or no open job of this seat's offers the pinned gate.
+ */
+export async function recoverOfferedGateFromJobRow(ctx, id) {
+  if (!recoverFromJobRow()) return null;
+  let source;
+  try { source = git(ctx.info.root, ['rev-parse', '--verify', `refs/pullboard/gate/${id}`]).trim(); } catch { return null; }
+  const found = withBoard(ctx, board => gateOfferFromJobRow(board, { me: whoAmI(ctx, board).id, id, source, file: ctx.file }));
+  if (!found) return null;
+  const pinned = pinnedOffer(ctx, id, source.slice(0, 12), found.onto?.slice(0, 12) ?? null);
+  return pinned ? acknowledgeRecovered(ctx, id, { gateJob: found.job, ...pinned }) : null;
 }

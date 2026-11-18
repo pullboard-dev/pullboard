@@ -55,6 +55,22 @@ export function contractFiles(root, base, { proved, derived, commits = [] }) {
 }
 
 /**
+ * The contracts account's reused and run files, apart: the files the ledger's hit list covered at unchanged inputs, and
+ * the rest, which ran (landing.reuseContractResults). Counts come from the run, so a capped file list never skews them.
+ *
+ * @param {string[]} files - Every contract file of the landing.
+ * @param {{ reused?: number, reusedFiles?: string[] } | undefined} proof - The proof run's account.
+ * @returns {{ reused: { files: string[], count: number }, run: { files: string[], count: number } }}
+ */
+export function contractAccount(files, proof) {
+  const reusedFiles = Array.isArray(proof?.reusedFiles) ? proof.reusedFiles : [];
+  const hit = new Set(reusedFiles);
+  const ran = files.filter(file => !hit.has(file));
+  const reused = Number.isSafeInteger(proof?.reused) ? proof.reused : reusedFiles.length;
+  return { reused: { files: reusedFiles.slice(0, 20), count: reused }, run: { files: ran.slice(0, 20), count: Math.max(0, files.length - reused) } };
+}
+
+/**
  * The land job's contract check: run, on the tree it is checking, the affected tests that reached main after the items
  * were submitted, or that their submits deferred to the batch (T3 journeys), with the project's runner. Why: a pulled
  * land job proved only each item's own files, so an item landed red against a test main gained after its submit; the
@@ -63,7 +79,8 @@ export function contractFiles(root, base, { proved, derived, commits = [] }) {
  * @param {{ contracts?: { runner?: string }, items?: { id: number, commit: string }[], proof?: { files?: string[] } | null, deferred?: { files?: Record<string, string[]> } | null, badges?: { path: string }[], waivers?: object[] }} payload
  * @param {NodeJS.ProcessEnv} env
  * @returns {((context: { root: string, base: string, items?: number[] }) => Promise<{ ok: boolean, detail: string | null, contracts: { files: string[], count: number, full?: string, mainRed?: { file: string, name: string }[] } }>) | null} null when the job names no runner;
- *   mainRed: a red the base fails identically, recorded as a known main red while the item lands.
+ *   mainRed: a red the base fails identically, or in a file the ledger records red on main at the base, recorded as a known main red while the item lands;
+ *   ledgerMainRed: the files the ledger excused [C7,U152].
  */
 export function contractCheck(payload, env) {
   const runner = typeof payload.contracts?.runner === 'string' && payload.contracts.runner.trim() && !/[\0\n\r]/u.test(payload.contracts.runner) ? payload.contracts.runner.trim() : null;
@@ -71,6 +88,8 @@ export function contractCheck(payload, env) {
   const proved = new Set([...(payload.proof?.files ?? []), ...Object.values(payload.deferred?.files ?? {}).flat()]);
   const derived = new Set((payload.badges ?? []).map(entry => entry?.path).filter(path => typeof path === 'string'));
   const waivers = Array.isArray(payload.waivers) ? payload.waivers : [];
+  // landing.ledgerMainReds: the board's red-now files ride on the job; absent, every red is compared on the base as before [C7,U152].
+  const mainReds = Array.isArray(payload.mainReds) ? payload.mainReds : null;
   // An enclosing node --test run's context never reaches the contracts, which would then report to it, not as their own run.
   const { NODE_TEST_CONTEXT, ...own } = env;
   return async context => {
@@ -81,10 +100,14 @@ export function contractCheck(payload, env) {
     // The receipt names what ran, so a landing that ran no contract says why [C7].
     const contracts = { files: files.slice(0, 20), count: files.length, ...(full ? { full } : {}) };
     if (!files.length) return { ok: true, detail: null, contracts };
-    // No ledger hits: a file the merged change reaches has a new inputKey, so a hit list could reuse none of them.
-    const result = await ledgerProofCheck({ runner, files, ledger: null }, { env: own, waivers })(context);
-    const known = result.ok ? null : await baseReds(context, { runner, trunk: payload.trunk, failures: result.failures, env: own });
-    if (known) return { ok: true, detail: null, contracts: { ...contracts, mainRed: known } };
+    // No ledger hits unless landing.reuseContractResults rides on the job: a file the merged change reaches has a new inputKey, so a hit list could reuse none of them.
+    const reuse = payload.contracts.reuse === true;
+    const result = await ledgerProofCheck({ runner, files, ledger: reuse ? payload.contracts.ledger ?? null : null }, { env: own, waivers, reuseGate: reuse })(context);
+    // With the setting on, the account names the reused files and the run files apart [C7,#9301].
+    if (reuse) Object.assign(contracts, contractAccount(files, result.proof));
+    const known = result.ok ? null : await mainOwnedReds(context, result.failures, { mainReds,
+      rerun: failures => baseReds(context, { runner, trunk: payload.trunk, failures, env: own }) });
+    if (known) return { ok: true, detail: null, contracts: { ...contracts, mainRed: known.known, ...(known.ledger.length ? { ledgerMainRed: known.ledger } : {}) } };
     return { ok: result.ok, detail: result.ok ? null : result.detail?.replace(/^landing proof/u, 'landing contracts'), contracts, ...(result.waived ? { waived: result.waived } : {}), ...(result.failed ? { failed: result.failed } : {}) };
   };
 }
@@ -114,4 +137,50 @@ async function baseReds({ root, base }, { runner, trunk = 'refs/heads/main', fai
   if (!onBase || onBase.ok || !onBase.failures) return null;
   const shared = new Set(onBase.failures.map(row => `${row.file}\0${row.name}`));
   return failures.every(row => shared.has(`${row.file}\0${row.name}`)) ? failures.map(row => ({ file: row.file, name: row.name })) : null;
+}
+
+/**
+ * The files of `mainReds` the ledger records red on main at the base: the red row's commit is the base or one of its
+ * ancestors, and the base holds the file. A commit the checkout does not know, or one off main, excuses nothing.
+ *
+ * @param {string} root - The landing checkout.
+ * @param {string} base - The trunk tip the items merged onto.
+ * @param {unknown[]} mainReds - The job's `[file, commit]` pairs (landingMainReds).
+ * @returns {Set<string>}
+ */
+export function ledgerMainRedFiles(root, base, mainReds) {
+  const onMain = new Map();
+  const reaches = commit => {
+    if (!onMain.has(commit)) onMain.set(commit, commit === base || tryGit(root, ['merge-base', '--is-ancestor', commit, base]).status === 0);
+    return onMain.get(commit);
+  };
+  const files = new Set();
+  for (const pair of mainReds) {
+    const [file, commit] = Array.isArray(pair) ? pair : [];
+    if (typeof file !== 'string' || !file || typeof commit !== 'string' || !/^[0-9a-f]{40}(?:[0-9a-f]{24})?$/u.test(commit)) continue;
+    if (reaches(commit) && tryGit(root, ['cat-file', '-e', `${base}:${file}`]).status === 0) files.add(file);
+  }
+  return files;
+}
+
+/**
+ * The contract red as main's own, or null when any failure is the merge's. With `mainReds` (landing.ledgerMainReds on),
+ * a failure in a file the ledger records red on main at the base is main's without a rerun, and only the rest are rerun
+ * on the base; without it, every failure is rerun on the base as before. Why: a rerun matched case for case held
+ * #8249 three times on reds main already had (#8477); a red in a file main passes still holds the landing [C7,U152].
+ *
+ * @param {{ root: string, base: string }} context
+ * @param {{ file: string, name: string }[] | null | undefined} failures - The red's failing tests, each with its file.
+ * @param {{ mainReds?: unknown[] | null, rerun: (failures: { file: string, name: string }[]) => Promise<{ file: string, name: string }[] | null> }} ports
+ * @returns {Promise<{ known: { file: string, name: string }[], ledger: string[] } | null>} ledger: the files the ledger excused.
+ */
+export async function mainOwnedReds(context, failures, { mainReds = null, rerun }) {
+  if (!failures?.length) return null;
+  if (!mainReds) { const known = await rerun(failures); return known ? { known, ledger: [] } : null; }
+  const recorded = ledgerMainRedFiles(context.root, context.base, mainReds);
+  const ledger = failures.filter(row => recorded.has(row.file));
+  const rest = failures.filter(row => !recorded.has(row.file));
+  const shared = rest.length ? await rerun(rest) : [];
+  if (!shared) return null;
+  return { known: [...ledger, ...shared].map(row => ({ file: row.file, name: row.name })), ledger: [...new Set(ledger.map(row => row.file))].sort() };
 }

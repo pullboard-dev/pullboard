@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { startServeSentinel } from '../index.js';
 import { LANDING_LIVENESS_INTERVAL_MS } from '../index.js';
 
-test('the view sentinel checks landing liveness every minute, inside the two minute bar [C7]', async () => {
+test('sentinels.liveness.view-checks-landing-every-minute: the view sentinel checks landing liveness every minute, inside the two minute bar [C7]', async () => {
   const timers = []; const recovered = [];
   const observer = startServeSentinel({ projects: () => [{ root: '/one' }, { root: '/one' }], enabled: () => true,
     every: () => ({ unref() {} }), cancel: () => {},

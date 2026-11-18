@@ -1,4 +1,5 @@
 import { currentProofCounters } from "../../../../verify/index.js";
+import { ensureProofCounters } from "../../../../verify/index.js";
 import { proofCounter } from "../../../../verify/index.js";
 import { workQueue } from "../../../../items/index.js";
 import { pipelineStats } from "../../../../stats/light.js";
@@ -28,6 +29,9 @@ import { proofStats } from "../../../../stats/light.js";
 import { readCapacity } from "../../../../stats/light.js";
 import { budgetState } from "../../../../stats/light.js";
 import { loadMachineSettings } from "../../../../config/index.js";
+import { hotStateEnabled } from "../../../../config/index.js";
+import { hunkFreshnessEnabled } from "../../../../config/index.js";
+import { splitRecent } from "../../../../items/index.js";
 import { ruleProofCounts } from "../../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../../items/index.js";
 import { withListFields } from "../../../../items/index.js";
@@ -42,11 +46,27 @@ import {
   hasForeignDependencies,
 } from "../../../../items/index.js";
 
+/**
+ * Proof stats for one state build, taken from the stored counters [C7].
+ *
+ * Why: a board with no current counters made the first build read and fold the whole events table (about 2 s on the live board).
+ * A writable board catches its counters up once here, inside a savepoint, so a refused write leaves the board untouched and the
+ * legacy read of every event is only the last resort.
+ */
+export function stateProofStats(board, now, reads = { events: store.events, counterProofStats }) {
+  if (!currentProofCounters(board)) {
+    board.db.exec('SAVEPOINT state_proof_counters');
+    try { ensureProofCounters(board, { refresh: false }); board.db.exec('RELEASE state_proof_counters'); }
+    catch { board.db.exec('ROLLBACK TO state_proof_counters'); board.db.exec('RELEASE state_proof_counters'); }
+  }
+  return proofStats(board, { now }, reads);
+}
+
 /** How many dirty items make a build wide enough to read the event list once rather than once per item. */
 const WIDE_BUILD_ITEMS = 64;
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
-export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
+export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, previousHistory = null, fullItemRebuild = true, refreshVerdicts = false, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false, hotState = hotStateEnabled() } = {}, ports) {
   if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function' || typeof ports.claimHealthSnapshot !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
   const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
@@ -85,10 +105,12 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     }
 
     const config = loadConfig(root);
-    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+    const projector = freshnessReader ? null : verdictProjector(root, board, { main: trunkRevisionReader(repoInfo(root))() ?? undefined }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() });
     const freshness = freshnessReader ?? projector.state;
     // One cat-file answers every verified item's commit, rather than one Git process per item [C7].
     projector?.prime(currentItems.filter(item => dirtyIds.has(item.item_id) || refreshVerdicts));
+    // A wide build reads every dirty item's verdict rows, receipts and reopens once, not one query set per item [C7].
+    if (dirtyIds.size > WIDE_BUILD_ITEMS) board.verdictReads = store.verdictReads(board, dirtyIds);
     const state = projectState(root, { seen: null, board, itemProjector: (item, context) => {
       if (dirtyIds.has(item.item_id)) {
         const projected = context.project();
@@ -122,7 +144,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
         ? milestoneRoadmap(root, board, { landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
         : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, landedFromMain: config.landing?.landedFromMain === true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
-      proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
+      proofStats: viewProofSummary(stateProofStats(board, observedAt)),
     };
     state.proofStats = projectData.proofStats;
     state.requests = projectData.requests;
@@ -171,11 +193,29 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     listFields.state.statsPipeline = pipelineStats(history);
     const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
     board.db.exec('COMMIT');
-    return { state: listFields.state, itemMeta, itemMoveCounts: listFields.itemMoveCounts, sequence, history, clockWindow };
+    return { state: hotStateItems(listFields.state, { enabled: hotState, now: observedAt }), itemMeta, itemMoveCounts: listFields.itemMoveCounts, sequence, history, clockWindow };
   } catch (error) {
     try { board.db.exec('ROLLBACK'); } catch { /* Preserve the projection failure. */ }
     throw error;
   }
+}
+
+/** A finished item updated within this many milliseconds stays whole in a hot state build (7 days). */
+export const HOT_RECENT_MS = 7 * 24 * 3600_000;
+
+/**
+ * The state with board.hotState applied: open and recently finished items stay whole, and older finished ones become
+ * `finishedCounts`, by status. With the setting off the state comes back as it is, with no new field [C7,#9338].
+ * Why: the state build and every delta carried every finished item, which grows without bound on a long-lived board.
+ *
+ * @param {{ items: object[] }} state a built state
+ * @param {{ enabled: boolean, now: number, recentMs?: number }} options now is the build's observation time in ms
+ * @returns {object} the same state when off, else a copy with the kept items and `finishedCounts`
+ */
+export function hotStateItems(state, { enabled, now, recentMs = HOT_RECENT_MS }) {
+  if (enabled !== true) return state;
+  const { kept, counts } = splitRecent(state.items, now, recentMs);
+  return { ...state, items: kept, finishedCounts: counts };
 }
 
 /**

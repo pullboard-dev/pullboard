@@ -21,7 +21,6 @@ export function appendReportCounter(event, detail, at, read, write) {
   if (event.event_id <= summary.last) return;
   const reporting = reportEvent(event, detail);
   const policy = reporting ? read('report-policy') ?? newReportPolicy() : null;
-  const before = reporting ? JSON.stringify(policy) : null;
   const key = `report-item:${event.item_id}`;
   const existing = event.item_id == null ? null : read(key);
   for (const id of reporting ? affectedReportItems(policy, event, detail) : []) {
@@ -43,7 +42,8 @@ export function appendReportCounter(event, detail, at, read, write) {
     }
     if (reporting || !existing) write(key, item);
   }
-  if (reporting && JSON.stringify(policy) !== before) write('report-policy', policy);
+  // Always stored, never compared with a before-and-after copy: those two stringifies grew with the whole board per event, and a replay of 112,000 events took 71-108 s (#8562). The stored value is the same either way.
+  if (reporting) write('report-policy', policy);
   summary.last = event.event_id;
   write('report-summary', summary);
 }

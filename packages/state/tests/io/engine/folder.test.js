@@ -18,6 +18,8 @@ import { engineFolderProblems } from '../../../index.js';
 import { engineFolderViolations } from '../../../index.js';
 import { assignEngineNumbers } from '../../../src/io/engine/numbers.js';
 import { readEngineLeaves } from '../../../src/io/engine/numbers.js';
+import { nextEngineNumber } from '../../../src/io/engine/numbers.js';
+import { LANDING_DIMENSION_ENGINE } from '../../../light.js';
 import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import { copyPackageSubset } from '../../../../../apps/cli/tests/fixtures/copy.js';
@@ -25,7 +27,7 @@ import { copyPackageSubset } from '../../../../../apps/cli/tests/fixtures/copy.j
 /** The one folder engine leaves live in. */
 const E = 'packages/state/src/logic/engines';
 
-test('the repository keeps every engine marker in the state cell engines folder [C7]', () => {
+test('state.io-engine-folder.the-repository-keeps-every-engine-marker: the repository keeps every engine marker in the state cell engines folder [C7]', () => {
   assert.deepEqual(engineFolderProblems(resolve(import.meta.dirname, '../../../../..')), []);
 });
 
@@ -53,7 +55,7 @@ function moveAt(root, path) {
   return JSON.parse(result.stdout);
 }
 
-test('moving a fixture package keeps its move engine number and marker in the one folder [C7]', t => {
+test('state.io-engine-folder.moving-a-fixture-package-keeps-its-move: moving a fixture package keeps its move engine number and marker in the one folder [C7]', t => {
   const root = fixture(t);
   const engine = join(root, E, 'sample-engine.js');
   const bytes = readFileSync(engine);
@@ -70,7 +72,7 @@ test('moving a fixture package keeps its move engine number and marker in the on
   assert.deepEqual(assignEngineNumbers(root), { files: [], assigned: [] }, 'moving a landed feature never renumbers its engine');
 });
 
-test('a moved or duplicated engine leaf is refused while fixture strings and imports remain allowed [C7]', t => {
+test('state.io-engine-folder.a-moved-or-duplicated-engine-leaf-is: a moved or duplicated engine leaf is refused while fixture strings and imports remain allowed [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-private-engine-copy-'));
   fixture(t, root);
   const misplaced = join(root, 'packages/sample/src/sample-engine.js');
@@ -102,7 +104,7 @@ test('a moved or duplicated engine leaf is refused while fixture strings and imp
     "import { SAMPLE_ENGINE } from '../../state/src/logic/engines/sample-engine.js'; export { SAMPLE_ENGINE } from '../../state/src/logic/engines/sample-engine.js';\nconst value = SAMPLE_ENGINE, other = { SAMPLE_ENGINE };\nconst { value: alias = SAMPLE_ENGINE, SAMPLE_ENGINE: local } = source;\n" }]), []);
 });
 
-test('named engine reexports come only from the canonical engine folder [C7]', t => {
+test('state.io-engine-folder.named-engine-reexports-come-only-from: named engine reexports come only from the canonical engine folder [C7]', t => {
   const root = fixture(t);
   const consumer = join(root, 'packages/sample/src/forward.js');
   writeFileSync(join(root, 'packages/sample/src/numbers.js'), 'export const value = 17;\n');
@@ -133,7 +135,7 @@ function stateExitFixture(t) {
   return { root, canonical, metadata, consumer, original: readFileSync(canonical) };
 }
 
-test('pure state forwarding preserves the actual root exit engine declaration and public binding [C7,H16]', t => {
+test('state.io-engine-folder.pure-state-forwarding-preserves-the: pure state forwarding preserves the actual root exit engine declaration and public binding [C7,H16]', t => {
   const box = stateExitFixture(t);
   assert.deepEqual(engineFolderProblems(box.root), []);
   const source = `import { EXIT_RULES_ENGINE } from ${JSON.stringify(pathToFileURL(box.consumer).href)}; console.log(EXIT_RULES_ENGINE);`;
@@ -161,7 +163,7 @@ for (const fault of ['alias', 'copy', 'cycle', 'cross-cell', 'missing-root']) {
   });
 }
 
-test('an unassigned engine keeps its placeholder outside a moved package until landing [C7]', t => {
+test('state.io-engine-folder.an-unassigned-engine-keeps-its: an unassigned engine keeps its placeholder outside a moved package until landing [C7]', t => {
   const root = fixture(t);
   const path = join(root, E, 'pending-engine.js');
   const text = "import { unassignedEngine } from './engine-next.js';\nexport const PENDING_ENGINE = unassignedEngine();\n";
@@ -174,7 +176,7 @@ test('an unassigned engine keeps its placeholder outside a moved package until l
 });
 
 
-test('canonical state front door preserves engine identity without accepting copied or renamed declarations [C7,CD60]', t => {
+test('state.io-engine-folder.canonical-state-front-door-preserves: canonical state front door preserves engine identity without accepting copied or renamed declarations [C7,CD60]', t => {
   const root = fixture(t), state = join(root, 'packages/state');
   mkdirSync(state, { recursive: true });
   const front = "export { SAMPLE_ENGINE } from './src/logic/engines/sample-engine.js';\n";
@@ -197,4 +199,23 @@ test('canonical state front door preserves engine identity without accepting cop
   assert.ok(engineFolderViolations([canonical, { file: 'packages/state/index.js', source: front },
     { ...caller, source: "export { SAMPLE_ENGINE } from '../../state/lookalike.js';" }]).some(row => row.file === caller.file));
   assert.ok(engineFolderViolations([canonical, caller]).some(row => row.file === caller.file), 'a missing state entry remains unproved');
+});
+
+test('state.io-engine-folder.clause-1-the-landing-dimension-engine: clause 1: the landing-dimension engine leaf registers one above the previous highest engine number [M1,C7]', t => {
+  const leaves = readEngineLeaves(resolve(import.meta.dirname, '../../../../..', E));
+  const own = leaves.filter(leaf => leaf.name === 'LANDING_DIMENSION_ENGINE');
+  assert.deepEqual(own.map(leaf => leaf.file), ['landing-dimension-engine.js'], 'the floor lives in its own leaf');
+  const others = leaves.filter(leaf => leaf.name !== 'LANDING_DIMENSION_ENGINE');
+  // Unlanded it reads as the next number; once landed, it stays one above every engine landed before it.
+  const previous = own[0].number === null ? nextEngineNumber(others) - 1
+    : Math.max(...others.map(leaf => leaf.number ?? 0).filter(number => number < own[0].number));
+  assert.equal(LANDING_DIMENSION_ENGINE, previous + 1);
+  assert.equal(own[0].number ?? LANDING_DIMENSION_ENGINE, previous + 1);
+  const root = fixture(t);
+  writeFileSync(join(root, E, 'landing-dimension-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const LANDING_DIMENSION_ENGINE = unassignedEngine();\n");
+  // Two unlanded leaves in one landing merge each take their own engine.
+  writeFileSync(join(root, E, 'readiness-engine.js'), "import { unassignedEngine } from './engine-next.js';\nexport const READINESS_ENGINE = unassignedEngine();\n");
+  assert.deepEqual(assignEngineNumbers(root).assigned, [{ name: 'LANDING_DIMENSION_ENGINE', number: 18 }, { name: 'READINESS_ENGINE', number: 19 }],
+    'the landing merge registers it one above the highest (17), and no two leaves share a number');
+  assert.equal(readFileSync(join(root, E, 'landing-dimension-engine.js'), 'utf8'), 'export const LANDING_DIMENSION_ENGINE = 18;\n');
 });

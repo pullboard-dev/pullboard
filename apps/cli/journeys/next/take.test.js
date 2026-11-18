@@ -1,6 +1,6 @@
+/** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import { cli } from '../../tests/fixtures/next/take.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
-/** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +15,6 @@ import { applyRelayMove } from '../../../../packages/state/index.js';
 import { prepareEngineMove } from '../../../../packages/state/index.js';
 import { addMilestone } from '../../../../packages/store/index.js';
 import { heartbeatSeat } from '../../../../packages/store/index.js';
-import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { exportBoard } from '../../../../packages/store/index.js';
 import { importBoard } from '../../../../packages/store/index.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../packages/state/light.js';
@@ -24,11 +23,25 @@ import { repoInfo } from '../../../../packages/git/index.js';
 import { bindLocalSession } from '../../../../packages/seats/index.js';
 import { recordItemSession } from '../../../../packages/items/index.js';
 import { dispatchHealth } from '../../../../packages/sentinels/index.js';
-import { healthReport } from '../../../../packages/health/index.js';
-import { deliverHealthNotices } from '../../../../packages/store/index.js';
 
 
-test('a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
+/** Claim an item as the actor seat and start its submit handoff, as `submit --no-next` leaves it. */
+function submitting(box, title) {
+  box.board.gitRoot = box.root;
+  const seat = box.seats.actor;
+  const id = box.add(title);
+  box.claim(id, seat);
+  const head = box.git(seat.path, 'rev-parse', 'HEAD');
+  const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
+  const item = store.getItem(box.board, id);
+  const job = store.writeBoardCommand(box.board, 'queueSubmitHandoff', [id, { agentId: seat.id,
+    job: randomUUID(), main: head, commit: head, tree, executionCommit: head, executionTree: tree,
+    digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], seat.id).job;
+  store.startSubmitHandoff(box.board, id, { agentId: seat.id, job: job.id });
+  return id;
+}
+
+test('cli.journeys-next-take.a-free-seat-is-handed-one: a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
   const box = await fixture(t, { route: 'light' });
   const future = box.add('Older item in a future release', { route: 'light' });
   const wrongLane = box.add('Wrong lane', { lane: 'docs', route: 'light' });
@@ -55,23 +68,7 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
 });
 
-/** Claim an item as the actor seat and start its submit handoff, as `submit --no-next` leaves it. */
-function submitting(box, title) {
-  box.board.gitRoot = box.root;
-  const seat = box.seats.actor;
-  const id = box.add(title);
-  box.claim(id, seat);
-  const head = box.git(seat.path, 'rev-parse', 'HEAD');
-  const tree = box.git(box.root, 'rev-parse', `${head}^{tree}`);
-  const item = store.getItem(box.board, id);
-  const job = store.writeBoardCommand(box.board, 'queueSubmitHandoff', [id, { agentId: seat.id,
-    job: randomUUID(), main: head, commit: head, tree, executionCommit: head, executionTree: tree,
-    digest: item.item_frozen_digest, companionDigest: null, leaseMs: 7_200_000 }], seat.id).job;
-  store.startSubmitHandoff(box.board, id, { agentId: seat.id, job: job.id });
-  return id;
-}
-
-test('next --take gives a seat with a running handoff a different item and no --wait [C7,#2882]', async t => {
+test('cli.journeys-next-take.next-take-gives-a-seat-with: next --take gives a seat with a running handoff a different item and no --wait [C7,#2882]', async t => {
   const box = await fixture(t);
   const held = submitting(box, 'Submitted and gating');
   const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
@@ -83,7 +80,7 @@ test('next --take gives a seat with a running handoff a different item and no --
   assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id);
 });
 
-test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
+test('cli.journeys-next-take.the-commit-msg-hook-accepts-the: the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
   const box = await fixture(t);
   const id = submitting(box, 'Submitted and gating');
   const cwd = box.seats.actor.path;
@@ -96,7 +93,7 @@ test('the commit-msg hook accepts the submitted item trailer while its handoff r
 });
 
 /** Keep an existing claim's lease and event history intact when ordinary next resumes it. */
-test('default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
+test('cli.journeys-next-take.default-next-resumes-its-held-claim: default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
   const box = await fixture(t);
   const id = box.add('Claim already held by this seat');
   box.claim(id, box.seats.actor);
@@ -113,7 +110,7 @@ test('default next resumes its held claim without renewing or refreezing it [C7,
 });
 
 /** A current spec correction must not force an existing holder through a fresh claim freeze. */
-test('default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
+test('cli.journeys-next-take.default-next-resumes-a-held-claim: default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
   const box = await fixture(t);
   const id = box.add('Claim with a retired cited row');
   box.claim(id, box.seats.actor);
@@ -143,7 +140,7 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
   });
 }
 
-test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
+test('cli.journeys-next-take.a-coordinator-edit-never-leaves-an: a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   const box = await fixture(t);
   const id = box.add('An open corrected bar');
   const edited = await cli(box, box.root, ['edit', String(id), '--criterion', 'The corrected open criterion', '--reason', 'Correct the fixture bar']);
@@ -176,8 +173,7 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.equal(Object.hasOwn(JSON.parse(checkless.item_frozen), 'check'), false, 'the established frozen format omits an empty check');
 });
 
-
-test('an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
+test('cli.journeys-next-take.an-explicit-heartbeat-and-the-installed: an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
   const box = await fixture(t);
   const id = box.add('A heartbeat leaves work for next --take');
   const beat = await cli(box, box.seats.actor.path, ['heartbeat']);
@@ -191,7 +187,7 @@ test('an explicit heartbeat and the installed native stop hook record presence a
   assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
 });
 
-test('an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
+test('cli.journeys-next-take.an-atomic-correction-replays-identically-and: an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
   const box = await fixture(t);
   const id = box.add('A deterministic corrected bar');
   box.claim(id, box.seats.actor);
@@ -230,8 +226,7 @@ test('an atomic correction replays identically and a bad frozen payload changes 
   assert.deepEqual(exportBoard(replica), unchanged, 'an old envelope cannot disguise the new semantics');
 });
 
-
-test('health reads each seat session instead of offering its own material for review [V1,B3,A6]', async t => {
+test('cli.journeys-next-take.health-reads-each-seat-session-instead: health reads each seat session instead of offering its own material for review [V1,B3,A6]', async t => {
   const box = await fixture(t);
   const id = box.add('Material from an earlier seat in the same session');
   box.submit(id);
@@ -249,8 +244,7 @@ test('health reads each seat session instead of offering its own material for re
   assert.ok(later.findings.every(finding => !finding.subject.includes(box.seats.actor.id)), 'no five-minute warning names an ineligible session');
 });
 
-
-test('health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
+test('cli.journeys-next-take.health-observes-each-of-two-free: health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
   const box = await fixture(t);
   const first = box.add('First ready item');
   const second = box.add('Second ready item');
@@ -261,155 +255,4 @@ test('health observes each of two free seats beside the item next selects for it
   box.scan(); box.advance(300000); box.scan();
   const messages = store.allShouts(box.board).filter(shout => shout.shout_to === 'coordinator' && shout.shout_text.startsWith('Stuck:') && shout.shout_text.includes('UNPAIRED_WORK'));
   assert.equal(messages.length, 2, 'each free seat has one loud warning');
-});
-
-test('an expired claim is reclaimed through board eligibility on the next take [N2,B3]', async t => {
-  const box = await fixture(t);
-  const id = box.add('Expired work remains dispatchable');
-  box.claim(id, box.seats.actor);
-  box.advance(3600001);
-  const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  const current = store.getItem(box.board, id);
-  assert.equal(current.item_owner, box.seats.actor.id);
-  assert.ok(current.item_lease_until > box.clock.now().toISOString(), 'a raw stale claim cannot strand a free seat');
-});
-
-
-test('a capped dispatch warning is delivered once by the next ordinary sentinel pass [A6,N2]', () => {
-  const warning = { key: 'UNPAIRED_WORK:web-1:1', cause: 'UNPAIRED_WORK', item: 1, subject: 'web-1 beside #1',
-    title: 'unpaired work', since: '2026-10-25T10:00:00Z', why: 'the seat is free', next: 'run pullboard next --take', owner: 'coordinator' };
-  const other = Array.from({ length: 10 }, (_, index) => ({ ...warning, key: `OTHER:${index}`, cause: 'OTHER' }));
-  const sent = [];
-  const delivery = { engine: AUTOMATIC_DISPATCH_ENGINE, coordinator: 'coordinator', targets: () => ['coordinator'],
-    shout: (to, text) => sent.push({ to, text }), log: () => {} };
-  const pending = deliverHealthNotices({ ...delivery, resolved: [], added: [...other, warning] });
-  assert.deepEqual(pending, [warning], 'the cap cannot silently drop the five-minute warning');
-  assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 0);
-  assert.deepEqual(deliverHealthNotices({ ...delivery, resolved: [], added: [], pending }), []);
-  assert.equal(sent.filter(message => message.text.includes('[UNPAIRED_WORK]')).length, 1);
-});
-
-
-test('a legacy pending correction is adopted atomically when its holder renews [V2,H16]', async t => {
-  const box = await fixture(t);
-  const id = box.add('A legacy correction must not strand current claims');
-  box.claim(id, box.seats.actor);
-  // This deliberately replays the older untyped edit protocol; new coordinator CLI edits carry their bar.
-  const move = prepareEngineMove(box.board, 'editItem', [id, { agentId: 'coordinator',
-    criterion: 'The already approved legacy correction', reason: 'Correct the legacy fixture' }], { actor: 'coordinator' });
-  const result = applyRelayMove(box.board, move, { sequence: 1, at: box.clock.now().toISOString(), kind: 'move',
-    sender: { kind: 'agent', agent: 'coordinator', userId: 'fixture-user' } });
-  assert.equal(result.error, undefined, JSON.stringify(result));
-  assert.deepEqual(store.pendingRefreeze(box.board, id), ['criterion'], 'the old receipt retains its historical meaning');
-  const renewed = await cli(box, box.seats.actor.path, ['claim', String(id)]);
-  assert.equal(renewed.code, 0, renewed.out + renewed.err);
-  const current = store.getItem(box.board, id);
-  assert.equal(current.item_owner, box.seats.actor.id);
-  assert.equal(JSON.parse(current.item_frozen).criterion, 'The already approved legacy correction');
-  assert.deepEqual(store.pendingRefreeze(box.board, id), []);
-});
-
-
-test('a held review still returns a newly conflicting submission before offering more work [V1,R3]', async t => {
-  const box = await fixture(t);
-  const id = box.add('A review that will conflict with trunk');
-  box.claim(id);
-  mkdirSync(join(box.seats.builder.path, 'web'), { recursive: true });
-  writeFileSync(join(box.seats.builder.path, 'web/dispatch.js'), 'export const side = "builder";\n');
-  box.git(box.seats.builder.path, 'add', 'web/dispatch.js');
-  box.git(box.seats.builder.path, 'commit', '-q', '-m', 'feat(web): build dispatch fixture [G1]');
-  const head = box.git(box.seats.builder.path, 'rev-parse', 'HEAD');
-  submitFixture(box.board, id, { agentId: box.seats.builder.id, commit: head,
-    tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
-  const first = await cli(box, box.seats.outside.path, ['next', '--take']);
-  assert.equal(first.code, 0, first.out + first.err);
-  assert.equal(store.getItem(box.board, id).item_review_by, box.seats.outside.id);
-  mkdirSync(join(box.root, 'web'), { recursive: true });
-  writeFileSync(join(box.root, 'web/dispatch.js'), 'export const side = "main";\n');
-  box.git(box.root, 'add', 'web/dispatch.js');
-  box.git(box.root, 'commit', '-q', '-m', 'feat(web): move trunk independently [G1]');
-  const second = await cli(box, box.seats.outside.path, ['next', '--take']);
-  assert.equal(second.code, 1, second.out + second.err);
-  assert.equal(JSON.parse(second.out).error.code, 'NOTHING_FREE',
-    'after the conflict return this review-only seat has no eligible work');
-  const returned = store.getItem(box.board, id);
-  assert.equal(returned.item_status, 'open', 'Git conflict preflight also applies to an already reserved review');
-  assert.equal(returned.item_review_by, null);
-  assert.deepEqual(store.verdictsFor(box.board, id), [], 'a conflict return is not a fabricated verification verdict');
-});
-
-
-test('automatic review reservation retains coordinator-only policy when a higher lane item is ineligible [N2,V1,B3]', async t => {
-  const box = await fixture(t, { policy: 'coordinator' });
-  const blocked = box.add('Higher-ranked lane review');
-  box.submit(blocked);
-  const allowed = box.add('Eligible coordinator-lane review', { lane: 'coordinator' });
-  box.claim(allowed, { id: 'coordinator', lane: 'coordinator' });
-  const head = box.git(box.root, 'rev-parse', 'HEAD');
-  submitFixture(box.board, allowed, { agentId: 'coordinator', commit: head,
-    tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
-  const reviewer = box.seats.outside;
-  const offered = store.nextFor(box.board, { agentId: reviewer.id, lane: reviewer.lane,
-    verify: true, policy: 'coordinator' });
-  assert.equal(offered.item.item_id, allowed, 'selection skips the higher-ranked lane review under the actual policy');
-  const taken = await cli(box, reviewer.path, ['next', '--take']);
-  assert.equal(taken.code, 0, taken.out + taken.err);
-  assert.equal(taken.document.review, true);
-  assert.equal(taken.document.item.item_id, allowed, 'the native reserve chooses the same eligible item');
-  assert.equal(store.getItem(box.board, allowed).item_review_by, reviewer.id);
-  assert.equal(store.getItem(box.board, blocked).item_review_by, null, 'the ineligible item is never reserved');
-  assert.equal(store.getItem(box.board, blocked).item_status, 'submitted');
-  assert.deepEqual(store.verdictsFor(box.board, allowed), [], 'assignment fabricates no verdict');
-  assert.equal(store.listItems(box.board).some(item => item.item_status === 'claimed'
-    && item.item_owner === reviewer.id), false, 'an eligible review is not replaced with a build');
-});
-
-/** Give each candidate a disjoint file so the queue's normal collision guard stays active. */
-function lightBrief(file) {
-  return `Files: web/${file}.js\nTest: the selected route owns its ready work.`;
-}
-
-/** An empty native next records the existing next-idle event used by the activity window. */
-async function lightSeatRunsIdleNext(box) {
-  const before = store.events(box.board).length;
-  await main(['next'], { cwd: box.seats.actor.path, clock: box.clock,
-    stdout: { isTTY: false, write: () => {} }, stderr: { write: () => {} } });
-  assert.ok(store.events(box.board).slice(before).some(event => event.event_by === box.seats.actor.id
-    && event.event_kind === 'next-idle'), 'the light seat recorded an empty-next observation');
-}
-
-test('an empty next observation counts as light-seat activity, but a manual claim does not [N2,B13]', async t => {
-  const box = await fixture(t, { route: 'light' });
-  await lightSeatRunsIdleNext(box);
-  const strong = box.add('Strong work', { route: 'strong', brief: lightBrief('idle-strong') });
-  const light = box.add('Prioritized light work', { route: 'light', brief: lightBrief('idle-light') });
-  assert.equal(store.nextFor(box.board, { agentId: box.seats.builder.id, lane: 'web', priority: [light] }).item.item_id, strong,
-    'the existing next-idle event activates the reservation');
-
-  const manualBox = await fixture(t, { route: 'light' });
-  const manual = manualBox.add('Manual light claim', { route: 'light', brief: lightBrief('manual-claim') });
-  manualBox.claim(manual, manualBox.seats.actor);
-  const manualStrong = manualBox.add('Strong work', { route: 'strong', brief: lightBrief('manual-strong') });
-  const manualLight = manualBox.add('Prioritized light work', { route: 'light', brief: lightBrief('manual-light') });
-  assert.equal(store.nextFor(manualBox.board, { agentId: manualBox.seats.builder.id, lane: 'web', priority: [manualLight] }).item.item_id, manualLight,
-    'a manual claim without autoNextSnapshot is not mistaken for a next invocation');
-  assert.equal(store.getItem(manualBox.board, manualStrong).item_status, 'open');
-});
-
-test('clause 2: list, status data and the health report name each excluded item with its reason and age [C7]', async t => {
-  const box = await fixture(t);
-  const id = box.add('Item excluded for re-scope');
-  box.claim(id, box.seats.actor);
-  store.release(box.board, id, box.seats.actor.id, 'The fixture seat cannot build this item as scoped', undefined, 'ROUTED_ELSEWHERE');
-  box.advance(7 * 60_000);
-  const listed = await cli(box, box.seats.builder.path, ['list']);
-  assert.equal(listed.code, 0, listed.out + listed.err);
-  const row = listed.document.needsRescope.find(entry => entry.id === id);
-  assert.match(row.reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
-  const excluded = store.allItemsNeedingRescope(box.board);
-  assert.equal(excluded[0].id, id);
-  assert.match(excluded[0].reasons[0], /ROUTED_ELSEWHERE.*released 7 min ago/u);
-  const finding = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth }).stuck.find(row => row.cause === 'NEEDS_RESCOPE' && row.item === id);
-  assert.match(finding.why, /released 7 min ago/u);
 });

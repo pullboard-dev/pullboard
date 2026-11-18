@@ -1,14 +1,16 @@
-/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/io/test/scripts/freeze.js packages/gate/src/logic/test/freeze.js */
+/** @pullboard-test-input packages/gate/src/io/test/freeze.js packages/gate/src/io/test/scripts/freeze.js packages/gate/src/io/test/freeze/plan.js packages/gate/data/tests/freeze-moves.json */
 /** The freeze script moves, converts or deletes test files from the manifest's tags in one change, and its dry run touches nothing [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFreezeCommand } from '../../../../src/io/test/freeze.js';
 import { FREEZE_RECORD_FILE } from '../../../../src/io/test/freeze.js';
-import { planFreeze } from '../../../../src/logic/test/freeze.js';
-import { rebaseSpecifiers } from '../../../../src/logic/test/freeze.js';
+import { generatedTestFor } from '../../../../src/io/test/freeze.js';
+import { planFreeze } from '../../../../src/io/test/freeze/plan.js';
+import { rebaseSpecifiers } from '../../../../src/io/test/freeze/plan.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
 import { runFixtureGit } from '../../../fixtures/child.js';
 
@@ -47,7 +49,7 @@ function fixture(t) {
   return { ...files, sh };
 }
 
-test('a journey tagged delete is removed only when the manifest names a covering test [C7]', () => {
+test('gate.io-test-scripts-freeze.a-journey-tagged-delete-is-removed: a journey tagged delete is removed only when the manifest names a covering test [C7]', () => {
   const plan = planFreeze(ROWS, { owner });
   const by = file => plan.find(change => change.file === file);
   assert.deepEqual(by('apps/cli/journeys/dup/covered.test.js').coveredBy, ['packages/math/tests/add.test.js']);
@@ -57,7 +59,7 @@ test('a journey tagged delete is removed only when the manifest names a covering
   assert.equal(by('apps/cli/journeys/dup/nospec.test.js').action, 'refused');
 });
 
-test('kept and converted files move into the owning cell tests folder, with old and new paths recorded [C7]', t => {
+test('gate.io-test-scripts-freeze.kept-and-converted-files-move-into: kept and converted files move into the owning cell tests folder, with old and new paths recorded [C7]', t => {
   const repo = fixture(t);
   const { status, stdout, stderr } = runFreezeCommand([repo.root], { owner });
   assert.equal(status, 0, stderr);
@@ -77,7 +79,7 @@ test('kept and converted files move into the owning cell tests folder, with old 
   assert.match(readFileSync(`${repo.root}/packages/math/tests/journeys/add/main.test.js`, 'utf8'), /from '\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/apps\/cli\/tests\/fixtures\/e2e\.js'/u);
 });
 
-test('the dry run prints every planned change and the count per action without touching files [C7]', t => {
+test('gate.io-test-scripts-freeze.the-dry-run-prints-every-planned: the dry run prints every planned change and the count per action without touching files [C7]', t => {
   const repo = fixture(t);
   const before = runFixtureGit(['status', '--porcelain'], { cwd: repo.root });
   const { status, stdout } = runFreezeCommand(['--dry-run', '--manifest', 'packages/gate/data/tests/test-manifest.json', repo.root], { owner });
@@ -91,7 +93,22 @@ test('the dry run prints every planned change and the count per action without t
   assert.ok(!existsSync(`${repo.root}/${FREEZE_RECORD_FILE}`));
 });
 
-test('a moved file keeps its imports pointing at the same targets [C7]', () => {
+test('gate.io-test-scripts-freeze.a-moved-file-keeps-its-imports: a moved file keeps its imports pointing at the same targets [C7]', () => {
   assert.equal(rebaseSpecifiers("import a from './a.js'; await import('../b.js');", 'x/y/t.test.js', 'x/z/w/t.test.js'),
     "import a from '../../y/a.js'; await import('../../b.js');");
+});
+
+test('gate.io-test-scripts-freeze.the-freeze-record-names-a-generated: clause 1: the freeze record names a generated move-table test for every deleted release, claim, submit, verify and landing journey [C7,#8744]', () => {
+  const root = join(import.meta.dirname, '../../../../../..');
+  const record = JSON.parse(readFileSync(join(root, FREEZE_RECORD_FILE), 'utf8'));
+  const folder = file => /^apps\/cli\/journeys\/([^/]+)\//u.exec(file)?.[1];
+  const wanted = record.deleted.filter(entry => ['release', 'claim', 'submit', 'verify', 'land'].includes(folder(entry.file)));
+  assert.ok(wanted.length > 100, 'the record holds those deleted journeys');
+  for (const entry of wanted) {
+    assert.equal(entry.generatedBy, generatedTestFor(entry.file), `${entry.file} names its generated test`);
+    assert.match(entry.generatedBy, /^packages\/moves\/tests\/logic\/table\/(?:release|claim|submit|verify|landing)-generated\.test\.js$/u);
+    assert.ok(existsSync(join(root, entry.generatedBy)), `${entry.generatedBy} exists`);
+  }
+  assert.ok(record.deleted.filter(entry => !wanted.includes(entry)).every(entry => entry.generatedBy === undefined), 'other deletions name none');
+  assert.equal(generatedTestFor('apps/cli/journeys/add/main.test.js'), null);
 });

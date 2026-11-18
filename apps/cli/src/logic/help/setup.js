@@ -18,7 +18,7 @@ export const setupHelp = `Set up
   pullboard resources                  local resource holders and their FIFO queues
   pullboard settings line [<name> <value> --reason "why" --window <json>]  read or record board controller inputs; all off by default
       value is on, off, or a number within the setting range
-                                        names: order, reviewsFirst, wipPerReviewer (1.5-3), barReady, bar.check, takeoverMinutes (15-60), collisionFreeBatch, landingBatchSize (1-8), landingCadenceMinutes (5-30), route.liveOnly, route.liveOnly
+                                        names: order, reviewsFirst, wipPerReviewer (1.5-3), barReady, bar.check, bar.dryRunReview, takeoverMinutes (15-60), collisionFreeBatch, landingBatchSize (1-8), landingCadenceMinutes (5-30), route.liveOnly, route.liveOnly
   pullboard settings [gateSlots <n> | browserSlots <n> | gate.runnersFirst on|off]  view or set machine gate policy and capacity (gate default 2; browser default 1)
                                         browser-free check slots are opt-in: gate.browserFreeChecks in ~/.pullboard/settings.json (default false)
                                         a test file takes a browser slot only if it launches Chrome: gate.browserByLaunch (default false)
@@ -63,6 +63,7 @@ export const setupHelp = `Set up
   pullboard relay pair --new-browser    sign in and pair one more browser; existing browsers stay paired
   pullboard relay canary [on|off|status|run|watch]  opt this linked seat into minute sealed round-trip monitoring
   pullboard relay on --all [--url <address>] [--name <computer>]  link every registered project after one sign-in; pair the phone once
+  pullboard relay on --all --only <name>  link just that one board and clear its exclusion
                                         keep this command open until pairing finishes; later projects link on registration
   pullboard relay devices [--verbose]   paired phones and joined computers by name, with paired date, last seen and boards
                                         --verbose adds each id and phone key fingerprint

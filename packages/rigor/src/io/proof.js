@@ -255,7 +255,7 @@ export async function proveCauseCheck(root, cause, request, { agent, parseProces
   const prepared = await prepareCauseProof(root, cause, request);
   if (typeof parseProcessCensus !== 'function') throw new Refused('RIGOR_UNPROVEN', 'supply the process census parser from the proof command owner before acquiring its machine lease');
   return await proofPackages().gate.withGateSlot(root, lease => provePreparedCheck(root, cause, prepared, gateSlotEnvironment(lease), parseProcessCensus),
-    { executionServices: { runners: proofPackages().runners.runnerExecutionServices(), landing: proofPackages().landing.landingExecutionServices() }, browser: true, remote: false, agent, kind: 'rigor-proof' });
+    { executionServices: { runners: proofPackages().runners.runnerExecutionServices(), landing: proofPackages().landing.landingExecutionServices() }, browser: true, remote: false, agent, item: cause.key, kind: 'flake-diagnose' });
 }
 
 /** Run only an already validated cause proof while its real machine lease remains held. */

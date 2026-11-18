@@ -57,7 +57,7 @@ function oldRepo(t) {
   return root;
 }
 
-test('the table reads move, delete and merge rows and drops identity rows [V32]', () => {
+test('codemap.freeze.the-table-reads-move-delete: the table reads move, delete and merge rows and drops identity rows [V32]', () => {
   assert.deepEqual(parseTable(TABLE).map(row => `${row.kind} ${row.old} ${row.to}`).slice(0, 4), [
     'move bin/tool.js apps/tool/main.js',
     'delete src/shim.js packages/beta/index.js',
@@ -67,14 +67,14 @@ test('the table reads move, delete and merge rows and drops identity rows [V32]'
   assert.throws(() => parseTable('src/a.js\tdelete\n'), /FREEZE_TABLE/u);
 });
 
-test('path words follow their file, ignore prose neighbours and leave history alone [V32]', () => {
+test('codemap.freeze.path-words-follow-their-file: path words follow their file, ignore prose neighbours and leave history alone [V32]', () => {
   const rewrite = pathRewriter(new Map([['src/a.js', 'packages/x/src/io/a.js']]), new Map([['src/old', 'packages/x/src/new']]));
   assert.equal(rewrite('see src/a.js, src/a.json and src/a.js.'), 'see packages/x/src/io/a.js, src/a.json and packages/x/src/io/a.js.');
   assert.equal(rewrite('{"src/a.js->src/old/b.js": 1}'), '{"packages/x/src/io/a.js->packages/x/src/new/b.js": 1}');
   assert.equal(rewrite('const relay = /i/;'), 'const relay = /i/;');
 });
 
-test('joining test files keeps every case, shares imports and renames clashing helpers [V32]', () => {
+test('codemap.freeze.joining-test-files-keeps-every: joining test files keeps every case, shares imports and renames clashing helpers [V32]', () => {
   const target = "/** A. */\nimport { test } from 'node:test';\nimport { x } from './x.js';\n\nfunction help() {}\ntest('one', () => help(x));\n";
   const tail = "/** B. */\nimport { test } from 'node:test';\nimport { x, y } from './x.js';\n\nfunction help() {}\ntest('two', () => help(y));\n";
   const joined = joinModules(target, [{ old: 'b.test.js', text: tail }]);
@@ -86,7 +86,7 @@ test('joining test files keeps every case, shares imports and renames clashing h
   assert.match(joined.text, /helpPart2\(y\)/u);
 });
 
-test('the freeze moves, joins and deletes, rewrites every path, and every import resolves [V32,V33]', async t => {
+test('codemap.freeze.the-freeze-moves-joins-and: the freeze moves, joins and deletes, rewrites every path, and every import resolves [V32,V33]', async t => {
   const root = oldRepo(t);
   const summary = await freeze(root, { table: join(root, 'renames.tsv') });
   assert.equal(summary.moved, 8);
@@ -113,7 +113,7 @@ test('the freeze moves, joins and deletes, rewrites every path, and every import
   assert.equal(JSON.parse(readFileSync(join(root, 'packages/alpha/data/plan/path-map/alpha.json'), 'utf8'))['src/old-run.js'], 'packages/alpha/src/io/run.js');
 });
 
-test('a second run finds every row done and changes nothing [V32]', async t => {
+test('codemap.freeze.a-second-run-finds-every: a second run finds every row done and changes nothing [V32]', async t => {
   const root = oldRepo(t);
   await freeze(root, { table: join(root, 'renames.tsv') });
   git(root, 'commit', '-qam', 'frozen');
@@ -125,7 +125,7 @@ test('a second run finds every row done and changes nothing [V32]', async t => {
   assert.equal(git(root, 'rev-parse', 'HEAD'), before);
 });
 
-test('a dirty tree is refused before anything moves, and a dry run prints a summary and changes nothing [V32]', async t => {
+test('codemap.freeze.a-dirty-tree-is-refused: a dirty tree is refused before anything moves, and a dry run prints a summary and changes nothing [V32]', async t => {
   const root = oldRepo(t);
   writeFileSync(join(root, 'stray.txt'), 'x\n');
   await assert.rejects(freeze(root, { table: join(root, 'renames.tsv') }), /FREEZE_DIRTY/u);

@@ -7,6 +7,7 @@ import { repoInfo } from '../../../../packages/git/index.js';
 import { landAfterAcceptance } from '../../index.js';
 import { reviveFixtureLocalRunner } from './runner/local-start.js';
 import { whenRunnerSettles } from './runner/local-start.js';
+import { CLI_ENTRY } from './runner/entry.js';
 import { join } from 'node:path';
 
 const [root, item] = process.argv.slice(2);
@@ -19,7 +20,7 @@ const io = { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: 
   clock: { now: () => new Date() }, replayConflictRecord: outbox.replay,
   outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
   say() {}, err: console.error };
-reviveFixtureLocalRunner(root, process.env);
+reviveFixtureLocalRunner(root, process.env, { entry: CLI_ENTRY });
 const offered = await landAfterAcceptance({ info: repoInfo(root), io });
 assert.ok(offered, 'the acceptance offers its land job');
 // A landing the automatic lander starts after an accept never waits on the cadence (360988c63f): the runner lands it at once.
