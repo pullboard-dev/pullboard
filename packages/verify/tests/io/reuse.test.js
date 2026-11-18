@@ -19,4 +19,11 @@ test('verify.io-reuse.sealed-fallback-guards: clause 2: sealedFallbackMain retur
   assert.equal(sealedFallbackMain(events, { effectiveHead: 'h' }), null);
   assert.equal(sealedFallbackMain([], {}), null, 'with no submission there is no policy commit');
   assert.equal(sealedFallbackMain(events, { reused: {}, reReview: false }), MAIN);
+  // an item that has a frozen check still gets the submitted policy commit
+  {
+  const check = 'node --test packages/verify/tests/io/reuse.test.js';
+  const withCheck = [{ event_id: 0, event_by: 'coordinator', event_kind: 'check-baseline', event_detail: JSON.stringify({ check }) }, ...events];
+  assert.equal(sealedFallbackMain(withCheck, { check }), MAIN);
+  assert.equal(sealedFallbackMain(withCheck, { reused: { ids: ['r1'] }, check }), null, 'the guards still win over a check');
+  }
 });
