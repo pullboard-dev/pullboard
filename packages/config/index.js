@@ -123,6 +123,7 @@ export {
   submitAuthorizationMode,
   refuseMissingCheckFile,
   addWarnUnnamedTest,
+  itemsTestMirrorAtAdd,
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
