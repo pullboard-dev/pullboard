@@ -173,6 +173,7 @@ export const MACHINE_DEFAULTS = {
   'runners.postedLineNamesCase': false,
   'runners.reportCommit': false,
   'runners.requiredToolchains': null,
+  'runners.selfUpdate': false,
   'runners.yieldWhilePruning': false,
   scratch: null,
   'sentinels.landingSelfCheck': false,
