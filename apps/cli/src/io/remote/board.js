@@ -111,20 +111,32 @@ async function showRemote(io, remote, positionals) {
   if (item.brief) io.say(`brief:\n  ${String(item.brief).split('\n').join('\n  ')}`);
 }
 
-/** Print this seat's agent from the board host's state. */
+/**
+ * One seat's own row from the board host's agent route: its lane, route and the ids it holds claimed, without the board state,
+ * which is 10 MB and too slow for a read budget [P7].
+ * @param {{ url: string, token: string }} remote
+ * @param {string} name
+ */
+export async function seatRoute(remote, name) {
+  try { return await getJson(remote, `${await boardPath(remote)}/agents/${encodeURIComponent(name)}`); }
+  catch (error) {
+    if (error instanceof Refused && error.code === 'NO_AGENT') throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
+    throw error;
+  }
+}
+
+/** Print this seat's agent from the board host's agent route. */
 async function whoamiRemote(io, remote, cwd) {
   const name = seatAgent(cwd);
   if (!name) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
-  const document = await getJson(remote, `${await boardPath(remote)}/state`);
-  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
-  if (!agent) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}; run pullboard join <lane> with board.url set`);
+  const agent = await seatRoute(remote, name);
   const board = new URL(remote.url).origin;
   io.result?.({ id: agent.agent_id, lane: agent.agent_lane, route: agent.agent_route, board });
   io.say(`${agent.agent_id} (${agent.agent_lane} lane${agent.agent_route === 'light' ? ', light route' : ''}) via ${board}`);
 }
 
 /**
- * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's state, or null
+ * The seat a commit hook checks in a boardless clone with board.url set, read from the served board's agent route, or null
  * when board.url is unset so the local check decides. An unreachable board or an unnamed seat refuses, never passes.
  * Why: the pre-commit lane check needs the seat's lane, and only the board host knows it [P7].
  * @param {string} cwd
@@ -135,8 +147,7 @@ export async function remoteHookSeat(cwd) {
   if (!remote) return null;
   const name = seatAgent(cwd);
   if (!name) throw new Refused('NO_AGENT', 'this clone has board.url set but no seat name, so its lane is unknown', 'run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
-  const document = await getJson(remote, `${await boardPath(remote)}/state`);
-  const agent = ((document.state ?? document).agents ?? []).find((entry) => entry.agent_id === name);
+  const agent = await seatRoute(remote, name);
   if (!agent?.agent_lane) throw new Refused('NO_AGENT', `the board at board.url has no agent ${name}`, 'run pullboard join <lane> with board.url set');
   return { agent_id: agent.agent_id, agent_lane: agent.agent_lane };
 }
