@@ -1,5 +1,4 @@
 /** The item detail panel shows an item's typed fields and related items, and an item with neither is drawn as before [C7,#1321]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { itemPanelHtml } from '../../src/logic/panel/item.js';

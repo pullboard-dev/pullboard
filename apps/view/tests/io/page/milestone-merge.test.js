@@ -1,5 +1,4 @@
 /** With state.milestoneDelta on, the page merges a one-milestone delta and derives the forecast a full state carries; off, it applies the delta as today [C7,#9849]. */
-/** @pullboard-test-input source-cell apps/view */
 /** @pullboard-world-pin runs the page script's embedded delta merge against plain state objects; the page itself needs a browser. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
