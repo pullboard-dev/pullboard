@@ -12,6 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import {
   delimiter,
+  dirname,
   join,
   resolve,
 } from 'node:path';
@@ -27,6 +28,8 @@ import {
 
 const SOURCE = resolve(import.meta.dirname, '../../../..');
 const EXECUTED = 'EXECUTED-FLEET-CACHE-PROBE';
+// The test runner launcher sits beside the CLI entry the root manifest names, so no app path is written here.
+const RUNNER = `${dirname(JSON.parse(readFileSync(join(SOURCE, 'package.json'), 'utf8')).bin.pullboard)}/src/io/run/tests.js`;
 
 /**
  * Prove the production request/worker/result path, without contacting a host or changing real runner settings.
@@ -60,7 +63,7 @@ import { stable } from '../lib/stable.js';
 test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE'); assert.equal(stable, 1); });
 `);
   }
-  if (composition) writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node packages/gate/src/io/run/tests.js test/probe.test.js test/stable.test.js' }) + '\n');
+  if (composition) writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: `node ${RUNNER} test/probe.test.js test/stable.test.js` }) + '\n');
   const env = { ...process.env, HOME: controller, PULLBOARD_HOME: controller,
     PULLBOARD_MACHINE_HOME: join(controller, '.pullboard'), PATH: `${bin}${delimiter}${process.env.PATH}`,
     GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -91,7 +94,7 @@ test('unchanged companion closure [C7,V4]', () => { console.log('EXECUTED-STABLE
     // The stand-in runs on the real host, so its disk floor is zero here: the case must not pass or fail with the host's free disk [C7].
     mkdirSync(join(home, '.pullboard'), { recursive: true });
     fixtureMachineSettings(join(home, '.pullboard'), { gate: { diskFloorMB: 0 } });
-    const command = `node packages/gate/src/io/run/tests.js test/probe.test.js${composition ? ' test/stable.test.js' : ''}`;
+    const command = `node ${RUNNER} test/probe.test.js${composition ? ' test/stable.test.js' : ''}`;
     const checkedSource = { commit: git('rev-parse', 'HEAD').trim(), tree: git('rev-parse', 'HEAD^{tree}').trim() };
     const began = Date.now();
     const result = await runOnRunnerAsync(repo, command, {
