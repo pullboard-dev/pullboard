@@ -1,6 +1,9 @@
 {
   "name": "pullboard",
   "itemSizeBudget": 150,
+  "map": {
+    "slice": true
+  },
   "gate": "npm run gate",
   "affectedTests": "node packages/gate/src/io/run/tests.js",
   "submitGate": "landing",
