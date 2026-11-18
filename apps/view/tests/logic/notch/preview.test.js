@@ -18,7 +18,7 @@ const rulings = [
 ];
 const data = notchPreviewData({ floor, rulings, oldest: '3 h' });
 
-test('agents preview: agent-time split bar, its key and the state rows [N26]', () => {
+test('view.notch-preview.agents-preview-agent-time-split-bar-its: agents preview: agent-time split bar, its key and the state rows [N26]', () => {
   const html = notchPreviewHtml(data, 'agents');
   assert.match(html, /<h4>Agents · 62 · agent time, last 4 h<\/h4>/u);
   assert.match(html, /class="np-split"/u);
@@ -29,7 +29,7 @@ test('agents preview: agent-time split bar, its key and the state rows [N26]', (
   assert.doesNotMatch(html, /style=/u, 'the stylesheet policy refuses inline styles');
 });
 
-test('per-hour preview: 24 landed-per-hour bars with the last one marked now, and the pace rows [N26]', () => {
+test('view.notch-preview.per-hour-preview-24-landed-per-hour: per-hour preview: 24 landed-per-hour bars with the last one marked now, and the pace rows [N26]', () => {
   const html = notchPreviewHtml(data, 'perHour');
   assert.equal(html.match(/<rect class="np-(bin|now|none)"/gu).length, 24);
   assert.equal(html.match(/np-now/gu).length, 1);
@@ -38,7 +38,7 @@ test('per-hour preview: 24 landed-per-hour bars with the last one marked now, an
   assert.match(html, /np-val np-a">/u, 'a slowing last two hours reads amber');
 });
 
-test('rulings preview: kind bar, kind key and only the top three rulings; the list shows all with action buttons [N26]', () => {
+test('view.notch-preview.rulings-preview-kind-bar-kind-key-and: rulings preview: kind bar, kind key and only the top three rulings; the list shows all with action buttons [N26]', () => {
   const html = notchPreviewHtml(data, 'rulings');
   assert.match(html, /<h4>Rulings · 5 · oldest waiting 3 h<\/h4>/u);
   assert.equal(html.match(/<rect class="np-f-/gu).length, 4, 'one segment per kind: spec, item, rigor, ship');
@@ -54,7 +54,7 @@ test('rulings preview: kind bar, kind key and only the top three rulings; the li
   assert.match(notchPreviewHtml({ rulings: { items: [] } }, 'list'), /No rulings\./u);
 });
 
-test('board text is escaped and the data is never mutated [N26]', () => {
+test('view.notch-preview.board-text-is-escaped-and-the-data: board text is escaped and the data is never mutated [N26]', () => {
   const evil = { rulings: { items: [{ kind: 'item', title: '<b>x</b>', cls: 'A&B', thing: '"q"', action: '<i>', go: 'item:1' }] } };
   const before = structuredClone(evil);
   const html = notchPreviewHtml(evil, 'list');
@@ -89,7 +89,7 @@ function stage() {
   return { doc, notch, widgets, tick, ctl, veil, panel, reads, body: doc.body };
 }
 
-test('hovering a widget opens one panel after 160 ms, leaving closes it 180 ms later, with no new fetch [N26]', () => {
+test('view.notch-preview.hovering-a-widget-opens-one-panel-after: hovering a widget opens one panel after 160 ms, leaving closes it 180 ms later, with no new fetch [N26]', () => {
   const s = stage();
   s.notch.fire('mouseover', { target: s.widgets.agents });
   s.tick(159); assert.equal(s.ctl.state().open, null, 'not yet at 159 ms');
@@ -102,7 +102,7 @@ test('hovering a widget opens one panel after 160 ms, leaving closes it 180 ms l
   assert.equal(s.reads.length, 1, 'data came from the page state read once for the one panel');
 });
 
-test('moving to the panel keeps it open, and moving to another widget switches at once [N26]', () => {
+test('view.notch-preview.moving-to-the-panel-keeps-it-open: moving to the panel keeps it open, and moving to another widget switches at once [N26]', () => {
   const s = stage();
   s.notch.fire('mouseover', { target: s.widgets.agents }); s.tick(160);
   s.notch.fire('mouseout', { target: s.widgets.agents, relatedTarget: s.panel }); s.tick(500);
@@ -112,7 +112,7 @@ test('moving to the panel keeps it open, and moving to another widget switches a
   assert.match(s.panel.innerHTML, /landed per hour/u);
 });
 
-test('clicking rulings opens the list in the same panel; Esc closes it, and so does a click outside [N26]', () => {
+test('view.notch-preview.clicking-rulings-opens-the-list-in-the: clicking rulings opens the list in the same panel; Esc closes it, and so does a click outside [N26]', () => {
   const s = stage();
   s.notch.fire('click', { target: s.widgets.rulings });
   assert.deepEqual(s.ctl.state(), { open: 'rulings', mode: 'list' });
@@ -126,7 +126,7 @@ test('clicking rulings opens the list in the same panel; Esc closes it, and so d
   assert.equal(s.ctl.state().open, null, 'the blurred page outside the panel closes it');
 });
 
-test('the preview opens the list from "Open all", and an action or another widget click closes the panel [N26]', () => {
+test('view.notch-preview.the-preview-opens-the-list-from-open: the preview opens the list from "Open all", and an action or another widget click closes the panel [N26]', () => {
   const s = stage();
   s.notch.fire('mouseover', { target: s.widgets.rulings }); s.tick(160);
   const openAll = new Node(s.doc, { 'data-notch-list': '' }, s.panel);
@@ -140,13 +140,13 @@ test('the preview opens the list from "Open all", and an action or another widge
   assert.equal(s.ctl.state().open, null, 'clicking a number goes to its page rather than staying previewed');
 });
 
-test('destroy removes the panel and its listeners [N26]', () => {
+test('view.notch-preview.destroy-removes-the-panel-and-its-listeners: destroy removes the panel and its listeners [N26]', () => {
   const s = stage(); s.ctl.destroy();
   assert.ok(s.panel.removed && s.veil.removed);
   assert.equal(s.notch.on.mouseover.length, 0); assert.equal((s.doc.on.keydown || []).length, 0);
 });
 
-test('notchRulings: the page\'s calls become list rows with the button the Needs panel gives, and the oldest waiting [N26,#6651]', () => {
+test('view.notch-preview.notchrulings-the-page-s-calls-become-list: notchRulings: the page\'s calls become list rows with the button the Needs panel gives, and the oldest waiting [N26,#6651]', () => {
   const calls = [{ kind: 'decision', id: 12, ref: 'agent-3', text: 'Split the board?\nmore', at: '2026-11-12T10:00:00.000Z' }, { kind: 'pending', id: 'S1.2', ref: 'S1.2', text: 'Pick one' }, { kind: 'draft', count: 4 }];
   const out = notchRulings(calls, row => row, iso => iso.slice(11, 13) + ' h');
   assert.equal(out.items.length, 3, 'the draft rows are one ruling, so the list agrees with the notch\'s count');
@@ -155,7 +155,7 @@ test('notchRulings: the page\'s calls become list rows with the button the Needs
   assert.equal(out.oldest, '10 h');
 });
 
-test('notchFloor: the notch\'s numbers from a Dashboard model, with the notch\'s own agents total [N26,#6651]', () => {
+test('view.notch-preview.notchfloor-the-notch-s-numbers-from-a: notchFloor: the notch\'s numbers from a Dashboard model, with the notch\'s own agents total [N26,#6651]', () => {
   const state = { now: 100, start: 0, complete: true, agents: [{ group: 'building', build: 50, review: 0 }, { group: 'reviewing', build: 0, review: 40 }, { group: 'between items', build: 10, review: 10 }, { group: 'quiet', build: 0, review: 0 }],
     totals: { day: 636, sentBack: 6 }, bins: [{ count: 2 }] };
   const out = notchFloor(state, 3);

@@ -37,8 +37,8 @@ export const UNAVAILABLE = 'cmake unavailable on this machine';
 export const GATE = 'cmake -S . -B build && cmake --build build && ctest --test-dir build';
 
 const BRIEF = 'Files:\n- tests/item_test.cpp\nChange:\n- Add the item test.\nTest:\n- ctest passes.';
-/** An item check that fails on main and passes once the item's test is committed. */
-const CHECK = 'grep -q adds_small_numbers tests/item_test.cpp';
+/** An item check that fails on main and passes once the item's test is committed; it avoids the test name, so only the gate output can name it. */
+export const CHECK = "grep -q 'add(1, 2)' tests/item_test.cpp";
 const LISTS = 'cmake_minimum_required(VERSION 3.10)\nproject(scratch_calc CXX)\nenable_testing()\n\nadd_executable(item_test tests/item_test.cpp)\nadd_test(NAME adds_small_numbers COMMAND item_test)\n';
 const MATH = 'inline int add(int a, int b) { return a + b; }\n';
 export const PASSING = '#include "../src/math.h"\n// adds_small_numbers\nint main() { return add(1, 2) == 3 ? 0 : 1; }\n';

@@ -48,7 +48,7 @@ function lonely() {
   return { root: graph.root, main, marker, env };
 }
 
-test('clause 1: with no runner free, the main comparison waits and starts no local run [C7,#3011]', { timeout: 60000 }, async () => {
+test('cli.journeys-test-runners-only-no-local.with-no-runner-free-the-main: clause 1: with no runner free, the main comparison waits and starts no local run [C7,#3011]', { timeout: 60000 }, async () => {
   const box = lonely();
   const started = [];
   let outcome;
@@ -63,7 +63,7 @@ test('clause 1: with no runner free, the main comparison waits and starts no loc
   assert.ok(outcome?.thrown?.code === 'RUNNER_WAIT_DEADLINE' || /runner/iu.test(String(outcome?.unavailable ?? '')), `the comparison named the runner wait: ${JSON.stringify(outcome?.unavailable ?? outcome?.thrown?.message)}`);
 });
 
-test('clause 1: with no runner free, the landing CLI smoke waits for a runner and runs no local process [C7,#3011]', { timeout: 60000 }, async () => {
+test('cli.journeys-test-runners-only-no-local.with-no-runner-free-the-landing: clause 1: with no runner free, the landing CLI smoke waits for a runner and runs no local process [C7,#3011]', { timeout: 60000 }, async () => {
   const box = lonely();
   let refusal = null;
   await withEnvironment(box.env, async () => {
@@ -73,7 +73,7 @@ test('clause 1: with no runner free, the landing CLI smoke waits for a runner an
   assert.equal(existsSync(box.marker), false, 'the smoke ran on no local process');
 });
 
-test('clause 1: with no runner free, the gate of a submit waits for a runner and runs no local body [C7,#3011]', { timeout: 120000 }, async () => {
+test('cli.journeys-test-runners-only-no-local.with-no-runner-free-the-gate: clause 1: with no runner free, the gate of a submit waits for a runner and runs no local body [C7,#3011]', { timeout: 120000 }, async () => {
   const box = helpers.project('true');
   const marker = join(box.dir, 'gate-ran-locally');
   const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;

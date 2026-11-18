@@ -12,7 +12,7 @@ import { SPEC } from '../../../tests/fixtures/spec/box.js';
 import { specBox } from '../../../tests/fixtures/spec/box.js';
 import { runInProcessAt } from '../../../tests/fixtures/spec/box.js';
 
-test('clause 1: signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', async (t) => {
+test('cli.journeys-spec-main-signoff-evidence.signoff-refuses-missing-evidence-atomically-and: clause 1: signoff refuses missing evidence atomically, and unmet shows every stage through a verified item [S14, S15, S16]', async (t) => {
   const box = specBox(t);
   const failed = await box.spec('signoff', 'G1', '--by', 'CO', '--note', 'I looked');
   assert.equal(failed.status, 1);
@@ -50,7 +50,7 @@ test('clause 1: signoff refuses missing evidence atomically, and unmet shows eve
   assert.match((await box.spec('show', 'G1')).stdout, /checked the accepting verdict/);
 });
 
-test('clause 2: a failing never-run test citation is not verified, and signoff says no tests were run [S15,S16]', async (t) => {
+test('cli.journeys-spec-main-signoff-evidence.a-failing-never-run-test-citation: clause 2: a failing never-run test citation is not verified, and signoff says no tests were run [S15,S16]', async (t) => {
   const specSource = SPEC.replace('## K · Constraints', '- G3 [approved, must] A ghost test is only a citation. | gate: true\n\n## K · Constraints');
   const box = specBox(t, { specSource });
   mkdirSync(join(box.root, 'test'));

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view */
 /** @pullboard-world-pin builds the served page text and evaluates its dashboardModel declaration to prove the page carries what the model uses. */
 /** The served page carries every helper the dashboard model imports, so it renders on the page [N26]. */
 import assert from 'node:assert/strict';

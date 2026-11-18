@@ -6,7 +6,7 @@ import { shoutsModel } from '../../../../src/logic/panel/model.js';
 const today = Date.parse('2026-11-13T00:00:00Z');
 const shout = (id, from, ms, values = {}) => ({ id, from, to: 'person', at: new Date(ms).toISOString(), ms, text: 'words ' + id, decision: false, answers: null, item: null, ...values });
 
-test('clause 1: shouts with no item from two senders get one thread each, titled with the sender and never No item [N26]', () => {
+test('view.x-panel-model-no-item.clause-1-shouts-with-no-item-from: clause 1: shouts with no item from two senders get one thread each, titled with the sender and never No item [N26]', () => {
   const view = shoutsModel({ startOfToday: today, messages: [
     shout(1, 'core-1', today + 1e6), shout(2, 'view-2', today + 2e6), shout(3, 'core-1', today + 3e6),
     shout(4, 'sentinel', today + 4e6, { text: 'waits: 1 over budget' }),
