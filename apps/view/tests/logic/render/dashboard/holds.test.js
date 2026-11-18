@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { dashboardHtml } from '../../../../src/logic/render/dashboard.js';
 import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 
-test('the dashboard counts three live builders and one reviewer from public lease fields [N26]', () => {
+test('view.x-render-dashboard-holds.the-dashboard-counts-three-live-builders-and: the dashboard counts three live builders and one reviewer from public lease fields [N26]', () => {
   const now = Date.parse('2026-11-03T18:00:00Z');
   const until = new Date(now + 30 * 60_000).toISOString();
   const project = {

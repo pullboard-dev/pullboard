@@ -7,7 +7,7 @@ import { dashboardRecent } from '../../../../src/io/dashboard/recent.js';
 const now = Date.parse('2026-11-12T18:00:00Z');
 const minutes = n => new Date(now - n * 60_000).toISOString();
 
-test('the server counts the last four hours from real SQLite events, stopping at the window edge [N26]', () => {
+test('view.x-render-dashboard-hero.the-server-counts-the-last-four-hours: the server counts the last four hours from real SQLite events, stopping at the window edge [N26]', () => {
   const db = new DatabaseSync(':memory:');
   db.exec("CREATE TABLE event (event_id INTEGER PRIMARY KEY AUTOINCREMENT, event_at TEXT NOT NULL, event_by TEXT NOT NULL, event_kind TEXT NOT NULL, item_id INTEGER, event_detail TEXT NOT NULL DEFAULT '{}'); CREATE INDEX event_kind_id ON event (event_kind, event_id)");
   const add = (at, kind, item, detail = {}) => db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)').run(at, 'core-1', kind, item, JSON.stringify(detail));

@@ -226,6 +226,9 @@ export function loadMachineSettings() {
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.statusOutcomes in ${file} must be true or false`);
   }
+  if (testGroup?.loadRerun !== undefined && typeof testGroup.loadRerun !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.loadRerun in ${file} must be true or false`);
+  }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
