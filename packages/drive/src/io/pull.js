@@ -44,7 +44,6 @@ import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
 import { firstFailingCase } from './posted-case.js';
-import { runnerCodeWatch } from './pull/runner-code.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -995,7 +994,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let exclusive = null;
   // The drain: whether it was announced, and when the trunk was last probed [#9024].
   let drained = false, probedAt = 0;
-  const codeWatch = runnerCodeWatch(runnerCode, say);
+  // Loaded only by a serve handed a runnerCode port, so no cold command pays for it (the closure budgets).
+  const codeWatch = runnerCode ? (await import('./pull/runner-code.js')).runnerCodeWatch(runnerCode, say) : null;
   let restart = null;
   const start = (claim, trunk) => {
     const slot = free.shift();
@@ -1030,7 +1030,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
     // A new runnerCommit whose code differs stops claiming once this answer's claim is started; the held jobs finish, then the code is rebuilt (#10800).
-    const updating = await codeWatch.due(answer.runnerCommit);
+    const updating = await codeWatch?.due(answer.runnerCommit);
     if (!answer.claim && !updating) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
