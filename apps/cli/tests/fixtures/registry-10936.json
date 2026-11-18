@@ -1,0 +1,3 @@
+{
+  "cli.io-submit-resident-preflight.fixture-resident-starts-and-stops-a-live-process": {"proves":{"specs":["C7"],"claim":"The fixture starts a resident board process on an e2e board and stops it, leaving no live pid."},"why":"Without it, a regression where the fixture starts a resident board process on an e2e board and stops it, leaving no live pid would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/fixtures/resident.js","apps/cli/tests/io/submit/resident-preflight.test.js"]}
+}
