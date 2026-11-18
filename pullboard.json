@@ -434,7 +434,7 @@
   "claims": {
     "releaseGone": false,
     "releaseCooldownMinutes": 30,
-    "perSeat": 5
+    "perSeat": 1
   },
   "protect": {
     "blocked": [
