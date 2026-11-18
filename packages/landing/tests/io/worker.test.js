@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../../gate/tests/fixtures/child.js';
-import { executionServices } from '../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServices } from '../../../gate/tests/fixtures/execution.js';
 import { takeResource } from '../../../resources/index.js';
 import { withGateSlot } from '../../../gate/index.js';
 

@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServices } from '../../fixtures/execution.js';
 import { runStaticChecks } from '../../../src/io/static/check.js';
 import { privateFixtureFiles } from '../../fixtures/child.js';
 import { fixtureCommitAll } from '../../fixtures/testkit.js';

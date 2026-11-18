@@ -1,6 +1,6 @@
 /** @pullboard-test-loads packages/gate/src/io/browser/admission.js */
 /** Real gates and item checks share the machine queue; landing priority and lease behavior stay intact [Q1,Q2,Q4,O5,O6,V18]. */
-import { executionServicesSource } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../fixtures/execution.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../fixtures/child.js';
