@@ -14,22 +14,11 @@ import { repoInfo } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   LANGUAGE_ROWS,
+  LANGUAGES,
   rowMatches,
 } from '../logic/language-rows.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
-
-/** Test-file globs per detected language [#3707]. */
-const LANGUAGE_TESTS = Object.freeze({
-  go: ['**/*_test.go'],
-  rust: ['**/tests/*.rs'],
-  python: ['**/test_*.py', '**/*_test.py'],
-  php: ['**/*Test.php'],
-  elixir: ['**/*_test.exs'],
-  csharp: ['**/*Tests.cs', '**/*Test.cs'],
-  cmake: ['**/*_test.c', '**/*_test.cpp', '**/test_*.c', '**/test_*.cpp'],
-  make: [],
-});
 
 /**
  * The unittest command for a root with test_*.py files at its top or in a tests folder, else empty.
@@ -133,11 +122,12 @@ export function detectGate(root) {
 
 /** The test-file globs of every detected language, so a builder cannot pick the tests that judge it [#3707]. */
 export function detectTestGlobs(root, rows = LANGUAGE_ROWS) {
-  const rowTests = new Map(rows.map((row) => [row.language, row.tests ?? []]));
+  // Built-in languages answer from LANGUAGES; the caller's rows answer the rest.
+  const rowTests = new Map([...rows.map((row) => [row.language, row.tests ?? []]), ...LANGUAGES.filter((row) => row.detect === 'built-in').map((row) => [row.language, row.tests])]);
   const prefix = (entry) => (entry.folder ? `${entry.folder}/` : '');
   // A row's tests may be a function of the folder's entry names (ruby picks rspec or rake globs by what the folder holds).
   const globs = (entry) => {
-    const tests = LANGUAGE_TESTS[entry.language] ?? rowTests.get(entry.language) ?? [];
+    const tests = rowTests.get(entry.language) ?? [];
     return typeof tests === 'function' ? tests(readdirSync(entry.folder ? join(root, entry.folder) : root)) : tests;
   };
   return [...new Set(detectLanguages(root, rows).flatMap((entry) => globs(entry).map((glob) => `${prefix(entry)}${glob}`)))];
@@ -187,34 +177,8 @@ export function setHere(io, command, rest, values) {
 /** The probe's toolchain name rule (packages/runners/src/io/probe.js), so every name here is one a runner can record. */
 export const TOOLCHAIN_NAME = /^[a-z][a-z0-9+_-]{0,31}$/u;
 
-/** Each language's toolchains; a function reads the detected command when the front tool varies (uv, poetry, bundle, rake, gradle, flutter). */
-const ROWS = Object.freeze({
-  bun: ['bun'],
-  clojure: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
-  cmake: ['cmake', 'ctest'],
-  crystal: ['crystal'],
-  csharp: ['dotnet'],
-  dart: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
-  deno: ['deno'],
-  elixir: ['mix'],
-  go: ['go'],
-  gradle: command => (/^\s*gradle\s/u.test(command) ? ['gradle', 'java'] : ['java']),
-  haskell: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
-  julia: ['julia'],
-  make: ['make'],
-  maven: ['java', 'mvn'],
-  nim: ['nimble'],
-  node: ['node'],
-  ocaml: ['dune'],
-  perl: ['perl'],
-  php: command => (/^\s*composer\s/u.test(command) ? ['composer', 'php'] : ['php']),
-  python: command => [...(/^\s*uv\s/u.test(command) ? ['uv'] : /^\s*poetry\s/u.test(command) ? ['poetry'] : []), 'python3'],
-  ruby: command => (/^\s*bundle\s/u.test(command) ? ['bundle', 'ruby'] : /^\s*rake\s/u.test(command) ? ['rake', 'ruby'] : ['ruby']),
-  rust: ['cargo'],
-  sbt: ['java', 'sbt'],
-  swift: ['swift'],
-  zig: ['zig'],
-});
+/** Each language's toolchains, read from LANGUAGES; a function reads the detected command when the front tool varies (uv, poetry, bundle, rake, gradle, flutter). */
+const toolchainsOf = (language) => LANGUAGES.find((row) => row.language === language)?.toolchains ?? null;
 
 /**
  * The sorted unique toolchains a runner needs to test these detected languages, plus the languages no row knows.
@@ -229,15 +193,15 @@ export function languageToolchains(entries) {
   const unknown = new Set();
   for (const entry of entries ?? []) {
     const language = entry?.language;
-    if (typeof language !== 'string' || !Object.hasOwn(ROWS, language)) {
+    const row = typeof language === 'string' ? toolchainsOf(language) : null;
+    if (row === null) {
       unknown.add(String(language));
       continue;
     }
-    const row = ROWS[language];
     for (const name of typeof row === 'function' ? row(String(entry.command ?? '')) : row) toolchains.add(name);
   }
   return { toolchains: [...toolchains].sort(), unknown: [...unknown].sort() };
 }
 
 /** Every language with a toolchain row, sorted. */
-export const TOOLCHAIN_LANGUAGES = Object.freeze(Object.keys(ROWS).sort());
+export const TOOLCHAIN_LANGUAGES = Object.freeze(LANGUAGES.filter((row) => row.toolchains !== null).map((row) => row.language).sort());
