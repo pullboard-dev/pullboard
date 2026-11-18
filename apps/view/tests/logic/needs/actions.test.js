@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { agentApprovalActionsHtml } from '../../../src/logic/needs/actions.js';
 import { needsActionsHtml } from '../../../src/logic/needs/actions.js';
 
-test('approval controls require exact row verbs and person authority on both detail surfaces [N26,B26,C7]', () => {
+test('view.needs-actions.approval-controls-require-exact-row-verbs-and: approval controls require exact row verbs and person authority on both detail surfaces [N26,B26,C7]', () => {
   const row = { id: 'G1', actions: [{ verb: 'spec-approve', args: { ids: 'G1' } }, { verb: 'spec-decline', args: { ids: 'G2' } }] };
   assert.equal(agentApprovalActionsHtml(row), '');
   const html = agentApprovalActionsHtml(row, { person: true, detail: true });
@@ -14,7 +14,7 @@ test('approval controls require exact row verbs and person authority on both det
   assert.equal(agentApprovalActionsHtml({ ...row, actions: [{ verb: 'unrelated', args: { ids: 'G1' } }] }, { person: true }), '');
 });
 
-test('Needs action rendering keeps revisions exact and inspection-only calls inert [N26,B26,C7]', () => {
+test('view.needs-actions.needs-action-rendering-keeps-revisions-exact-and: Needs action rendering keeps revisions exact and inspection-only calls inert [N26,B26,C7]', () => {
   const revision = { kind: 'spec-revision', id: 'G1', actions: [{ verb: 'spec-approve', args: { ids: 'G1' } }, { verb: 'spec-decline', args: { ids: 'G2' } }] };
   assert.match(needsActionsHtml(revision, { person: true }), /data-row-id="G1" data-row-decision="approve"/u);
   assert.doesNotMatch(needsActionsHtml(revision, { person: true }), /data-row-decision="decline"/u);
@@ -23,7 +23,7 @@ test('Needs action rendering keeps revisions exact and inspection-only calls ine
   for (const kind of ['block', 'relay-health']) assert.equal(needsActionsHtml({ kind, target: 'do-not-navigate' }, { person: true }), '');
 });
 
-test('ordinary Needs controls retain exact targets and unmaterialized proposals stay non-actionable [N26,B26,C7]', () => {
+test('view.needs-actions.ordinary-needs-controls-retain-exact-targets-and: ordinary Needs controls retain exact targets and unmaterialized proposals stay non-actionable [N26,B26,C7]', () => {
   assert.match(needsActionsHtml({ kind: 'decision', id: 7 }, { person: true }), /data-go="decide:7">Decide/u);
   assert.match(needsActionsHtml({ kind: 'pending', id: 'G1' }, { person: true }), /data-go="spec:G1">Review/u);
   assert.match(needsActionsHtml({ kind: 'hold', id: 'view' }, { person: true }), /data-go="tab:shouts"/u);

@@ -31,7 +31,7 @@ async function keysAt(fx, commit) {
   return Object.fromEntries([PLAIN, OTHER, WIDE].map(file => [file, keys.get(file)?.inputKey]));
 }
 
-test('clause 1: a test keeps its key across commits that leave its import closure alone, and changes it when a closure file changes [C7]', async () => {
+test('gate.io-test-action-reuse.a-test-keeps-its-key-across: clause 1: a test keeps its key across commits that leave its import closure alone, and changes it when a closure file changes [C7]', async () => {
   const fx = fixture();
   try {
     const a = fx.commit();
@@ -44,7 +44,7 @@ test('clause 1: a test keeps its key across commits that leave its import closur
   } finally { fx.done(); }
 });
 
-test('clause 2: a source-tree test changes its key on any source change, even outside its imports [C7]', async () => {
+test('gate.io-test-action-reuse.a-source-tree-test-changes-its: clause 2: a source-tree test changes its key on any source change, even outside its imports [C7]', async () => {
   const fx = fixture();
   try {
     const a = fx.commit();
@@ -57,7 +57,7 @@ test('clause 2: a source-tree test changes its key on any source change, even ou
   } finally { fx.done(); }
 });
 
-test('an explicit file list keys only those files, each equal to its key from a full build, and the catalog waits for a full build [C7,#6672]', async () => {
+test('gate.io-test-action-reuse.an-explicit-file-list-keys-only: an explicit file list keys only those files, each equal to its key from a full build, and the catalog waits for a full build [C7,#6672]', async () => {
   const fx = fixture();
   try {
     const commit = fx.commit();
@@ -78,7 +78,7 @@ test('an explicit file list keys only those files, each equal to its key from a 
   } finally { fx.done(); }
 });
 
-test('a candidate keyed from its base graph gets the same keys as a cold build of its own tree [C7,#6672]', async () => {
+test('gate.io-test-action-reuse.a-candidate-keyed-from-its-base: a candidate keyed from its base graph gets the same keys as a cold build of its own tree [C7,#6672]', async () => {
   const fx = fixture();
   try {
     const base = fx.commit();

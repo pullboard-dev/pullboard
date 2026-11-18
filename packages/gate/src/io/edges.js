@@ -28,7 +28,13 @@ import {
 } from './edges/package-app.js';
 import { doorMatchesMain } from './edges/main-tree.js';
 
-const CEILINGS = new URL('../../data/ceilings/cells-edges.json', import.meta.url);
+/**
+ * The per-file cross-cell import ceilings, a committed listing this module writes with --write and so owns.
+ * Why here: the one-second staged checker (#2571) already loads this module; naming the path from test tier selection
+ * pulled drive, pin, receipt and verify into every pre-commit (#10344).
+ */
+export const CELLS_EDGES_CEILINGS = 'packages/gate/data/ceilings/cells-edges.json';
+const CEILINGS = new URL(`../../../../${CELLS_EDGES_CEILINGS}`, import.meta.url);
 
 /** The committed cells-edges ceiling: file counts, cell rows and each package file's apps, for tests in other cells to assert on without reading the data file by path [C7]. */
 export function cellsEdgesCeiling() {
@@ -96,14 +102,14 @@ export function lightDoorsOf(root) {
 }
 
 /**
- * One cold load of a module in a fresh Node process, import only (no process start), in milliseconds.
+ * One cold load of a module in a fresh Node process, import only (no process start), in CPU milliseconds: time spent waiting on a loaded runner is not counted [C7].
  *
  * @param {string} root
  * @param {string} door - Repo-relative module path.
  * @returns {Promise<number>} Milliseconds, or Infinity when it never loads.
  */
 function loadOnceMs(root, door) {
-  const script = `const t = performance.now(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); process.stdout.write(String(performance.now() - t));`;
+  const script = `const t = process.cpuUsage(); await import(${JSON.stringify(pathToFileURL(resolve(root, door)).href)}); const used = process.cpuUsage(t); process.stdout.write(String((used.user + used.system) / 1000));`;
   return new Promise(done => {
     let out = '';
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });

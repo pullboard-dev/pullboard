@@ -1,5 +1,5 @@
-/** @pullboard-test-input source-tree */
-/** The relay image copies only paths that exist after the layout freeze, each once [C7]. */
+/** @pullboard-test-input apps/relay/src/io/deploy/Dockerfile package.json CHANGELOG.md apps/relay/src/io/deploy/server.mjs packages/kernel/index.js */
+/** The relay image copies only paths that exist after the layout freeze, each once [C7]. The Dockerfile copies the apps/ and packages/ folders whole and this test only checks they exist, so the header names the Dockerfile, the two root files, the image's CMD file under apps/ and the kernel front door under packages/. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -24,18 +24,18 @@ function copySources() {
   return out;
 }
 
-test('every COPY source in the relay Dockerfile exists in the repository [C7]', () => {
+test('relay.io-deploy-dockerfile.every-copy-source-in-the-relay: every COPY source in the relay Dockerfile exists in the repository [C7]', () => {
   const sources = copySources();
   assert.ok(sources.length > 0);
   for (const source of sources) assert.ok(existsSync(join(ROOT, source)), `${source} is missing`);
 });
 
-test('no COPY source is copied twice [C7]', () => {
+test('relay.io-deploy-dockerfile.no-copy-source-is-copied-twice: no COPY source is copied twice [C7]', () => {
   const sources = copySources().map((source) => source.replace(/\/+$/, ''));
   assert.deepEqual(sources.filter((source, i) => sources.indexOf(source) !== i), []);
 });
 
-test('the relay Dockerfile names no old root folder [C7]', () => {
+test('relay.io-deploy-dockerfile.the-relay-dockerfile-names-no-old: the relay Dockerfile names no old root folder [C7]', () => {
   const text = readFileSync(DOCKERFILE, 'utf8');
   for (const folder of ['src', 'bin', 'relay', 'test']) {
     assert.doesNotMatch(text, new RegExp(`(^|\\s)${folder}/`, 'm'), `${folder}/ is a pre-move root folder`);

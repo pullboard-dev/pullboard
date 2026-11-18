@@ -38,7 +38,7 @@ function headers(source) {
   return found;
 }
 
-test('clause 1: every search test file that reads files carries an input header naming what it reads [C7,U149]', () => {
+test('search.inputs.every-reader-declares-its-inputs: clause 1: every search test file that reads files carries an input header naming what it reads [C7,U149]', () => {
   const files = searchTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the search cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && ANCHOR.test(read(file)) && headers(read(file)).length === 0);
@@ -46,7 +46,7 @@ test('clause 1: every search test file that reads files carries an input header 
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/search'], 'this file names only the search cell');
 });
 
-test('clause 1: every search input header is a cell, the test tree, the source tree or named files [C7,U149]', () => {
+test('search.inputs.a-header-names-a-cell-never-the-tree: clause 1: every search input header is a cell, the test tree, the source tree or named files [C7,U149]', () => {
   for (const file of searchTests()) {
     for (const header of headers(read(file))) {
       assert.match(header, /^(?:source-tree|source-cell [a-z/ ]+|test-tree|\S+\.(?:js|json))(?: \S+\.(?:js|json))*$/u, `${file} declares a well-formed input`);
@@ -58,7 +58,7 @@ test('clause 1: every search input header is a cell, the test tree, the source t
 const WHOLE_TREE = new Map([['packages/search/tests/io/index.test.js', ['source-tree']]]);
 const TREE = /^(?:source-tree|test-tree|docs-tree)$/u;
 
-test('clause 2: only the listed whole-tree reader uses a tree header, and it still declares it [C7,U149]', () => {
+test('search.inputs.only-the-listed-reader-uses-a-tree: clause 2: only the listed whole-tree reader uses a tree header, and it still declares it [C7,U149]', () => {
   for (const file of searchTests()) {
     const trees = headers(read(file)).filter(header => TREE.test(header));
     assert.deepEqual(trees, WHOLE_TREE.get(file) ?? [], `${file} tree headers`);

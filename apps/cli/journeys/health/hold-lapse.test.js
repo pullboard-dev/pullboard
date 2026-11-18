@@ -27,7 +27,7 @@ async function lapsedHold(requireOwner) {
   return { project, id };
 }
 
-test('clause 1: an expired hold appears in health with its owner [C7,#8541]', async () => {
+test('cli.journeys-health-hold-lapse.an-expired-hold-appears-in-health: clause 1: an expired hold appears in health with its owner [C7,#8541]', async () => {
   const { project, id } = await lapsedHold(true);
   const report = JSON.parse((await project.runLocal(project.repo, 'health', '--json')).out);
   const lapsed = report.stuck.find(entry => entry.cause === 'HOLD_LAPSED');
@@ -36,13 +36,13 @@ test('clause 1: an expired hold appears in health with its owner [C7,#8541]', as
   assert.equal(lapsed.owner.who, 'lane:web');
 });
 
-test('clause 2: an expired hold appears in the owner\'s next [C7,#8541]', async () => {
+test('cli.journeys-health-hold-lapse.an-expired-hold-appears-in-the: clause 2: an expired hold appears in the owner\'s next [C7,#8541]', async () => {
   const { project, id } = await lapsedHold(true);
   const next = await project.runLocal(project.web, 'next', '--json');
   assert.match(reasonsOf(next).join('\n'), new RegExp(`#${id} hold lapsed 2020-01-01`, 'u'));
 });
 
-test('clause 1: with holds.requireOwner off an expired hold is not reported [C7,#8541]', async () => {
+test('cli.journeys-health-hold-lapse.with-holds-requireowner-off-an-expired: clause 1: with holds.requireOwner off an expired hold is not reported [C7,#8541]', async () => {
   const { project } = await lapsedHold(false);
   const report = JSON.parse((await project.runLocal(project.repo, 'health', '--json')).out);
   assert.equal(report.stuck.some(entry => entry.cause === 'HOLD_LAPSED'), false);

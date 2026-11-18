@@ -28,7 +28,7 @@ function repo(t) {
 
 const record = root => JSON.parse(readFileSync(fileTimesPath(root), 'utf8'));
 
-test('clause 1: with census.recordFileTimes on, a census write leaves no entry for a file absent from that census file list [C7]', (t) => {
+test('gate.io-test-file-times-census.with-census-recordfiletimes-on-a-census: clause 1: with census.recordFileTimes on, a census write leaves no entry for a file absent from that census file list [C7]', (t) => {
   const root = repo(t);
   writeFileTimes(root, { 'a.test.js': 1000, 'gone.test.js': 788_000, 'b.test.js': 2000 });
   writeFileTimes(root, { 'a.test.js': 1200 }, { keep: ['a.test.js', 'b.test.js'] });
@@ -37,7 +37,7 @@ test('clause 1: with census.recordFileTimes on, a census write leaves no entry f
   assert.ok(!Object.hasOwn(record(root).samples, 'gone.test.js'));
 });
 
-test('clause 2: the plan weight of a file measured at 22 s and then 363 s is 22 s, and the record keeps both samples [C7]', (t) => {
+test('gate.io-test-file-times-census.the-plan-weight-of-a-file: clause 2: the plan weight of a file measured at 22 s and then 363 s is 22 s, and the record keeps both samples [C7]', (t) => {
   const root = repo(t);
   const keep = ['queue/freshness.test.js', 'a.test.js'];
   writeFileTimes(root, { 'queue/freshness.test.js': 22_000, 'a.test.js': 5000 }, { keep });
@@ -55,7 +55,7 @@ test('clause 2: the plan weight of a file measured at 22 s and then 363 s is 22 
   assert.equal(readFileTimes(root)['queue/freshness.test.js'], 90_000);
 });
 
-test('clause 3: with census.recordFileTimes off (the default) and for landing writes, writeFileTimes merges exactly as on main, and census.recordFileTimes is a described setting [C7]', (t) => {
+test('gate.io-test-file-times-census.with-census-recordfiletimes-off-the-default: clause 3: with census.recordFileTimes off (the default) and for landing writes, writeFileTimes merges exactly as on main, and census.recordFileTimes is a described setting [C7]', (t) => {
   const root = repo(t);
   writeFileTimes(root, { 'a.test.js': 1000, 'gone.test.js': 9000 });
   writeFileTimes(root, { 'a.test.js': 363_000 });

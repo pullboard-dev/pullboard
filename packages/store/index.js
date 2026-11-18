@@ -2,7 +2,7 @@ export { exitSessionIdentity, exitedSession, exitContinuationProblem, exitContin
 export { exitClaim, recordExitProgress, exitClaimDecision, releaseExitClaim, capturedExitRules, requireExitActive } from './src/logic/exit/rules/claim.js';
 export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } from './src/logic/known/main/autofile.js';
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
-export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued } from './src/io/board/busy.js';
+export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued, recordedWriteLock } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.js';
 export { writeBoardMeta, readBoardMeta, deleteBoardMeta, deleteBoardMetaWithPrefix, listBoardMetaWithPrefix } from './src/io/board/meta.js';
@@ -26,7 +26,7 @@ export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';
 export { migrate, schemaDigest, boardStanding, boardIsCurrent, reportDrift, recordSchemaStamp, schemaMissing, writeRefused, guardsMatchStoredStamp, priorShapeMatchesStoredStamp } from './src/io/board/migrate.js';
-export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor, rowDecisions } from './src/io/board/query.js';
+export { PERSON, now, isHeld, current, reviewReleasesSinceSubmit, boardId, getItem, itemHold, listItems, itemsInStatus, reviewHolder, reviewQueueBreakdown, reviewQueue, openDecisions, unreadCount, events, itemThread, itemThreads, laneHold, laneHolds, rowDrafts, UNREAD_SQL, agentAt, agentById, agentModel, agentLaneLocked, withModel, listAgents, KEY, validBaseline, canonicalBaseline, specApprovalBaselineExists, specApprovalBaseline, sentinelDraftNeeds, sentinels, ReadNeedsWrite, ensureCoordinator, relatedItems, proofReceipts, agentActivity, agentParent, closeBoard, holdReadConnections, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock, stats, acceptedVerdict, verdictReviewProblem, verdictReads, verdictsFor, rowDecisions } from './src/io/board/query.js';
 export { getShout, allShouts, shoutDetails, decisionAnswers, openRequests, peekShouts, projectItemThreads, unverifiedSubmissions, pendingRefreeze, pendingRefreezeProblem, milestonePriorities } from './src/io/board/read/shouts.js';
 export { readBoardSnapshot } from './src/io/board/read/snapshot.js';
 export { validateRehomeCheck, reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem } from './src/io/board/facade.js';
@@ -47,7 +47,8 @@ export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreR
 export { gitOut, fileVersions, committedIds } from './src/io/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline, knownGreenBaseline, guardGreenCheck } from './src/io/baseline/check.js';
 export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/logic/known/main/reworks.js';
-export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
+export { recordKnownMainStatic } from './src/io/board/fact.js';
+export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayMachineStateFile, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/io/home.js';
 export { mainRedBuildRouting } from './src/io/routing.js';
 export { memoryHeldRuns } from './src/io/memory.js';
 export { buildLocalBoardState, stateProofStats, dependencyIds, stateFileInputs, fileRevision } from './src/io/board/state.js';
@@ -95,6 +96,7 @@ export { boardWriteSnapshot, requireBoardWriteSnapshot, acknowledgeOwnWrites } f
 export { insertItem } from './src/io/board/add.js';
 export { invalidateItemPatch } from './src/io/board/patch/attach.js';
 export { writeRowDecisions } from './src/io/board/record/decisions.js';
+export { rulingsByCause } from './src/io/board/decision/answer.js';
 export { reserveWithin } from './src/io/board/reserve/review.js';
 export { insertShout, persistShout } from './src/io/board/shout.js';
 export { RELEASE_REASONS, REVIEW_RELEASE_REASONS, REVIEW_ONLY_REASONS, releaseReasonProblem } from './src/logic/reasons.js';
@@ -114,7 +116,7 @@ export { RIGOR_NOTICE_ENGINE } from "../state/light.js";
 export { KNOWN_MAIN_RECEIPT_ENGINE } from "../state/light.js";
 export { ENGINE_VERSION } from "../state/light.js";
 
-export { rejectionReturnEnabled } from './src/logic/rework.js';
+export { rejectionReturnEnabled, STUCK_RETURN_MS } from './src/logic/rework.js';
 
 export { createItemSlice } from "./src/io/board/item/slice.js";
 

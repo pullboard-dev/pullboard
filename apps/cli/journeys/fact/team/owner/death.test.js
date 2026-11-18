@@ -6,5 +6,5 @@ import {
   test,
 } from '../../../../tests/fixtures/scenarios/team.js';
 
-test('an abandoned landing drains its blocked gate before adoption [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, owned-process cleanup, interrupted-batch adoption and Git; no speed target.
+test('cli.journeys-fact-team-owner-death.an-abandoned-landing-drains-its-blocked: an abandoned landing drains its blocked gate before adoption [Q1,Q3,B3]', { timeout: 120_000 }, // budget: private CLI death, owned-process cleanup, interrupted-batch adoption and Git; no speed target.
   async t => landingQueueCase(t, helpers, { killParent: true }));

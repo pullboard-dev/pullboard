@@ -54,7 +54,7 @@ function laneLine(stderr) {
   return /^ {2}- outside the app lane: .*$/mu.exec(stderr)?.[0];
 }
 
-test("a boardless clone commits files in the seat's lane through the pre-commit hook [P7]", { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and a hooked commit, not a throughput claim.
+test('cli.io-remote-lane-hook.a-boardless-clone-commits-files-in-the: a boardless clone commits files in the seat\'s lane through the pre-commit hook [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and a hooked commit, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   await linkBoard(seat);
@@ -64,7 +64,7 @@ async (t) => {
   assert.equal(cloneBoard(seat.clone), false, 'the hook opened no local board');
 });
 
-test('a boardless clone refuses a file outside the lane with the local check\'s refusal [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two hooked commits, not a throughput claim.
+test('cli.io-remote-lane-hook.a-boardless-clone-refuses-a-file-outside: a boardless clone refuses a file outside the lane with the local check\'s refusal [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init, a served board and two hooked commits, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   await linkBoard(seat);
@@ -78,7 +78,7 @@ async (t) => {
   assert.equal(cloneBoard(seat.clone), false, 'the refused hook opened no local board');
 });
 
-test('an unreachable board refuses the commit with a next step instead of passing it [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init and a hooked commit, not a throughput claim.
+test('cli.io-remote-lane-hook.an-unreachable-board-refuses-the-commit-with: an unreachable board refuses the commit with a next step instead of passing it [P7]', { timeout: 90_000 }, // budget: hang ceiling for fixture init and a hooked commit, not a throughput claim.
 async (t) => {
   const seat = await remoteSeat(t);
   await linkBoard(seat, 'http://127.0.0.1:9');

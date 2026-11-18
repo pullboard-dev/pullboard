@@ -46,7 +46,7 @@ function eventIds(board, table) {
   return board.db.prepare(`SELECT item_id FROM ${table} ORDER BY event_id`).all().map(row => row.item_id);
 }
 
-test('clause 1: with board.archiveEvents on and a fake clock, every event of items verified over 30 days ago moves to event_archive and open and recent items keep theirs [C7,#9334]', t => {
+test('store.io-board-event-archive-move.with-board-archiveevents-on-and-a: clause 1: with board.archiveEvents on and a fake clock, every event of items verified over 30 days ago moves to event_archive and open and recent items keep theirs [C7,#9334]', t => {
   const { board, ids } = seededBoard(t);
   const result = archiveOldEvents(board, NOW, { enabled: true });
   assert.equal(result.moved, 4);
@@ -58,7 +58,7 @@ test('clause 1: with board.archiveEvents on and a fake clock, every event of ite
   assert.throws(() => board.db.exec('DELETE FROM event'), /APPEND_ONLY/u, 'the append-only guard is back after the archive');
 });
 
-test('clause 2: with board.archiveEvents off, the default, the archiver moves nothing and the event table is byte-identical [C7,#9334]', t => {
+test('store.io-board-event-archive-move.with-board-archiveevents-off-the-default: clause 2: with board.archiveEvents off, the default, the archiver moves nothing and the event table is byte-identical [C7,#9334]', t => {
   const { board } = seededBoard(t);
   const before = JSON.stringify(board.db.prepare('SELECT * FROM event ORDER BY event_id').all());
   assert.deepEqual(archiveOldEvents(board, NOW, { enabled: false }), { moved: 0 });

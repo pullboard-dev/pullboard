@@ -38,13 +38,13 @@ const SOURCES = {
 };
 const row = (manifest, file) => manifest.files.find(entry => entry.file === file);
 
-test('every test file has one row, in order, and a fixture that is not a test file has none [C7]', t => {
+test('gate.io-test-scripts-manifest.every-test-file-has-one-row: every test file has one row, in order, and a fixture that is not a test file has none [C7]', t => {
   const manifest = generateTestManifest(fixture(t, SOURCES).root, { times: {} });
   const tests = Object.keys(SOURCES).filter(file => /\.test\.js$/u.test(file)).sort();
   assert.deepEqual(manifest.files.map(entry => entry.file), tests);
 });
 
-test('each row names its kind as cell unit, contract, journey or harness, with the rule that chose it [C7]', t => {
+test('gate.io-test-scripts-manifest.each-row-names-its-kind-as: each row names its kind as cell unit, contract, journey or harness, with the rule that chose it [C7]', t => {
   const manifest = generateTestManifest(fixture(t, SOURCES).root, { times: {} });
   const kinds = Object.fromEntries(manifest.files.map(entry => [entry.file, entry.kind]));
   assert.deepEqual(kinds, {
@@ -63,7 +63,7 @@ test('each row names its kind as cell unit, contract, journey or harness, with t
   }
 });
 
-test('a row records whether the file or a fixture it reaches spawns a process, and product code that spawns does not count [C7]', t => {
+test('gate.io-test-scripts-manifest.a-row-records-whether-the-file: a row records whether the file or a fixture it reaches spawns a process, and product code that spawns does not count [C7]', t => {
   const manifest = generateTestManifest(fixture(t, SOURCES).root, { times: {} });
   const own = row(manifest, 'test/root-spawn.test.js').spawns;
   assert.deepEqual([own.process, own.browser, own.direct, own.via], [true, false, true, []]);
@@ -73,13 +73,13 @@ test('a row records whether the file or a fixture it reaches spawns a process, a
   assert.equal(row(manifest, 'packages/math/tests/store.test.js').spawns.board, true);
 });
 
-test('a row carries the recorded runtime in milliseconds, or null when none was recorded [C7]', t => {
+test('gate.io-test-scripts-manifest.a-row-carries-the-recorded-runtime: a row carries the recorded runtime in milliseconds, or null when none was recorded [C7]', t => {
   const manifest = generateTestManifest(fixture(t, SOURCES).root, { times: { 'packages/math/tests/add.test.js': 1234.4, 'gone.test.js': 9 } });
   assert.equal(row(manifest, 'packages/math/tests/add.test.js').cost.ms, 1234);
   assert.equal(row(manifest, 'test/root-pure.test.js').cost.ms, null);
 });
 
-test('the command writes the manifest and prints the count per kind [C7]', t => {
+test('gate.io-test-scripts-manifest.the-command-writes-the-manifest-and: the command writes the manifest and prints the count per kind [C7]', t => {
   const files = fixture(t, SOURCES), root = files.root;
   files.write('rows.json', '');
   const result = runManifestCommand(['--out', 'rows.json', root], { times: {} });
@@ -89,7 +89,7 @@ test('the command writes the manifest and prints the count per kind [C7]', t => 
   assert.equal(written.files.length, 8);
 });
 
-test('the command refuses an unknown flag with its usage and writes nothing [C7]', () => {
+test('gate.io-test-scripts-manifest.the-command-refuses-an-unknown-flag: the command refuses an unknown flag with its usage and writes nothing [C7]', () => {
   const result = runManifestCommand(['--bogus']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /usage: /u);
@@ -101,20 +101,20 @@ const CITING = {
   'packages/math/tests/quoted.test.js': 'const note = `test("fake [Z9]", () => {})`; // test("comment [Y8]")\nimport { test } from "node:test"; test(`real [A1]`, () => {});',
 };
 
-test('each manifest row lists the spec ids its test titles cite, sorted and without repeats [C7]', t => {
+test('gate.io-test-scripts-manifest.each-manifest-row-lists-the-spec: each manifest row lists the spec ids its test titles cite, sorted and without repeats [C7]', t => {
   const manifest = generateTestManifest(fixture(t, CITING).root, { times: {} });
   assert.deepEqual(row(manifest, 'packages/math/tests/one.test.js').specs, ['C7', 'G1.2', 'V4']);
   assert.deepEqual(row(manifest, 'packages/math/tests/quoted.test.js').specs, ['A1']);
 });
 
-test('a row whose file cites no spec id is marked unproven and one that cites an id is not [C7]', t => {
+test('gate.io-test-scripts-manifest.a-row-whose-file-cites-no: a row whose file cites no spec id is marked unproven and one that cites an id is not [C7]', t => {
   const manifest = generateTestManifest(fixture(t, CITING).root, { times: {} });
   assert.equal(row(manifest, 'packages/math/tests/plain.test.js').unproven, true);
   assert.deepEqual(row(manifest, 'packages/math/tests/plain.test.js').specs, []);
   assert.equal(row(manifest, 'packages/math/tests/one.test.js').unproven, false);
 });
 
-test('the command prints how many files are unproven [C7]', t => {
+test('gate.io-test-scripts-manifest.the-command-prints-how-many-files: the command prints how many files are unproven [C7]', t => {
   const files = fixture(t, CITING);
   const result = runManifestCommand(['--out', 'rows.json', files.root], { times: {} });
   assert.match(result.stdout, /1 unproven/u);
@@ -133,7 +133,7 @@ const JOURNEYS = {
 };
 const tagOf = (manifest, file) => row(manifest, `apps/cli/journeys/${file}.test.js`);
 
-test('each journey row carries a tag of keep, convert or delete with the rule that chose it, and other kinds carry none [C7]', t => {
+test('gate.io-test-scripts-manifest.each-journey-row-carries-a-tag: each journey row carries a tag of keep, convert or delete with the rule that chose it, and other kinds carry none [C7]', t => {
   const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
   for (const entry of manifest.files.filter(item => item.kind === 'journey')) {
     assert.ok(JOURNEY_TAGS.includes(entry.tag), entry.file);
@@ -142,14 +142,14 @@ test('each journey row carries a tag of keep, convert or delete with the rule th
   assert.equal(row(manifest, 'packages/math/tests/cell.test.js').tag, undefined);
 });
 
-test('a journey on a golden path is tagged keep, relay and view only for their pairing and opening files [C7]', t => {
+test('gate.io-test-scripts-manifest.a-journey-on-a-golden-path: a journey on a golden path is tagged keep, relay and view only for their pairing and opening files [C7]', t => {
   const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
   assert.deepEqual(['submit/main', 'relay/pair', 'view/open'].map(file => tagOf(manifest, file).tag), ['keep', 'keep', 'keep']);
   assert.notEqual(tagOf(manifest, 'relay/sync').tag, 'keep');
   assert.match(tagOf(manifest, 'relay/pair').tagBecause, /relay pair/u);
 });
 
-test('a journey is tagged delete only when a non-journey test cites every spec id it cites, otherwise convert [C7]', t => {
+test('gate.io-test-scripts-manifest.a-journey-is-tagged-delete-only: a journey is tagged delete only when a non-journey test cites every spec id it cites, otherwise convert [C7]', t => {
   const manifest = generateTestManifest(fixture(t, JOURNEYS).root, { times: {} });
   assert.equal(tagOf(manifest, 'edges/covered').tag, 'delete');
   assert.equal(tagOf(manifest, 'edges/other').tag, 'convert');
@@ -157,19 +157,19 @@ test('a journey is tagged delete only when a non-journey test cites every spec i
   assert.equal(tagOf(manifest, 'relay/sync').tag, 'convert');
 });
 
-test('the command prints the count of each journey tag [C7]', t => {
+test('gate.io-test-scripts-manifest.the-command-prints-the-count-of: the command prints the count of each journey tag [C7]', t => {
   const result = runManifestCommand(['--out', 'rows.json', fixture(t, JOURNEYS).root], { times: {} });
   assert.match(result.stdout, /journey tags: 3 keep, 3 convert, 1 delete/u);
 });
 
-test('the command prints a keep count of at most 20 however many journeys walk the golden paths [C7]', t => {
+test('gate.io-test-scripts-manifest.the-command-prints-a-keep-count: the command prints a keep count of at most 20 however many journeys walk the golden paths [C7]', t => {
   const bases = ['init', 'add', 'next', 'submit', 'verify', 'land', 'release', 'upgrade', 'relay/pair', 'view/open'];
   const sources = Object.fromEntries(bases.flatMap(base => [1, 2, 3].map(n => [`apps/cli/journeys/${base}/j${n}.test.js`, `import { test } from "node:test"; test("walks [P${n}]", () => {});`])));
   const result = runManifestCommand(['--out', 'rows.json', fixture(t, sources).root], { times: {} });
   assert.match(result.stdout, /journey tags: 20 keep, 10 convert, 0 delete/u);
 });
 
-test('clause 1: a full regeneration keeps the harness tag on every journey the guard list names [C7]', t => {
+test('gate.io-test-scripts-manifest.a-full-regeneration-keeps-the-harness: clause 1: a full regeneration keeps the harness tag on every journey the guard list names [C7]', t => {
   const guards = ['apps/cli/journeys/imports/closure-budget.test.js', 'apps/cli/journeys/inbox/growth.test.js'];
   const manifest = generateTestManifest(fixture(t, { ...SOURCES,
     'packages/gate/data/tests/guards.json': JSON.stringify({ version: 1, files: guards }),

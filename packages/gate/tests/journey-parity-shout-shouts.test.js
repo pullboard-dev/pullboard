@@ -10,7 +10,7 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/shout/shouts.test.js', cases: ['clause 2: a shout shows the evidence it carries [B22]'] }];
 
-test('clause 1: a sample of the shout/shouts journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-shout-shouts.a-sample-of-the-shout-shouts-journey: clause 1: a sample of the shout/shouts journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });

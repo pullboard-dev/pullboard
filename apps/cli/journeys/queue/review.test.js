@@ -111,7 +111,7 @@ function build(box, check = undefined) {
   return store.addItem(box.board, { by: 'coordinator', lane: 'web', title: 'Available build', specs: 'G1', criterion: 'The move keeps evidence.', check });
 }
 
-test('clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
+test('cli.journeys-queue-review.next-hands-out-the-mandatory-review: clause 2: [Q1,V15] next hands out the mandatory review before a new claim [conveyor rule: review is work next hands out]', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -129,7 +129,7 @@ test('clause 2: [Q1,V15] next hands out the mandatory review before a new claim 
   assert.match(prose.stdout, /reserved for you until/u);
 });
 
-test('[Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
+test('cli.journeys-queue-review.build-records-the-skipped-review-and: [Q1,V15] --build records the skipped review, and held claims renew normally', async (t) => {
   const box = await project(t);
   const ids = [submitted(box), submitted(box), submitted(box)];
   const id = build(box);
@@ -153,7 +153,7 @@ test('[Q1,V15] --build records the skipped review, and held claims renew normall
   assert.equal(invalid.data.error.code, 'USAGE');
 });
 
-test('[Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
+test('cli.journeys-queue-review.an-explicit-build-below-the-configured: [Q1,V15,A1] an explicit build below the configured ratio records the skip without an offer, and status reports submit age', async (t) => {
   const box = await project(t, 4);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -182,7 +182,7 @@ test('[Q1,V15,A1] an explicit build below the configured ratio records the skip 
   assert.equal(store.getItem(box.board, id).item_status, 'open', 'the aged review does not claim the build');
 });
 
-test('[V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
+test('cli.journeys-queue-review.a-review-released-without-a-verdict: [V1,R1] a review released without a verdict waits an hour for the same reviewer and resets on resubmit', async (t) => {
   const box = await project(t);
   const released = submitted(box);
   const firstReview = submitted(box);
@@ -261,7 +261,7 @@ test('[V1,R1] a review released without a verdict waits an hour for the same rev
   assert.equal(afterHour.data.item.item_id, hourBoundary, 'the original reviewer is eligible at exactly one hour');
 });
 
-test('[Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
+test('cli.journeys-queue-review.authenticated-api-next-hands-out-the: [Q1,V15,A2] authenticated API next hands out the mandatory review and explicit build keeps the claim contract', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
@@ -292,7 +292,7 @@ test('[Q1,V15,A2] authenticated API next hands out the mandatory review and expl
   assert.equal(claimed.offer, undefined);
 });
 
-test('[Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
+test('cli.journeys-queue-review.the-unattended-runner-keeps-building-and: [Q1,V15,N14] the unattended runner keeps building and records its review backlog once per iteration', async (t) => {
   const box = await project(t);
   submitted(box); submitted(box); submitted(box);
   const id = build(box, 'true');
@@ -314,7 +314,7 @@ test('[Q1,V15,N14] the unattended runner keeps building and records its review b
   assert.equal(store.listItems(box.board).some((item) => item.item_review_by === box.builderId), false, 'the runner reserves no review');
 });
 
-test('[N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
+test('cli.journeys-queue-review.plain-next-follows-recorded-line-capacity: [N2,B13,H16] plain next follows recorded line capacity without a reviewer role flag', async t => {
   const box = await project(t, 99);
   const ids = Array.from({ length: 5 }, () => submitted(box));
   const id = build(box);

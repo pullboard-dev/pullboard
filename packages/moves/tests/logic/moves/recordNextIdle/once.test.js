@@ -9,7 +9,7 @@ import { fixture } from '../../../fixtures/next.js';
 import { next } from '../../../fixtures/next.js';
 import { nextSelection } from '../../../../index.js';
 
-test('next calls its selection and default-loop review offer once each [C7]', async t => {
+test('moves.record-next-idle-once.next-calls-its-selection-and-default-loop-review: next calls its selection and default-loop review offer once each [C7]', async t => {
   const box = fixture(t);
   const first = box.add('First open item');
   const second = box.add('Second open item');
@@ -24,7 +24,7 @@ test('next calls its selection and default-loop review offer once each [C7]', as
   assert.deepEqual(plain, { pick: 1, reviewOffer: 0, defaultOffer: 1 }, 'nextPick ran once, outside the write');
 });
 
-test('a holding seat returns its claim from next without another selection [C7]', async t => {
+test('moves.record-next-idle-once.a-holding-seat-returns-its-claim-from: a holding seat returns its claim from next without another selection [C7]', async t => {
   const box = fixture(t);
   const held = box.add('Already held');
   box.add('Another open item');
@@ -36,7 +36,7 @@ test('a holding seat returns its claim from next without another selection [C7]'
   assert.deepEqual(actorClaims(box), [held]);
 });
 
-test('next: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
+test('moves.record-next-idle-once.next-the-write-runs-only-the-chosen: next: the write runs only the chosen item claim guards and selects again only when they refuse [C7]', async t => {
   const box = fixture(t);
   const raced = box.add('Raced by a peer');
   const spare = box.add('Still free', { brief: 'Files: web/spare.js\nTest: the real board claims the spare item.' });

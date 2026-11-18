@@ -43,14 +43,14 @@ async function submitted(box, title, { check, ticks = [] }) {
   return id;
 }
 
-test('clause 1: which words name evidence is decided mechanically: a file, a link or a quoted passage [V19,V8]', () => {
+test('cli.journeys-submit-checklist.which-words-name-evidence-is-decided: clause 1: which words name evidence is decided mechanically: a file, a link or a quoted passage [V19,V8]', () => {
   for (const named of ['read web/page.html', 'package.json line 4', 'see https://example.com/spec#3', 'the heading says "Dashboard"', 'checked `Count: 3` in page.html', 'apps/cli/src/io/commands/check.js:71'])
     assert.equal(namesEvidence(named), true, named);
   for (const bare of ['looks fine', 'I checked it, e.g. by eye', 'done.', 'reviewed and approved', ''])
     assert.equal(namesEvidence(bare), false, bare);
 });
 
-test('clause 1: an item without a test check is verified only against its checklist, and a line with no evidence refuses the accept [V19,V8]', { timeout: 240_000 }, async () => {
+test('cli.journeys-submit-checklist.an-item-without-a-test-check: clause 1: an item without a test check is verified only against its checklist, and a line with no evidence refuses the accept [V19,V8]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true');
   const { repo } = box;
   {
@@ -88,7 +88,7 @@ test('clause 1: an item without a test check is verified only against its checkl
   }
 });
 
-test('clause 2: an item with a normal check is unchanged: pullboard check runs it and no checklist is accepted in its place [V19,V8]', { timeout: 240_000 }, async () => {
+test('cli.journeys-submit-checklist.an-item-with-a-normal-check: clause 2: an item with a normal check is unchanged: pullboard check runs it and no checklist is accepted in its place [V19,V8]', { timeout: 240_000 }, async () => {
   const box = helpers.project('true');
   const { repo, web } = box;
   {

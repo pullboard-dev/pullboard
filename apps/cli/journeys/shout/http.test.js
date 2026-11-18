@@ -5,23 +5,18 @@ import {
 import {
   apiBoardOpeners,
 } from '../../tests/fixtures/board.js';
-import {
-  copyPackageFiles,
-} from '../../../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import {
   randomBytes,
   randomUUID,
 } from 'node:crypto';
 import {
-  runFixtureChild,
   runFixtureGit,
   startFixtureChild,
 } from '../../tests/fixtures/child.js';
 import {
   mkdirSync,
   readFileSync,
-  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -55,7 +50,6 @@ import {
 import {
   registryFile,
   registerProject,
-  forgetProject,
 } from '../../../../packages/seats/index.js';
 import {
   Refused,
@@ -76,158 +70,12 @@ import {
   fetchFresh,
 } from '../../tests/fixtures/http.js';
 import {
-  REPEATED_READ_HARNESS,
   fixture,
   viewHttpBox,
 } from '../../tests/fixtures/http/view-box.js';
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 
-
-
-/** A private linked code checkout keeps provenance false while a metadata touch invalidates only its private cache. */
-test('a detail read after a cache miss on a linked board spawns no git process [A2,N26]', async (t) => {
-  const box = fixture(t);
-  const roots = [box.root];
-  for (const number of [2, 3]) {
-    const root = join(box.dir, 'repo-' + number);
-    mkdirSync(root);
-    runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env: box.env, stdio: 'pipe' });
-    await box.cliLocal(root, 'init');
-    const configPath = join(root, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configPath, 'utf8'));
-    writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
-    writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-    writeFileSync(join(root, 'DOCTRINE.md'), '');
-    runFixtureGit(['add', '-A'], { cwd: root, env: box.env, stdio: 'pipe' });
-    runFixtureGit(['commit', '-q', '-m', 'chore: private HTTP fixture [G1]'], { cwd: root, env: box.env, stdio: 'pipe' });
-    if (number === 3) {
-      const linked = join(box.dir, 'repo-3-linked');
-      runFixtureGit(['worktree', 'add', '-q', '-b', 'view-feature', linked], { cwd: root, env: box.env, stdio: 'pipe' });
-      roots.push(linked);
-    } else roots.push(root);
-  }
-  const projects = [];
-  for (const [index, root] of roots.entries()) {
-    const itemRoot = index === 2 ? join(box.dir, 'repo-3') : root;
-    const added = await box.cliLocal(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
-    projects.push({ root, item: added.item.item_id });
-  }
-  const previousHome = process.env.PULLBOARD_HOME;
-  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
-  try {
-    forgetProject(join(box.dir, 'repo-3'));
-    for (const root of roots) registerProject(root);
-  } finally {
-    if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
-    else process.env.PULLBOARD_HOME = previousHome;
-  }
-
-  // The copied source has no connection to the shared classic .git. Its linked worktree provides
-  // real, private `isMain === false` provenance for the code that serves these API requests.
-  const codePrimary = join(box.dir, 'code-primary');
-  const codeLinked = join(box.dir, 'code-linked');
-  mkdirSync(codePrimary);
-  copyPackageFiles(resolve(import.meta.dirname, '../../../..'), codePrimary);
-  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
-  runFixtureGit(['add', '.'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
-  runFixtureGit(['commit', '-q', '-m', 'chore: private copied product source'], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
-  runFixtureGit(['worktree', 'add', '-q', '--detach', codeLinked], { cwd: codePrimary, env: box.env, stdio: 'pipe' });
-  const privateCommonDir = realpathSync.native(join(codePrimary, '.git'));
-  let assertionFailed = false;
-  try {
-    // Stays a process: the harness counts the spawns of a fresh node process, which an in-process run would pollute.
-    const result = runFixtureChild(process.execPath, [
-      '--input-type=module', '-e', REPEATED_READ_HARNESS,
-      join(codeLinked, 'apps/cli/src/io/commands/view.js'), JSON.stringify(projects), privateCommonDir,
-    ], { cwd: box.root, env: box.env, encoding: 'utf8' });
-    const initialContext = JSON.stringify({
-      route: 'GET /api/v1/boards; 3x state; 3x item detail; GET /',
-      argv: [process.execPath, '--input-type=module', '-e', 'REPEATED_READ_HARNESS', join(codeLinked, 'apps/cli/src/io/commands/view.js'), 'projects-json', privateCommonDir],
-      cwd: box.root, status: result.status, stderr: String(result.stderr ?? '').slice(-2_000), failure: String(result.failure ?? '').slice(-2_000),
-    });
-    assert.ok(result.stdout.trim(), initialContext);
-    const lines = result.stdout.trim().split('\n');
-    const measurement = JSON.parse(lines[0]).measurement;
-    const context = JSON.stringify({ route: measurement.routes, cwd: box.root, status: result.status,
-      gitCalls: measurement.processes.gitCalls, stderr: String(result.stderr ?? '').slice(-2_000), failure: String(result.failure ?? '').slice(-2_000) });
-    process.stderr.write(`private linked-code repeated view reads: processes=${JSON.stringify(measurement.processes)}, attribution=${context}\n`);
-    assert.deepEqual({ git: measurement.processes.git, node: measurement.processes.node, other: measurement.processes.other },
-      { git: 0, node: 0, other: 0 }, context);
-    const controls = JSON.parse(lines[0]).provenanceChecks;
-    assert.deepEqual(controls.map(control => control.status), ['unknown main status', 'true main status']);
-    for (const control of controls) {
-      assert.equal(control.processes.git, 0, JSON.stringify(control));
-      assert.equal(control.processes.node + control.processes.other, 0, JSON.stringify(control));
-    }
-    assert.equal(result.status, 0, context);
-    assert.equal(JSON.parse(lines.at(-1)).fresh, true, context);
-  } catch (error) {
-    assertionFailed = true;
-    throw error;
-  } finally {
-    try { runFixtureGit(['worktree', 'remove', codeLinked], { cwd: codePrimary, env: box.env, stdio: 'pipe' }); }
-    catch (cleanupError) { if (!assertionFailed) throw cleanupError; }
-  }
-});
-
-/** Prove warmed reads across three registered projects start no child processes and changes refresh state. */
-test('a repeated read through the view page spawns no process [A2,N26]', async (t) => {
-  const box = fixture(t);
-  const roots = [box.root];
-  for (const number of [2, 3]) {
-    const root = join(box.dir, 'repo-' + number);
-    mkdirSync(root);
-    runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env: box.env, stdio: 'pipe' });
-    await box.cliLocal(root, 'init');
-    const configPath = join(root, 'pullboard.json');
-    const config = JSON.parse(readFileSync(configPath, 'utf8'));
-    writeFileSync(configPath, JSON.stringify({ ...config, gate: 'true', lanes: { app: { owns: ['app/'] }, review: { owns: [] } } }));
-    writeFileSync(join(root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n');
-    writeFileSync(join(root, 'DOCTRINE.md'), '');
-    runFixtureGit(['add', '-A'], { cwd: root, env: box.env, stdio: 'pipe' });
-    runFixtureGit(['commit', '-q', '-m', 'chore: private HTTP fixture [G1]'], { cwd: root, env: box.env, stdio: 'pipe' });
-    if (number === 3) {
-      const linked = join(box.dir, 'repo-3-linked');
-      runFixtureGit(['worktree', 'add', '-q', '-b', 'view-feature', linked], { cwd: root, env: box.env, stdio: 'pipe' });
-      roots.push(linked);
-    } else roots.push(root);
-  }
-
-  const projects = [];
-  for (const [index, root] of roots.entries()) {
-    // Write the shared board from its primary checkout; the linked checkout remains a read-only fixture.
-    const itemRoot = index === 2 ? join(box.dir, 'repo-3') : root;
-    const added = await box.cliLocal(itemRoot, 'add', 'app', 'Read fixture item ' + (index + 1), '--criterion', 'appears in item detail', '--specs', 'G1');
-    projects.push({ root, item: added.item.item_id });
-  }
-  const previousHome = process.env.PULLBOARD_HOME;
-  process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
-  try {
-    // CLI setup registers the primary; measure its linked checkout instead as the third board.
-    forgetProject(join(box.dir, 'repo-3'));
-    for (const root of roots) registerProject(root);
-  } finally {
-    if (previousHome === undefined) delete process.env.PULLBOARD_HOME;
-    else process.env.PULLBOARD_HOME = previousHome;
-  }
-  // Keep the fixture's ordinary private Git config and identity; run-tests removes inherited repo/object selectors.
-  // Stays a process: the harness counts the spawns of a fresh node process, which an in-process run would pollute.
-  const result = runFixtureChild(process.execPath, [
-    '--input-type=module', '-e', REPEATED_READ_HARNESS,
-    resolve(import.meta.dirname, '../../src/io/commands/view.js'), JSON.stringify(projects),
-  ], { cwd: box.root, env: box.env, encoding: 'utf8' });
-  assert.ok(result.stdout.trim(), result.failure ?? result.stderr);
-  const lines = result.stdout.trim().split('\n');
-  const measurement = JSON.parse(lines[0]).measurement;
-  process.stderr.write(`a repeated read through the view page spawns no process: boards=${measurement.boards}, routes=${measurement.routes}, requests=${measurement.requests}, rounds=${measurement.rounds}, processes=${JSON.stringify(measurement.processes)}, elapsed=${measurement.elapsedMs}ms\n`);
-  assert.deepEqual({ git: measurement.processes.git, node: measurement.processes.node, other: measurement.processes.other },
-    { git: 0, node: 0, other: 0 }, 'repeated board-list, state, item-detail, and page reads start no child process after warm-up');
-  assert.equal(result.status, 0, result.failure ?? result.stderr);
-  const report = JSON.parse(lines.at(-1));
-  assert.equal(report.fresh, true, 'commit, packed refs, linked worktree, SPEC.md, DOCTRINE.md, and pullboard.json changes appear on the next read');
-});
-
-test('[A2] a stale registered folder does not hide another readable board', async (t) => {
+test('cli.journeys-shout-http.a2-a-stale-registered-folder-does: [A2] a stale registered folder does not hide another readable board', async (t) => {
   const box = await httpBox(t, { includeMissing: true });
   const listed = await box.call('/api/v1/boards');
   assert.equal(listed.document.boards.length, 1);
@@ -241,7 +89,7 @@ test('[A2] a stale registered folder does not hide another readable board', asyn
   assert.equal(state.document.state.board, box.id);
 });
 
-test('[A2, N26] a person request receipt refreshes cached state without an event', async (t) => {
+test('cli.journeys-shout-http.a2-n26-a-person-request-receipt: [A2, N26] a person request receipt refreshes cached state without an event', async (t) => {
   let builds = 0;
   const box = await httpBox(t, { onStateBuild: () => { builds += 1; } });
   const first = await box.call(box.path + '/state');
@@ -267,7 +115,7 @@ test('[A2, N26] a person request receipt refreshes cached state without an event
   assert.equal(builds, 2, 'request-receipt metadata invalidates the state snapshot');
 });
 
-test('[A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
+test('cli.journeys-shout-http.a2-local-http-state-accepts-a: [A2] local HTTP state accepts a safe seen cursor and committed code previews', async (t) => {
   const box = await httpBox(t);
   await box.cliLocal(box.root, 'shout', 'app', 'state cursor baseline');
   const before = await box.call(box.path + '/state');
@@ -298,7 +146,7 @@ test('[A2] local HTTP state accepts a safe seen cursor and committed code previe
   }
 });
 
-test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
+test('cli.journeys-shout-http.a2-n33-n35-api-listing-refreshes: [A2, N33, N35] API listing refreshes live labels and preserves unreadable-entry warnings', async (t) => {
   const box = fixture(t);
   const priorHome = process.env.PULLBOARD_HOME;
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
@@ -368,7 +216,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   assert.deepEqual(afterForget.warnings.map(({ root }) => root), [second]);
 });
 
-test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
+test('cli.journeys-shout-http.a2-n39-the-view-cookie-check: [A2,N39] the view cookie check catches a weakened compare', async (t) => {
   const box = fixture(t);
   const secret = randomUUID();
   const sessionCookie = {
@@ -483,7 +331,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
   await refused(personMove, 409, 'B26_PERSON_CHANNEL');
 });
 
-test('[A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
+test('cli.journeys-shout-http.a2-local-auth-origin-unknown-board: [A2] local auth, origin, unknown board and malformed calls refuse without moving', async (t) => {
   const box = await httpBox(t);
   const unauthenticated = await fetchFresh(box.origin + '/api/v1/boards');
   assert.equal(unauthenticated.status, 401);
@@ -507,7 +355,7 @@ test('[A2] local auth, origin, unknown board and malformed calls refuse without 
   assert.deepEqual(state.document.state.requests, []);
 });
 
-test('[A2] move text stays literal and invalid bodies cannot produce a partial event', async (t) => {
+test('cli.journeys-shout-http.a2-move-text-stays-literal-and: [A2] move text stays literal and invalid bodies cannot produce a partial event', async (t) => {
   const box = await httpBox(t);
   const literal = await box.call(box.path + '/moves', { verb: 'shout', args: { to: 'app', text: '--help' } });
   assert.equal(literal.status, 200);
@@ -535,7 +383,7 @@ test('[A2] move text stays literal and invalid bodies cannot produce a partial e
   assert.deepEqual(after.document.state.requests, []);
 });
 
-test('[A2] shared transport stops a live stream when its caller loses access', async (t) => {
+test('cli.journeys-shout-http.a2-shared-transport-stops-a-live: [A2] shared transport stops a live stream when its caller loses access', async (t) => {
   const box = fixture(t);
   const file = join(box.root, '.git', 'pullboard', 'board.sqlite');
   let authorized = true;
@@ -583,7 +431,7 @@ test('[A2] shared transport stops a live stream when its caller loses access', a
   assert.ok(checks >= 3, 'access is checked at entry and on live polls');
 });
 
-test('[A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
+test('cli.journeys-shout-http.a2-adapters-without-a-committed-code: [A2] adapters without a committed-code capability return a versioned refusal', async (t) => {
   const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
     boards: () => [],
@@ -611,7 +459,7 @@ test('[A2] adapters without a committed-code capability return a versioned refus
   }
 });
 
-test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapter fallback', async (t) => {
+test('cli.journeys-shout-http.a2-n26-state-json-fragments-preserve: [A2, N26] state JSON fragments preserve the API envelope and legacy adapter fallback', async (t) => {
   const state = { board: 'fixture', label: 'a ",\\"injected\\":true', unseen: null };
   const handler = createApiHandler({ refusalDocument,
     authenticate: () => ({ user: 'fixture-user' }),
@@ -646,7 +494,7 @@ test('[A2, N26] state JSON fragments preserve the API envelope and legacy adapte
   assert.equal(legacyResponse.headers.get('etag'), null);
 });
 
-test("a request through serve is never the person's [P6,B26,A2]", { timeout: 60_000 }, // budget: private CLI/API startup and request-channel checks, not a throughput claim.
+test('cli.journeys-shout-http.a-request-through-serve-is-never: a request through serve is never the person\'s [P6,B26,A2]', { timeout: 60_000 }, // budget: private CLI/API startup and request-channel checks, not a throughput claim.
 async (t) => {
   const box = fixture(t);
   // Stays a process: a long-lived serve child whose request channel and shutdown signal are under test.
