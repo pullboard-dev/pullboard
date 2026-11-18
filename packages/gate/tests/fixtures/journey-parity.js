@@ -28,6 +28,12 @@ export async function runSample(mode, { journey, cases }) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/** A timing field (how long a call waited in a queue) differs between any two runs for a reason that is not a behaviour difference, so it is blanked before the compare [C7]. */
+const TIMING_FIELDS = new Set(['queueWaitSeconds']);
+function withoutTiming(value) {
+  return JSON.stringify(value, (key, inner) => (TIMING_FIELDS.has(key) ? undefined : inner));
+}
+
 /** Every difference between two runs' records, named by call: exit code, JSON result, printed text and board state. */
 export function parityDifferences(real, inprocess) {
   const differences = [];
@@ -35,7 +41,7 @@ export function parityDifferences(real, inprocess) {
   for (let at = 0; at < Math.min(real.length, inprocess.length); at++) {
     const call = real[at].args.join(' ');
     for (const field of ['args', 'code', 'json', 'out', 'err', 'board']) {
-      const [a, b] = [JSON.stringify(real[at][field]), JSON.stringify(inprocess[at][field])];
+      const [a, b] = [withoutTiming(real[at][field]), withoutTiming(inprocess[at][field])];
       if (a !== b) {
         // Show the text around the first difference, not the start, so a long record names what differs.
         const first = [...a].findIndex((char, index) => char !== b[index]);
