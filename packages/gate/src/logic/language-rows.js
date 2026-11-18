@@ -54,24 +54,6 @@ function juliaCommand(names, contents) {
 /** The three JVM test-file globs, shared by the maven and gradle rows. */
 const JVM_TESTS = ['**/*Test.java', '**/*Tests.java', '**/*Test.kt'];
 
-/** The extra ecosystem rows, in detection order; starts empty so behaviour is unchanged until a row is added. */
-export const LANGUAGE_ROWS = Object.freeze([
-  { language: 'bun', markers: ['bun.lock', 'bun.lockb', 'bunfig.toml'], command: bunCommand, tests: ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts'] },
-  { language: 'clojure', markers: ['project.clj', 'deps.edn'], command: (names) => (names.includes('project.clj') ? 'lein test' : 'clojure -M:test'), tests: ['test/**/*.clj', '**/*_test.clj'] },
-  { language: 'deno', markers: ['deno.json', 'deno.jsonc'], command: 'deno test', tests: ['**/*_test.ts', '**/*.test.ts', '**/*_test.js'] },
-  { language: 'crystal', markers: ['shard.yml'], command: 'crystal spec', tests: ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr'] },
-  { language: 'gradle', markers: ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'], command: gradleCommand, tests: JVM_TESTS },
-  { language: 'haskell', markers: ['stack.yaml', 'cabal.project'], pattern: /\.cabal$/u, command: (names) => (names.includes('stack.yaml') ? 'stack test' : 'cabal test'), tests: ['**/test/**/*.hs', '**/*Spec.hs'] },
-  { language: 'julia', markers: ['Project.toml'], command: juliaCommand, tests: ['test/**/*.jl', '**/runtests.jl'] },
-  { language: 'maven', markers: ['pom.xml'], command: 'mvn test', tests: JVM_TESTS },
-  { language: 'nim', pattern: /\.nimble$/u, command: 'nimble test', tests: ['**/tests/**/*.nim', '**/test_*.nim'] },
-  { language: 'ocaml', markers: ['dune-project'], command: 'dune test', tests: ['**/test/**/*.ml', '**/tests/**/*.ml', '**/*_test.ml'] },
-  { language: 'perl', markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : ''), tests: ['t/**/*.t'] },
-  { language: 'ruby', markers: ['Gemfile'], command: rubyCommand, tests: (names) => (rubyCommand(names) === 'bundle exec rspec' ? ['**/*_spec.rb'] : ['**/test_*.rb', '**/*_test.rb']) },
-  { language: 'sbt', markers: ['build.sbt'], command: 'sbt test', tests: ['**/src/test/scala/**/*.scala'] },
-  { language: 'zig', markers: ['build.zig'], command: 'zig build test', tests: ['**/*_test.zig', '**/test/**/*.zig', '**/tests/**/*.zig'] },
-]);
-
 /**
  * Whether one row's ecosystem is present in a repo root, judged only from names and file contents.
  * Why: a table of simple rows lets each language land as one row and one test, with no new detection code.
@@ -399,3 +381,8 @@ export const LANGUAGES = Object.freeze([
     cases: { name: 'typescript', inputs: [], file: row => (/\.(test|spec)\.[cm]?[jt]sx?$/u.test(row.classname ?? '') ? row.classname : null) },
   },
 ]);
+
+/** The extra ecosystem rows, in detection order: the LANGUAGES rows whose detect is a table entry, as a view so no row has a second copy [C7]. */
+export const LANGUAGE_ROWS = Object.freeze(LANGUAGES
+  .filter((row) => row.detect !== null && typeof row.detect === 'object')
+  .map((row) => ({ language: row.language, ...row.detect, tests: row.tests })));
