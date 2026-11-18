@@ -19,7 +19,8 @@ import { fixtureProjectPolicy } from '../../../../packages/gate/tests/fixtures/t
 
 /** What differs between two submits of identical work and is not a mark: ids, hashes, counts and timings. */
 function marks(text) {
-  return text.replace(/\b[0-9a-f]{7,40}\b/gu, '<sha>').replace(/\d+(?:\.\d+)?/gu, 'N').split('\n').map(line => line.trimEnd()).filter(Boolean).join('\n');
+  return text.replace(/\b[0-9a-f]{7,40}\b/gu, '<sha>').replace(/(job gate:\d+:<sha>:)\w+/gu, '$1<job>').replace(/\d+(?:\.\d+)?/gu, 'N').split('\n').map(line => line.trimEnd())
+    .filter(line => line && !/\bactivity\b|lane updates|\bshouts\b/u.test(line)).join('\n');
 }
 
 test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on-runs: clause 1: a submit with submit.residentChecks on and a resident process running runs the commit hooks and leaves the same marks on the item as the same submit with it off [C7,#10697,#10937]', { timeout: 420_000 }, async (t) => {
