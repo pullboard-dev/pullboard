@@ -173,6 +173,17 @@ export function createDeviceStore({ directory, now = Date.now }) {
       touch(account, id);
       return database().prepare('SELECT board,engine,wrapped FROM wrapped_key WHERE account=? AND device=? ORDER BY board').all(account, id);
     },
+    /** Replace one board's wraps for this account with exactly the given device wraps, in one transaction, so a device left out of a rotated set reads none. */
+    replaceBoardWraps(account, board, wraps) {
+      database().exec('BEGIN IMMEDIATE');
+      try {
+        for (const { device } of wraps) active(account, device);
+        database().prepare('DELETE FROM wrapped_key WHERE account=? AND board=?').run(account, board);
+        const insert = database().prepare('INSERT INTO wrapped_key VALUES(?,?,?,?,?)');
+        for (const { device, engine, wrapped } of wraps) insert.run(account, device, board, engine, wrapped);
+        database().exec('COMMIT');
+      } catch (error) { database().exec('ROLLBACK'); throw error; }
+    },
     /** Return when a phone of this account last read its approvals or keys, and whether it was revoked; null fields for an unknown id. */
     status(account, id) {
       const row = database().prepare('SELECT seen, revoked FROM device WHERE account=? AND id=?').get(account, id);
