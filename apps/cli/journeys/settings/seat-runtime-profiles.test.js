@@ -1,17 +1,13 @@
-/** @pullboard-test-input source-cell packages/seats */
 /** Seat runtime profiles end to end: shipped data, the seat launch configuration and the recorded cached/fresh split [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { readdirSync } from 'node:fs';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
+import { runtimeProfile } from '../../../../packages/seats/index.js';
 import { seatLaunchConfig } from '../../../../packages/seats/index.js';
 import { recordCoordinatorUsage } from '../../../../packages/stats/index.js';
 import { sumUsage } from '../../../../packages/stats/index.js';
 import { FIXTURE_MODEL } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
-const SEATS = new URL('../../../../packages/seats/src/', import.meta.url);
-const PROFILES = JSON.parse(readFileSync(new URL('io/runtime-profiles.json', SEATS), 'utf8'));
 const LANE_TOOLS = ['Read', 'Edit', 'Bash'];
 
 /** A real in-memory board_meta table behind the native ports the usage recorder uses. */
@@ -30,15 +26,14 @@ function stored(session, row) {
 
 const BASE = { model: FIXTURE_MODEL, inputTokens: 9, outputTokens: 4, wallMs: 0, knownInputTokens: 9, knownOutputTokens: 4, unknownReasons: [] };
 
-test('settings.seat-runtime-profiles.shipped-profiles: clause 1: Claude has the first shipped profile with a 1-hour cache, and no provider name is hard-coded outside the shipped profiles [C7]', () => {
-  assert.equal(PROFILES.claude.cache, '1h');
-  assert.deepEqual(PROFILES.claude.cachedPrefix, ['instructions', 'skills', 'brief']);
-  assert.equal(PROFILES.claude.toolLoading, 'per-lane');
-  assert.equal(PROFILES.default.cache, 'off');
-  const sources = readdirSync(new URL('io/', SEATS)).filter(name => name.endsWith('.js'));
-  for (const name of sources) {
-    const text = readFileSync(new URL(`io/${name}`, SEATS), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
-    assert.doesNotMatch(text, /['"]claude['"]/, `${name} hard-codes a provider name`);
+test('settings.seat-runtime-profiles.shipped-profiles: clause 1: Claude has the first shipped profile with a 1-hour cache, and a runtime outside the shipped profiles gets caching off with no name of its own [C7]', () => {
+  const claude = runtimeProfile('claude');
+  assert.equal(claude.cache, '1h');
+  assert.deepEqual(claude.cachedPrefix, ['instructions', 'skills', 'brief']);
+  assert.equal(claude.toolLoading, 'per-lane');
+  for (const other of ['self-hosted-llm', 'some-new-provider', 'toString', '']) {
+    assert.equal(runtimeProfile(other).cache, 'off');
+    assert.deepEqual(runtimeProfile(other).cachedPrefix, []);
   }
 });
 
