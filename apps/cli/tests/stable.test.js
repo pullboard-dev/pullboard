@@ -124,3 +124,37 @@ test('cli.stable.journeys-registered-10547: clause 1: [C7,U148] every core-owned
     }
   }
 });
+
+test('cli.stable.journeys-registered-10550: clause 1: [C7,U148] every core-owned test under the journeys runner, shout, stats and status folders has a registered cli.<area>.<slug> title ID', () => {
+  // This slice's records plus any other slice's, so a runner test another item registered (registry-10664.json) is not claimed twice.
+  const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  const journeys = join(DIR, '..', 'journeys');
+  // View-lane files are the view lane's own slice; core may not edit them. Their records sit here already, so a view-owned file is skipped only while its titles have no IDs yet (items #10595, #10596 rename them).
+  const viewOwned = new Set(['shout/fixture.test.js', 'shout/shouts.test.js', ...['api', 'connections', 'foreground', 'presentation', 'setup', 'transport', 'undeclared'].map((name) => `shout/journeys/fixture-${name}.test.js`)]);
+  for (const area of ['runner', 'shout', 'stats', 'status']) {
+    for (const file of testFiles(join(journeys, area))) {
+      const source = readFileSync(file, 'utf8');
+      if (viewOwned.has(file.slice(journeys.length + 1)) && ![...source.matchAll(TITLE_ID)].length) continue;
+      const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
+      assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in a registry file`);
+    }
+  }
+});
+
+test('cli.stable.journeys-registered-10551: clause 1: [C7,U148] every core-owned test under the journeys spec, speed, test and version folders has a registered cli.<area>.<slug> title ID', () => {
+  // This slice's records plus any other slice's, so a test another item registered is not claimed twice.
+  const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  const journeys = join(DIR, '..', 'journeys');
+  // View-lane files are the view lane's own slice; core may not edit them. Their records sit here already, so a view-owned file is skipped only while its titles have no IDs yet (items #10595, #10596 rename them).
+  const viewOwned = new Set(['spec/revision.test.js', ...['boards', 'decisions', 'list', 'pointer', 'rows', 'script', 'shared', 'tab-speed-stage-timeout', 'tab-speed-trace'].map((name) => `spec/cockpit/${name}.test.js`)]);
+  for (const area of ['spec', 'speed', 'test', 'version']) {
+    for (const file of testFiles(join(journeys, area))) {
+      const source = readFileSync(file, 'utf8');
+      if (viewOwned.has(file.slice(journeys.length + 1)) && ![...source.matchAll(TITLE_ID)].length) continue;
+      const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
+      assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in a registry file`);
+    }
+  }
+});

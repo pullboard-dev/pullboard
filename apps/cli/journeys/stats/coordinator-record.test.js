@@ -31,7 +31,7 @@ function rows(board) {
     .map(row => ({ key: row.meta_key, ...JSON.parse(row.meta_value) }));
 }
 
-test('clause 1: with stats.recordCoordinatorUsage on, a coordinator session log yields one coordinator:<session id> row with its tokens and model [C7,#9685]', async t => {
+test('cli.journeys-stats-coordinator-record.with-stats-recordcoordinatorusage-on-a-coordinator: clause 1: with stats.recordCoordinatorUsage on, a coordinator session log yields one coordinator:<session id> row with its tokens and model [C7,#9685]', async t => {
   const { board, ctx, environment, ordered } = await setup(t);
   await checkpointAfterMove(ctx, board, { agent: 'coordinator', item: 1, operation: 'merged' }, { ordered, environment, recordCoordinatorUsage: true });
   const [row, ...others] = rows(board);
@@ -44,7 +44,7 @@ test('clause 1: with stats.recordCoordinatorUsage on, a coordinator session log 
   assert.equal(rows(board).length, 1, 'a second move over an unchanged log records nothing more');
 });
 
-test('clause 2: with stats.recordCoordinatorUsage off, nothing is recorded [C7,#9685]', async t => {
+test('cli.journeys-stats-coordinator-record.with-stats-recordcoordinatorusage-off-nothing-is: clause 2: with stats.recordCoordinatorUsage off, nothing is recorded [C7,#9685]', async t => {
   const { board, ctx, environment, ordered } = await setup(t);
   await checkpointAfterMove(ctx, board, { agent: 'coordinator', item: 1, operation: 'merged' }, { ordered, environment, recordCoordinatorUsage: false });
   await checkpointAfterMove(ctx, board, { agent: 'coordinator', item: 1, operation: 'merged' }, { ordered, environment });
