@@ -254,30 +254,32 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       oneLiveClaim: (found) => {
         // Every modern-engine claim respects the cap, including legacy-shaped children and reworks.
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
+        // A child is free only beside its own parent, the sub-agent case; a child of a parent this seat does not hold is a
+        // build claim like any other, or next stacks every slice of an unheld umbrella item on one seat (#10846).
+        const mine = new Set(board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ?")
+          .all(agentId, now(board)).map(row => row.item_id));
+        const counted = item => (item.item_parent_id === null || !mine.has(item.item_parent_id)) && !isRework(item);
         if (modern && !isRenewal(found)) {
           const held = board.db.prepare("SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
             .all(agentId, now(board), id).filter(row => !waitsOnGate(board, gateWaits, row.item_id));
           if (held.length >= 10) return new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another');
           // An item-folder claim may sit beside N-1 other top-level claims, N sized by the board (#6262).
-          if (itemFolder === true && found.item_parent_id === null && !isRework(found)) {
-            const top = held.filter(row => row.item_parent_id === null && !isRework(row));
+          if (itemFolder === true && counted(found)) {
+            const top = held.filter(counted);
             const { n, how } = !Number.isSafeInteger(perSeat) && Number.isSafeInteger(seatCap) && seatCap >= 1
               ? { n: seatCap, how: `the claiming computer sized N = ${seatCap}; claims.perSeat overrides it` } : claimsPerSeat(board, perSeat);
             seatN = n;
-            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (child items are free)`);
+            if (top.length >= n) return new Refused('ONE_CLAIM', `you already hold ${top.map(row => `#${row.item_id}`).join(', ')}; a seat holds up to ${n} (${how}); submit or release one first (children of an item you hold are free)`);
           }
         }
         if (modern && (itemFolder === true || isRenewal(found))) return null;
-        if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
+        if (!counted(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
-          .prepare(
-            `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
-               AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
-               AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
-          )
-          .all(agentId, now(board), id, agentId)
-          .find(row => !waitsOnGate(board, gateWaits, row.item_id));
-        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
+          .prepare(`SELECT item_id, item_parent_id, item_verdict, item_built_by FROM item WHERE item_owner = ? AND item_status = 'claimed'
+               AND item_lease_until > ? AND item_id != ?`)
+          .all(agentId, now(board), id)
+          .find(row => counted(row) && !waitsOnGate(board, gateWaits, row.item_id));
+        return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (children of an item you hold are free)`) : null;
       },
       rowsInForce: (found) => {
         // Declared: checked only where the criterion freezes, so a renewal or a reclaim keeps its bar.
@@ -378,8 +380,8 @@ export function prepareClaim(board, id, options, ports) {
 /**
  * Claim an item, or renew your own claim (B4, B5, B12, V2).
  *
- * One live top-level claim per agent, so nobody hoards; child items are free, which is how
- * sub-agents share a lane. A lapsed claim can be taken. Every item is built in its own lane, the
+ * One live top-level claim per agent, so nobody hoards; a child of an item the claimer holds is free,
+ * which is how sub-agents share a lane, and a child of an unheld parent counts like a top-level item (#10846). A lapsed claim can be taken. Every item is built in its own lane, the
  * coordinator's included, so no agent can build another lane's work from the main checkout. The
  * first claim freezes the criterion: `freeze` returns the text and digest the verdict will later be
  * held to. A fresh claim also records `head`, the commit the work starts from, so submit can name
