@@ -8,10 +8,10 @@ import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellProject } from '../../fixtures/cell.js';
 
-/** The read claimRows made before: every board_meta key ending in :<id> or _<id>, with the two board-wide keys. */
+/** The read claimRows made before: every board_meta key ending in :<id> or _<id>, with the two board-wide keys; the local: stats caches it also matched are derived from events, which claimRows reads by their last id. */
 function legacyMeta(board, id) {
   return board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
-    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id)).map(row => ({ ...row }));
+    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id)).map(row => ({ ...row })).filter(row => !row.meta_key.startsWith('local:'));
 }
 
 /** A board with an item, its item-keyed meta rows, and the same families for item 112 and unrelated rows. */
