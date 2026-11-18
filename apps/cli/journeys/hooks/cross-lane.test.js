@@ -28,7 +28,7 @@ test('cli.journeys-hooks-cross-lane.claimed-cells-pass: clause 1: with laneMode 
   const box = project('true');
   const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
   fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'packages/'] } } });
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cell item 1', brief: ALPHA, diagnosis: DIAGNOSIS, args: ['--specs', 'G1'] });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cell item 1', brief: ALPHA, diagnosis: DIAGNOSIS, route: 'mid', args: ['--specs', 'G1'] });
   fixturePolicy(box, { laneMode: 'off', lanes });
   const seat = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', 'api/one');
