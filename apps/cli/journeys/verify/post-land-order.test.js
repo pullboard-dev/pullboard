@@ -9,7 +9,7 @@ import { offerLandedReviews } from '../../tests/fixtures/verify/post-land-order.
 import { offeredTo } from '../../tests/fixtures/verify/post-land-order.js';
 import { seatOf } from '../../tests/fixtures/verify/post-land-order.js';
 
-test('clause 1: with landed reviews on, a submitted item is offered before any landed item [C7,#9864]', async t => {
+test('cli.journeys-verify-post-land-order.with-landed-reviews-on-a-submitted: clause 1: with landed reviews on, a submitted item is offered before any landed item [C7,#9864]', async t => {
   const box = await fixture(t);
   await landedBy(box, t, { family: `${BUILDER} A`, name: 'Landed older' });
   await landedBy(box, t, { family: `${BUILDER} B`, name: 'Landed newer' });

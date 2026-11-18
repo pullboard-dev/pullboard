@@ -4,6 +4,8 @@
 import { installRunnerOnlyOrdinaryCase } from '../../../../../packages/gate/tests/fixtures/resources/runner.js';
 import { registerStandInAfterAdd } from '../../../tests/fixtures/runner/registered.js';
 import { serveRegisteredRunner } from '../../../tests/fixtures/runner/registered.js';
+import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { HOST } from '../../../tests/fixtures/runner/ssh.js';
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
-installRunnerOnlyOrdinaryCase({ registerStandInAfterAdd, serveRegisteredRunner, settledGateJob });
+installRunnerOnlyOrdinaryCase({ helpers: createE2eHelpers(), HOST, registerStandInAfterAdd, serveRegisteredRunner, settledGateJob });
