@@ -156,6 +156,7 @@ export {
   lapsedSweepEnabled,
   derivedStateEnabled,
   testLoadRerunEnabled,
+  testRetryStaleRecordEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
   requireFactQuoteEnabled,
