@@ -81,7 +81,7 @@
   "apps/cli/journeys/view/e2e.test.js": {
     "sleep": 1
   },
-  "apps/cli/tests/fixtures/runners.js": {
+  "packages/gate/tests/fixtures/admission/runners.js": {
     "sleep": 1,
     "poll": 1
   },
@@ -213,7 +213,7 @@
   "apps/cli/tests/fixtures/gate/resource.js": {
     "sleep": 3
   },
-  "apps/cli/tests/fixtures/resources/pool.js": {
+  "packages/gate/tests/fixtures/admission/pool.js": {
     "poll": 2,
     "sleep": 5
   },

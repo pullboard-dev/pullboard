@@ -2347,7 +2347,7 @@
     "env-spread": 1,
     "hand-policy": 2
   },
-  "apps/cli/tests/fixtures/resources/pool.js": {
+  "packages/gate/tests/fixtures/admission/pool.js": {
     "tempdir": 1
   },
   "apps/cli/tests/fixtures/api/project.js": {
