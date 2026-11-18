@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/api packages/store */
+/** @pullboard-test-input source-cell packages/api */
 /** The cost analytics answer carries this machine's budget state beside its totals, and leaves the entry out when no budget is set (#11057, #1059) [C7]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
