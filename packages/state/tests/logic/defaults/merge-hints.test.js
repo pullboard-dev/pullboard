@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULT_NEXT_STEPS } from '../../../src/logic/defaults.js';
-import { VERDICT_REACHED_REFUSALS } from '../../../src/logic/machine/shared.js';
+import { SUBMIT_REACHED_REFUSALS } from '../../../src/logic/machine/shared.js';
 
 const MERGE_MAIN = /merge (current |the latest )?main/u;
 
@@ -15,8 +15,8 @@ test('state.defaults-merge-hints.machine-clause-red-says-submit-again: clause 1:
 });
 
 test('state.defaults-merge-hints.stale-verdict-asks-for-re-review: clause 2: the STALE_VERDICT next line asks for a re-review against current main without telling the builder to merge main [C7]', () => {
-  const refusal = VERDICT_REACHED_REFUSALS.find((row) => row.code === 'STALE_VERDICT');
-  assert.ok(refusal, 'the verdict-reached refusals carry STALE_VERDICT');
+  const refusal = SUBMIT_REACHED_REFUSALS.find((row) => row.code === 'STALE_VERDICT');
+  assert.ok(refusal, 'the submit-reached refusals carry STALE_VERDICT');
   assert.match(refusal.next, /run pullboard submit again/u);
   assert.match(refusal.next, /re-review it against current main/u);
   assert.doesNotMatch(refusal.next, MERGE_MAIN);
