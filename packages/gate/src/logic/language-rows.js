@@ -336,7 +336,8 @@ export const LANGUAGES = Object.freeze([
     toolchains: ['zig'],
     junit: null,
     affected: null,
-    cases: null,
+    // A Zig JUnit reporter (zig build test has no built-in one) writes the test file path (src/calc.zig) in classname and no file attribute.
+    cases: { name: 'zig', inputs: [], file: row => (row.classname && /\.zig$/u.test(row.classname) ? row.classname : null) },
   },
   {
     language: 'make',
