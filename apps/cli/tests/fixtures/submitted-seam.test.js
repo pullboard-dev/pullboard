@@ -9,8 +9,13 @@ import { fileFixtureItem } from './testkit.js';
 import { createE2eHelpers } from './e2e.js';
 import {
   gateJobCount,
+  seamSubmittedItem,
   submittedWithoutGate,
 } from './submitted-seam.js';
+import { clean } from './verdict-check.js';
+import { project } from './verdict-check.js';
+import { sandbox } from './verdict-check.js';
+import { succeeds } from './verdict-check.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -43,4 +48,15 @@ test('cli.tests-fixtures-submitted-seam.no-runner-gate-job: clause 2: the same s
   const id = await claimedItem(box);
   submittedWithoutGate(box, box.web, id);
   assert.equal(gateJobCount(box, id), 0, 'no runner gate job exists');
+});
+
+test('cli.tests-fixtures-submitted-seam.verify-accept-after-the-seam: clause 1: verify accept on the seam-submitted item succeeds and the item reads verified [C7,#9874]', async () => {
+  const box = sandbox();
+  try {
+    const { repo, web } = await project(box);
+    const id = await seamSubmittedItem(box, repo, web);
+    const accepted = await succeeds(box, repo, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the submitted work');
+    assert.match(accepted, /accept|verified|criterion/iu, 'the accept on the seam-submitted item succeeds');
+    assert.match(await succeeds(box, repo, 'show', String(id)), /verified/u, 'the item reads verified');
+  } finally { clean(box); }
 });
