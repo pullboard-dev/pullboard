@@ -114,7 +114,7 @@ const HELP_ALIASES = {
   'hook pre-push': { usage: 'pullboard hook pre-push', source: 'hook' },
 };
 
-const HELP_FLAG_EXPLANATIONS = {
+export const HELP_FLAG_EXPLANATIONS = {
   '--take': 'next: take one eligible item in this seat; handoff: take the named existing hand-off',
   '--after': 'ids or repo#id; claiming waits for verified items on their own boards',
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
@@ -134,6 +134,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--note': 'what was checked stays with the receipt',
   '--note-file': 'keeps quotes, $ and backticks intact',
   '--private': 'keeps an added item in this device-local repo board, or selects that board for move IDs',
+  '--level': 'sets which work the model can take',
   '--route': 'sets which work the model can take',
   '--source': 'where the person gave the ruling; required with --doctrine',
 };
