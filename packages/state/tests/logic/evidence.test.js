@@ -39,7 +39,7 @@ test('state.logic-evidence.clause-1-a-run-of-a-file-outside-the: clause 1: a run
 
 test('state.logic-evidence.clause-1-pullboard-test-records-the: clause 1: pullboard test records the ticks only after a green run [C7]', () => {
   const source = readFileSync(new URL('../../../../apps/cli/src/io/test/here.js', import.meta.url), 'utf8');
-  assert.match(source, /result\.green && item !== undefined\) await recordClauseTicks/u);
+  assert.match(source, /result\.green && item !== undefined\) await (?:recordAgainstMain\(\(\) => )?recordClauseTicks\(/u);
 });
 
 test('state.logic-evidence.clause-1-a-green-run-of-a-shell-command: clause 1: a green run of a shell-command check ticks its clauses [C7]', () => {
