@@ -1,0 +1,19 @@
+{
+  "cli.io-remote-board.join-keeps-and-moves-send-seat-key": {
+    "proves": {
+      "specs": [
+        "P7",
+        "C7"
+      ],
+      "claim": "A join by URL keeps the key the served board issued, and a move as that seat sends it, never as another seat."
+    },
+    "why": "Without it, a URL-joined seat that stopped keeping or sending its own key would pass unnoticed on loopback and be refused SEAT_CREDENTIAL by every served board off loopback.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/remote/board.test.js",
+      "apps/cli/src/io/remote/board.js",
+      "apps/cli/src/io/remote/moves.js",
+      "apps/cli/src/io/commands/join.js"
+    ]
+  }
+}
