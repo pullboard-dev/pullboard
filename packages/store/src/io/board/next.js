@@ -121,7 +121,7 @@ export function diagnoseWanted(board, item, seatRoute) {
  * and `shared` names them (N20). A held lane offers nothing new (N22). A verifier is never offered `skipIds` (#973; engine 69, so older replays carry none).
  *
  * @param {any} board
- * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number }} who
+ * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], sessionIds?: number[], omitIds?: number[], afterRelease?: number, derivedGateAtHead?: (entry: any) => string | undefined }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[], blockers?: { item: number, waitsOn: number }[] }}
  */
 export function nextFor(board, options) {
@@ -129,7 +129,7 @@ export function nextFor(board, options) {
     runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds: skippedIds = [], sessionIds = [], omitIds = [],
     afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(),
     focusOnly = false, buildBudgetMinutes = 30, reviewOrder = null, routeFloor = null,
-    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set() } = options;
+    routeCeiling = null, skipLightReserve = false, reviewHeartbeats = null, routeCap = null, contention = null, wholeItemsFirst = false, idleBlockers = false, lightShapedStrong = false, shapedIds = new Set(), derivedGateAtHead } = options;
   // `sessionIds` are the items this seat's own session authored: skipped like `skipIds`, and the only ones REVIEWER_SAME_SESSION names.
   const skipIds = [...new Set([...skippedIds, ...sessionIds])];
   const idleSkips = [];
@@ -164,7 +164,6 @@ export function nextFor(board, options) {
   // A session that declared a lighter model than its seat joined with is offered only its own route (#3678).
   const route = cappedRoute(routeOf(board, agentId), routeCap);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
-  listItems(board, { all: true }); // read once: the open list below and the in-flight list further on both derive from it (#8432)
   const allItems = listItems(board).reverse().map(entry => lightDiagnosisProblem(board, entry) ? { ...entry, item_route: 'mid' } : entry);
   if (observeIdle) for (const entry of allItems) {
     if (entry.item_status !== (verify ? 'submitted' : 'open') || !verify && !(lanes ?? [lane]).includes(entry.item_lane)) continue;
@@ -244,7 +243,9 @@ export function nextFor(board, options) {
       || rank(first) - rank(second);
     const focus = milestoneFocus(board, { milestones });
     const group = item => focus?.ids.has(item.item_id) ? -1 : milestonePriority(item);
-    const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
+    // The path counts unfinished items and the overlap counts in-flight ones, so landed and withdrawn history is never read [C7,#10795].
+    const pathItems = () => { const open = listItems(board), ids = new Set(open.map(entry => entry.item_id)); return [...open, ...listItems(board, { inFlight: true }).filter(entry => !ids.has(entry.item_id))]; };
+    const order = criticalPathEnabled(board) ? criticalPathOrder({ items: pathItems(), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     prioritizeReviews(board, candidates, priority, focusCompare);
     if (reviewOrder) candidates.sort((a, b) => {
@@ -294,7 +295,8 @@ export function nextFor(board, options) {
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id))
+  // Only claimed, submitted and unmerged verified items can collide: the landed and withdrawn history is never read [C7,#10795].
+  const inFlight = listItems(board, { inFlight: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id))
     .map(entry => ({ ...entry, item_files: [entry.item_files, ...(workingFiles.get(entry.item_id)?.files ?? [])].filter(Boolean).join('\n') }));
   const recent = new Set(warm);
   const mainRed = new Set(priority);
@@ -369,7 +371,9 @@ export function nextFor(board, options) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) { skip(entry, 'FOCUS_BOUNDARY'); continue; }
     const diagnosisProblem = route === 'light' ? lightDiagnosisProblem(board, entry, 'light') : null;
     if (diagnosisProblem) { skip(entry, diagnosisProblem.code); reasons.push(diagnosisProblem.message); continue; }
-    const gated = gateAtHead(board, entry);
+    // A derived answer is trusted only when it names a reason; no answer computes the gate as before, so a newer gate is never missed [C7].
+    const derived = derivedGateAtHead?.(entry);
+    const gated = typeof derived === 'string' ? derived : gateAtHead(board, entry);
     if (gated) { skip(entry, 'GATE_AT_HEAD'); reasons.push(`#${entry.item_id}: ${gated}; nothing to build`); continue; }
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
     if (scopeProblem) { skip(entry, scopeProblem.code); reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }

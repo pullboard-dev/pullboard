@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { spawnReachable } from '../../../jobs/index.js';
+import { heldKinds } from './pull.js';
 import { serveRunner } from './pull.js';
 
 /** The capability only a runner on the board host has: it reaches the board host's own repository by its path. */
@@ -30,6 +31,8 @@ const STALE_MS = 30_000;
 const RETRY = { firstMs: 1_000, maxMs: 60_000 };
 // The file an offering command touches in the runner folder; wake.js, which watches it, loads only when runners.localWake is on [#10409].
 export const WAKE_FILE = 'wake';
+// The file startLocalRunner writes as it starts the process: its pid and start time, read by localRunnerStarting.
+const STARTING_FILE = 'starting.json';
 
 /** Read a JSON file, or the fallback when it is missing or damaged. */
 function readJson(file, fallback) {
@@ -107,9 +110,27 @@ export function addLocalBoard(folder, root) {
  * @param {{ cwd: string, env: NodeJS.ProcessEnv }} options
  * @returns {Promise<number | null>}
  */
-export async function startLocalRunner(folder, argv, { cwd, env }) {
+export async function startLocalRunner(folder, argv, { cwd, env, spawn = spawnReachable }) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  return (await spawnReachable(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') })).pid;
+  const { pid } = await spawn(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') });
+  // The new process writes its state only once it has loaded and taken the lock; until then this marker says it is on its way [P7,C7].
+  if (Number.isSafeInteger(pid)) writeJson(join(folder, STARTING_FILE), { pid, startedAt: Date.now() });
+  return pid ?? null;
+}
+
+/**
+ * The pid of a local runner started moments ago that has not written its state yet, or null: the process is alive and
+ * was started under STALE_MS ago. Why: a command straight after the one that started the runner (an in-process submit
+ * right after add) saw no state, started a second runner that only exited on the lock, and said it had started one [P7,C7,#10709].
+ *
+ * @param {string} folder
+ * @param {number} [now]
+ * @returns {number | null}
+ */
+export function localRunnerStarting(folder, now = Date.now()) {
+  const starting = readJson(join(folder, STARTING_FILE), null);
+  if (!starting || !processAlive(starting.pid) || !(now - Number(starting.startedAt) < STALE_MS)) return null;
+  return starting.pid;
 }
 
 /** Take the folder's lock, or answer false while a live local runner holds it; a dead holder's lock is taken over. */
@@ -127,7 +148,7 @@ function takeLock(folder) {
  * Serve one board until the signal stops it: runner serve against its loopback URL. A refusal is logged and tried
  * again later, so the local runner never stops serving a board on one error.
  */
-async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, git, signal, say, wakeOnOffer }) {
+async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer }) {
   const cache = join(folder, 'cache', createHash('sha256').update(root).digest('hex').slice(0, 16));
   // With runners.localWake on, an offering command's touch of the wake file ends this board's idle wait at once [#10409].
   const wake = wakeOnOffer ? (await import('./wake.js')).watchWake(folder) : null;
@@ -135,7 +156,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
     try {
       say(`serving ${root} as board ${id}`);
       // One job at a time on the board host: concurrent jobs belong on runners, never on the coordinator Mac (#5805).
-      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, git, jobs: 1, signal, wake, say: line => say(`${basename(root)}: ${line}`) });
+      await serveRunner({ board: `${origin}/api/v1/boards/${id}`, key, runner, capabilities, cache, handlers, admit, ledger, git, jobs: 1, signal, wake, say: line => say(`${basename(root)}: ${line}`) });
       wait = RETRY.firstMs;
     } catch (error) {
       if (signal.aborted) break;
@@ -158,7 +179,7 @@ async function serveBoard({ root, id }, { origin, key, runner, folder, capabilit
  * @param {string[]} options.capabilities - What this runner offers, BOARD_HOST among them.
  * @param {Parameters<typeof serveRunner>[0]['handlers']} [options.handlers]
  * @param {boolean} [options.wakeOnOffer] - runners.localWake: an idle board wait ends when an offering command touches the folder's wake file (wakeLocalRunner); default off.
- * @param {() => boolean} [options.admit] - Asked before each claim; the local runner takes a job only while it says yes.
+ * @param {Parameters<typeof serveRunner>[0]['admit']} [options.admit] - Asked before each claim, with the kinds the runner holds across its boards; the local runner takes a job only while it says yes, skipping the kinds it excepts.
  * @param {Parameters<typeof serveRunner>[0]['git']} [options.git] - The Git launches the app hands every serve.
  * @param {AbortSignal} options.signal
  * @param {(line: string) => void} [options.say]
@@ -174,6 +195,8 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
   const beat = () => writeJson(join(folder, 'state.json'), { ...state, heartbeatAt: Date.now() });
   beat();
   const heartbeat = setInterval(beat, heartbeatMs);
+  // One ledger of held job kinds for every board this runner serves: a check baseline held for one board keeps the others from claiming a second [C7,#10794].
+  const ledger = heldKinds();
   const loops = new Map();
   let api = null;
   try {
@@ -183,7 +206,7 @@ export async function serveLocalRunner({ folder, open, capabilities, handlers = 
     say(`local runner ${runner} pulling from ${state.url}`);
     while (!signal.aborted) {
       for (const board of api.boards()) {
-        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, admit, git, signal, say, wakeOnOffer }));
+        if (!loops.has(board.root)) loops.set(board.root, serveBoard(board, { origin: api.origin, key: api.key, runner, folder, capabilities, handlers, admit, ledger, git, signal, say, wakeOnOffer }));
       }
       await pause(heartbeatMs, null, { signal }).catch(() => { /* stopped */ });
     }

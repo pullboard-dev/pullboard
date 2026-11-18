@@ -135,14 +135,14 @@ const BEFORE = {
   'maintenance.retireIdleHours': 3,
   'maintenance.retireIdleSeats': false,
   'moves.judgeByRelease': false,
-  'moves.live.claim': false,
+  'moves.live.claim': true,
   'moves.live.handoff': false,
-  'moves.live.job': false,
+  'moves.live.job': true,
   'moves.live.outbox': false,
-  'moves.live.outcome': false,
-  'moves.live.reclaim': false,
-  'moves.live.reopen': false,
-  'moves.live.submit': false,
+  'moves.live.outcome': true,
+  'moves.live.reclaim': true,
+  'moves.live.reopen': true,
+  'moves.live.submit': true,
   'moves.shadow': false,
   'next.adoptPreserved': false,
   'next.capBuilders': 0,
@@ -167,6 +167,7 @@ const BEFORE = {
   'release.rerouteUntouched': false,
   'release.staleItemRevision': false,
   'review.canonicalFamilies': false,
+  'review.holdAfterTwoReleases': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
   'review.starveShout': false,
@@ -178,7 +179,9 @@ const BEFORE = {
   'runners.fetchFailFast': false,
   'runners.localWake': false,
   'runners.postedLineNamesCase': false,
+  'runners.reportCommit': false,
   'runners.requiredToolchains': null,
+  'runners.selfUpdate': false,
   'runners.yieldWhilePruning': false,
   'scratch': null,
   'sentinels.landingSelfCheck': false,
@@ -366,4 +369,33 @@ test('config.io-settings-machine-defaults.items-test-mirror-at-add-exact-true: c
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: false } }), false);
   assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: true } }), true);
   await assert.rejects(testMirrorWith({ items: { testMirrorAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.testMirrorAtAdd/u.test(error.message));
+});
+
+async function reviewHoldWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { reviewHoldAfterTwoReleases } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-review-hold-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return reviewHoldAfterTwoReleases();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.review-hold-after-two-releases: clause 1: review.holdAfterTwoReleases is false in MACHINE_DEFAULTS and has a description row [C7]', () => {
+  assert.equal(MACHINE_DEFAULTS['review.holdAfterTwoReleases'], false);
+  assert.equal(BEFORE['review.holdAfterTwoReleases'], false);
+  assert.ok(SETTING_DESCRIPTIONS['review.holdAfterTwoReleases']);
+});
+
+test('config.io-settings-machine-defaults.review-hold-exact-true: clause 2: reviewHoldAfterTwoReleases() is true only for an exact true in machine settings [C7]', async () => {
+  assert.equal(await reviewHoldWith({}), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: false } }), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: 'true' } }), false);
+  assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: true } }), true);
 });

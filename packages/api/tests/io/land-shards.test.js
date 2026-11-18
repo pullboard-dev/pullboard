@@ -68,7 +68,10 @@ test('api.land-shards.x8197-land-job-holder-reads: #8197: the land job\'s holder
   boardJobQueueCall(board, { action: 'receipt', job: shard.job, runner: 'r-shard', token: shard.token, receipt }, { mode: 'pull', now: 9 });
   const posted = read().shards.find(row => row.job === shard.job).posted;
   assert.equal(posted.runner, 'r-shard');
-  assert.deepEqual(posted.receipt, receipt);
+  // Since 66a4a639c8 a pulled job's receipt also records the seconds it waited for a runner; the rest is what the shard posted [C7].
+  const { queueWaitSeconds, ...stored } = posted.receipt;
+  assert.deepEqual(stored, receipt);
+  assert.ok(Number.isFinite(queueWaitSeconds), 'the shard receipt records its queue wait');
   assert.throws(() => read({ token: 'wrong' }), error => error.code === 'JOB_LEASE_MOVED');
   assert.throws(() => read({ shards: ['land:2:z:shard:1'] }), error => error.code === 'LAND_SHARDS');
 });

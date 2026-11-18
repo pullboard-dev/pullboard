@@ -20,3 +20,11 @@ export const nativeBoard = Object.freeze({ openBoard, openBoardForRead, nativeBo
 export { board, closeBoard, nativeBoardPorts, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification } from '../../packages/board/index.js';
 export { advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun } from '../../packages/board/index.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, recordTrainLanding } from '../../packages/board/index.js';
+
+/**
+ * The check baseline launcher and its worker path, loaded at the first add or edit that records a baseline [C7,#10787].
+ * Why lazy: this door sits on cold paths whose module counts are budgeted, and only add and edit need the launcher.
+ */
+export function checkBaselineLauncher() {
+  return import('./src/io/check/baseline.js');
+}

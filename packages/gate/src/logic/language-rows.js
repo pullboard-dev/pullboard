@@ -1,5 +1,8 @@
 /** Marker rows for further ecosystems: each language is one row of data, not more detection code [#3707,C7]. */
 
+/** Whether a pubspec.yaml declares a Flutter project: a line that is exactly `flutter:` (a key, not `sdk: flutter` or `flutter_test:`). */
+const FLUTTER_LINE = /^[ \t]*flutter:[ \t]*$/mu;
+
 /** The default `npm init` test script, which is not a real test. */
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -208,7 +211,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['project.clj', 'deps.edn'], command: (names) => (names.includes('project.clj') ? 'lein test' : 'clojure -M:test') },
     tests: ['test/**/*.clj', '**/*_test.clj'],
     toolchains: command => (/^\s*lein\s/u.test(command) ? ['lein'] : ['clojure']),
-    junit: null,
+    junit: { command: `clojure -M:test --plugin kaocha.plugin/junit-xml --junit-xml-file ${JUNIT_DIR}/clojure.xml`, report: `${JUNIT_DIR}/clojure.xml`, needs: 'the kaocha test runner under a :test alias in deps.edn' },
     affected: null,
     // lein test / kaocha junit writes the namespace in classname (my-app.core-test) and no file attribute; dots are folders and hyphens are underscores under test/.
     cases: { name: 'clojure', inputs: [], file: row => (row.classname ? `test/${row.classname.replace(/-/gu, '_').replace(/\./gu, '/')}.clj` : null) },
@@ -233,7 +236,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['shard.yml'], command: 'crystal spec' },
     tests: ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr'],
     toolchains: ['crystal'],
-    junit: null,
+    junit: { command: `crystal spec --junit_output ${JUNIT_DIR}/crystal.xml`, report: `${JUNIT_DIR}/crystal.xml`, needs: null },
     affected: null,
     // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
     cases: { name: 'crystal', inputs: [], file: row => (row.classname && /\.cr$/u.test(row.classname) ? row.classname : null) },
@@ -255,15 +258,15 @@ export const LANGUAGES = Object.freeze([
     toolchains: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
     junit: { command: `JUNIT_ENABLED=1 JUNIT_OUTPUT_DIRECTORY=${JUNIT_DIR} JUNIT_OUTPUT_NAME=haskell.xml cabal test`, report: `${JUNIT_DIR}/haskell.xml`, needs: 'the hspec-junit-formatter package in the test suite, run through hspec-discover' },
     affected: null,
-    // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
-    cases: { name: 'haskell', inputs: [], file: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null) },
+    // hspec-junit-formatter writes the dotted spec module (Data.CalcSpec) in classname and no file attribute; a module ending in Spec is the spec file's own path (Data/CalcSpec.hs), a bare group (Calc) is test/CalcSpec.hs.
+    cases: { name: 'haskell', inputs: [], file: row => (row.classname ? (/Spec$/u.test(row.classname) ? `${row.classname.replace(/\./gu, '/')}.hs` : `test/${row.classname.replace(/\./gu, '/')}Spec.hs`) : null) },
   },
   {
     language: 'julia',
     detect: { markers: ['Project.toml'], command: juliaCommand },
     tests: ['test/**/*.jl', '**/runtests.jl'],
     toolchains: ['julia'],
-    junit: null,
+    junit: { command: `julia --project -e 'using TestReports; TestReports.test(logfilename="julia.xml", logfilepath="${JUNIT_DIR}")'`, report: `${JUNIT_DIR}/julia.xml`, needs: 'the TestReports package in the project test dependencies' },
     affected: null,
     // Julia's Test suite JUnit report names the testset in classname and no file attribute; Pkg.test runs the one test/runtests.jl.
     cases: { name: 'julia', inputs: [], file: row => (row.classname ? 'test/runtests.jl' : null) },
@@ -303,7 +306,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : '') },
     tests: ['t/**/*.t'],
     toolchains: ['perl'],
-    junit: null,
+    junit: { command: `prove -lr --formatter TAP::Formatter::JUnit t > ${JUNIT_DIR}/perl.xml`, report: `${JUNIT_DIR}/perl.xml`, needs: 'the TAP::Formatter::JUnit module (cpanm TAP::Formatter::JUnit)' },
     affected: null,
     // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
     cases: { name: 'perl', inputs: [], file: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null) },
@@ -349,8 +352,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'dart',
-    detect: null,
-    tests: [],
+    detect: { markers: ['pubspec.yaml'], command: (_names, contents) => (FLUTTER_LINE.test(contents('pubspec.yaml') ?? '') ? 'flutter test' : 'dart test') },
+    tests: ['**/*_test.dart'],
     toolchains: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
     junit: null,
     affected: null,
@@ -359,8 +362,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'swift',
-    detect: null,
-    tests: [],
+    detect: { markers: ['Package.swift'], command: 'swift test' },
+    tests: ['**/Tests/**/*Tests.swift'],
     toolchains: ['swift'],
     junit: { command: `swift test --xunit-output ${JUNIT_DIR}/swift.xml`, report: `${JUNIT_DIR}/swift.xml`, needs: null },
     affected: { none: 'AFFECTED_NONE: swift has no per-file test command; run the full gate or declare affectedSuites' },

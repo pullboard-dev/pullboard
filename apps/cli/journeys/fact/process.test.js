@@ -28,7 +28,7 @@ function directory(t) {
   return cwd;
 }
 
-test('in-process production commands match real binary output and exit codes [C7,A1,P4,N37]', async t => {
+test('cli.journeys-fact-process.in-process-production-commands-match-real: in-process production commands match real binary output and exit codes [C7,A1,P4,N37]', async t => {
   const cwd = directory(t);
   const bin = resolve(import.meta.dirname, '../../pullboard.js');
   // These five are adapter wiring contracts, not one subprocess per command in the help catalog.
@@ -42,7 +42,7 @@ test('in-process production commands match real binary output and exit codes [C7
   }
 });
 
-test('production help dispatch creates no child process and keeps argument ownership [C7,N37]', async t => {
+test('cli.journeys-fact-process.production-help-dispatch-creates-no-child: production help dispatch creates no child process and keeps argument ownership [C7,N37]', async t => {
   const cwd = directory(t);
   /** A help command has no external boundary to delegate to a process. */
   const forbid = () => { throw new Error('the in-process command attempted a subprocess'); };
@@ -57,7 +57,7 @@ test('production help dispatch creates no child process and keeps argument owner
   assert.deepEqual(argv, ['help', 'next']);
 });
 
-test('the in-process adapter serializes environment and restores globals after failure [C7,H2,P4]', async t => {
+test('cli.journeys-fact-process.the-in-process-adapter-serializes-environment: the in-process adapter serializes environment and restores globals after failure [C7,H2,P4]', async t => {
   const cwd = directory(t);
   const original = { ...process.env };
   const originalCwd = process.cwd();
@@ -104,7 +104,7 @@ test('the in-process adapter serializes environment and restores globals after f
 });
 
 
-test('in-process dispatch retains the production person-channel refusal [H2,B26,C7]', async t => {
+test('cli.journeys-fact-process.in-process-dispatch-retains-the-production: in-process dispatch retains the production person-channel refusal [H2,B26,C7]', async t => {
   const cwd = directory(t);
   const result = await runCliInProcess(['relay', 'members', 'set', 'alice', '--json'], {
     cwd, env: { ...process.env, CODEX_THREAD_ID: 'adapter-contract-agent' },
@@ -114,7 +114,7 @@ test('in-process dispatch retains the production person-channel refusal [H2,B26,
 });
 
 
-test('in-process writes use the private board and fresh reads match the binary [C7,A1,B1,B3]', async t => {
+test('cli.journeys-fact-process.in-process-writes-use-the-private: in-process writes use the private board and fresh reads match the binary [C7,A1,B1,B3]', async t => {
   const fixtures = createE2eHelpers();
   t.after(fixtures.cleanup);
   const box = fixtures.project('true', undefined, { withWorktree: false });

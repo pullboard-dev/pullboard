@@ -1147,6 +1147,10 @@
       "kind": "json",
       "owner": "packages/codemap/src/io/cell/uses.js"
     },
+    "starting.json": {
+      "kind": "json",
+      "owner": "packages/drive/src/io/local.js"
+    },
     "startup.json": {
       "kind": "json",
       "owner": "packages/runners/src/io/transport.js"
@@ -1377,7 +1381,7 @@
     },
     "table:person_enrollment": {
       "kind": "table",
-      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+      "owner": "apps/relay/src/io/store/enrollment.js"
     },
     "table:phone_approval": {
       "kind": "table",

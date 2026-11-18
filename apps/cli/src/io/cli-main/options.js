@@ -7,6 +7,7 @@ const OPTIONS = {
   files: { type: 'string' },
   'force-size': { type: 'string' },
   'not-duplicate-of': { type: 'string' },
+  here: { type: 'string' },
   confirm: { type: 'boolean' },
   reject: { type: 'boolean' },
   'accept-green': { type: 'string' },
