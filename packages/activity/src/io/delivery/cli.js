@@ -49,7 +49,7 @@ function deliveryUnchanged(board, agentId, observation) {
 }
 
 /** Persist bounded batches without advancing past an interrupt that a later batch has not yet recorded. */
-async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
+async function recordIncluded(ctx, board, agentId, observation, { ordered, handOffDelivery }, batchedDelivery) {
   if (deliveryUnchanged(board, agentId, observation)) return;
   const groups = [];
   for (let offset = 0; offset < observation.fresh.length; offset += 1000) groups.push(observation.fresh.slice(offset, offset + 1000));
@@ -57,9 +57,12 @@ async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
   for (const [index, interrupts] of groups.entries()) {
     const remaining = groups.slice(index + 1).flat().map(interrupt => interrupt.eventId).filter(Number.isSafeInteger);
     const through = remaining.length ? Math.min(observation.through, Math.min(...remaining) - 1) : observation.through;
-    await ordered(ctx, board, 'recordActivityDelivery', [{ agentId, interrupts, through,
+    const group = { agentId, interrupts, through,
       observedThrough: observation.observedThrough,
-      ...(index === groups.length - 1 && observation.digestThrough !== undefined ? { digestThrough: observation.digestThrough } : {}) }]);
+      ...(index === groups.length - 1 && observation.digestThrough !== undefined ? { digestThrough: observation.digestThrough } : {}) };
+    // With inbox.batchedMarks on and a port to take it, the command owns the write, so this read opens no write board (#3003).
+    if (batchedDelivery) await handOffDelivery(ctx, agentId, group);
+    else await ordered(ctx, board, 'recordActivityDelivery', [group]);
   }
 }
 
@@ -82,6 +85,8 @@ function enqueueShoutMark(board, agentId, through) {
 export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}, ports) {
   const { withBoard, withBoardRead, whoAmI, ordered } = ports;
   const batched = ctx.config.inbox.batchedMarks === true;
+  /** Delivery records leave through the port only behind the setting; a caller without the port records through ordered() as before. */
+  const batchedDelivery = batched && typeof ports.handOffDelivery === 'function';
   /** Project and, unless `quiet`, record one delivery; a quiet pass returns null where it would have to write. */
   const deliverOn = async (board, quiet) => {
     const me = whoAmI(ctx, board);
@@ -118,20 +123,21 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       .map(interrupt => interrupt.eventId).filter(Number.isSafeInteger);
     const selected = { ...observation, fresh: observation.fresh.filter(interrupt => included.has(interrupt.id)),
       through: withheld.length ? Math.min(observation.through, Math.min(...withheld) - 1) : observation.through };
-    if (quiet && !retired && !deliveryUnchanged(board, me.id, selected)) return null;
+    const readOnly = quiet && !batchedDelivery;
+    if (readOnly && !retired && !deliveryUnchanged(board, me.id, selected)) return null;
     const markThrough = () => {
       const rendered = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
       const withheldShouts = observation.fresh.filter(interrupt => !rendered.has(interrupt.id))
         .map(interrupt => interrupt.shout).filter(Number.isSafeInteger);
       return withheldShouts.length ? Math.min(shoutCursor, Math.min(...withheldShouts) - 1) : shoutCursor;
     };
-    if (quiet) {
+    if (readOnly) {
       // Marking shouts read is a write, so a quiet pass hands any unread shout to the writing pass.
       if (directShouts && store.inbox(board, me.id, { through: markThrough(), markRead: false }).length) return null;
       return { ...bounded, local };
     }
     if (!retired) {
-      try { await recordIncluded(ctx, board, me.id, selected, ports); }
+      try { await recordIncluded(ctx, board, me.id, selected, ports, batchedDelivery); }
       catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(error.code)) throw error;
         // A read remains available while canonical writes are fenced; its obligations remain unrecorded.
