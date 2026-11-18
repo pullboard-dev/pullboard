@@ -204,7 +204,7 @@ function pageControl(target) {
   else if (kind === 'shipped') { const key = JSON.stringify([view.root, 'shipped']); view.roadmapOpen.set(key, view.roadmapOpen.get(key) !== true); }
   drawPageControls();
   address();
-  later(render);
+  afterPaint(render);
 }
 
 /** Open one of the strip's menus, or close it; a second press on its button closes it. */
