@@ -80,3 +80,4 @@ export { ITEM_MARKER_FILE, itemFolderIdentity, itemFolderPath, writeItemMarker }
 export { mainRedRootCause, mainRedKey, mainRedKeyLines, mainRedEvidenceLines, splitMainReds, mainRedFact, fileMainRed } from './src/logic/audit/main-red.js';
 export { canonicalVendorFamily, vendorOfModel } from './src/logic/vendors.js';
 export { predictedFiles, requireFileLease, fileMiss } from './src/logic/lease.js';
+export { quietFiles } from './src/logic/quiet.js';
