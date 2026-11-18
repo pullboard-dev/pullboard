@@ -11,13 +11,13 @@ import { fixtureAdd } from '../../tests/fixtures/testkit.js';
 
 after(e2e.cleanup);
 
-/** A project that declares gen/out.txt as made from gen/in.txt; the item edits the input only, then submits with the setting on or off. Returns the box. */
-async function submitted(regenerateDeclared) {
+/** A project that declares gen/out.txt as made from gen/in.txt; the item edits the input only, then submits with the setting on or off. Returns the box, or with refused the box and the submit result. */
+async function submitted(regenerateDeclared, { generator = 'cp gen/in.txt gen/out.txt', declare = true, refused = false } = {}) {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('gen/');
   config.submit = { ...(config.submit ?? {}), regenerateDeclared };
-  config.generated = [{ file: 'gen/out.txt', generator: 'cp gen/in.txt gen/out.txt', inputs: ['gen/in.txt'] }];
+  if (declare) config.generated = [{ file: 'gen/out.txt', generator, inputs: ['gen/in.txt'] }];
   put(box.repo, 'pullboard.json', JSON.stringify(config));
   put(box.repo, 'gen/in.txt', 'one\n');
   put(box.repo, 'gen/out.txt', 'one\n');
@@ -32,6 +32,7 @@ async function submitted(regenerateDeclared) {
   put(box.web, 'gen/in.txt', 'two\n');
   commit(box, box.web, 'feat(core): change the generator input [G1]');
   const sent = await box.runLocal(box.web, 'submit', String(id));
+  if (refused) return { box, sent };
   assert.equal(sent.code, 0, sent.err + sent.out);
   return box;
 }
@@ -45,4 +46,18 @@ test('cli.journeys-submit-regenerate-declared.with-submit-regeneratedeclared-on-
 test('cli.journeys-submit-regenerate-declared.with-submit-regeneratedeclared-at-its-default: clause 2: with submit.regenerateDeclared at its default (off), the same submit leaves the generated file as committed [C7]', async () => {
   const box = await submitted(false);
   assert.equal(box.git(box.web, 'show', 'HEAD:gen/out.txt').trim(), 'one');
+});
+
+test('cli.journeys-submit-regenerate-declared.failing-generator-refuses-with-output: clause 1: with submit.regenerateDeclared on, a declared generator that exits non-zero refuses submit GENERATED_STALE with the generator output in the message [C7]', async () => {
+  const { box, sent } = await submitted(true, { generator: 'echo generator-says-boom; exit 3', refused: true });
+  assert.notEqual(sent.code, 0, sent.out);
+  assert.match(sent.err + sent.out, /GENERATED_STALE/u);
+  assert.match(sent.err + sent.out, /generator-says-boom/u);
+  assert.equal(box.git(box.web, 'show', 'HEAD:gen/out.txt').trim(), 'one');
+});
+
+test('cli.journeys-submit-regenerate-declared.no-declared-file-submits-unchanged: clause 2: with submit.regenerateDeclared on, a project declaring no generated file submits unchanged [C7]', async () => {
+  const box = await submitted(true, { declare: false });
+  assert.equal(box.git(box.web, 'show', 'HEAD:gen/out.txt').trim(), 'one');
+  assert.doesNotMatch(box.git(box.web, 'log', '-1', '--format=%s'), /regenerate/u);
 });
