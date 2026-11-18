@@ -1,5 +1,6 @@
 /** DOM adapter for the pure hosted presentation; public exports stay stable [N26,H5]. */
 export { hostedMarkup, hostedBrowser, hostedState } from "./hosted/render.js";
+export { hostedSidebarHtml } from "./hosted-sidebar.js";
 
 /**
  * Draw one state into the page, or clear it with null. A state stands alone: the page's body takes the open-board

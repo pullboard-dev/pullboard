@@ -30,12 +30,34 @@ export function testFileLoadScale(loads = [], cores = 1) {
   return Math.min(MAX_LOAD_SCALE, Math.max(1, perCore));
 }
 
-/** A genuine audit placement runs without enforcing the interactive gate budget; `scale` is the runner load scale. */
-export function testFileBudgetFailure(file, durationMs, limit, audit = false, scale = 1) {
+/** The per-tier file limits Corey approved on 9 Nov: cell tests 30 s, component 60 s, journey 120 s [C7]. */
+const TIER_LIMITS_MS = Object.freeze({ cell: 30_000, component: 60_000, journey: 120_000 });
+
+/** The time limit for a test file's tier; any other name is a caller mistake, so it throws. */
+export function testFileTierLimit(tier) {
+  if (!Object.hasOwn(TIER_LIMITS_MS, tier)) throw new TypeError(`unknown test file tier ${JSON.stringify(tier)}; expected cell, component or journey`);
+  return TIER_LIMITS_MS[tier];
+}
+
+/**
+ * The limit a file gets in its tier: the tier limit, or a recorded per-file row when that is lower.
+ * Why: a recorded row may only tighten the tier, so a row above the tier is a stale record to fix, not a budget to honor (#3998).
+ */
+export function testFileTierBudget(file, tier, recordedMs) {
+  const limit = testFileTierLimit(tier);
+  if (recordedMs === undefined) return limit;
+  const row = testFileLimit(recordedMs);
+  if (row > limit) throw new Error(`test file budget row for ${file} is ${row}ms, over the ${limit}ms ${tier} tier limit`);
+  return row;
+}
+
+/** A genuine audit placement runs without enforcing the interactive gate budget; `scale` is the runner load scale; `tier` names the file's tier in the message. */
+export function testFileBudgetFailure(file, durationMs, limit, audit = false, scale = 1, tier = undefined) {
   if (audit) return null;
   if (!Number.isFinite(durationMs) || durationMs < 0) throw new TypeError(`missing test file runtime for ${file}`);
   const budget = testFileLimit(limit);
   const charged = durationMs / Math.min(MAX_LOAD_SCALE, Math.max(1, Number(scale) || 1));
   const load = charged < durationMs ? ` (${Math.ceil(charged)}ms of its own at runner load ${(durationMs / charged).toFixed(1)}x)` : '';
-  return charged > budget ? `${file} took ${Math.ceil(durationMs)}ms, over its ${budget}ms test file budget${load}; split it or move it to the audit` : null;
+  const name = tier === undefined ? 'test file budget' : `${tier} tier test file budget`;
+  return charged > budget ? `${file} took ${Math.ceil(durationMs)}ms, over its ${budget}ms ${name}${load}; split it or move it to the audit` : null;
 }
