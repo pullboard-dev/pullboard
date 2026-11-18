@@ -30,6 +30,7 @@ const RUNNER = resolve(import.meta.dirname, '../../../../../apps/cli/src/io/run/
 const HOSTILE_LEASE = 'isolation-hostile-machine';
 const PROBES = ['probe machine settings are the defaults', 'probe the resource pool is private',
   'probe no host marker reaches the test', 'probe the default view port is never chosen'];
+const PROBE_IDS = ['gate.io-test-isolation.probe-machine-settings-are-defaults', 'gate.io-test-isolation.probe-resource-pool-is-private', 'gate.io-test-isolation.probe-no-host-marker-reaches', 'gate.io-test-isolation.probe-default-view-port-never'];
 
 /** Build a probe suite outside the repository that reads every kind of machine state a test could reach. */
 function probeSuite(dir) {
@@ -48,19 +49,19 @@ import { defaultViewPort } from ${module('packages/config/src/io/main.js')};
 import { chooseViewPort } from ${module('apps/cli/tests/fixtures/view/port.js')};
 // A test that drops its machine home falls back to the account home, as view-port-fixture.js does.
 delete process.env.PULLBOARD_MACHINE_HOME;
-test(${JSON.stringify(PROBES[0])}, () => {
+test('gate.io-test-isolation.probe-machine-settings-are-defaults: ${PROBES[0]}', () => {
   assert.notEqual(machineHome(), join(userInfo().homedir, '.pullboard'), 'the OS account home is never read');
   assert.ok(!machineHome().startsWith(process.env.ISOLATION_HOSTILE_HOME + '/'), 'the hostile machine is never read');
   assert.deepEqual(loadMachineSettings(), { gateSlots: 2, browserSlots: 1 });
 });
-test(${JSON.stringify(PROBES[1])}, () => {
+test('gate.io-test-isolation.probe-resource-pool-is-private: ${PROBES[1]}', () => {
   assert.equal(listResources({ scope: 'machine' }).some((resource) => resource.name === ${JSON.stringify(HOSTILE_LEASE)}), false);
 });
-test(${JSON.stringify(PROBES[2])}, () => {
+test('gate.io-test-isolation.probe-no-host-marker-reaches: ${PROBES[2]}', () => {
   assert.equal(process.env.CI, undefined);
   assert.equal(foreignNodeOptions(process.env.NODE_OPTIONS), false);
 });
-test(${JSON.stringify(PROBES[3])}, async () => {
+test('gate.io-test-isolation.probe-default-view-port-never: ${PROBES[3]}', async () => {
   assert.equal(defaultViewPort(), ${DEFAULT_VIEW_PORT});
   assert.notEqual(await chooseViewPort(), ${DEFAULT_VIEW_PORT});
 });
@@ -114,7 +115,7 @@ test('gate.io-test-isolation.a-test-reads-no-machine-state: a test reads no mach
 
   const calm = await awaitNestedRun(runFixtureChildAsync(process.execPath, [RUNNER, 'test/probe.test.js'], { cwd: root, env: plain }));
   const busy = await awaitNestedRun(runFixtureChildAsync(process.execPath, [RUNNER, 'test/probe.test.js'], { cwd: root, env: machine }));
-  assert.deepEqual(verdicts(calm.stdout), PROBES.map((name, index) => `ok ${index + 1} - ${name}`), calm.stdout + calm.stderr);
+  assert.deepEqual(verdicts(calm.stdout), PROBES.map((name, index) => `ok ${index + 1} - ${PROBE_IDS[index]}: ${name}`), calm.stdout + calm.stderr);
   assert.deepEqual(verdicts(busy.stdout), verdicts(calm.stdout), `hostile machine settings changed a verdict:\n${busy.stdout}${busy.stderr}`);
   assert.equal(busy.status, 0, busy.stderr);
 
