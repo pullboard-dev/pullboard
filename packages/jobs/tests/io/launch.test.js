@@ -28,7 +28,8 @@ function recorder(out) {
 test('jobs.launch.launchd-wake: clause 1: on macOS the lander wake runs as a launchd job, so launchd is its parent and responsible process; a later launch boots the finished job out [C7]',
   { skip: !existsSync('/bin/launchctl') && 'launchd is not on this machine' }, async t => {
     const root = home(t), out = join(root, 'first.json');
-    const first = await spawnReachable(process.execPath, recorder(out), { home: root, env: { ...process.env, LAUNCH_MARKER: 'kept' } });
+    const first = await spawnReachable(process.execPath, recorder(out), { home: root, launchd: true, env: { ...process.env, LAUNCH_MARKER: 'kept' } });
+    t.after(() => first.label && spawnSync('launchctl', ['bootout', `gui/${process.getuid()}/${first.label}`], { stdio: 'ignore' }));
     if (!first.launchd) { t.skip('no launchd gui session on this host; clauses 2 and 3 cover the plain-spawn fallback'); return; }
     assert.equal(first.launchd, true, 'launchd started it');
     assert.ok(first.label.startsWith(LAUNCH_LABEL_PREFIX));
@@ -40,12 +41,37 @@ test('jobs.launch.launchd-wake: clause 1: on macOS the lander wake runs as a lau
     /** Whether a pid still names a live process. */
     const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
     await waitForCondition(() => !alive(first.pid), 'the first process ended');
-    const second = await spawnReachable(process.execPath, recorder(join(root, 'second.json')), { home: root });
+    const second = await spawnReachable(process.execPath, recorder(join(root, 'second.json')), { home: root, launchd: true });
     t.after(() => spawnSync('launchctl', ['bootout', `gui/${process.getuid()}/${second.label}`], { stdio: 'ignore' }));
     const loaded = spawnSync('launchctl', ['print', `gui/${process.getuid()}/${first.label}`], { stdio: 'ignore' }).status;
     assert.notEqual(loaded, 0, 'the finished first job was booted out');
     assert.deepEqual(readdirSync(join(root, 'launchd')), [`${second.label}.plist`], 'only the newer job file remains');
   });
+
+/** How many dev.pullboard.daemon jobs launchctl lists. */
+function loadedJobs() {
+  return spawnSync('launchctl', ['list'], { encoding: 'utf8' }).stdout.split('\n').filter(line => line.includes(LAUNCH_LABEL_PREFIX)).length;
+}
+
+test('jobs.launch.fixture-plain-spawn: clause 1: on a fixture board with no launchd option the job is a plain detached spawn, launchd false, and the launcher is never asked to bootstrap [C7]', async t => {
+  const root = home(t), out = join(root, 'job.json'), calls = [];
+  const launcher = async args => { calls.push(args[0]); return { status: 0, stdout: '' }; };
+  const before = existsSync('/bin/launchctl') ? loadedJobs() : 0;
+  const started = await spawnReachable(process.execPath, recorder(out), { home: root, env: { ...process.env, PULLBOARD_FIXTURE_BOARD: '1' }, launcher });
+  assert.equal(started.launchd, false, 'a fixture board takes the plain spawn');
+  assert.deepEqual(calls, [], 'the launcher was never asked');
+  await waitForCondition(() => existsSync(out), 'the plain-spawned job wrote its record');
+  assert.equal(existsSync(join(root, 'launchd')), false, 'no launchd job file is written');
+  if (existsSync('/bin/launchctl')) assert.equal(loadedJobs(), before, 'the count of dev.pullboard.daemon jobs is unchanged');
+});
+
+test('jobs.launch.fixture-declared-launchd: clause 2: on a fixture board an explicit launchd: true still bootstraps through the launcher [C7]', async t => {
+  const root = home(t), calls = [];
+  const launcher = async args => { calls.push(args[0]); return { status: args[0] === 'bootstrap' ? 5 : 0, stdout: '' }; };
+  const started = await spawnReachable(process.execPath, ['-e', ''], { home: root, launchd: true, env: { ...process.env, PULLBOARD_FIXTURE_BOARD: '1' }, launcher });
+  assert.ok(calls.includes('bootstrap'), 'the declared launchd was tried');
+  assert.equal(started.launchd, false, 'the stubbed bootstrap refused, so it fell back');
+});
 
 test('jobs.launch.plain-spawn-log: clause 2: without launchd the process is a plain detached spawn that still writes its log [C7]', async t => {
   const root = home(t), log = join(root, 'out.log');
