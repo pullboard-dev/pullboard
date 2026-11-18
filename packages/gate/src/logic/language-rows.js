@@ -258,15 +258,15 @@ export const LANGUAGES = Object.freeze([
     toolchains: command => (/^\s*stack\s/u.test(command) ? ['stack'] : ['cabal']),
     junit: { command: `JUNIT_ENABLED=1 JUNIT_OUTPUT_DIRECTORY=${JUNIT_DIR} JUNIT_OUTPUT_NAME=haskell.xml cabal test`, report: `${JUNIT_DIR}/haskell.xml`, needs: 'the hspec-junit-formatter package in the test suite, run through hspec-discover' },
     affected: null,
-    // hspec-junit-formatter writes the module group (Calc) in classname and no file attribute; the file is test/<Calc>Spec.hs.
-    cases: { name: 'haskell', inputs: [], file: row => (row.classname ? `test/${row.classname.replace(/\./gu, '/')}Spec.hs` : null) },
+    // hspec-junit-formatter writes the dotted spec module (Data.CalcSpec) in classname and no file attribute; a module ending in Spec is the spec file's own path (Data/CalcSpec.hs), a bare group (Calc) is test/CalcSpec.hs.
+    cases: { name: 'haskell', inputs: [], file: row => (row.classname ? (/Spec$/u.test(row.classname) ? `${row.classname.replace(/\./gu, '/')}.hs` : `test/${row.classname.replace(/\./gu, '/')}Spec.hs`) : null) },
   },
   {
     language: 'julia',
     detect: { markers: ['Project.toml'], command: juliaCommand },
     tests: ['test/**/*.jl', '**/runtests.jl'],
     toolchains: ['julia'],
-    junit: null,
+    junit: { command: `julia --project -e 'using TestReports; TestReports.test(logfilename="julia.xml", logfilepath="${JUNIT_DIR}")'`, report: `${JUNIT_DIR}/julia.xml`, needs: 'the TestReports package in the project test dependencies' },
     affected: null,
     // Julia's Test suite JUnit report names the testset in classname and no file attribute; Pkg.test runs the one test/runtests.jl.
     cases: { name: 'julia', inputs: [], file: row => (row.classname ? 'test/runtests.jl' : null) },
