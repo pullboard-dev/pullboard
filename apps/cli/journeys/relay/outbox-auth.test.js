@@ -32,8 +32,17 @@ function seedCommit(box) {
   git('update-ref', 'HEAD', commit);
 }
 
+/** The one run both clauses read: the three moves cost a relay fixture, two worktrees and a link, so the second clause reuses the first clause's observations [C7]. */
+let observed;
+
 /** A linked board with relay.queueOnFailure on, an open decision, and a board key this shell cannot read; then claim 1, shout all and answer yes run from the real worktrees. */
 async function unreadableKeyMoves(t) {
+  observed ??= await runUnreadableKeyMoves(t);
+  return observed;
+}
+
+/** Make the board, remove read access to its key, run the three moves and take every observation the clauses need. */
+async function runUnreadableKeyMoves(t) {
   const box = await relayClientFixture(t);
   symlinkSync(resolve(import.meta.dirname, '../../pullboard.js'), join(box.env.PATH, 'pullboard'));
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
@@ -78,7 +87,9 @@ async function unreadableKeyMoves(t) {
     const exported = await command(${JSON.stringify(box.root)}, ['export']);
     process.stdout.write(JSON.stringify({ claim, shout, answer, decisions, exported }));
   `);
-  return { box, moves: moves.document, decision, keyText, callsBefore };
+  const file = join(dirname(box.linkFile), 'relay-outbox.unsealed.json');
+  const raw = existsSync(file) ? readFileSync(file, 'utf8') : null;
+  return { moves: moves.document, decision, keyText, raw, relayCalls: box.calls.length - callsBefore };
 }
 
 test('cli.journeys-relay-outbox-auth.unreadable-key-moves-apply: clause 1: with relay.queueOnFailure on and an unreadable key, claim 1, shout all and answer yes each exit 0 and apply on the local board [C7,#9411]', async (t) => {
@@ -91,14 +102,12 @@ test('cli.journeys-relay-outbox-auth.unreadable-key-moves-apply: clause 1: with 
 });
 
 test('cli.journeys-relay-outbox-auth.unreadable-key-moves-kept: clause 2: each of the three moves is kept in relay-outbox.unsealed.json with no key field and none reaches the relay [C7,#9411]', async (t) => {
-  const { box, moves, keyText, callsBefore } = await unreadableKeyMoves(t);
+  const { moves, keyText, raw, relayCalls } = await unreadableKeyMoves(t);
   for (const name of ['claim', 'shout', 'answer']) assert.equal(moves[name].code, 0, name + ' ' + JSON.stringify(moves[name].document));
-  const file = join(dirname(box.linkFile), 'relay-outbox.unsealed.json');
-  assert.equal(existsSync(file), true, 'the unsealed outbox sits beside the link file');
-  const raw = readFileSync(file, 'utf8');
+  assert.notEqual(raw, null, 'the unsealed outbox sits beside the link file');
   const entries = JSON.parse(raw);
   assert.equal(entries.length, 3, 'one kept entry per move');
   for (const entry of entries) assert.equal(Object.hasOwn(entry, 'key'), false, 'no entry holds a key field');
   assert.equal(raw.includes(keyText), false, 'the board key text appears nowhere in the file');
-  assert.equal(box.calls.length, callsBefore, 'no move reaches the relay while the key is unreadable');
+  assert.equal(relayCalls, 0, 'no move reaches the relay while the key is unreadable');
 });
