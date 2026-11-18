@@ -11,6 +11,7 @@ import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { reviewLines } from '../../logic/show/review.js';
 import { usageLine } from '../../logic/show/usage.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
@@ -218,7 +219,8 @@ export async function run(io, { first, values }) {
   io.say(progressLine(progress));
   if (core.expectedBuild) io.say(core.expectedBuild);
   if (comparison) io.say(renderVerificationComparison(comparison));
-  io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
+  const review = reviewLines(machine, independence);
+  io.say(review.machine);
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
   for (const line of pulledWaitingLines(gateJob, item, thread)) io.say(line);
@@ -238,13 +240,9 @@ export async function run(io, { first, values }) {
   }
   if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
   if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
-  io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
-  io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
-  // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].
-  for (const { parent, seats } of independence.authorParents ?? []) {
-    io.say(parent === 'unknown' ? `builder parent session: unknown (${seats.join(', ')}); no seat is excluded by parent`
-      : `builder parent session ${parent} (${seats.join(', ')}): seats under this parent are not offered the review`);
-  }
+  io.say(review.tier);
+  io.say(review.eligible);
+  for (const line of review.parents) io.say(line);
   const usage = usageLine(cost, { detail: values.detail, dollars: dollarText(cost) });
   if (usage) io.say(usage);
   if (core.criterion) io.say(core.criterion);
