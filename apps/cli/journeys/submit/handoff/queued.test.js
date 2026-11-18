@@ -19,7 +19,7 @@ import {
 } from '../../../tests/fixtures/submit/handoff.js';
 import { settledGateJob } from '../../../tests/fixtures/submit/settle.js';
 
-test('clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
+test('cli.journeys-submit-handoff-queued.queued-submit-returns-before-its-gate: clause 1: queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
   // The builder holds two queued builds beside its second and third live claims, so the seat names a cap of four [B5].
   const box = fixture(t, { companion: true, perSeat: 4, fourth: true });
   const fourth = box.fourth;
@@ -71,7 +71,7 @@ test('clause 1: queued submit returns before its gate and remains bound when the
   assert.equal(document(await box.runLocal(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
 });
 
-test('clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
+test('cli.journeys-submit-handoff-queued.a-seat-holding-a-claim-gets: clause 1: a seat holding a claim gets submit --wait back at once with no agent marker, the result through next [P7]', async t => {
   const box = fixture(t);
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
   for (const name of AGENT_SHELL_MARKERS) delete box.env[name];
