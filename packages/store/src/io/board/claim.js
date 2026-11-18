@@ -311,6 +311,18 @@ const PREPARED_CLAIMS = new WeakMap();
 const CLAIM_PREPARE_ATTEMPTS = 5;
 
 /**
+ * The item-keyed board_meta key families a claim reads, each as the key text before the item id.
+ * Why: exact keys are served by the meta_key primary key; a LIKE '%:<id>' read cannot use any index and scanned the table.
+ */
+const ITEM_META_FAMILIES = [
+  'bar_grandfather:', 'bar_revision:', 'bar_sign:', 'blocked_release_waiting:', 'claim_stalled:', 'claim_waiting:',
+  'exit-handoff:', 'hold_owner:', 'item_check_baseline_', 'item_check_timing:', 'item_decision:', 'item_diagnosis:',
+  'item_expected_build_minutes:', 'item_lineage:', 'item_patches:', 'item_readiness_command:', 'item_redirect:',
+  'item_review_family:', 'item_source_advance:', 'item_urgent:', 'landing_phases:', 'main_red_failure_lines:',
+  'rehome_import:', 'review_independence:', 'shared-item:', 'stale_hold_until:', 'stale_hold_warning:', 'strict_rename:',
+];
+
+/**
  * The rows a prepared claim depends on: the item (its holder, lease, bar and after-links), the state of each
  * dependency, its own events and item-keyed metadata (check baseline, bar revision and sign-off, machine
  * verification), its pending re-freeze, and the spec decisions and bar setting the freeze reads. Every guard runs
@@ -320,13 +332,14 @@ const CLAIM_PREPARE_ATTEMPTS = 5;
  * @param {number} id
  * @returns {string}
  */
-function claimRows(board, id) {
+export function claimRows(board, id) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id) ?? null;
   const dependencies = item ? itemDependencies.localDependencyIds(item).map(dependency =>
     board.db.prepare('SELECT item_id,item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency) ?? null) : [];
   const lastEvent = board.db.prepare('SELECT MAX(event_id) AS id FROM event WHERE item_id=?').get(id)?.id ?? null;
-  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN ('row_decisions','bar_ready_setting')
-    OR meta_key LIKE '%:' || ? OR meta_key LIKE '%\\_' || ? ESCAPE '\\' ORDER BY meta_key`).all(String(id), String(id));
+  const keys = ['row_decisions', 'bar_ready_setting', ...ITEM_META_FAMILIES.map(family => `${family}${id}`)];
+  const meta = board.db.prepare(`SELECT meta_key,meta_value FROM board_meta WHERE meta_key IN (${keys.map(() => '?').join(',')})
+    ORDER BY meta_key`).all(...keys);
   return JSON.stringify({ item, dependencies, lastEvent, meta, refreeze: pendingRefreeze(board, id) });
 }
 
