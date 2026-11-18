@@ -18,7 +18,7 @@ import {
   submitSettled,
 } from './gate/local.js';
 
-test('clause 2: a submit records one checkpoint fact with the five parts when seat.checkpoints is on [C7,#8549]', async t => {
+test('cli.journeys-submit-checkpoint.a-submit-records-one-checkpoint-fact: clause 2: a submit records one checkpoint fact with the five parts when seat.checkpoints is on [C7,#8549]', async t => {
   let box = privateRepo(t);
   put(box.root, 'pullboard.json', JSON.stringify({ gate: 'true', shared: ['pullboard.json'], seat: { checkpoints: true } }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
@@ -39,7 +39,7 @@ test('clause 2: a submit records one checkpoint fact with the five parts when se
   assert.match(found[1].fact.evidence[0], /^gate job /u, 'evidence names the gate job');
 });
 
-test('clause 2: with seat.checkpoints off or never set, the checkpoint writes nothing: no ordered move, no fact [C7,#8549]', async () => {
+test('cli.journeys-submit-checkpoint.with-seat-checkpoints-off-or-never: clause 2: with seat.checkpoints off or never set, the checkpoint writes nothing: no ordered move, no fact [C7,#8549]', async () => {
   for (const source of ['{}', '{"seat":{"checkpoints":false}}']) {
     const moves = [];
     const ctx = { config: configFromSource(source), io: { err: line => moves.push(line) } };

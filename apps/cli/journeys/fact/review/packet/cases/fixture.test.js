@@ -61,7 +61,7 @@ export default async function* report(events) {
 
 const RUN = 'node --test --test-reporter=./web/outcome-reporter.js';
 
-test('clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, async t => {
+test('cli.journeys-fact-review-packet-cases-fixture.a-clause-case-defined-in-a: clause 1: a clause case defined in a fixture file is mapped from a gate run [V4,C7]', { timeout: 240_000 }, async t => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
   delete box.env.NODE_TEST_CONTEXT;

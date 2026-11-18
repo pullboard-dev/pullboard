@@ -101,11 +101,11 @@ async function proveBusyWrite(t, args, table, events = 1) {
   assert.equal(after.tables.event.length, before.tables.event.length + events, 'only the successful retry records its events');
 }
 
-test('a board write that outwaits the busy timeout is refused by name, never a stack trace [C7,P4,B2]', async (t) => {
+test('cli.journeys-fact-board-busy.a-board-write-that-outwaits-the: a board write that outwaits the busy timeout is refused by name, never a stack trace [C7,P4,B2]', async (t) => {
   await proveBusyWrite(t, ['shout', 'all', 'private busy shout'], 'shout');
 });
 
-test('a busy ordered item addition leaves no partial item and retries once [C7,P4,B2]', async (t) => {
+test('cli.journeys-fact-board-busy.a-busy-ordered-item-addition-leaves: a busy ordered item addition leaves no partial item and retries once [C7,P4,B2]', async (t) => {
   await proveBusyWrite(t, ['add', 'web', 'private busy item', '--specs', 'G1', '--criterion', 'the page renders'], 'item', 2); // an add records [add, milestone_placed]
 });
 
@@ -159,7 +159,7 @@ async function holdNamedWriter(box, file) {
   return { pid: child.pid, release, stderr: () => stderr };
 }
 
-test('a refused writer names the board lock holder [C7,P4,B2]', async t => {
+test('cli.journeys-fact-board-busy.a-refused-writer-names-the-board: a refused writer names the board lock holder [C7,P4,B2]', async t => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -197,7 +197,7 @@ function longWrites(stderr) {
     .map(line => JSON.parse(line.slice('pullboard: long board write '.length)));
 }
 
-test('a nested rolled-back writer logs once and leaves no live advisory record [C7,P4,B2]', () => {
+test('cli.journeys-fact-board-busy.a-nested-rolled-back-writer-logs: a nested rolled-back writer logs once and leaves no live advisory record [C7,P4,B2]', () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -236,7 +236,7 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
 
 
 
-test('a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', async () => {
+test('cli.journeys-fact-board-busy.a-standalone-native-attempt-and-nested: a standalone native attempt and nested rollback each observe only their actual outer write [C7,P4]', async () => {
   const box = e2e.project();
   box.env.PULLBOARD_BOARD_QUEUE_MS = '0'; // These tests assert the refusal at SQLite timeout; #1854 queueing has its own test.
   const added = await fixtureAdd(box.runLocal, box.repo, 'web', 'private native attempt', '--specs', 'G1', '--criterion', 'the private page renders', '--json');

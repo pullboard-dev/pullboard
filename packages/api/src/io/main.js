@@ -4,10 +4,9 @@ import { recordedClaimWorktrees } from '../../../activity/index.js';
 import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { readCostAnalytics } from './cost.js';
-import { costAnalyticsSliced } from '../../../stats/index.js';
-import { coordinatorUsage } from '../../../stats/index.js';
-import { publicUsage } from '../../../stats/index.js';
-import { costWindowStart } from '../../../stats/index.js';
+import { loadCostAnalytics } from '../../../stats/light.js';
+import { coordinatorUsage } from '../../../stats/light.js';
+import { publicUsage } from '../../../stats/light.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
@@ -18,8 +17,8 @@ import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { codeAt } from './code.js';
 import { startHandlerPool } from './pool.js'; import { readPoolHandlers } from './pool/reads.js';
 import { counterProofStats } from '../../../verify/index.js';
-import { proofStats } from '../../../stats/index.js';
-import { isProofAgent } from '../../../stats/index.js';
+import { proofStats } from '../../../stats/light.js';
+import { isProofAgent } from '../../../stats/light.js';
 import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
@@ -27,7 +26,7 @@ import { boardFilePath } from '../../../store/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../logic/fields.js';
 import { milestonePace } from '../logic/milestone-pace.js';
 import { milestoneWithoutPace } from '../logic/milestone-pace.js';
-import { capacityAtRead } from '../../../stats/index.js';
+import { capacityAtRead } from '../../../stats/light.js';
 import { nativeStateClockMatches } from '../../../store/index.js';
 import {
   dependencyValues,
@@ -93,7 +92,7 @@ import {
   compareFlowWindows,
   prepareFlowHistory,
   projectFlowStats,
-} from '../../../stats/index.js';
+} from '../../../stats/light.js';
 import { projectItemSpecApprovals } from '../../../spec/index.js';
 import { specApprovalState } from '../../../spec/index.js';
 import { verdictProjector } from '../../../verify/index.js';
@@ -117,10 +116,12 @@ import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
 import { recordLapseEnabled } from '../../../config/index.js';
+import { runnerCommitReportEnabled } from '../../../config/index.js';
 import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
 import { boardJobQueueCall } from './gate.js';
+import { runnerCommitPort } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
 import { typedFieldsEnabled } from '../../../config/index.js';
@@ -865,7 +866,7 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
 /**
  * The refusal for a move whose caller may not act as the agent it names, or null. Only the coordinator's own credential
  * moves with no agent or as the coordinator; the board key a served board shares with runners and seats must name its
- * seat. A join names no agent: it registers one [P7,#10785].
+ * seat, and executeMove then checks that seat's own key. A join names no agent: it registers one [P7,#10785,#10790].
  */
 function moveIdentityRefusal(body, who) {
   if (!body || typeof body !== 'object' || body.verb === 'join' || who?.coordinator) return null;
@@ -874,8 +875,8 @@ function moveIdentityRefusal(body, who) {
   return null;
 }
 
-/** Register a seat from another machine over the API, with a remote marker in place of a board-host path [P7]. */
-function remoteJoin(root, body, isMain, boardOpeners) {
+/** Register a seat from another machine over the API, with a remote marker in place of a board-host path, and issue it its own key [P7,#10790]. */
+function remoteJoin(root, body, isMain, boardOpeners, issueSeatKey) {
   const { lane, model, route = 'strong', family } = body.args ?? {};
   if (body.agent !== undefined || body.item !== undefined || Object.keys(body.args ?? {}).some((key) => !['lane', 'model', 'route', 'family'].includes(key))) throw new Refused('BAD_REQUEST', 'a join takes only args lane, model, route and family; send no agent or item');
   if (typeof model !== 'string' || !model.trim()) throw new Refused('MODEL_REQUIRED', 'a remote join needs args.model; run pullboard join <lane> --model "<model name>"');
@@ -884,15 +885,19 @@ function remoteJoin(root, body, isMain, boardOpeners) {
   if (relayLinked(root)) throw new Refused('WRONG_BOARD', 'this board is a relay clone; set board.url to the board host that owns it');
   return withBoard(root, (board) => {
     const agent = store.register(board, { lane, path: store.REMOTE_AGENT_PATH + randomBytes(16).toString('hex'), route, family, model });
-    return { version: VERSION, event: board.lastEvent ?? null, result: { agent, lane, route, model } };
+    return { version: VERSION, event: board.lastEvent ?? null, result: { agent, lane, route, model, key: issueSeatKey(board, agent) } };
   }, isMain, boardOpeners);
 }
 
-/** Execute one actual CLI command and retain its emitted event without a latest-row race. */
-export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
+/** Execute one actual CLI command and retain its emitted event without a latest-row race; a credential ({ seatKey }) must hold the named seat's own key. */
+export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners, credential) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent', 'commits'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args, agent and commits; remove the unknown fields');
   if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
-  if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners) };
+  const seatKeys = await import('./seat-key.js');
+  if (body.verb === 'join') return { status: 200, body: remoteJoin(root, body, isMain, boardOpeners, seatKeys.issueSeatKey) };
+  // Checked before the seat resolves or any commits arrive: a wrong key learns nothing and runs nothing [P7,#10790].
+  const keyRefused = credential && withBoard(root, (board) => seatKeys.seatKeyRefusal(board, String(body.agent), credential.seatKey), isMain, boardOpeners);
+  if (keyRefused) return { status: 403, body: refusalDocument(keyRefused) };
   const argv = boardOpeners.moveArgs(body);
   let seat;
   try { seat = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
@@ -1069,7 +1074,9 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // board moved under, or one with an unsettled verdict, is never served again as current, but it stays the
     // base the next build extends: why, on a board that moves every second, dropping it made every build full.
     entry.uncertain = state.items.filter(item => item.verdictState?.reason).map(item => item.id);
-    if (!(after.cacheable && before.revision === after.revision) || entry.uncertain.length) entry.revision = null;
+    // A build made while the view still reads its row ages names no commit for them at a commit HEAD; no input moves when they land, so it is never current (#10869).
+    entry.rowAgesPending = Boolean(before.inputs.head) && Object.values(state.rowAgesAt ?? {}).some((at) => at === null);
+    if (!(after.cacheable && before.revision === after.revision) || entry.uncertain.length || entry.rowAgesPending) entry.revision = null;
     if (before.cacheable) {
       stateCache.delete(before.cacheId);
       stateCache.set(before.cacheId, entry);
@@ -1111,7 +1118,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       const compact = entry.compact ??= compactItemSummaries(entry.summary);
       const open = entry.open ??= compactItemSummaries(openOnly(entry.summary));
       return {
-        cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
+        cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, rowAgesPending: entry.rowAgesPending === true, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
         open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
         full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,
@@ -1289,7 +1296,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       const givenCoordinator = Buffer.from(String(req.headers['x-pullboard-coordinator-key'] ?? ''));
       const coordinator = (validCookie && cookieFetchSiteAllowed)
         || (coordinatorKey !== null && (credentialMatches(given, coordinatorKey) || credentialMatches(givenCoordinator, coordinatorKey)));
-      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host, coordinator };
+      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host, coordinator, seatKey: String(req.headers['x-pullboard-seat-key'] ?? '') || null };
     },
     settings: (selected) => {
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
@@ -1297,7 +1304,8 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     },
     boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function', typeof viewPorts?.machineName === 'function' ? viewPorts.machineName() : undefined)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
-    board: (id) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}` }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
+    // A runner job call's board lookup rides the runner lane with its call, so agent moves filling the pool never starve it (#10786).
+    board: (id, _who, { runner = false } = {}) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}`, runner }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
     stateJson: (board, who, seen, options) => materialized(() => materializer.stateJson(board, seen, { ...options, stateDetail }), () => projectRead(board, () => {
       const sent = localState(board, seen, options);
@@ -1328,9 +1336,10 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
     health: () => (pool ? { pool: pool.health() } : {}),
-    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs` }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
-    costAnalytics: (board, window, who) => {
+    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs`, runner: true }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
+    costAnalytics: async (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
+      const { costWindowStart, costAnalyticsSliced } = await loadCostAnalytics();
       return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)) });
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
@@ -1338,7 +1347,9 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     move: (board, body, who) => {
       const refused = moveIdentityRefusal(body, who);
       if (refused) return { status: 403, body: refusalDocument(refused) };
-      return pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners);
+      // Without the coordinator's own credential, a move as a seat carries that seat's own key too [P7,#10790].
+      const credential = who?.coordinator ? undefined : { seatKey: who?.seatKey ?? null };
+      return pool ? pool.call('move', { root: board.root, body, personChannel, credential }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners, credential);
     },
     request: (board, body) => pool && !relayLinked(board.root) ? pool.call('request', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/requests` }) : createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
@@ -1355,7 +1366,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, runnerCommit: body?.action === 'claim' ? runnerCommitPort(board.root, runnerCommitReportEnabled()) : null, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }

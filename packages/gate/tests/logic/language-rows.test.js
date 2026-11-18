@@ -15,6 +15,7 @@ import { junitCommand } from '../../src/logic/junit.js';
 import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { LANGUAGE_ROWS } from '../../src/logic/language-rows.js';
 import { LANGUAGES } from '../../src/logic/language-rows.js';
+import { rowMatches } from '../../src/logic/language-rows.js';
 import { privateFixtureFiles } from '../fixtures/child.js';
 
 const SRC = join(import.meta.dirname, '..', '..', 'src');
@@ -121,4 +122,25 @@ test('gate.language-rows.no-second-table: clause 2: no gate source outside langu
     const lines = readFileSync(join(SRC, file), 'utf8').split('\n');
     assert.deepEqual(lines.filter((line) => key.test(line)), [], `${file} names no language id as an object key`);
   }
+});
+
+test('gate.language-rows.swift-dart-detected: clause 1: a Package.swift root detects swift with swift test and its Tests glob [C7]', () => {
+  const names = ['Package.swift'];
+  const row = LANGUAGE_ROWS.find((found) => found.language === 'swift');
+  assert.equal(rowMatches(row, names, () => null), true);
+  assert.equal(row.command, 'swift test');
+  assert.deepEqual(row.tests, ['**/Tests/**/*Tests.swift']);
+  assert.equal(rowMatches(row, ['main.swift'], () => null), false);
+});
+
+test('gate.language-rows.dart-flutter-detected: clause 2: a pubspec.yaml detects dart test, and a flutter pubspec detects flutter test only [C7]', (t) => {
+  const plain = privateFixtureFiles('language-rows-dart-');
+  const flutter = privateFixtureFiles('language-rows-flutter-');
+  t.after(() => rmSync(plain.root, { recursive: true, force: true }));
+  t.after(() => rmSync(flutter.root, { recursive: true, force: true }));
+  plain.write('pubspec.yaml', 'name: app\ndev_dependencies:\n  test: any\n');
+  flutter.write('pubspec.yaml', 'name: app\ndependencies:\n  flutter:\n    sdk: flutter\n');
+  assert.deepEqual(detectLanguages(plain.root), [{ language: 'dart', command: 'dart test' }]);
+  assert.deepEqual(detectLanguages(flutter.root), [{ language: 'dart', command: 'flutter test' }]);
+  assert.deepEqual(detectTestGlobs(flutter.root), ['**/*_test.dart']);
 });

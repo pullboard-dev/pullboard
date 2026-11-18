@@ -29,6 +29,8 @@ function boardFor(t, snapshot, over = {}) {
 function drive(board, hook, run) {
   const seen = [];
   board[hook] = (answer) => seen.push(answer);
+  // The shadow compare runs only while the writer decides; with moves.live.submit on (its default since #8395) the table decides and compares nothing.
+  board.movesLive = { submit: false };
   run();
   assert.equal(seen.length, 1, 'the writer ran the table once');
   return seen[0];
