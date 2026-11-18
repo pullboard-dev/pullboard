@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/outbox packages/keys packages/kernel */
+/** @pullboard-test-input source-cell packages/outbox */
 // fixture-subject: flushOutbox on a link folder that holds a key-free outbox, over a real private folder and a stand-in relay that is down
 /** flushOutbox folds the key-free outbox into the sealed outbox once the board key reads again, and leaves it alone while the key stays unreadable [C7,#9894]. */
 import assert from 'node:assert/strict';
