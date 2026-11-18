@@ -27,11 +27,11 @@ function handedBackTwice(t, engine) {
   return store.getItem(board, id).item_route;
 }
 
-test('clause 1: a board replayed below that engine keeps today\'s release decisions: untouched releases do not count [C7,#2970]', t => {
+test('store.logic-board-release-table.below-the-engine-untouched-releases-do-not-count: clause 1: a board replayed below the untouched-reroute engine keeps today\'s release decisions: untouched releases do not count [C7,#2970]', t => {
   assert.equal(handedBackTwice(t, RELEASE_UNTOUCHED_REROUTE_ENGINE - 1), 'mid');
 });
 
-test('clause 1: a board replayed at or above that engine counts untouched INELIGIBLE and ROUTED_ELSEWHERE releases and moves the item one route up [C7,#2970]', t => {
+test('store.logic-board-release-table.at-the-engine-untouched-releases-count: clause 1: a board replayed at or above the untouched-reroute engine counts untouched INELIGIBLE and ROUTED_ELSEWHERE releases and moves the item one route up [C7,#2970]', t => {
   assert.equal(handedBackTwice(t, RELEASE_UNTOUCHED_REROUTE_ENGINE), 'strong');
   assert.equal(handedBackTwice(t, RELEASE_UNTOUCHED_REROUTE_ENGINE + 1), 'strong');
 });
