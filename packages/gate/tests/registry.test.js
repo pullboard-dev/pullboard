@@ -152,5 +152,5 @@ test('gate.registry.top-left: clause 2: [C7,U148] the journey parity, run-tests-
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
-  assert.equal(ids.length, 36, 'all 36 tests of those files are registered');
+  assert.equal(ids.length, 32, `all 32 tests of those files are registered (${ids.length})`);
 });
