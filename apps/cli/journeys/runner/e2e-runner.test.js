@@ -26,7 +26,7 @@ const {
   project, LIGHT_BRIEF,
 } = e2e;
 
-test('one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', async () => {
+test('cli.journeys-runner-e2e-runner.one-runner-climbs-the-tiers-an: one runner climbs the tiers: an escalated item goes to the next command, with the earlier tries; it merges the verified work an item waits on [N16]', async () => {
   const box = project();
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web api', ...lines, ''].join('\n'));

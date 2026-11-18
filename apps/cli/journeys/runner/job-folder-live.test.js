@@ -39,7 +39,7 @@ function sweep(root, rows = []) {
   return sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), census, diskFree: () => ({ free: 1e12, total: 2e12 }) });
 }
 
-test('clause 1: a long job mid-run keeps its folder when its worker is gone but a process of its group still runs and writes [C7]', async t => {
+test('cli.journeys-runner-job-folder-live.a-long-job-mid-run-keeps: clause 1: a long job mid-run keeps its folder when its worker is gone but a process of its group still runs and writes [C7]', async t => {
   const { root, job } = jobFolder(t, 'running-AAAAAA', { ...DEAD_OWNER, pgid: 4242 });
   const report = await sweep(root, [{ pid: 4243, pgid: 4242 }]);
   assert.ok(existsSync(join(job, 'tmp', 'clone-a', '.git', 'objects', 'pack')), 'the running job keeps its folder');
@@ -47,7 +47,7 @@ test('clause 1: a long job mid-run keeps its folder when its worker is gone but 
   assert.ok(report.keptJobs.includes('running-AAAAAA'));
 });
 
-test('clause 1: a live but quiet job past 30 minutes keeps its folder when its worker is gone [C7]', async t => {
+test('cli.journeys-runner-job-folder-live.a-live-but-quiet-job-past: clause 1: a live but quiet job past 30 minutes keeps its folder when its worker is gone [C7]', async t => {
   const { root, job } = jobFolder(t, 'quiet-DDDDDD', { ...DEAD_OWNER, pgid: 4242 });
   ageAll(job, 3);
   const report = await sweep(root, [{ pid: 4243, pgid: 4242 }]);
@@ -57,14 +57,14 @@ test('clause 1: a live but quiet job past 30 minutes keeps its folder when its w
   assert.deepEqual(report.removedJobs, []);
 });
 
-test('clause 1: a finished job with a terminal result and no process is removed [C7]', async t => {
+test('cli.journeys-runner-job-folder-live.a-finished-job-with-a-terminal: clause 1: a finished job with a terminal result and no process is removed [C7]', async t => {
   const { root, job } = jobFolder(t, 'done-BBBBBB');
   writeFileSync(join(job, 'job-terminal.json'), '{}\n');
   assert.deepEqual((await sweep(root)).removedJobs, ['done-BBBBBB']);
   assert.ok(!existsSync(job));
 });
 
-test('clause 1: a dead job with no result keeps its folder before 24 hours and is removed and logged as abandoned after [C7]', async t => {
+test('cli.journeys-runner-job-folder-live.a-dead-job-with-no-result: clause 1: a dead job with no result keeps its folder before 24 hours and is removed and logged as abandoned after [C7]', async t => {
   const young = jobFolder(t, 'crashed-CCCCCC');
   ageAll(young.job, 3);
   assert.deepEqual((await sweep(young.root)).removedJobs, [], 'three hours quiet with no result keeps the folder');
@@ -82,7 +82,7 @@ test('clause 1: a dead job with no result keeps its folder before 24 hours and i
   assert.ok(!existsSync(old.job));
 });
 
-test('clause 1: a folder with no owner record keeps its folder under 24 hours without a result and is removed as abandoned after [C7]', async t => {
+test('cli.journeys-runner-job-folder-live.a-folder-with-no-owner-record: clause 1: a folder with no owner record keeps its folder under 24 hours without a result and is removed as abandoned after [C7]', async t => {
   const young = jobFolder(t, 'noowner-GGGGGG', null);
   ageAll(young.job, 3);
   assert.deepEqual((await sweep(young.root)).removedJobs, []);
