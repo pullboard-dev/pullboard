@@ -1,5 +1,4 @@
 /** The page's relay-client load failure names its real relay cause, and a plain failure keeps the network wording [C7,#9457]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { pageScriptPart4 } from '../../src/io/page/actions.js';

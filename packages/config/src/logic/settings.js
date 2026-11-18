@@ -226,6 +226,12 @@ export function loadMachineSettings() {
   if (testGroup?.statusOutcomes !== undefined && typeof testGroup.statusOutcomes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.statusOutcomes in ${file} must be true or false`);
   }
+  if (testGroup?.loadRerun !== undefined && typeof testGroup.loadRerun !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.loadRerun in ${file} must be true or false`);
+  }
+  if (testGroup?.retryStaleRecord !== undefined && typeof testGroup.retryStaleRecord !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.retryStaleRecord in ${file} must be true or false`);
+  }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
   }
@@ -390,6 +396,9 @@ export function loadMachineSettings() {
   }
   if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
+  }
+  if (value.join?.coordinatorSeat !== undefined && typeof value.join.coordinatorSeat !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `join.coordinatorSeat in ${file} must be true or false`);
   }
   if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);

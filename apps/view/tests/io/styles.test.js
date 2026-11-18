@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/** */
 /** One composer fills every @pullboard-*-styles marker of the view's stylesheet [C7,#3020]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

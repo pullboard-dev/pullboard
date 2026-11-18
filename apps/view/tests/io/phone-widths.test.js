@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css apps/view/src/io/cost.css */
 /** @pullboard-world-pin reads the private Cost stylesheet beside the shared ones to prove the phone rules. */
 /** At a 390 px phone the Items rows, the search box and the Cost models table stay inside the screen [U94,#6930]. */
 import assert from 'node:assert/strict';

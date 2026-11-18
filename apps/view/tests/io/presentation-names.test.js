@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/data/ceilings/model-names.json apps/view/src/io/presentation.js */
 /** @pullboard-world-pin reads the shipped model-names table and presentation.js source to prove the names live in data. */
 /** @pullboard-test-loads apps/view/src/io/cost/tab.js */
 /** Model and vendor names come from apps/view/data/model-names.json, not presentation.js [P5]. */

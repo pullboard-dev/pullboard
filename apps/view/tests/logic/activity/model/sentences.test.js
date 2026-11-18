@@ -74,7 +74,7 @@ test('view.activity-model-sentences.activity-related-items-prefer-native-context
 
 for (const [kind, verb] of Object.entries({ claim: 'started building', release: 'let go of', fact: 'added a note', note: 'added a note',
   'proof-run': 'ran the proof', reserve: 'started reviewing', accept: 'passed', reject: 'sent back', reopen: 'sent back' })) {
-  test(`Activity ${kind} reads as ${verb}, with its item underneath [N26]`, () => {
+  test(`view.activity-model-sentences.reads-as-${kind}: Activity ${kind} reads as ${verb}, with its item underneath [N26]`, () => {
     const html = render({ events: [event(1, kind)] });
     assert.match(html, new RegExp(`title="Test Model">view-1</span> ${verb}</p><span class="activity-item"`, 'u'));
     assert.match(html, /data-go="item:1">#1<\/a>First &lt;item&gt;/u);

@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css apps/view/src/io/doctrine.css apps/view/src/io/item/panel.css apps/view/src/io/cost.css apps/view/src/io/no-link.css */
 /** Every page takes the design sheet's shapes: 6 px cards, 4 px chips, round dots only, shadows only on floating panels [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

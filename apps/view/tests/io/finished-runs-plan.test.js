@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view packages/store */
 /** The Dashboard finished-runs count reads the job table by index, not by a scan [C7,#8480]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
