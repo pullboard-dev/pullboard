@@ -16,7 +16,7 @@ const CEILING = {
   dashboard: { hang: true },
 };
 
-test('clause 1: every TAB_SPEED_ROWS number is at most its value on main and the goal is 100 ms [C7]', () => {
+test('cli.journeys-init-perf-tab-speed-rows-ceiling.every-row-at-most-its-main-value: clause 1: every TAB_SPEED_ROWS number is at most its value on main and the goal is 100 ms [C7]', () => {
   assert.equal(TAB_SPEED_GOAL_MS, 100);
   for (const [tab, row] of Object.entries(TAB_SPEED_ROWS)) {
     for (const [key, value] of Object.entries(row)) {
@@ -25,7 +25,7 @@ test('clause 1: every TAB_SPEED_ROWS number is at most its value on main and the
   }
 });
 
-test('clause 2: a row may be absent or lower, never higher, and no new tab row appears [C7]', () => {
+test('cli.journeys-init-perf-tab-speed-rows-ceiling.no-row-raised-and-no-new-tab-row: clause 2: a row may be absent or lower, never higher, and no new tab row appears [C7]', () => {
   for (const [tab, row] of Object.entries(TAB_SPEED_ROWS)) {
     assert.ok(Object.hasOwn(CEILING, tab), `${tab} is a new tab row`);
     for (const key of Object.keys(row)) assert.ok(Object.hasOwn(CEILING[tab], key), `${tab} gained the key ${key}`);
