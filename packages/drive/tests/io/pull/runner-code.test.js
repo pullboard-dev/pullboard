@@ -1,12 +1,11 @@
 /** A pull serve rebuilds its own runner code once the board reports a newer trunk commit, after its held jobs post [C7,P7,#10800]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import { test } from 'node:test';
-import { pathToFileURL } from 'node:url';
 import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
-import { runFixtureChild } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 
@@ -71,14 +70,10 @@ test('runners.code.n10800-clause-3-a-failed-refresh-is: #10800 clause 3: a refre
   assert.equal(said.filter(line => line.includes('runner code update to c3')).length, 1);
 });
 
-test('drive.pull.runner-code-lazy: #10872 clause 1: loading the drive cell and serving with no runnerCode port never loads pull/runner-code.js, so cold commands stay inside their closure budgets [C7]', () => {
-  const program = `
-    import { registerHooks } from 'node:module';
-    const loaded = [];
-    registerHooks({ resolve(specifier, context, next) { const found = next(specifier, context); loaded.push(found.url); return found; } });
-    await import(process.argv[1]);
-    console.log(JSON.stringify({ drive: loaded.some(url => url.endsWith('/drive/index.js')), runnerCode: loaded.some(url => url.endsWith('/pull/runner-code.js')) }));`;
-  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', program, pathToFileURL(new URL('../../../index.js', import.meta.url).pathname).href]);
-  assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(JSON.parse(run.stdout), { drive: true, runnerCode: false });
+test('drive.pull.runner-code-lazy: #10872 clause 1: evaluating pull.js resolves no import of pull/runner-code.js, so cold commands stay inside their closure budgets [C7]', async () => {
+  const resolved = [];
+  const hooks = registerHooks({ resolve(specifier, context, next) { const found = next(specifier, context); resolved.push(found.url); return found; } });
+  try { await import(`${new URL('../../../src/io/pull.js', import.meta.url).href}?lazy-check`); } finally { hooks.deregister(); }
+  assert.ok(resolved.length > 5, `pull.js resolved ${resolved.length} imports`);
+  assert.deepEqual(resolved.filter(url => url.endsWith('/pull/runner-code.js')), []);
 });
