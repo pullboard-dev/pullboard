@@ -1,5 +1,4 @@
 /** A sleeping or offline machine reads as asleep with its name, no error look, and the note goes away on waking [H5,N26,#9458]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { relayNoticeMarkup } from '../../src/logic/notice.js';

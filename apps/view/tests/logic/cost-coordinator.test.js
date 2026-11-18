@@ -1,5 +1,4 @@
 /** The Cost view shows the coordinator's usage line when stats return it, and the word unknown when they return none [C7,#9687]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { costOverviewHtml } from '../../src/io/cost/overview.js';

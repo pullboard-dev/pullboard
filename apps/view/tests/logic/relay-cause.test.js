@@ -1,5 +1,4 @@
 /** The phone names the real relay cause and its one fix command, and keeps a network failure a connection problem [H5,N26]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { relayCauseMessage } from '../../src/logic/relay-cause.js';
