@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as landCommand from '../../../../src/io/commands/land.js';
-import { landingStats } from '../../../../../packages/landing/index.js';
-import { landingStatsLines } from '../../../../../packages/landing/index.js';
+import { landingStats } from '../../../../../../packages/landing/index.js';
+import { landingStatsLines } from '../../../../../../packages/landing/index.js';
 
 test('cli.io-commands-land-itself.releasing-a-verified-item-hold-wakes-landing: releasing a verified item hold wakes landing the way an accept does [C7,#2898]', () => {
   const source = readFileSync(new URL('../../../../src/io/commands/hold.js', import.meta.url), 'utf8');
