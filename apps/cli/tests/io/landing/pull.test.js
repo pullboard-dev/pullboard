@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { landingOfferBatches } from '../../../src/io/landing/pull.js';
 import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
+import { offerWithLog } from '../../fixtures/landing/offer.js';
 import { fixtureBoard } from '../../fixtures/board.js';
 import { temporaryDirectory } from '../../fixtures/board.js';
 
@@ -71,4 +72,26 @@ test('cli.io-landing-pull.offer-lock-marks-holder: clause 2: while the offer hol
   assert.deepEqual(holders(), [], 'gone after commit');
   assert.throws(() => underBoardWriteLock(board, () => { throw new Error('refused offer'); }), /refused offer/u);
   assert.deepEqual(holders(), [], 'gone after rollback');
+});
+
+test('cli.io-landing-pull.git-outside-offer-lock: clause 1: offerPulledLanding with parallelGates on starts no git child process while its injected board write lock is held [C7,#11105]', async t => {
+  const { result, lines, jobs } = await offerWithLog(t);
+  const enter = lines.indexOf('LOCK_ENTER'), exit = lines.indexOf('LOCK_EXIT');
+  assert.ok(enter >= 0 && exit > enter, `the offer went through the injected lock: ${lines.join(' | ')}`);
+  assert.deepEqual(lines.slice(enter, exit).filter(line => line.startsWith('git ')), [], 'no git starts between lock enter and lock exit');
+  assert.ok(lines.slice(0, enter).filter(line => line.startsWith('git ')).length > 0, 'the git reads still happen, before the lock');
+  assert.equal(jobs.length, 2, 'the offer was written');
+  assert.ok(result.offered);
+});
+
+test('cli.io-landing-pull.offer-unchanged-outside-lock: clause 2: the offered job carries the same items, files, tests and flakes as when the reads ran inside the lock, and an item a concurrent offer took is still left out [C7,#11105]', async t => {
+  const plain = await offerWithLog(t);
+  // Disjoint files and tests: parallel gates offer one single-item job per item; each carries its own flakes prefixes.
+  assert.deepEqual(plain.jobs.map(job => job.items.map(entry => entry.id)), [[1], [2]]);
+  for (const job of plain.jobs) assert.deepEqual(job.flakes, { rerun: true, prefixes: { check: 'prefix', proof: 'prefix' } });
+  assert.deepEqual(plain.result.items, [1, 2]);
+  const raced = await offerWithLog(t, { concurrentOffer: true });
+  // #2 was offered by the concurrent accept before this offer's lock; this offer adds a job for #1 only.
+  assert.deepEqual(raced.jobs.map(job => job.items.map(entry => entry.id)).sort(), [[1], [2]]);
+  assert.deepEqual(raced.result.items, [1], 'only #1 is left to this offer');
 });

@@ -23,7 +23,7 @@ function trackFixtureFiles(root, ...files) {
   execFileSync('git', ['add', '--', ...files], { cwd: root });
 }
 
-test('the clock-margin guard follows separately captured clock readings [C7]', () => {
+test('gate.io-budgets.the-clock-margin-guard-follows-separately: the clock-margin guard follows separately captured clock readings [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-clock-readings-'));
   try {
     initFixtureRepo(root);
@@ -39,7 +39,7 @@ test('the clock-margin guard follows separately captured clock readings [C7]', (
   }
 });
 
-test('the clock-margin guard follows a fixed wait result into a later assertion [C7]', () => {
+test('gate.io-budgets.the-clock-margin-guard-follows-a: the clock-margin guard follows a fixed wait result into a later assertion [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wait-result-'));
   try {
     initFixtureRepo(root);
@@ -57,7 +57,7 @@ test('the clock-margin guard follows a fixed wait result into a later assertion 
   }
 });
 
-test('the clock-margin guard follows waited results through boolean assertions [C7]', () => {
+test('gate.io-budgets.the-clock-margin-guard-follows-waited: the clock-margin guard follows waited results through boolean assertions [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wait-boolean-'));
   try {
     initFixtureRepo(root);
@@ -82,7 +82,7 @@ test('the clock-margin guard follows waited results through boolean assertions [
   }
 });
 
-test('the clock-margin guard checks both compared assertion arguments [C7]', () => {
+test('gate.io-budgets.the-clock-margin-guard-checks-both: the clock-margin guard checks both compared assertion arguments [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-compared-clock-'));
   try {
     initFixtureRepo(root);
@@ -107,7 +107,7 @@ test('the clock-margin guard checks both compared assertion arguments [C7]', () 
   }
 });
 
-test('the wall-clock scanner skips ignored worktrees [C7]', () => {
+test('gate.io-budgets.the-wall-clock-scanner-skips-ignored: the wall-clock scanner skips ignored worktrees [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wall-clock-tracked-'));
   try {
     initFixtureRepo(root);
@@ -128,11 +128,11 @@ test('the wall-clock scanner skips ignored worktrees [C7]', () => {
   }
 });
 
-test('no test judges work by a fixed wall-clock margin [C7]', () => {
+test('gate.io-budgets.no-test-judges-work-by-a: no test judges work by a fixed wall-clock margin [C7]', () => {
   assert.deepEqual(wallClockViolations(fileURLToPath(new URL('../../../..', import.meta.url))), []);
 });
 
-test('the clock-margin guard catches planted source and names its file and line [C7]', () => {
+test('gate.io-budgets.the-clock-margin-guard-catches-planted: the clock-margin guard catches planted source and names its file and line [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-wall-clock-'));
   try {
     initFixtureRepo(root);
