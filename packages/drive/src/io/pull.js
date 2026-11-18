@@ -44,6 +44,7 @@ import { claimSlotPrefix } from './prune.js';
 import { pruneStaleSlots } from './prune.js';
 import { storeName } from './store-names.js';
 import { firstFailingCase } from './posted-case.js';
+import { runnerCodeWatch } from './pull/runner-code.js';
 
 // Budget: the lease the board grants is 2 minutes; renewing every 30 s survives three lost renewals in a row.
 const RENEW_MS = 30_000;
@@ -707,13 +708,14 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {{ nap: (ms: number) => Promise<void> }} [options.wake] - runners.localWake: an idle wait that also ends when an offering command signals a new job (watchWake); without it the idle wait is the full idleMs [#10409].
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<unknown> }} [options.runnerCode] - With it, a claim answer's runnerCommit that differs from the installed code stops claiming; held jobs finish and post, the code is rebuilt from that commit, and the serve returns restart naming it (#10800).
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
  * @param {boolean} [options.pulledProfilePaths] - gate.pulledProfilePaths: copy each gate phase's timing profile into the job's kept folder and name it on the phase row as profileKept; default off.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, runnerCode = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -993,6 +995,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let exclusive = null;
   // The drain: whether it was announced, and when the trunk was last probed [#9024].
   let drained = false, probedAt = 0;
+  const codeWatch = runnerCodeWatch(runnerCode, say);
+  let restart = null;
   const start = (claim, trunk) => {
     const slot = free.shift();
     let task, known;
@@ -1025,20 +1029,28 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     let answer;
     try { answer = await reliably({ action: 'claim', runner: id, capabilities, jobs: slots, cores, ram: totalmem() }); }
     catch (error) { if (error.code !== 'RUNNER_STOPPED') failure = error; break; }
-    if (!answer.claim) {
+    // A new runnerCommit whose code differs stops claiming once this answer's claim is started; the held jobs finish, then the code is rebuilt (#10800).
+    const updating = await codeWatch.due(answer.runnerCommit);
+    if (!answer.claim && !updating) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
       await Promise.race([wake ? (stopped ? Promise.race([wake.nap(idleMs), stopped]) : wake.nap(idleMs)) : nap(idleMs), ...active]); continue;
     }
-    lastTrunk = answer.trunk;
-    const task = start(answer.claim, answer.trunk);
-    if (once) { await task; break; }
-    // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
-    await Promise.race([task.learned, task]);
+    if (answer.claim) {
+      lastTrunk = answer.trunk;
+      const task = start(answer.claim, answer.trunk);
+      if (once) { await task; break; }
+      // The next claim waits for this job to say whether it holds the runner, so a timed gate is never claimed beside another [C7,#8187].
+      if (!updating) await Promise.race([task.learned, task]);
+    }
+    if (updating) {
+      await Promise.all(active);
+      if (!failure && await codeWatch.apply(updating)) { restart = updating; break; }
+    }
   }
   await Promise.all(active);
   await pruning;
   slotName.release();
   if (failure) throw failure;
-  return { jobs, waits, slots };
+  return { jobs, waits, slots, ...(restart ? { restart } : {}) };
 }
