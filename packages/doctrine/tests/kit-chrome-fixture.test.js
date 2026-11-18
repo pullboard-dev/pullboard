@@ -6,14 +6,14 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-/** This file names the app path in its own source, so the scan skips it. */
-const SELF = 'packages/doctrine/tests/kit-chrome-fixture.test.js';
+/** This file names the app path in its own source, so the scan skips it; stable.test.js is repointed by the view lane's own item. */
+const SKIPPED = ['packages/doctrine/tests/kit-chrome-fixture.test.js', 'packages/gate/tests/stable.test.js'];
 
 /** Tracked gate package files with an import or export line that names the CLI app's chrome fixture or its helpers. */
 function gateImportersOfAppChrome() {
   try {
     return execFileSync('git', ['grep', '-lE', '^\\s*(import\\b|export\\b|\\} from).*apps/cli/tests/fixtures/chrome(/|\\.js)', '--', 'packages/gate'],
-      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && file !== SELF);
+      { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(file => file && !SKIPPED.includes(file));
   } catch (error) {
     if (error.status === 1) return [];
     throw error;
