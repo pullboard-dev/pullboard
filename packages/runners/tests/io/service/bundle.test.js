@@ -62,25 +62,12 @@ test('runners.bundle.n8734-clause-2-a-runner-started: #8734 clause 2: a runner s
     assert.ok(receipt, 'the board got the receipt');
   });
 
-const RELATIVE_IMPORT = /(?:\bfrom|\bimport\s*\()\s*'(\.\.?\/[^']+)'/gu;
-
-/** Every repo file a trusted entry reaches through relative imports that the bundle lacks. */
+/** Every repo file a trusted entry imports that the bundle lacks; the imports of those files are walked by serviceFiles(), which refuses a bundle with one missing. */
 function missingFromBundle(bundle, entries) {
-  const missing = new Set();
-  const seen = new Set();
-  const pending = entries.flatMap(entry => entry.imports);
-  while (pending.length) {
-    const path = pending.pop();
-    if (seen.has(path)) continue;
-    seen.add(path);
-    if (bundle[path] === undefined) { missing.add(path); continue; }
-    if (!path.endsWith('.js')) continue;
-    for (const [, specifier] of bundle[path].matchAll(RELATIVE_IMPORT)) pending.push(join(dirname(path), specifier).replaceAll('\\', '/'));
-  }
-  return [...missing];
+  return [...new Set(entries.flatMap(entry => entry.imports))].filter(path => bundle[path] === undefined);
 }
 
-test('runners.bundle.trusted-entries-closed: clause 1: the bundle holds every repo file the trusted job entries import, gate analysis entry included, and a bundle without the cells cache module is reported [P7,#10826]', () => {
+test('runners.bundle.trusted-entries-closed: clause 1: the bundle holds every repo file the trusted job entries import, gate analysis entry included, and one without the cells cache module is reported [P7,#10826]', () => {
   const bundle = serviceFiles();
   const entries = trustedEntries();
   const analysis = entries.find(entry => entry.name === 'ANALYSIS_ENTRY');
