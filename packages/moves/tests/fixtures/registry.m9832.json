@@ -1,0 +1,5 @@
+{
+  "moves.table-release-twice-engine.on-and-infra-releases-do-not-count": {"proves":{"specs":["C7"],"claim":"clause 1: from the release-twice engine, a release naming --on or an infra-fault note does not count toward releasedTwice."},"why":"A release that waits on another item or a machine fault is not the holder's quality judgement.","kind":"cell unit","inputs":["packages/moves/src/logic/table/release.table.js"]},
+  "moves.table-release-twice-engine.older-engine-still-counts": {"proves":{"specs":["C7"],"claim":"clause 2: the same two releases on a board at an older engine still count, as before."},"why":"Older boards must replay the release decisions they were written under.","kind":"cell unit","inputs":["packages/moves/src/logic/table/release.table.js"]},
+  "moves.table-release-twice-engine.earlier-release-counts-only-at-older-engine": {"proves":{"specs":["C7"],"claim":"clause 2: an earlier release in the history that named --on or an infra note counts at an older engine and not at the new one."},"why":"The history count follows the same engine rule as the move itself.","kind":"cell unit","inputs":["packages/moves/src/logic/table/release.table.js"]}
+}

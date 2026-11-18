@@ -1,0 +1,4 @@
+{
+  "view.inputs.declared": {"proves":{"specs":["C7"],"claim":"every view test that reads repo files carries one header naming the exact files it reads."},"why":"Without it this behaviour could regress with no test naming what it proved.","kind":"cell unit","inputs":["apps/view/tests/inputs.test.js"]},
+  "view.inputs.rule-clean": {"proves":{"specs":["C7"],"claim":"the reader rule reports none in apps/view/tests and no view test carries a source-cell or source-tree header."},"why":"Without it this behaviour could regress with no test naming what it proved.","kind":"cell unit","inputs":["apps/view/tests/inputs.test.js"]}
+}

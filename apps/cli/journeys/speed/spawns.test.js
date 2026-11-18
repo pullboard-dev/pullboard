@@ -22,7 +22,7 @@ function project(t) {
   return { box, log, add, counted: () => Object.assign(box.env, spawnEnv(log)) };
 }
 
-test('held item skipped from the listed row [C7]', (t) => {
+test('cli.journeys-speed-spawns.held-item-skipped-from-the-listed: held item skipped from the listed row [C7]', (t) => {
   const { box, add } = project(t);
   const held = add('Held build');
   const open = add('Open build');
@@ -34,7 +34,7 @@ test('held item skipped from the listed row [C7]', (t) => {
   assert.equal(parsed.item?.item_id ?? parsed.item_id, open, 'next hands out the open item, not the held one');
 });
 
-test('spawn counts for next, claim and submit [C7]', (t) => {
+test('cli.journeys-speed-spawns.spawn-counts-for-next-claim-and: spawn counts for next, claim and submit [C7]', (t) => {
   const { box, log, add, counted } = project(t);
   const ids = [add('Counted one'), add('Counted two')];
   counted();

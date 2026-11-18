@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view */
 /** #3021: the item row and the agent floor seat read a claim's stalled, waiting and handed-off state, never as building [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
