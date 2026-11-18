@@ -453,7 +453,9 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     assert.match(await chrome.stable("document.querySelector('#feed .feed-bar').textContent"), /^\d+ unread\s*show all$/, 'narrowed to the unread shouts, the feed carries its bar with show all');
     await click('#feed [data-unread]');
     assert.equal((await read()).feedBar, false, 'show all brings back every shout and clears the bar');
-    // Under In review, or a lane, the list is narrowed and Rulings steps aside.
+    // Under In review, or a lane, the list is narrowed and Rulings steps aside. The first press of Items closes any item the
+    // shout threads left open, the second shows the list.
+    await click('[data-tab=items]');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:verify');
     // The control answers at once and the page draws on the next turn, so wait for the draw before reading Rulings.
