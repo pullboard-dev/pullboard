@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { after } from 'node:test';
 import { test } from 'node:test';
 import { fixtureMachineSettings } from '../../../../../../packages/gate/tests/fixtures/testkit.js';
 import { runFixtureGit } from '../../../../../../packages/gate/tests/fixtures/child.js';
@@ -10,7 +11,7 @@ import { pullProject } from '../../../fixtures/pull.js';
 import { pullQueue } from '../../../fixtures/pull.js';
 
 /** Claim item 1, commit one file in its folder, move main on, and submit with submit.composeOnRunner set as `on` says; with `declared`, accepted main also declares gen/out.txt as made from gen/in.txt with submit.regenerateDeclared on, and the item edits only gen/in.txt. */
-async function submitted(t, { on, declared = false }) {
+async function runSubmit(t, { on, declared = false }) {
   const box = await pullProject(t, 1);
   if (declared) {
     const configFile = join(box.repo, 'pullboard.json');
@@ -39,6 +40,26 @@ async function submitted(t, { on, declared = false }) {
   const { board } = await pullQueue(t, box);
   const [row] = jobsOf(board.db, { kind: 'gate', item: id });
   return { folder, git, head, main, id, result, row };
+}
+
+const RUNS = new Map();
+const CLEANUPS = [];
+const runKey = ({ on, declared = false }) => `${on}:${declared}`;
+
+after(async () => { for (const cleanup of CLEANUPS.reverse()) await cleanup(); });
+
+/**
+ * The four submit scenarios of this file, started side by side by the first test that asks and cached for the rest: one real
+ * submit takes 30 to 60 s on a loaded runner, and four in a row passed the per-file budget [C7,#10757]. Their fixtures are
+ * removed once, after the last test of the file, so a later test still reads the folder an earlier one started.
+ */
+async function submitted(_t, wanted) {
+  if (!RUNS.size) {
+    const shared = { after: (cleanup) => CLEANUPS.push(cleanup) };
+    for (const scenario of [{ on: true }, { on: false }, { on: true, declared: true }, { on: false, declared: true }]) RUNS.set(runKey(scenario), runSubmit(shared, scenario));
+    await Promise.allSettled([...RUNS.values()]);
+  }
+  return RUNS.get(runKey(wanted));
 }
 
 test('cli.io-submit-handoff-compose-on-runner.with-the-setting-on-submit-merges: clause 1: with submit.composeOnRunner on, submit runs no main merge, compose or trunk merge and queues the unmerged head [C7,#10756]', async t => {
