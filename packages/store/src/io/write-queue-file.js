@@ -66,6 +66,7 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   const publishLock = join(dir, 'publish.lock');
   const runs = new Map();
   let publishing = Promise.resolve();
+  let waiting = 0;
 
   /** True when `pid` is a live process. */
   function alive(pid) {
@@ -98,21 +99,28 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
    * Make write `id` visible, the one place a sequence number is taken. Under a short publish lock the number is the
    * larger of the clock and one above the highest visible record, so sequence order is visibility order: a process
    * stalled before publishing takes a number above every record already visible, never below one that ran [C7,#11021].
+   * True when published; false when another process holds the lock.
    */
-  async function publish(id) {
-    // This process publishes in call order: a write waits for the one before it, so a wait on the lock never reorders them.
+  function tryPublish(id) {
+    if (!takeLock(publishLock)) {
+      if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
+      return false;
+    }
+    try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
+    finally { rmSync(publishLock, { recursive: true, force: true }); }
+    return true;
+  }
+
+  /** Publish after a held lock: this process's waiting writes go in call order, so a wait never reorders them. */
+  async function publishLater(id) {
     const turn = publishing;
     let done;
     publishing = new Promise(resolve => { done = resolve; });
-    await turn;
+    waiting += 1;
     try {
-      while (!takeLock(publishLock)) {
-        if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
-        else await pause(LOCK_RETRY_MS);
-      }
-      try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
-      finally { rmSync(publishLock, { recursive: true, force: true }); }
-    } finally { done(); }
+      await turn;
+      while (!tryPublish(id)) await pause(LOCK_RETRY_MS);
+    } finally { waiting -= 1; done(); }
   }
 
   /** Store a write's outcome and clear its pending record. */
@@ -164,7 +172,7 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
       const done = readRecord(resultFile(id));
       if (done) return done;
       runs.set(id, run);
-      if (!existsSync(pendingFile(id))) await publish(id);
+      if (!existsSync(pendingFile(id)) && (waiting > 0 || !tryPublish(id))) await publishLater(id);
       if (transaction) await new Promise(done => queueMicrotask(done)); // let every write submitted in this turn queue before the drain
       for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
         if (takeLock(lock)) {
