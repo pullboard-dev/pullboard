@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell packages/gate packages/stats */
+/** @pullboard-test-input source-cell packages/gate */
 /** The gate coordinator release module reaches stats through its light door, so loading it pulls in no stats shell [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
