@@ -4,7 +4,7 @@ import { readBoardMeta } from '../../../store/index.js';
 import { flowWhy } from '../logic/flow.js';
 import { shimLifecycle } from '../../../codemap/index.js';
 import { rankInversionHistory } from './inversion.js';
-import { readWorkFreeReleases } from '../../../stats/index.js';
+import { readWorkFreeReleases } from '../../../stats/light.js';
 import { landingFailureFindings } from './landing.js';
 import { noReviewerSupplyFindings } from './supply.js';
 import { credentialExpiryFindings } from './supply.js';
