@@ -87,10 +87,14 @@ function refuseUnreceiptedVerdict(board, id) {
 /** Run a verdict's evidence checks with no lock held and mark the options so the writer skips the slow reads. */
 export function prepareVerdictEvidence(board, args) {
   const [id, options] = args;
-  if (!options || (options.knownMainFailures === undefined && options.quarantineProofId === undefined)) return args;
+  if (!options) return args;
+  // The verify table's reads (history, verdicts, flakes, next ids) depend on no write of the verdict; take them here so the writer only decides and writes [#10868].
+  const verifyFacts = options.landed === true ? undefined : store.prepareVerdictFacts(board, id, options);
+  const withFacts = verifyFacts ? { ...options, verifyFacts } : options;
+  if (options.knownMainFailures === undefined && options.quarantineProofId === undefined) return verifyFacts ? [id, withFacts, ...args.slice(2)] : args;
   store.verdictEvidence(board, id, { agentId: options.agentId, isAccept: options.decision === 'ACCEPT', engine: board.executionEngineVersion ?? ENGINE_VERSION,
     review: options.review, knownMainFailures: options.knownMainFailures, quarantineProofId: options.quarantineProofId });
-  return [id, { ...options, prechecked: true }, ...args.slice(2)];
+  return [id, { ...withFacts, prechecked: true }, ...args.slice(2)];
 }
 
 /** Read the shared gate-run and flake histories with no lock held. */
