@@ -121,18 +121,20 @@ export function captureVerdictReview(root, board, item, trunk = undefined, head 
   }
 }
 
-/** Name the concrete stale proof and the required re-review without changing the original verdict. */
-export function staleVerdictRefusal(item, state) {
+/** Name the concrete stale proof and the required re-review without changing the original verdict; `composeAsObject` words the next step for a board whose re-review composes main as an object. */
+export function staleVerdictRefusal(item, state, { composeAsObject = false } = {}) {
   if (state.landingCode === 'LAND_ITEM_MOVED') return new Refused('STALE_VERDICT',
     `item #${item.item_id}: ${state.reason}; keep its landing receipt and ask the coordinator to create a correction item, then have another agent verify that correction before landing it`);
   const changed = state.file && state.commit
     ? `${JSON.stringify(state.file)} changed on main in ${state.commit}`
     : state.reason ?? 'the reviewed Git history is unavailable';
+  // With submit.composeAsObject on, the re-review runs on a fresh composition of current main, so the builder merges nothing [C7,U159].
+  if (composeAsObject) return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; another agent re-reviews a fresh composition of current main and the submitted commit: pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
   return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; merge current main into the submitted commit, commit a clean composition, then another agent runs pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, derived }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -209,6 +211,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const state = item => {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
+    // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
+    const known = derived?.(item);
+    if (known !== undefined) return known;
     const accepted = acceptedVerdict(board, item);
     const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };

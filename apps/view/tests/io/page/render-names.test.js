@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/data/ceilings/model-names.json apps/view/src/io/page/render.js */
 /** @pullboard-world-pin reads render.js source and the shipped model-names table to prove model labels live in data. */
 /** The page renderer names no model in code; the label rules come from model-names.json [P5]. */
 import assert from 'node:assert/strict';

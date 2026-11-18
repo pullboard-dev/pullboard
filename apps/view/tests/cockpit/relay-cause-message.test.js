@@ -1,6 +1,6 @@
 // pullboard: browser
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css */
 /** @pullboard-test-gui */
-/** @pullboard-test-input source-cell apps/view */
 /** Each relay cause the phone can hit renders its own message in real Chrome at phone width [H5,N26,C7,#9459]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -45,7 +45,7 @@ async function startPhoneFixture() {
   return { origin, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-test('clause 1: relay off, board excluded and network down each render their own message at phone width in real Chrome [H5,N26,C7,#9459]', { timeout: 120_000 }, async (t) => {
+test('view.x-cockpit-relay-cause-message.clause-1-relay-off-board-excluded-and: clause 1: relay off, board excluded and network down each render their own message at phone width in real Chrome [H5,N26,C7,#9459]', { timeout: 120_000 }, async (t) => {
   if (!findChromeExecutable()) return t.skip('Install Chrome or set PULLBOARD_CHROME for the relay cause check.');
   const fixture = await startPhoneFixture();
   const chrome = await stableChrome(await startChrome());

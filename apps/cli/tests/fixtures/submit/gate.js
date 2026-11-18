@@ -55,13 +55,28 @@ function fixtureCall({ dir, cwd, env }, args) {
   return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure ?? null };
 }
 
+/**
+ * Remove a fixture folder, retrying the whole tree for up to 30 s while a late writer (an in-process submit's compile cache or a runner heartbeat) refills it.
+ * Why: a single rmSync walk can finish its readdir before the writer adds a file, and the final rmdir then fails ENOTEMPTY on a loaded runner [C7,#10458].
+ */
+function removeFolder(dir) {
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    try { rmSync(dir, { recursive: true, force: true }); return; }
+    catch (error) {
+      if (!['ENOTEMPTY', 'EBUSY', 'EPERM', 'EMFILE', 'ENFILE'].includes(error.code) || Date.now() >= deadline) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Math.min(200, deadline - Date.now()));
+    }
+  }
+}
+
 /** Create a private Git repository with a deterministic identity and isolated Pullboard home. */
 export function privateRepo(t) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-gate-')));
   dirs.push(dir);
   // The machine's local runner stops before the folder goes: after hooks run in the order they were added, so a runner a
   // later submit started still heartbeat into this folder while it was removed, and rmdir failed ENOTEMPTY [#7530].
-  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 }); });
+  t.after(() => { stopFixtureLocalRunner(join(dir, 'machine-home')); removeFolder(dir); });
   const root = join(dir, 'repo');
   mkdirSync(root);
   const env = {

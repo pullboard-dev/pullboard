@@ -5,9 +5,10 @@ export const WINDOW_HOURS = 24;
 
 /**
  * Report a table's zero-disagreement window. It starts at the later of the first compare and the last disagreement,
- * so a fix to a writer starts a fresh window instead of inheriting the old count.
+ * so a fix to a writer starts a fresh window instead of inheriting the old count. When the record counts the compares
+ * inside the window (`windowCompared`), a window holding none is not ready: time alone proves nothing about the table [C7,#10492].
  *
- * @param {{ compared?: number, firstCompareAt?: string|null, lastDisagreedAt?: string|null }} row - A table's recorded counts.
+ * @param {{ compared?: number, firstCompareAt?: string|null, lastDisagreedAt?: string|null, windowCompared?: number|null }} row - A table's recorded counts.
  * @param {Date|string|number} now - The time to measure to.
  * @param {number} [hours] - The window length that counts as ready.
  * @returns {{ windowStart: string|null, windowHours: number, ready: boolean }}
@@ -17,5 +18,6 @@ export function windowReport(row, now, hours = WINDOW_HOURS) {
   if (!(row.compared > 0) || !times.length) return { windowStart: null, windowHours: 0, ready: false };
   const start = Math.max(...times);
   const elapsed = Math.max(0, (new Date(now).getTime() - start) / 3_600_000);
-  return { windowStart: new Date(start).toISOString(), windowHours: elapsed, ready: elapsed >= hours };
+  const exercised = !Number.isSafeInteger(row.windowCompared) || row.windowCompared >= 1;
+  return { windowStart: new Date(start).toISOString(), windowHours: elapsed, ready: elapsed >= hours && exercised };
 }

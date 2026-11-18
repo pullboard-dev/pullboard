@@ -479,6 +479,12 @@ export function reviewCanonicalFamilies() {
   return loadMachineSettings().review?.canonicalFamilies === true;
 }
 
+/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on, under the flat key "join.coordinatorSeat" or the nested form (#10669). */
+export function joinCoordinatorSeat() {
+  const settings = loadMachineSettings();
+  return settings['join.coordinatorSeat'] === true || settings.join?.coordinatorSeat === true;
+}
+
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
 export function statsRecordCoordinatorUsage() {
   return loadMachineSettings().stats?.recordCoordinatorUsage === true;
@@ -503,6 +509,18 @@ export function flakesRereadRatchetEnabled() {
 export function testStatusOutcomesEnabled() {
   const group = loadMachineSettings().test;
   return group?.statusOutcomes === true;
+}
+
+/** Whether test.loadRerun is on (#10597): off by default; only an exact `true` turns it on. */
+export function testLoadRerunEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.loadRerun === true;
+}
+
+/** Whether test.retryStaleRecord is on (#10663): off by default; only an exact `true` turns it on. */
+export function testRetryStaleRecordEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.retryStaleRecord === true;
 }
 
 /** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
@@ -595,6 +613,11 @@ export function releaseRerouteUntouched() {
   return loadMachineSettings().release?.rerouteUntouched === true;
 }
 
+/** Whether a stale release compares only the released item's own events (#10598): off by default; only an exact `true` turns it on. */
+export function releaseStaleItemRevision() {
+  return loadMachineSettings().release?.staleItemRevision === true;
+}
+
 /** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */
 export function holdsLiftSettled() {
   return loadMachineSettings().holds?.liftSettled === true;
@@ -658,6 +681,14 @@ export function nextRouteByTier() {
  */
 export function heavyLocalHoldEnabled() {
   return loadMachineSettings().machine?.holdHeavyAboveLoad === true;
+}
+
+/**
+ * Whether next offers a light seat an open light-shaped strong item when no light item is free (#9568): off by default, so
+ * next routes items as before; only an exact `true` turns it on.
+ */
+export function nextLightShapedStrong() {
+  return loadMachineSettings().next?.lightShapedStrong === true;
 }
 
 /**
@@ -945,6 +976,17 @@ export function setClauseInspection(enabled) {
   if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'inspection.clauses must be true or false; run pullboard settings inspection.clauses on|off');
   const latest = loadMachineSettings();
   const next = { ...latest, inspection: { ...latest.inspection, clauses: enabled } };
+  writeMachineSettings(next);
+  return next;
+}
+
+/**
+ * Turn runners.localWake on or off, keeping every other machine setting.
+ * Why a writer: the key is stored flat ("runners" is the runner list), so setPersonSetting's nested path cannot write it [C7,#10418].
+ */
+export function setLocalWake(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'runners.localWake must be true or false');
+  const next = { ...loadMachineSettings(), 'runners.localWake': enabled };
   writeMachineSettings(next);
   return next;
 }

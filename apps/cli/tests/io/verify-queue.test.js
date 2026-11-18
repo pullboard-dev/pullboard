@@ -24,7 +24,7 @@ function submitted(queueAccept) {
   return box;
 }
 
-test('clause 1: with verify.queueAccept on, verify accept returns within 2 s with the frozen check queued as a runner job and the review reserved to that seat [C7,V4]', async () => {
+test('cli.io-verify-queue.with-verify-queueaccept-on-verify-accept-returns: clause 1: with verify.queueAccept on, verify accept returns within 2 s with the frozen check queued as a runner job and the review reserved to that seat [C7,V4]', async () => {
   const box = submitted(true);
   const started = performance.now();
   const accepted = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--json');
@@ -41,7 +41,7 @@ test('clause 1: with verify.queueAccept on, verify accept returns within 2 s wit
   assert.doesNotMatch(shown.stdout, /"item_status":\s*"verified"/u, 'no verdict is recorded until the check finishes');
 });
 
-test('control: with the setting off, verify accept stays synchronous and records its verdict [C7,V4]', async () => {
+test('cli.io-verify-queue.with-the-setting-off-verify-accept-stays: control: with the setting off, verify accept stays synchronous and records its verdict [C7,V4]', async () => {
   const box = submitted(undefined);
   const accepted = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'read the diff against the bar', '--json');
   assert.equal(accepted.code, 0, accepted.stdout + accepted.stderr);

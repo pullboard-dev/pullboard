@@ -11,6 +11,7 @@ import { runFixtureSetupGit } from '../../../gate/tests/fixtures/child.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { cellRepo } from '../../../store/tests/fixtures/cell.js';
 import { pushTrunk } from '../../src/io/runner/job.js';
+import { runLandingJob } from '../../index.js';
 
 const TRUNK = 'refs/heads/main';
 const IDENT = ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test'];
@@ -59,4 +60,33 @@ test('landing.push-race.the-losing-job-lands-on-the-new-main: clause 2: the refu
   assert.equal(push(retry).status, 0, 'the retry against the new main lands');
   assert.equal(status(), '');
   assert.equal(existsSync(join(trunk, 'first.txt')) && existsSync(join(trunk, 'second.txt')), true, 'both landings are in the work tree');
+});
+
+test('landing.push-race.the-land-job-recomposes-and-retries: clause 3: a land job whose push loses to a rival landing composes again on the new main and lands, with the trunk tree clean [C7,#10404,#10575]', async t => {
+  const { trunk, landing, push, status } = racingTrunk(t);
+  const { root: dir } = privateFixtureFiles('pullboard-push-race-job-');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const item = landing('item', 'item.txt');
+  const itemCommit = runFixtureGit(['-C', item.clone, 'rev-parse', 'HEAD']);
+  runFixtureGit(['-C', item.clone, 'push', '-q', trunk, 'HEAD:refs/heads/item-51']);
+  const rival = landing('rival', 'rival.txt');
+  const expect = runFixtureGit(['-C', trunk, 'rev-parse', 'HEAD']);
+  const payload = { shape: 3, remote: trunk, trunk: TRUNK, expect, checkout: true, publish: 'separate',
+    items: [{ id: 51, commit: itemCommit, ref: 'refs/heads/item-51', header: 'feat(landing): item 51 [C7]', trailers: 'Pullboard-Item: #51\nPullboard-Rows: C7' }] };
+  // The rival lands on the trunk while the job's first attempt checks its merged tree, so that attempt's push is the losing one.
+  let rivalTip = null;
+  const checks = () => {
+    if (rivalTip === null) {
+      assert.equal(push(rival).status, 0, 'the rival landing moves main');
+      rivalTip = runFixtureGit(['-C', trunk, 'rev-parse', 'HEAD']);
+    }
+    return { ok: true };
+  };
+  const receipt = await runLandingJob(payload, { workdir: join(dir, 'runner'), checks });
+  assert.equal(receipt.outcome, 'landed', receipt.detail ?? '');
+  assert.equal(receipt.attempts, 2, 'the first push lost, the second attempt landed');
+  assert.deepEqual(receipt.moved, [rivalTip], 'the job saw main move to the rival landing');
+  assert.equal(receipt.base, rivalTip, 'the landed attempt composed on the new main');
+  assert.equal(status(), '', 'the trunk checkout is clean after the lost push and the retry');
+  assert.equal(existsSync(join(trunk, 'rival.txt')) && existsSync(join(trunk, 'item.txt')), true, 'both landings are in the work tree');
 });

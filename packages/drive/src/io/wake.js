@@ -8,9 +8,7 @@
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-
-/** The file an offering command touches inside the local runner folder. */
-export const WAKE_FILE = 'wake';
+import { WAKE_FILE } from './local.js';
 
 /**
  * Watch the wake file: nap(ms) waits up to ms and ends early when the file is touched. A touch that lands while no nap

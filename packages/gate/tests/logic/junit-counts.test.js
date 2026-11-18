@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { junitCounts } from '../../src/logic/junit-counts.js';
+import { junitCounts } from '../../src/logic/junit.js';
 
 const MIXED = `<?xml version="1.0"?>
 <testsuites><testsuite name="s" tests="5">
