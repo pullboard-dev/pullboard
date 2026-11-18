@@ -33,7 +33,7 @@ function sources({ job = {} } = {}) {
   };
 }
 
-test('clause 1: publicSnapshot lists runners 1..N with busy or idle and, for busy ones, kind, item, files selected, done, failing and minutes left, null when unknown [N26]', () => {
+test('view.live-runners.clause-1-publicsnapshot-lists-runners-1-n: clause 1: publicSnapshot lists runners 1..N with busy or idle and, for busy ones, kind, item, files selected, done, failing and minutes left, null when unknown [N26]', () => {
   const { live } = publicSnapshot({ live: sources() });
   assert.deepEqual(live.runners.map(runner => [runner.runner, runner.state]), [[1, 'busy'], [2, 'busy'], [3, 'idle'], [4, 'busy']],
     'configured runners in settings order, then other runners by sorted name; numbers only');
@@ -52,7 +52,7 @@ test('clause 1: publicSnapshot lists runners 1..N with busy or idle and, for bus
   assert.deepEqual(estimateLeft({ selected: 3, elapsedMs: 0, fileTimes: {} }), null, 'no recorded time is no estimate');
 });
 
-test('each running item carries per-file state and the latest finished files when its runner reports them, null states otherwise [N26]', () => {
+test('view.live-runners.each-running-item-carries-per-file-state: each running item carries per-file state and the latest finished files when its runner reports them, null states otherwise [N26]', () => {
   const quiet = publicRunners(sources());
   const gate = quiet.runs.find(run => run.kind === 'gate');
   assert.deepEqual(gate.files, [{ file: 'apps/a.test.js', state: null }, { file: 'apps/b.test.js', state: null }, { file: 'apps/c.test.js', state: null }],
@@ -69,7 +69,7 @@ test('each running item carries per-file state and the latest finished files whe
   assert.deepEqual(partial.files.map(entry => entry.state), ['green', 'waiting', 'waiting'], 'once a runner reports files, the unreported ones are waiting');
 });
 
-test('clause 2: runner records full of host names, addresses, users, seats, paths and run ids yield a snapshot with none of them [N26]', () => {
+test('view.live-runners.clause-2-runner-records-full-of-host: clause 2: runner records full of host names, addresses, users, seats, paths and run ids yield a snapshot with none of them [N26]', () => {
   const progress = { finished: 1, failures: 0, files: { 'apps/a.test.js': 'green' }, latest: ['apps/a.test.js'] };
   const text = JSON.stringify(publicSnapshot({ live: sources({ job: { progress } }) }));
   for (const secret of SECRETS) assert.equal(text.includes(secret), false, `the public snapshot leaks ${secret}`);
@@ -77,7 +77,7 @@ test('clause 2: runner records full of host names, addresses, users, seats, path
   assert.match(text, /apps\/a\.test\.js/u, 'repo-relative test paths are public');
 });
 
-test('the fail-closed text blocks still refuse a private name that reaches the runner projection [N26]', () => {
+test('view.live-runners.the-fail-closed-text-blocks-still-refuse: the fail-closed text blocks still refuse a private name that reaches the runner projection [N26]', () => {
   const privateHost = ['test-host', 'local'].join('.');
   const leaked = sources({ job: { files: [`apps/${privateHost}/a.test.js`] } });
   assert.throws(() => publicSnapshot({ live: leaked }), error => error.code === 'PUBLIC_EXPORT_BLOCKED' && /machine or host name/u.test(error.message)
@@ -85,7 +85,7 @@ test('the fail-closed text blocks still refuse a private name that reaches the r
   assert.throws(() => publicSnapshot({ live: sources() }, { privateBoard: true }), /private item/u);
 });
 
-test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy per runner and no host, address or user name [N26]', () => {
+test('view.live-runners.n-5885-clause-1-the-anonymous-runner-snapshot: #5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy per runner and no host, address or user name [N26]', () => {
   const raw = sources({ job: { progress: { finished: 1, load: { at: ago(0), average: [6, 5, 4], cpus: 8, freeMB: 4096, memoryMB: 16384 } } } });
   raw.runners[0].load = { busyPercent: 91.6, freeMB: 1024, memoryMB: 32768, host: 'runner-a.example.test', user: 'user', address: '192.0.2.98' };
   const { live } = publicSnapshot({ live: raw });
@@ -100,4 +100,16 @@ test('#5885 clause 1: the anonymous runner snapshot carries cpu, ram and busy pe
   assert.equal(/freeMB|memoryMB|cpus|average|busyPercent/u.test(text), false, 'only the two percents leave the machine');
   assert.deepEqual(loadPercents({ average: [40], cpus: 8, freeMB: 9, memoryMB: 4 }), { cpu: 100, ram: 0 }, 'percents clamp to 0..100');
   assert.deepEqual(loadPercents(null), { cpu: null, ram: null });
+});
+
+test('view.live-runners.clause-1-a-run-listing-such-a: clause 1: a run listing such a file and a short one passes publicSnapshot and lists only the short one [N26]', () => {
+  const digest = 'a1b2c3d4'.repeat(8);
+  const long = 'packages/gate/tests/journey-parity-export-team-board.test.js';
+  const hexed = `apps/view/tests/${digest}.test.js`;
+  const { live } = publicSnapshot({ live: sources({ job: { files: ['apps/a.test.js', long, hexed], progress: { latest: [long, hexed, 'apps/a.test.js'], files: { 'apps/a.test.js': 'green' } } } }) });
+  const gate = live.runs.find(run => run.kind === 'gate');
+  assert.deepEqual(gate.files, [{ file: 'apps/a.test.js', state: 'green' }], 'the 40-character segment and the 64-hex name leave the list');
+  assert.deepEqual(gate.latest, [{ file: 'apps/a.test.js', state: 'green' }]);
+  const text = JSON.stringify(live);
+  assert.equal(text.includes('journey-parity') || text.includes(digest), false);
 });

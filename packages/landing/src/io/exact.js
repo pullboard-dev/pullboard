@@ -14,9 +14,11 @@ export function changedCells(files) {
  * receipt for that file, the red is a flake on this tree and the proof goes on, recording `flakes` as {file, tree}; a file that is red
  * again, or that main has no green receipt for, ends the proof red naming the file, the rerun and main's receipt (or its absence) [V37].
  * Why: a whole-tree proof meets timing flakes a single file never would, and a flake with no green main behind it is not proven one.
+ * With `ports.runBar` (landing.sprintBarTests on) the batch items' frozen bar tests run once after the static stage, before the cells, and
+ * `barTests` records [{item, files}]; a bar file that is red (after the same one rerun) or missing ends the proof red naming the item and the file [U147].
  *
  * @param {{ tree: string }} record The batch's exact-tree record, whose tree id this proof is keyed by.
- * @param {{ changedFiles: () => string[], pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string, files?: string[] }>, rerunFile?: (file: string) => Promise<{ isGreen: boolean }>, mainReceipt?: (file: string) => { result: string, main?: string, receiptId?: string } | null }} ports
+ * @param {{ changedFiles: () => string[], pin: () => string, runStatic: () => Promise<{ isGreen: boolean, output?: string }>, runCell: (cell: string) => Promise<{ isGreen: boolean, output?: string, files?: string[] }>, runBar?: () => Promise<{ isGreen: boolean, output?: string, files?: string[], refused?: boolean, item?: number, file?: string, items?: { item: number, files: string[] }[] }>, rerunFile?: (file: string) => Promise<{ isGreen: boolean }>, mainReceipt?: (file: string) => { result: string, main?: string, receiptId?: string } | null }} ports
  *   What the proof reads and runs; the caller supplies them so this file imports nothing.
  * @returns {Promise<{ tree: string, pin: string, cells: string[], result: 'green'|'red', failed?: string, output?: string, file?: string, rerun?: 'green'|'red', mainReceipt?: object|null, flakes?: { file: string, tree: string }[] }>}
  */
@@ -26,17 +28,34 @@ export async function sprintProof(record, ports) {
   const flakes = [];
   const staticRun = await ports.runStatic();
   if (!staticRun.isGreen) return { ...proof, result: 'red', failed: 'static', ...(staticRun.output ? { output: String(staticRun.output).slice(-2000) } : {}) };
-  for (const cell of cells) {
-    const run = await ports.runCell(cell);
-    if (run.isGreen) continue;
+  /** Settle one red run: a red file gets one rerun and main's receipt before the proof is red; returns the red proof, or null when every red file was a flake. */
+  const settle = async (run, failed, extra = () => ({})) => {
     const output = run.output ? { output: String(run.output).slice(-2000) } : {};
-    if (!ports.rerunFile || !run.files?.length) return { ...proof, result: 'red', failed: cell, ...output };
+    if (!ports.rerunFile || !run.files?.length) return { ...proof, result: 'red', failed, ...extra(undefined), ...output };
     for (const file of run.files) {
       const again = await ports.rerunFile(file);
       const receipt = ports.mainReceipt?.(file) ?? null;
-      if (!again.isGreen || receipt?.result !== 'green') return { ...proof, result: 'red', failed: cell, file, rerun: again.isGreen ? 'green' : 'red', mainReceipt: receipt, ...(flakes.length ? { flakes } : {}), ...output };
+      if (!again.isGreen || receipt?.result !== 'green') return { ...proof, result: 'red', failed, file, rerun: again.isGreen ? 'green' : 'red', mainReceipt: receipt, ...(flakes.length ? { flakes } : {}), ...extra(file), ...output };
       flakes.push({ file, tree: record.tree });
     }
+    return null;
+  };
+  if (ports.runBar) {
+    // With landing.sprintBarTests on, every batch item's frozen bar tests run on this exact tree, whatever the changed cells select [U147].
+    const bar = await ports.runBar();
+    proof.barTests = (bar.items ?? []).map(row => ({ item: row.item, files: row.files }));
+    const ownerOf = file => bar.items?.find(row => row.files.includes(file))?.item ?? bar.item;
+    if (!bar.isGreen) {
+      const red = bar.refused ? { ...proof, result: 'red', failed: 'bar', item: bar.item, ...(bar.file ? { barFile: bar.file } : {}), output: String(bar.output ?? '').slice(-2000) }
+        : await settle(bar, 'bar', file => ({ item: ownerOf(file) }));
+      if (red) return red;
+    }
+  }
+  for (const cell of cells) {
+    const run = await ports.runCell(cell);
+    if (run.isGreen) continue;
+    const red = await settle(run, cell);
+    if (red) return red;
   }
   return { ...proof, result: 'green', ...(flakes.length ? { flakes } : {}) };
 }

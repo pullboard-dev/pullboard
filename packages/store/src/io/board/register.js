@@ -38,8 +38,11 @@ export function isRemoteAgentPath(path) {
  * independent verifiers (#579). A creator may name the new seat (`id`, the lane's next form) when
  * the relay already issued a token for the next name; ids then skip taken names.
  *
+ * With `coordinatorSeat: true` a worktree other than the main checkout joins the coordinator lane as
+ * `coordinator-<n>`, so paths no lane owns have a seat beside the main checkout; the main checkout stays `coordinator`.
+ *
  * @param {any} board
- * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string }} who
+ * @param {{ lane: string, path: string, route?: string, family?: string | null, model?: string | null, parent?: string | null, session?: string | null, createdBy?: string, id?: string, coordinatorSeat?: boolean }} who
  * @returns {string} The agent's id.
  */
 export function register(board, who) {
@@ -93,13 +96,16 @@ export function register(board, who) {
     const { total } = board.db
       .prepare('SELECT COUNT(*) AS total FROM agent WHERE agent_lane = ?')
       .get(lane);
-    if (lane === COORDINATOR && total > 0) {
+    // A caller that asks for a coordinator seat (its setting read in the command layer) adds one beside the main checkout [C7,#10571].
+    const coordinatorSeat = lane === COORDINATOR && who.coordinatorSeat === true;
+    // The main checkout's seat is the agent named coordinator; a coordinator seat registered first never takes its place.
+    if (lane === COORDINATOR && !coordinatorSeat && board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(COORDINATOR)) {
       throw new Refused('ONE_COORDINATOR', 'the coordinator is the main checkout; it already has one');
     }
     if (createdBy !== undefined && createdBy !== 'machine' && createdBy !== COORDINATOR && !board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(createdBy)) {
       throw new Refused('NO_AGENT', `the creating seat ${createdBy} is not registered; create new seats from a joined worktree or the main checkout`);
     }
-    const id = lane === COORDINATOR ? COORDINATOR
+    const id = lane === COORDINATOR && !coordinatorSeat ? COORDINATOR
       : engine < VERIFIER_STANDING_ENGINE ? `${lane}-${total + 1}` : newSeatId(board, lane, total, named);
     // Delivery cursors are local-only; a new inbox starts at this join's current shout high-water mark.
     board.db
