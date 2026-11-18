@@ -11,6 +11,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { liveFolderRefusal } from '../../../src/io/item/folder.js';
 import { openItemFolder } from '../../../src/io/item/folder.js';
 import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
@@ -151,6 +152,34 @@ test('cli.item-folder.checkout-workers-include-asks-git: clause 2: a config file
   assert.ok(launches >= 1, 'an include directive is answered by git');
 });
 
+/** Put GIT_CONFIG_COUNT pairs in the environment for one case, then take them out again. */
+function configPairs(t, pairs) {
+  const keys = ['GIT_CONFIG_COUNT', ...pairs.flatMap((_, index) => [`GIT_CONFIG_KEY_${index}`, `GIT_CONFIG_VALUE_${index}`])];
+  process.env.GIT_CONFIG_COUNT = String(pairs.length);
+  pairs.forEach(([key, value], index) => { process.env[`GIT_CONFIG_KEY_${index}`] = key; process.env[`GIT_CONFIG_VALUE_${index}`] = value; });
+  t.after(() => { for (const key of keys) delete process.env[key]; });
+}
+
+test('cli.item-folder.config-count-no-launch: clause 1: parallelCheckout launches no git process when GIT_CONFIG_COUNT carries three pairs that do not name checkout.workers [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { primary, seat } = repository(t);
+  configPairs(t, [['user.useConfigOnly', 'true'], ['gc.auto', '0'], ['maintenance.auto', 'false']]);
+  const { launches, result } = await countingGit(() => [parallelCheckout(seat), parallelCheckout(primary)]);
+  assert.deepEqual(result, [['-c', 'checkout.workers=0'], ['-c', 'checkout.workers=0']]);
+  assert.deepEqual(result[0], gitsAnswer(seat), 'the same arguments as git');
+  assert.equal(launches, 0, `launched ${launches} git processes`);
+});
+
+test('cli.item-folder.config-count-sets-workers: clause 2: parallelCheckout returns what git returns when a GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n pair sets checkout.workers [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { seat } = repository(t);
+  configPairs(t, [['gc.auto', '0'], ['Checkout.Workers', '2']]);
+  const { launches, result } = await countingGit(() => parallelCheckout(seat));
+  assert.deepEqual(result, []);
+  assert.deepEqual(result, gitsAnswer(seat), 'the same arguments as git');
+  assert.equal(launches, 0, `launched ${launches} git processes`);
+});
+
 test('cli.io-item-folder.defers-the-running-folder: clause 2: inside a running command the folder it runs in waits for main to finish while other idle folders go at once; outside a command it goes at once [B5,#10891]', async t => {
   const { ctx } = repository(t);
   const seat = ctx.info.root;
@@ -173,4 +202,22 @@ test('cli.io-item-folder.defers-the-running-folder: clause 2: inside a running c
   const outside = await openItemFolder(ctx, ME, 9);
   assert.equal(removeIdleFolder(outside, outside, { seat, running: [outside] }), true, 'outside a command nothing waits');
   assert.equal(existsSync(outside), false);
+});
+
+test('cli.item-folder.live-folder-no-launch: clause 1: liveFolderRefusal launches no git process for an item whose folder does not exist and answers as git does for no checkout, one elsewhere, a locked one and a spaced path [C7,#10862]', async t => {
+  const { primary, seat, ctx } = repository(t);
+  const me = { id: 'seat-x', lane: 'web' };
+  const root = dirname(seat);
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-7', join(root, 'elsewhere')], { cwd: primary });
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-8', join(root, 'locked-away')], { cwd: primary });
+  runFixtureGit(['worktree', 'lock', join(root, 'locked-away')], { cwd: primary });
+  mkdirSync(join(root, 'spaced dir'));
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-9', join(root, 'spaced dir', `${seat.split('/').pop()}-item-9`)], { cwd: primary });
+  const answers = [];
+  for (const id of [6, 7, 8, 9]) { const refusal = await liveFolderRefusal(ctx, null, me, id); answers.push(refusal && refusal.code); }
+  // The no-checkout item answers from Git's files alone; the other three go on to the same checks as before, which may read Git.
+  assert.deepEqual(answers, [null, 'ITEM_FOLDER_PROTECTED', 'ITEM_FOLDER_PROTECTED', null], 'no checkout, one elsewhere, a locked one and a spaced path');
+  const none = await countingGit(() => liveFolderRefusal(ctx, null, me, 6));
+  assert.equal(none.result, null);
+  assert.equal(none.launches, 0, `an item with no folder and no checkout launched ${none.launches} git processes`);
 });

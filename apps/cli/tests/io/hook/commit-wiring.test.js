@@ -90,3 +90,10 @@ test('cli.io-hook-commit-wiring.with-the-setting-off-a-commit-starts: clause 2: 
   assert.equal(on.box.tryGit(on.box.web, 'commit', '-q', '--amend', '-m', 'feat(web): amend the page [G1]').status, 0);
   assert.deepEqual(on.started(), ['pre-commit', 'commit-msg'], 'an --amend with the setting on starts the real hooks');
 });
+
+test('cli.io-hook-commit-wiring.parity-text-drops-only-the-check-baseline: clause 1: parityText drops exactly the check-baseline digest line, singular and plural, and keeps every other line [C7,#10746]', () => {
+  const dir = '/tmp/box';
+  assert.equal(parityText('2 fact activities; details remain on the board\n1 check-baseline activity; details remain on the board\n', dir), '<n> fact activities; details remain on the board\n');
+  assert.equal(parityText('2 fact activities; details remain on the board\n3 check-baseline activities; details remain on the board\n', dir), '<n> fact activities; details remain on the board\n');
+  assert.equal(parityText('#5 check-baseline green at main\n1 check-baseline activity; details remain on the board\nkept line\n', dir), '#5 check-baseline green at main\nkept line\n');
+});

@@ -14,7 +14,7 @@ import { requireUniqueClaims } from '../../../index.js';
 const RECEIPT = fileURLToPath(new URL('../../../../receipt/tests/registry.json', import.meta.url));
 const record = claim => ({ proves: { specs: ['C7'], claim }, why: 'w', kind: 'cell unit', inputs: ['x'] });
 
-test('duplicate.claims.flag: [C7] two records with the same claim fail the check, naming both IDs and the next step', t => {
+test('gate.io-test-duplicate-claims.flag: [C7] two records with the same claim fail the check, naming both IDs and the next step', t => {
   const { root: dir } = privateFixtureFiles('dup-claims-');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'registry.json');
@@ -29,7 +29,7 @@ test('duplicate.claims.flag: [C7] two records with the same claim fail the check
     && /merge|retire/u.test(error.next ?? ''));
 });
 
-test('duplicate.claims.receipt: [C7] the receipt cell records carry no shared claim', () => {
+test('gate.io-test-duplicate-claims.receipt: [C7] the receipt cell records carry no shared claim', () => {
   assert.deepEqual(duplicateClaims(JSON.parse(readFileSync(RECEIPT, 'utf8'))), []);
   assert.doesNotThrow(() => requireUniqueClaims(RECEIPT));
 });

@@ -34,7 +34,7 @@ import { prepareSpareFolder } from './folder/spare.js';
 import { takeSpareFolder } from './folder/spare.js';
 
 /** Git selectors an inherited environment may set; any of them means the config files alone do not say what Git reads. */
-const CONFIG_SELECTORS = ['GIT_CONFIG', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM', 'GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE'];
+const CONFIG_SELECTORS = ['GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM', 'GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE'];
 /** The system config files Git builds on this machine read, since none can be asked without a launch. */
 const SYSTEM_CONFIGS = ['/etc/gitconfig', '/opt/homebrew/etc/gitconfig', '/usr/local/etc/gitconfig',
   '/Library/Developer/CommandLineTools/usr/etc/gitconfig', '/Applications/Xcode.app/Contents/Developer/usr/etc/gitconfig'];
@@ -67,6 +67,25 @@ function configFacts(file) {
 }
 
 /**
+ * Whether the GIT_CONFIG_COUNT pairs in the environment set checkout.workers: Git reads GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n as its highest-priority config,
+ * and test and agent environments carry them (gc.auto, user.useConfigOnly), so they are read here instead of asking Git [C7,#5329].
+ * A count that is not a non-negative integer, a missing key, or a key that turns on per-worktree config returns null, since only Git can say what those mean.
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {boolean | null}
+ */
+function workersSetInEnvironment(env) {
+  if (env.GIT_CONFIG_COUNT === undefined) return false;
+  if (!/^\d+$/u.test(env.GIT_CONFIG_COUNT)) return null;
+  let found = false;
+  for (let index = 0; index < Number(env.GIT_CONFIG_COUNT); index += 1) {
+    const key = env[`GIT_CONFIG_KEY_${index}`]?.toLowerCase();
+    if (key === undefined || key === 'extensions.worktreeconfig') return null;
+    found ||= key === 'checkout.workers';
+  }
+  return found;
+}
+
+/**
  * Whether the repository's own config files set checkout.workers, read with no Git launch; null when only Git can say.
  * @param {string} root any checkout of the repository
  * @returns {boolean | null}
@@ -74,6 +93,8 @@ function configFacts(file) {
 function workersSetInFiles(root) {
   const env = process.env;
   if (CONFIG_SELECTORS.some(key => env[key] !== undefined)) return null;
+  const fromEnvironment = workersSetInEnvironment(env);
+  if (fromEnvironment === null) return null;
   let gitDir = join(root, '.git');
   try {
     if (!statSync(gitDir).isDirectory()) {
@@ -97,7 +118,7 @@ function workersSetInFiles(root) {
       if (!facts) return null;
       found ||= facts.workers;
     }
-    return found;
+    return found || fromEnvironment;
   } catch { return null; }
 }
 
@@ -321,6 +342,25 @@ function branchCheckout(root, ref) {
   return null;
 }
 
+/**
+ * The same checkout branchCheckout finds, read from the registry Git keeps under the common directory, with no Git launch:
+ * the primary checkout's HEAD, then worktrees/<name>/HEAD, gitdir and locked. Why: every fresh claim asked Git for the list, 23 ms median (#10862).
+ */
+function branchCheckoutFromFiles(commonDir, ref) {
+  const read = file => { try { return readFileSync(file, 'utf8').trim(); } catch { return null; } };
+  const wanted = `ref: refs/heads/${ref}`;
+  if (basename(commonDir) === '.git' && read(join(commonDir, 'HEAD')) === wanted) return { path: dirname(commonDir), locked: false };
+  let names;
+  try { names = readdirSync(join(commonDir, 'worktrees')); } catch { return null; }
+  for (const name of names) {
+    const entry = join(commonDir, 'worktrees', name);
+    if (read(join(entry, 'HEAD')) !== wanted) continue;
+    const gitdir = read(join(entry, 'gitdir'));
+    if (gitdir) return { path: dirname(gitdir), locked: existsSync(join(entry, 'locked')) };
+  }
+  return null;
+}
+
 /** The ITEM_FOLDER_PROTECTED refusal for an item branch held in a locked or foreign folder, which no claim adopts. */
 function protectedFolderRefusal(ref, path) {
   return new Refused('ITEM_FOLDER_PROTECTED', `item branch ${ref} remains in protected folder ${path}; the coordinator archives or removes that folder, or continue in a folder of your own`);
@@ -414,7 +454,7 @@ async function recoverPriorFolder(ctx, me, id, desired, ref, { board, onArchive 
 export async function liveFolderRefusal(ctx, board, me, id) {
   if (me.id === 'coordinator') return null;
   const path = itemFolderPath(seatRoot(ctx, board, me), id);
-  const prior = existsSync(path) ? null : branchCheckout(ctx.info.root, branch(me.lane, id));
+  const prior = existsSync(path) ? null : branchCheckoutFromFiles(ctx.info.commonDir, branch(me.lane, id));
   const folder = prior ? prior.path : path;
   if (!folder || !existsSync(folder)) return null;
   // A locked or foreign folder is never adopted (recoverPriorFolder); next passes over its item instead of refusing the call.
