@@ -25,13 +25,13 @@ test('gate.runner-pid.runner-names-itself: the test runner names itself to the t
   const outer = join(dir, 'outer.test.js');
   writeFileSync(inner, `import { appendFileSync } from 'node:fs';
 import { test } from 'node:test';
-test('inner', () => { appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ who: 'inner', runner: process.env.PULLBOARD_TEST_RUNNER_PID }) + '\\n'); });
+test('gate.runner-pid.inner-test-records-nested-runner: inner', () => { appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ who: 'inner', runner: process.env.PULLBOARD_TEST_RUNNER_PID }) + '\\n'); });
 `);
   writeFileSync(outer, `import { appendFileSync } from 'node:fs';
 import { awaitNestedRun } from ${JSON.stringify(new URL('../../index.js', import.meta.url).href)};
 import { spawn } from 'node:child_process';
 import { test } from 'node:test';
-test('outer', async () => {
+test('gate.runner-pid.outer-test-records-runner-pid: outer', async () => {
   appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ who: 'outer', runner: process.env.PULLBOARD_TEST_RUNNER_PID }) + '\\n');
   const nested = spawn(process.execPath, [${JSON.stringify(runner)}, ${JSON.stringify(inner)}], { stdio: 'ignore' });
   appendFileSync(${JSON.stringify(seen)}, JSON.stringify({ who: 'nested runner', pid: String(nested.pid) }) + '\\n');
