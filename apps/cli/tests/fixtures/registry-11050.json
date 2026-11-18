@@ -1,0 +1,4 @@
+{
+  "cli.io-read.item-line-prints-foreign-state": {"proves":{"specs":["C7"],"claim":"itemLine prints the state of a foreign wait and the cause of an unavailable one, and a local wait as before."},"why":"Without it, a regression where itemLine prints the state of a foreign wait and the cause of an unavailable one, and a local wait as before would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/read.test.js"]},
+  "cli.io-read.show-prints-foreign-state": {"proves":{"specs":["C7"],"claim":"pullboard show prints a foreign wait with its state on its first line."},"why":"Without it, a regression where pullboard show prints a foreign wait with its state on its first line would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/read.test.js"]}
+}

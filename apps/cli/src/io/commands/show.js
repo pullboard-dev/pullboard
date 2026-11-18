@@ -69,6 +69,7 @@ import {
   firstLineOf,
   identifyCaller,
   idArg,
+  foreignStates,
   itemLine,
   sayBrief,
 } from '../read.js';
@@ -138,7 +139,7 @@ export async function run(io, { first, values }) {
   // The packet is read from the board's store: no checkout, no test run, no full item projection (#2451).
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
-  const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
+  const { fields, links, item, foreign, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
     // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
     const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board) : null;
     const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project(store.getItem(board, id));
@@ -170,6 +171,7 @@ export async function run(io, { first, values }) {
     const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
     const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
     if (values.json) return { ...result, gateJob, fields, links };
+    result.foreign = await foreignStates(board, item);
     const history = store.events(board, { itemId: id });
     return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
       related: store.relatedItems(board, item), reviewer: store.reviewHolder(board, item),
@@ -204,7 +206,7 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge), foreign), checkText });
   io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
