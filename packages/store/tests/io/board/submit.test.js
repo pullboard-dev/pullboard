@@ -38,5 +38,5 @@ test('store.io-board-submit.a-submit-whose-run-skipped-every-case-names-the-runn
 test('store.io-board-submit.a-run-with-a-passed-case-still-submits: clause 3: a run with at least one passed case for the clause is accepted as before [C7]', t => {
   const f = fixture(t, [{ name: 'one', passed: true, skipped: true, runner: 'r2' }, { name: 'two', passed: true, skipped: false }]);
   f.submit();
-  assert.equal(store.getItem(f.board, f.id).item_state, 'submitted');
+  assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
 });
