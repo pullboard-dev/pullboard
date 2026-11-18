@@ -236,6 +236,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `contribute` | `version:number`, `file:string`, `shape:string`, `ok:boolean`, `failures:array` |
 | `explain` | `version:number`, `table:string`, `guards:array`, `outcomes:array` |
 | `field` | `version:number`, `field:object` |
+| `flow tune` | `version:number`, `windowMinutes:number`, `cycle:object`, `choice:object`, `constraints:array` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `labels` | `version:number`, `labels:array`, `unmet:array` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |

@@ -1211,7 +1211,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', [
   assert.equal(handoff.resume.agent, joined.agent);
 }, ['add', 'bar', 'blueprint', 'check', 'claim', 'companion', 'digest', 'export', 'flakes', 'gate', 'handoff', 'import', 'init', 'join', 'labels', 'land', 'lane', 'lanes', 'loop', 'maintenance', 'milestone', 'publish', 'queue', 'relay', 'reopen', 'rigor', 'roadmap', 'runner', 'search', 'seats', 'sentinel', 'sentinels', 'spec', 'stats', 'submit', 'takeover', 'tool-build', 'trace', 'verify', 'why']);
 
-catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'init'], async () => {
+catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay through real CLI JSON', ['flow replay', 'flow tune', 'init'], async () => {
   const box = await project();
   const result = await json(box, box.repo, 'flow', ['replay'], 'replay');
   assert.equal(result.history.version, 1);
@@ -1220,6 +1220,9 @@ catalogCase('[A1,R1,R2] flow replay exposes its recorded history and replay thro
   assert.ok(Array.isArray(result.replay.items));
   assert.ok(Array.isArray(result.replay.landingOrder));
   assert.equal(typeof result.replay.stages, 'object');
+  const tuned = await json(box, box.repo, 'flow', ['tune'], 'tune');
+  assert.equal(typeof tuned.cycle.due, 'boolean');
+  assert.equal(typeof tuned.choice.kind, 'string');
 }, ['flow', 'init']);
 
 catalogCase('[A1,C7] map exposes its main stamp and every rendered view through real CLI JSON', ['add', 'init', 'map'], async () => {

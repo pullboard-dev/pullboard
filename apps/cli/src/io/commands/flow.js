@@ -6,6 +6,7 @@ import {
   withBoard,
 } from '../entry.js';
 import { replayFlow } from '../../../../../packages/stats/index.js';
+import { runTune } from './flow-tune.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 
 /** Read explicit JSON data, never a script, with an actionable refusal for a malformed input. */
@@ -16,7 +17,8 @@ function readJson(root, file, label) {
 
 /** Run `pullboard flow replay`; exported history contains no detail, descriptions, paths or commit strings. */
 export function run(io, { first, second, rest, values }) {
-  if (first !== 'replay' || second || rest.length) throw new Refused('USAGE', 'run pullboard flow replay [--history <json>] [--policy <json>] --json');
+  if (first === 'tune' && !second && !rest.length) return runTune(io, { values });
+  if (first !== 'replay' || second || rest.length) throw new Refused('USAGE', 'run pullboard flow replay [--history <json>] [--policy <json>] --json, or pullboard flow tune [--window <duration>] --json');
   const ctx = context(io);
   const input = values.history === undefined ? withBoard(ctx, board => ({ version: 1,
     // Do not fetch event_detail: replay/export never reads a title, message, note, path or commit.
