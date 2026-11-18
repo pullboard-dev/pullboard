@@ -10,11 +10,9 @@ import {
   submissionPaths,
 } from '../../../../src/io/trusted/policy.js';
 import {
+  privateFixtureFiles,
   runFixtureGit,
 } from '../../../../../../apps/cli/tests/fixtures/child.js';
-import {
-  privateFixtureFiles,
-} from '../../../../../gate/tests/fixtures/child.js';
 
 /** The arguments that start each fixture repository on its own main branch. */
 const REPOSITORY = ['init', '-q', '-b', 'main'];
