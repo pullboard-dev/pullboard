@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-cell gate */
 /** The store stats fixtures open boards and run git through package homes, so they no longer reach apps/* (slice of #6457) [C7]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -21,5 +21,5 @@ test('store.app-edges-stats.the-committed-cells-edges-json-ceiling: clause 2: th
 });
 
 test('store.app-edges-stats.the-old-stats-fixture-directory-is-gone: clause 3: the old directory packages/store/tests/fixtures/stats no longer exists in the checkout [C7]', () => {
-  assert.equal(existsSync(join(REPO, 'packages/store/tests/fixtures/stats')), false, 'the old stats fixture directory is still present');
+  assert.equal(readdirSync(join(REPO, 'packages/store/tests/fixtures')).includes('stats'), false, 'the old stats fixture directory is still present');
 });
