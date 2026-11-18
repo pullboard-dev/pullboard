@@ -42,6 +42,29 @@ export function replayLanding(board, { since } = {}) {
   return [...latest.values()].filter(batch => !cutoff || Date.parse(batch.updatedAt ?? batch.startedAt ?? 0) >= cutoff).map(batch => replayBatch(batch));
 }
 
+/** The share of re-proved landings above which the U159 stop condition fires, per 100 landings [C7,U159]. */
+export const RETEST_SHARE_STOP = 45;
+
+/**
+ * Count the landed batches of the last `days` days by how their composition was proved, from the exactTree record each batch carries.
+ * Why: the U159 stop condition is a retest share above 45 per 100 landings; this reads the record and starts no run [C7,U159].
+ */
+export function landingStats(batches, { now, days = 7 }) {
+  const cutoff = now - days * 86400000;
+  const landed = batches.filter(batch => batch.state === 'landed' && Date.parse(batch.updatedAt ?? batch.startedAt ?? 0) >= cutoff);
+  const sameTree = landed.filter(batch => batch.exactTree?.composition === 'same-tree').length;
+  const reProved = landed.filter(batch => batch.exactTree?.composition === 're-proved').length;
+  const retestShare = landed.length ? Math.round(reProved * 1000 / landed.length) / 10 : 0;
+  return { days, landings: landed.length, sameTree, reProved, retestShare, stop: retestShare > RETEST_SHARE_STOP };
+}
+
+/** One line per stats answer, with a STOP line naming the U159 stop condition when the retest share is above the limit. */
+export function landingStatsLines(stats) {
+  const lines = [`last ${stats.days} days: ${stats.landings} landings, ${stats.sameTree} same-tree, ${stats.reProved} re-proved; retest share ${stats.retestShare} per 100 landings`];
+  if (stats.stop) lines.push(`STOP: U159 stop condition, the retest share ${stats.retestShare} per 100 landings is above ${RETEST_SHARE_STOP}`);
+  return lines;
+}
+
 /** One line per replayed batch. */
 export function replayLine(row) {
   const detail = [row.files?.length ? row.files.join(', ') : null, row.culprits?.length ? `items ${row.culprits.map(id => `#${id}`).join(', ')}` : null,
