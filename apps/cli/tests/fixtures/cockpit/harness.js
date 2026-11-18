@@ -1179,7 +1179,8 @@ function earlier(repo, at, write) {
 }
 
 /** Visit a real conversation using its native controls before checking complete messages. */
-async function openShoutConversation(chrome, key = 'none') {
+/** A shout with no item has one thread per sender (5084b13705), so the default is web-1's, the seat the fixtures shout from [N26]. */
+async function openShoutConversation(chrome, key = 'from:web-1') {
   if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) {
     await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
   }

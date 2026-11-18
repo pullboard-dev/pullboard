@@ -345,6 +345,25 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     }
     return press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
   };
+  // A shout with no item has one thread per sender (5084b13705), so the three questions sit in three threads: open each in turn
+  // and read its messages, in the order they were said.
+  const readConversations = async () => {
+    const keys = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-th')].map((row) => row.dataset.shoutThread))`));
+    const seen = new Map();
+    for (const key of keys) {
+      await click('#feed [data-shout-thread=' + JSON.stringify(key) + ']');
+      await chrome.waitFor('!!document.querySelector("#feed .conversation-heading")');
+      const cards = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-msg')].map((card) => [Number(card.dataset.shoutId), [...card.querySelector('.sx-tx').childNodes].filter((node) => !node.classList?.contains('sx-mk')).map((node) => node.textContent).join('')]))`));
+      for (const [id, text] of cards) seen.set(id, text);
+    }
+    return [...seen].sort((a, b) => a[0] - b[0]);
+  };
+  // The reply below answers the ruling, so the thread that holds the passed ask is the one left open.
+  const openPassed = async () => {
+    const key = await chrome.stable(`[...document.querySelectorAll('#feed .sx-th')].find((row) => row.querySelector('.sx-tx').textContent.includes('Passed up from web-1'))?.dataset.shoutThread ?? null`);
+    assert.ok(key, 'the passed ask has its thread in the feed');
+    await click('#feed [data-shout-thread=' + JSON.stringify(key) + ']');
+  };
   try {
     await confirmBaseline(view, alpha.repo);
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
@@ -374,14 +393,14 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         await click('[data-tab=shouts]');
         await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .sx-th')");
         await click('[data-page-ctl=shouts][data-value=questions]');
-        await click('#feed [data-shout-thread=\"none\"]');
-        await chrome.waitFor("document.querySelectorAll('#feed .sx-msg').length === data.project.shouts.length");
+        const said = await readConversations();
+        assert.equal(said.length, await chrome.stable('data.project.shouts.length'), `${at}: every shout is in one of the threads`);
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
         // The original native questions now share the Questions segment and an actual conversation.
         assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
         assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
-        assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
+        assert.deepEqual(said.map(([, text]) => text), ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
         assert.ok(r.panelShown, `${at}: the agents rail shows beside the feed`);
         // An agent's row: the item it holds in ink, its seat and when it last moved.
@@ -395,9 +414,10 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
     await click('[data-page-ctl=shouts][data-value=all]');
-    await click('#feed [data-shout-thread="none"]');
+    const all = await readConversations();
+    await openPassed();
     let r = await read();
-    assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
+    assert.deepEqual(all.map(([, text]) => text), ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward, each in its sender\'s thread');
     // A reply sent from the open thread shows in it; no note pushes into a composer's line.
     await chrome.stable("document.querySelector('#feed [data-reply] input').focus()");
     await chrome.send('Input.insertText', { text: 'Footer after the greeting.' });
