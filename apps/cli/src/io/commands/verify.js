@@ -440,8 +440,16 @@ export async function verifyHere(ctx, id, { second, values }) {
             const overlap = sealedMoveOverlap(root, { from: sealedMain, to: trunk.commit, commit, check: frozenCheck(item) });
             if (overlap) moveNote = `main moved since submit and reaches ${overlap}`;
           } catch (error) { moveNote = `main move since submit cannot be judged (${error.message.split('\n')[0]})`; }
+          let sealedPlan;
+          if (!moveNote) {
+            try {
+              const sealedConfig = submitGateConfig(ctx.config, policyAt(root, sealedMain).config);
+              const plan = submitGatePlan(root, sealedConfig, { base: item.item_claim_head, trunk: sealedMain, commit, check: frozenCheck(item) });
+              sealedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
+            } catch { /* A plan that cannot be reproduced grants no reuse. */ }
+          }
           const sealed = moveNote ? null : reusableSubmitProof(store.events(board, { itemId: id }), { item, commit, tree: item.item_tree, main: sealedMain, tooling: toolingTree(root, commit),
-            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true });
+            check: frozenCheck(item), affectedTests: ctx.config.affectedTests ?? '', gate: ctx.config.gate ?? '', supplement: '', allowDeferred: true, expectedPlan: sealedPlan });
           if (sealed?.ids) reused = sealed;
           else reused = { reason: `${reused.reason}; ${moveNote || sealed.reason}` };
         }
