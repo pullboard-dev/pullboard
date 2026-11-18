@@ -27,7 +27,7 @@ function batches(t, { stateA = 'ready' } = {}) {
   return { repo, main, tipA, recorded, dir, read: () => recorded, B: recorded[1] };
 }
 
-test('clause 1: with landing.pipeline on, batch N+1 gates on main plus batch N merge [C7,#8937]', t => {
+test('landing.pipeline-base.batch-gates-on-main-plus-prior-batch: clause 1: with landing.pipeline on, batch N+1 gates on main plus batch N merge [C7,#8937]', t => {
   const { repo, main, tipA, read, B, dir } = batches(t);
   const base = pipelineBase({ config: { landing: { pipeline: true } } }, B, { batches: read });
   assert.equal(base, tipA, 'the later batch gates on the earlier batch tip, which is main plus its merge');
@@ -37,7 +37,7 @@ test('clause 1: with landing.pipeline on, batch N+1 gates on main plus batch N m
   assert.equal(runFixtureGit(['merge-base', main, base], { cwd: repo.root }), main, 'and still sits on main');
 });
 
-test('clause 1: with landing.pipeline off, or none in flight, a batch gates on its own base [C7,#8937]', t => {
+test('landing.pipeline-base.batch-gates-on-own-base: clause 1: with landing.pipeline off, or none in flight, a batch gates on its own base [C7,#8937]', t => {
   const { main, read, B, recorded } = batches(t);
   assert.equal(pipelineBase({ config: { landing: { pipeline: false } } }, B, { batches: read }), main);
   assert.equal(pipelineBase({ config: {} }, B, { batches: read }), main);

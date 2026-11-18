@@ -46,7 +46,7 @@ function trunkBoard(t) {
   return file;
 }
 
-test('clause 1: an old writer refuses UNMERGED_SCHEMA on a board with columns it does not declare, naming the way forward [A5]', t => {
+test('store.io-board-ahead.an-old-writer-refuses-unmerged-schema: clause 1: an old writer refuses UNMERGED_SCHEMA on a board with columns it does not declare, naming the way forward [A5]', t => {
   const file = trunkBoard(t);
   const trunk = new DatabaseSync(file);
   trunk.exec("ALTER TABLE item ADD COLUMN item_trunk_probe TEXT NOT NULL DEFAULT ''");
@@ -61,7 +61,7 @@ test('clause 1: an old writer refuses UNMERGED_SCHEMA on a board with columns it
   });
 });
 
-test('clause 2: the refusal returns in under 1 s while another writer holds the lock, and changes nothing [A5]', t => {
+test('store.io-board-ahead.the-refusal-returns-in-under-1: clause 2: the refusal returns in under 1 s while another writer holds the lock, and changes nothing [A5]', t => {
   const file = trunkBoard(t);
   const trunk = new DatabaseSync(file);
   trunk.exec("ALTER TABLE item ADD COLUMN item_trunk_probe TEXT NOT NULL DEFAULT ''");
@@ -83,7 +83,7 @@ test('clause 2: the refusal returns in under 1 s while another writer holds the 
 });
 
 // A branch with only its own extra columns is covered end to end by apps/cli/journeys/resume/board/schema.test.js.
-test('clause 3: a non-owner whose code declares every shared column still opens and writes as before [A5]', t => {
+test('store.io-board-ahead.a-non-owner-whose-code-declares: clause 3: a non-owner whose code declares every shared column still opens and writes as before [A5]', t => {
   const file = trunkBoard(t);
   const board = openKitBoard(file, undefined, { isMain: false });
   try {
@@ -93,7 +93,7 @@ test('clause 3: a non-owner whose code declares every shared column still opens 
   } finally { closeBoard(board); }
 });
 
-test('clause 1: a board whose gate took a fenced hop still opens from another worktree, without UNMERGED_SCHEMA [C7]', t => {
+test('store.io-board-ahead.a-board-whose-gate-took-a: clause 1: a board whose gate took a fenced hop still opens from another worktree, without UNMERGED_SCHEMA [C7]', t => {
   const file = trunkBoard(t);
   const trunk = new DatabaseSync(file);
   trunk.exec(GATE_HOP_SCHEMA_SQL);

@@ -72,7 +72,7 @@ test('moves.claim-replay.the-claim-table-refuses-in-the-order: clause 1: the cla
     row: 'item-exists', fact: 'itemExists', trace: [{ fact: 'itemExists', holds: false }] });
   assert.equal(run(record, { snapshot: { actor: { ...record.snapshot.actor, joined: false } } }).refused.next, CLAIM_NEXT.NOT_JOINED);
   const other = { id: 1, leaseUntil: '2999-01-01T00:00:00.000Z', parentId: null, verdict: null, builtBy: null, awaitingGateOrReview: false };
-  assert.deepEqual(run(record, { move: { itemFolder: false }, snapshot: { actorClaims: [other] } }).refused.message, 'you already hold #1; submit or release it first (child items are free)');
+  assert.deepEqual(run(record, { move: { itemFolder: false }, snapshot: { actorClaims: [other] } }).refused.message, 'you already hold #1; submit or release it first (children of an item you hold are free)');
   const capped = run(record, { move: { itemFolder: true }, snapshot: { actorClaims: [other], io: { ...record.snapshot.io, seatCap: { n: 1, how: 'claims.perSeat sets 1' } } } }).refused;
   assert.deepEqual([capped.code, capped.next], ['ONE_CLAIM', CLAIM_NEXT.ONE_CLAIM]);
   assert.match(capped.message, /a seat holds up to 1 \(claims\.perSeat sets 1\)/u);

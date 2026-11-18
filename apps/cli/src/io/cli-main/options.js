@@ -1,5 +1,6 @@
 /** The CLI's global switches and the command-aware argument parser [C7]. */
 import { parseArgs } from 'node:util';
+import { Refused } from '../../../../../packages/kernel/light.js';
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -7,6 +8,7 @@ const OPTIONS = {
   files: { type: 'string' },
   'force-size': { type: 'string' },
   'not-duplicate-of': { type: 'string' },
+  here: { type: 'string' },
   confirm: { type: 'boolean' },
   reject: { type: 'boolean' },
   'accept-green': { type: 'string' },
@@ -83,7 +85,7 @@ const OPTIONS = {
   source: { type: 'string' },
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
-  route: { type: 'string' },
+  route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
@@ -140,10 +142,12 @@ const OPTIONS = {
   run: { type: 'string' },
   max: { type: 'string' },
   'dry-run': { type: 'boolean' },
+  'fail-on-drift': { type: 'boolean' },
   prune: { type: 'boolean' },
   utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
+  stats: { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
   overflow: { type: 'string' },
@@ -168,6 +172,7 @@ const OPTIONS = {
   must: { type: 'boolean' },
   json: { type: 'boolean' },
   detail: { type: 'boolean' },
+  audit: { type: 'boolean' },
   fields: { type: 'string' },
   history: { type: 'boolean' },
   verbose: { type: 'boolean' },
@@ -217,7 +222,7 @@ export function parseCommandArgs(argv) {
   choose: for (const wait of [{ type: 'boolean' }, OPTIONS.wait]) {
     for (const take of [{ type: 'boolean' }, OPTIONS.take]) for (const remove of [OPTIONS.remove, { type: 'boolean' }]) {
       try {
-        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, wait, take, remove }, allowPositionals: true }).positionals[0];
+        const candidate = parseArgs({ args: argv, options: { ...OPTIONS, ...(argv[0] === 'spec' ? { commit: { type: 'boolean' } } : {}), wait, take, remove }, allowPositionals: true }).positionals[0];
         if (command === undefined) command = candidate;
         if (['add', 'edit', 'submit', 'done', 'test'].includes(candidate) !== (wait.type === 'boolean')) continue;
         if ((candidate === 'next') !== (take.type === 'boolean')) continue;
@@ -227,14 +232,24 @@ export function parseCommandArgs(argv) {
     }
   }
   const options = { ...OPTIONS,
+    ...(command === 'spec' ? { commit: { type: 'boolean' } } : {}),
     ...(['add', 'edit', 'submit', 'done', 'test'].includes(command) ? { wait: { type: 'boolean' } } : {}),
     ...(command === 'next' ? { take: { type: 'boolean' } } : {}),
   };
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
   return parsed;
+}
+
+/** --level is the approved name for --route (U136): stored events keep route, so every reader sees the value as values.route. */
+function foldLevelIntoRoute(values) {
+  if (values.level === undefined) return;
+  if (values.route !== undefined && values.route !== values.level) throw new Refused('USAGE', `--level ${values.level} and --route ${values.route} name the same setting; give one of them`);
+  values.route = values.level;
+  delete values.level;
 }
 
 /**

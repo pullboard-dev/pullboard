@@ -41,7 +41,7 @@ function acceptedItem(t) {
   return { board, repo, id: item.item_id, checked, git };
 }
 
-test('clause 1: landOneByHand merges the accepted item onto main and records the item as landed [C7,#3775]', t => {
+test('landing.hand.landonebyhand-merges-the-accepted-item-onto: clause 1: landOneByHand merges the accepted item onto main and records the item as landed [C7,#3775]', t => {
   const { board, repo, id, checked, git } = acceptedItem(t);
   const landed = landOneByHand(board, id, { root: repo.root, reason: 'trunk defect #9001 is unrelated to this item', held: HELD, agentId: COORDINATOR_ID });
   assert.equal(git('rev-parse', 'main'), landed.commit, 'main moved to the merge commit');
@@ -49,7 +49,7 @@ test('clause 1: landOneByHand merges the accepted item onto main and records the
   assert.equal(store.getItem(board, id).item_merged_commit, landed.commit);
 });
 
-test('clause 2: the landed record carries the reason and names the bypassed hold [C7,#3775]', t => {
+test('landing.hand.the-landed-record-carries-the-reason: clause 2: the landed record carries the reason and names the bypassed hold [C7,#3775]', t => {
   const { board, repo, id } = acceptedItem(t);
   landOneByHand(board, id, { root: repo.root, reason: 'trunk defect #9001 is unrelated to this item', held: HELD, agentId: COORDINATOR_ID });
   const event = board.db.prepare("SELECT event_detail FROM event WHERE event_kind='merged' AND item_id=? ORDER BY event_id DESC").get(id);
@@ -58,7 +58,7 @@ test('clause 2: the landed record carries the reason and names the bypassed hold
   assert.match(note, /bypassed hold: this trunk is held by #9001 \(open; packages\/x\/tests\/a\.test\.js\)/u);
 });
 
-test('clause 2: a landing with no reason or no hold to bypass refuses and writes nothing [C7,#3775]', t => {
+test('landing.hand.a-landing-with-no-reason-or: clause 2: a landing with no reason or no hold to bypass refuses and writes nothing [C7,#3775]', t => {
   const { board, repo, id } = acceptedItem(t);
   assert.throws(() => landOneByHand(board, id, { root: repo.root, reason: ' ', held: HELD, agentId: COORDINATOR_ID }), { code: 'HAND_REASON' });
   assert.throws(() => landOneByHand(board, id, { root: repo.root, reason: 'why', held: [], agentId: COORDINATOR_ID }), { code: 'NOT_HELD' });

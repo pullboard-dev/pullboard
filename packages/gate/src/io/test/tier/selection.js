@@ -26,6 +26,7 @@ import { codeMapGraph } from '../../affected/tests.js';
 import { BASELINE_TABLES } from '../../../../../commits/light.js';
 import { readTierSnapshot } from './cache.js';
 import { writeTierSnapshot } from './cache.js';
+import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -182,6 +183,31 @@ function ownUnit(row, snapshot, unsealed) {
   return Boolean(owner) && owner !== '.' && unsealed.has(owner) && row.reasons.every(reason => reason.startsWith('cross-package:'));
 }
 
+/** The canary a project with no `canary` list in pullboard.json runs at every gate: the closure budget and stable-ID files [C7,#10874]. */
+export const DEFAULT_CANARY = Object.freeze(['apps/cli/journeys/imports/closure-budget.test.js', 'apps/cli/tests/stable.test.js']);
+
+/**
+ * The canary test files of one commit: its pullboard.json `canary` list, else DEFAULT_CANARY, keeping only files its tree
+ * holds, so a project without them runs none and a stale entry is skipped, never refused. `canary: []` turns it off.
+ * Why: a change confined to one cell selects no journey, yet one eager import there can push every command over its
+ * closure budget; #10800 landed that way through the board's own gate, and only the hand lander's canary caught it [C7,#10874].
+ *
+ * @param {string} root any checkout of the repository
+ * @param {string} [commit] the commit whose config and tree decide the canary
+ * @returns {string[]} the sorted repo-relative test files
+ */
+export function canaryTests(root, commit = 'HEAD') {
+  let declared;
+  try { declared = JSON.parse(sourceGit(root, ['show', `${commit}:pullboard.json`], true) ?? '{}')?.canary; } catch { /* An unreadable config declares nothing; the default stands. */ }
+  const listed = Array.isArray(declared)
+    ? declared.filter(file => typeof file === 'string' && file && !file.startsWith('-') && !file.startsWith('/')).map(file => posix.normalize(file))
+    : DEFAULT_CANARY;
+  if (!listed.length) return [];
+  const present = sourceGit(root, ['ls-tree', '-r', '-z', '--name-only', commit, '--', ...listed], true);
+  const wanted = new Set(listed);
+  return present === null ? [] : [...new Set(present.split('\0').filter(file => wanted.has(file)))].sort();
+}
+
 /**
  * Select only units belonging to changed packages and defer every current journey to the batch.
  * `auditOnly` is landing.auditOnly, joined by the push-only listing (packages/gate/data/tests/push-only.json): a listed file the change does not itself touch is left to the main audit and named in `auditLeft`,
@@ -262,9 +288,12 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // The push-only listing joins landing.auditOnly here, the one place every item gate selects its files [R4,C7].
   const audit = new Set([...(Array.isArray(auditOnly) ? auditOnly : []), ...pushOnlyTests()].filter(file => typeof file === 'string'));
   const touched = new Set(actual ?? []);
-  const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file)).sort();
+  // The canary runs at every gate whatever the change reaches, and no audit listing leaves it out [C7,#10874].
+  const canary = canaryTests(root, commit);
+  const left = [...new Set([...units, ...journeys])].filter(file => audit.has(file) && !touched.has(file) && !canary.includes(file)).sort();
   const kept = file => !left.includes(file);
-  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: units.filter(kept), journeys: journeys.filter(kept), skipped,
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units: [...new Set([...units.filter(kept), ...canary])].sort(),
+    journeys: journeys.filter(file => kept(file) && !canary.includes(file)), skipped,
     ...(left.length ? { auditLeft: left } : {}), ...(sealedCells.length ? { sealedCells } : {}), runner: runner?.trim() || 'node --test' };
 }
 
@@ -294,7 +323,10 @@ function confinementOf(root, base, commit, actual, sealedCells) {
 const PLAN_SHARD = /^packages\/codemap\/data\/plan\/\d+-[^/]+\.json$/u;
 /** The generated fixture registry: one row per test file naming the fixtures it uses. */
 const [FIXTURE_REGISTRY] = BASELINE_TABLES;
-const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', 'packages/gate/data/ceilings/cells-edges.json', TEST_TIERS_FILE, FIXTURE_REGISTRY]);
+/** The per-file cross-cell import ceilings, a committed listing its writer in edges.js names. */
+export { CELLS_EDGES_CEILINGS };
+
+const COMMITTED_LISTINGS = new Set(['packages/gate/data/tests/test-cells.json', CELLS_EDGES_CEILINGS, TEST_TIERS_FILE, FIXTURE_REGISTRY]);
 /** The fixture registry keys each row by the test file it serves, so a row is a cell's own when that file lies in the cell (#4638). */
 const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
 /**
@@ -303,7 +335,7 @@ const FILE_KEYED = new Set([FIXTURE_REGISTRY]);
  * a change to them hides no test from selection. The rest, such as journey reasons, audited helpers and plan shards,
  * are policy a person writes, so only a changed cell's own rows count as part of its change (#4633).
  */
-const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), 'packages/gate/data/ceilings/cells-edges.json': true, [TEST_TIERS_FILE]: true };
+const GENERATED_SECTIONS = { 'packages/gate/data/tests/test-cells.json': new Set(['findings', 'rootTests', 'sealed']), [CELLS_EDGES_CEILINGS]: true, [TEST_TIERS_FILE]: true };
 
 /** Whether a changed path is a listing file a cell's work regenerates beside its code. */
 function isListing(file) { return COMMITTED_LISTINGS.has(file) || PLAN_SHARD.test(file); }

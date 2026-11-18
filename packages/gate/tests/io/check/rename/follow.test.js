@@ -34,7 +34,7 @@ function repository(t) {
   return { root, base, commit: run('rev-parse', 'HEAD').trim() };
 }
 
-test('clause 1: a frozen check naming a test file main renamed runs the renamed file [C7]', t => {
+test('gate.io-check-rename-follow.a-frozen-check-naming-a-test: clause 1: a frozen check naming a test file main renamed runs the renamed file [C7]', t => {
   const { root, base, commit } = repository(t);
   const answer = followRenames(root, 'node --test test/old-name.test.js test/steady.test.js', { base, commit });
   assert.equal(answer.command, 'node --test packages/x/tests/new-name.test.js test/steady.test.js');
@@ -42,7 +42,7 @@ test('clause 1: a frozen check naming a test file main renamed runs the renamed 
   assert.deepEqual(answer.missing, []);
 });
 
-test('clause 2: a check whose file main deleted without a rename keeps its command and still refuses [C7]', t => {
+test('gate.io-check-rename-follow.a-check-whose-file-main-deleted: clause 2: a check whose file main deleted without a rename keeps its command and still refuses [C7]', t => {
   const { root, base, commit } = repository(t);
   const command = 'node --test test/doomed.test.js';
   const answer = followRenames(root, command, { base, commit });

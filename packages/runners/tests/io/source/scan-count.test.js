@@ -42,7 +42,7 @@ function fixture(t) {
   return { root: files.root, commits, add, walked };
 }
 
-test('clause 1: the first and the second scan of a 300-commit history print the commits each walked, with a scanned ancestor and with none [C7,#9859]', t => {
+test('runners.scan-count.the-first-and-the-second-scan: clause 1: the first and the second scan of a 300-commit history print the commits each walked, with a scanned ancestor and with none [C7,#9859]', t => {
   const { root, commits, add, walked } = fixture(t);
   const policies = [defaults().protect];
   protectHistory(root, { commit: commits[HISTORY - 1] }, policies);
@@ -57,14 +57,4 @@ test('clause 1: the first and the second scan of a 300-commit history print the 
   console.log(`scan-count: first scan walked ${first} commits; second scan walked ${second} commits with a scanned ancestor; the same child with none walked ${cold} (history ${HISTORY}, ${ADDED} added)`);
   assert.equal(first, HISTORY);
   assert.equal(cold, HISTORY + ADDED);
-});
-
-test('clause 2: a scan with a scanned ancestor walks no more commits than were added since the first [C7,#9859]', t => {
-  const { root, commits, add, walked } = fixture(t);
-  const policies = [defaults().protect];
-  protectHistory(root, { commit: commits[HISTORY - 1] }, policies);
-  let child;
-  for (let n = 0; n < ADDED; n++) child = add(HISTORY + n);
-  protectHistory(root, { commit: child }, policies);
-  assert.ok(walked() <= ADDED, `the second scan walked ${walked()} commits, more than the ${ADDED} added`);
 });

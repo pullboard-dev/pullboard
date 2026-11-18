@@ -36,7 +36,7 @@ function repository(t) {
   return { root, base: run('rev-parse', 'HEAD').trim() };
 }
 
-test('a test naming a cell reruns only for a change in that cell [C7,V4]', t => {
+test('gate.io-test-inputs.a-test-naming-a-cell-reruns: a test naming a cell reruns only for a change in that cell [C7,V4]', t => {
   const { root, base } = repository(t);
   const gate = selectAffectedTests(root, { base, commit: base, changed: ['packages/gate/src/a.js'] });
   assert.ok(gate.files.includes('packages/gate/tests/cell.test.js'));
@@ -49,7 +49,7 @@ test('a test naming a cell reruns only for a change in that cell [C7,V4]', t => 
   assert.ok(!app.files.includes('packages/gate/tests/cell.test.js'));
 });
 
-test('a plain source-tree header still reads every cell [C7,V4]', t => {
+test('gate.io-test-inputs.a-plain-source-tree-header-still: a plain source-tree header still reads every cell [C7,V4]', t => {
   const { root, base } = repository(t);
   for (const changed of ['packages/gate/src/a.js', 'packages/state/src/b.js', 'apps/cli/src/c.js']) {
     const selection = selectAffectedTests(root, { base, commit: base, changed: [changed] });
@@ -57,7 +57,7 @@ test('a plain source-tree header still reads every cell [C7,V4]', t => {
   }
 });
 
-test('the source-read rigor check accepts a source-cell header and refuses a malformed one [C7]', () => {
+test('gate.io-test-inputs.the-source-read-rigor-check-accepts: the source-read rigor check accepts a source-cell header and refuses a malformed one [C7]', () => {
   assert.equal(declaresSource('/** @pullboard-test-input source-cell gate */\nx\n'), true);
   assert.equal(declaresSource('/** @pullboard-test-input source-cell */\nx\n'), false);
 });
@@ -65,13 +65,13 @@ test('the source-read rigor check accepts a source-cell header and refuses a mal
 const FIXTURE_READ = "import { readFileSync } from 'node:fs';\nreadFileSync(new URL('../tests/fixtures/a.json', import.meta.url));\n";
 const DOCS_READ = "import { readFileSync } from 'node:fs';\nconst x = 1;\nreadFileSync(new URL('../../docs/a.md', import.meta.url));\n";
 
-test('clause 1: with the setting on, an undeclared read under tests/fixtures, data or docs is reported at its first such line [C7,#9801]', () => {
+test('gate.io-test-inputs.with-the-setting-on-an-undeclared: clause 1: with the setting on, an undeclared read under tests/fixtures, data or docs is reported at its first such line [C7,#9801]', () => {
   const files = { 'a.test.js': FIXTURE_READ, 'b.test.js': DOCS_READ, 'c.test.js': `/** @pullboard-test-input docs-tree */\n${DOCS_READ}` };
   const problems = testInputProblems('/unused', Object.keys(files), path => files[path], true);
   assert.deepEqual(problems.map(p => [p.path, p.line]), [['a.test.js', 2], ['b.test.js', 3]]);
 });
 
-test('clause 2: with the setting off the same files are not reported [C7,#9801]', () => {
+test('gate.io-test-inputs.with-the-setting-off-the-same: clause 2: with the setting off the same files are not reported [C7,#9801]', () => {
   const files = { 'a.test.js': FIXTURE_READ, 'b.test.js': DOCS_READ };
   assert.deepEqual(testInputProblems('/unused', Object.keys(files), path => files[path], false), []);
 });

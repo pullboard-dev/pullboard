@@ -80,3 +80,20 @@ export function gateHopMove(db, { item, actor, decide, enabled, beforeWrite }) {
   if (changed !== 1) throw lostRace(db, item, actor);
   return { hop: readGateHop(db, item) };
 }
+
+/**
+ * End the item's open hop because its gate was withdrawn: the row reads ended at the next epoch, so the driver's next step is refused HOP_FENCED [C7,#10224].
+ * A board with no hop table (gate.fencedHop never on), no row, or a hop already done or ended is left as it is.
+ * Why the store ends it itself: the hop table lives in the moves cell above the store, and a withdrawn gate has no live owner to ask, so the row is closed without a table decision.
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {number} item
+ * @returns {{ ended: boolean, epoch?: number }}
+ */
+export function endWithdrawnGateHop(db, item) {
+  if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'gate_hop'").get()) return { ended: false };
+  const row = readGateHop(db, item);
+  if (!row || (row.state !== 'queued' && row.state !== 'driven')) return { ended: false };
+  const moved = gateHopMove(db, { item, actor: 'withdraw', enabled: true, decide: read => ({ hop: { ...read, state: 'ended', owner: null, epoch: read.epoch + 1 } }) }).hop;
+  return { ended: true, epoch: moved.epoch };
+}

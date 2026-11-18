@@ -31,7 +31,7 @@ function box() {
   return { dir, bin, tool, cli };
 }
 
-test('clause 1: the probe names every recorded toolchain that is missing or the wrong version [C7]', () => {
+test('cli.journeys-runner-toolchains-probe.the-probe-names-every-recorded: clause 1: the probe names every recorded toolchain that is missing or the wrong version [C7]', () => {
   const declared = { node: '', pyfake: '3.12', gofake: '1.23', cargofake: '' };
   const verdict = toolchainVerdict(declared, { node: '22.13.1', pyfake: '3.12.4', gofake: '1.22.5', cargofake: null });
   assert.deepEqual(verdict.verified, { node: '', pyfake: '3.12' }, 'an empty version accepts any, and 3.12 accepts 3.12.4');
@@ -40,7 +40,7 @@ test('clause 1: the probe names every recorded toolchain that is missing or the 
   assert.equal(toolchainVerdict({ py: '3' }, { py: '30.1' }).problems.length, 1, 'version 3 does not accept 30.1');
 });
 
-test('clause 1: a runner probe after a toolchain went missing reports it, through the real stand-in ssh [C7]', async () => {
+test('cli.journeys-runner-toolchains-probe.a-runner-probe-after-a-toolchain-went: clause 1: a runner probe after a toolchain went missing reports it, through the real stand-in ssh [C7]', async () => {
   const b = box();
   b.tool('tcfakeone', 'tcfakeone 3.12.4');
   const added = await b.cli('runner', 'add', HOST, '--slots', '1', '--browser', '0', '--toolchain', 'tcfakeone=3.12', '--json');
@@ -50,7 +50,7 @@ test('clause 1: a runner probe after a toolchain went missing reports it, throug
   assert.match(measured.stdout, /runner fixture-host: toolchain tcfakeone is missing \(declared 3\.12\)/u, measured.stdout + measured.stderr);
 });
 
-test('clause 2: runner add records only the toolchains the probe verified and names the rest [C7]', async () => {
+test('cli.journeys-runner-toolchains-probe.runner-add-records-only-the-toolchains: clause 2: runner add records only the toolchains the probe verified and names the rest [C7]', async () => {
   const b = box();
   b.tool('tcokay', 'tcokay version 3.12.4');
   b.tool('tcwrong', 'tcwrong 1.22.5');

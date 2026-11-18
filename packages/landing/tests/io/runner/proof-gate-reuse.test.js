@@ -43,7 +43,7 @@ function prove(fx, ledger, reuseGate) {
   return ledgerProofCheck({ runner: RUNNER, files: FILES, ledger }, { env: cleanEnv(join(fx.scratch, 'land')), reuseGate })({ root: fx.repo.root });
 }
 
-test('clause 1: a hit list covering two of three files reports reused 2 and ran 1, with the per-file account [C7,#9244]', { timeout: 300_000 }, async t => {
+test('landing.proof-gate-reuse.a-hit-list-covering-two-of: clause 1: a hit list covering two of three files reports reused 2 and ran 1, with the per-file account [C7,#9244]', { timeout: 300_000 }, async t => {
   const fx = fixture(t), ledger = await hitList(fx, FILES.slice(0, 2));
   const result = await prove(fx, ledger, true);
   assert.equal(result.ok, true, result.detail);
@@ -55,7 +55,7 @@ test('clause 1: a hit list covering two of three files reports reused 2 and ran 
   assert.equal('reusedFiles' in off.proof, false, 'with the setting off the receipt carries no account');
 });
 
-test('clause 2: a hit whose inputKey no longer matches is run, not reused [C7,#9244]', { timeout: 300_000 }, async t => {
+test('landing.proof-gate-reuse.a-hit-whose-inputkey-no-longer: clause 2: a hit whose inputKey no longer matches is run, not reused [C7,#9244]', { timeout: 300_000 }, async t => {
   const fx = fixture(t), ledger = await hitList(fx, FILES);
   // The merged tree changed one hit file's contents after the gate proved it, so its inputKey is new.
   fx.repo.put(FILES[0], `${PASSING}// changed after the gate\n`);

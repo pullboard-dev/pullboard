@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const SOURCE = join(import.meta.dirname, '../../src/io/smoke.js');
 
-test('clause 1: the sandbox smoke gate slot passes an item and kind builder-test [C7]', () => {
+test('sandbox.attribution.smoke-slot-builder-test: clause 1: the sandbox smoke gate slot passes an item and kind builder-test [C7]', () => {
   const text = readFileSync(SOURCE, 'utf8');
   const at = text.indexOf('await withGateSlot(root');
   assert.notEqual(at, -1, 'smoke.js calls withGateSlot');

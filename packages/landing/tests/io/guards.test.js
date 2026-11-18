@@ -43,7 +43,7 @@ function composed(root, original) {
   return runShell(root, `(\n${original}\n) && '${process.execPath}' affected.cjs`, { stages: true, pipefail: true });
 }
 
-test('compound shell conditionals keep their actual branches and exit status without guessed accounting [C7,V4,B3]', t => {
+test('landing.guards.compound-shell-conditionals-keep-their-actual: compound shell conditionals keep their actual branches and exit status without guessed accounting [C7,V4,B3]', t => {
   const root = fixture(t);
   writeFileSync(join(root, 'armed'), 'yes');
   const command = "printf initial > before.txt && if test -f armed; then printf branch >> branch.txt; fi && if test -f absent; then exit 9; fi";
@@ -61,7 +61,7 @@ test('compound shell conditionals keep their actual branches and exit status wit
   assert.equal(accountedFailures(red, root), null, 'an opaque red command cannot borrow a waiver account');
 });
 
-test('quoted shell keywords remain ordinary arguments in actual staged execution [C7,V4]', t => {
+test('landing.guards.quoted-shell-keywords-remain-ordinary-arguments: quoted shell keywords remain ordinary arguments in actual staged execution [C7,V4]', t => {
   const root = fixture(t);
   const run = runShell(root, "printf '%s\\n' 'if then fi' && false", { stages: true });
   assert.equal(run.isGreen, false);
@@ -69,7 +69,7 @@ test('quoted shell keywords remain ordinary arguments in actual staged execution
   assert.match(run.output, /if then fi/u);
 });
 
-test('generated phases retain original directory changes and separate affected failures [C7,V4]', t => {
+test('landing.guards.generated-phases-retain-original-directory-changes: generated phases retain original directory changes and separate affected failures [C7,V4]', t => {
   const root = fixture(t);
   const run = composed(root, `cd work && '${process.execPath}' ../floor.cjs`);
   assert.equal(run.isGreen, false);
@@ -79,7 +79,7 @@ test('generated phases retain original directory changes and separate affected f
   assert.deepEqual(accountedFailures(run, root), [{ file: 'test/red.test.js', name: 'affected' }]);
 });
 
-test('generated phases retain independent pipeline failures rather than borrowing TAP [C7,V4]', async t => {
+test('landing.guards.generated-phases-retain-independent-pipeline-failures: generated phases retain independent pipeline failures rather than borrowing TAP [C7,V4]', async t => {
   const root = fixture(t);
   const probe = spawnSync('set -o pipefail', { cwd: root, shell: true, encoding: 'utf8' });
   if (probe.status !== 0) {
@@ -100,7 +100,7 @@ test('generated phases retain independent pipeline failures rather than borrowin
   });
 });
 
-test('an exit in the configured phase cannot skip the affected phase or earn a waiver [C7,V4]', t => {
+test('landing.guards.an-exit-in-the-configured-phase: an exit in the configured phase cannot skip the affected phase or earn a waiver [C7,V4]', t => {
   const root = fixture(t);
   const run = composed(root, `'${process.execPath}' floor.cjs; exit 0`);
   assert.equal(run.isGreen, false);
@@ -110,7 +110,7 @@ test('an exit in the configured phase cannot skip the affected phase or earn a w
 });
 
 /** Required provider checks precede real Git, lease, process and board work in each public component entry; the land entry is gone with the batch step (9069644c61). */
-test('missing landing providers refuse before admission or work can begin [B3,R3,Q1,Q3,C7]', async () => {
+test('landing.guards.missing-landing-providers-refuse-before-admission: missing landing providers refuse before admission or work can begin [B3,R3,Q1,Q3,C7]', async () => {
   let called = false;
   const untouched = new Proxy({}, { get() { called = true; throw new Error('provider refusal read the board'); } });
   assert.throws(() => landingWaivers(untouched), /explicit quarantine reader/u);
@@ -137,7 +137,7 @@ function secretRepo(t, baseFiles = { 'a.js': 'export const a = 1;\n' }) {
   return { root, sh, base: commit(baseFiles), candidate: commit };
 }
 
-test('every landing guard refuses a candidate that adds a secret over main, naming file:line and never the value [C7,#5968]', async t => {
+test('landing.guards.every-landing-guard-refuses-a-candidate: every landing guard refuses a candidate that adds a secret over main, naming file:line and never the value [C7,#5968]', async t => {
   const { root, base, candidate } = secretRepo(t);
   const tip = candidate({ 'config.js': `export const region = 'us-east-1';\nexport const key = '${FAKE_KEY}';\n` });
   const refused = error => {
@@ -155,7 +155,7 @@ test('every landing guard refuses a candidate that adds a secret over main, nami
   assert.equal(rows.join('\n').includes(FAKE_KEY), false);
 });
 
-test('a clean candidate passes every landing guard unchanged, even over a main that already held a secret [C7,#5968]', async t => {
+test('landing.guards.a-clean-candidate-passes-every-landing: a clean candidate passes every landing guard unchanged, even over a main that already held a secret [C7,#5968]', async t => {
   const { root, sh, base, candidate } = secretRepo(t, { 'a.js': 'export const a = 1;\n', 'old.js': `export const key = '${FAKE_KEY}';\n` });
   const tip = candidate({ 'b.js': "import { a } from './a.js';\nexport const b = a;\n" });
   const tree = sh('rev-parse', 'HEAD^{tree}');

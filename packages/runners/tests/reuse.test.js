@@ -4,11 +4,11 @@ import { completedTestResult } from '../../gate/index.js';
 import { test } from 'node:test';
 import { fleetTestResultReuse } from './fixtures/fleet.js';
 
-test('clause 2: same-tree review reuses submit receipts on another machine, and a changed environment reruns [C7,V4]', { timeout: 180_000 }, async t => {
+test('runners.reuse.same-tree-review-reuses-submit-receipts: clause 2: same-tree review reuses submit receipts on another machine, and a changed environment reruns [C7,V4]', { timeout: 180_000 }, async t => {
   await fleetTestResultReuse(t, { composition: true });
 });
 
-test('pending, failed and interrupted worker requests are not completed green proof [C7,V4]', () => {
+test('runners.reuse.pending-failed-and-interrupted-worker-requests: pending, failed and interrupted worker requests are not completed green proof [C7,V4]', () => {
   const request = '11111111-1111-4111-8111-111111111111';
   const commit = 'a'.repeat(40);
   const completion = { id: request, commit, tree: 'b'.repeat(40), code: 0, signal: null,

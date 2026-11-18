@@ -28,7 +28,7 @@ function counting(result = HEALTHY) {
   return { calls, measure: async (runner, options) => { calls.push({ host: runner.host, ...options }); if (result instanceof Error) throw result; return result; } };
 }
 
-test('10 concurrent waiting gate processes start one probe per runner and share its result [C7]', async t => {
+test('runners.probe.n10-concurrent-waiting-gate-processes-start: 10 concurrent waiting gate processes start one probe per runner and share its result [C7]', async t => {
   const directory = probes(t), log = join(directory, 'calls.log'), recorded = join(directory, 'recorded.log');
   const child = `import { appendFileSync } from 'node:fs';
 import { refreshRunnerMeasurements } from ${JSON.stringify(SLOTS)};
@@ -51,7 +51,7 @@ await refreshRunnerMeasurements(${JSON.stringify(SETTINGS)}, {
   assert.equal(shared.filter(line => line === 'runner-b:8').length, 10, 'every waiter ends with runner-b measured facts');
 });
 
-test('a shared result is reused for 15 s, then the next waiter probes again [C7]', async t => {
+test('runners.probe.a-shared-result-is-reused-for: a shared result is reused for 15 s, then the next waiter probes again [C7]', async t => {
   const probeDirectory = probes(t), fake = counting(), now = Date.parse('2026-11-04T22:00:00Z');
   const recorded = [];
   const record = host => recorded.push(host);
@@ -65,7 +65,7 @@ test('a shared result is reused for 15 s, then the next waiter probes again [C7]
   assert.equal(recorded.filter(host => host === 'runner-b').length, 12);
 });
 
-test('a failed probe backs that runner off for at least 60 s [C7]', async t => {
+test('runners.probe.a-failed-probe-backs-that-runner: a failed probe backs that runner off for at least 60 s [C7]', async t => {
   const probeDirectory = probes(t), now = Date.parse('2026-11-04T22:00:00Z');
   const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
   const failing = counting(new Error('ssh: connect timed out'));
@@ -84,7 +84,7 @@ test('a failed probe backs that runner off for at least 60 s [C7]', async t => {
   assert.equal(unhealthy.calls.length, 1, 'an unhealthy answer backs off like a failure');
 });
 
-test('a recorded measurement younger than 15 s is used without probing [C7]', async t => {
+test('runners.probe.a-recorded-measurement-younger-than-15: a recorded measurement younger than 15 s is used without probing [C7]', async t => {
   const probeDirectory = probes(t), fake = counting(), now = Date.parse('2026-11-04T22:00:00Z');
   const fresh = new Date(now - 14_999).toISOString(), stale = new Date(now - 15_000).toISOString();
   await refreshRunnerMeasurements({ gate: { loadAwareDispatch: true }, runners: [{ host: 'fresh', cpuLoad: { at: fresh } }, { host: 'stale', cpuLoad: { at: stale } }] },
@@ -92,7 +92,7 @@ test('a recorded measurement younger than 15 s is used without probing [C7]', as
   assert.deepEqual(fake.calls.map(call => call.host), ['stale']);
 });
 
-test('a probe claim left by a dead process is taken over once stale, never while fresh [C7]', async t => {
+test('runners.probe.a-probe-claim-left-by-a: a probe claim left by a dead process is taken over once stale, never while fresh [C7]', async t => {
   const probeDirectory = probes(t), now = Date.parse('2026-11-04T22:00:00Z');
   const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
   let release;
@@ -107,7 +107,7 @@ test('a probe claim left by a dead process is taken over once stale, never while
   await first;
 });
 
-test('a just-created claim with no owner record yet is held, so an interleaved second process starts no probe [C7]', async t => {
+test('runners.probe.a-just-created-claim-with-no: a just-created claim with no owner record yet is held, so an interleaved second process starts no probe [C7]', async t => {
   const probeDirectory = probes(t), now = Date.now();
   const settings = { gate: { loadAwareDispatch: true }, runners: [{ host: 'runner-a' }] };
   const lock = join(probeDirectory, `${createHash('sha256').update('runner-a').digest('hex').slice(0, 24)}.lock`);

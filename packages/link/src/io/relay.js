@@ -4,6 +4,7 @@ import { orderedMoveCommand } from '../logic/relay/order.js';
 import { withRelayExclusion } from './relay/exclusion.js';
 import { relinkReplacement } from './relay/relink.js';
 import { relayExclusion } from './relay/exclusion.js';
+import { renewAfterSync } from './relay/credentials.js';
 import { excludeRelayByPerson } from './relay/exclusion.js';
 import { clearRelayExclusion } from './relay/exclusion.js';
 import { reportClearedExclusion } from './relay/exclusion.js';
@@ -995,6 +996,7 @@ export async function syncRelay(root, io) {
       if (await io.checkpointInBackground()) { if (state.checkpoint) await io.scheduleCheckpoint(root, file, io.checkpointWorker); else await io.requestCheckpointCheck(root, file, io.checkpointWorker); }
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
+      await renewAfterSync(file, state, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay/handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
       return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });
     }
@@ -1362,6 +1364,8 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         clearedExclusion = clearRelayExclusion(root);
         if (reusableSession === undefined) await publishExcludedBoards({ ...signed, account, url }, io, request);
       }
+      // A paused baseline upload waits for the relay, but relay on is still the person's explicit opt back in, so the opt-out ends here too (#1299).
+      else if (state.baselinePause) clearedExclusion = clearRelayExclusion(root);
       result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard });
     }
     catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard }); }

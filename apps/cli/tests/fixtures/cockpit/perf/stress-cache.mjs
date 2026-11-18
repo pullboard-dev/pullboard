@@ -10,7 +10,6 @@ import { readdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { userInfo } from 'node:os';
@@ -67,6 +66,21 @@ function repathFiles(dir, from, to) {
   }
 }
 
+/**
+ * Resolve once `marker` exists. Polls instead of fs.watch: a watcher armed after the build finished, or on a folder
+ * that did not yet exist, never fires, which left a run silent at under 1% CPU until the file kill [C7].
+ */
+export function waitForMarker(marker, pollMs = 500, maxMs = 150_000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (existsSync(marker)) { clearInterval(timer); resolve(); }
+      else if (Date.now() - started > maxMs) { clearInterval(timer); reject(new Error(`Refused(STRESS_BOARD_COLD, tab-speed stage "board generation" saw no cache marker in ${maxMs / 1000} s; rerun this file)`)); }
+    }, pollMs);
+    if (existsSync(marker)) { clearInterval(timer); resolve(); }
+  });
+}
+
 /** What a cold call waits on: the detached build's exit, or the marker appearing from another run's build. */
 let pending = null;
 
@@ -85,7 +99,7 @@ export function cachedStressBoard(inputs) {
       const child = spawn(process.execPath, [join(HERE, 'stress-cache-build.mjs'), JSON.stringify(inputs), cache, lock], { detached: true, stdio: 'ignore' });
       pending = new Promise(resolve => child.once('exit', resolve));
     } else {
-      pending = new Promise(resolve => { const watcher = watch(stressCacheRoot(), () => { if (existsSync(marker)) { watcher.close(); resolve(); } }); });
+      pending = waitForMarker(marker);
     }
     return null;
   }

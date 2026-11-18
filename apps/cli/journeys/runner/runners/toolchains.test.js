@@ -12,13 +12,13 @@ const usage = () => ({ slots: 0, browsers: 0, landingShards: 0, admittedSince: 0
 /** The real runner choice for one job under a machine settings file's content. */
 const choose = (settings, runners = [PLAIN, EQUIPPED]) => pickTieredRunner(runners, new Set(), false, usage, gateRunnerLoadPolicy(settings), NOW).selected?.host;
 
-test('clause 2: with the setting naming a toolchain, a job goes only to the runner whose recorded toolchains include every named one [C7]', () => {
+test('cli.journeys-runner-runners-toolchains.with-the-setting-naming-a-toolchain-a: clause 2: with the setting naming a toolchain, a job goes only to the runner whose recorded toolchains include every named one [C7]', () => {
   assert.equal(choose({ 'runners.requiredToolchains': 'node' }), 'tool-box', 'the plain runner has more headroom but lacks node');
   assert.equal(choose({ 'runners.requiredToolchains': 'node, python' }), 'tool-box', 'every name must be recorded');
   assert.equal(choose({ 'runners.requiredToolchains': 'node,cargo' }), undefined, 'no runner has cargo, so the job waits in the queue');
 });
 
-test('clause 3: with the setting blank or unset every compatible runner is still eligible [C7]', () => {
+test('cli.journeys-runner-runners-toolchains.with-the-setting-blank-or-unset-every: clause 3: with the setting blank or unset every compatible runner is still eligible [C7]', () => {
   assert.equal(choose({}), 'plain-box', 'unset: the runner with the most headroom wins');
   assert.equal(choose({ 'runners.requiredToolchains': null }), 'plain-box');
   assert.equal(choose({ 'runners.requiredToolchains': '' }), 'plain-box');

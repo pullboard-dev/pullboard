@@ -29,13 +29,13 @@ function declares(source) {
 
 const readers = testFiles(DIR).map((file) => ({ file, source: readFileSync(file, 'utf8') })).filter(({ source }) => READ.test(source));
 
-test('clause 1: every test file in packages/landing/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('landing.inputs.every-reader-declares-its-inputs: clause 1: every test file in packages/landing/tests that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   assert.ok(readers.length > 0, 'the scan finds the cell test files that read');
   const bare = readers.filter(({ source }) => !declares(source)).map(({ file }) => file.slice(DIR.length + 1));
   assert.deepEqual(bare, []);
 });
 
-test('clause 2: with the declared-inputs rule on, no landing-cell reader is reported, and a header names a cell, never the whole tree [C7,U149]', () => {
+test('landing.inputs.rule-on-reports-no-reader: clause 2: with the declared-inputs rule on, no landing-cell reader is reported, and a header names a cell, never the whole tree [C7,U149]', () => {
   const tree = readers.filter(({ source }) => source.split(/\r?\n/u).slice(0, 4).some((line) => TREE_HEADER.test(line))).map(({ file }) => file.slice(DIR.length + 1));
   assert.deepEqual(tree, []);
 });

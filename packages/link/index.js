@@ -31,7 +31,9 @@ export { actorTransport, cacheSeatToken, ensurePersonCoordinator, nameNextSeat, 
 export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from './src/io/relay/setup.js';
 export { signSshVouch, verifySshVouch } from './src/io/relay/proof.js';
 export { RECOVER_COMMAND, parkedHealth, parkedMoves, recoveryRefusalMatches, recoverySummary, unlinkedRelayStatus } from './src/logic/relay/fields.js';
-export { relayStorage, relayStorageLine } from './src/logic/relay/storage.js';
+export { relayStorage } from './src/io/relay/pause.js';
+export { relayStorageLine } from './src/io/relay/pause.js';
 export { clearUploadPauseNotices, firstUploadPauseNotice, permanentUploadRefusal, safePauseMessage, uploadPauseType, uploadRetryReady } from './src/io/relay/pause.js';
 export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecoverParked, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/io/relay.js';
+export { renewAfterSync, rememberMachine } from './src/io/relay/credentials.js';
 export { landingRelayCallbacks } from './src/logic/landing.js';

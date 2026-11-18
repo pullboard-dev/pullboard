@@ -16,6 +16,8 @@ import { boardPath } from '../remote/board.js';
 import { reportRemoteRefusal } from '../remote/board.js';
 import { requestJson } from '../remote/board.js';
 import { seatAgent } from '../remote/board.js';
+import { seatKey } from '../remote/board.js';
+import { seatRoute } from '../remote/board.js';
 
 // Budget: one fact move runs one small CLI write on the board host.
 const FACT_TIMEOUT_MS = 30_000;
@@ -55,20 +57,16 @@ function runFiles(root, command, files) {
 
 /**
  * The seat's one claimed item on the served board, or a refusal: a receipt belongs to exactly one claim.
+ * Read from the seat's own agent route, never the board state.
  * @param {{ url: string, token: string }} remote
- * @param {string} path The served board's API path.
  * @param {string} agent
  */
-async function claimedItem(remote, path, agent) {
-  const document = await requestJson(remote, `${path}/state`);
-  // A state summary leaves out the owner, which each claimed item's detail carries.
-  const claimed = ((document.state ?? document).items ?? []).filter((item) => item.status === 'claimed');
-  const details = await Promise.all(claimed.map(async (item) => (await requestJson(remote, `${path}/items/${item.id}`)).item ?? {}));
-  const claims = claimed.filter((item, index) => (item.owner ?? details[index].owner) === agent);
-  if (claims.length !== 1) {
-    throw new Refused('TEST_NO_CLAIM', `${agent} holds ${claims.length} claims on the board at board.url; a test receipt records on exactly one; claim one with pullboard claim <id>, or run pullboard next`);
+async function claimedItem(remote, agent) {
+  const { claimed = [] } = await seatRoute(remote, agent);
+  if (claimed.length !== 1) {
+    throw new Refused('TEST_NO_CLAIM', `${agent} holds ${claimed.length} claims on the board at board.url; a test receipt records on exactly one; claim one with pullboard claim <id>, or run pullboard next`);
   }
-  return claims[0].id;
+  return claimed[0];
 }
 
 /** One receipt line for the board: result, files, head, host and time, readable in show's thread. */
@@ -100,12 +98,13 @@ export async function runRemoteTest(io, files, values, remote) {
     const agent = seatAgent(io.cwd);
     if (!agent) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
     const path = await boardPath(remote);
-    const item = await claimedItem(remote, path, agent);
+    const item = await claimedItem(remote, agent);
     const started = Date.now();
     const ran = await runFiles(root, command, files);
     const green = ran.code === 0;
     const text = receiptText({ green, files, head, host: hostname(), seconds: Math.round((Date.now() - started) / 100) / 10, code: ran.code });
-    await requestJson(remote, `${path}/moves`, { verb: 'fact', item, args: { kind: 'note', text }, agent }, FACT_TIMEOUT_MS);
+    // The receipt is a move as the seat, so it carries the seat's own key [P7,#10790].
+    await requestJson({ ...remote, seatKey: seatKey(io.cwd, agent) }, `${path}/moves`, { verb: 'fact', item, args: { kind: 'note', text }, agent }, FACT_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.({ green, item, files, head, receipt: text, board });
     if (!green) io.say(ran.output.trimEnd().split('\n').slice(-TAIL_LINES).join('\n'));

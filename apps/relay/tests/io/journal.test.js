@@ -40,7 +40,7 @@ function fixture(t, options = {}) {
   return { directory, open, journal: open() };
 }
 
-test('[A4,H7] ordered opaque bytes survive restart without parsing or aliasing', (t) => {
+test('relay.io-journal.ordered-opaque-bytes-survive-restart-without: [A4,H7] ordered opaque bytes survive restart without parsing or aliasing', (t) => {
   const box = fixture(t, { now: () => new Date('2026-10-07T00:00:00Z') });
   assert.equal(box.journal.latest(), 0);
   const bytes = Buffer.from([0, 255, 1, 128, 0]);
@@ -63,7 +63,7 @@ test('[A4,H7] ordered opaque bytes survive restart without parsing or aliasing',
   assert.equal(statSync(join(box.directory, ID + '.journal.sqlite')).mode & 0o077, 0);
 });
 
-test('[A4] gaps, repeats, invalid uploads and clock failures leave the prefix unchanged', (t) => {
+test('relay.io-journal.gaps-repeats-invalid-uploads-and-clock: [A4] gaps, repeats, invalid uploads and clock failures leave the prefix unchanged', (t) => {
   const box = fixture(t, { maxBytes: 4 });
   assert.throws(() => box.journal.append(2, Buffer.from('x')), { code: 'SEQUENCE_GAP' });
   assert.equal(box.journal.latest(), 0);
@@ -88,7 +88,7 @@ test('[A4] gaps, repeats, invalid uploads and clock failures leave the prefix un
   assert.equal(badClock.after()[0].bytes.toString(), 'one');
 });
 
-test('[A4,H7] two real processes cannot publish the same next sequence', async (t) => {
+test('relay.io-journal.two-real-processes-cannot-publish-the: [A4,H7] two real processes cannot publish the same next sequence', async (t) => {
   const box = fixture(t);
   box.journal.close();
   const worker = join(box.directory, 'worker.mjs');
@@ -125,7 +125,7 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
   assert.deepEqual(ordered.after().map((row) => row.sequence), [1, 2, 3]);
 });
 
-test('[H7] board identities isolate journals and cannot follow a symlink', (t) => {
+test('relay.io-journal.board-identities-isolate-journals-and-cannot: [H7] board identities isolate journals and cannot follow a symlink', (t) => {
   const box = fixture(t);
   box.journal.append(1, Buffer.from('first board'));
   const other = box.open({ boardId: 'b'.repeat(32) });
@@ -141,7 +141,7 @@ test('[H7] board identities isolate journals and cannot follow a symlink', (t) =
 });
 
 
-test('[A4,H7] a sealed snapshot compacts its prefix without reusing sequence numbers', (t) => {
+test('relay.io-journal.a-sealed-snapshot-compacts-its-prefix: [A4,H7] a sealed snapshot compacts its prefix without reusing sequence numbers', (t) => {
   const box = fixture(t);
   assert.equal(box.journal.snapshot(), null);
   box.journal.saveSnapshot(0, Buffer.from('initial opaque snapshot'));

@@ -1,3 +1,5 @@
+/** @pullboard-test-input source-cell packages/gate */
+/** @pullboard-test-input packages/codemap/data/plan/renames.tsv packages/codemap/data/plan/path-map/freeze.json */
 /** @pullboard-world-pin reads the committed rename chain, the gate sources and the front door to prove the preload.js move. */
 /** The gate preload.js module sits in the shell cell, with its importers repointed [C7]. */
 import assert from 'node:assert/strict';
@@ -11,7 +13,7 @@ const OLD = 'packages/gate/src/logic/preload.js';
 const NEW = 'packages/gate/src/io/preload.js';
 const read = (base, path) => readFileSync(new URL(path, base), 'utf8');
 
-test('clause 1: gate preload.js sits in the shell cell in the cells plan with importers repointed [C7]', () => {
+test('gate.logic-shell-preload-row.gate-preload-js-sits-in-the: clause 1: gate preload.js sits in the shell cell in the cells plan with importers repointed [C7]', () => {
   assert.ok(existsSync(new URL('src/io/preload.js', GATE)));
   assert.ok(!existsSync(new URL('src/logic/preload.js', GATE)));
   const freeze = JSON.parse(read(PLAN, 'path-map/freeze.json'));

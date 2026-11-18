@@ -53,14 +53,14 @@ function compare(box, file) {
   return compareMainFailures(box.root, { tests: [{ file, passed: false }] }, undefined, '', { commit: box.main });
 }
 
-test('apps/cli/src/io/run/tests.js runs a green main file in the comparison checkout instead of refusing on accepted main [C7]', { timeout: 120000 }, async t => {
+test('landing.knows.apps-cli-src-io-run-tests: apps/cli/src/io/run/tests.js runs a green main file in the comparison checkout instead of refusing on accepted main [C7]', { timeout: 120000 }, async t => {
   const box = fixture(t, `node '${RUN_TESTS}'`);
   const result = await compare(box, 'test/pass.test.js');
   assert.equal(result.unavailable, undefined, result.unavailable);
   assert.deepEqual(result.files, [{ file: 'test/pass.test.js', result: 'green' }]);
 });
 
-test('a red comparison that names no failing test or crashed file is unavailable and is never cached [C7]', { timeout: 120000 }, async t => {
+test('landing.knows.a-red-comparison-that-names-no: a red comparison that names no failing test or crashed file is unavailable and is never cached [C7]', { timeout: 120000 }, async t => {
   const box = fixture(t, 'node test/refuse.js');
   const result = await compare(box, 'test/pass.test.js');
   assert.match(result.unavailable ?? '', /named no failing test or crashed file/u);
@@ -70,7 +70,7 @@ test('a red comparison that names no failing test or crashed file is unavailable
   assert.equal(cached['test/pass.test.js'], undefined, 'the run that tested nothing left no cached result');
 });
 
-test('a result cached before this fix is not reused; the file is measured again [C7]', { timeout: 120000 }, async t => {
+test('landing.knows.a-result-cached-before-this-fix: a result cached before this fix is not reused; the file is measured again [C7]', { timeout: 120000 }, async t => {
   const box = fixture(t, `node '${RUN_TESTS}'`);
   mkdirSync(dirname(box.cache), { recursive: true });
   writeFileSync(box.cache, JSON.stringify({ version: 1, entries: { [box.main]: { 'test/pass.test.js': { result: 'red' } } } }), { mode: 0o600 });
@@ -93,7 +93,7 @@ function filterBox(t, on) {
 /** The candidate's profile: the file with the named cases failed. */
 const failedCases = (...names) => ({ tests: names.map(name => ({ file: 'test/three.test.js', name, passed: false })) });
 
-test('clause 1: the comparison runs only the failing case names on base main, a case main fails by that name is known-main and one it passes is own [C7,#8761]', { timeout: 120000 }, async t => {
+test('landing.knows.the-comparison-runs-only-the-failing: clause 1: the comparison runs only the failing case names on base main, a case main fails by that name is known-main and one it passes is own [C7,#8761]', { timeout: 120000 }, async t => {
   const box = filterBox(t, true);
   const result = await compareMainFailures(box.root, failedCases('red on main', 'green on main'), undefined, '', { commit: box.main, detailed: true });
   assert.equal(result.unavailable, undefined, result.unavailable);
@@ -108,14 +108,14 @@ test('clause 1: the comparison runs only the failing case names on base main, a 
   assert.equal(cached['test/three.test.js'], undefined, 'a filtered result never stands in for the whole file');
 });
 
-test('clause 2: a filtered base run that names no case is unavailable and never green [C7,#8761]', { timeout: 120000 }, async t => {
+test('landing.knows.a-filtered-base-run-that-names: clause 2: a filtered base run that names no case is unavailable and never green [C7,#8761]', { timeout: 120000 }, async t => {
   const box = filterBox(t, true);
   const result = await compareMainFailures(box.root, failedCases('no such case'), undefined, '', { commit: box.main, detailed: true });
   assert.match(result.unavailable ?? '', /ran none of the named cases/u);
   assert.deepEqual(result.files, []);
 });
 
-test('clause 1: with gate.mainCaseFilter off the whole file runs on base main as before [C7,#8761]', { timeout: 120000 }, async t => {
+test('landing.knows.with-gate-maincasefilter-off-the-whole: clause 1: with gate.mainCaseFilter off the whole file runs on base main as before [C7,#8761]', { timeout: 120000 }, async t => {
   const box = filterBox(t, false);
   const result = await compareMainFailures(box.root, failedCases('red on main'), undefined, '', { commit: box.main, detailed: true });
   const row = result.files.find(entry => entry.file === 'test/three.test.js');

@@ -34,6 +34,7 @@ import {
   COORDINATOR,
   hunkFreshnessEnabled,
   loadConfig,
+  submitComposeAsObject,
 } from '../../../../../packages/config/index.js';
 import {
   resumeDoctrineNotes,
@@ -256,6 +257,13 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       : unavailableWorktreeLocation();
   }
   const { me } = card;
+  // The coordinator's allowance line: a Codex session's rate limits, or unknown without one; stats loads only on this branch [C7,#1058].
+  if (me.id === COORDINATOR) {
+    const { allowanceWarning, seatAllowance, sessionSource } = await import('../../../../../packages/stats/index.js');
+    const source = sessionSource();
+    const line = allowanceWarning(source?.provider === 'codex' ? seatAllowance(source.file) : { known: false }, me.id);
+    if (line) card.allowance = line;
+  }
   const name = (id) => agentDisplayName(card.agents, ctx.config, id);
   if (diagnostics) card.stale = staleFrozenItems(card.all, loadSpec(root, ctx.config).rows, staleDoctrineRows(ctx, doctrine, { headDoctrine: sources.headDoctrine })).map((item) => ({ ...item, ...staleItemFinding(item) }));
   if (isMain && diagnostics) {
@@ -302,7 +310,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (!isMain && !json) {
     const { branch, mainRef, behind = 0, ahead = 0 } = sources;
     // Fresh command facts compare the actual primary branch, not an unrelated detached review HEAD.
-    const against = mainRef ? `${ahead} ahead of main, ${behind} behind${behind ? ' (merge main before you submit)' : ''}` : 'main is detached for a verification, so ahead and behind are unknown';
+    const against = mainRef ? `${ahead} ahead of main, ${behind} behind` : 'main is detached for a verification, so ahead and behind are unknown';
     say(`branch ${branch}: ${against}${dirty ? `; ${plural(dirty, 'file')} uncommitted` : ''}`);
   } else if (dirty) {
     say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
@@ -326,7 +334,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   for (const { item, merge } of card.mainMerges) say(mainMergeLines(item, merge, name).join('; '));
   if (isMain && diagnostics && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
   else if (!isMain && diagnostics) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
-  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
     for (const batch of card.landingBatches.filter((entry) => !['landed', 'blocked'].includes(entry.state))) say(`landing ${batch.id}: ${batch.state}, owner ${batch.owner}, tip ${batch.tip}; log ${batch.logPath}; next: pullboard land --adopt`);
@@ -353,6 +361,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
       ? `waiting on the person: #${need.id} from ${need.ref} (${span(ctx, need.at)}): ${firstLine(need.text)}`
       : `needs the person: ${need.ref}: ${firstLine(need.text)} (${need.what})`);
     if (card.rigor?.notice) say(card.rigor.notice);
+    if (card.allowance) say(card.allowance);
     section(card.rigor?.undrafted ?? [], (cause) => `Rigor needs a proved draft: ${cause.key}, items ${cause.items.map(item => `#${item.id}`).join(', ')}; pullboard rigor draft "${cause.key.replaceAll('"', '\\"')}" "<rule>" --check "<command>" --red <commit> --green <commit>`);
     if (card.toVerify.length) say('review queue:');
     section(card.toVerify, (item) => `  to verify: #${item.item_id} ${item.item_lane} (${span(ctx, item.item_updated_at)})`);

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: dart test --reporter json | dart pub global run junitreport:tojunit > report.xml
+     Assumption: junitreport names the suite and each testcase classname by the test file path and writes no file attribute.
+     Case names read "clause N: ..." as a test titled that way would write them. No tool is needed to read it. -->
+<testsuites>
+  <testsuite name="test/calc_test.dart" tests="3" errors="0" failures="1" skipped="1" time="0.021" timestamp="2026-11-17T12:00:00">
+    <testcase classname="test/calc_test.dart" name="clause 1: adds two" time="0.001"/>
+    <testcase classname="test/calc_test.dart" name="clause 2: halves a number" time="0.002">
+      <failure message="Expected: &lt;2&gt;  Actual: &lt;1&gt;">Expected: &lt;2&gt;
+  Actual: &lt;1&gt;
+package:test_api  expect
+test/calc_test.dart 9:5  main.&lt;fn&gt;.&lt;fn&gt;</failure>
+    </testcase>
+    <testcase classname="test/calc_test.dart" name="clause 3: later" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>

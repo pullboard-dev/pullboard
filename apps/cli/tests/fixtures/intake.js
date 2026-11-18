@@ -33,6 +33,13 @@ export function fixtureJSON(box, cwd, ...args) {
   return JSON.parse(result.out);
 }
 
+/** The same call as fixtureJSON, answered through box.runIn (in this process by default), so a journey starts no node process per call [C7]. */
+export async function fixtureJSONIn(box, cwd, ...args) {
+  const result = await box.runIn(cwd, ...args, '--json');
+  assert.equal(result.code, 0, `${args.join(' ')}: ${result.err}${result.out}`);
+  return JSON.parse(result.out);
+}
+
 /** Build a real outside commit/ref and an independently initialized trusted receiving board. */
 export function intakeFixture(t, { baseFiles = {} } = {}) {
   const helpers = createE2eHelpers();

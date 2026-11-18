@@ -6,6 +6,7 @@ import { criterionSize } from '../../../../../packages/items/index.js';
 import { appendTimeCheckpoint } from '../../../../../packages/stats/index.js';
 import { checkpointLine } from '../../../../../packages/stats/index.js';
 import { readTimeHistory } from '../../../../../packages/stats/index.js';
+import { statsHistoryFile } from '../../../../../packages/stats/index.js';
 import { timeLines } from '../../../../../packages/stats/index.js';
 import { timeStats } from '../../../../../packages/stats/index.js';
 import { weeklyDue } from '../../../../../packages/stats/index.js';
@@ -115,7 +116,7 @@ export function run(io, { first, second, rest, values }) {
     });
     let checkpoint = null;
     if (kind) {
-      const file = join(ctx.info.commonDir, 'pullboard', 'stats-history.jsonl');
+      const file = statsHistoryFile(ctx.info.commonDir);
       if (kind === 'release' || weeklyDue(readTimeHistory(file), now)) { appendTimeCheckpoint(file, checkpointLine(time, { reason: kind })); checkpoint = file; }
     }
     io.result?.({ time, checkpoint });

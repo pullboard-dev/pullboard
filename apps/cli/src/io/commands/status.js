@@ -9,7 +9,7 @@ import { statusShowUsefulBuilders } from '../../../../../packages/config/index.j
 import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
 import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
-import { lineSettings } from '../../../../../packages/state/index.js';
+import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
 import { readReceivedBoardState } from '../../../../../packages/store/index.js';
@@ -43,11 +43,7 @@ import {
 } from '../../../../../packages/spec/index.js';
 import {
   signingLine,
-} from '../../../../../packages/person/index.js';
-import {
-  submitInvariantLine,
-  submitInvariantProposals,
-} from '../../../../../packages/items/index.js';
+} from '../../../../../packages/person/light.js';
 import {
   context,
   span,
@@ -64,6 +60,7 @@ export const nativeBoardRequired = false;
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
+  const { submitInvariantLine, submitInvariantProposals } = await import('../../../../../packages/items/index.js');
   const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
   const { claimHealthProjection, releaseBlockingItems, staleStateSnapshot } = await import('../../../../../packages/health/index.js');
   const { stalledGates } = await import('../../../../../packages/jobs/index.js');
@@ -100,7 +97,7 @@ export async function run(io, { values }) {
       claimHealth: observedStaleState.claims.filter(entry => entry.health && entry.health !== 'building')
         .map(({ id, actor, health, idleMs, waitingOn }) => ({ id, actor, health, idleMs, waitingOn })) };
     const needsRescope = allItemsNeedingRescope(board);
-    const { personNeedsSummary } = await import('../../../../view/index.js');
+    const { personNeedsSummary } = await import('../../../../view/needs.js');
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };

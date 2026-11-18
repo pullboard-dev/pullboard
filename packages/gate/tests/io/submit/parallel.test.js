@@ -47,7 +47,7 @@ function receiptProof(run) {
     counts: { passed: null, failed: null, skipped: null }, durationMs: 0, sourceClean: true, shards: run.shards };
 }
 
-test('clause 1: prove fans proof files across free slots into one receipt: N small shards on N free slots run at most PROOF_MAX_SHARDS at once, the rest as lanes free [C7]', { timeout: 10_000 }, async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free: clause 1: prove fans proof files across free slots into one receipt: N small shards on N free slots run at most PROOF_MAX_SHARDS at once, the rest as lanes free [C7]', { timeout: 10_000 }, async () => {
   const runners = clockedRunners(PROOF_MAX_SHARDS);
   const proof = runProofShards(FILES, { freeSlots: FILES.length - 1, batchFiles: 1, runFirst: runners.runFirst, takeSlot: lane => lane(runners.runOther) });
   // The capped lanes start together; the fourth shard waits on the queue instead of opening a fourth controller.
@@ -64,7 +64,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: N sma
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), FILES, 'every file runs exactly once');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: 6 files on 3 free slots run one parallel pass of 3 shards, not 2 sequential batches [C7]', { timeout: 10_000 }, async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-2: clause 1: prove fans proof files across free slots into one receipt: 6 files on 3 free slots run one parallel pass of 3 shards, not 2 sequential batches [C7]', { timeout: 10_000 }, async () => {
   const six = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
   assert.equal(proofShardCount(six.length, { batchFiles: PROOF_BATCH_FILES }), 2, 'batches of 3 would make 2 batches');
   assert.equal(proofShardCount(six.length), PROOF_MAX_SHARDS, 'with no batch size the files split one shard per lane');
@@ -93,7 +93,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: 6 fil
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), six, 'every file runs exactly once');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: while the item check holds the gate lease, slot lanes start at once and the gate lane joins after [C7]', { timeout: 10_000 }, async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-3: clause 1: prove fans proof files across free slots into one receipt: while the item check holds the gate lease, slot lanes start at once and the gate lane joins after [C7]', { timeout: 10_000 }, async () => {
   // #3841 (9 Nov): the item check ran 173 s alone on the gate's lease; its shards were admitted only after it ended.
   const six = ['test/a.test.js', 'test/b.test.js', 'test/c.test.js', 'test/d.test.js', 'test/e.test.js', 'test/f.test.js'];
   const calls = [];
@@ -123,7 +123,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: while
   assert.deepEqual(shards.flatMap(shard => shard.files).sort(), six, 'every file runs exactly once');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: each lane pays one dispatch, so 69 files on 18 free slots take 3 transfers and 3 READYs, not 23 [C7]', { timeout: 10_000 }, async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-4: clause 1: prove fans proof files across free slots into one receipt: each lane pays one dispatch, so 69 files on 18 free slots take 3 transfers and 3 READYs, not 23 [C7]', { timeout: 10_000 }, async () => {
   // #3883's proof shape (9 Nov): 69 owed files, 18 free slots, about 2 s each. Measured warm dispatch: 4 s transfer + 3.5 s READY.
   const DISPATCH_MS = 4_000 + 3_500;
   const files = Array.from({ length: 69 }, (_, index) => `test/f${String(index).padStart(2, '0')}.test.js`);
@@ -139,7 +139,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: each 
   assert.ok(DISPATCH_MS <= 15_000, `each lane's transfer plus READY is one dispatch, ${DISPATCH_MS} ms, under the 15 s target`);
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: a proof whose recorded runtime fits one shard runs as one dispatch [C7]', async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-5: clause 1: prove fans proof files across free slots into one receipt: a proof whose recorded runtime fits one shard runs as one dispatch [C7]', async () => {
   assert.equal(proofShardCount(9, { expectedMs: PROOF_MIN_SHARD_MS - 1 }), 1, 'under one shard of work stays one command');
   assert.equal(proofShardCount(9, { expectedMs: PROOF_MIN_SHARD_MS * 2 }), 2, 'two shards of work split in two');
   assert.equal(proofShardCount(9, { expectedMs: PROOF_MIN_SHARD_MS * 40 }), PROOF_MAX_SHARDS, 'long proofs still stop at the lane cap');
@@ -152,7 +152,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: a pro
   assert.deepEqual(calls, [], 'no batch dispatched');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: the merged run is one receipt holding each shard\'s files [C7]', async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-6: clause 1: prove fans proof files across free slots into one receipt: the merged run is one receipt holding each shard\'s files [C7]', async () => {
   const red = async files => ({ isGreen: false, exitCode: 1, output: `not ok ${files[0]}`, executionRunner: 'runner-red', remoteWallMs: 5 });
   const green = async files => ({ isGreen: true, exitCode: 0, output: `ok ${files[0]}`, executionRunner: 'runner-green', remoteWallMs: 7 });
   const merged = mergeShardRuns(await runProofShards(FILES.slice(0, 2), { freeSlots: 1, batchFiles: 1, runFirst: green, takeSlot: lane => lane(red) }));
@@ -170,7 +170,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: the m
   assert.ok(!Object.hasOwn(proofFields(unsharded), 'shards'), 'a receipt without shards reads as before');
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: one batch behaves as today, and batches no slot takes run on the gate lease [C7]', async () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-7: clause 1: prove fans proof files across free slots into one receipt: one batch behaves as today, and batches no slot takes run on the gate lease [C7]', async () => {
   const calls = [];
   const record = label => async files => { calls.push({ label, files }); return { isGreen: true, exitCode: 0, output: '' }; };
   assert.equal(await runProofShards(FILES, { freeSlots: 3, batchFiles: FILES.length, runFirst: record('gate'), takeSlot: lane => lane(record('other')) }), null,
@@ -182,7 +182,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: one b
   assert.deepEqual(shards.map(shard => shard.files), [['test/a.test.js'], ['test/b.test.js']]);
 });
 
-test('clause 1: prove fans proof files across free slots into one receipt: free slots are runner capacity less held and waiting slots [C7]', () => {
+test('gate.io-submit-parallel.prove-fans-proof-files-across-free-8: clause 1: prove fans proof files across free slots into one receipt: free slots are runner capacity less held and waiting slots [C7]', () => {
   const inputs = privateFixtureFiles('pullboard-shard-pool-');
   try {
     const file = join(inputs.root, 'resources.sqlite');
@@ -198,7 +198,7 @@ test('clause 1: prove fans proof files across free slots into one receipt: free 
   } finally { rmSync(inputs.root, { recursive: true, force: true }); }
 });
 
-test('clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s admission window, so a slow transfer is not a missed READY [C7]', () => {
+test('gate.io-submit-parallel.a-proof-shard-dispatch-gets-a: clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s admission window, so a slow transfer is not a missed READY [C7]', () => {
   // 9 Nov: shard transfers ran 31 s at p50; with a 30 s budget a healthy runner missed READY and the shard reran.
   assert.equal(SHARD_ADMIT_MS, 30_000);
   assert.equal(shardStartupMs(SHARD_ADMIT_MS), SHARD_STARTUP_MS, 'the admission window no longer sets the startup budget');
@@ -206,7 +206,7 @@ test('clause 1: a proof shard dispatch gets a 90 s startup budget, not its 30 s 
   assert.equal(shardStartupMs(30 * 60_000), 30 * 60_000, 'a longer lease budget stands');
 });
 
-test('#5763 clause 1: shards on two runners that report the same child PID still merge into a valid native receipt, so a check that ran is never PROOF_RUN_UNAVAILABLE [P7]', async () => {
+test('gate.io-submit-parallel.case-5763-clause-1-shards-on-two: #5763 clause 1: shards on two runners that report the same child PID still merge into a valid native receipt, so a check that ran is never PROOF_RUN_UNAVAILABLE [P7]', async () => {
   const env = { node: '22.22.2', platform: 'darwin', arch: 'arm64' };
   const shard = (host, pids) => async files => ({ isGreen: true, exitCode: 0, output: `ok ${files[0]}`, executionRunner: host, remoteWallMs: 3,
     testRuntimes: pids.map(pid => ({ pid, environment: env, file: files[0] })) });

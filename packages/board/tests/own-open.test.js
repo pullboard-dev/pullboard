@@ -9,14 +9,14 @@ import * as barrel from '../index.js';
 
 const NAMES = ['openBoard', 'openBoardForRead', 'nativeBoardPorts'];
 
-test('clause 1: openBoard, openBoardForRead and nativeBoardPorts imported from open.js are the functions the board barrel exports [C7,#9823]', () => {
+test('board.own-open.openboard-openboardforread-nativeboardports-imported-from: clause 1: openBoard, openBoardForRead and nativeBoardPorts imported from open.js are the functions the board barrel exports [C7,#9823]', () => {
   for (const name of NAMES) {
     assert.equal(typeof own[name], 'function', name);
     assert.equal(barrel[name], own[name], name);
   }
 });
 
-test('clause 2: importing open.js does not load the board barrel, because it imports only the providers file and the store [C7,#9823]', () => {
+test('board.own-open.importing-open-does-load-board: clause 2: importing open.js does not load the board barrel, because it imports only the providers file and the store [C7,#9823]', () => {
   const source = readFileSync(new URL('../src/io/open.js', import.meta.url), 'utf8');
   const specifiers = [...source.matchAll(/^import .* from '([^']+)';$/gmu)].map(match => match[1]);
   assert.ok(specifiers.length > 0);

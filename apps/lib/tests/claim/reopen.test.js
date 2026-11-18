@@ -62,7 +62,7 @@ function returned(f, cause, minutes, causeKey) {
   return id;
 }
 
-test('[B13,B5] a reopened item waits for its builder first', (t) => {
+test('lib.claim-reopen.a-reopened-item-waits-for-its-builder: [B13,B5] a reopened item waits for its builder first', (t) => {
   for (const cause of ['reject', 'landing', 'conflict']) {
     const f = fixture(t);
     const id = returned(f, cause, 30);
@@ -87,7 +87,7 @@ test('[B13,B5] a reopened item waits for its builder first', (t) => {
 });
 
 
-test('[B13,B5] reopen first refusal is a default-off validated board setting', () => {
+test('lib.claim-reopen.reopen-first-refusal-is-a-default-off: [B13,B5] reopen first refusal is a default-off validated board setting', () => {
   assert.equal(defaults().claim.reopenFirstRefusalMinutes, 0);
   assert.equal(configFromSource('{}').claim.reopenFirstRefusalMinutes, 0);
   assert.equal(configFromSource('{"claim":{}}').claim.reopenFirstRefusalMinutes, 0);
@@ -98,7 +98,7 @@ test('[B13,B5] reopen first refusal is a default-off validated board setting', (
   }
 });
 
-test('[B13,B5] first refusal ends on direct builder release, claimed release or exact expiry', (t) => {
+test('lib.claim-reopen.first-refusal-ends-on-direct-builder-release: [B13,B5] first refusal ends on direct builder release, claimed release or exact expiry', (t) => {
   for (const cause of ['reject', 'landing', 'conflict']) {
     for (const mode of ['direct', 'claimed', 'expiry']) {
       const f = fixture(t);
@@ -116,7 +116,7 @@ test('[B13,B5] first refusal ends on direct builder release, claimed release or 
   }
 });
 
-test('[B13,B5] omitted or zero first refusal keeps reopened claims unchanged', (t) => {
+test('lib.claim-reopen.omitted-or-zero-first-refusal-keeps-reopened: [B13,B5] omitted or zero first refusal keeps reopened claims unchanged', (t) => {
   for (const cause of ['reject', 'landing', 'conflict']) {
     for (const minutes of [undefined, 0]) {
       const f = fixture(t);
@@ -129,7 +129,7 @@ test('[B13,B5] omitted or zero first refusal keeps reopened claims unchanged', (
   }
 });
 
-test('[B13,B5] first refusal does not bypass the existing one-live-claim rule', (t) => {
+test('lib.claim-reopen.first-refusal-does-not-bypass-the-existing: [B13,B5] first refusal does not bypass the existing one-live-claim rule', (t) => {
   const f = fixture(t);
   const id = returned(f, 'landing', 30);
   const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'another', route: 'mid',
@@ -141,7 +141,7 @@ test('[B13,B5] first refusal does not bypass the existing one-live-claim rule', 
 });
 
 
-test('[B13,B5] releasing another review cannot cancel the builder reservation', (t) => {
+test('lib.claim-reopen.releasing-another-review-cannot-cancel-the-builder: [B13,B5] releasing another review cannot cancel the builder reservation', (t) => {
   const f = fixture(t);
   const id = returned(f, 'reject', 30);
   const another = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'review another', route: 'mid',
@@ -155,7 +155,7 @@ test('[B13,B5] releasing another review cannot cancel the builder reservation', 
   assert.equal(store.nextFor(f.board, { agentId: f.builder, lane: 'core' }).item.item_id, id);
 });
 
-test('[B13,B5,H16] a sealed return persists one window and notice across replay and snapshots', async (t) => {
+test('lib.claim-reopen.a-sealed-return-persists-one-window-and: [B13,B5,H16] a sealed return persists one window and notice across replay and snapshots', async (t) => {
   // A sealed move carries the current engine, which a later feature may raise past this one.
   const { ENGINE_VERSION } = await import('../../../../packages/state/index.js');
   assert.ok(ENGINE_VERSION >= REOPEN_FIRST_REFUSAL_ENGINE);
@@ -197,7 +197,7 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
 });
 
 
-test('[B13,B5,D1] a builder notice preserves the reopen cause that triggers rigor', (t) => {
+test('lib.claim-reopen.a-builder-notice-preserves-the-reopen-cause: [B13,B5,D1] a builder notice preserves the reopen cause that triggers rigor', (t) => {
   const f = fixture(t);
   returned(f, 'landing', 30, 'refusal:CHECK_RED');
   returned(f, 'landing', 30, 'refusal:CHECK_RED');
@@ -231,7 +231,7 @@ function signReady(f, id, agentId = f.other) {
     coverage: { version: 1, sourceMain: COMMIT, policyKey: 'd'.repeat(64), sourceCheck: store.getItem(f.board,id).item_check, timeoutMs: 300000, runner: 'node --test', required: [], files: [] } });
 }
 
-test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => {
+test('lib.claim-reopen.a-claim-waits-for-a-bar-signed: [B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => {
   const f = fixture(t);
   readyAuthors(f);
   setBarReady(f.board, { agentId: 'coordinator', enabled: true });
@@ -255,7 +255,7 @@ test('[B4,V2,V1,H16] a claim waits for a bar signed by another session', (t) => 
   assert.equal(barReadiness(replica, store.getItem(replica, id), {}, replica.runtimePorts.verification).missing.length, 0);
 });
 
-test('[B4,V2,H16] readiness is default off and activation preserves old frozen work', (t) => {
+test('lib.claim-reopen.readiness-is-default-off-and-activation-preserves: [B4,V2,H16] readiness is default off and activation preserves old frozen work', (t) => {
   const f = fixture(t);
   assert.equal(barReadySetting(f.board).enabled, false);
   const old = readyItem(f, 'green');
@@ -276,7 +276,7 @@ test('[B4,V2,H16] readiness is default off and activation preserves old frozen w
   assert.throws(() => setBarReady(f.board, { agentId: f.other, enabled: false }), error => error.code === 'COORDINATOR_ONLY');
 });
 
-test('[B4,V2] all missing bar parts are named and content reversal cannot revive a signature', (t) => {
+test('lib.claim-reopen.all-missing-bar-parts-are-named-and: [B4,V2] all missing bar parts are named and content reversal cannot revive a signature', (t) => {
   const f = fixture(t);
   readyAuthors(f);
   setBarReady(f.board, { agentId: 'coordinator', enabled: true });
@@ -293,7 +293,7 @@ test('[B4,V2] all missing bar parts are named and content reversal cannot revive
   claim(f, id, f.builder);
 });
 
-test('[B4,V1] unknown lineage and a changed baseline cannot masquerade as peer approval', (t) => {
+test('lib.claim-reopen.unknown-lineage-and-a-changed-baseline-cannot: [B4,V1] unknown lineage and a changed baseline cannot masquerade as peer approval', (t) => {
   const f = fixture(t);
   setBarReady(f.board, { agentId: 'coordinator', enabled: true });
   const id = readyItem(f);
@@ -311,7 +311,7 @@ test('[B4,V1] unknown lineage and a changed baseline cannot masquerade as peer a
 });
 
 
-test('[B4,V1] enabling readiness cannot relabel a retained criterion as the later brief editor', (t) => {
+test('lib.claim-reopen.enabling-readiness-cannot-relabel-a-retained-criterion: [B4,V1] enabling readiness cannot relabel a retained criterion as the later brief editor', (t) => {
   const f = fixture(t);
   readyAuthors(f);
   const brief = 'Files: src/old.js\nTest: old witness\nNamed test: old witness\nMeasurements: no quantitative bounds\nReviewer edges: empty input';
@@ -327,7 +327,7 @@ test('[B4,V1] enabling readiness cannot relabel a retained criterion as the late
 });
 
 
-test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserving historical seat identity', t => {
+test('lib.claim-reopen.takeover-authorship-uses-the-captured-current-runtime: [B4,V1,H16] takeover authorship uses the captured current runtime, preserving historical seat identity', t => {
   const f=fixture(t);readyAuthors(f);
   const old = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('agent_session:coordinator').meta_value;
   // This private move models the normal CLI's new runtime after takeover, not an identity rewrite.
@@ -341,7 +341,7 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
   assert.throws(()=>signReady(f,id,child),error=>error.code==='BAR_SELF_SIGN');
 });
 
-test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
+test('lib.claim-reopen.multi-claim-renewal-keeps-its-modern-engine: multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
   const f = fixture(t);
   const first = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'first', route: 'mid', criterion: 'first works', check: 'true', brief: 'Files: src/a.js\nTest: first works' });
   const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'second', route: 'mid', criterion: 'second works', check: 'true', brief: 'Files: src/b.js\nTest: second works' });
@@ -355,7 +355,7 @@ test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', asy
   assert.equal(store.getItem(f.board, second).item_owner, f.builder);
 });
 
-test('older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
+test('lib.claim-reopen.older-replay-retains-the-one-claim-guard: older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('legacy first'), second = add('legacy second');
@@ -366,7 +366,7 @@ test('older replay retains the one-claim guard even if an unknown modern flag is
   assert.equal(store.getItem(f.board, second).item_owner, null);
 });
 
-test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
+test('lib.claim-reopen.an-old-modern-claim-does-not-upgrade: an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
   const first = add('first'), second = add('second');
@@ -379,7 +379,7 @@ test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async
   assert.equal(replay.error?.code, 'ONE_CLAIM');
 });
 
-test('blocked release records prerequisites and withdrawn blockers free the item [B5,B10,H16]', (t) => {
+test('lib.claim-reopen.blocked-release-records-prerequisites-and-withdrawn-blockers: blocked release records prerequisites and withdrawn blockers free the item [B5,B10,H16]', (t) => {
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
   const blocker = add('blocker');
@@ -403,7 +403,7 @@ test('blocked release records prerequisites and withdrawn blockers free the item
   assert.equal(store.getItem(f.board, work).item_owner, f.other);
 });
 
-test('blocked release waits through acceptance until its prerequisite lands [B5,B10]', t => {
+test('lib.claim-reopen.blocked-release-waits-through-acceptance-until-its: blocked release waits through acceptance until its prerequisite lands [B5,B10]', t => {
   const f = fixture(t);
   const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
   const blocker = add('prerequisite');

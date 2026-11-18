@@ -7,6 +7,20 @@ import { blobDirOf } from "./blobs.js";
 import { readPayload } from "./blobs.js";
 import { storableText } from "./blobs.js";
 
+/** The write-hold port the api fills so a job write is recorded like any board write; none set leaves atomically() as it was [C7]. */
+let writeHold = null;
+
+/**
+ * Set the write-hold port: { prepare(db), begin(db, marker), finish(record, outcome), discard(marker) }, or null to clear it.
+ * Why: the jobs cell may not import the store that owns the board-write markers, so the api passes those functions in.
+ *
+ * @param {{ prepare: (db: object) => unknown, begin: (db: object, marker: unknown) => unknown, finish: (record: unknown, outcome: 'released' | 'rolled-back') => void, discard: (marker: unknown) => void } | null} hold
+ * @returns {void}
+ */
+export function setWriteHold(hold) {
+  writeHold = hold ?? null;
+}
+
 /**
  * Run `work` so its statements land together or not at all: in its own write transaction, or inside a savepoint
  * when the caller already holds a transaction.
@@ -14,6 +28,8 @@ import { storableText } from "./blobs.js";
  * Why: `work` reads before it writes. A deferred transaction that read first cannot upgrade to a write once another
  * process committed, and SQLite answers "database is locked" at once without waiting; two drivers writing steps for
  * different jobs on one board hit that. BEGIN IMMEDIATE takes the write lock first and waits its turn.
+ * With a write hold set, its prepare runs before BEGIN, begin after it, and finish after COMMIT ('released') or ROLLBACK ('rolled-back');
+ * a BEGIN that fails other than inside a caller's transaction discards the marker. A nested call touches none of them.
  *
  * @template T
  * @param {import('node:sqlite').DatabaseSync} db
@@ -21,20 +37,28 @@ import { storableText } from "./blobs.js";
  * @returns {T}
  */
 export function atomically(db, work) {
+  const hold = writeHold;
+  if (hold && db.isTransaction) return inSavepoint(db, work);
+  const marker = hold ? hold.prepare(db) : undefined;
   try {
     db.exec('BEGIN IMMEDIATE');
   } catch (error) {
+    if (hold) hold.discard(marker);
     if (!/within a transaction/u.test(String(error?.message))) throw error;
     return inSavepoint(db, work);
   }
+  const record = hold ? hold.begin(db, marker) : undefined;
+  let result;
   try {
-    const result = work();
+    result = work();
     db.exec('COMMIT');
-    return result;
   } catch (error) {
     db.exec('ROLLBACK');
+    if (hold) hold.finish(record, 'rolled-back');
     throw error;
   }
+  if (hold) hold.finish(record, 'released');
+  return result;
 }
 
 /**
@@ -140,6 +164,19 @@ export function noteLease(db, job, what, payload, now) {
     SELECT job_id, ?, job_attempt, ?, ? FROM job WHERE job_id = ? AND job_kind = 'gate'
     ON CONFLICT (job_step_job, job_step_name, job_step_seq) DO UPDATE SET job_step_payload = excluded.job_step_payload, job_step_at = excluded.job_step_at`)
     .run(`note:${what}`, JSON.stringify(payload), now, job);
+}
+
+/**
+ * Write the lapsed step of a takeover: one row per lapsed attempt, in the claim's transaction. It never changes the job's current step, so views still read claimed [C7,#9247].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {string} job
+ * @param {{ attempt: number }} lapse - What the earlier claim held and last wrote.
+ * @param {number} now
+ */
+export function noteLapse(db, job, lapse, now) {
+  db.prepare('INSERT OR IGNORE INTO job_step (job_step_job, job_step_name, job_step_seq, job_step_payload, job_step_at) VALUES (?, ?, ?, ?, ?)')
+    .run(job, 'lapsed', lapse.attempt, JSON.stringify(lapse), now);
 }
 
 /**

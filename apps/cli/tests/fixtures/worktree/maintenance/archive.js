@@ -12,6 +12,9 @@ import { maintenanceGit } from '../../../../src/io/worktree/maintenance/archive.
 import { maintenanceSnapshot } from '../../../../src/io/worktree/maintenance/archive.js';
 import { removePartialArchives } from '../../../../src/io/worktree/maintenance/archive.js';
 
+/** A volume with room to spare: the guard reads the host disk, and a runner whose reserve exceeds its free space would refuse every case that is not about the guard (#10402). */
+const roomyVolume = () => ({ freeBytes: 900 * 2 ** 30, totalBytes: 1000 * 2 ** 30 });
+
 function project(t) {
   const directory = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'pullboard-archive-fixture-')));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
@@ -29,7 +32,7 @@ function project(t) {
 export function registerMaintenanceArchiveTests() {
   test('prune archives retain literal linked Git metadata and evidence after the private worktree disappears [B3,C7]', t => {
     const box = project(t), root = join(box.directory, 'retired');
-    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { includeMetadata: true }), /linked worktree/u);
+    assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { includeMetadata: true, volume: roomyVolume }), /linked worktree/u);
     box.git('worktree', 'add', '-q', '--detach', root, 'HEAD');
     const gitDir = fs.realpathSync(maintenanceGit(root, ['rev-parse', '--path-format=absolute', '--git-dir']).trim());
     const evidence = join(gitDir, 'evidence'); fs.mkdirSync(evidence);
@@ -38,9 +41,9 @@ export function registerMaintenanceArchiveTests() {
     fs.symlinkSync('evidence/raw.log', join(gitDir, 'evidence-link'));
     const index = fs.readFileSync(join(gitDir, 'index'));
     fs.writeFileSync(join(gitDir, 'HEAD.lock'), '');
-    assert.throws(() => archiveMaintenanceWorktree(root, box.common, { includeMetadata: true }), /lock/u);
+    assert.throws(() => archiveMaintenanceWorktree(root, box.common, { includeMetadata: true, volume: roomyVolume }), /lock/u);
     fs.unlinkSync(join(gitDir, 'HEAD.lock'));
-    const archive = archiveMaintenanceWorktree(root, box.common, { includeMetadata: true });
+    const archive = archiveMaintenanceWorktree(root, box.common, { includeMetadata: true, volume: roomyVolume });
     assert.equal(archive.manifest.metadata.gitDir, gitDir);
     assert.equal(maintenanceArchiveMatches(root, archive), true);
     fs.appendFileSync(join(evidence, 'raw.log'), 'new bytes');
@@ -81,7 +84,7 @@ export function registerMaintenanceArchiveTests() {
     const snapshot = maintenanceSnapshot(box.root);
     assert.ok(snapshot.dirty && Buffer.isBuffer(snapshot.stagedBuffer) && Buffer.isBuffer(snapshot.unstagedBuffer));
     assert.ok(snapshot.files.every(file => !Object.hasOwn(file, 'bytes')), 'snapshot metadata never retains regular file bodies');
-    const archive = archiveMaintenanceWorktree(box.root, box.common);
+    const archive = archiveMaintenanceWorktree(box.root, box.common, { volume: roomyVolume });
     assert.equal(maintenanceArchiveMatches(box.root, archive), true);
     assert.equal(fs.statSync(archive.directory).mode & 0o777, 0o700);
     for (const file of ['manifest.json', 'staged.patch', 'unstaged.patch']) assert.equal(fs.statSync(join(archive.directory, file)).mode & 0o777, 0o600);
@@ -108,7 +111,7 @@ export function registerMaintenanceArchiveTests() {
 
   test('maintenance archive refuses changed source, missing pins and corrupted or symlinked archive bytes [B3,C7]', t => {
     const box = project(t), leaf = join(box.root, 'untracked.txt'); fs.writeFileSync(leaf, 'before');
-    const archive = archiveMaintenanceWorktree(box.root, box.common);
+    const archive = archiveMaintenanceWorktree(box.root, box.common, { volume: roomyVolume });
     fs.writeFileSync(leaf, 'after'); assert.equal(maintenanceArchiveMatches(box.root, archive), false);
     fs.writeFileSync(leaf, 'before'); assert.equal(maintenanceArchiveMatches(box.root, archive), true);
     const blob = join(archive.directory, 'blobs', archive.manifest.files[0].sha256);
@@ -134,7 +137,7 @@ export function registerMaintenanceArchiveTests() {
       return original.call(this, fd, ...args);
     };
     syncBuiltinESMExports();
-    try { assert.throws(() => archiveMaintenanceWorktree(box.root, box.common), /changed|identity/u); }
+    try { assert.throws(() => archiveMaintenanceWorktree(box.root, box.common, { volume: roomyVolume }), /changed|identity/u); }
     finally { fs.readSync = original; syncBuiltinESMExports(); }
     assert.equal(changed, true, 'real source mutation occurred during the second file observation');
     assert.equal(fs.readFileSync(leaf)[0], 2, 'changed source is retained, never reset');

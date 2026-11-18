@@ -16,12 +16,12 @@ function tools(t, names) {
   return dir;
 }
 
-test('6070 clause 2: a stripped PATH refuses RUNNER_TOOL_MISSING naming the missing tool [P7]', t => {
+test('runners.serve.n6070-clause-2-a-stripped-path: 6070 clause 2: a stripped PATH refuses RUNNER_TOOL_MISSING naming the missing tool [P7]', t => {
   assert.throws(() => requireRunnerTools({ PATH: tools(t, ['ps']) }), error => error.code === 'RUNNER_TOOL_MISSING' && /lsof/u.test(error.message));
   assert.throws(() => requireRunnerTools({ PATH: tools(t, ['lsof']) }), error => error.code === 'RUNNER_TOOL_MISSING' && /\bps\b/u.test(error.message));
   assert.throws(() => requireRunnerTools({ PATH: '' }), error => error.code === 'RUNNER_TOOL_MISSING');
 });
 
-test('6070 clause 2: with ps and lsof present the check passes and serve starts as before [P7]', t => {
+test('runners.serve.n6070-clause-2-with-ps-and: 6070 clause 2: with ps and lsof present the check passes and serve starts as before [P7]', t => {
   assert.doesNotThrow(() => requireRunnerTools({ PATH: tools(t, ['ps', 'lsof']) }));
 });

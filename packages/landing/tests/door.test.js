@@ -5,15 +5,16 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as core from '../light.js';
 import * as door from '../index.js';
+import { startGroup } from '../src/io/train/parallel-start.js';
 
 const CORE = fileURLToPath(new URL('../light.js', import.meta.url));
 
-test('clause 1: core.js exports landWhy, landWhyLines, landingLine, localReleaseRank, requirePreparedComputedConflict and the two batch-root checks, the same functions index.js carries [C7]', () => {
+test('landing.door.core-js-exports-landwhy-landwhylines-landingline: clause 1: core.js exports landWhy, landWhyLines, landingLine, localReleaseRank, requirePreparedComputedConflict and the two batch-root checks, the same functions index.js carries [C7]', () => {
   assert.deepEqual(Object.keys(core).sort(), ['landWhy', 'landWhyLines', 'landingBatchItemsAtRoot', 'landingBatchOwnsRoot', 'landingLine', 'localReleaseRank', 'requirePreparedComputedConflict']);
   for (const name of Object.keys(core)) assert.equal(door[name], core[name], name);
 });
 
-test('clause 2: loading core.js loads no landing file outside src/logic and the computed conflict receipt module [C7]', () => {
+test('landing.door.loading-core-js-resolves-no-shell: clause 2: loading core.js loads no landing file outside src/logic and the computed conflict receipt module [C7]', () => {
   const script = `
     import { registerHooks } from 'node:module';
     const seen = [];
@@ -27,4 +28,10 @@ test('clause 2: loading core.js loads no landing file outside src/logic and the 
   const outside = landing.filter(url => !url.endsWith('/packages/landing/light.js') && !url.includes('/packages/landing/src/logic/') && !url.endsWith('/packages/landing/src/io/computed/conflict/receipt.js'));
   assert.deepEqual(outside, []);
   assert.ok(landing.some(url => url.endsWith('/src/io/computed/conflict/receipt.js')));
+});
+
+test('landing.door.exports-start-group: clause 1: index.js exports startGroup, the same function parallel-start.js exports [B3,C7]', () => {
+  assert.equal(typeof door.startGroup, 'function');
+  assert.equal(door.startGroup, startGroup);
+  assert.equal(core.startGroup, undefined);
 });

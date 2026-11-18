@@ -1,5 +1,6 @@
 /** The release move table run over the live board: the store's release writer reads its decision from it [C7,#8246]. */
 import { runReleaseTable } from "./landing/lease.js";
+import { reviewHoldState } from './release.js';
 
 /** The event kinds the table's rules read, as the history reader of the replay reads them. */
 const KINDS = Object.freeze(['add', 'edit', 'claim', 'renew', 'release', 'submit', 'withdraw', 'merged', 'reopen', 'escalate', 'unhold_item', 'hold_item', 'submit-handoff', 'reserve']);
@@ -36,7 +37,7 @@ function reachable(db, start) {
  *
  * @param {object} board
  * @param {object} item - The item row before the move.
- * @param {{ agentId: string, note?: string, reasonCode: string, blockedOn?: number[], worktreeSnapshot?: object, reviewer?: string|null, diagnosed: boolean, firstRefusalBuilder?: string|null }} call
+ * @param {{ agentId: string, rerouteUntouched?: boolean, note?: string, reasonCode: string, blockedOn?: number[], worktreeSnapshot?: object, reviewer?: string|null, diagnosed: boolean, firstRefusalBuilder?: string|null }} call
  * @returns {{ refused?: object, patch?: object, events?: object[], via?: string[] }}
  */
 export function releaseDecision(board, item, call) {
@@ -45,15 +46,19 @@ export function releaseDecision(board, item, call) {
   const history = db.prepare(`SELECT event_id id, event_at at, event_kind kind, event_by by, event_detail d FROM event WHERE item_id=? AND event_kind IN (${KINDS.map(() => '?').join(',')}) ORDER BY event_id`)
     .all(id, ...KINDS).map(e => ({ id: e.id, at: e.at, kind: e.kind, by: e.by, detail: detailOf(e.d) }));
   const lastClaim = history.filter(e => e.kind === 'claim').at(-1) ?? null;
-  const seat = db.prepare('SELECT agent_route, agent_path FROM agent WHERE agent_id=?').get(call.agentId);
+  const seat = db.prepare('SELECT agent_route, agent_path, agent_family FROM agent WHERE agent_id=?').get(call.agentId);
   const after = afterOf(item);
   const on = call.blockedOn ?? [];
+  // A submitted item's review release is held after a second one by one family only with the board flag on, at or above the engine that has the rule [C7].
+  const hold = reviewHoldState(board, item);
+  const holdAfterTwoReleases = hold !== null;
   const snapshot = { revision: 1,
     item: { id, status: item.item_status, owner: item.item_owner, route: item.item_route, after, leaseUntil: item.item_lease_until,
       holdReason: item.item_hold_reason ?? null, holdBy: item.item_hold_by ?? null, reviewer: call.reviewer ?? null },
-    actor: { id: call.agentId, route: seat?.agent_route ?? null, path: seat?.agent_path, joined: true }, owner: null, diagnosed: call.diagnosed,
+    actor: { id: call.agentId, route: seat?.agent_route ?? null, path: seat?.agent_path, joined: true, ...(holdAfterTwoReleases ? { family: seat?.agent_family ?? null } : {}) }, owner: null, diagnosed: call.diagnosed,
     firstRefusalBuilder: call.firstRefusalBuilder ?? null, items: { [id]: { status: item.item_status, after }, ...reachable(db, [...after, ...on]) },
-    ...(board.rerouteUntouched === true ? { io: { rerouteUntouched: true } } : {}),
+    ...(call.rerouteUntouched === true || holdAfterTwoReleases ? { io: { ...(call.rerouteUntouched === true ? { rerouteUntouched: true } : {}), ...(holdAfterTwoReleases ? { holdAfterTwoReleases: true } : {}) } } : {}),
+    ...(holdAfterTwoReleases ? hold : {}),
     history, lastClaim, ownerLastClaimId: lastClaim?.id ?? null, ownerLastLease: null, ownerRegisteredPath: seat?.agent_path };
   const move = { id, actor: call.agentId, root: seat?.agent_path ?? '/seat', reason: call.reasonCode, note: call.note, now: board.clock.now().toISOString(),
     ...(call.blockedOn ? { on: call.blockedOn } : {}), ...(call.worktreeSnapshot ? { worktreeSnapshot: call.worktreeSnapshot } : {}) };

@@ -35,7 +35,7 @@ function repo(t) {
   return { root, base: sh('rev-parse', 'HEAD'), commit };
 }
 
-test('scanLanding reports a composed module that does not parse as a file:line row [C7,#5559]', async t => {
+test('landing.scan.scanlanding-reports-a-composed-module-that: scanLanding reports a composed module that does not parse as a file:line row [C7,#5559]', async t => {
   const { root, base, commit } = repo(t);
   const tip = commit('b.js', "import { a } from './a.js';\nimport { a } from './a.js';\nexport const b = a;\n");
   const rows = await scanLanding(root, base, tip);
@@ -43,13 +43,13 @@ test('scanLanding reports a composed module that does not parse as a file:line r
   assert.match(rows[0], /^b\.js:1: LAND_MODULE_PARSE /u);
 });
 
-test('scanLanding is clean for a composed tree whose modules parse [C7,#5559]', async t => {
+test('landing.scan.scanlanding-is-clean-for-a-composed: scanLanding is clean for a composed tree whose modules parse [C7,#5559]', async t => {
   const { root, base, commit } = repo(t);
   const tip = commit('b.js', "import { a } from './a.js';\nexport const b = a;\n");
   assert.deepEqual(await scanLanding(root, base, tip), []);
 });
 
-test('scanLanding reports it cannot read a tip that is not this checkout [C7,#5559]', async t => {
+test('landing.scan.scanlanding-reports-it-cannot-read-a: scanLanding reports it cannot read a tip that is not this checkout [C7,#5559]', async t => {
   const { root, base, commit } = repo(t);
   const tip = commit('b.js', 'export const b = 1;\n');
   assert.equal(await scanLanding(root, base, base), SCAN_UNAVAILABLE, 'the checked-out tree is not the named tip');

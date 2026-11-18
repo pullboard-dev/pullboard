@@ -71,7 +71,7 @@ function liveFixture(t) {
   return { repo, common, resources, claimedAt: offeredAt + MINUTE };
 }
 
-test('a landing log names each gate it opened, its selected files and whether it finished [C7,N26]', () => {
+test('view.x-io-live-read.a-landing-log-names-each-gate-it: a landing log names each gate it opened, its selected files and whether it finished [C7,N26]', () => {
   const runs = landingGateRuns([
     "2026-11-11T19:00:00.000Z gate candidate: reused #1's submit receipt; rerunning 2 file(s) whose import closure changed since the submit: a.test.js, b.test.js",
     '2026-11-11T19:00:01.000Z gate candidate: 2 files selected; running',
@@ -82,7 +82,7 @@ test('a landing log names each gate it opened, its selected files and whether it
     [['candidate', 2, ['a.test.js', 'b.test.js'], true], ['trunk-moved-1', null, null, false]]);
 });
 
-test('the live snapshot reads every runner and each running gate or landing from the real board and leases [C7,N26]', t => {
+test('view.x-io-live-read.the-live-snapshot-reads-every-runner-and: the live snapshot reads every runner and each running gate or landing from the real board and leases [C7,N26]', t => {
   const { common, resources, claimedAt } = liveFixture(t);
   const sources = readLiveRunners({ roots: [{ commonDir: common }], now: Date.now(), resources, configured: [{ host: 'mini-3' }], openBoardReadOnly: store.openBoardReadOnly });
   assert.deepEqual(sources.runners.map(runner => [runner.host, runner.holders.length]), [['mini-3', 0], ['mini-1', 1], ['mini-2', 1], ['aux-9', 0]],
@@ -94,7 +94,7 @@ test('the live snapshot reads every runner and each running gate or landing from
   assert.equal(sources.fileTimes[FILES[1]], 30 * MINUTE);
 });
 
-test('publicLiveRunners numbers the machine runners and carries counts and estimates with no runner, seat or path in it [C7,N26]', t => {
+test('view.x-io-live-read.publicliverunners-numbers-the-machine-runners-and-carries: publicLiveRunners numbers the machine runners and carries counts and estimates with no runner, seat or path in it [C7,N26]', t => {
   const { repo, common, resources } = liveFixture(t);
   assert.equal(repoInfo(repo.root).commonDir, common);
   const live = publicLiveRunners(common, { resources, configured: [{ host: 'mini-3' }], openBoardReadOnly: store.openBoardReadOnly });
@@ -111,7 +111,7 @@ test('publicLiveRunners numbers the machine runners and carries counts and estim
   for (const secret of ['mini-', 'aux-9', 'core-7', 'coordinator', '/seat', BATCH, 'test:5774', common]) assert.equal(text.includes(secret), false, `leaks ${secret}`);
 });
 
-test('pull-dispatch leases on the board number one runner once per runner, shards and main tests included [N26]', t => {
+test('view.x-io-live-read.pull-dispatch-leases-on-the-board-number: pull-dispatch leases on the board number one runner once per runner, shards and main tests included [N26]', t => {
   const { repo, common, resources } = liveFixture(t);
   const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
   const at = Date.now() - 2 * MINUTE;
@@ -125,7 +125,7 @@ test('pull-dispatch leases on the board number one runner once per runner, shard
   assert.equal(JSON.stringify(live).includes('mill'), false, 'no runner name leaves the machine');
 });
 
-test('registeredOnly lists the configured runners, carries each fresh heartbeat as load and folds a pull runner into its host (#8060) [C7]', t => {
+test('view.x-io-live-read.registeredonly-lists-the-configured-runners-carries-each: registeredOnly lists the configured runners, carries each fresh heartbeat as load and folds a pull runner into its host (#8060) [C7]', t => {
   const { repo, common, resources } = liveFixture(t);
   const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
   const at = Date.now() - 2 * MINUTE;
@@ -138,7 +138,7 @@ test('registeredOnly lists the configured runners, carries each fresh heartbeat 
     'three registered runners; a stale or missing heartbeat has no load; the pull runner works on its host');
 });
 
-test('clause 1: with runs_store on, the live read takes pulled jobs from a read-only runs handle and finished counts from board run rows [B2,#9016]', t => {
+test('view.x-io-live-read.clause-1-with-runs-store-on-the: clause 1: with runs_store on, the live read takes pulled jobs from a read-only runs handle and finished counts from board run rows [B2,#9016]', t => {
   const { repo, common } = liveFixture(t);
   const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
@@ -155,7 +155,7 @@ test('clause 1: with runs_store on, the live read takes pulled jobs from a read-
   assert.ok(sources.runners.some(runner => runner.host === 'runs-only-runner'), 'the runner that ran a runs-file job shows');
 });
 
-test('clause 2: with runs_store off, the live read returns the same job rows as before, from the board [B2,#9016]', t => {
+test('view.x-io-live-read.clause-2-with-runs-store-off-the: clause 2: with runs_store off, the live read returns the same job rows as before, from the board [B2,#9016]', t => {
   const { repo, common } = liveFixture(t);
   const board = cellBoard(t, repo.boardFile, { now: () => new Date() });
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'board_id'").get().meta_value;
