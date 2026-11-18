@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/cli/src/io/cli-main/run.js apps/cli/tests/fixtures/next/take.js apps/cli/tests/fixtures/child.js */
+/** @pullboard-test-input apps/cli/src/io/cli-main/run.js apps/cli/tests/fixtures/next/take.js apps/cli/tests/fixtures/process.js */
 /** Every board command a seat runs renews its presence, so a seat driven one short command at a time keeps its claim [B3,C7,#10873]. */
 import assert from 'node:assert/strict';
 import { lstatSync } from 'node:fs';
@@ -9,12 +9,10 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { captureLapsedClaims } from '../../../../../packages/health/index.js';
-import { runFixtureChild } from '../../fixtures/child.js';
 import { fixture } from '../../fixtures/next/take.js';
+import { runCliInProcess } from '../../fixtures/process.js';
 
-const BIN = fileURLToPath(new URL('../../../pullboard.js', import.meta.url));
 const MINUTE = 60_000;
 
 /** The seat's presence key and an accessor for its sidecar heartbeat row. */
@@ -49,10 +47,9 @@ function ageCheckout(path) {
   }
 }
 
-/** One board command in its own process from the seat's checkout. */
-function command(seat, ...args) {
-  // The fixture set this process's board and homes; a read starts no claim beater, so nothing outlives the command.
-  const ran = runFixtureChild(process.execPath, [BIN, ...args], { cwd: seat.path, encoding: 'utf8', env: process.env });
+/** One whole board command from the seat's checkout through the production main(); a read starts no beater, so nothing outlives it. */
+async function command(seat, ...args) {
+  const ran = await runCliInProcess(args, { cwd: seat.path, env: process.env });
   assert.equal(ran.status, 0, `pullboard ${args.join(' ')}: ${ran.stderr}`);
 }
 
@@ -78,7 +75,7 @@ test('cli.io-cli-main-run.short-commands-keep-claim: clause 1: separate short re
   for (const args of [['show', String(id)], ['list'], ['whoami']]) {
     beat.ago(MINUTE);
     const before = Date.now();
-    command(seat, ...args);
+    await command(seat, ...args);
     const at = Date.parse(beat.at());
     assert.ok(at >= before, `pullboard ${args[0]} renewed the seat's presence (beat ${beat.at()})`);
     ageCheckout(seat.path);

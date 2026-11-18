@@ -12,7 +12,7 @@
     "inputs": [
       "apps/cli/src/io/cli-main/run.js",
       "apps/cli/tests/fixtures/next/take.js",
-      "apps/cli/tests/fixtures/child.js"
+      "apps/cli/tests/fixtures/process.js"
     ]
   },
   "cli.io-cli-main-run.quiet-seat-loses-claim": {
@@ -28,7 +28,7 @@
     "inputs": [
       "apps/cli/src/io/cli-main/run.js",
       "apps/cli/tests/fixtures/next/take.js",
-      "apps/cli/tests/fixtures/child.js"
+      "apps/cli/tests/fixtures/process.js"
     ]
   }
 }
