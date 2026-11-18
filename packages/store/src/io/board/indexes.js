@@ -56,15 +56,28 @@ function missingSessionPeersIndex(db) {
   return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(SESSION_PEERS_INDEX);
 }
 
+/**
+ * The claimed-by-owner lookup the exit guard runs twice per write, once under the write lock (4.4 ms as a scan) [C7,#10876].
+ * Why additive, not in SCHEMA: SCHEMA feeds the digest, so a line there read as drift on every existing board (#11000).
+ */
+const OWNER_STATUS_INDEX = 'item_owner_status';
+const OWNER_STATUS_SQL = `CREATE INDEX IF NOT EXISTS ${OWNER_STATUS_INDEX} ON item (item_owner, item_status)`;
+
+/** True when the claimed-by-owner index is not installed yet. */
+function missingOwnerStatusIndex(db) {
+  return !db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name=?").get(OWNER_STATUS_INDEX);
+}
+
 /** Detect the additive upgrades eligible for an owning, already-current board. */
 export function missingAdditiveIndexes(db) {
-  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingEventArchive(db);
+  return missingFactIdentityIndexes(db).length > 0 || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || missingJobTables(db) || missingLedgerTable(db) || missingEventArchive(db);
 }
 
 /** Install only additive fact/activation upgrades, inside the opener's existing atomic restamp. */
 export function ensureAdditiveIndexes(db) {
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
+  db.exec(OWNER_STATUS_SQL);
   ensureJobTables(db);
   db.exec(LEDGER_SCHEMA_SQL);
   db.exec(EVENT_ARCHIVE_SCHEMA_SQL);
@@ -79,7 +92,7 @@ export function ensureAdditiveIndexes(db) {
 export function missingAdditiveSchema(db) {
   const installed = name => db.prepare("SELECT 1 FROM sqlite_master WHERE name = ?").get(name);
   return HOT_INDEXES.some(sql => !installed(sql.match(/EXISTS (\w+)/u)[1])) || missingFactIdentityIndexes(db).length > 0
-    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'gate_hop', 'event_archive'].every(installed);
+    || missingGrantActivationIndex(db) || missingSessionPeersIndex(db) || missingOwnerStatusIndex(db) || !['job', 'job_step', ...JOB_INDEX_NAMES, ...RUN_OBJECT_NAMES, 'test_result', 'test_result_key', 'gate_hop', 'event_archive'].every(installed);
 }
 
 /**
@@ -90,6 +103,7 @@ export function ensureAdditiveSchema(db) {
   for (const sql of HOT_INDEXES) db.exec(sql);
   ensureGrantActivationIndex(db);
   db.exec(SESSION_PEERS_SQL);
+  db.exec(OWNER_STATUS_SQL);
   db.exec(JOB_SCHEMA_SQL);
   db.exec(RUN_SCHEMA_SQL);
   db.exec(LEDGER_SCHEMA_SQL);

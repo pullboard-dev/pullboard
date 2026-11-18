@@ -8,7 +8,7 @@ import {
 } from '../../src/io/test/file/dispatch.js';
 import { runLegacy } from '../fixtures/watchdog/legacy.js';
 
-test('protocol-only frames never count as output, including split headers [C7,V10]', () => {
+test('gate.watchdog.protocol-frames-not-output: protocol-only frames never count as output, including split headers [C7,V10]', () => {
   const serializer = new DefaultSerializer();
   serializer.writeHeader();
   const header = serializer.releaseBuffer();
@@ -23,9 +23,9 @@ test('protocol-only frames never count as output, including split headers [C7,V1
   assert.equal(count, 1);
 });
 
-test('coverage attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'coverage'));
+test('gate.watchdog.coverage-attributes-descendant: coverage attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'coverage'));
 
-test('clause 1: a file with an audit row is killed at AUDIT_FILE_KILL_MS, not at its ms row, while other rows keep their ms [C7,#8951]', () => {
+test('gate.watchdog.audit-file-kill: clause 1: a file with an audit row is killed at AUDIT_FILE_KILL_MS, not at its ms row, while other rows keep their ms [C7,#8951]', () => {
   assert.equal(rowFileKillMs({ audit: true, ms: 60_000 }), AUDIT_FILE_KILL_MS);
   assert.equal(rowFileKillMs({ audit: true, ms: 240_000 }), AUDIT_FILE_KILL_MS);
   assert.notEqual(rowFileKillMs({ audit: true, ms: 60_000 }), 60_000);
