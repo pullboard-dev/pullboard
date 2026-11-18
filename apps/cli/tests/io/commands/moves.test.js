@@ -29,9 +29,9 @@ test('cli.io-commands-moves.moves-prints-each-table-s-compares-disagreements: cl
   const box = recorded(t);
   const ran = await runCliInProcess(['moves'], { cwd: box.root, env: box.env });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-  assert.match(ran.stdout, /claim\s+shadow\s+2\s+1\s+2026-11-15T12:00:00\.000Z/u);
+  assert.match(ran.stdout, /claim\s+live\s+2\s+1\s+2026-11-15T12:00:00\.000Z/u);
   assert.match(ran.stdout, /disagreed on #9 at 2026-11-15T12:00:00\.000Z: events\.0\.detail\.leaseUntil/u);
-  assert.match(ran.stdout, /submit\s+none\s+0\s+0\s+never/u);
+  assert.match(ran.stdout, /submit\s+live\s+0\s+0\s+never/u);
 });
 
 test('cli.io-commands-moves.moves-json-gives-each-table-a-state: clause 2: moves --json gives each table a state of live, shadow or none [C7,#8378]', async t => {
@@ -40,9 +40,10 @@ test('cli.io-commands-moves.moves-json-gives-each-table-a-state: clause 2: moves
   const report = JSON.parse(ran.stdout);
   const tables = (report.result ?? report).tables;
   const state = name => tables.find(row => row.table === name).state;
-  assert.equal(state('claim'), 'shadow');
+  assert.equal(state('claim'), 'live', 'the claim table is live by default (#8395)');
   assert.equal(state('release'), 'live');
-  assert.equal(state('submit'), 'none');
+  assert.equal(state('submit'), 'live');
+  assert.deepEqual(['start', 'complete', 'outbox'].map(name => state(name)), ['none', 'none', 'none'], 'hand-off and outbox stay off by default');
   assert.deepEqual(tables.find(row => row.table === 'claim').lastDisagreements.map(row => row.id), [9]);
 });
 
@@ -59,13 +60,15 @@ const SHADOWS = Object.fromEntries(['claim', 'commit', 'submit', 'start', 'compl
   .map(table => [table, { compared: 1, disagreed: 0, since: '2026-11-16T00:00:00.000Z', lastDisagreedAt: null, last: [] }]));
 const TABLES = ['backbone', 'claim', 'hop', 'job', 'landing', 'lease', 'outbox', 'pulled', 'reclaim', 'release', 'reopen', 'submit', 'verify', 'withdraw'];
 const row = (rows, table) => rows.find(entry => entry.table === table);
+/** Machine settings with every moves.live switch off but the ones named: since #8395 six of them default on, so a test of the off state says so. */
+const offWith = on => ({ moves: { live: { claim: false, submit: false, handoff: false, outcome: false, job: false, reopen: false, reclaim: false, outbox: false, ...on } } });
 
 test('cli.io-commands-moves.commit-compares-read-live-under-moves-live: clause 1: commit compares read live under moves.live.submit, start and complete under moves.live.handoff [C7,#9188]', () => {
-  const off = movesReport(SHADOWS, TABLES, {});
+  const off = movesReport(SHADOWS, TABLES, offWith({}));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(off, table).state), ['shadow', 'shadow', 'shadow', 'shadow']);
-  const submitOn = movesReport(SHADOWS, TABLES, { moves: { live: { submit: true } } });
+  const submitOn = movesReport(SHADOWS, TABLES, offWith({ submit: true }));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(submitOn, table).state), ['live', 'live', 'shadow', 'shadow']);
-  const handoffOn = movesReport(SHADOWS, TABLES, { moves: { live: { handoff: true } } });
+  const handoffOn = movesReport(SHADOWS, TABLES, offWith({ handoff: true }));
   assert.deepEqual(['commit', 'submit', 'start', 'complete'].map(table => row(handoffOn, table).state), ['shadow', 'shadow', 'live', 'live']);
 });
 
@@ -86,7 +89,7 @@ test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each 
     reopen: 'moves.live.reopen', start: 'moves.live.handoff', submit: 'moves.live.submit', verify: null, withdraw: null,
   });
   const allOn = movesReport(SHADOWS, TABLES, { moves: { live: { claim: true, submit: true, handoff: true, outcome: true, job: true, reopen: true, outbox: true } } });
-  assert.deepEqual(allOn.filter(entry => entry.state !== 'live').map(entry => entry.table), ['backbone', 'reclaim'], 'every table with a writer reads live once its switch is on');
+  assert.deepEqual(allOn.filter(entry => entry.state !== 'live').map(entry => entry.table), ['backbone'], 'every table with a writer reads live once its switch is on; reclaim is live by default (#8395)');
 });
 
 {

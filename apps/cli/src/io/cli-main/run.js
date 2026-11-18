@@ -120,6 +120,10 @@ export async function main(rawArgv, streams) {
   catch (error) { thrown = error; status = 1; throw error; }
   finally {
     try { (await import('../../../../../packages/store/light.js')).rotateBoardWritesLog(); } catch { /* A log that cannot rotate never changes a command's outcome. */ }
+    // Every command a seat runs renews its presence, reads included: a seat driven one short command at a time (an agent
+    // over SSH, or one with no hooks) has no process that outlives its commands, so the seat-gone sweep took its claim two
+    // minutes after its last write (#10873). The heartbeat keeps its once-a-minute throttle; a missed beat never fails a command.
+    if (binding) try { (await import('../../../../../packages/store/light.js')).beatSeatFile(binding.board, binding.seat); } catch { /* presence is best effort */ }
     stopBeat(); finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort];
     // One line per run on every exit path, a thrown Refused or an uncaught error included [C7].
     appendTrace({ argv, cwd, startedAt, status, error: thrown, refusal: traced.refusal, seat: binding?.seat ?? null, why });
