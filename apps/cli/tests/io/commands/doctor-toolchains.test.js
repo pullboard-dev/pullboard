@@ -1,8 +1,10 @@
 /** @pullboard-test-input source-cell apps/cli */
-/** pullboard doctor names a detected language whose toolchain no registered runner declares [C7]. */
+/** pullboard doctor names a detected language whose toolchain no registered runner declares, and a managed repo with no git maintenance [C7,#10782]. */
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { apiHttpFixture } from '../../fixtures/api.js';
@@ -40,4 +42,19 @@ test('cli.io-commands-doctor-toolchains.a-runner-that-declares-go-clears-the: cl
 test('cli.io-commands-doctor-toolchains.a-repo-with-no-runners-prints-no: clause 3: a repo with no runners prints no toolchain line [C7]', async t => {
   const box = goProject(t, []);
   assert.doesNotMatch(await doctor(box), /toolchain .* is missing/u);
+});
+
+test('cli.io-commands-doctor-toolchains.doctor-reports-unregistered-git-maintenance: clause 3: doctor reports a managed repo with git maintenance not registered, and registering it clears the line [C7,#10782]', async t => {
+  const box = apiHttpFixture(t);
+  const global = join(dirname(box.root), 'global.gitconfig');
+  writeFileSync(global, '');
+  box.env.GIT_CONFIG_GLOBAL = global;
+  const lines = out => out.split('\n').filter(line => /git maintenance is not registered/u.test(line));
+  const before = lines(await doctor(box));
+  assert.equal(before.length, 1, before.join('\n'));
+  assert.ok(before[0].includes(box.root), before[0]);
+  assert.match(before[0], /repair: run git -C ".+" config maintenance\.prefetch\.enabled false, then git -C ".+" maintenance start/u);
+  const registered = spawnSync('git', ['maintenance', 'register'], { cwd: box.root, env: box.env, encoding: 'utf8' });
+  assert.equal(registered.status, 0, registered.stderr);
+  assert.deepEqual(lines(await doctor(box)), []);
 });
