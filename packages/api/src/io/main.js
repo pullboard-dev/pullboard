@@ -87,7 +87,7 @@ import {
 import { finishedCounts } from './items.js';
 import { finishedText } from './items.js';
 import { openOnly } from './items.js';
-import { searchText } from './items.js';
+import { searchText } from './items.js'; import { seatClaims } from './items.js';
 import {
   compareFlowWindows,
   prepareFlowHistory,
@@ -1330,6 +1330,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       return proof;
     }, codeIsMain, boardOpeners)),
     item: (board, id) => pool ? pool.call('item', { root: board.root, id: board.id, itemId: id }, { route: `GET /api/v1/boards/${board.id}/items/${id}` }) : projectRead(board, () => localItem(board, id)),
+    agent: (board, name) => projectRead(board, () => withReadBoard(board.root, (current) => seatClaims(current, name, { store, Refused }), codeIsMain, boardOpeners)),
     search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
