@@ -2,8 +2,8 @@ import {
   familyName,
   familyAliasesOf,
 } from "../../../../../verify/index.js";
-import { EXIT_RULES_ENGINE } from "../../../../../state/index.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { EXIT_RULES_ENGINE } from "../../../../../state/light.js";
+import { ENGINE_VERSION } from "../../../../../state/light.js";
 /** Native family/session continuation metadata has no store writer dependency [B3,C7]. */
 import { createHash } from 'node:crypto';
 import {
