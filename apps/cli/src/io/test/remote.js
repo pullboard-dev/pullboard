@@ -16,6 +16,7 @@ import { boardPath } from '../remote/board.js';
 import { reportRemoteRefusal } from '../remote/board.js';
 import { requestJson } from '../remote/board.js';
 import { seatAgent } from '../remote/board.js';
+import { seatKey } from '../remote/board.js';
 
 // Budget: one fact move runs one small CLI write on the board host.
 const FACT_TIMEOUT_MS = 30_000;
@@ -105,7 +106,8 @@ export async function runRemoteTest(io, files, values, remote) {
     const ran = await runFiles(root, command, files);
     const green = ran.code === 0;
     const text = receiptText({ green, files, head, host: hostname(), seconds: Math.round((Date.now() - started) / 100) / 10, code: ran.code });
-    await requestJson(remote, `${path}/moves`, { verb: 'fact', item, args: { kind: 'note', text }, agent }, FACT_TIMEOUT_MS);
+    // The receipt is a move as the seat, so it carries the seat's own key [P7,#10790].
+    await requestJson({ ...remote, seatKey: seatKey(io.cwd, agent) }, `${path}/moves`, { verb: 'fact', item, args: { kind: 'note', text }, agent }, FACT_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.({ green, item, files, head, receipt: text, board });
     if (!green) io.say(ran.output.trimEnd().split('\n').slice(-TAIL_LINES).join('\n'));

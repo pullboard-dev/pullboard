@@ -244,5 +244,8 @@ export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = 
   // At most 32 decisions per write; any left over are taken by the next write.
   snapshot.claims = snapshot.claims.slice(0, 32);
   if (!snapshot.claims.length && !lapsedItems.length) return null;
+  // Every lapsed claim was kept and the scan cursor stays put: the maintenance write would change nothing, yet it took
+  // the board's write lock before every command (44.6% of live writes on 18 Nov), so none is opened [C7,#10875].
+  if (!snapshot.claims.length && snapshot.claimScan.next === snapshot.claimScan.previous) return null;
   return snapshot;
 }

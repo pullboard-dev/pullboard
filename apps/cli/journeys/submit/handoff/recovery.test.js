@@ -15,7 +15,7 @@ import { submitted } from '../../../tests/fixtures/submit/recovery.js';
 import { transitions } from '../../../tests/fixtures/submit/recovery.js';
 import { until } from '../../../tests/fixtures/submit/recovery.js';
 
-test('clause 1: a runner stopped mid-check stops its check and hands back the gate job lease, and a fresh runner finishes the same job with one terminal result [V4,H16,E18,C7]', async t => {
+test('cli.journeys-submit-handoff-recovery.a-runner-stopped-mid-check-stops: clause 1: a runner stopped mid-check stops its check and hands back the gate job lease, and a fresh runner finishes the same job with one terminal result [V4,H16,E18,C7]', async t => {
   const box = fixture(t);
   const job = await runningGate(box);
   const pid = runnerPid(box);

@@ -52,7 +52,9 @@ function base(g) {
     adoptCorrection: pending || g.int(2) === 0, routeCap: null, exitRules: g.pick([null, { ceiling: 0.8 }]), exitClaimKey: renewed && g.int(2) ? key('b') : key('a'), factId: 900 };
   const rework = item.verdict === 'REJECT' && item.builtBy === 'w1';
   const seatCap = g.pick([null, { n: 1, how: 'claims.perSeat sets 1' }, { n: 3, how: 'runners size 3' }]);
-  const seatCapOn = !renewed && m.itemFolder === true && item.parentId === null && !rework && Boolean(seatCap);
+  // A child is free only beside its held parent (#10847): parent 5 is held for the item, parent 7 for every other child.
+  const parentHeld = item.parentId !== null && g.int(2) === 0;
+  const seatCapOn = !renewed && m.itemFolder === true && !parentHeld && !rework && Boolean(seatCap);
   const io = { checkoutOwner: null, coordinatorPaths: [], provesNothing: null, policyRefresh: g.pick([null, null, { before: 'p1', after: 'p2', changed: ['lanes'] }, { before: 'p1', after: 'p2' }]),
     reworkWindows: true, exitCeiling: item.owner === 'w1' && g.int(3) === 0 ? { message: 'ceiling' } : null, ledgerWritable: g.pick([true, undefined]), sessionCap: null, sessionSeats: [], laneSeat: null,
     primaryRoot: null, foreignBlocker: null, builderGone: blocks ? g.int(2) === 0 : g.int(4) === 0, buildBudgetMinutes: renewed && g.int(4) === 0 ? g.pick([0, Number.NaN, '30']) : g.pick([30, 45]),
@@ -61,9 +63,9 @@ function base(g) {
   const otherSeat = windows.at(-1)?.[2].reopenFirstRefusal?.otherSeatFirst;
   const deferred = { barProblem: null, reworkRouting: blocks && (otherSeat || !io.builderGone) ? { applies: true } : g.pick([null, { applies: false }]), exitContinuation: null, lineCapacity: null,
     submitAdmission: g.pick([null, { admitted: 1 }]), submitOutcome: g.pick([null, { outcome: 2 }]) };
-  const top = Array.from({ length: g.int((renewed ? 3 : seatCapOn ? seatCap.n : m.itemFolder === true || item.parentId !== null || rework ? 3 : 1)) },
+  const top = Array.from({ length: g.int((renewed ? 3 : seatCapOn ? seatCap.n : m.itemFolder === true || parentHeld || rework ? 3 : 1)) },
     (_, i) => claim(90 + i, g.pick([{}, { verdict: 'REJECT', builtBy: 'w2' }, { builtBy: 'w1' }])));
-  const extras = [...(g.int(3) ? [] : [claim(ID)]), ...(g.int(3) ? [] : [claim(81, { leaseUntil: g.pick([at(-1), at(0)]) })]), ...(g.int(3) ? [] : [claim(82, { awaitingGateOrReview: true })])];
+  const extras = [claim(7, { awaitingGateOrReview: true }), ...(parentHeld ? [claim(5, { awaitingGateOrReview: true })] : []), ...(g.int(3) ? [] : [claim(ID)]), ...(g.int(3) ? [] : [claim(81, { leaseUntil: g.pick([at(-1), at(0)]) })]), ...(g.int(3) ? [] : [claim(82, { awaitingGateOrReview: true })])];
   const rework83 = g.int(3) ? [] : [claim(83, { verdict: 'REJECT', builtBy: 'w1' })];
   const children = Array.from({ length: g.int(4) === 0 ? 9 - top.length - rework83.length : g.int(2) }, (_, i) => claim(100 + i, { parentId: 7 }));
   const s = { now: NOW, actor: { id: 'w1', lane, route: actorRoute, model: g.pick([undefined, 'sonnet']), joined: true }, item,
@@ -71,7 +73,7 @@ function base(g) {
     claimWaiting: [70, 71, 72].filter(() => g.int(2)), laneHold: renewed && g.int(3) === 0 ? { by: 'coordinator', reason: 'r' } : null,
     actorClaims: [...extras, ...top, ...rework83, ...children].sort(() => g.rand() - 0.5), history, usedExitKeys: [key('b')], io, deferred };
   const adopts = m.adoptCorrection === true && pending, refreshes = Boolean(io.policyRefresh) && !adopts;
-  const k = { renewed, pending, adopts, refreshes, freezes: item.frozenDigest === null || adopts || refreshes, seatCapOn, rework, live: top.length + rework83.length + children.length,
+  const k = { renewed, pending, adopts, refreshes, freezes: item.frozenDigest === null || adopts || refreshes, seatCapOn, parentHeld, rework, live: top.length + rework83.length + children.length,
     top: s.actorClaims.filter(c => top.includes(c)).map(c => c.id) };
   return { s, m, k };
 }
@@ -151,13 +153,13 @@ const BREAKS = [
   { row: 'lane-open', when: (s, k) => !k.renewed, apply: (g, s) => { s.laneHold = { by: 'coordinator', reason: 'freeze' }; return { message: `coordinator holds the ${s.item.lane} lane: freeze; take other available work with pullboard next, or end your turn if none is offered` }; } },
   { row: 'line-capacity', apply: (g, s) => { s.deferred.lineCapacity = { message: 'line full' }; return { message: 'line full' }; } },
   { row: 'one-live-claim', when: (s, k) => !k.renewed, apply: (g, s, m, k) => {
-    const single = m.itemFolder !== true && s.item.parentId === null && !k.rework && k.live < 9, capped = k.seatCapOn && k.live + s.io.seatCap.n - k.top.length < 10;
+    const single = m.itemFolder !== true && !k.parentHeld && !k.rework && k.live < 9, capped = k.seatCapOn && k.live + s.io.seatCap.n - k.top.length < 10;
     const variant = g.pick(['ten', ...(single ? ['single'] : []), ...(capped ? ['cap'] : [])]);
-    if (variant === 'single') { s.actorClaims.push(claim(95, g.pick([{}, { builtBy: 'w1' }, { verdict: 'REJECT', builtBy: 'w2' }]))); return { message: 'you already hold #95; submit or release it first (child items are free)' }; }
+    if (variant === 'single') { s.actorClaims.push(claim(95, g.pick([{}, { builtBy: 'w1' }, { verdict: 'REJECT', builtBy: 'w2' }]))); return { message: 'you already hold #95; submit or release it first (children of an item you hold are free)' }; }
     if (variant === 'cap') {
       const ids = [...k.top, ...Array.from({ length: s.io.seatCap.n - k.top.length }, (_, i) => 95 + i)];
       s.actorClaims.push(...ids.slice(k.top.length).map(id => claim(id)));
-      return { message: `you already hold ${ids.map(id => `#${id}`).join(', ')}; a seat holds up to ${s.io.seatCap.n} (${s.io.seatCap.how}); submit or release one first (child items are free)` };
+      return { message: `you already hold ${ids.map(id => `#${id}`).join(', ')}; a seat holds up to ${s.io.seatCap.n} (${s.io.seatCap.how}); submit or release one first (children of an item you hold are free)` };
     }
     s.actorClaims.push(...Array.from({ length: 10 - k.live }, (_, i) => claim(120 + i, { parentId: 7 })));
     return { message: 'you already hold ten live claims; submit or release one before claiming another' };
@@ -265,4 +267,39 @@ test('moves.claim-generated.moves-claim-table-inputs-generated-claim-engine-refu
     assert.throws(() => claimEngine(board), { code: 'CLAIM_TABLE_INPUTS' }, JSON.stringify(board));
   }
   for (const grantEngine of [1, 2, GRANT]) assert.equal(typeof claimEngine({ grantEngine }).table, 'object');
+});
+
+/** A snapshot of one open child claim at seat cap 1 with the actor holding `held`, over the first accepted seeded claim to take its shape from. */
+function childClaim(held) {
+  const { s, m } = ok.find(c => !c.k.renewed && c.s.item.status === 'open' && c.s.item.verdict !== 'REJECT');
+  const child = { ...s.item, status: 'open', owner: null, leaseUntil: null, verdict: null, builtBy: null, parentId: 5 };
+  return { s: { ...s, item: child, actorClaims: held, io: { ...s.io, seatCap: { n: 1, how: 'claims.perSeat sets 1' }, policyRefresh: null, provesNothing: null, exitCeiling: null }, history: [], claimWaiting: [] },
+    m: { ...m, itemFolder: true, adoptCorrection: false, exitRules: null, routeCap: null } };
+}
+
+test('moves.claim-generated.child-of-unheld-parent-counts: clause 1: at seatCap 1 a held child of a parent the actor does not hold fills the seat, as the claim writer does [C7,#10847]', () => {
+  const held = [claim(91, { parentId: 5 })];
+  for (const itemFolder of [true]) {
+    const { s, m } = childClaim(held);
+    m.itemFolder = itemFolder;
+    assert.equal(run(s, m).refused?.row, 'one-live-claim', 'a second child of the unheld parent is refused');
+    assert.equal(run(s, m).refused.message, 'you already hold #91; a seat holds up to 1 (claims.perSeat sets 1); submit or release one first (children of an item you hold are free)');
+  }
+  const top = childClaim([claim(92)]);
+  top.s.item.parentId = null;
+  assert.equal(run(top.s, top.m).refused.message, 'you already hold #92; a seat holds up to 1 (claims.perSeat sets 1); submit or release one first (children of an item you hold are free)');
+  const single = childClaim([claim(93, { parentId: 5 })]);
+  single.m.itemFolder = false;
+  single.s.item.parentId = null;
+  assert.equal(run(single.s, single.m).refused.message, 'you already hold #93; submit or release it first (children of an item you hold are free)');
+});
+
+test('moves.claim-generated.child-of-own-parent-free: clause 2: an actor holding the parent claims its children with no refusal [C7,#10847]', () => {
+  const held = [claim(5), claim(91, { parentId: 5 })];
+  const { s, m } = childClaim(held);
+  assert.equal(run(s, m).refused, undefined, 'the child beside its held parent is free at seatCap 1');
+  const plain = childClaim(held);
+  plain.m.itemFolder = false;
+  plain.s.actorClaims = [claim(5, { awaitingGateOrReview: true })];
+  assert.equal(run(plain.s, plain.m).refused, undefined, 'the held parent never counts against its child');
 });
