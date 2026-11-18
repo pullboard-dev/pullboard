@@ -6,6 +6,8 @@ export { createInstallCache } from "./src/io/scripts/pack-cache.js";
 export { createPackCache } from "./src/io/scripts/pack-cache.js";
 export { CLEAN_GATES_TO_ENFORCE, ENFORCED_REFUSALS, CHANGED_REFUSALS, refusalTrialFile, refusalMode, trialLedgerKey, trialRefusal, gateRefuse, countTrialGate, recordFalseRefusal } from "./src/io/refusal/trial.js";
 export { machineryRefusal, runMachineryGuard } from "./src/io/refusal/trial.js";
+export { splitByMain } from "./src/logic/static/findings.js";
+export { staticFindingsOnMain } from "./src/io/static/main-findings.js";
 export { sealKnownMainAutofile } from "./src/io/receipts.js";
 export { recordGateVerdict, finishAwaitingVerdicts, returnMainTest, judgeMainOwnedReds, freshMainReceipt, returnedMainReceipts, gateVerdictJobId, GATE_VERDICT_KIND, AWAITING_MAIN_STEP, MAIN_TEST_RECEIPT_STEP } from "./src/io/main/verdict.js";
 export { testClosures, codeMapGraph, cliReachRows, keylessRows, selectTestTreeGuards, selectAffectedTests } from "./src/io/affected/tests.js";
