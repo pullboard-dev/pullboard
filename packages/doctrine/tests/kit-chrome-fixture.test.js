@@ -24,7 +24,7 @@ test('doctrine.kit-chrome-fixture.clause-1-no-gate-test-imports-the-cli-chrome-f
   assert.deepEqual(gateImportersOfAppChrome(), []);
   const home = readFileSync(`${ROOT}packages/gate/tests/fixtures/chrome.js`, 'utf8');
   assert.match(home, /export async function startChrome\(/u);
-  assert.doesNotMatch(home, /apps\//u);
+  assert.doesNotMatch(home, /^\s*(import\b|export\b|\} from).*apps\//mu, 'the home imports no app file');
   const door = readFileSync(`${ROOT}apps/cli/tests/fixtures/chrome.js`, 'utf8');
   assert.match(door, /export \* from '[./]*packages\/gate\/tests\/fixtures\/chrome\.js'/u);
 });
