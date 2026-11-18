@@ -1,0 +1,15 @@
+{
+  "cli.logic-show-thread.thread-lines-match-the-recorded-text": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "threadLines returns the thread header and one line per entry, a fact with its ref line and any other entry with its commit, title change, reason and note, skipping proof-run entries."
+    },
+    "why": "Without it, moving the thread loop out of show.js could change what show prints with no test noticing.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/logic/show/thread.js"
+    ]
+  }
+}

@@ -11,6 +11,7 @@ import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
 import { coreLines } from '../../logic/show/core.js';
+import { threadLines } from '../../logic/show/thread.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
@@ -322,17 +323,6 @@ export async function run(io, { first, values }) {
   for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
   if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
-  io.say('thread:');
-  for (const entry of thread) {
-    if (entry.kind === 'proof-run') continue;
-    const stamp = `  ${entry.at}  ${agentDisplayName(agents, ctx.config, entry.by)}  `;
-    if (entry.type === 'fact') {
-      io.say(`${stamp}fact ${entry.kind} ${entry.id}${entry.answers ? ' (answers ' + entry.answers + ')' : entry.supersedes ? ' (supersedes ' + entry.supersedes + ')' : ''}: ${entry.text}`);
-      if (entry.ref) io.say(`    ref: ${entry.ref.path}:${entry.ref.start}${entry.ref.end === entry.ref.start ? '' : '-' + entry.ref.end}@${entry.ref.commit}`);
-    } else {
-      const detail = entry.detail;
-      io.say(`${stamp}${entry.kind}${detail.commit ? ' at ' + detail.commit : ''}${detail.previousTitle ? ` (title was: ${detail.previousTitle})` : ''}${detail.reason ? ': ' + detail.reason : ''}${detail.note ? `: ${entry.kind === 'escalate' ? firstLineOf(detail.note) : detail.note}` : ''}`);
-    }
-  }
+  for (const line of threadLines(thread, (by) => agentDisplayName(agents, ctx.config, by), firstLineOf)) io.say(line);
   return 0;
 }
