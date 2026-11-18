@@ -13,6 +13,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CLI_NAME = 'pullboard';
+// This worker's installed Pullboard root, the folder holding packages/items; the gate bootstrap judges a main that is not Pullboard's tree with it (#6265).
+const RUNNER_TOOLS = fileURLToPath(new URL('../../../../../', import.meta.url));
 
 /**
  * Put the job checkout's CLI first on PATH as `pullboard`, so a fixture never runs an older global install (11 Nov),
@@ -36,6 +38,7 @@ export function scopedEnvironment(S, home, temporary, machineHomePath, gateLease
   return withCheckoutCli({
     ...childEnvironment(S, home, temporary, machineHomePath, nodeOptions),
     ...resourcesApi.gateSlotEnvironment(gateLease),
+    PULLBOARD_RUNNER_TOOLS: RUNNER_TOOLS,
   }, temporary);
 }
 
