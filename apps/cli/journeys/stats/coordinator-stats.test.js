@@ -8,7 +8,7 @@ import { fixture } from '../../tests/fixtures/next/take.js';
 /** The model name the recorded coordinator session reports. */
 const SESSION_MODEL = ['fixture', 'coordinator'].join('-');
 
-test('clause 1: a board with a recorded coordinator session shows its tokens in the stats cost on an entry of its own [C7,#9686]', async t => {
+test('cli.journeys-stats-coordinator-stats.a-board-with-a-recorded-coordinator: clause 1: a board with a recorded coordinator session shows its tokens in the stats cost on an entry of its own [C7,#9686]', async t => {
   const box = await fixture(t);
   store.recordCoordinatorUsage(box.board, { session: 'coordinator-session-1', observedAt: 5, records: [{ model: SESSION_MODEL, inputTokens: 10, outputTokens: 4,
     knownInputTokens: 10, knownOutputTokens: 4, wallMs: 0, freshInputTokens: 3, cacheReadInputTokens: 5, cacheWriteInputTokens: 2, unknownReasons: [] }] });
@@ -22,7 +22,7 @@ test('clause 1: a board with a recorded coordinator session shows its tokens in 
   assert.equal(models.find(row => row.model === SESSION_MODEL)?.inputTokens, 10, 'the usage models total includes the coordinator');
 });
 
-test('clause 2: a board with no coordinator rows reports unknown, not zero [C7,#9686]', async t => {
+test('cli.journeys-stats-coordinator-stats.a-board-with-no-coordinator-rows: clause 2: a board with no coordinator rows reports unknown, not zero [C7,#9686]', async t => {
   const box = await fixture(t);
   const stats = await cli(box, box.root, ['stats']);
   assert.equal(stats.code, 0, stats.out + stats.err);
