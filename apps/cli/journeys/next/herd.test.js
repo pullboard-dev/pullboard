@@ -50,7 +50,7 @@ function nextProcess(seat, env, args = []) {
   });
 }
 
-test(`cli.journeys-next-herd.twelve-seats-distinct: clause 1: ${SEATS} next processes started together with one submitted review and ${SEATS} open builds each end with a distinct item, one of them the review, and none BOARD_BUSY or NEXT_TIMEOUT [C7,#11026]`, { timeout: 240_000 }, async t => {
+test('cli.journeys-next-herd.twelve-seats-distinct: clause 1: 12 next processes started together with one submitted review and 12 open builds each end with a distinct item, one of them the review, and none BOARD_BUSY or NEXT_TIMEOUT [C7,#11026]', { timeout: 240_000 }, async t => {
   const { box, seats, env } = await herdBoard(t, SEATS);
   const builds = Array.from({ length: SEATS }, (_, index) => box.add(`Herd build ${index}`, { brief: `Files: web/herd-${index}.js\nTest: one seat claims it.` }));
   const review = box.add('Herd review', { brief: 'Files: web/herd-review.js\nTest: one seat reviews it.' });
