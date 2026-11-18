@@ -52,7 +52,7 @@ function attempt(db, { move, now = NOW, beforeWrite }) {
   catch (error) { return { code: error.code, message: error.message }; }
 }
 
-test('clause 1: two writers that both read the queued gate hop cannot both win; the loser is refused HOP_FENCED naming the owner [C7,#8269]', t => {
+test('store.io-board-hop.two-writers-that-both-read-the: clause 1: two writers that both read the queued gate hop cannot both win; the loser is refused HOP_FENCED naming the owner [C7,#8269]', t => {
   const f = fixture(t);
   const a = f.open();
   const b = f.open();
@@ -68,7 +68,7 @@ test('clause 1: two writers that both read the queued gate hop cannot both win; 
   assert.deepEqual([row.owner, row.epoch, row.state], ['driver-b', 1, 'driven'], 'one owner at one epoch');
 });
 
-test('clause 1: concurrent writers on separate threads racing one gate hop leave exactly one owner, and every loser names it [C7,#8269]', async t => {
+test('store.io-board-hop.concurrent-writers-on-separate-threads-racing: clause 1: concurrent writers on separate threads racing one gate hop leave exactly one owner, and every loser names it [C7,#8269]', async t => {
   const f = fixture(t);
   const writers = 6;
   const gate = new Int32Array(new SharedArrayBuffer(4));
@@ -104,7 +104,7 @@ parentPort.postMessage(answer);
   assert.deepEqual([readGateHop(f.db, 7).owner, readGateHop(f.db, 7).epoch], [owner, 1]);
 });
 
-test('clause 1: a driver whose lease lapsed and was retaken is fenced on its next step at the old epoch [C7,#8269]', t => {
+test('store.io-board-hop.a-driver-whose-lease-lapsed-and: clause 1: a driver whose lease lapsed and was retaken is fenced on its next step at the old epoch [C7,#8269]', t => {
   const f = fixture(t);
   assert.equal(attempt(f.db, { move: { name: 'acquire', actor: 'driver-a' } }).hop.epoch, 1);
   const later = NOW + 10 * 60_000;
@@ -114,7 +114,7 @@ test('clause 1: a driver whose lease lapsed and was retaken is fenced on its nex
   assert.match(stale.message, /owner driver-b at epoch 2/u);
 });
 
-test('clause 1: with gate.fencedHop off, a hop move writes nothing [C7,#8269]', t => {
+test('store.io-board-hop.with-gate-fencedhop-off-a-hop: clause 1: with gate.fencedHop off, a hop move writes nothing [C7,#8269]', t => {
   const f = fixture(t);
   const fresh = f.open();
   assert.deepEqual(gateHopMove(fresh, { item: 8, decide: hop => decide(hop, { name: 'create' }, NOW), enabled: false }), { off: true });

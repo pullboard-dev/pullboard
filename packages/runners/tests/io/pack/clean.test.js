@@ -40,7 +40,7 @@ const side = git(repo, 'commit-tree', git(repo, 'hash-object', '-t', 'tree', '-w
 const holds = [pack(first, []), pack(second, []), pack(third, [side]), pack(fourth, [])];
 console.log(JSON.stringify({ holds, third, fourth }));`;
 
-test('a cold runner gets every object while only history past the last clean scan is read again (clause 1) [C7,#5544]', t => {
+test('runners.clean.a-cold-runner-gets-every-object: a cold runner gets every object while only history past the last clean scan is read again (clause 1) [C7,#5544]', t => {
   const root = realpathSync(privateFixtureFiles('pullboard-clean-pack-').root);
   t.after(() => rmSync(root, { recursive: true, force: true }));
   copyPackageFiles(resolve(import.meta.dirname, '../../../../..'), root);

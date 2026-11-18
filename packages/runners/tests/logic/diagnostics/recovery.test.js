@@ -93,7 +93,7 @@ process.once('SIGTERM',()=>child.kill('SIGTERM'));
   return { actual: JSON.parse(result.stdout), probes };
 }
 
-test('a cleanup-unverified runner with a failed exact probe recovers only through a fresh pinned idle and writable proof [C7]', t => {
+test('runners.recovery.a-cleanup-unverified-runner-with-a: a cleanup-unverified runner with a failed exact probe recovers only through a fresh pinned idle and writable proof [C7]', t => {
   const { actual, probes } = observe(t, 'clean');
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
@@ -115,7 +115,7 @@ test('a cleanup-unverified runner with a failed exact probe recovers only throug
   assert.equal(probes[1].code, 0, 'the second request executes the actual pinned health worker');
 });
 
-test('a cleanup-unverified runner with a surviving job stays unavailable and names that actual pid [C7]', t => {
+test('runners.recovery.a-cleanup-unverified-runner-with-a-2: a cleanup-unverified runner with a surviving job stays unavailable and names that actual pid [C7]', t => {
   const { actual, probes } = observe(t, 'live');
   assert.equal(actual.recovered, false);
   assert.equal(actual.held.detail, 'CLEANUP_UNVERIFIED');
@@ -126,7 +126,7 @@ test('a cleanup-unverified runner with a surviving job stays unavailable and nam
   assert.equal(probes.length, 2);
 });
 
-test('a cleanup-unverified runner whose pinned worker cannot write its root stays unavailable [C7]', t => {
+test('runners.recovery.a-cleanup-unverified-runner-whose-pinned: a cleanup-unverified runner whose pinned worker cannot write its root stays unavailable [C7]', t => {
   const { actual, probes } = observe(t, 'unwritable');
   assert.equal(actual.recovered, false);
   assert.equal(actual.held.detail, 'CLEANUP_UNVERIFIED');

@@ -56,7 +56,7 @@ function snapshot(repo) {
   return out;
 }
 
-test('clause 1: [C7] mutate seeds the lines changed against main, says caught or missed per fault and per test file, and leaves the tree and temp dir clean', async () => {
+test('cli.mutate-run.mutate-seeds-the-lines-changed-against-main: clause 1: [C7] mutate seeds the lines changed against main, says caught or missed per fault and per test file, and leaves the tree and temp dir clean', async () => {
   const { repo, tmp } = fixture();
   const before = snapshot(repo);
   const ran = await runCliInProcess(['mutate', 'cells/calc'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
@@ -72,7 +72,7 @@ test('clause 1: [C7] mutate seeds the lines changed against main, says caught or
   assert.deepEqual(readdirSync(tmp), [], 'the throwaway copy is removed');
 });
 
-test('clause 1: [C7] mutate --all seeds every line and --json carries the same rows', async () => {
+test('cli.mutate-run.mutate-all-seeds-every-line-and-json: clause 1: [C7] mutate --all seeds every line and --json carries the same rows', async () => {
   const { repo, tmp } = fixture();
   const ran = await runCliInProcess(['mutate', 'cells/calc', '--all', '--json'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -84,7 +84,7 @@ test('clause 1: [C7] mutate --all seeds every line and --json carries the same r
   assert.deepEqual(readdirSync(tmp), []);
 });
 
-test('clause 1: [C7] mutate refuses a folder that is not in the checkout, and a cell with no tests', async () => {
+test('cli.mutate-run.mutate-refuses-a-folder-that-is-not: clause 1: [C7] mutate refuses a folder that is not in the checkout, and a cell with no tests', async () => {
   const { repo, tmp } = fixture();
   const env = { ...process.env, PULLBOARD_SCRATCH: tmp };
   const missing = await runCliInProcess(['mutate', 'cells/nope'], { cwd: repo, env });
@@ -119,7 +119,7 @@ function runImporting() {
   return importRun;
 }
 
-test('clause 1: [C7,#8099] a cell importing a sibling folder runs every test green in the copy, none dropped as red-before', async () => {
+test('cli.mutate-run.a-cell-importing-a-sibling-folder-runs: clause 1: [C7,#8099] a cell importing a sibling folder runs every test green in the copy, none dropped as red-before', async () => {
   const { ran } = await runImporting();
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
   const report = JSON.parse(ran.stdout);
@@ -127,13 +127,13 @@ test('clause 1: [C7,#8099] a cell importing a sibling folder runs every test gre
   assert.deepEqual(report.tests.map((row) => row.file), ['judge.test.js']);
 });
 
-test('clause 2: [C7,#8099] a seeded fault in the judge that flips its result is caught by the cell tests', async () => {
+test('cli.mutate-run.a-seeded-fault-in-the-judge-that: clause 2: [C7,#8099] a seeded fault in the judge that flips its result is caught by the cell tests', async () => {
   const { ran } = await runImporting();
   const report = JSON.parse(ran.stdout);
   assert.ok(report.faults.some((fault) => fault.file === 'src/judge.js' && fault.caught));
 });
 
-test('clause 3: [C7,#8099] the checkout working tree is unchanged and the copy removed after a mutate run', async () => {
+test('cli.mutate-run.the-checkout-working-tree-is-unchanged-and: clause 3: [C7,#8099] the checkout working tree is unchanged and the copy removed after a mutate run', async () => {
   const { before, after, left } = await runImporting();
   assert.deepEqual(after, before);
   assert.deepEqual(left, []);
@@ -189,7 +189,7 @@ function alive(pid) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
-test('clause 1: [C7,#8500] a finished mutate run leaves no test child or grandchild alive', async () => {
+test('cli.mutate-run.a-finished-mutate-run-leaves-no-test: clause 1: [C7,#8500] a finished mutate run leaves no test child or grandchild alive', async () => {
   const { repo, tmp, pidFile } = leakyFixture(false);
   const ran = await runCliInProcess(['mutate', 'cells/leak', '--all'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
   assert.equal(ran.status, 0, ran.stdout + ran.stderr);
@@ -199,7 +199,7 @@ test('clause 1: [C7,#8500] a finished mutate run leaves no test child or grandch
   assert.deepEqual(pids.filter(alive), [], 'every grandchild the tests started is gone');
 });
 
-test('clause 2: [C7,#8500] a stopped mutate run leaves no test child or grandchild alive', async () => {
+test('cli.mutate-run.a-stopped-mutate-run-leaves-no-test: clause 2: [C7,#8500] a stopped mutate run leaves no test child or grandchild alive', async () => {
   const { repo, tmp, pidFile } = leakyFixture(true);
   const running = runCliInProcess(['mutate', 'cells/leak', '--all'], { cwd: repo, env: { ...process.env, PULLBOARD_SCRATCH: tmp } });
   await pidWritten(tmp, pidFile);

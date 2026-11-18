@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { createApiHandler } from '../../index.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { writeFileSync } from 'node:fs';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../store/tests/fixtures/cell.js';

@@ -71,7 +71,7 @@ function holdQueued(box, commit) {
   return holdDoctrine(box.item, { mainCommit: git(box.item, 'rev-parse', `${box.main}^`), commit, timeoutMs: 60000 });
 }
 
-test('a candidate one landing behind main that merges cleanly passes the hold [C7]', () => {
+test('doctrine.io-main-composed.a-candidate-one-landing-behind-main-that: a candidate one landing behind main that merges cleanly passes the hold [C7]', () => {
   const box = repo();
   git(box.item, 'merge', '-q', '--no-edit', `${box.main}^`);
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
@@ -82,21 +82,21 @@ test('a candidate one landing behind main that merges cleanly passes the hold [C
   assert.equal(result.count, 1, 'the hold counted the composed tree, which carries main\'s landing');
 });
 
-test('a candidate one landing behind main that adds a new doctrine problem is still refused [C7]', () => {
+test('doctrine.io-main-composed.a-candidate-one-landing-behind-main-that-2: a candidate one landing behind main that adds a new doctrine problem is still refused [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2; /* OVER here too */\n');
   const commit = commitAll(box.item, 'feat: add a problem one landing behind main');
   assert.throws(() => holdQueued(box, commit), (error) => error.code === 'RATCHET_ROSE' && error.message.includes('src/app.js'));
 });
 
-test('only a real merge conflict with current main refuses [C7]', () => {
+test('doctrine.io-main-composed.only-a-real-merge-conflict-with-current: only a real merge conflict with current main refuses [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src/view.css'), 'body { margin: 1px; }\n');
   const commit = commitAll(box.item, 'feat: rewrite the stylesheet main also changed');
   assert.throws(() => holdQueued(box, commit), (error) => error.code === 'MERGE_CONFLICT' && error.message.includes(box.main.slice(0, 12)));
 });
 
-test('a behind candidate is composed even when the handed baseline is current main [C7]', () => {
+test('doctrine.io-main-composed.a-behind-candidate-is-composed-even-when: a behind candidate is composed even when the handed baseline is current main [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src/app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app behind the handed current main');

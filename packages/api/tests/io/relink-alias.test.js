@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';

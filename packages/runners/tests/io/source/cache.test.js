@@ -32,7 +32,7 @@ import { prepareTestResultExchange } from '../../../../gate/index.js';
 const runner = fileURLToPath(new URL('../../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../../../src', import.meta.url));
 
-test('runner source scan reuses only clean matching verdicts from the export root manifest [C7]', t => {
+test('runners.cache.runner-source-scan-reuses-only-clean: runner source scan reuses only clean matching verdicts from the export root manifest [C7]', t => {
   const { root } = makeFixture(t);
   writeFileSync(join(root, '.pullboard-runner-source.json'), JSON.stringify({ tree: 'a'.repeat(40) }));
   const script = `import assert from 'node:assert/strict';
@@ -140,7 +140,7 @@ function makeFixture(t) {
   return { root, change, run, store, env };
 }
 
-test('an unchanged closure reuses its green result and a changed import reruns it [C7]', (t) => {
+test('runners.cache.an-unchanged-closure-reuses-its-green: an unchanged closure reuses its green result and a changed import reruns it [C7]', (t) => {
   const fixture = makeFixture(t);
   const first = fixture.run();
   assert.equal(first.status, 1, `C is red, so the first run fails\n${first.output}`);
@@ -197,7 +197,7 @@ test('an unchanged closure reuses its green result and a changed import reruns i
   assert.match(sixth.output, /d found a forbidden word/u, 'the fresh scan finds the word the stored green never saw');
 });
 
-test('a reused result retains TAP and proves a focused gate without rerunning [C7,V4]', (t) => {
+test('runners.cache.a-reused-result-retains-tap-and: a reused result retains TAP and proves a focused gate without rerunning [C7,V4]', (t) => {
   const fixture = makeFixture(t);
   fixture.change('test/b.test.js', `${fixtureTest('b', 'b')}
 test('skipped # proof', { skip: 'not selected by the fixture' }, () => {});
@@ -260,7 +260,7 @@ test('nested proof', async t => { await t.test('child proof', () => {}); });
   assert.deepEqual(fixture.run(['test/b.test.js']).ran, ['b'], 'a cached account cannot borrow another file identity');
 });
 
-test('a test that reads its own checkout history is never keyed [C7]', async (t) => {
+test('runners.cache.a-test-that-reads-its-own: a test that reads its own checkout history is never keyed [C7]', async (t) => {
   const fixture = makeFixture(t);
   writeFileSync(join(fixture.root, 'test/h.test.js'), `/** @pullboard-test-input source-tree */
 import { execFileSync } from 'node:child_process';
@@ -277,7 +277,7 @@ test('h [C7]', history);
   assert.equal(keys.get('test/e.test.js').key, null, 'an undeclared listing of this checkout has no key');
 });
 
-test('only passing results under the current key prove the whole suite [C7]', () => {
+test('runners.cache.only-passing-results-under-the-current: only passing results under the current key prove the whole suite [C7]', () => {
   const files = ['test/a.test.js', 'test/b.test.js'];
   const fresh = { status: 'pass', source: 'fresh' };
   const reused = { status: 'pass', source: 'reused', key: 'k1', currentKey: 'k1' };
@@ -288,7 +288,7 @@ test('only passing results under the current key prove the whole suite [C7]', ()
   assert.equal(suiteProven([], new Map()).proven, false, 'an empty suite proves nothing');
 });
 
-test('filtered results reuse only the same selection and still invalidate reached inputs [C7]', t => {
+test('runners.cache.filtered-results-reuse-only-the-same: filtered results reuse only the same selection and still invalidate reached inputs [C7]', t => {
   const fixture = makeFixture(t);
   fixture.change('test/b.test.js', `${fixtureTest('b', 'b')}
 test('other [C7]', () => appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'other\\n'));
@@ -310,7 +310,7 @@ test('other [C7]', () => appendFileSync(process.env.PULLBOARD_ACTION_CAPTURE, 'o
   assert.deepEqual(changed.ran, ['b'], 'a reached-module edit invalidates the matching filtered proof');
 });
 
-test('an unchanged selected proof crosses stages without reading the repository graph again [C7]', t => {
+test('runners.cache.an-unchanged-selected-proof-crosses-stages: an unchanged selected proof crosses stages without reading the repository graph again [C7]', t => {
   const fixture = makeFixture(t);
   fixture.env.PULLBOARD_TEST_STAGE = 'submit';
   const first = fixture.run(['test/b.test.js']);
@@ -336,7 +336,7 @@ exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
   assert.match(second.output, /^# reused [0-9a-f]{64} from submit /mu, 'the original stage remains its provenance');
 });
 
-test('a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
+test('runners.cache.a-harness-dependency-edit-changes-every: a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
   const fixture = makeFixture(t);
   // Commit the harness, so its own imports are inputs the keys can name.
   runFixtureGit(['add', '-f', 'src', 'packages'], { cwd: fixture.root, env: fixture.env });
@@ -357,7 +357,7 @@ test('a harness dependency edit changes every key, and a test edit stays local t
     'another test file is not harness code, so editing it leaves this key alone');
 });
 
-test('copied tooling ignores preserve the refusal to reuse with an unrelated untracked file [C7]', t => {
+test('runners.cache.copied-tooling-ignores-preserve-the-refusal: copied tooling ignores preserve the refusal to reuse with an unrelated untracked file [C7]', t => {
   const fixture = makeFixture(t);
   const first = fixture.run(['test/b.test.js']);
   assert.equal(first.status, 0, first.output);
@@ -379,7 +379,7 @@ test('copied tooling ignores preserve the refusal to reuse with an unrelated unt
   assert.match(cleanAgain.output, /^# reused /mu);
 });
 
-test('a runner dispatch request reads its keys without the store upkeep, which other key reads still run [C7]', async t => {
+test('runners.cache.a-runner-dispatch-request-reads-its: a runner dispatch request reads its keys without the store upkeep, which other key reads still run [C7]', async t => {
   // 9 Nov: the upkeep read 184,000 key memo files (733 MB) inside one dispatch's request, minutes at load.
   const fixture = makeFixture(t);
   const previous = { home: process.env.PULLBOARD_MACHINE_HOME, store: process.env.PULLBOARD_TEST_RESULT_STORE };

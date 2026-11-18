@@ -8,7 +8,7 @@ import { pageScriptPart3 } from '../../index.js';
 
 /** Execute the actual generated board reader with explicit transport replies and no browser or board. */
 function compactBoardReader(replies, { local = true, snapshot = false, context = {} } = {}) {
-  const script = pageScriptPart3({ applyStateDelta, expandItemSummaries });
+  const script = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries });
   const start = script.indexOf('const sentStates = new Map();');
   const end = script.indexOf('/** Whether a board state already carries', start);
   assert.ok(start >= 0 && end > start, 'the generated script contains its actual state reader');
@@ -21,7 +21,7 @@ function compactBoardReader(replies, { local = true, snapshot = false, context =
   return { read: seen => read({ id: 'board' }, seen), ensureFinished, paths };
 }
 
-test('the view expands compact snapshots before rendering and using ordinary deltas [N26,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.the-view-expands-compact-snapshots-before-rendering: the view expands compact snapshots before rendering and using ordinary deltas [N26,C7]', async () => {
   const first = { sequence: 10, itemEncoding: { version: 1, defaults: {
     lane: 'web', status: 'open', specs: [], claim: null, needsYou: false, effort: 1,
   } }, items: [{ id: 1, title: 'First' }, { id: 2, title: 'Second', effort: 0 }] };
@@ -50,7 +50,7 @@ test('the view expands compact snapshots before rendering and using ordinary del
   ], 'only a local full snapshot opts into compact items, and a first load into the kept state');
 });
 
-test('the view accepts ordinary snapshots and re-expands a compact reset without changing relay or export requests [N26,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.the-view-accepts-ordinary-snapshots-and-re: the view accepts ordinary snapshots and re-expands a compact reset without changing relay or export requests [N26,C7]', async () => {
   const legacy = { sequence: 1, items: [{ id: 1, title: 'Ordinary', lane: 'web', status: 'open' }] };
   const reset = { sequence: 2, itemEncoding: { version: 1, defaults: { lane: 'api', status: 'open' } }, items: [{ id: 2, title: 'Reset' }] };
   const local = compactBoardReader([{ state: legacy }, { reset: true }, { state: reset }]);
@@ -67,7 +67,7 @@ test('the view accepts ordinary snapshots and re-expands a compact reset without
   }
 });
 
-test('the generated reader expands V2 columns with fresh rows before ordinary deltas and resets [N26,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.the-generated-reader-expands-v2-columns-with: the generated reader expands V2 columns with fresh rows before ordinary deltas and resets [N26,C7]', async () => {
   const first = { sequence: 20, itemEncoding: { version: 2, count: 2 }, items: [
     ['id', 'r', [1, 2], []],
     ['title', 'r', ['Column first', 'Column second'], []],
@@ -111,7 +111,7 @@ test('the generated reader expands V2 columns with fresh rows before ordinary de
     '/api/v1/boards/board/state?items=compact']);
 });
 
-test('the first read takes the kept state, then the stream catches up through since=N and a read after the page\'s own move never asks kept [A2,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.the-first-read-takes-the-kept-state: the first read takes the kept state, then the stream catches up through since=N and a read after the page\'s own move never asks kept [A2,C7]', async () => {
   const first = { sequence: 30, items: [{ id: 1, title: 'Kept', lane: 'web', status: 'open' }] };
   const { read, paths } = compactBoardReader([
     { state: first, eventLogVersion: 5 },
@@ -128,7 +128,7 @@ test('the first read takes the kept state, then the stream catches up through si
   ]);
 });
 
-test('the first read asks for open work only, and the finished items load once, join the state and stay through deltas [A2,N26,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.the-first-read-asks-for-open-work: the first read asks for open work only, and the finished items load once, join the state and stay through deltas [A2,N26,C7]', async () => {
   const row = (id, status) => ({ id, title: 'Item ' + id, lane: 'web', status });
   const open = { sequence: 40, itemsOmitted: 'finished', finished: { verified: 2, withdrawn: 1 }, items: [row(3, 'open')] };
   const rest = { version: 1, sequence: 40, state: { items: [row(1, 'verified'), row(2, 'verified'), row(4, 'withdrawn')] } };
@@ -156,7 +156,7 @@ test('the first read asks for open work only, and the finished items load once, 
     '/api/v1/boards/board/state?since=40&eventLogVersion=7']);
 });
 
-test('clause 1: a delta read that began before the finished items arrived keeps them [A2,N26,C7]', async () => {
+test('view.x-cockpit-state-reader-codegen.clause-1-a-delta-read-that-began: clause 1: a delta read that began before the finished items arrived keeps them [A2,N26,C7]', async () => {
   const row = (id, status) => ({ id, title: 'Item ' + id, lane: 'web', status });
   const open = { sequence: 40, itemsOmitted: 'finished', finished: { verified: 1, withdrawn: 0 }, items: [row(3, 'open')] };
   const rest = { version: 1, sequence: 40, state: { items: [row(1, 'verified')] } };

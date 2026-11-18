@@ -40,7 +40,7 @@ async function fixture(t) {
   return { auth, second, phone, machine, other, agent, context, provider, directory, advance(ms) { now += ms; }, now: () => now };
 }
 
-test('phone grants expire, bind every action field and permit one execution across processes [H13,H16,B26]', async t => {
+test('relay.grants.phone-grants-expire-bind-every-action: phone grants expire, bind every action field and permit one execution across processes [H13,H16,B26]', async t => {
   const box = await fixture(t);
   const context = box.context('grant-boundary-one');
   await assert.rejects(box.auth.issueActionGrant(box.machine.token, context), { code: 'HUMAN_REQUIRED' });

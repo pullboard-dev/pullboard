@@ -23,7 +23,7 @@ function board() {
   return { db };
 }
 
-test('clause 3: the shadow claim records project diagnosed true for a parsing brief and false for one that does not [C7]', () => {
+test('moves.claim-records-brief.the-shadow-claim-records-project-diagnosed-true: clause 3: the shadow claim records project diagnosed true for a parsing brief and false for one that does not [C7]', () => {
   const { records } = readClaimRecords(board(), { since: '2026-11-01T00:00:00.000Z' });
   assert.deepEqual(records.map(record => [record.move.id, record.snapshot.item.diagnosed]), [[1, true], [2, false]]);
 });

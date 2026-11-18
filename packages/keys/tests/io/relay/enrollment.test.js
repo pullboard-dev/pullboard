@@ -53,7 +53,7 @@ function changed(value) {
   return bytes.toString('base64url');
 }
 
-test('an account root survives storage loss through credential and recovery envelopes [H15]', { timeout: 60_000 }, async () => {
+test('keys.enrollment.an-account-root-survives-storage-loss: an account root survives storage loss through credential and recovery envelopes [H15]', { timeout: 60_000 }, async () => {
   // budget: a hang ceiling for real crypto and owned worker shutdown, not a speed assertion.
   console.log('vault runtime ' + JSON.stringify({ node: process.version, executable: process.execPath,
     sha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));

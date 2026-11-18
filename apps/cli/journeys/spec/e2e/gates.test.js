@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../tests/fixtures/e2e.js';
+import { settleSubmit } from '../../../tests/fixtures/submit/settle.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 
 const e2e = createE2eHelpers();
@@ -138,7 +139,7 @@ test('a worktree without config names uncommitted init files and committed main 
   assert.match((await box.runIn(plain, 'next')).err, /\[NO_CONFIG\] no pullboard\.json in .*; run: pullboard init/, 'a repo with no pullboard is still told to init');
 });
 
-test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', async () => {
+test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals typed [A5,A1,M1]', async t => {
   const marker = '<!-- pullboard-grammar 2 -->\n';
   const setup = async () => {
     const box = project();
@@ -165,7 +166,7 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
 
   const submitBox = await setup();
   assert.equal((await submitBox.runIn(submitBox.web, 'claim', '1')).code, 0);
-  commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  await commitFile(submitBox, submitBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
   writeFileSync(join(submitBox.web, 'SPEC.md'), marker + SPEC);
   const submit = await submitBox.runIn(submitBox.web, 'submit', '1');
   assert.equal(submit.code, 1);
@@ -176,8 +177,11 @@ test('unsupported spec grammar keeps claim, refreeze, submit and verify refusals
 
   const verifyBox = await setup();
   assert.equal((await verifyBox.runIn(verifyBox.web, 'claim', '1')).code, 0);
-  commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
-  assert.equal((await verifyBox.runIn(verifyBox.web, 'submit', '1')).code, 0);
+  await commitFile(verifyBox, verifyBox.web, 'web/page.html', '<h1>Page</h1>', 'feat(web): add page [G1]');
+  // A pulled submit returns queued; settle its gate so the item is submitted before verify reads it, or verify answers NOT_SUBMITTED [A5,C7,#10520].
+  const queued = await verifyBox.runIn(verifyBox.web, 'submit', '1', '--json');
+  assert.equal(queued.code, 0, queued.err + queued.out);
+  await settleSubmit(t, { repo: verifyBox.repo, env: verifyBox.env, run: verifyBox.runIn }, JSON.parse(queued.out));
   verifyBox.git(verifyBox.repo, 'switch', '--detach', 'web/one');
   writeFileSync(join(verifyBox.repo, 'SPEC.md'), marker + SPEC);
   const verify = await verifyBox.runIn(verifyBox.repo, 'verify', '1', 'accept', '--as', 'coordinator', '--note', 'checked');
@@ -210,7 +214,7 @@ test('a linked-worktree push isolates the gate from Git hook variables and leave
 });
 
 // Process-level: git itself runs the installed pre-commit hook, which starts the CLI through the PATH shim.
-test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', () => {
+test('a linked-worktree commit isolates fixers while its own staged index still works [C5]', async () => {
   const box = project();
   const probe = foreignGitScript(box, 'fixer', { fixer: true });
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...CONFIG, fix: [{ run: `node ${JSON.stringify(probe.file)}`, files: ['*.js'] }] }));
@@ -219,7 +223,7 @@ test('a linked-worktree commit isolates fixers while its own staged index still 
   mkdirSync(join(box.web, 'web'), { recursive: true });
   writeFileSync(join(box.web, 'web', 'probe.js'), 'const value = 1;   \n');
   box.git(box.web, 'add', 'web/probe.js');
-  const committed = box.tryGit(box.web, 'commit', '-q', '-m', 'feat(web): a formatted probe [G1]');
+  const committed = await box.tryGit(box.web, 'commit', '-q', '-m', 'feat(web): a formatted probe [G1]');
   assert.equal(box.git(box.repo, 'config', '--get', 'core.bare'), 'false');
   assert.equal(committed.status, 0, committed.stderr);
   assert.equal(box.git(probe.bare, 'rev-parse', '--is-bare-repository'), 'true');

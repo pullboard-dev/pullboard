@@ -117,13 +117,29 @@ export function legacyDoctrineRenameBase(root, name) {
 }
 
 /**
+ * Problems with the quote under an approved row that names a source: the quote exists and holds every figure
+ * the row's text states, so a fact cannot rest on words that never said it (#9551, #1124). Rows without a source
+ * or not approved are not facts of this kind and are never reported; a quote with no figures to match only has to exist.
+ *
+ * @param {any} row
+ * @returns {string[]}
+ */
+function factQuoteProblems(row) {
+  if (row.status !== 'approved' || row.source === undefined || !row.source.trim()) return [];
+  if (row.quote === undefined || !row.quote.trim()) return ['an approved row with a source needs the words it rests on: | quote: <the source text>'];
+  const missing = (row.text.match(/\d[\d,.]*\d|\d/gu) ?? []).map(figure => figure.replace(/[.,]+$/u, '')).filter(figure => !row.quote.includes(figure));
+  return missing.length ? [`quote does not contain ${missing.join(', ')}, which the row states; quote the source words that hold it`] : [];
+}
+
+/**
  * Findings for one row on its own: status, tier, text, gate, fields.
  *
  * @param {any} row
  * @param {number} maxWords
+ * @param {boolean} [requireFactQuote] - Whether an approved source-backed row must carry a quote holding its figures (#9551).
  * @returns {any[]}
  */
-function rowFindings(row, maxWords) {
+function rowFindings(row, maxWords, requireFactQuote = false) {
   const findings = [];
   const add = (level, message) => findings.push({ level, line: row.line, id: row.id, message });
   if (!STATUSES.includes(row.status)) add('error', `status "${row.status}" is one of ${STATUSES.join(', ')}`);
@@ -141,6 +157,7 @@ function rowFindings(row, maxWords) {
   for (const part of row.unknown) add('error', `unknown field "${part}"; fields are gate, serves, signers, count, runs, mode, files, source, quote and verify`);
   if (row.source !== undefined && !row.source.trim()) add('error', 'source names where the row came from; leave it out when the row has none');
   if (row.quote !== undefined && !row.quote.trim()) add('error', 'quote holds the words the fact rests on; leave it out when there is none');
+  if (requireFactQuote) for (const message of factQuoteProblems(row)) add('error', message);
   for (const message of rowVerificationFormatProblems(row.verify)) add('error', message);
   findings.push(...checkFieldFindings(row).map((message) => ({ level: 'error', line: row.line, id: row.id, message })));
   return findings;
@@ -301,17 +318,17 @@ function firstCycle(graph) {
  * warnings are advice.
  *
  * @param {ReturnType<typeof parseSpec>} spec
- * @param {{ maxWords?: number }} [options]
+ * @param {{ maxWords?: number, requireFactQuote?: boolean }} [options]
  * @returns {{ level: string, line: number, id?: string, message: string }[]}
  */
-export function lintSpec(spec, { maxWords = 20 } = {}) {
+export function lintSpec(spec, { maxWords = 20, requireFactQuote = false } = {}) {
   const findings = spec.problems.map((problem) => ({ level: 'error', ...problem }));
   const seen = new Map();
   for (const row of spec.rows) {
     if (seen.has(row.id)) {
       findings.push({ level: 'error', line: row.line, id: row.id, message: `duplicate id; first on line ${seen.get(row.id)}. Ids are never reused` });
     } else seen.set(row.id, row.line);
-    findings.push(...rowFindings(row, maxWords));
+    findings.push(...rowFindings(row, maxWords, requireFactQuote));
     for (const target of row.serves) {
       if (!seen.has(target) && !spec.rows.some((other) => other.id === target)) {
         findings.push({ level: 'error', line: row.line, id: row.id, message: `serves ${target}, which is not in the spec` });

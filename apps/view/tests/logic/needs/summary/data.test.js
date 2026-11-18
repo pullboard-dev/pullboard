@@ -5,7 +5,7 @@ import { personNeeds } from '../../../../../../packages/spec/light.js';
 import { heldNote } from '../../../../src/io/held.js';
 import { heldChip } from '../../../../src/io/held.js';
 
-test('only person-owned blocks become calls, grouped by command with the latest observed reason [N26,B26,C7]', () => {
+test('view.needs-summary-data.only-person-owned-blocks-become-calls-grouped: only person-owned blocks become calls, grouped by command with the latest observed reason [N26,B26,C7]', () => {
   const state = { blocks: [
     { audience: 'agent', code: 'RULE', command: 'build', reason: 'Agent fixes this', at: '2026-10-28T11:00:00Z' },
     { audience: 'person', code: 'RULE', command: 'build', reason: 'First reason', step: 'Choose', at: '2026-10-28T11:01:00Z' },
@@ -20,7 +20,7 @@ test('only person-owned blocks become calls, grouped by command with the latest 
   assert.equal(JSON.stringify(state), before);
 });
 
-test('proposal eligibility avoids duplicate draft calls without hiding unresolved or stale rows [N26,B26,C7]', () => {
+test('view.needs-summary-data.proposal-eligibility-avoids-duplicate-draft-calls-without: proposal eligibility avoids duplicate draft calls without hiding unresolved or stale rows [N26,B26,C7]', () => {
   const state = { spec: [{ id: 'G1', status: 'draft' }, { id: 'G2', status: 'approved', staleDecision: true },
     { id: 'G3', status: 'draft', decision: { decision: 'decline' } }], rigorDrafts: [
     { kind: 'rigor-draft', id: 'proved', target: 'spec:G1' },
@@ -35,7 +35,7 @@ test('proposal eligibility avoids duplicate draft calls without hiding unresolve
   assert.equal(JSON.stringify(state), before);
 });
 
-test('recorded decisions remove revision actions while unresolved revisions preserve their exact identity [N26,B26,C7]', () => {
+test('view.needs-summary-data.recorded-decisions-remove-revision-actions-while-unresolved: recorded decisions remove revision actions while unresolved revisions preserve their exact identity [N26,B26,C7]', () => {
   const revision = { id: 'G2', revises: 'G1', reason: 'Keep the decision', source: 'Old', replacement: 'New' };
   const rows = personNeeds({ specRevisions: [revision, { ...revision, id: 'G3', decision: 'approve' }] });
   assert.deepEqual(rows[0].actions, [{ verb: 'spec-approve', args: { ids: 'G2' } }, { verb: 'spec-decline', args: { ids: 'G2' } }]);
@@ -43,7 +43,7 @@ test('recorded decisions remove revision actions while unresolved revisions pres
   assert.equal(rows[1].what, 'approved; pending spec apply');
 });
 
-test('held presentation uses the supplied claim deadline boundary and preserves own-hold precedence [N26,C7]', () => {
+test('view.needs-summary-data.held-presentation-uses-the-supplied-claim-deadline: held presentation uses the supplied claim deadline boundary and preserves own-hold precedence [N26,C7]', () => {
   const now = Date.parse('2026-10-28T12:00:00Z');
   const source = { itemHolds: [{ item: 7, reason: 'Keep <judgment>' }], holds: [{ hold_lane: 'view', hold_reason: 'Lane pause' }] };
   const item = { id: 7, lane: 'view', status: 'claimed', claim: { until: '2026-10-28T12:00:00Z' } };

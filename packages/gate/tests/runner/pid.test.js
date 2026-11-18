@@ -17,7 +17,7 @@ import { runUnderStandIn } from '../fixtures/runner-standin.js';
 
 const runner = fileURLToPath(new URL('../../../../apps/cli/src/io/run/tests.js', import.meta.url));
 
-test('the test runner names itself to the tests it starts [C7]', async (t) => {
+test('gate.runner-pid.runner-names-itself: the test runner names itself to the tests it starts [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-pid-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const seen = join(dir, 'seen.jsonl');
@@ -52,7 +52,7 @@ test('outer', async () => {
   assert.notEqual(by('inner').runner, by('outer').runner);
 });
 
-test('the runner stand-in names itself to its child the way the runner does, so stable.test.js can use it [C7]', async (t) => {
+test('gate.runner-pid.stand-in-names-itself: the runner stand-in names itself to its child the way the runner does, so stable.test.js can use it [C7]', async (t) => {
   const dir = privateFixtureFiles('pullboard-standin-pid-').root;
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const seen = join(dir, 'seen.jsonl');

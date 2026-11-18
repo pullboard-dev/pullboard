@@ -25,7 +25,7 @@ function open(blob) {
   return Buffer.concat([decipher.update(buf.subarray(28)), decipher.final()]).toString('utf8');
 }
 
-test('clause 1: buildWakeup carries no plaintext notice byte and the client opens it to a one-line notice [H5,N26]', () => {
+test('relay.logic-push-wakeup.buildwakeup-carries-no-plaintext-notice-byte: clause 1: buildWakeup carries no plaintext notice byte and the client opens it to a one-line notice [H5,N26]', () => {
   const text = 'Decision waiting on Deploy the staging board\nsecond line';
   const bytes = buildWakeup('decisions', seal(text));
   assert.equal(Buffer.from(bytes).includes(Buffer.from(text.split('\n')[0])), false);
@@ -34,7 +34,7 @@ test('clause 1: buildWakeup carries no plaintext notice byte and the client open
   assert.deepEqual(opened, { kind: 'decisions', notice: 'Decision waiting on Deploy the staging board' });
 });
 
-test('clause 2: kinds are decisions, alerts and landings and any other kind is refused with its next step [H5,N26]', () => {
+test('relay.logic-push-wakeup.kinds-are-decisions-alerts-and-landings: clause 2: kinds are decisions, alerts and landings and any other kind is refused with its next step [H5,N26]', () => {
   assert.deepEqual([...WAKEUP_KINDS], ['decisions', 'alerts', 'landings']);
   for (const kind of WAKEUP_KINDS) assert.equal(openWakeup(buildWakeup(kind, seal('x')), open).kind, kind);
   assert.throws(() => buildWakeup('gossip', seal('x')), error => error.code === 'WAKEUP_KIND' && /decisions, alerts, landings/u.test(error.message));

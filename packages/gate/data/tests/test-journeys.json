@@ -540,26 +540,6 @@
         "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
       ]
     },
-    "apps/cli/journeys/spec/cockpit.test.js": {
-      "cells": [
-        "app:lib",
-        "app:view",
-        "config",
-        "doctrine",
-        "gate",
-        "kernel",
-        "outbox",
-        "person",
-        "store",
-        "sync"
-      ],
-      "reasons": [
-        "drives a browser (apps/cli/tests/fixtures/e2e.js)",
-        "imports past kernel front door (packages/kernel/src/logic/discovery.js)",
-        "runs the CLI (apps/cli/tests/fixtures/cockpit/machine.js)",
-        "spawns a child process (apps/cli/tests/fixtures/chrome.js)"
-      ]
-    },
     "apps/cli/tests/fixtures/cockpit/line.js": {
       "cells": [
         "app:cli",
@@ -981,29 +961,6 @@
       ],
       "reasons": [
         "spawns a child process (apps/cli/tests/fixtures/runners.js)"
-      ]
-    },
-    "apps/cli/journeys/flow/replay/policy.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "stats"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)"
-      ]
-    },
-    "apps/cli/journeys/flow/replay.test.js": {
-      "cells": [
-        "app:cli",
-        "app:lib",
-        "outbox",
-        "store"
-      ],
-      "reasons": [
-        "imports past app:lib front door (apps/lib/src/logic/native.js)",
-        "spawns a child process (apps/cli/tests/fixtures/child.js)"
       ]
     },
     "packages/gate/tests/fixtures/file-pool.js": {

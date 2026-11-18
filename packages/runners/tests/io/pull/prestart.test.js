@@ -31,7 +31,7 @@ async function trip({ need }) {
   return { events, result };
 }
 
-test('8189 clause 1: a trip starts serve-need and finish before submit, and sends each once [C7]', async () => {
+test('runners.prestart.n8189-clause-1-a-trip-starts: 8189 clause 1: a trip starts serve-need and finish before submit, and sends each once [C7]', async () => {
   const { events, result } = await trip({ need: true });
   assert.equal(result.isGreen, true);
   assert.equal(result.reason, 'result');
@@ -39,7 +39,7 @@ test('8189 clause 1: a trip starts serve-need and finish before submit, and send
   assert.deepEqual(events.filter(event => event.startsWith('send')), ['send --serve-need', 'send --finish']);
 });
 
-test('8189 clause 1: a trip whose runner holds the source stops the serve-need controller it never used [C7]', async () => {
+test('runners.prestart.n8189-clause-1-a-trip-whose: 8189 clause 1: a trip whose runner holds the source stops the serve-need controller it never used [C7]', async () => {
   const { events } = await trip({ need: false });
   assert.ok(!events.includes('send --serve-need'), 'no history was asked for');
   assert.ok(events.includes('close --serve-need'), 'the unused controller is stopped, never left running');

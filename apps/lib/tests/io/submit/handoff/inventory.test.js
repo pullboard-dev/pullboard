@@ -23,7 +23,7 @@ function pending(commit = COMMIT) {
   return Object.assign(new Error('accepted cells inventory is warming'), { code: 'CELLS_INVENTORY_PENDING', retryable: true, commit });
 }
 
-test('clause 1: a pending inventory that turns ready after two polls is waited for and no attempt is counted [C7]', async () => {
+test('lib.io-submit-handoff-inventory.a-pending-inventory-that-turns-ready: clause 1: a pending inventory that turns ready after two polls is waited for and no attempt is counted [C7]', async () => {
   let clock = 0, polls = 0;
   const sleeps = [];
   const read = () => ({ available: ++polls > 2, cause: 'missing-artifact' });
@@ -46,7 +46,7 @@ test('clause 1: a pending inventory that turns ready after two polls is waited f
   assert.match(beats[1], /waited 30 s of 900 s/u);
 });
 
-test('clause 1: a cells-check stop naming inventoryCommit, as the runner reports it, waits instead of spending a retry [C7]', async () => {
+test('lib.io-submit-handoff-inventory.a-cells-check-stop-naming-inventorycommit: clause 1: a cells-check stop naming inventoryCommit, as the runner reports it, waits instead of spending a retry [C7]', async () => {
   let polls = 0;
   const waitedFor = [], ran = [];
   const settled = await submitUntilSettled(async attempt => {
@@ -63,7 +63,7 @@ test('clause 1: a cells-check stop naming inventoryCommit, as the runner reports
   assert.deepEqual(settled.attempts, []);
 });
 
-test('clause 1: an inventory already ready on the first poll counts the stop, so a check that stays pending still ends [C7]', async () => {
+test('lib.io-submit-handoff-inventory.an-inventory-already-ready-on-the: clause 1: an inventory already ready on the first poll counts the stop, so a check that stays pending still ends [C7]', async () => {
   let runs = 0;
   await assert.rejects(submitUntilSettled(async () => { runs += 1; throw pending(); }, {
     healthy: async () => true, wait: async () => {}, retries: 1,
@@ -72,7 +72,7 @@ test('clause 1: an inventory already ready on the first poll counts the stop, so
   assert.equal(runs, 2, 'each pending stop spent one attempt');
 });
 
-test('clause 2: a producer that died without publishing is nudged exactly once more before the wait gives up [C7]', async () => {
+test('lib.io-submit-handoff-inventory.a-producer-that-died-without-publishing: clause 2: a producer that died without publishing is nudged exactly once more before the wait gives up [C7]', async () => {
   const base = privateFixtureFiles('wait-inventory-').root;
   const home = join(base, 'home'), repo = join(base, 'repo');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
@@ -103,7 +103,7 @@ test('clause 2: a producer that died without publishing is nudged exactly once m
   }
 });
 
-test('clause 2: a dead producer re-nudged into a live one is waited on until it publishes [C7]', async () => {
+test('lib.io-submit-handoff-inventory.a-dead-producer-re-nudged-into: clause 2: a dead producer re-nudged into a live one is waited on until it publishes [C7]', async () => {
   let live = false, polls = 0, nudges = 0;
   const found = await waitForAcceptedCells('/unused', COMMIT, { now: () => 0, sleep: async () => {},
     owner: () => (live ? 'live' : 'dead'), nudge: async () => { nudges += 1; live = true; },

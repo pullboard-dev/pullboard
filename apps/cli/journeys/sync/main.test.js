@@ -19,7 +19,7 @@ function document(result, purpose) {
   return JSON.parse(result.out);
 }
 
-test('two machines share a board through git [H11]', async t => {
+test('cli.journeys-sync-main.two-machines-share-a-board-through: two machines share a board through git [H11]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();
@@ -68,7 +68,7 @@ test('two machines share a board through git [H11]', async t => {
   }
 });
 
-test('Git sharing preserves offline reads, a pending move and ordinary code gates [H11,H10,C3]', async t => {
+test('cli.journeys-sync-main.git-sharing-preserves-offline-reads-a: Git sharing preserves offline reads, a pending move and ordinary code gates [H11,H10,C3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project();

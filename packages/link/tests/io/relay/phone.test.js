@@ -20,7 +20,7 @@ function revokeContext(overrides = {}) {
 /** Change one valid context field so decryption must fail on authenticated binding, not parsing. */
 function changedContext(context, changes) { return { ...context, ...changes }; }
 
-test('phone approval envelopes hide grants, bind every action field, and authenticate native intent [H16,B26,H17]', async () => {
+test('link.phone.approval-envelopes-bind-fields: phone approval envelopes hide grants, bind every action field, and authenticate native intent [H16,B26,H17]', async () => {
   const phone = await createApprovalReply();
   const native = await createApprovalReply();
   assert.equal(phone.privateKey.extractable, false);
@@ -70,7 +70,7 @@ test('phone approval envelopes hide grants, bind every action field, and authent
   await assert.rejects(verifyApprovalIntent(new Uint8Array(randomBytes(32)), packet), { code: 'PHONE_APPROVAL_AUTH' });
 });
 
-test('only explicit new-board link replies can restore a durable reply key [H16,B26,H17]', async () => {
+test('link.phone.reply-key-needs-new-board-link: only explicit new-board link replies can restore a durable reply key [H16,B26,H17]', async () => {
   const phone = await createApprovalReply();
   const link = await createApprovalReply({ link: true });
   assert.equal(link.privateKey.extractable, true);

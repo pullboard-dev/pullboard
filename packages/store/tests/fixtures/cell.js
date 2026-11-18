@@ -138,7 +138,7 @@ export function cellRepo(t, { config = CELL_CONFIG, spec = CELL_SPEC, real = !ST
  * creating the production schema the way any first open does, and close it after the test.
  *
  * In a test under packages/ the board is, by default, the in-memory stand-in (`:memory:`), proved equal to an on-disk board by the contract in
- * packages/store/tests/board-contract.test.js (#8087), whatever `file` names. A test that needs the file itself, because
+ * packages/board/tests/from-store/board-contract.test.js (#8087), whatever `file` names. A test that needs the file itself, because
  * it starts a process on it, reads it back or watches it on disk, asks with `options.real: true`.
  *
  * @param {import('node:test').TestContext} t

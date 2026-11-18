@@ -37,6 +37,6 @@
     "apps/cli/src/io/resident/client.js": 1,
     "apps/runner/src/io/handoff.js": 2,
     "apps/runner/src/io/worker/handoff.js": 1,
-    "apps/view/src/io/serve.js": 1
+    "apps/view/src/io/state.js": 1
   }
 }

@@ -96,7 +96,7 @@ function onlyJob(fixture) {
   return jobs[0];
 }
 
-test('a test that passed in the last green audit and fails now is attributed to the items landed between the two tips [C7]', async t => {
+test('lib.io-main-audit-attribution.a-test-that-passed-in-the: a test that passed in the last green audit and fails now is attributed to the items landed between the two tips [C7]', async t => {
   const fixture = await greenAudited(t);
   const tip = commit(fixture.repo, 'test/b.test.js', "import {test} from 'node:test';test('b',()=>{throw 1});\n",
     `fix(alpha): touches beta's test\n\nPullboard-Item: #${fixture.alpha}`);
@@ -109,7 +109,7 @@ test('a test that passed in the last green audit and fails now is attributed to 
   'only the test the green audit passed is attributed, to the trailer item and its lane, not the test owner\'s lane');
 });
 
-test('the attributed failure is filed once to the landed item\'s lane, naming the test and both tips [C7]', async t => {
+test('lib.io-main-audit-attribution.the-attributed-failure-is-filed-once: the attributed failure is filed once to the landed item\'s lane, naming the test and both tips [C7]', async t => {
   const fixture = await greenAudited(t);
   const tip = commit(fixture.repo, 'test/b.test.js', "import {test} from 'node:test';test('b',()=>{throw 1});\n",
     `fix(alpha): touches beta's test\n\nPullboard-Item: #${fixture.alpha}`);
@@ -131,7 +131,7 @@ test('the attributed failure is filed once to the landed item\'s lane, naming th
   assert.equal(fixture.items().length, before + 1, 'the same test and tip is never filed twice');
 });
 
-test('a bare hotfix with no trailer item files the regression to the coordinator lane [C7]', async t => {
+test('lib.io-main-audit-attribution.a-bare-hotfix-with-no-trailer: a bare hotfix with no trailer item files the regression to the coordinator lane [C7]', async t => {
   const fixture = await greenAudited(t);
   commit(fixture.repo, 'test/a.test.js', "import {test} from 'node:test';test('a2',()=>{throw 1});\n", 'fix: coordinator hotfix');
   const job = onlyJob(fixture);
@@ -166,7 +166,7 @@ function landBatch(fixture, item, base, tip) {
   } finally { closeBoard(db); }
 }
 
-test('an automatic landed batch that breaks a test the last green audit passed files the repair to its trailer item\'s lane [C7]', async t => {
+test('lib.io-main-audit-attribution.an-automatic-landed-batch-that-breaks: an automatic landed batch that breaks a test the last green audit passed files the repair to its trailer item\'s lane [C7]', async t => {
   const fixture = await greenAudited(t);
   const tip = commit(fixture.repo, 'test/b.test.js', "import {test} from 'node:test';test('b',()=>{throw 1});\n",
     `fix(alpha): touches beta's test\n\nPullboard-Item: #${fixture.alpha}`);

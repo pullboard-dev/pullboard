@@ -24,7 +24,7 @@ function served(t, { flag }) {
   return world;
 }
 
-test('clause 1: serve on a board with the runs_store flag on runs the reconciler tick at most once every 5 s [B2,P7]', t => {
+test('cli.io-commands-serve-reconcile.serve-on-a-board-with-the-runs: clause 1: serve on a board with the runs_store flag on runs the reconciler tick at most once every 5 s [B2,P7]', t => {
   const world = served(t, { flag: true });
   recordQueuedRun(world.board, { by: 'coordinator', id: 'gate:lost', kind: 'gate' });
   world.clock.at += LOST_GRACE_MS + 1000;
@@ -38,7 +38,7 @@ test('clause 1: serve on a board with the runs_store flag on runs the reconciler
   assert.equal(existsSync(runsFilePath(world.file)), true, 'with the flag on the loop opened the runs file');
 });
 
-test('clause 2: serve on a board with the runs_store flag off opens no runs file [B2,P7]', t => {
+test('cli.io-commands-serve-reconcile.serve-on-a-board-with-the-runs-2: clause 2: serve on a board with the runs_store flag off opens no runs file [B2,P7]', t => {
   const world = served(t, { flag: false });
   recordQueuedRun(world.board, { by: 'coordinator', id: 'gate:lost', kind: 'gate' });
   world.clock.at += LOST_GRACE_MS + 1000;

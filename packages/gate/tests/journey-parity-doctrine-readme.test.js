@@ -13,12 +13,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 // boardless: the sampled case runs spec and doctrine checks in a clone of the repo, which keeps no board to compare.
 const SAMPLES = [{ journey: 'apps/cli/journeys/doctrine/readme.test.js', cases: ["Pullboard's doctrine carries its four checks [D1,D3]"], boardless: true }];
 
-test('clause 1: a sample of the doctrine/readme journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.parity-doctrine-readme.sample-doctrine-readme-journey-gives: clause 1: a sample of the doctrine/readme journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the doctrine/readme journey keeps all 19 of its cases, each green in this run [C7]', () => {
+test('gate.parity-doctrine-readme.doctrine-readme-journey-keeps-all: clause 2: the doctrine/readme journey keeps all 19 of its cases, each green in this run [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/journeys/doctrine/readme.test.js', import.meta.url), 'utf8');
   assert.equal(source.match(/^test\(/gmu).length, 19, 'no case was dropped');
   assert.doesNotMatch(source, /\btest\.(?:skip|todo)\(|\bskip: true/u, 'no case is skipped');

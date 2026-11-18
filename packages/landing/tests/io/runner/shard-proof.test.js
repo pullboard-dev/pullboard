@@ -47,7 +47,7 @@ function shardsOf(offered, posts, { cores = 1, wait = async () => {} } = {}) {
     receipts: ids => { const now = posts[Math.min(poll++, posts.length - 1)]; return ids.map(job => ({ job, posted: now[job] ?? null })); } };
 }
 
-test('clause 1: runLandingJob pushes the merged commit to refs/pullboard/landing/<job> before the proof is offered [test] [C7,#7818]', async t => {
+test('landing.shard-proof.runlandingjob-pushes-the-merged-commit-to: clause 1: runLandingJob pushes the merged commit to refs/pullboard/landing/<job> before the proof is offered [test] [C7,#7818]', async t => {
   const { payload, workdir, at, expect } = landing(t);
   const offered = [], seen = [];
   const shards = shardsOf(offered, [{ [`${JOB}:shard:a`]: green, [`${JOB}:shard:b`]: green }]);
@@ -63,7 +63,7 @@ test('clause 1: runLandingJob pushes the merged commit to refs/pullboard/landing
   assert.deepEqual(offered[0].gate, { ...GATE, commits: [expect] });
 });
 
-test('clause 2: a proof of more files than one runner\'s cores lands only after every shard posts green, and never before [test] [C7,#7818]', async t => {
+test('landing.shard-proof.a-proof-of-more-files-than: clause 2: a proof of more files than one runner\'s cores lands only after every shard posts green, and never before [test] [C7,#7818]', async t => {
   const { payload, workdir, at, expect } = landing(t);
   const offered = [], trunkWhileWaiting = [];
   const a = `${JOB}:shard:a`, b = `${JOB}:shard:b`;
@@ -75,7 +75,7 @@ test('clause 2: a proof of more files than one runner\'s cores lands only after 
   assert.deepEqual(receipt.proof, { files: 3, reused: 0, ran: 3, shards: 2 });
 });
 
-test('clause 3: a red shard keeps trunk where it was and names its failing file and case, as the single-runner proof does [test] [C7,#7818]', async t => {
+test('landing.shard-proof.a-red-shard-keeps-trunk-where: clause 3: a red shard keeps trunk where it was and names its failing file and case, as the single-runner proof does [test] [C7,#7818]', async t => {
   const { payload, workdir, at, expect } = landing(t);
   const shards = shardsOf([], [{ [`${JOB}:shard:a`]: green, [`${JOB}:shard:b`]: red }]);
   const receipt = await runLandingJob(payload, { workdir, shards });
@@ -87,7 +87,7 @@ test('clause 3: a red shard keeps trunk where it was and names its failing file 
   assert.match(detail, new RegExp(`shard ${JOB}:shard:b`, 'u'));
 });
 
-test('clause 2: with landing.shardProof off, or a proof within one runner\'s cores, the proof runs on the one runner and offers nothing [test] [C7,#7818]', async t => {
+test('landing.shard-proof.with-landing-shardproof-off-or-a: clause 2: with landing.shardProof off, or a proof within one runner\'s cores, the proof runs on the one runner and offers nothing [test] [C7,#7818]', async t => {
   for (const [name, change, cores] of [['off', { shardProof: undefined }, 1], ['within cores', {}, 3]]) {
     const { payload, workdir } = landing(t);
     const offered = [];
@@ -98,7 +98,7 @@ test('clause 2: with landing.shardProof off, or a proof within one runner\'s cor
   }
 });
 
-test('clause 1: a land job whose proof names more than one shard offers every shard as a shard job and lands only when every shard is green [test] [C7,#7818]', async t => {
+test('landing.shard-proof.a-land-job-whose-proof-names: clause 1: a land job whose proof names more than one shard offers every shard as a shard job and lands only when every shard is green [test] [C7,#7818]', async t => {
   const { payload, workdir, at, expect } = landing(t);
   const offered = [], trunkWhileWaiting = [];
   const [a, b] = [`${JOB}:shard:a`, `${JOB}:shard:b`];

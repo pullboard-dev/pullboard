@@ -13,7 +13,7 @@ import { startFixtureChild } from '../../../fixtures/child.js';
 after(cleanupFixtureChildren);
 
 /** Prove failed fixture children explain outcomes while redacting fixture credentials. */
-test('a fixture child killed or failed names its command, signal and stderr [C7]', { timeout: 10_000 }, async () => {
+test('gate.io-journal-preload-fixture.a-fixture-child-killed-or-failed: a fixture child killed or failed names its command, signal and stderr [C7]', { timeout: 10_000 }, async () => {
   const failed = runFixtureChild(process.execPath, ['-e', "process.stderr.write('fixture stderr\\n'); process.exit(7)"], {
     encoding: 'utf8',
   });
@@ -71,7 +71,7 @@ test('a fixture child killed or failed names its command, signal and stderr [C7]
 });
 
 /** Verify an ignored failure object still leaves structured diagnostics at the helper boundary. */
-test('fixture child helpers emit structured failure diagnostics [C7]', () => {
+test('gate.io-journal-preload-fixture.fixture-child-helpers-emit-structured-failure: fixture child helpers emit structured failure diagnostics [C7]', () => {
   const helperUrl = new URL('../../../../../../apps/cli/tests/fixtures/child.js', import.meta.url).href;
   const nested = `import(${JSON.stringify(helperUrl)}).then(async ({runFixtureChild,runFixtureChildAsync}) => { runFixtureChild(process.execPath, ['-e', "console.error('nested sync stderr'); process.exit(9)"], {encoding:'utf8'}); await runFixtureChildAsync(process.execPath, ['-e', "console.error('nested async stderr'); process.exit(8)"]); });`;
   const observed = runFixtureChild(process.execPath, ['--input-type=module', '-e', nested], { encoding: 'utf8' });

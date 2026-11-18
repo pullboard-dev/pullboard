@@ -45,24 +45,24 @@ function forwardedFixture(t) {
   return { ...box, cell, body, problems };
 }
 
-test('accepted wildcard authority follows same-owner pure shim and public-entry exports [C7,D3]', t => {
+test('codemap.forwarders.accepted-wildcard-authority-follows-same: accepted wildcard authority follows same-owner pure shim and public-entry exports [C7,D3]', t => {
   const box = forwardedFixture(t);
   assert.deepEqual(box.problems(), []);
 });
 
-test('an independent literal importing route cannot borrow same-owner wildcard forwarding authority [C7,D3]', t => {
+test('codemap.forwarders.an-independent-literal-importing-route: an independent literal importing route cannot borrow same-owner wildcard forwarding authority [C7,D3]', t => {
   const box = forwardedFixture(t);
   box.put('src/refused.js', LOADER + "import './stats-flow.js';\n");
   assert.ok(box.problems().some(problem => problem.includes('src/refused.js -> src/stats-flow.js')));
 });
 
-test('accepted wildcard forwarding cannot cross into another owner cell [C7,D3]', t => {
+test('codemap.forwarders.accepted-wildcard-forwarding-cannot-cross: accepted wildcard forwarding cannot cross into another owner cell [C7,D3]', t => {
   const box = forwardedFixture(t);
   box.put(box.cell.frontDoor, 'export * from "../../src/cli.js";\n');
   assert.ok(box.problems().some(problem => problem.includes(`${box.cell.frontDoor} -> src/cli.js`)));
 });
 
-test('fresh and changed wildcard declarations retain their own dependency checks [C7,D3]', t => {
+test('codemap.forwarders.fresh-and-changed-wildcard-declarations: fresh and changed wildcard declarations retain their own dependency checks [C7,D3]', t => {
   const box = forwardedFixture(t);
   box.put('src/refused.js', LOADER.replace('src/stats*.js', 'src/stat*.js'));
   assert.ok(box.problems().some(problem => problem.includes('src/refused.js -> src/stats-flow.js')));
@@ -70,7 +70,7 @@ test('fresh and changed wildcard declarations retain their own dependency checks
   assert.ok(box.problems().some(problem => problem.includes('src/refused.js -> ' + box.cell.frontDoor)));
 });
 
-test('computed and unknown loader forwarders cannot inherit pure-export wildcard authority [C7,D3]', t => {
+test('codemap.forwarders.computed-and-unknown-loader-forwarders: computed and unknown loader forwarders cannot inherit pure-export wildcard authority [C7,D3]', t => {
   const box = forwardedFixture(t);
   box.put('src/stats-flow.js', `/** @pullboard-module-loads ${box.body} */\nawait import(name);\n`);
   assert.ok(box.problems().some(problem => problem.includes('src/stats-flow.js -> ' + box.body)));
@@ -78,7 +78,7 @@ test('computed and unknown loader forwarders cannot inherit pure-export wildcard
   assert.ok(box.problems().some(problem => problem.includes('cannot prove cut through src/stats-flow.js')));
 });
 
-test('real implementations keep their later imports under their own cell cut [C7,D3]', t => {
+test('codemap.forwarders.real-implementations-keep-their-later: real implementations keep their later imports under their own cell cut [C7,D3]', t => {
   const box = forwardedFixture(t);
   box.put(box.body, `import ${JSON.stringify(posix.relative(posix.dirname(box.body), 'src/cli.js'))};\nexport const flow = true;\n`);
   assert.deepEqual(box.problems(), [], 'the importing cell does not take ownership of another cell implementation');

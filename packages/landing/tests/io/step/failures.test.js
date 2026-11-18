@@ -32,7 +32,7 @@ not ok 3 - a real case
 /** Ports with an empty quarantine, so no waiver covers anything. */
 const state = { board: { db: { prepare: () => ({ all: () => [] }) }, clock: { now: () => new Date() } }, landingPorts: { quarantineWaivers: () => [] } };
 
-test('a watchdog-stopped or aborted file is flagged by its repo path; a named red is not [C7,#3167]', () => {
+test('landing.failures.a-watchdog-stopped-or-aborted-file: a watchdog-stopped or aborted file is flagged by its repo path; a named red is not [C7,#3167]', () => {
   const failures = landingFailures(OUTPUT, '/elsewhere');
   assert.deepEqual(failures.map(row => [row.file, row.watchdog === true]), [
     ['apps/cli/tests/worktree-maintenance-scheduler.test.js', true],
@@ -42,7 +42,7 @@ test('a watchdog-stopped or aborted file is flagged by its repo path; a named re
   assert.deepEqual(unwaivedFailures(state.board, failures, state.landingPorts).map(row => row.file), ['test/real.test.js']);
 });
 
-test('red only in stopped files is a landing proof; one named red voids it [C7,#3167]', () => {
+test('landing.failures.red-only-in-stopped-files-is: red only in stopped files is a landing proof; one named red voids it [C7,#3167]', () => {
   const failures = landingFailures(OUTPUT, '/elsewhere');
   const proof = watchdogProof(state, { failures: failures.slice(0, 2), tree: 'tree', logPath: 'log' });
   assert.deepEqual(proof, { tree: 'tree', failures: [], knownMain: [], logPath: 'log',
@@ -52,7 +52,7 @@ test('red only in stopped files is a landing proof; one named red voids it [C7,#
   assert.equal(watchdogProof(state, { failures: failures.slice(0, 2), tree: 'tree', requiresGreen: true }), null);
 });
 
-test('a nested case with no location fails in its outer case\u2019s file [C7]', () => {
+test('landing.failures.a-nested-case-with-no-location: a nested case with no location fails in its outer case\u2019s file [C7]', () => {
   const output = `TAP version 13
 # Subtest: outer case [C7]
     # Subtest: inner one

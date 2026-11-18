@@ -17,14 +17,14 @@ import { waitItemDraft } from '../../src/logic/budgets.js';
 const row = (pid, extra = {}) => ({ surface: 'pool', key: `machine:gate:pid-${pid}-abc`, holder: `gate by pid-${pid}-abc`, pid, ageMs: 40 * 60_000,
   budgetMs: 20 * 60_000, budgetName: 'pool', waiters: [], evidence: 'e', context: null, ...extra });
 
-test('clause 2: the wait key and title carry no pid for two holders of one surface [C7]', () => {
+test('sentinels.waits-dedupe.key-and-title-carry-no-pid: clause 2: the wait key and title carry no pid for two holders of one surface [C7]', () => {
   assert.equal(waitKey(row(111)), waitKey(row(222)));
   assert.doesNotMatch(waitKey(row(111)), /111/u);
   assert.equal(waitItemDraft(row(111)).title, waitItemDraft(row(222)).title);
   assert.doesNotMatch(waitItemDraft(row(111)).title, /111/u);
 });
 
-test('clause 1: two over-budget holders of one surface with different pids leave one open item and a fact [C7]', async t => {
+test('sentinels.waits-dedupe.two-holders-one-item: clause 1: two over-budget holders of one surface with different pids leave one open item and a fact [C7]', async t => {
   const board = fixtureBoard(t);
   register(board, { lane: 'coordinator', path: '/tmp' });
   const ports = {

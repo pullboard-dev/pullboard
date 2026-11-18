@@ -40,7 +40,7 @@ function boardWith(t, flag, { settle = true } = {}) {
   return { board, file: repo.boardFile, runs: boardRunsReader(board, repo.boardFile) };
 }
 
-test('clause 1: with runs_store on, show takes the gate outcome from the board run row and the live step from a read-only runs handle [B2,#9013]', t => {
+test('cli.io-show-trace-runs.with-runs-store-on-show-takes-the: clause 1: with runs_store on, show takes the gate outcome from the board run row and the live step from a read-only runs handle [B2,#9013]', t => {
   const { board, runs } = boardWith(t, true);
   t.after(() => runs.db?.close());
   const job = newestGateJob(board.db, 9013, [], { runs });
@@ -56,7 +56,7 @@ test('clause 1: with runs_store on, show takes the gate outcome from the board r
   assert.equal(newestGateJob(queued.board.db, 9013, [], { runs: { db: null } }).step, 'queued');
 });
 
-test('clause 2: with runs_store on, trace lists the live job steps from the runs file and one outcome step from the board run row [B2,#9013]', t => {
+test('cli.io-show-trace-runs.with-runs-store-on-trace-lists-the: clause 2: with runs_store on, trace lists the live job steps from the runs file and one outcome step from the board run row [B2,#9013]', t => {
   const { board, runs } = boardWith(t, true);
   t.after(() => runs.db?.close());
   const rows = readJobSteps(board.db, { runs });
@@ -66,7 +66,7 @@ test('clause 2: with runs_store on, trace lists the live job steps from the runs
   assert.deepEqual(board.db.prepare('SELECT job_id FROM job').all(), [], 'the board holds no job rows');
 });
 
-test('clause 3: with runs_store off, show and trace read the board job rows as on main [B2,#9013]', t => {
+test('cli.io-show-trace-runs.with-runs-store-off-show-and-trace: clause 3: with runs_store off, show and trace read the board job rows as on main [B2,#9013]', t => {
   const { board } = boardWith(t, false);
   const job = newestGateJob(board.db, 9013, []);
   assert.deepEqual(newestGateJob(board.db, 9013, [], { runs: null }), job);

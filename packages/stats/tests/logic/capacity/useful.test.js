@@ -15,7 +15,7 @@ function history(plan, { age = 1 } = {}) {
   return rows;
 }
 
-test('clause 1: [C7] max useful builder seats are computed from marginal landings per added seat and churn over a trailing window on a seeded history', () => {
+test('stats.useful.c7-max-useful-builder-seats-are: clause 1: [C7] max useful builder seats are computed from marginal landings per added seat and churn over a trailing window on a seeded history', () => {
   // 1 to 4 seats add 3, 3 and 2 net landings; the 5th adds a landing but churn eats it, so 4 is the last useful seat.
   const rows = history([[1, 3, 0, 10], [2, 6, 0, 10], [3, 9, 0, 10], [4, 12, 2, 10], [5, 14, 6, 10]]);
   const out = maxUsefulBuilders(rows, { now: NOW });

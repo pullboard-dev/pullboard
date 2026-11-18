@@ -7,6 +7,7 @@ import { rankInversionHistory } from './inversion.js';
 import { readWorkFreeReleases } from '../../../stats/index.js';
 import { landingFailureFindings } from './landing.js';
 import { noReviewerSupplyFindings } from './supply.js';
+import { credentialExpiryFindings } from './supply.js';
 import { capacityWorsenedFindings } from './capacity.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
@@ -67,11 +68,12 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../store/index.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../landing/index.js';
+import { localReleaseRank } from '../../../landing/light.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
+import { relayMachineContext } from '../../../link/index.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });
@@ -142,6 +144,9 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
     }));
   }
+  let machineLink = null;
+  try { machineLink = relayMachineContext(root); } catch { /* no readable link: no credential to warn about */ }
+  report.stuck.push(...credentialExpiryFindings(machineLink, now.getTime(), finding));
   const settings = machineSettings;
   if (settings?.gate?.loadAwareDispatch === true) {
     const fresh = (settings.runners ?? []).filter(runner => {

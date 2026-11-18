@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell rigor */
+/** @pullboard-test-input source-cell packages/rigor */
 /** The rigor proof names its item and kind at the gate slot, so gate.requireRunnerAttribution can turn on safely [C7,#3849]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

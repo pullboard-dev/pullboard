@@ -13,6 +13,8 @@ import { queueFor } from '../../../../../packages/api/index.js';
 import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { adaptiveBatchEnabled } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
@@ -35,6 +37,7 @@ import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
 import { BOARD_HOST } from '../runner/local.js';
 import { ensureLocalRunner } from '../runner/local.js';
+import { wakeRunnerForOffer } from '../runner/local.js';
 import { pullGit } from '../runner/git.js';
 import { landingShardGate } from '../submit/pull.js';
 import { openLandJobs } from './waiting.js';
@@ -191,7 +194,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
   const remote = configured ?? root;
   // A trunk remote of record that is a checkout here with trunk checked out (pb-trunk links to this one) takes its push in place [C7,#7951].
   const intoCheckout = Boolean(configured) && trunkCheckedOut(configured, root, trunkRef(root));
-  return (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
+  const result = await (opened ? work => work(opened) : work => withBoard(ctx, work))(async board => {
     // An open land job keeps its own items; this offer takes only the accepted items no open job names [C7,#7728].
     const taken = ids ? new Set() : openLandingItems(board.db);
     // A verdict a main change made stale goes back to its lane first, as the engine's selection does; forced takes none [B3,C7].
@@ -199,7 +202,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
     if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line) });
+      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject() });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
@@ -264,4 +267,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       return { offered: jobs[0], items: free.map(entry => entry.id), waiting: false, ...(jobs.length > 1 ? { jobs } : {}), ...(forced ? { forced } : {}) };
     });
   });
+  // The offer is committed: with runners.localWake on, an idle local runner claims it now, not at its next poll [C7,#10409].
+  if (result?.offered && hosted) wakeRunnerForOffer();
+  return result;
 }

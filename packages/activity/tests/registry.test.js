@@ -1,4 +1,5 @@
-/** Every activity-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9896]. @pullboard-test-input source-cell packages/activity */
+/** @pullboard-test-input source-cell packages/activity */
+/** Every activity-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9896]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
@@ -9,7 +10,7 @@ import { registryStrictEnabled as registryStrict } from '../../config/index.js';
 const TITLE_ID = /^test\('([^':\s]+): /gmu;
 const TESTS = /^test\(/gmu;
 /** Template literals hold fixture projects whose own test( lines are data, not this cell's tests. */
-const TEMPLATES = /`[^`]*`/gu;
+const TEMPLATES = new RegExp('\\x60[^\\x60]*\\x60', 'gu');
 
 /** Inlined from the verify cell's registryFindings: a cell test may not import another cell's front door; a later item holds the shared check (rg4). */
 function registryFindings(files, records) {

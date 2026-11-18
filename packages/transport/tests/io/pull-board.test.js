@@ -28,7 +28,7 @@ function boot(folder, pub, at) {
 }
 
 /** The production adapter keeps its state in the board folder, so a take nonce spent before a restart is refused after it [C7]. */
-test('the board pull adapter is built over a persistent store and a spent take nonce is refused after a restart [C7]', () => {
+test('transport.pull-board.the-board-pull-adapter-is-built: the board pull adapter is built over a persistent store and a spent take nonce is refused after a restart [C7]', () => {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const pub = publicKey.export({ type: 'spki', format: 'der' }).toString('base64url');
   const signText = text => sign(null, Buffer.from(text), privateKey).toString('base64url');

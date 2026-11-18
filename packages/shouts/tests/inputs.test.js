@@ -28,7 +28,7 @@ const read = path => readFileSync(join(ROOT, path), 'utf8');
 /** The input header lines in a file's leading comment lines, as the text after the tag. */
 const headers = source => source.split(/\r?\n/u).slice(0, 5).map(line => line.match(HEADER)?.[1]).filter(Boolean);
 
-test('clause 1: every shouts test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
+test('shouts.inputs.readers-declare: clause 1: every shouts test file that reads files carries an input header naming the cells it reads [C7,U149]', () => {
   const files = shoutsTests();
   assert.ok(files.includes(SELF) && files.length >= 2, 'the shouts cell has test files to check');
   const undeclared = files.filter(file => READS.test(read(file)) && headers(read(file)).length === 0);
@@ -36,7 +36,7 @@ test('clause 1: every shouts test file that reads files carries an input header 
   assert.deepEqual(headers(read(SELF)), ['source-cell packages/shouts'], 'this file names only the shouts cell');
 });
 
-test('clause 2: no shouts test declares the whole source tree, and every declared cell is one it can read [C7,U149]', () => {
+test('shouts.inputs.no-whole-tree: clause 2: no shouts test declares the whole source tree, and every declared cell is one it can read [C7,U149]', () => {
   for (const file of shoutsTests()) {
     for (const header of headers(read(file))) {
       assert.notEqual(header.trim(), 'source-tree', `${file} declares source-tree`);

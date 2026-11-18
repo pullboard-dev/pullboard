@@ -1,9 +1,10 @@
-/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js */
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
 import { nextItemNotices } from '../../../../../packages/config/index.js';
 import { reviewStarveShout } from '../../../../../packages/config/index.js';
+import { nextRouteByTier } from '../../../../../packages/config/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
@@ -128,6 +129,11 @@ export async function nextHere(io, values) {
   }
 }
 
+/** The line after a claim's check: the criterion and check above are the bar, so a builder skips show [#10557]. */
+function barLine(id) {
+  return `that is your bar; pullboard show ${id} adds the thread and history only`;
+}
+
 /**
  * Print each next phase's milliseconds and name the slowest three, on stderr so JSON stdout stays whole.
  * Why: the 0.2 s budget needs a measured profile of the real-size board before any phase is optimised (#6290).
@@ -242,8 +248,10 @@ async function nextWithProgress(io, values, progress) {
     }
     // A wait call reports a failed queued gate once, then omits that still-red claim while looking for other work.
     const redClaims = minutes > 0 ? withBoardRead(ctx, board => store.queuedReds(board, whoAmI(ctx, board).id).map(red => red.id)) : [];
-    const selectionValues = redClaims.length
-      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims])] }
+    // next.routeByTier (off by default): open items the project's tiers route to another tier than this seat's are left out of its pick [C7,#8800].
+    const tierLeftOut = nextRouteByTier() && !values.verify ? withBoardRead(ctx, board => requireModule('../../../../../packages/moves/src/io/tier-routing.js').tierOmissions(ctx.config, board, store.listItems(board), whoAmI(ctx, board))) : [];
+    const selectionValues = redClaims.length || tierLeftOut.length
+      ? { ...values, omitIds: [...new Set([...(values.omitIds ?? []), ...redClaims, ...tierLeftOut])] }
       : values;
     // Every route closes Main red items main already proves green before it selects, so no builder is sent to them (#3382).
     await closePassingMainReds(ctx, takeServices);
@@ -359,6 +367,7 @@ async function nextWithProgress(io, values, progress) {
         if (found.shared?.length) io.say(`it touches ${found.shared.length === 1 ? 'a file' : `${found.shared.length} files`} you worked in recently: ${found.shared.slice(0, 4).join(', ')}`);
         if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
         if (item.item_check) io.say(`check: ${item.item_check}   (run it before you submit)`);
+        if (item.item_check) io.say(barLine(item.item_id));
         for (const row of item.item_frozen ? JSON.parse(item.item_frozen).rows : []) io.say(`  ${row.id}: ${store.readableRigorText(row.text)}`);
         sayBrief(io, item.item_brief);
         for (const line of notices) io.say(`  ${line}`);
@@ -369,6 +378,7 @@ async function nextWithProgress(io, values, progress) {
           io.say(`item folder: ${next.itemFolder}; seat ${next.holder}; build, commit and submit there`);
           if (next.item.item_criterion) io.say(`criterion: ${next.item.item_criterion}`);
           if (next.item.item_check) io.say(`check: ${next.item.item_check}   (run it before you submit)`);
+          if (next.item.item_check) io.say(barLine(next.item.item_id));
           io.say(`when it is built and committed: ${cdTo(next.itemFolder)} pullboard submit ${next.item.item_id}`);
         }
         if (more.length) io.say(`you hold ${seatClaims(ctx).map(id => `#${id}`).join(', ')}: build each in its own folder`);

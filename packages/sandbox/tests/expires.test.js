@@ -22,7 +22,7 @@ async function offeredTo(box) {
   return next.item?.item_id ?? null;
 }
 
-test('clause 1: a ROUTED_ELSEWHERE release stays excluded while its seat is live and is offered again once the session is gone [C7]', async t => {
+test('sandbox.expires.routed-elsewhere-live-seat-excluded: clause 1: a ROUTED_ELSEWHERE release stays excluded while its seat is live and is offered again once the session is gone [C7]', async t => {
   const box = fixture(t);
   const id = giveBack(box, 'Routed to a live seat', 'ROUTED_ELSEWHERE');
   box.advance(31 * 60_000);
@@ -31,7 +31,7 @@ test('clause 1: a ROUTED_ELSEWHERE release stays excluded while its seat is live
   assert.equal(await offeredTo(box), id, 'the session has been silent past the window');
 });
 
-test('clause 1: a ROUTED_ELSEWHERE release is offered again once the releasing seat folder is gone [C7]', async t => {
+test('sandbox.expires.routed-elsewhere-gone-folder-offered: clause 1: a ROUTED_ELSEWHERE release is offered again once the releasing seat folder is gone [C7]', async t => {
   const box = fixture(t);
   const id = giveBack(box, 'Routed to a seat whose folder goes', 'ROUTED_ELSEWHERE');
   box.advance(31 * 60_000);
@@ -41,7 +41,7 @@ test('clause 1: a ROUTED_ELSEWHERE release is offered again once the releasing s
   assert.equal(await offeredTo(box), id, 'the folder is gone');
 });
 
-test('clause 1: a BLOCKED release with no blocker list is offered again after the cooldown [C7]', async t => {
+test('sandbox.expires.blocked-no-list-cooldown: clause 1: a BLOCKED release with no blocker list is offered again after the cooldown [C7]', async t => {
   const box = fixture(t);
   const id = giveBack(box, 'Blocked with no list', 'BLOCKED');
   box.advance(31 * 60_000);
@@ -50,7 +50,7 @@ test('clause 1: a BLOCKED release with no blocker list is offered again after th
   assert.equal(await offeredTo(box), id, 'after the bounded cooldown');
 });
 
-test('clause 1: a BLOCKED release naming an unlanded blocker stays excluded until the blocker lands [C7]', async t => {
+test('sandbox.expires.blocked-unlanded-blocker-excluded: clause 1: a BLOCKED release naming an unlanded blocker stays excluded until the blocker lands [C7]', async t => {
   const box = fixture(t);
   const blocker = box.add('Unlanded blocker');
   const id = giveBack(box, 'Blocked on a named item', 'BLOCKED', { blockedOn: [blocker] });

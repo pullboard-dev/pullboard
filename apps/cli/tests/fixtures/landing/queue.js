@@ -230,27 +230,30 @@ function landingPolicyCalls(box, batches, records) {
 /**
  * The freshness variant on pull: two accepted items, the second changing the first's checked file; the second lands
  * alone (the first held), moving main under the first's verdict, and the next land reopens the first to its lane with
- * STALE_VERDICT and offers no land job for it [B3,C7].
+ * STALE_VERDICT and offers no land job for it. Hooks, seats, submits, verdicts and lands run in process [B3,C7,#10412].
  */
 async function pulledFreshnessCase(helpers) {
-  const { landProject, itemWorktree, submitItem, acceptItem, FILES } = makeLandProjectFixtures(helpers);
+  const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal, FILES } = makeLandProjectFixtures(helpers);
   const box = landProject();
-  const first = itemWorktree(box, 1);
-  const second = itemWorktree(box, 2);
-  submitItem(box, first);
+  fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true }, gate: FIXTURE_GATE_DISPATCH });
+  const first = await itemWorktreeLocal(box, 1);
+  const second = await itemWorktreeLocal(box, 2);
+  await commitItemLocal(box, first);
   // The second item changes the first's checked file on its own branch, so its landing makes the first verdict stale.
   mkdirSync(join(second.path, 'web'), { recursive: true });
   writeFileSync(join(second.path, FILES[0]), '// PASS changed\n');
-  submitItem(box, second);
-  acceptItem(box, first);
-  acceptItem(box, second);
+  await commitItemLocal(box, second);
+  for (const entry of [first, second]) await submitItemLocal(box, entry);
+  for (const entry of [first, second]) await acceptItemLocal(box, entry);
   // Only the second lands now; the first keeps its accept behind a hold.
   readBoard(box, board => store.holdItem(board, first.item, { agentId: 'coordinator', reason: 'land the second item first' }));
-  const landed = await settleLand(box, JSON.parse(run(box, box.repo, 'land', '--json')));
+  const offer = await box.runIn(box.repo, 'land', '--json');
+  assert.equal(offer.code, 0, `land --json: ${offer.err}\n${offer.out}`);
+  const landed = await settleLand(box, JSON.parse(offer.out));
   assert.deepEqual(landed.landed, [second.item], JSON.stringify(landed));
   readBoard(box, board => store.releaseItemHold(board, first.item, { agentId: 'coordinator' }));
   const jobs = landJobs(box).length;
-  const again = box.run(box.repo, 'land');
+  const again = await box.runIn(box.repo, 'land');
   assert.equal(again.code, 0, again.err + again.out);
   assert.match(again.out + again.err, /STALE_VERDICT #\d+ reopened to its lane/u);
   assert.equal(readBoard(box, board => store.getItem(board, first.item).item_status), 'open', 'the stale item left verified for its lane');

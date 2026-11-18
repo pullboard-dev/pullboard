@@ -21,17 +21,18 @@ import {
   openItemsNeeds,
 } from '../../tests/fixtures/cockpit/harness.js';
 
-test('a spec revision shows old and proposed rows side by side with proposal-id actions [P6,B23,N39]', { timeout: 120_000 }, async () => {
+test('clause 1: a spec revision shows old and proposed rows side by side with proposal-id actions [P6,B23,N39]', { timeout: 120_000 }, async () => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the phone and desktop revision actions.');
   const box = machine();
   const spec = '# Revision fixture\n\n## G · Goals\n' + [1, 2, 3, 4].map(id =>
     `- G${id} [approved, must] Original requirement ${id}. | gate: true\n`).join('');
   const alpha = project(box, 'revision-board', spec);
-  const proposals = [1, 2, 3, 4].map(id => JSON.parse(box.run(alpha.web, 'spec', 'draft',
+  const proposals = [];
+  for (const id of [1, 2, 3, 4]) proposals.push(JSON.parse(await box.inProcess(alpha.web, 'spec', 'draft',
     `Proposed requirement ${id}.`, '--revises', `G${id}`, '--reason', `Reason for revision ${id}.`, '--json')).id);
   assert.ok(proposals.every((id, index) => id && id !== `G${index + 1}`), 'the real core assigns distinct proposal identities');
-  const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-revision-chrome-'));
+  const view = await startView(box, { inProcess: true }), profile = mkdtempSync(join(tmpdir(), 'pullboard-revision-chrome-'));
   let chrome;
   try {
     const state = await boardOf(view, alpha.repo);
@@ -43,9 +44,13 @@ test('a spec revision shows old and proposed rows side by side with proposal-id 
     assert.equal(await chrome.stable('document.querySelectorAll("#needs [data-spec-revision]").length'), 4,
       'Needs you renders each core-projected revision as its own actionable comparison');
     await openItemsNeeds(chrome);
-    await chrome.stable(`window.revisionMoves = []; window.revisionFetch = window.fetch; window.fetch = function(input, init) {
-      if (init?.body && String(input).includes('/moves')) { const move = JSON.parse(init.body); if (move.verb) window.revisionMoves.push(move); }
-      return window.revisionFetch.apply(this, arguments);
+    await chrome.stable(`window.revisionMoves = []; window.revisionSettled = []; window.revisionFetch = window.fetch; window.fetch = function(input, init) {
+      const answer = window.revisionFetch.apply(this, arguments);
+      if (init?.body && String(input).includes('/moves')) {
+        const move = JSON.parse(init.body);
+        if (move.verb) { window.revisionMoves.push(move); answer.finally(() => setTimeout(() => window.revisionSettled.push(move.args.ids), 0)); }
+      }
+      return answer;
     }; true`);
     for (const [index, width] of [375, 1280].entries()) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -67,6 +72,7 @@ test('a spec revision shows old and proposed rows side by side with proposal-id 
       assert.ok(shown.right <= width, `${width}: the comparison stays in the viewport`);
       await press(chrome, `${row}.querySelector('[data-row-decision="approve"]')`);
       await chrome.waitFor(`window.revisionMoves.some(move => move.verb === 'spec-approve' && move.args.ids === '${approve}')`);
+      await chrome.waitFor(`window.revisionSettled.includes('${approve}')`);
       const declinedRow = `document.querySelector('#needs [data-spec-revision="${decline}"]')`;
       await press(chrome, `${declinedRow}.querySelector('summary')`);
       await chrome.waitFor(`${declinedRow}.querySelector('details').open`);

@@ -64,7 +64,7 @@ function outputOf(result) {
   return `${result.stdout ?? ''}${result.stderr ?? ''}`;
 }
 
-test('a test file that won\'t exit fails by name [C7]', (t) => {
+test('runners.filexit.a-test-file-that-won-t: a test file that won\'t exit fails by name [C7]', (t) => {
   const fixture = makeFileExitFixture(t, `import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
@@ -90,7 +90,7 @@ after(async () => {
   assert.match(output, /leave cleanup active \[C7\]/u);
 });
 
-test('a file that exits cleanly is not touched [C7]', (t) => {
+test('runners.filexit.a-file-that-exits-cleanly-is: a file that exits cleanly is not touched [C7]', (t) => {
   const fixture = makeFileExitFixture(t, `import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
@@ -113,7 +113,7 @@ after(async () => {
   assert.doesNotMatch(output, /file-exit timeout/u);
 });
 
-test('a nested suite cleanup cannot hold a completed file open [C7]', (t) => {
+test('runners.filexit.a-nested-suite-cleanup-cannot-hold: a nested suite cleanup cannot hold a completed file open [C7]', (t) => {
   const fixture = makeFileExitFixture(t, `import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
 import { after, describe, test } from 'node:test';
@@ -144,7 +144,7 @@ describe('outer suite [C7]', () => {
   assert.match(output, /ok [0-9]+ - last nested leaf finished \[C7\]/u);
 });
 
-test('clean nested cleanup and a later active test keep their own time [C7]', (t) => {
+test('runners.filexit.clean-nested-cleanup-and-a-later: clean nested cleanup and a later active test keep their own time [C7]', (t) => {
   const fixture = makeFileExitFixture(t, `import { createServer } from 'node:http';
 import { writeFileSync } from 'node:fs';
 import { after, describe, test } from 'node:test';
@@ -251,7 +251,7 @@ function launchFocusedPoolRunner(fixture, testFile, extraEnv = {}) {
   return child;
 }
 
-test('a legacy held marker alone cannot bypass focused test admission [C7]', t => {
+test('runners.filexit.a-legacy-held-marker-alone-cannot: a legacy held marker alone cannot bypass focused test admission [C7]', t => {
   const fixture = makeFocusedPoolFixture(t);
   const env = {
     ...process.env,
@@ -304,7 +304,7 @@ async function focusedPoolCloseWithin(child, label, timeoutMs = 30_000) {
   } finally { clearTimeout(timer); }
 }
 
-test('a focused test run holds a gate slot [C7]', async (t) => {
+test('runners.filexit.a-focused-test-run-holds-a: a focused test run holds a gate slot [C7]', async (t) => {
   const fixture = makeFocusedPoolFixture(t);
   const commonEnv = {
     PULLBOARD_C7_POOL: fixture.machine,
@@ -369,7 +369,7 @@ test('a focused test run holds a gate slot [C7]', async (t) => {
   if (cleanupFailure) throw cleanupFailure;
 });
 
-test('a test name pattern after the file selects only its case [C7]', () => {
+test('runners.filexit.a-test-name-pattern-after-the: a test name pattern after the file selects only its case [C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-pattern-after-')); try {
     writeFileSync(join(root, 'pattern.test.mjs'), "import { test } from 'node:test';\ntest('alpha case runs', () => {});\ntest('beta case runs', () => {});\n");
     for (const args of [['pattern.test.mjs', '--test-name-pattern', 'alpha'], ['pattern.test.mjs', '--test-name-pattern=alpha']]) {

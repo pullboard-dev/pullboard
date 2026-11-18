@@ -26,7 +26,7 @@ function received(key) {
 
 const refusal = (run, code) => assert.throws(run, error => error.code === code && /\S+;/u.test(error.message) || error.code === code);
 
-test('a rule bundle verifies offline and refuses changed bytes, a wrong issuer and an expired waiver [C7]', () => {
+test('cli.journeys-doctrine-bundle.a-rule-bundle-verifies-offline-and: a rule bundle verifies offline and refuses changed bytes, a wrong issuer and an expired waiver [C7]', () => {
   // Offline: only bytes, signatures and the authorized key list; the valid bundle imports with origin and identity kept.
   const bundle = received(ruleBoard.privateKey);
   assert.equal(verifyBundle(bundle, [issuer]).issuer, issuer);

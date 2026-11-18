@@ -1,3 +1,4 @@
+/** @pullboard-test-input apps/relay/tests/fixtures/v093-data/** */
 /** A relay data folder written by v0.9.3 opens on the current service with its journals and credentials intact [C7,H16]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -39,7 +40,7 @@ async function openRecorded(t) {
   return { recorded, call, auth };
 }
 
-test('clause 1: the current service opens a v0.9.3 relay data folder and reads its recorded journal [C7,H16]', async (t) => {
+test('relay.v093-data-folder.the-current-service-opens-a-v0: clause 1: the current service opens a v0.9.3 relay data folder and reads its recorded journal [C7,H16]', async (t) => {
   const { recorded, call } = await openRecorded(t);
   const state = await call(recorded.machine, '/state');
   assert.equal(state.status, 200, JSON.stringify(state.document));
@@ -49,7 +50,7 @@ test('clause 1: the current service opens a v0.9.3 relay data folder and reads i
   assert.deepEqual(events.document.events.map((event) => event.sealed), recorded.sealed, 'both recorded moves read back in order');
 });
 
-test('clause 2: the recorded pm_ and pa_ credentials still authenticate on the current service [C7,H16]', async (t) => {
+test('relay.v093-data-folder.the-recorded-pm-and-pa-credentials: clause 2: the recorded pm_ and pa_ credentials still authenticate on the current service [C7,H16]', async (t) => {
   const { recorded, call, auth } = await openRecorded(t);
   assert.match(recorded.machine, /^pm_/u);
   assert.match(recorded.agent, /^pa_/u);

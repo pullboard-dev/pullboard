@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { needsPanelHtml } from '../../../../index.js';
 import { needsPanelModel } from '../../../../index.js';
 
-test('one focus-approval batch lists each draft row with kind, text and referencing items [B26,C7]', () => {
+test('view.needs-summary-pure.one-focus-approval-batch-lists-each-draft: one focus-approval batch lists each draft row with kind, text and referencing items [B26,C7]', () => {
   const call = { kind: 'focus-approval-batch', id: 'focus-approval:0.9.3', ref: '0.9.3', text: '2 draft rows rest under 0.9.3 items',
     rows: [{ id: 'G1.2', kind: 'spec', text: 'Keep <one> & two.', items: [10, 11] },
       { id: 'D4', kind: 'doctrine', text: 'Prefer small steps.', items: [12] }] };

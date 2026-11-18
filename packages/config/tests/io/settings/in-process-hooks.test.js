@@ -21,18 +21,18 @@ function loadWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 1: test.inProcessHooks is described and defaults to false [C7,#9210]', () => {
+test('config.io-settings-in-process-hooks.clause-1-test-inprocesshooks-is: clause 1: test.inProcessHooks is described and defaults to false [C7,#9210]', () => {
   const row = settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'test.inProcessHooks');
   assert.equal(row.value, false);
   assert.match(JSON.stringify(describeSetting('test.inProcessHooks')), /in-process/u);
 });
 
-test('clause 1: test.inProcessHooks accepts true and false [C7,#9210]', () => {
+test('config.io-settings-in-process-hooks.clause-1-test-inprocesshooks-accepts: clause 1: test.inProcessHooks accepts true and false [C7,#9210]', () => {
   assert.equal(loadWith({ test: { inProcessHooks: true } }).test.inProcessHooks, true);
   assert.equal(loadWith({ test: { inProcessHooks: false } }).test.inProcessHooks, false);
 });
 
-test('clause 1: any other test.inProcessHooks value is refused BAD_MACHINE_SETTINGS [C7,#9210]', () => {
+test('config.io-settings-in-process-hooks.clause-1-any-other-test-inprocesshooks: clause 1: any other test.inProcessHooks value is refused BAD_MACHINE_SETTINGS [C7,#9210]', () => {
   for (const bad of ['yes', 1, null]) {
     assert.throws(() => loadWith({ test: { inProcessHooks: bad } }), (error) => error.code === 'BAD_MACHINE_SETTINGS' && /test\.inProcessHooks/u.test(error.message));
   }

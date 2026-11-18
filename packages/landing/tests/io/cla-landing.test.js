@@ -20,7 +20,7 @@ function withFile() {
   return { path: join(scratch.root, 'cla-signatures.json'), text: () => scratch.read('cla-signatures.json').toString('utf8') };
 }
 
-test('clause 1: landing a PR appends one entry per new signer with the CLA hash [C7,#3308]', () => {
+test('landing.cla-landing.landing-a-pr-appends-one-entry: clause 1: landing a PR appends one entry per new signer with the CLA hash [C7,#3308]', () => {
   const { path, text } = withFile();
   const recorded = recordClaSigners({ pr: prFor([{ login: 'ann', id: 1 }, { login: 'bob', id: 2 }]), signaturesPath: path, claText: CLA, now: '2026-11-16T12:00:00Z' });
   assert.deepEqual(recorded, ['ann', 'bob']);
@@ -30,7 +30,7 @@ test('clause 1: landing a PR appends one entry per new signer with the CLA hash 
   assert.equal(signatures[0].comment_url, 'https://github.test/pr/1#c1');
 });
 
-test('clause 2: a second landing by the same signer appends nothing [C7,#3308]', () => {
+test('landing.cla-landing.a-second-landing-by-the-same: clause 2: a second landing by the same signer appends nothing [C7,#3308]', () => {
   const { path, text } = withFile();
   const pr = prFor([{ login: 'ann', id: 1 }]);
   recordClaSigners({ pr, signaturesPath: path, claText: CLA });

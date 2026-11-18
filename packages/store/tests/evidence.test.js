@@ -27,7 +27,7 @@ function refused(work, code) {
     && /declare|declaration/u.test(error.message));
 }
 
-test('native add and edit refuse missing clause kinds atomically and name the fix [C7]', t => {
+test('store.evidence.native-add-and-edit-refuse-missing: native add and edit refuse missing clause kinds atomically and name the fix [C7]', t => {
   const board = fixture(t);
   for (const criterion of ['1. the command returns zero', '1. one [test]\n2. two', '2. out of order', 'After this item: 1. one [test]; 2. two']) {
     refused(() => store.addItem(board, item(criterion)), 'CLAUSE_EVIDENCE_REQUIRED');
@@ -42,7 +42,7 @@ test('native add and edit refuse missing clause kinds atomically and name the fi
   refused(() => store.addItem(board, item('1. ambiguous [test] [command]')), 'CLAUSE_EVIDENCE_KIND');
 });
 
-test('out-of-order numbered prose stays free text during native admission [C7]', t => {
+test('store.evidence.out-of-order-numbered-prose-stays: out-of-order numbered prose stays free text during native admission [C7]', t => {
   const board = fixture(t);
   const criterion = 'out of order\n2. b\n1. a';
   assert.deepEqual(requireCriterionEvidence(criterion), []);
@@ -50,7 +50,7 @@ test('out-of-order numbered prose stays free text during native admission [C7]',
   assert.equal(store.getItem(board, id).item_criterion, criterion);
 });
 
-test('all five kinds are accepted and native add/edit events flag reasoning [C7]', t => {
+test('store.evidence.all-five-kinds-are-accepted-and: all five kinds are accepted and native add/edit events flag reasoning [C7]', t => {
   const board = fixture(t);
   const criterion = '1. the case passes [test]\n2. the command prints OK [command]\n3. visual layout [screenshot]\n4. latency distribution [measurement]\n5. explain the design tradeoff [reasoning]';
   const id = store.addItem(board, item(criterion));
@@ -66,7 +66,7 @@ test('all five kinds are accepted and native add/edit events flag reasoning [C7]
   assert.equal(summary.match(/weakest evidence/gu).length, 2, 'every reasoning tick is flagged');
 });
 
-test('observable outcomes cannot declare reasoning alone at either native write [C7]', t => {
+test('store.evidence.observable-outcomes-cannot-declare-reasoning-alone: observable outcomes cannot declare reasoning alone at either native write [C7]', t => {
   const board = fixture(t);
   const id = store.addItem(board, item('1. explain the design [reasoning]'));
   for (const outcome of ['exits zero', 'prints OK', 'refuses invalid input', 'passes its check', 'returns a value', 'finishes under 10 ms', 'finishes under 1.5 s']) {
@@ -79,7 +79,7 @@ test('observable outcomes cannot declare reasoning alone at either native write 
   assert.deepEqual(requireCriterionEvidence('After this item: 1. one [test]; 2. two [command].'), []);
 });
 
-test('historical engine replay accepts old untagged criteria and unrelated edits remain possible [C7]', t => {
+test('store.evidence.historical-engine-replay-accepts-old-untagged: historical engine replay accepts old untagged criteria and unrelated edits remain possible [C7]', t => {
   const board = fixture(t, CLAUSE_EVIDENCE_ENGINE - 1);
   const id = store.addItem(board, item('1. old untagged outcome\n2. another outcome'));
   store.editItem(board, id, { agentId: 'coordinator', criterion: '1. old corrected outcome', reason: 'historical correction' });

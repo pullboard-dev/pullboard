@@ -16,7 +16,7 @@ function holders(env) {
   return withEnvironment(env, () => listResources({ root: process.cwd() }).find(row => row.name === 'gate')?.holders.map(holder => holder.agent));
 }
 
-test('two takeResource calls with their own env hold leases in their own machine homes at once [C7]', async () => {
+test('resources.environment.two-takeresource-calls-with-their-own: two takeResource calls with their own env hold leases in their own machine homes at once [C7]', async () => {
   const mine = machine();
   const one = { ...process.env, PULLBOARD_MACHINE_HOME: machine(), PULLBOARD_AGENT: 'env-one' };
   const two = { ...process.env, PULLBOARD_MACHINE_HOME: machine(), PULLBOARD_AGENT: 'env-two' };
@@ -37,7 +37,7 @@ test('two takeResource calls with their own env hold leases in their own machine
   assert.equal(process.env.PULLBOARD_AGENT, before.agent, 'no call left its env behind');
 });
 
-test('clause 1: an env scope still applies after something replaced process.env, so a runner preload cannot hide it [C7]', () => {
+test('resources.environment.an-env-scope-still-applies-after: clause 1: an env scope still applies after something replaced process.env, so a runner preload cannot hide it [C7]', () => {
   const original = process.env;
   const replaced = { ...original, ENV_SCOPE_PROBE: 'outer' };
   try {

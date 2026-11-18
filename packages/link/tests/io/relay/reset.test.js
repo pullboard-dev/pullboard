@@ -5,7 +5,7 @@ import { relayResetSample } from '../../fixtures/relay/reset.js';
 import { request as relayRequest } from '../../../index.js';
 
 /** A real worker closes the pooled socket while the client cannot process that closure. */
-test('a relay read survives one reset connection [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for real TCP fault and closure-control fixtures.
+test('link.reset.read-survives-one-reset: a relay read survives one reset connection [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for real TCP fault and closure-control fixtures.
   const reset = await relayResetSample();
   assert.equal(reset.success, true, 'the read recovers from the real abrupt peer reset');
   assert.equal(reset.server.resets, 1, 'the fault was physically injected');
@@ -21,7 +21,7 @@ test('a relay read survives one reset connection [H3,H16]', { timeout: 60_000 },
   }
 });
 
-test('relay resets never blindly repeat writes [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for four independently owned real TCP write fixtures.
+test('link.reset.writes-never-repeat: relay resets never blindly repeat writes [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for four independently owned real TCP write fixtures.
   for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
     const write = await relayResetSample('write-reset', { method });
     assert.equal(write.success, false, method + ': a lost write reply remains ambiguous');
@@ -31,7 +31,7 @@ test('relay resets never blindly repeat writes [H3,H16]', { timeout: 60_000 }, a
   }
 });
 
-test('relay read recovery stays bounded and preserves refusals, invalid bodies and cancellation [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for bounded fault, refusal and cancellation fixtures.
+test('link.reset.recovery-bounded: relay read recovery stays bounded and preserves refusals, invalid bodies and cancellation [H3,H16]', { timeout: 60_000 }, async () => { // budget: hang ceiling for bounded fault, refusal and cancellation fixtures.
   const reset = await relayResetSample('always-reset');
   assert.equal(reset.success, false);
   assert.equal(reset.code, 'RELAY_UNAVAILABLE');

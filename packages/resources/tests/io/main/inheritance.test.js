@@ -68,7 +68,7 @@ function resourcesAt(home) {
 }
 
 /** Prove a child reuses the exact live lease at capacity one without consuming another slot. */
-test('a same-pool child reuses the live gate lease without taking another slot [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.a-same-pool-child-reuses-the: a same-pool child reuses the live gate lease without taking another slot [Q1,Q2,Q3]', async () => {
   const home = machinePool();
   const lease = await acquireGate(home);
   try {
@@ -87,7 +87,7 @@ test('a same-pool child reuses the live gate lease without taking another slot [
 });
 
 /** Prove a symlinked machine-home path reuses the exact live database lease at capacity one. */
-test('a symlink alias to the same machine pool reuses its live gate lease [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.a-symlink-alias-to-the-same: a symlink alias to the same machine pool reuses its live gate lease [Q1,Q2,Q3]', async () => {
   const realHome = machinePool();
   const aliasParent = machinePool();
   const aliasHome = join(aliasParent, 'machine-home');
@@ -106,7 +106,7 @@ test('a symlink alias to the same machine pool reuses its live gate lease [Q1,Q2
 });
 
 /** Prove a marker scoped to another machine database is ignored and does not suppress local acquisition. */
-test('foreign-pool markers are ignored and the child acquires from its own pool [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.foreign-pool-markers-are-ignored-and: foreign-pool markers are ignored and the child acquires from its own pool [Q1,Q2,Q3]', async () => {
   const parentHome = machinePool();
   const childHome = machinePool();
   const parentLease = await acquireGate(parentHome);
@@ -127,7 +127,7 @@ test('foreign-pool markers are ignored and the child acquires from its own pool 
 });
 
 /** Prove a released token cannot be reused even when its pool marker still matches. */
-test('a released same-pool token is refused instead of being inherited [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.a-released-same-pool-token-is: a released same-pool token is refused instead of being inherited [Q1,Q2,Q3]', async () => {
   const home = machinePool();
   const lease = await acquireGate(home);
   const markers = gateSlotEnvironment(lease);
@@ -139,7 +139,7 @@ test('a released same-pool token is refused instead of being inherited [Q1,Q2,Q3
 });
 
 /** Prove a Chrome child cannot queue while carrying only the parent's ordinary gate slot. */
-test('a browser child refuses a live gate-only lease without joining the queue [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.a-browser-child-refuses-a-live: a browser child refuses a live gate-only lease without joining the queue [Q1,Q2,Q3]', async () => {
   const home = machinePool();
   const lease = await acquireGate(home);
   try {
@@ -155,7 +155,7 @@ test('a browser child refuses a live gate-only lease without joining the queue [
 });
 
 /** Prove the browser marker must match the live holder row, including its positive held value. */
-test('a forged browser marker is refused against the live composite lease [Q1,Q2,Q3]', async () => {
+test('resources.inheritance.a-forged-browser-marker-is-refused: a forged browser marker is refused against the live composite lease [Q1,Q2,Q3]', async () => {
   const home = machinePool();
   const lease = await acquireGate(home, true);
   try {

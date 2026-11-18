@@ -40,7 +40,7 @@ async function capturedRequest(root, readCutItems) {
   return { ...captured, bytes: Buffer.byteLength(JSON.stringify({ command: captured.shell, trustedMode: captured.privateCheck })) };
 }
 
-test('an ordinary candidate\'s remote cell request carries only cut rows and stays under the runner limit [C7,V4]', async t => {
+test('cli.io-commands-runner.an-ordinary-candidate-s-remote-cell-request: an ordinary candidate\'s remote cell request carries only cut rows and stays under the runner limit [C7,V4]', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'runner-request-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');

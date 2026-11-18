@@ -28,13 +28,13 @@ const CONFIG = {
   shared: ['redteam/'],
 };
 
-test('the longest owned prefix decides a path\'s lane; unowned paths are the coordinator\'s [L2]', () => {
+test('seats.lanes.longest-prefix-decides: the longest owned prefix decides a path\'s lane; unowned paths are the coordinator\'s [L2]', () => {
   assert.equal(laneOf(CONFIG, 'apps/web/src/server.js'), 'web');
   assert.equal(laneOf(CONFIG, 'apps/web/src/views/home.js'), 'ui');
   assert.equal(laneOf(CONFIG, 'README.md'), 'coordinator');
 });
 
-test('a lane may change its own paths and shared ones; the coordinator may change anything [L2,L3]', () => {
+test('seats.lanes.who-may-change: a lane may change its own paths and shared ones; the coordinator may change anything [L2,L3]', () => {
   const paths = ['apps/web/a.js', 'apps/web/src/views/b.js', 'apps/api/c.js', 'redteam/d.test.js'];
   assert.deepEqual(outOfLane(CONFIG, 'web', paths), [
     "apps/web/src/views/b.js (ui's)",
@@ -43,13 +43,13 @@ test('a lane may change its own paths and shared ones; the coordinator may chang
   assert.deepEqual(outOfLane(CONFIG, 'coordinator', paths), []);
 });
 
-test('lane names list the coordinator first [L1]', () => {
+test('seats.lanes.coordinator-first: lane names list the coordinator first [L1]', () => {
   assert.deepEqual(laneNames(CONFIG), ['coordinator', 'web', 'ui', 'api']);
   assert.ok(isLane(CONFIG, 'coordinator'));
   assert.ok(!isLane(CONFIG, 'all'));
 });
 
-test('a config with a bad lane refuses and names the field [L1]', () => {
+test('seats.lanes.bad-lane-refuses: a config with a bad lane refuses and names the field [L1]', () => {
   const problems = configProblems({ ...CONFIG, lanes: { Web: { owns: 'apps/' }, all: { owns: [] } } });
   assert.ok(problems.some((problem) => problem.includes('lane "Web"')));
   assert.ok(problems.some((problem) => problem.includes('lane "all"')));
@@ -60,7 +60,7 @@ test('a config with a bad lane refuses and names the field [L1]', () => {
   assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify.policy"')));
 });
 
-test('config merges nested groups over the defaults, and leases read as durations [O2,B4,C7]', () => {
+test('seats.lanes.config-merge-leases: config merges nested groups over the defaults, and leases read as durations [O2,B4,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-config-'));
   try {
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', commits: { maxHeader: 60 }, lease: '90m' }));
@@ -93,7 +93,7 @@ test('config merges nested groups over the defaults, and leases read as duration
   assert.throws(() => durationMs('soon'), /BAD_CONFIG/);
 });
 
-test('[Q1,V15] the review queue ratio is configurable and invalid values name their field', (t) => {
+test('seats.lanes.review-ratio-configurable: [Q1,V15] the review queue ratio is configurable and invalid values name their field', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-review-ratio-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ verify: { reviewRatio: 1.5 } }));
@@ -104,7 +104,7 @@ test('[Q1,V15] the review queue ratio is configurable and invalid values name th
   }
 });
 
-test("a claim's lease is 2h unless pullboard.json says otherwise [B4]", () => {
+test('seats.lanes.claim-lease-default: a claim\'s lease is 2h unless pullboard.json says otherwise [B4]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-lease-'));
   try {
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test' }));
