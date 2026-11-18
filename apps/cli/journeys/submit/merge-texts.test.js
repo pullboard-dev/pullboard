@@ -57,6 +57,7 @@ test('cli.journeys-submit-merge-texts.ship-merges-only-when-off: clause 2: with 
   assert.equal(shipMain(folder, main, { composeAsObject: true }), false);
   assert.equal(git(folder, 'rev-parse', 'HEAD'), head, 'HEAD did not move');
   assert.equal(git(folder, 'rev-list', '--merges', 'HEAD'), '', 'the branch gained no merge commit');
+  git(folder, 'config', 'core.hooksPath', '/dev/null'); // what is tested is whether ship merges; the repository's merge hooks are not (as runFixtureSetupGit does for commits)
   assert.equal(shipMain(folder, main, { composeAsObject: false }), true);
   assert.equal(git(folder, 'rev-list', '--merges', 'HEAD').split('\n').length, 1, 'the setting off merges main into the branch');
   git(folder, 'merge-base', '--is-ancestor', main, 'HEAD');
