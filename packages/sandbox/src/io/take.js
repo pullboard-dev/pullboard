@@ -79,7 +79,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
  */
 export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
   if (!passingMainRedItems) return;
-  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, () => store.listItems(board)));
   if (!passing.length) return;
   await withBoard(ctx, async board => {
     const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));

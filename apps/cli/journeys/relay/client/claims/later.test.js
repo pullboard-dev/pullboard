@@ -12,7 +12,7 @@ import {
 
 after(cleanupFixtureChildren);
 
-test('clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims nine and ten, then refuse registration and init outside relay order', { timeout: 170_000 }, async (t) => { // budget: two paired claim rounds plus the registration, init and API ordering checks.
+test('cli.journeys-relay-client-claims-later.three-cloned-linked-replicas-order-competing: clause 1 and clause 2: [H3,H16,V1,V17] three cloned linked replicas order competing claims nine and ten, then refuse registration and init outside relay order', { timeout: 170_000 }, async (t) => { // budget: two paired claim rounds plus the registration, init and API ordering checks.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);

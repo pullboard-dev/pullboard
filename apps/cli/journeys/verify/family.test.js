@@ -30,13 +30,13 @@ function backlog(t) {
   return { board, ids, options: { agentId: 'core-2', lane: 'core', leaseMs: 3_600_000, policy: 'any', familyPolicy: 'require', familyRelaxAt: 2 } };
 }
 
-test('clause 1: a submission whose builder family is unknown is offered to any reviewer once familyRelaxAt is reached [C7,#2964]', t => {
+test('cli.journeys-verify-family.a-submission-whose-builder-family-is: clause 1: a submission whose builder family is unknown is offered to any reviewer once familyRelaxAt is reached [C7,#2964]', t => {
   const { board, ids, options } = backlog(t);
   const offered = store.nextFor(board, { ...options, verify: true });
   assert.ok(ids.includes(offered.item?.item_id), `a reviewer is offered the unknown-family submission: ${offered.reasons?.join('; ')}`);
 });
 
-test('clause 2: the relaxation is recorded on the reservation the verdict reads [C7,#2964]', t => {
+test('cli.journeys-verify-family.the-relaxation-is-recorded-on-the: clause 2: the relaxation is recorded on the reservation the verdict reads [C7,#2964]', t => {
   const { board, ids, options } = backlog(t);
   const reserved = store.reserveNextReview(board, options).item;
   assert.ok(ids.includes(reserved?.item_id), 'a review is reserved');

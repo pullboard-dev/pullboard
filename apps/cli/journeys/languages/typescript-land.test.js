@@ -13,7 +13,7 @@ import { typescriptBoard } from '../../tests/fixtures/languages/typescript.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 3: the fixed commit passes npm test on its .ts files, is accepted and lands on the scratch board main [C7,#10569]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-typescript-land.the-fixed-commit-passes-npm-test: clause 3: the fixed commit passes npm test on its .ts files, is accepted and lands on the scratch board main [C7,#10569]', { timeout: 240_000 }, async (t) => {
   if (!TYPESCRIPT) return t.skip(UNAVAILABLE);
   const board = await typescriptBoard(helpers);
   const fixed = await buildAndSubmit(board, null, PASSING);

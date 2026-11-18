@@ -64,3 +64,16 @@ test('store.io-home.relaymachinestatefile-names-state-json: relayMachineStateFil
   assert.equal(door.relayMachineStateFile(), join(relayMachineDirectory(), 'state.json'));
   assert.equal(typeof door.relayMachineStateFile, 'function');
 });
+
+test('store.io-home.syncmayact-is-false-for-an-empty-machine-state: syncMayAct is false when relay-machine/state.json holds no linked board and no pending request, and true with one linked board [C7,#9583]', t => {
+  const empty = { v: 2, autoLink: false, owner: null, machine: 'machine-1', devices: [], excluded: [], pending: null, revocations: [], approvals: [] };
+  const repo = machine(t, { ...RUNNER_HOME, 'relay-machine/state.json': JSON.stringify(empty) + '\n' });
+  assert.equal(syncMayAct(repo), false);
+  const linked = { ...empty, devices: [{ deviceId: 'device-' + '0'.repeat(32), account: 'a', url: 'https://relay.example' }] };
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), JSON.stringify(linked) + '\n');
+  assert.equal(syncMayAct(repo), true);
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), JSON.stringify({ ...empty, pending: { code: 'x' } }) + '\n');
+  assert.equal(syncMayAct(repo), true, 'a pending request keeps the sync');
+  writeFileSync(join(relayMachineDirectory(), 'state.json'), 'not json');
+  assert.equal(syncMayAct(repo), true, 'an unreadable state keeps the sync');
+});

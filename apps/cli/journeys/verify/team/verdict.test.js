@@ -89,7 +89,9 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   let streamController;
   let streamReader;
   let builds = 0;
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
+  /** Resolvers waiting for the next state build to start. */
+  const buildWaiters = [];
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; for (const built of buildWaiters.splice(0)) built(); } });
   t.after(async () => {
     streamController?.abort();
     await streamReader?.cancel().catch(() => {});
@@ -106,9 +108,18 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     return document;
   };
   const initialState = (await http('/state')).state;
+  // The first read answers before the view has read its row ages, and that build is never current (#10869): read until
+  // the ages are in, so the count below starts at the first complete build and the reads after it are unchanged.
+  // A read of a build that is not current asks for the next build; wait for that build to start, then read again.
+  for (let state = initialState; Object.values(state.rowAgesAt ?? {}).some(at => at === null);) {
+    const nextBuild = new Promise(built => buildWaiters.push(built));
+    state = (await http('/state')).state;
+    if (Object.values(state.rowAgesAt ?? {}).some(at => at === null)) await nextBuild;
+  }
+  const builtWithAges = builds;
   const phoneBefore = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   await http('/state');
-  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache');
+  assert.equal(builds, builtWithAges, 'unchanged HTTP reads reuse the state cache');
   await http('/items/1'); // Warm the independent detail freshness projection for a verified item.
   const processMethods = ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync'];
   const originals = new Map(processMethods.map(method => [method, childProcess[method]]));

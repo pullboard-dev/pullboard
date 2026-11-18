@@ -12,7 +12,7 @@ import { pythonBoard } from '../../tests/fixtures/languages/python.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 2: a submitted commit with a failing unittest case is refused red and the refusal names the test [C7,#10559]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-python-red.a-submitted-commit-with-a-failing: clause 2: a submitted commit with a failing unittest case is refused red and the refusal names the test [C7,#10559]', { timeout: 240_000 }, async (t) => {
   if (!PYTHON) return t.skip(UNAVAILABLE);
   const board = await pythonBoard(helpers);
   const red = await buildAndSubmit(board, null, BROKEN);

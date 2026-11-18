@@ -1,14 +1,16 @@
 /** @pullboard-test-input source-cell gate */
+/** @pullboard-world-pin: clause 3 reads the committed gate registry to check the clojure cases have records. */
 /** Each detected language has a JUnit-writing gate command and a known report path [C7]. */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit.js';
 import { junitCommand as lightJunitCommand } from '../../light.js';
 
-const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'haskell', 'maven', 'node', 'perl', 'php', 'python', 'ruby', 'rust', 'sbt', 'swift'];
+const LANGUAGES = ['bun', 'clojure', 'cmake', 'crystal', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'haskell', 'maven', 'node', 'perl', 'php', 'python', 'ruby', 'rust', 'sbt', 'swift'];
 const TOOL_FOLDERS = { sbt: 'target/test-reports', gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };
-const NEEDS = ['csharp', 'elixir', 'go', 'haskell', 'perl', 'ruby', 'rust'];
+const NEEDS = ['clojure', 'csharp', 'elixir', 'go', 'haskell', 'perl', 'ruby', 'rust'];
 
 test('gate.junit-commands.rows: clause 1: junitCommand returns command, report and needs for every detected language, the report under .pullboard/junit or the tool folder [C7]', () => {
   assert.deepEqual(JUNIT_LANGUAGES, LANGUAGES);
@@ -34,7 +36,7 @@ test('gate.junit-commands.no-guess: clause 2: make and unknown languages return 
 });
 
 test('gate.junit-commands.needs: clause 3: rows that need an extra package name it, every other row has needs null [C7]', () => {
-  const named = { csharp: /JunitXml\.TestLogger/u, elixir: /junit_formatter/u, go: /gotestsum/u, haskell: /hspec-junit-formatter/u, perl: /TAP::Formatter::JUnit/u, ruby: /rspec_junit_formatter/u, rust: /cargo-nextest/u };
+  const named = { clojure: /kaocha/u, csharp: /JunitXml\.TestLogger/u, elixir: /junit_formatter/u, go: /gotestsum/u, haskell: /hspec-junit-formatter/u, perl: /TAP::Formatter::JUnit/u, ruby: /rspec_junit_formatter/u, rust: /cargo-nextest/u };
   for (const language of LANGUAGES) {
     const { needs } = junitCommand(language);
     if (NEEDS.includes(language)) assert.match(needs, named[language], `${language} names its package`);
@@ -76,4 +78,37 @@ test('gate.junit-commands.perl-row: clause 1: junitCommand(perl) runs prove with
 
 test('gate.junit-commands.perl-door: clause 2: junitCommand(perl) imported from packages/gate/light.js returns the same row init reads [C7]', () => {
   assert.deepEqual(lightJunitCommand('perl'), junitCommand('perl'));
+});
+
+test('gate.junit-commands.crystal-row: clause 1: junitCommand(crystal) returns its report command and needs, and JUNIT_LANGUAGES includes crystal [C7]', () => {
+  const row = junitCommand('crystal');
+  assert.ok(row.command.startsWith('crystal spec --junit_output'));
+  assert.equal(row.report, '.pullboard/junit/crystal.xml');
+  assert.equal(row.needs, null);
+  assert.ok(JUNIT_LANGUAGES.includes('crystal'));
+});
+
+test('gate.junit-commands.crystal-door: clause 2: junitCommand(crystal) from the gate light door returns the same row init reads [C7]', () => {
+  assert.deepEqual(lightJunitCommand('crystal'), junitCommand('crystal'));
+});
+
+test('gate.junit-commands.clojure-row: clause 1: junitCommand(clojure) returns the kaocha junit-xml command, the clojure.xml report and the kaocha need, and JUNIT_LANGUAGES includes clojure [C7]', () => {
+  const row = junitCommand('clojure');
+  assert.ok(row.command.startsWith('clojure -M:test'));
+  assert.match(row.command, /--plugin kaocha\.plugin\/junit-xml --junit-xml-file \.pullboard\/junit\/clojure\.xml/u);
+  assert.equal(row.report, '.pullboard/junit/clojure.xml');
+  assert.match(row.needs, /kaocha/u);
+  assert.ok(JUNIT_LANGUAGES.includes('clojure'));
+});
+
+test('gate.junit-commands.clojure-door: clause 2: junitCommand(clojure) imported from packages/gate/light.js returns the same clojure row [C7]', () => {
+  assert.deepEqual(lightJunitCommand('clojure'), junitCommand('clojure'));
+});
+
+test('gate.junit-commands.clojure-registered: clause 3: the clojure row and door cases each carry an ID with a record in the gate registry [C7]', () => {
+  const registry = JSON.parse(readFileSync(new URL('../fixtures/registry.json', import.meta.url), 'utf8'));
+  const records = registry.tests ?? registry;
+  for (const id of ['gate.junit-commands.clojure-row', 'gate.junit-commands.clojure-door', 'gate.junit-commands.clojure-registered']) {
+    assert.ok(records[id], `${id} has a record`);
+  }
 });

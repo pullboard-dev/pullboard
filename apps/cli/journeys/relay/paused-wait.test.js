@@ -10,7 +10,7 @@ import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
 const RETURN_MS = 500; // budget: the R6 bar, one command with a silent relay.
 
-test('with the relay not answering, a command on a paused-baseline board returns in under 500 ms and names the wait [R6,C7]', async t => {
+test('cli.journeys-relay-paused-wait.with-the-relay-not-answering-a: with the relay not answering, a command on a paused-baseline board returns in under 500 ms and names the wait [R6,C7]', async t => {
   const box = await relayClientFixture(t, { accountStorageBytes: 1000 }); // Too small for any baseline, so the upload pauses on the account limit.
   await box.link();
   const saved = JSON.parse(readFileSync(box.linkFile, 'utf8'));
