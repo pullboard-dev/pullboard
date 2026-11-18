@@ -1,5 +1,8 @@
 /** With review.relaxRequiredFamily on, a --review-family item with no live eligible seat yields a relaxation witness for a seat of another session; off, none [C7,#11127]. */
 // fixture-subject: addItem (a store unit test of the required-family witness over two seeded items; the board is opened through the kit)
+import { itemReviewPolicy } from '../../../../../../verify/index.js';
+import { frozenRelaxAt } from '../../../../../src/io/relaxation.js';
+import { reviewerChecks } from '../../../../../src/io/board.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -47,7 +50,8 @@ test('store.io-board-review-family-relax-required.witness-for-required-family: c
   const { board, items } = waitingBoard(t);
   const item = store.getItem(board, items[0]);
   const witness = withRelax(true, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer'));
-  assert.equal(witness?.queueLength, 2);
+  const dbg = { tier: itemReviewPolicy(board, item.item_id), frozen: frozenRelaxAt(item), fam: item.item_review_family, status: item.item_status, nb: String(reviewerChecks(board, { agentId: 'core-2', policy: 'any', familyPolicy: 'require' }).notBuilder(item)), on: withRelax(true, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer')), ev: board.db.prepare('select event_by,event_kind,event_at from event').all() };
+  assert.equal(witness?.queueLength, 2, JSON.stringify(dbg));
   assert.equal(witness.threshold, 2);
   assert.deepEqual(witness.waiting, items);
   assert.deepEqual(withRelax(true, () => confirmFamilyRelaxation(board, item, witness, 'core-2', 2, 'any', 'prefer')), witness);
