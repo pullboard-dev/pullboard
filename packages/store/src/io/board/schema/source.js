@@ -69,6 +69,7 @@ export const SCHEMA = `
     item_updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS item_lane_status ON item (item_lane, item_status);
+  CREATE INDEX IF NOT EXISTS item_owner_status ON item (item_owner, item_status);
   CREATE TABLE IF NOT EXISTS verdict (
     verdict_id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL REFERENCES item (item_id),
