@@ -1,5 +1,5 @@
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
-import { redGateReleaseSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { redGateReleaseSource } from '../../../fixtures/execution.js';
 import { awaitNestedRun } from '../../../../src/io/test/file/pool.js';
 import assert from 'node:assert/strict';
 import { startFixtureChild as spawn } from '../../../fixtures/child.js';
@@ -22,7 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { setResourceCapacity } from '../../../../../resources/index.js';
 import { takeResource } from '../../../../../resources/index.js';
 import { checkNeedsBrowser } from '../../../../src/io/browser/admission.js';
-import { executionServicesSource } from '../../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServicesSource } from '../../../fixtures/execution.js';
 import { oldSchema } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { staleIdentity } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
 import { expireHeartbeat } from '../../../../../../apps/cli/tests/fixtures/resources/lease.js';
