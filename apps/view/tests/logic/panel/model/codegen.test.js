@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { test } from 'node:test';
 import { pageRenderScript } from '../../../../index.js';
 
-test('page renderer embeds the pure Agents model and HTML renderer as parseable script [N26]', () => {
+test('view.x-panel-model-codegen.page-renderer-embeds-the-pure-agents-model: page renderer embeds the pure Agents model and HTML renderer as parseable script [N26]', () => {
   const source = pageRenderScript();
   assert.match(source, /const agentsPanelModel = \(/u);
   assert.match(source, /const shoutsModel = \(/u);
