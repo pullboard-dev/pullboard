@@ -76,6 +76,11 @@
     }
   },
   "dirs": {
+    "accepted-records": {
+      "kind": "dir",
+      "disk": "other",
+      "owner": "packages/commits/src/io/accepted-record.js"
+    },
     "automatic-landing": {
       "kind": "dir",
       "disk": "other",

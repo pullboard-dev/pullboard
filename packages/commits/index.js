@@ -16,5 +16,6 @@ export * from "./src/logic/contribution.js";
 export * from "./src/logic/contribution-clauses.js";
 export * from "./src/logic/contribution-secrets.js";
 export * from "./src/io/contribution-clauses.js";
+export { saveAcceptedRecord, readAcceptedRecord } from "./src/io/accepted-record.js";
 export * from "./src/logic/landing.js";
 export * from "./src/logic/board.js";
