@@ -1527,6 +1527,10 @@
       "kind": "table",
       "owner": "packages/verify/src/io/review/independence.js"
     },
+    "table:vault": {
+      "kind": "table",
+      "owner": "apps/relay/src/io/store/vault.js"
+    },
     "table:waiter": {
       "kind": "table",
       "owner": "packages/resources/src/io/main.js"
@@ -1586,6 +1590,10 @@
     "transition.json": {
       "kind": "repo-data",
       "owner": "packages/codemap/src/io/cell/lint/inventory.js"
+    },
+    "vault.sqlite": {
+      "kind": "sqlite",
+      "owner": "apps/relay/src/io/store/vault.js"
     },
     "vendors.json": {
       "kind": "repo-data",
