@@ -31,6 +31,8 @@ function staged(t, fillers) {
 function shardReads(root) {
   const seen = {};
   const problems = preCommitProblems({ root, isMain: true, agent: null, config: { protect: { blocked: [], allowed: [], secrets: false } },
+    // No spec or doctrine file is staged, so the approved-row check never calls its port.
+    approvedRowPorts: { checkLoosening: () => [] },
     shimImports: ({ read }) => {
       for (const revision of ['HEAD', ':index']) seen[revision] = { plan: read(revision, PLAN), shard: read(revision, SHARD) };
       return [];
