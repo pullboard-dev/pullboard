@@ -55,6 +55,7 @@ import {
 import { machineHome } from '../../../../packages/resources/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { reviewerStartup } from './next/steps.js';
+import { withAffectedDefault } from '../logic/init/affected-default.js';
 import { languageNotes } from '../logic/init/language-notes.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { remoteShell } from '../../../../packages/person/index.js';
@@ -824,7 +825,7 @@ export function initRepo({ info, openBoardHere, register, closeBoard, model, per
   const doctrine = existsSync(join(root, CONFIG_FILE)) ? loadConfig(root).practice : doctrineFile(root);
   const gate = detectGate(root);
   const configured = configuredGate(root);
-  const config = JSON.parse(configTemplate(gate, detectFixers(root)));
+  const config = withAffectedDefault(JSON.parse(configTemplate(gate, detectFixers(root))), detectLanguages(root));
   // A repo's own test files are protected as bar files for every detected language, not only Node's [#3707].
   const testGlobs = detectTestGlobs(root);
   if (testGlobs.length) config.claim = { barTestFiles: [...defaults().claim.barTestFiles, ...testGlobs] };

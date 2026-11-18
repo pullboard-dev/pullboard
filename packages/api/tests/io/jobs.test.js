@@ -15,6 +15,9 @@ import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
+import { claimJob } from '../../index.js';
+import { renewJob } from '../../index.js';
+import { postReceipt } from '../../index.js';
 import { runnerCommitPort } from '../../index.js';
 import { MACHINE_DEFAULTS } from '../../../config/index.js';
 import { runnerCommitReportEnabled } from '../../../config/index.js';
@@ -252,4 +255,34 @@ test('api.jobs.claim-runner-commit-off: clause 3: with runners.reportCommit off 
   assert.equal(won.text, JSON.stringify({ version: 1, claim, trunk: repo.root }), 'a claim with a job carries only claim and trunk');
   assert.equal((await jobs({ action: 'claim', runner: 'r-b', capabilities: [] })).text, '{"version":1,"claim":null}', 'an empty claim answer is exactly today\'s');
   assert.equal(JSON.stringify(jobQueueCall(db, { action: 'claim', runner: 'r-c', capabilities: [] }, { mode: 'pull', runnerCommit: null })), '{"claim":null}', 'no port is the call as it was');
+});
+
+/** A board with one claimed gate job and a shadow whose decide takes `spinMs` inside the write transaction. */
+function claimedWithShadow(t, spinMs, boundMs) {
+  const { root } = privateFixtureFiles('pullboard-jobs-bound-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'gate:bound', kind: 'gate', now: 1000 });
+  const claim = claimJob(db, { runner: 'mill', now: 10_000, leaseMs: 120_000 });
+  db.jobWriteBoundMs = boundMs;
+  db.jobQueueShadow = {
+    decide: () => { const end = Date.now() + spinMs; while (Date.now() < end); return { patch: {} }; },
+    seen: () => {},
+  };
+  return { db, claim };
+}
+
+test('api.io-jobs.write-time-bound: clause 1: a renewJob whose write runs past the bound rolls back and refuses, and a peer BEGIN IMMEDIATE succeeds right after [C7,#11029]', (t) => {
+  const { db, claim } = claimedWithShadow(t, 40, 10);
+  assert.throws(() => renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 }), { code: 'JOB_WRITE_TIMEOUT' });
+  assert.equal(db.prepare("SELECT job_lease_until AS until FROM job WHERE job_id = 'gate:bound'").get().until, 130_000, 'the lease is the claim\'s, the renewal rolled back');
+  db.exec('BEGIN IMMEDIATE');
+  db.exec('ROLLBACK');
+});
+
+test('api.io-jobs.fast-write-unchanged: clause 2: a renewJob and a postReceipt inside the bound commit as before [C7,#11029]', (t) => {
+  const { db, claim } = claimedWithShadow(t, 0, 60_000);
+  const renewed = renewJob(db, { job: 'gate:bound', runner: 'mill', token: claim.token, now: 20_000, leaseMs: 120_000 });
+  assert.deepEqual(renewed, { renewed: true, leaseUntil: 140_000 });
+  postReceipt(db, { job: 'gate:bound', runner: 'mill', token: claim.token, receipt: { ok: true }, now: 30_000 });
+  assert.equal(db.prepare("SELECT job_step AS step FROM job WHERE job_id = 'gate:bound'").get().step, 'done');
 });
