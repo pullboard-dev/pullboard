@@ -41,7 +41,7 @@ function choice(box, cwd, value) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
-test('a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
+test('cli.journeys-fact-board-schema-carry.a-stamped-pre-carry-board-upgrades: a stamped pre-carry board upgrades on main open and completes a native merge-only submission [M3,V1,V4,H16]', async () => {
   const T0 = Date.now();
   const box = e2e.project();
   console.log(`TIMING project ${Date.now() - T0} ms`);

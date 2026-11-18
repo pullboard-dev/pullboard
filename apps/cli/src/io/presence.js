@@ -64,8 +64,11 @@ export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoar
       recorded.add(io);
       keepSeatAlive(ctx, seat.agent_id, keepaliveMs);
       // Overlap reads the recorded worktree files; it never runs Git in another seat's worktree (#2427).
-      const items = listItems(board), agents = listAgents(board);
-      if (overlaps) for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      // The lists are read only when their overlap lines print; a heartbeat with overlaps off sends no item query.
+      if (overlaps) {
+        const items = listItems(board), agents = listAgents(board);
+        for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
+      }
     }
   } catch (error) {
     if (!['NO_CONFIG', 'NOT_A_REPO'].includes(error.code)) io.err(`presence heartbeat unavailable: ${error.message}`);

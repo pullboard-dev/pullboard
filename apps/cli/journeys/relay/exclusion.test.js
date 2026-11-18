@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
-test('a legacy exclusion shows as unknown historical exclusion with a stable first-seen time [H5,H17]', async (t) => {
+test('cli.journeys-relay-exclusion.a-legacy-exclusion-shows-as-unknown: a legacy exclusion shows as unknown historical exclusion with a stable first-seen time [H5,H17]', async (t) => {
   const box = await relayClientFixture(t);
   const file = join(box.env.PULLBOARD_HOME, 'relay-machine/state.json');
   await box.link();
@@ -22,7 +22,7 @@ test('a legacy exclusion shows as unknown historical exclusion with a stable fir
   assert.equal(second.firstSeenAt, first.firstSeenAt, 'the first-seen time does not move on later reads');
 });
 
-test('a person exclusion records who, when and why, and status names each field [H5,H17,B26]', async (t) => {
+test('cli.journeys-relay-exclusion.a-person-exclusion-records-who-when: a person exclusion records who, when and why, and status names each field [H5,H17,B26]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
   assert.equal((await box.cliLocal('relay', 'off')).code, 0);

@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js */
+/** @pullboard-module-loads packages/moves/src/logic/reasons.js packages/health/index.js packages/moves/src/io/tier-routing.js packages/git/src/io/review-folder.js */
 import { holdsRequireOwner } from '../../../../../packages/config/index.js';
 import { nextIdleBlockers } from '../../../../../packages/config/index.js';
 import { nextAdoptPreserved } from '../../../../../packages/config/index.js';
@@ -78,6 +78,10 @@ import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
+/** The detached review folder for a submitted commit, or the reason this clone could not make one: the commit then reads by the ordinary switch line [C7,#8969]. */
+function reviewFolderAt(ctx, commit) {
+  try { return requireModule('../../../../../packages/git/src/io/review-folder.js').reviewFolder(ctx.info.root, commit, join(ctx.info.commonDir, 'pullboard-review-folders')); } catch (error) { return { failed: String(error.message ?? error).split('\n')[0] }; }
+}
 const reasons = () => requireModule('../../../../../packages/moves/src/logic/reasons.js');
 /** The review-cover shout, with the health cell behind it, loaded only when a fresh claim shouts it. */
 const shoutReviewCoverStuck = (...args) => requireModule('../../../../../packages/health/index.js').shoutReviewCoverStuck(...args);
@@ -329,7 +333,13 @@ async function nextWithProgress(io, values, progress) {
         sayCheckBaseline(io, item);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
         if (found.companions) io.say(`review tree checked out at ${found.companions.commit}; patch-set digest: ${found.companions.digest}; companions: ${found.companions.keys.join(', ')}`);
-        else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        else {
+          // verify.reviewFolder (off by default): the review reads a detached folder at the submitted commit, so this seat's own checkout stays where it is [C7,#8969].
+          const folder = ctx.config.verify?.reviewFolder === true ? reviewFolderAt(ctx, item.item_commit) : null;
+          if (folder?.failed) io.say(`no review folder: ${folder.failed}`);
+          if (folder?.folder) io.say(`review folder at that commit: ${folder.folder} (read it there; this checkout is untouched)`);
+          else io.say(`check out exactly that commit, here: ${here} git switch --detach ${item.item_commit}`);
+        }
         io.say(`then: ${here} pullboard verify ${item.item_id} accept${as} --note "how you proved it", or reject${as} --reason CODE --note "what failed"`);
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
