@@ -82,14 +82,14 @@ async function follow(t, quietReads) {
   return { reads, events: burst.length, lines };
 }
 
-test('clause 1: with watch.quietReads on, 20 board events inside one second make followBoard read main\'s head once, and a main move after that second is still printed as a main line [C7,#9843]', async (t) => {
+test('cli.journeys-watch-quiet-reads.with-watch-quietreads-on-20-board: clause 1: with watch.quietReads on, 20 board events inside one second make followBoard read main\'s head once, and a main move after that second is still printed as a main line [C7,#9843]', async (t) => {
   const { reads, events, lines } = await follow(t, true);
   assert.ok(events >= BURST, 'the burst holds at least 20 events');
   assert.equal(reads, 2, 'the whole burst shares the one read made at the start, and the event after the second reads the head again');
   assert.equal(lines.filter(line => /main moved to bbb/u.test(line)).length, 1);
 });
 
-test('clause 2: with watch.quietReads off the head is read after every event as today [C7,#9843]', async (t) => {
+test('cli.journeys-watch-quiet-reads.with-watch-quietreads-off-the-head: clause 2: with watch.quietReads off the head is read after every event as today [C7,#9843]', async (t) => {
   const { reads, events } = await follow(t, false);
   assert.ok(events >= BURST, 'the burst holds at least 20 events');
   assert.equal(reads, events + 2, 'one read at the start and one per event, the burst and the later one');

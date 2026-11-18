@@ -19,12 +19,13 @@ import { runFixtureChild } from '../../../tests/fixtures/child.js';
 import { takeDefaultViewPort } from '../../../tests/fixtures/view/port.js';
 import { fixtureAdd } from '../../../tests/fixtures/testkit.js';
 import {
+  pullboardWords,
   releaseFixture,
 } from '../../../tests/fixtures/resume/release.js';
 
 /** Each case owns its sandbox, repo and machine home, so three run at once and overlap their waits instead of adding them [C7,I1,N32]. */
 describe('resume walks a new board through setup [I1,I2,N32,B26]', { concurrency: 3 }, () => {
-test('spec draft adds draft rows and resume names them [N32]', async t => {
+test('cli.journeys-resume-flow-setup.spec-draft-adds-draft-rows-and: spec draft adds draft rows and resume names them [N32]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const initial = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout);
   assert.equal(initial.setup.step, 1);
@@ -77,7 +78,7 @@ test('spec draft adds draft rows and resume names them [N32]', async t => {
     'draft preserves every existing status row and inserts in the first section');
 });
 
-test('setup lets agents build starter items while rows wait [S1,B26]', async t => {
+test('cli.journeys-resume-flow-setup.setup-lets-agents-build-starter-items: setup lets agents build starter items while rows wait [S1,B26]', async t => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   // Process-level case: init installs hooks stamped with the running version, and the git hooks run the fixture's copied CLI.
   const initialized = box.run(box.repo, 'init', '--blueprint', 'web-app');
@@ -95,7 +96,7 @@ test('setup lets agents build starter items while rows wait [S1,B26]', async t =
   const lane = (await box.runLocal(box.repo, 'lane', 'add', first.item_lane, '--owns', `${first.item_lane}/`));
   assert.equal(lane.status, 0, lane.failure || lane.stderr);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: commit blueprint setup');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: commit blueprint setup');
   const coordinator = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
   assert.match(coordinator.stdout, /claimed and built now.*person.*parallel/iu);
   assert.ok(coordinator.stdout.includes(`#${first.item_id}`), 'prose names the same first starter');
@@ -123,7 +124,7 @@ test('setup lets agents build starter items while rows wait [S1,B26]', async t =
     'the real claim and build neither approve nor apply any row');
 });
 
-test("resume says setup waits on the person's approval [I1,I2]", async t => {
+test('cli.journeys-resume-flow-setup.resume-says-setup-waits-on-the: resume says setup waits on the person\'s approval [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   box.env.AI_AGENT = 'fixture-agent';
   const drafted = [
@@ -175,9 +176,19 @@ test("resume says setup waits on the person's approval [I1,I2]", async t => {
   assert.equal(next.setup.waitingOn, undefined);
 });
 
-// Process-level cases kept as processes (beside the blueprint init above): the shell-run record-answer command and the two spawned, signalled view servers below.
-/** Execute the exact record-answer command offered by resume inside its private repository. */
-function recordSetupAnswer(box, command) {
+// Process-level cases kept as processes (beside the blueprint init above): the two spawned, signalled view servers below.
+/**
+ * Execute the exact record-answer command offered by resume inside its private repository.
+ * Why in process: a plain `pullboard ...` answer goes through box.runLocal (a real process under PULLBOARD_JOURNEY_MODE=process); only a command
+ * that needs a shell keeps sh -c [C7,#10413].
+ */
+async function recordSetupAnswer(box, command) {
+  const words = pullboardWords(command);
+  if (words) {
+    const result = await box.runLocal(box.repo, ...words);
+    assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
+    return;
+  }
   const result = runFixtureChild('sh', ['-c', command], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
 }
@@ -218,7 +229,7 @@ async function assertViewReceipt(box) {
   writeFileSync(receiptPath, receiptBytes);
 }
 
-test('a reused authenticated view completes setup for its new board [N26,N32]', async t => {
+test('cli.journeys-resume-flow-setup.a-reused-authenticated-view-completes-setup: a reused authenticated view completes setup for its new board [N26,N32]', async t => {
   const firstBoard = releaseFixture(t);
   const lease = await takeDefaultViewPort(firstBoard.root);
   t.after(() => lease.release());
@@ -330,17 +341,17 @@ async function finishSetup(box, observe = () => {}) {
     const result = (await box.runLocal(box.repo, ...args));
     assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);
   }
-  recordSetupAnswer(box, (await step(2)).command);
+  await recordSetupAnswer(box, (await step(2)).command);
   writeFileSync(join(box.repo, 'package.json'), JSON.stringify({ scripts: { test: 'node -e ""' } }));
   const gate = await step(3);
   assert.match(gate.question, /Suggested: npm test/u);
-  recordSetupAnswer(box, gate.command);
-  recordSetupAnswer(box, (await step(4)).command);
+  await recordSetupAnswer(box, gate.command);
+  await recordSetupAnswer(box, (await step(4)).command);
   const view = await step(5);
   assert.equal(view.command, 'pullboard view');
   assert.match(view.afterAnswer, /person’s own terminal, or start it in the background as the agent/u);
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: set up private fixture');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: set up private fixture');
   const builder = (await box.runLocal(box.repo, 'worktree', 'app', '--model', 'Fixture'));
   assert.equal(builder.status, 0, builder.failure || builder.stderr);
   const stillWaiting = JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout);
@@ -353,7 +364,7 @@ async function finishSetup(box, observe = () => {}) {
   await assertViewReceipt(box);
 }
 
-test('resume walks a new board through setup one step at a time [N32,N19]', async t => {
+test('cli.journeys-resume-flow-setup.resume-walks-a-new-board-through: clause 1: resume walks a new board through setup one step at a time [N32,N19]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   mkdirSync(join(box.repo, 'app'));
   const seen = [];
@@ -367,7 +378,7 @@ test('resume walks a new board through setup one step at a time [N32,N19]', asyn
   assert.equal(JSON.parse(result.stdout).setup, null, 'actual successful view bind completes the board setup');
 });
 
-test('resume names lane add to make a lane [I1,N32]', async t => {
+test('cli.journeys-resume-flow-setup.resume-names-lane-add-to-make: resume names lane add to make a lane [I1,N32]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
@@ -388,14 +399,14 @@ test('resume names lane add to make a lane [I1,N32]', async t => {
   assert.doesNotMatch(text.stdout, /node -e/u);
 
   // The printed command, run exactly as written, declares the lane and moves setup on.
-  recordSetupAnswer(box, setup.command);
+  await recordSetupAnswer(box, setup.command);
   const lanes = (await box.runLocal(box.repo, 'lanes'));
   assert.equal(lanes.status, 0, lanes.failure || lanes.stderr);
   assert.match(lanes.stdout, /^app\s+app\/(?:\s|$)/mu);
   assert.equal(JSON.parse((await box.runLocal(box.repo, 'resume', '--diagnostics', '--json')).stdout).setup?.step, 3);
 });
 
-test("a set-up board's resume prints no setup steps [N32,N19]", async t => {
+test('cli.journeys-resume-flow-setup.a-set-up-board-s-resume: a set-up board\'s resume prints no setup steps [N32,N19]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   await finishSetup(box);
   const result = (await box.runLocal(box.repo, 'resume', '--diagnostics'));
@@ -411,7 +422,7 @@ test("a set-up board's resume prints no setup steps [N32,N19]", async t => {
 });
 
 
-test('a new preconfigured board waits for every initial approval [I1,I2]', async t => {
+test('cli.journeys-resume-flow-setup.a-new-preconfigured-board-waits-for: a new preconfigured board waits for every initial approval [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   const marker = join(box.repo, '.git/pullboard/setup-started.json');
   const started = JSON.parse(readFileSync(marker, 'utf8'));
@@ -454,7 +465,7 @@ test('a new preconfigured board waits for every initial approval [I1,I2]', async
   writeFileSync(marker, startedBytes);
 });
 
-test('an upgraded configured board stays set up before its first resume [I1,I2]', async t => {
+test('cli.journeys-resume-flow-setup.an-upgraded-configured-board-stays-set: an upgraded configured board stays set up before its first resume [I1,I2]', async t => {
   const box = releaseFixture(t, { freshSetup: true });
   await finishSetup(box);
   // Legacy installations have these actual completed setup facts, but neither new lifecycle receipt.
@@ -478,7 +489,7 @@ test('an upgraded configured board stays set up before its first resume [I1,I2]'
   assert.equal(statSync(join(stateDirectory, 'setup-complete.json')).mode & 0o077, 0);
 });
 
-test('a board building without spec rows is not told to draft the spec first [I10,B26]', async t => {
+test('cli.journeys-resume-flow-setup.a-board-building-without-spec-rows: a board building without spec rows is not told to draft the spec first [I10,B26]', async t => {
   const box = releaseFixture(t, { freshSetup: true, historyBeforeInit: true });
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
@@ -488,7 +499,7 @@ test('a board building without spec rows is not told to draft the spec first [I1
   mkdirSync(join(box.repo, 'app'));
   writeFileSync(join(box.repo, 'app/first.txt'), 'first working item\n');
   box.git(box.repo, 'add', '-A');
-  box.git(box.repo, 'commit', '-q', '-m', 'chore: initialize the private board');
+  box.setupGit(box.repo, 'commit', '-q', '-m', 'chore: initialize the private board');
   const spec = (await box.runLocal(box.repo, 'spec', '--json'));
   assert.equal(spec.status, 0, spec.failure || spec.stderr);
   assert.deepEqual(JSON.parse(spec.stdout).rows.filter(row => row.file === 'SPEC.md'), []);

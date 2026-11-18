@@ -67,7 +67,7 @@ function fixtureCommand(box, cwd, ...args) {
   return runCliInProcess(fixtureAddRoute(fixtureJoinRoute([...args], box.env.PULLBOARD_MODEL)), { cwd, env: box.env });
 }
 
-test('init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', async () => {
+test('cli.journeys-resume-e2e.init-adds-a-claude-code-session: init adds a Claude Code session hook that runs resume, and keeps every other setting [I6]', async () => {
   const box = sandbox();
   const repo = join(box.dir, 'repo');
   mkdirSync(join(repo, '.claude'), { recursive: true });
@@ -97,7 +97,7 @@ test('init adds a Claude Code session hook that runs resume, and keeps every oth
   assert.equal(bare.stdout, '');
 });
 
-test('the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
+test('cli.journeys-resume-e2e.the-run-pack-names-verified-items: the run pack names verified items that touched the same files, so a cold agent follows them [N21]', async () => {
   const box = project();
   const script = (name, lines) => {
     writeFileSync(join(box.dir, name), ['#!/bin/sh', 'mkdir -p web', ...lines, ''].join('\n'));
@@ -123,7 +123,7 @@ test('the run pack names verified items that touched the same files, so a cold a
   assert.match(readFileSync(join(packs, '2-light-1.md'), 'utf8'), /## Finished items that touched the same files\n- #1 Greet: web\/page.js\nFollow the patterns/);
 });
 
-test('a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
+test('cli.journeys-resume-e2e.a-fresh-worktree-with-no-install: a fresh worktree with no install of its own runs pullboard from the main checkout, for git hooks and the session hook [I6]', async () => {
   const box = project();
   const bare = { ...box.env, PATH: '/usr/bin:/bin' };
   const commit = () => spawnChild('git', ['commit', '-q', '-m', 'feat(web): page [G1]'], { cwd: box.web, env: bare, encoding: 'utf8' });
@@ -153,7 +153,7 @@ test('a fresh worktree with no install of its own runs pullboard from the main c
 
 const OK_LINES = 400, NOTE_LINES = 100;
 
-test('the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
+test('cli.journeys-resume-e2e.the-gate-reaches-the-agent-as: the gate reaches the agent as a digest: one line when green, the failure when red; the whole output stays in the git dir [V10]', async t => {
   const box = project(undefined, sandbox(), { withWorktree: false });
   writeFileSync(join(box.repo, 'gate.cjs'), [
     "const red = require('node:fs').existsSync('RED');",
@@ -206,7 +206,7 @@ test('the gate reaches the agent as a digest: one line when green, the failure w
   assert.ok(report.length < 20_000, 'the receipt stays bounded instead of repeating the TAP stream');
 });
 
-test('submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
+test('cli.journeys-resume-e2e.submit-refuses-a-bar-that-moved: submit refuses a bar that moved since the claim, before any verifier runs; a refreeze and a fresh claim recover [V11]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--criterion', 'renders');
   (await box.runLocal(box.web, 'claim', '1'));
@@ -224,7 +224,7 @@ test('submit refuses a bar that moved since the claim, before any verifier runs;
   assert.match((await box.runLocal(box.web, 'submit', '1')).out, /#1 is in the gate as job /);
 });
 
-test('spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
+test('cli.journeys-resume-e2e.spec-check-at-an-older-commit: spec check at an older commit skips ids that items cite from a later commit; a never-committed id still fails [S10]', async () => {
   const box = project();
   writeFileSync(join(box.repo, 'SPEC.md'), `${SPEC}- G3 [draft, must] The page has a footer.\n`);
   box.git(box.repo, 'commit', '-qam', 'docs(spec): a footer row');
@@ -239,7 +239,7 @@ test('spec check at an older commit skips ids that items cite from a later commi
   assert.doesNotMatch(ghost.out, /G3 error/);
 });
 
-test('check runs the item\'s own check command, yours by default, and prints a digest [N23]', async () => {
+test('cli.journeys-resume-e2e.check-runs-the-item-s-own: check runs the item\'s own check command, yours by default, and prints a digest [N23]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Page', '--specs', 'G1', '--check', 'test -f web/a.html || { echo "not ok 1 - web/a.html is missing"; exit 1; }');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Loose', '--specs', 'G1');

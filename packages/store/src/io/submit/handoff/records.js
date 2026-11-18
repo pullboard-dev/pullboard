@@ -144,11 +144,19 @@ export function submitHandoff(board, id) {
   return record === undefined ? null : structuredClone(record);
 }
 
-/** An active immutable job frees its holder to claim ordinary work without making it reviewable. */
-export function pendingSubmitHandoff(board, item) {
+/**
+ * An active immutable job frees its holder to claim ordinary work without making it reviewable.
+ *
+ * With `fromJobRow` (submit.pendingFromJobRow, read by the caller) a pulled gate job still offered or held by a runner
+ * counts too, read from the runner job row; the row stops counting once the job ends [C7,P7].
+ */
+export function pendingSubmitHandoff(board, item, { fromJobRow = false } = {}) {
   const job = submitHandoff(board, item.item_id);
-  return item.item_status === 'claimed' && job?.agentId === item.item_owner && job.digest === item.item_frozen_digest
-    && ['queued', 'running'].includes(job.state) ? job : null;
+  if (item.item_status === 'claimed' && job?.agentId === item.item_owner && job.digest === item.item_frozen_digest
+    && ['queued', 'running'].includes(job.state)) return job;
+  if (fromJobRow !== true || item.item_status !== 'claimed') return null;
+  const pulled = pulledGateRecords(board.db, item.item_id).get(item.item_id);
+  return pulled?.agentId === item.item_owner && pulled.digest === item.item_frozen_digest ? pulled : null;
 }
 
 /**

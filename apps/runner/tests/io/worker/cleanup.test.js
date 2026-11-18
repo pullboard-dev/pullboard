@@ -22,7 +22,7 @@ function row(pid, ppid, pgid) {
   return { pid, ppid, pgid, started: 'Mon Nov 2 01:00:00 2026', state: 'S', command: '/usr/bin/node' };
 }
 
-test('cleanup timeout receipt and refusal name every waited-on process beyond sixteen [C7]', t => {
+test('runner.cleanup.cleanup-timeout-receipt-and-refusal-name-every: cleanup timeout receipt and refusal name every waited-on process beyond sixteen [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pb-cleanup-evidence-'));
   const self = 9_100_001, root = self + 1;
   const rows = new Map([[self, row(self, 1, self)]]);
@@ -55,7 +55,7 @@ test('cleanup timeout receipt and refusal name every waited-on process beyond si
   assert.equal(output.match(/^PULLBOARD_RUNNER_CLEANUP_TIMEOUT /gmu).length, 1);
 });
 
-test('a real test ends with a detached child and native worker cleanup drains it without a timeout [C7]', { timeout: 60_000 }, async t => { // budget: hang ceiling for the native child handshakes and drain.
+test('runner.cleanup.a-real-test-ends-with-a-detached: a real test ends with a detached child and native worker cleanup drains it without a timeout [C7]', { timeout: 60_000 }, async t => { // budget: hang ceiling for the native child handshakes and drain.
   const directory = mkdtempSync(join(tmpdir(), 'pb-cleanup-child-'));
   const state = createWorkerState(import.meta.url);
   const tracker = createDescendantTracker(directory, { tick: () => reportCleanupTimeout(state), timedOut: () => state.cleanupTimedOut });
@@ -65,7 +65,7 @@ test('a real test ends with a detached child and native worker cleanup drains it
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 after(() => process.disconnect());
-test('leave a detached child for native cleanup [C7]', async () => {
+test('runner.cleanup.leave-a-detached-child-for-native-cleanup: leave a detached child for native cleanup [C7]', async () => {
   const child = spawn(process.execPath, ['-e', 'process.send("ready"); process.disconnect(); setInterval(() => {}, 1000);'], { detached: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
   await once(child, 'message'); child.unref();
   process.send({ pid: child.pid });

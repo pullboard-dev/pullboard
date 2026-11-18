@@ -21,7 +21,7 @@ function importersOfAppSubmit() {
   }
 }
 
-test('store fixtures keep the board-submit helpers in the package and the app re-exports them [CD12]', () => {
+test('store.fixtures-submit-home.store-fixtures-keep-the-board-submit: store fixtures keep the board-submit helpers in the package and the app re-exports them [CD12]', () => {
   assert.deepEqual(importersOfAppSubmit(), []);
   const appHome = readFileSync(`${ROOT}apps/cli/tests/fixtures/board/submit.js`, 'utf8');
   assert.match(appHome, /export (?:\*|\{[^}]*\}) from '[./]*packages\/store\/tests\/fixtures\/submit\.js'/u);

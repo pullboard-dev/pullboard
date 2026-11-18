@@ -50,7 +50,7 @@ function pruneInProcess(store, home) {
   });
 }
 
-test('clause 3: an old memo folder is pruned, a fresh one kept, and the old tree still gets correct keys [C7]', async () => {
+test('gate.io-test-action-memo.an-old-memo-folder-is-pruned: clause 3: an old memo folder is pruned, a fresh one kept, and the old tree still gets correct keys [C7]', async () => {
   const marker = isolate();
   const store = temporaryDirectory('memo-prune-');
   await memoizedActionKeys(store, 'old-tree', ['t.test.js'], build);
@@ -65,7 +65,7 @@ test('clause 3: an old memo folder is pruned, a fresh one kept, and the old tree
   assert.equal(again.get('t.test.js').key, KEY);
 });
 
-test('clause 1: pruning runs at most once per 10 minutes, with one machine-wide marker and no lock file [C7]', async () => {
+test('gate.io-test-action-memo.pruning-runs-at-most-once-per: clause 1: pruning runs at most once per 10 minutes, with one machine-wide marker and no lock file [C7]', async () => {
   const marker = isolate();
   const store = storeWithOldMemo();
   await memoizedActionKeys(store, 'first', ['t.test.js'], build);
@@ -79,7 +79,7 @@ test('clause 1: pruning runs at most once per 10 minutes, with one machine-wide 
   assert.equal(readdirSync(marker).length, 1);
 });
 
-test('clause 2: six processes racing for the same expired marker produce exactly one prune pass [C7]', async () => {
+test('gate.io-test-action-memo.six-processes-racing-for-the-same: clause 2: six processes racing for the same expired marker produce exactly one prune pass [C7]', async () => {
   const marker = isolate();
   const home = process.env.PULLBOARD_MACHINE_HOME;
   const store = storeWithOldMemo();
@@ -89,7 +89,7 @@ test('clause 2: six processes racing for the same expired marker produce exactly
   assert.equal(results.filter(result => result === 'true').length, 1, `results: ${results}`);
 });
 
-test('clause 2: two repositories on one host racing from no marker produce exactly one prune pass [C7]', async () => {
+test('gate.io-test-action-memo.two-repositories-on-one-host-racing: clause 2: two repositories on one host racing from no marker produce exactly one prune pass [C7]', async () => {
   isolate();
   const home = process.env.PULLBOARD_MACHINE_HOME;
   const stores = [storeWithOldMemo(), storeWithOldMemo()];

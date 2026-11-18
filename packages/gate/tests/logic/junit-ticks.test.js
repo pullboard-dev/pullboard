@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { junitClauseTicks } from '../../src/logic/junit-ticks.js';
+import { junitClauseTicks } from '../../src/logic/junit.js';
 
 const CLAUSES = [{ number: 1, kind: 'test' }, { number: 2, kind: 'test' }, { number: 3, kind: 'test' }, { number: 4, kind: 'measurement' }];
 

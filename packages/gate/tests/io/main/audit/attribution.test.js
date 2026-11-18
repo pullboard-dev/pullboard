@@ -20,13 +20,13 @@ function collection() {
     plannedFiles: 2, completedFiles: 2, planDigest: digest, completedDigest: digest };
 }
 
-test('legacy native gate receipt bytes remain exact when collection is absent [C7,H16]', () => {
+test('gate.io-main-audit-attribution.legacy-native-gate-receipt-bytes-remain: legacy native gate receipt bytes remain exact when collection is absent [C7,H16]', () => {
   const old = input();
   assert.equal(receiptBody(old), JSON.stringify(old) + '\n');
   assert.equal(Object.hasOwn(receiptFields(old), 'collection'), false);
 });
 
-test('complete red coverage remains red and false may retain equal observed file sets [C7,H16]', () => {
+test('gate.io-main-audit-attribution.complete-red-coverage-remains-red-and: complete red coverage remains red and false may retain equal observed file sets [C7,H16]', () => {
   const red = receiptFields({ ...input(), collection: collection() });
   assert.equal(red.collection.complete, true); assert.equal(red.green, false);
   const partial = receiptFields({ ...input(), collection: { ...collection(), complete: false } });
@@ -35,7 +35,7 @@ test('complete red coverage remains red and false may retain equal observed file
   assert.deepEqual(receiptFields(JSON.parse(receiptBody(red))), red);
 });
 
-test('malformed, zero, mismatched and wrong-kind collection claims are rejected rather than dropped [C7,H16]', () => {
+test('gate.io-main-audit-attribution.malformed-zero-mismatched-and-wrong-kind: malformed, zero, mismatched and wrong-kind collection claims are rejected rather than dropped [C7,H16]', () => {
   for (const bad of [null, [], {}, { ...collection(), complete: 'true' }, { ...collection(), plannedFiles: 0, completedFiles: 0 },
     { ...collection(), completedFiles: 1 }, { ...collection(), completedDigest: 'f'.repeat(64) },
     { ...collection(), plannedFiles: 1.5 }, { ...collection(), completedFiles: -1 },
@@ -46,7 +46,7 @@ test('malformed, zero, mismatched and wrong-kind collection claims are rejected 
 });
 
 
-test('explicit selected plans and full scope are validated without implying green [C7,H16]', () => {
+test('gate.io-main-audit-attribution.explicit-selected-plans-and-full-scope: explicit selected plans and full scope are validated without implying green [C7,H16]', () => {
   const selected = collection();
   const red = receiptFields({ ...input(), collection: selected });
   assert.equal(red.collection.full, true);

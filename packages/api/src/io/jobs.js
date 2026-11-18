@@ -565,7 +565,9 @@ function shadowed(db, move, now, write) {
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
       try { result = write(); } catch (error) {
-        seen = { move: move.name, job: move.job, decided, wrote: { refused: error.code } };
+        // A hop fence is the gate hop table's refusal, composed into the writer's move: the job table that patched has the hop's refusal to follow, so the compare reads it as the same refusal [C7,#9784].
+        const hopFence = error.code === 'HOP_FENCED' && !answer.threw && !answer.refused ? { refused: error.code } : decided;
+        seen = { move: move.name, job: move.job, decided: hopFence, wrote: { refused: error.code } };
         throw error;
       }
       shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
@@ -757,7 +759,11 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
     const { attempt } = held;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
-    const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
+    // A pulled gate job's receipt carries the seconds it waited for a runner: its first claim minus its enqueue time [C7].
+    const first = db.prepare("SELECT job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name = 'claimed' ORDER BY job_step_id LIMIT 1").get(job);
+    const created = db.prepare('SELECT job_created AS created FROM job WHERE job_id = ?').get(job)?.created;
+    const timed = receipt.gate && typeof receipt.gate === 'object' && first && Number.isFinite(created) ? { ...receipt, queueWaitSeconds: Math.max(0, Math.round((first.at - created) / 100) / 10) } : receipt;
+    const written = writeStep(db, job, 'receipt', { runner, attempt, receipt: timed }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };
   }));

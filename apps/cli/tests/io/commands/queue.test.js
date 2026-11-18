@@ -38,7 +38,7 @@ const queue = (extra = {}) => ({ worth: 4, reviews: 2, builds: 0, workers: [{ id
   seats: [{ id: 'o1', family: 'openai', busy: false }], families: FAMILIES,
   waiting: [waiting('openai', 11 * MINUTE, 'light'), waiting('openai', 12 * MINUTE, 'mid')], ...extra });
 
-test('clause 1: family A reviews waiting over 10 minutes with no free other-family reviewer open one other-family seat [C7]', async t => {
+test('cli.io-commands-queue.family-a-reviews-waiting-over-10-minutes: clause 1: family A reviews waiting over 10 minutes with no free other-family reviewer open one other-family seat [C7]', async t => {
   const { made, lines, children } = await supervise(t, queue());
   const opened = made.filter(seat => seat.family === 'anthropic');
   assert.equal(opened.length, 1, 'one reviewer seat of the family other than the builders is created');
@@ -54,7 +54,7 @@ test('clause 1: family A reviews waiting over 10 minutes with no free other-fami
   assert.deepEqual(planReviewFamilySeats({ waiting: [waiting('openai', 11 * MINUTE)], seats: [], families: ['openai'] }), [], 'no other family is known');
 });
 
-test('clause 2: the new seat takes the lowest route that can review every waiting item [C7]', async t => {
+test('cli.io-commands-queue.the-new-seat-takes-the-lowest-route: clause 2: the new seat takes the lowest route that can review every waiting item [C7]', async t => {
   const { made } = await supervise(t, queue());
   assert.equal(made.find(seat => seat.family === 'anthropic').route, 'mid', 'a light and a mid item need a mid seat, not strong');
   const light = await supervise(t, queue({ waiting: [waiting('openai', 11 * MINUTE, 'light'), waiting('openai', 20 * MINUTE, 'light')] }));

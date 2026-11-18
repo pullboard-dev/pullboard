@@ -19,7 +19,7 @@ if (existsSync('web/commit.txt')) execFileSync('git', ['-c', 'user.name=Fixture'
 else appendFileSync('DOCTRINE.md', 'more\\n');
 `;
 
-test('clause 1: a pulled gate whose script commits or edits a tracked file in its runner checkout posts a receipt that is not green, and its item is not submitted [V16,C7,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, two submits and two whole gates in runner processes.
+test('cli.journeys-runner-moved-pull.a-pulled-gate-whose-script-commits-or: clause 1: a pulled gate whose script commits or edits a tracked file in its runner checkout posts a receipt that is not green, and its item is not submitted [V16,C7,P7]', { timeout: 240_000 }, // budget: hang ceiling for a project, two submits and two whole gates in runner processes.
 async t => {
   const box = await pullProject(t, 2, { tooling: { 'bin/proof.js': PROOF } });
   const [edits, commits] = box.ids;

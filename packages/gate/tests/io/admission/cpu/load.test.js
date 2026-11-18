@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { cpuLoadOptionsIn } from '../../../../index.js';
 import { testsNeedCpuRunner } from '../../../../src/io/admission/cpu/load.js';
 
-test('batched literals retain escaped registration and option authority [C7]', () => {
+test('gate.io-admission-cpu-load.batched-literals-retain-escaped-registration-and: batched literals retain escaped registration and option authority [C7]', () => {
   const sources = [
     String.raw`import { "t\u0065st" as register } from 'node:t\u0065st'; register('busy', { 'cpuL\u006fad': true }, () => {});`,
     String.raw`import test from 'node:test'; test('ordinary', { 'cpuL\u006fad': false }, () => {});`,
@@ -19,7 +19,7 @@ test('batched literals retain escaped registration and option authority [C7]', (
   assert.deepEqual(cpuLoadOptionsIn(sources), [true, false, false]);
 });
 
-test('literal-cache overflow preserves late CPU options without executing source [C7]', (t) => {
+test('gate.io-admission-cpu-load.literal-cache-overflow-preserves-late-cpu: literal-cache overflow preserves late CPU options without executing source [C7]', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-literal-overflow-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const marker = join(directory, 'executed');
@@ -43,7 +43,7 @@ for (const [kind, statement] of [
     'an opaque options value remains conservative despite another function with the same spelling');
 });
 
-test('an unshadowed function callback has no CPU options [C7]', () => {
+test('gate.io-admission-cpu-load.an-unshadowed-function-callback-has-no: an unshadowed function callback has no CPU options [C7]', () => {
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; function callback() {} test('ordinary', callback);"])[0], false);
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; function callback() {} test('busy', { cpuLoad: true }, callback);"])[0], true,
     'proven callbacks cannot erase a genuine options argument');
@@ -58,7 +58,7 @@ for (const [kind, declarations, selected] of [
     'automatic semicolon insertion cannot preserve invalidated callable evidence');
 });
 
-test('clause 1: a parameter that shadows an imported test alias is not read as a registration [C7,#6900]', () => {
+test('gate.io-admission-cpu-load.a-parameter-that-shadows-an-imported: clause 1: a parameter that shadows an imported test alias is not read as a registration [C7,#6900]', () => {
   const options = "('x', { cpuLoad: true }, () => {});";
   for (const [kind, body] of [
     ['function parameter', `function helper(test) { test${options} }`],
@@ -73,7 +73,7 @@ test('clause 1: a parameter that shadows an imported test alias is not read as a
   assert.equal(cpuLoadOptionsIn([`import { test as it } from 'node:test'; function helper(it) { it${options} }`])[0], false, 'a renamed alias is hidden too');
 });
 
-test('clause 1: a registration outside the shadowing function, or one whose key only looks like the alias, stays a registration [C7,#6900]', () => {
+test('gate.io-admission-cpu-load.a-registration-outside-the-shadowing-function: clause 1: a registration outside the shadowing function, or one whose key only looks like the alias, stays a registration [C7,#6900]', () => {
   const options = "('x', { cpuLoad: true }, () => {});";
   for (const [kind, body] of [
     ['a later top-level call', `function helper(test) { return test; } test${options}`],
@@ -84,7 +84,7 @@ test('clause 1: a registration outside the shadowing function, or one whose key 
   ]) assert.equal(cpuLoadOptionsIn([`import { test } from 'node:test'; ${body}`])[0], true, `${kind} is still a registration`);
 });
 
-test('an unmodified callable alias works with automatic semicolon insertion [C7]', () => {
+test('gate.io-admission-cpu-load.an-unmodified-callable-alias-works-with: an unmodified callable alias works with automatic semicolon insertion [C7]', () => {
   const source = "import test from 'node:test'; function callback() {} const first = callback\nconst second = first\ntest('ordinary', second);";
   assert.equal(cpuLoadOptionsIn([source])[0], false,
     'the fix retains a real callable alias without any CPU options');
@@ -101,14 +101,14 @@ for (const [kind, preparation, argument, expected] of [
     'the options-first overload keeps the declared load without inventing a test title');
 });
 
-test('a proven string title and callable callback do not become CPU options [C7]', () => {
+test('gate.io-admission-cpu-load.a-proven-string-title-and-callable: a proven string title and callable callback do not become CPU options [C7]', () => {
   for (const title of ["'ordinary'", 'heading']) {
     const source = `import test from 'node:test'; const heading = 'ordinary'; function execute() {} test(${title}, execute);`;
     assert.equal(cpuLoadOptionsIn([source])[0], false);
   }
 });
 
-test('a string-concatenated title is a title, while a conditional first argument stays conservative [C7,V4]', () => {
+test('gate.io-admission-cpu-load.a-string-concatenated-title-is-a: a string-concatenated title is a title, while a conditional first argument stays conservative [C7,V4]', () => {
   // The landing-shards fixture names its case 'fixture file ' + name; that can only be a string.
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; const name = 'a'; test('fixture file ' + name, async () => {});"])[0], false);
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; test('case ' + name + ' at ' + (Date.now() % 7), () => {});"])[0], false);
@@ -117,7 +117,7 @@ test('a string-concatenated title is a title, while a conditional first argument
   assert.equal(cpuLoadOptionsIn(["import test from 'node:test'; test({ cpuLoad: true }, async () => {});"])[0], true);
 });
 
-test('batched classification preserves exact selected files across real registration graphs [C7]', t => {
+test('gate.io-admission-cpu-load.batched-classification-preserves-exact-selected-files: batched classification preserves exact selected files across real registration graphs [C7]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cpu-selection-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const marker = join(directory, 'executed');
@@ -139,7 +139,7 @@ test('batched classification preserves exact selected files across real registra
   assert.equal(existsSync(marker), false, 'selection only reads source; fixture programs never execute');
 });
 
-test('clause 1: CPU options continued across a newline are read whole, not cut at the line end [C7,#6902]', () => {
+test('gate.io-admission-cpu-load.cpu-options-continued-across-a-newline: clause 1: CPU options continued across a newline are read whole, not cut at the line end [C7,#6902]', () => {
   const head = "import test from 'node:test'; ";
   for (const value of ["'title'\n&& { cpuLoad: true }", "'title'\n  ?? { cpuLoad: true }", "flag\n&& { cpuLoad: true }", "{ cpuLoad: false }\n|| { cpuLoad: true }"]) {
     assert.equal(cpuLoadOptionsIn([`${head}const opts = ${value};\ntest(opts, () => {});`])[0], true, `${value} stays conservative`);

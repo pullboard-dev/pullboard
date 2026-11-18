@@ -48,7 +48,7 @@ function dropShards(board) {
   deleteDerived(board, `${PREFIX}*`);
 }
 
-test('missing capacity capability is unknown and read-only rather than a measured empty forecast [R1,R2]', t => {
+test('lib.cache.missing-capacity-capability-is-unknown-and-read: missing capacity capability is unknown and read-only rather than a measured empty forecast [R1,R2]', t => {
   const { board } = fixture(t);
   dropShards(board);
   const before = store.events(board);
@@ -70,7 +70,7 @@ test('missing capacity capability is unknown and read-only rather than a measure
   assert.equal(readCapacity(board, BASE).available, true, 'ordinary writer establishes a genuinely measured empty board');
 });
 
-test('clause 2: an older writer tail is caught up without changing native history [R1,R2]', t => {
+test('lib.cache.an-older-writer-tail-is-caught-up: clause 2: an older writer tail is caught up without changing native history [R1,R2]', t => {
   const { board, at } = fixture(t);
   const retained = metaShards(board);
   store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Unmeasured work', brief: 'Files: src/new.js' });
@@ -86,7 +86,7 @@ test('clause 2: an older writer tail is caught up without changing native histor
   assert.deepEqual(store.events(board), before);
 });
 
-test('capacity uses five-minute summaries fifteen-minute forecasts and nightly fits [R1,R2]', t => {
+test('lib.cache.capacity-uses-five-minute-summaries-fifteen-minute: capacity uses five-minute summaries fifteen-minute forecasts and nightly fits [R1,R2]', t => {
   const { board, at } = fixture(t);
   const start = readCapacity(board, BASE);
   at(BASE + 4 * 60_000);
@@ -113,7 +113,7 @@ test('capacity uses five-minute summaries fifteen-minute forecasts and nightly f
   assert.equal(nightly.source.fitFrom, '2026-10-19T00:00:00.000Z');
 });
 
-test('refused outer transactions roll capacity facts back with their native events [R1,R2]', t => {
+test('lib.cache.refused-outer-transactions-roll-capacity-facts-back: refused outer transactions roll capacity facts back with their native events [R1,R2]', t => {
   const { board, at } = fixture(t);
   const before = shards(board);
   const history = store.events(board);
@@ -128,7 +128,7 @@ test('refused outer transactions roll capacity facts back with their native even
   assert.equal(readCapacity(board, BASE + 31 * 60_000).stale, true, 'read-time expiry stays explicit without a cache write');
 });
 
-test('debounced appends do not decode a growing forecast payload on every board move [R1,R2]', t => {
+test('lib.cache.debounced-appends-do-not-decode-a-growing: debounced appends do not decode a growing forecast payload on every board move [R1,R2]', t => {
   const { board, at } = fixture(t);
   const prepare = board.db.prepare.bind(board.db);
   let snapshotReads = 0;
@@ -154,7 +154,7 @@ test('debounced appends do not decode a growing forecast payload on every board 
 
 
 // Synthetic history is input data, not an authenticated gate proof.
-test('old capacity observer versions replay typed landing outcomes without changing native events [R1,R2]', t => {
+test('lib.cache.old-capacity-observer-versions-replay-typed-landing: old capacity observer versions replay typed landing outcomes without changing native events [R1,R2]', t => {
   const { board, at } = fixture(t);
   const source = 'a'.repeat(40);
   const landed = 'b'.repeat(40);

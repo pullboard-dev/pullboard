@@ -41,7 +41,7 @@ async function execute(box, source) {
   return result.stdout;
 }
 
-test('an unpinned run requeues off a lost runner and dispatches without BAD_RESOURCE_METADATA [C7]', async t => {
+test('gate.io-requeue-valid.an-unpinned-run-requeues-off-a: an unpinned run requeues off a lost runner and dispatches without BAD_RESOURCE_METADATA [C7]', async t => {
   const box = fixture(t);
   const requests = join(box.directory, 'requests.jsonl');
   writeFileSync(join(box.bin, 'package.json'), JSON.stringify({ type: 'module' }));

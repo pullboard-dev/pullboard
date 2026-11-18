@@ -16,7 +16,7 @@ assert.ok(scriptBlock.length, 'the author-reopen workflow script is nonempty');
 const reopenScript = scriptBlock.map(line => line.replace(/^            /u, '')).join('\n');
 const runReopenScript = new AsyncFunction('github', 'context', reopenScript);
 
-test('the stale workflow closes only inactive clarify issues and never modifies PRs [I1]', () => {
+test('github.workflows.stale-closes-inactive-only: the stale workflow closes only inactive clarify issues and never modifies PRs [I1]', () => {
   assert.match(staleWorkflow, /schedule:\n\s+- cron: '[0-9* ,/-]+'/u);
   assert.match(staleWorkflow, /uses: actions\/github-script@v7\.0\.1\n/u, 'the script action is version-pinned');
   assert.match(staleWorkflow, /labels: 'clarify'/u);
@@ -42,7 +42,7 @@ function reopenFixture({ payloadIssue = {}, commentId = 7, currentIssue = {} } =
   return { context, github, calls };
 }
 
-test('only the issue author reopens a closed clarify issue and clears its label [I1]', async () => {
+test('github.workflows.author-reopens: only the issue author reopens a closed clarify issue and clears its label [I1]', async () => {
   assert.match(reopenWorkflow, /issue_comment:\n\s+types: \[created\]/u);
   assert.match(reopenWorkflow, /github\.event\.issue\.pull_request == null/u);
   assert.match(reopenWorkflow, /github\.event\.issue\.state == 'closed'/u);
@@ -62,7 +62,7 @@ test('only the issue author reopens a closed clarify issue and clears its label 
   ]);
 });
 
-test('non-authors, pull requests, reopened issues, and missing clarify labels do not change state [I1]', async () => {
+test('github.workflows.non-author-no-change: non-authors, pull requests, reopened issues, and missing clarify labels do not change state [I1]', async () => {
   const nonAuthor = reopenFixture({ commentId: 8 });
   await runReopenScript(nonAuthor.github, nonAuthor.context);
   assert.deepEqual(nonAuthor.calls, []);
@@ -92,7 +92,7 @@ test('non-authors, pull requests, reopened issues, and missing clarify labels do
   assert.deepEqual(changedAuthor.calls, [['get', { owner: 'pullboard-dev', repo: 'pullboard', issue_number: 12 }]]);
 });
 
-test('the stale script closes an issue quiet for fourteen days and leaves active issues and PRs alone [I1]', async () => {
+test('github.workflows.stale-fourteen-days: the stale script closes an issue quiet for fourteen days and leaves active issues and PRs alone [I1]', async () => {
   const lines = staleWorkflow.slice(staleWorkflow.indexOf('          script: |\n') + '          script: |\n'.length).split('\n');
   const end = lines.findIndex(line => line.trim() && !line.startsWith('            '));
   const script = lines.slice(0, end < 0 ? lines.length : end).map(line => line.replace(/^            /u, '')).join('\n');

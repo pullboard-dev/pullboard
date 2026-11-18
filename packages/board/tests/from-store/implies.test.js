@@ -66,7 +66,7 @@ function facts(board, id) {
   return store.itemThread(board, id).filter((entry) => entry.type === 'fact');
 }
 
-test('[B29,B31,N29] a decision reaches the items it implies', (t) => {
+test('board.implies.decision-reaches-the-items-implies: [B29,B31,N29] a decision reaches the items it implies', (t) => {
   const { board, project, builder, claim } = fixture(t);
   const gitDir = join(project.repo, '.git');
   claim(1);
@@ -115,7 +115,7 @@ test('[B29,B31,N29] a decision reaches the items it implies', (t) => {
   assert.deepEqual(decisionsImplying(store.itemThread(board, 3)), [], 'an item nothing implies has no decisions');
 });
 
-test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superseding fact tells the items; unknown ids are refused by name', (t) => {
+test('board.implies.verdicts-and-facts-carry-implies-later: [B29,B31] verdicts and facts carry --implies; a later verdict or a superseding fact tells the items; unknown ids are refused by name', (t) => {
   const { board, reviewer, claim, build, verdict } = fixture(t);
   claim(1);
   const submittedDraft = build(1, 'draft\n', 'feat: the fixture draft [G1]');
@@ -149,7 +149,7 @@ test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superse
   assert.throws(() => parseImplies('two'), { code: 'USAGE' });
 });
 
-test('[P6,B26,H16] --implies cannot forge a person-origin fact through the relay, the API or the terminal', () => {
+test('board.implies.implies-cannot-forge-person-origin-fact: [P6,B26,H16] --implies cannot forge a person-origin fact through the relay, the API or the terminal', () => {
   let at = Date.parse('2026-10-17T00:00:00.000Z');
   const board = openCellBoard(':memory:', { now: () => new Date(at += 1000) });
   try {
@@ -197,7 +197,7 @@ test('[P6,B26,H16] --implies cannot forge a person-origin fact through the relay
   } finally { closeCellBoard(board); }
 });
 
-test('[B29,B31] every replica derives the same implied-fact ids for every supported move id', () => {
+test('board.implies.every-replica-derives-the-same-implied: [B29,B31] every replica derives the same implied-fact ids for every supported move id', () => {
   /** Build one board the same way on each replica, with a fixed clock. */
   const replica = () => {
     let at = Date.parse('2026-10-17T00:00:00.000Z');

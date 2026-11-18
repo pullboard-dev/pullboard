@@ -26,10 +26,10 @@ function importInOrder(first, second) {
   });
 }
 
-test('clause 1: importing the view front door, then the cli one, loads with no ReferenceError [C7]', async () => {
+test('cli.journeys-view-first-import.importing-the-view-front-door-then: clause 1: importing the view front door, then the cli one, loads with no ReferenceError [C7]', async () => {
   assert.equal(await importInOrder('apps/view/index.js', 'apps/cli/index.js'), 'loaded');
 });
 
-test('clause 2: importing the cli front door, then the view one, loads with no ReferenceError [C7]', async () => {
+test('cli.journeys-view-first-import.importing-the-cli-front-door-then: clause 2: importing the cli front door, then the view one, loads with no ReferenceError [C7]', async () => {
   assert.equal(await importInOrder('apps/cli/index.js', 'apps/view/index.js'), 'loaded');
 });

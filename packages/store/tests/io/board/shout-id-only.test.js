@@ -34,7 +34,7 @@ function shoutAbout(t, settings, text) {
   return { board, item, id, detail: JSON.parse(event.event_detail) };
 }
 
-test('clause 1: with board.compactShouts on, the event holds the shout id and no text, and the thread reads the same text from the shout table [C7,#9336]', t => {
+test('store.io-board-shout-id-only.with-boardcompactshouts-on-the-event-holds: clause 1: with board.compactShouts on, the event holds the shout id and no text, and the thread reads the same text from the shout table [C7,#9336]', t => {
   const { board, item, id, detail } = shoutAbout(t, { board: { compactShouts: true } }, 'Land the web slice first.');
   assert.equal(detail.shout, id);
   assert.equal('text' in detail, false, 'the event carries no text');
@@ -42,7 +42,7 @@ test('clause 1: with board.compactShouts on, the event holds the shout id and no
   assert.equal(entry.detail.text, 'Land the web slice first.');
 });
 
-test('clause 2: an event written with the text inline reads the same text, and with the setting off the event keeps it [C7,#9336]', t => {
+test('store.io-board-shout-id-only.an-event-written-with-the-text: clause 2: an event written with the text inline reads the same text, and with the setting off the event keeps it [C7,#9336]', t => {
   const { board, item, detail } = shoutAbout(t, {}, 'Land the web slice first.');
   assert.equal(detail.text, 'Land the web slice first.', 'off by default: the event keeps the text');
   const entry = store.itemThread(board, item).find(move => move.kind === 'shout');

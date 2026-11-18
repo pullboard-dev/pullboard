@@ -58,7 +58,7 @@ function writerHolds(board) {
 
 const who = { agentId: 'core-2', lane: 'core', leaseMs: 3_600_000, policy: 'any', familyPolicy: 'require', familyRelaxAt: 2 };
 
-test('clause 1: reserving the next review over 30 submissions and 15 seats holds its write transaction under 500 ms [C7,V15]', t => {
+test('store.io-board-reserve-next.reserving-the-next-review-over-30: clause 1: reserving the next review over 30 submissions and 15 seats holds its write transaction under 500 ms [C7,V15]', t => {
   const { board } = backlog(t, SUBMITTED, { crossFamily: true });
   const holds = writerHolds(board);
   store.nextFor(board, { ...who, verify: true });
@@ -72,7 +72,7 @@ test('clause 1: reserving the next review over 30 submissions and 15 seats holds
   assert.ok(longest < 500, `the longest writer hold was ${Math.round(longest)} ms`); // budget: declared by the item bar's 500 ms write-transaction ceiling.
 });
 
-test('clause 1: through the native command writer, the selection runs before the writer transaction and the hold stays under 500 ms [C7,V15]', t => {
+test('store.io-board-reserve-next.through-the-native-command-writer-the: clause 1: through the native command writer, the selection runs before the writer transaction and the hold stays under 500 ms [C7,V15]', t => {
   const { board } = backlog(t, SUBMITTED, { crossFamily: true });
   const holds = writerHolds(board);
   store.nextFor(board, { ...who, verify: true });
@@ -95,7 +95,7 @@ function witnessCost(board) {
   return { ms: performance.now() - started, statements: holds.prepared };
 }
 
-test('clause 1: a same-family reservation over 30 submissions and 15 seats holds its write transaction under 500 ms [C7,V15]', t => {
+test('store.io-board-reserve-next.a-same-family-reservation-over-30: clause 1: a same-family reservation over 30 submissions and 15 seats holds its write transaction under 500 ms [C7,V15]', t => {
   const { board } = backlog(t);
   const witness = witnessCost(board);
   const holds = writerHolds(board);
@@ -110,7 +110,7 @@ test('clause 1: a same-family reservation over 30 submissions and 15 seats holds
   assert.ok(longest < 500, `the longest writer hold was ${Math.round(longest)} ms (one witness build takes ${Math.round(witness.ms)} ms)`); // budget: declared by the item bar's 500 ms write-transaction ceiling.
 });
 
-test('clause 1: a same-family reservation through the native command writer holds the lock under 500 ms [C7,V15]', t => {
+test('store.io-board-reserve-next.a-same-family-reservation-through-the: clause 1: a same-family reservation through the native command writer holds the lock under 500 ms [C7,V15]', t => {
   const { board } = backlog(t);
   const witness = witnessCost(board);
   const holds = writerHolds(board);
@@ -121,7 +121,7 @@ test('clause 1: a same-family reservation through the native command writer hold
   assert.ok(holds[0].ms < 500, `the writer held the lock ${Math.round(holds[0].ms)} ms`); // budget: declared by the item bar's 500 ms write-transaction ceiling.
 });
 
-test('clause 2: the lock confirms the witness built before it and never rebuilds the queue-wide witness [C7,V15]', t => {
+test('store.io-board-reserve-next.the-lock-confirms-the-witness-built: clause 2: the lock confirms the witness built before it and never rebuilds the queue-wide witness [C7,V15]', t => {
   const { board } = backlog(t);
   // The builder is active before the look too, so the arriving submission leaves the free seats unchanged.
   store.shout(board, { from: 'core-1', to: 'coordinator', text: 'Building', lanes: ['core'] });
@@ -147,7 +147,7 @@ function countingPorts(board) {
     getItem: (b, id) => { read.push(id); return store.getItem(b, id); } } };
 }
 
-test('clause 2: the in-lock confirmation reads at most the threshold of witness entries, and the first stale one gives up [C7,V15]', t => {
+test('store.io-board-reserve-next.the-in-lock-confirmation-reads-at: clause 2: the in-lock confirmation reads at most the threshold of witness entries, and the first stale one gives up [C7,V15]', t => {
   const { board, ids } = backlog(t);
   const subject = store.getItem(board, ids[0]);
   const witness = reviewFamilyRelaxation(board, subject, who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board));
@@ -163,7 +163,7 @@ test('clause 2: the in-lock confirmation reads at most the threshold of witness 
   assert.ok(liveRun.read.length <= who.familyRelaxAt - 1, `read ${liveRun.read.length} other entries of ${witness.waiting.length}`);
 });
 
-test('clause 1: next --take reserving a named same-family review through the writer holds the lock under 500 ms [C7,V15]', t => {
+test('store.io-board-reserve-next.next-take-reserving-a-named-same: clause 1: next --take reserving a named same-family review through the writer holds the lock under 500 ms [C7,V15]', t => {
   const { board, ids } = backlog(t);
   const holds = writerHolds(board);
   const reserved = store.writeBoardCommand(board, 'reserveReview', [ids[0], { ...who }], who.agentId);
@@ -172,7 +172,7 @@ test('clause 1: next --take reserving a named same-family review through the wri
   assert.ok(holds[0].ms < 500, `the writer held the lock ${Math.round(holds[0].ms)} ms`); // budget: declared by the item bar's 500 ms write-transaction ceiling.
 });
 
-test('clause 2: a named reservation through the writer builds its witness before the lock, never inside it [C7,V15]', t => {
+test('store.io-board-reserve-next.a-named-reservation-through-the-writer: clause 2: a named reservation through the writer builds its witness before the lock, never inside it [C7,V15]', t => {
   const { board, ids } = backlog(t);
   // The builder is active before the look too, so the arriving submission leaves the free seats unchanged.
   store.shout(board, { from: 'core-1', to: 'coordinator', text: 'Building', lanes: ['core'] });
@@ -191,7 +191,7 @@ test('clause 2: a named reservation through the writer builds its witness before
   assert.deepEqual(JSON.parse(event.event_detail).familyRelaxation, before, 'the recorded witness is the one built before the lock');
 });
 
-test('clause 2: an item another reviewer took between the look and the lock is selected again, never reserved twice [C7,V15]', t => {
+test('store.io-board-reserve-next.an-item-another-reviewer-took-between: clause 2: an item another reviewer took between the look and the lock is selected again, never reserved twice [C7,V15]', t => {
   const { board } = backlog(t, SUBMITTED, { crossFamily: true });
   const seen = [];
   const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
@@ -205,14 +205,14 @@ test('clause 2: an item another reviewer took between the look and the lock is s
   assert.equal(reserved.item.item_review_by, 'core-2');
 });
 
-test('clause 2: a cross-family reservation rechecks only its pair in the lock, with no relaxation witness [C7,V15]', t => {
+test('store.io-board-reserve-next.a-cross-family-reservation-rechecks-only: clause 2: a cross-family reservation rechecks only its pair in the lock, with no relaxation witness [C7,V15]', t => {
   const { board } = backlog(t, SUBMITTED, { crossFamily: true });
   const reserved = store.reserveNextReview(board, who);
   const event = board.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(reserved.item.item_id);
   assert.equal(JSON.parse(event.event_detail).familyRelaxation, undefined, 'an ordinary pair needs no witness');
 });
 
-test('clause 3: a same-family witness is built before the lock, confirmed inside it, and matches the in-lock result [C7,V15]', t => {
+test('store.io-board-reserve-next.a-same-family-witness-is-built: clause 3: a same-family witness is built before the lock, confirmed inside it, and matches the in-lock result [C7,V15]', t => {
   const { board } = backlog(t);
   const expected = store.atomic(board, () => store.nextFor(board, { ...who, verify: true }).item);
   const witness = store.atomic(board, () => reviewFamilyRelaxation(board, store.getItem(board, expected.item_id), who.agentId, who.familyRelaxAt, who.policy, who.familyPolicy, null, heartbeatSnapshot(board)));
@@ -223,7 +223,7 @@ test('clause 3: a same-family witness is built before the lock, confirmed inside
   assert.deepEqual(JSON.parse(event.event_detail).familyRelaxation, witness);
 });
 
-test('clause 2: a same-family witness whose queue changed between the look and the lock relaxes nothing [C7,V15]', t => {
+test('store.io-board-reserve-next.a-same-family-witness-whose-queue: clause 2: a same-family witness whose queue changed between the look and the lock relaxes nothing [C7,V15]', t => {
   const { board, ids } = backlog(t, 2);
   let chosen;
   const reserved = store.reserveNextReview(board, who, { afterSelection: item => {
@@ -236,7 +236,7 @@ test('clause 2: a same-family witness whose queue changed between the look and t
   assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale look');
 });
 
-test('clause 2: a seat leaving its release cooldown between the look and the lock is seen by the in-lock witness [C7,V15]', t => {
+test('store.io-board-reserve-next.a-seat-leaving-its-release-cooldown: clause 2: a seat leaving its release cooldown between the look and the lock is seen by the in-lock witness [C7,V15]', t => {
   const { board, ids, advance } = backlog(t, 2);
   store.register(board, { id: 'core-99', lane: 'core', path: '/fixture/core-99', family: 'anthropic',
     parentDigest: 'f'.repeat(64), model: 'fixture-model' });
@@ -259,7 +259,7 @@ test('clause 2: a seat leaving its release cooldown between the look and the loc
   assert.equal(store.getItem(board, chosen).item_review_by, null, 'the chosen item is not reserved on a stale look');
 });
 
-test('clause 2: next --verify renews the caller\'s own live reservation in the lock [C7,V15]', t => {
+test('store.io-board-reserve-next.next-verify-renews-the-caller-s: clause 2: next --verify renews the caller\'s own live reservation in the lock [C7,V15]', t => {
   const { board, advance } = backlog(t);
   const first = store.reserveNextReview(board, who);
   const until = first.item.item_review_until;
