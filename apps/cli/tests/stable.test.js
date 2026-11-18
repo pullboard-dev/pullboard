@@ -95,7 +95,7 @@ test('cli.stable.journeys-registered-10552: clause 2: [C7,U148] every test under
 
 test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned test under the journeys release, resources, resume, sync and upgrade folders has a registered cli.<area>.<slug> title ID', () => {
   // A test later split out of this slice keeps its record in the registry of the item that moved it (#10694).
-  const records = Object.assign({}, ...['registry-10549.json', 'registry-10694.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  const records = Object.assign({}, ...['registry-10549.json', 'registry-10694.json', 'registry-10695.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them.
   const viewOwned = new Set([]);
@@ -105,7 +105,7 @@ test('cli.stable.journeys-registered-10549: clause 1: [C7,U148] every core-owned
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10549.json or registry-10694.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10549.json, registry-10694.json or registry-10695.json`);
     }
   }
 });
@@ -128,7 +128,8 @@ test('cli.stable.journeys-registered-10546: clause 1: [C7,U148] every core-owned
 });
 
 test('cli.stable.journeys-registered-10547: clause 1: [C7,U148] every core-owned test under the journeys merged, milestone, move, next, publish and queue folders has a registered cli.<area>.<slug> title ID', () => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10547.json'), 'utf8'));
+  // The next-folder case added by #10851 keeps its record in that item's registry.
+  const records = Object.assign({}, ...['registry-10547.json', 'registry-10851.json'].map(name => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: milestone/auth.test.js.
   const viewOwned = new Set(['milestone/auth.test.js']);
@@ -138,7 +139,7 @@ test('cli.stable.journeys-registered-10547: clause 1: [C7,U148] every core-owned
       const source = readFileSync(file, 'utf8');
       const ids = [...source.matchAll(TITLE_ID)].map((match) => match[1]);
       assert.equal(ids.length, [...source.matchAll(TESTS)].length, `${file}: every test title starts with an ID`);
-      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10547.json`);
+      for (const id of ids) assert.ok(records[id], `${file}: ${id} has a record in registry-10547.json or registry-10851.json`);
     }
   }
 });
