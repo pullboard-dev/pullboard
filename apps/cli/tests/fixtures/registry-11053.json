@@ -1,0 +1,28 @@
+{
+  "cli.io-remote-board.whoami-reads-the-seat-route": {
+    "proves": {
+      "specs": [
+        "P7"
+      ],
+      "claim": "Whoami with board.url set requests the seat's agent route and no GET .../state, and prints the seat's lane."
+    },
+    "why": "Without it, a regression where whoami reads the 10 MB board state again would pass unnoticed and time out on a slow board host.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/remote/board.test.js"
+    ]
+  },
+  "cli.io-remote-test-receipt.claim-from-seat-route": {
+    "proves": {
+      "specs": [
+        "P7"
+      ],
+      "claim": "Pullboard test in a URL-joined clone finds the seat's claimed item from its agent route and requests no GET .../state."
+    },
+    "why": "Without it, a regression where pullboard test reads the whole board state to find its claim would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/remote/test-receipt.test.js"
+    ]
+  }
+}
