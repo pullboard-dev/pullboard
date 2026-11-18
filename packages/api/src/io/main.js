@@ -5,7 +5,7 @@ import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { readCostAnalytics } from './cost.js';
 import { loadCostAnalytics } from '../../../stats/light.js';
-import { coordinatorUsage } from '../../../stats/light.js';
+import { coordinatorUsage } from '../../../stats/light.js'; import { machineBudgetState } from '../../../stats/light.js';
 import { publicUsage } from '../../../stats/light.js';
 import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
@@ -87,7 +87,7 @@ import {
 import { finishedCounts } from './items.js';
 import { finishedText } from './items.js';
 import { openOnly } from './items.js';
-import { searchText } from './items.js';
+import { searchText } from './items.js'; import { seatClaims } from './items.js';
 import {
   compareFlowWindows,
   prepareFlowHistory,
@@ -1330,6 +1330,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
       return proof;
     }, codeIsMain, boardOpeners)),
     item: (board, id) => pool ? pool.call('item', { root: board.root, id: board.id, itemId: id }, { route: `GET /api/v1/boards/${board.id}/items/${id}` }) : projectRead(board, () => localItem(board, id)),
+    agent: (board, name) => projectRead(board, () => withReadBoard(board.root, (current) => seatClaims(current, name, { store, Refused }), codeIsMain, boardOpeners)),
     search: (board, text) => materialized(() => materializer.search(board, text), () => projectRead(board, () => localSearch(board, text))),
     shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, claimHealthSnapshot, fitFile, openBoard })
@@ -1340,7 +1341,7 @@ export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runC
     costAnalytics: async (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       const { costWindowStart, costAnalyticsSliced } = await loadCostAnalytics();
-      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)) });
+      return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)), budgetState: current => machineBudgetState(current, now()) });
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,

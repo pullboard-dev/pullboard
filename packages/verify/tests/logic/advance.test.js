@@ -1,4 +1,4 @@
-/** @pullboard-test-input apps/runner/src/io/worker.js packages/codemap/data/plan/48-app-runner.json */
+/** @pullboard-test-input apps/runner/src/io/worker.js packages/codemap/data/plan/51-app-runner.json */
 /** Two loaded copies of the runner worker's front door each own their handles, timers and flags [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -56,7 +56,7 @@ test('verify.advance.copy-state: a second copy of the worker front door keeps it
 
 /** Existing review authority follows every moved runner body [C7]. */
 test('verify.advance.strict-review: runner move preserves strict review for every strict planned source [C7]', () => {
-  const plan = JSON.parse(readFileSync(new URL('../../../codemap/data/plan/48-app-runner.json', import.meta.url), 'utf8'));
+  const plan = JSON.parse(readFileSync(new URL('../../../codemap/data/plan/51-app-runner.json', import.meta.url), 'utf8'));
   const strict = plan.paths.filter(([old]) => gateJudgmentPath(old));
   assert.ok(strict.length > 0, 'the plan includes existing strict paths');
   for (const [old, moved] of strict) assert.equal(gateJudgmentPath(moved), true, old);
