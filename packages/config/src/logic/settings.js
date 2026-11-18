@@ -717,9 +717,9 @@ export function submitComposeOnRunner() {
   return loadMachineSettings().submit?.composeOnRunner === true;
 }
 
-/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */
+/** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): on by default; only an exact `false` turns it off. */
 export function submitProofOnly() {
-  return loadMachineSettings().submit?.proofOnly === true;
+  return loadMachineSettings().submit?.proofOnly !== false;
 }
 
 

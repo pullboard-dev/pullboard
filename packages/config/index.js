@@ -182,6 +182,7 @@ export {
   parallelGatesEnabled,
   staticParallelMax,
   reuseGateReceiptsEnabled,
+  relaxRequiredFamilyEnabled,
   asyncFetchEnabled,
   stallStopEnabled,
   memoryFloorMB,
