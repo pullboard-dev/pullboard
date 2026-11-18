@@ -29,7 +29,7 @@ function claimed(itemScoped) {
   return { release: () => staleClaimRelease(board, item, 'coordinator', 'idle 2h', captured), event };
 }
 
-const CHANGED = { code: 'NOT_YOURS', message: 'the claim changed after the stale observation; capture it again before releasing' };
+const CHANGED = { code: 'NOT_YOURS', message: /the claim changed after the stale observation; capture it again before releasing/u };
 
 test('store.stale-claim.item-revision-other-items: clause 1: with release.staleItemRevision on, an idle claim releases when only other items gained events after the observed revision [C7,#10598]', () => {
   const board = claimed(true);
