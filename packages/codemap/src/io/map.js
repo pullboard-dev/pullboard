@@ -675,39 +675,74 @@ export function renderMapCard(map, key) {
     'Effects the scan cannot see: not detected.'].join('\n');
 }
 
-/** Extract recognized repository source paths from an item's visible text. */
+/** The item text a slice reads: title, criterion, brief, files and check. */
+function itemText(item) {
+  return `${item.item_title ?? ''}\n${item.item_criterion ?? ''}\n${item.item_brief ?? ''}\n${item.item_files ?? ''}\n${item.item_check ?? ''}`;
+}
+
+/** Extract recognized repository source paths from an item's visible text, each matched from its start. */
 function itemPaths(item) {
-  const text = `${item.item_title ?? ''}\n${item.item_criterion ?? ''}\n${item.item_brief ?? ''}\n${item.item_files ?? ''}`;
-  const found = new Set([...text.matchAll(/\b(?:src|bin|test)\/[\w./-]+\.(?:m?js)\b/gu)].map(match => match[0]));
+  const text = itemText(item);
+  const found = new Set([...text.matchAll(/(?:^|[^\w./-])((?:apps|packages|src|bin|test)\/[\w./-]+\.m?js)\b/gu)].map(match => match[1]));
   if (/\bpullboard\s+map\b/u.test(text)) found.add('apps/cli/src/io/commands/map.js');
   return found;
 }
 
-/** Build a one-hop item slice with importer tests and an explicit approximate token cap. */
-export function renderItemSlice(map, item, { budget = 4000 } = {}) {
+/** The default item slice budget in approximate tokens; a caller may ask for up to 8000. */
+const ITEM_SLICE_BUDGET = 1500;
+const SLICE_TESTS = 10;
+const SLICE_NEIGHBOURS = 30;
+const MIN_NAME = 6;
+const MAX_NAME_MODULES = 2;
+
+/** Path segments two repository paths share from the start. */
+function sharedSegments(left, right) {
+  const a = left.split('/'); const b = right.split('/'); let n = 0;
+  while (n < a.length && n < b.length && a[n] === b[n]) n += 1;
+  return n;
+}
+
+/** Build a ranked one-hop item slice: named modules first, then their closest neighbours, at most ten tests, within an approximate token cap. */
+export function renderItemSlice(map, item, { budget = ITEM_SLICE_BUDGET } = {}) {
   if (!Number.isSafeInteger(budget) || budget < 1 || budget > 8000) throw new RangeError('item slice budget must be from 1 to 8000 tokens');
-  const text = `${item.item_title ?? ''}\n${item.item_criterion ?? ''}\n${item.item_brief ?? ''}\n${item.item_files ?? ''}`;
+  const text = itemText(item);
   const seeds = itemPaths(item);
   const modules = new Map(map.modules.map(module => [module.path, module]));
-  const selected = new Set([...seeds].filter(path => modules.has(path)));
-  const namedFunctions = new Set(map.modules.flatMap(module => module.functions.map(fn => fn.name))
+  const testedBy = new Map();
+  for (const module of map.modules) for (const testPath of module.tests ?? []) testedBy.set(testPath, [...(testedBy.get(testPath) ?? []), module.path]);
+  const namedTests = [...seeds].filter(path => testedBy.has(path));
+  // A named test seeds the two modules it imports that sit closest to it, its mirrored source first.
+  const seedModules = [...seeds].flatMap(path => (modules.has(path) ? [path] : (testedBy.get(path) ?? [])
+    .sort((left, right) => sharedSegments(right, path) - sharedSegments(left, path) || left.localeCompare(right)).slice(0, 2)));
+  const definers = new Map();
+  for (const module of map.modules) for (const fn of module.functions) definers.set(fn.name, (definers.get(fn.name) ?? new Set()).add(module.path));
+  const namedFunctions = new Set([...definers.keys()]
+    .filter(name => name.length >= MIN_NAME && definers.get(name).size <= MAX_NAME_MODULES)
     .filter(name => new RegExp(`(^|[^\\w$])${escapeRegExp(name)}($|[^\\w$])`, 'u').test(text)));
   const selectedFunctions = map.modules.flatMap(module => module.functions.filter(fn => namedFunctions.has(fn.name)));
-  const functionModules = new Set(selectedFunctions.map(fn => fn.id.slice(0, fn.id.lastIndexOf('#'))));
-  for (const path of functionModules) selected.add(path);
-  for (const path of new Set([...seeds, ...functionModules])) {
+  const moduleOf = id => id.slice(0, id.lastIndexOf('#'));
+  const core = [...new Set([...seedModules, ...selectedFunctions.map(fn => moduleOf(fn.id))])];
+  const coreSet = new Set(core);
+  const closeness = new Map();
+  const touch = (path, weight) => { if (!coreSet.has(path) && modules.has(path)) closeness.set(path, (closeness.get(path) ?? 0) + weight); };
+  for (const path of core) {
     const module = modules.get(path);
-    if (module) for (const neighbor of [...module.dependencies, ...module.importedBy]) selected.add(neighbor);
+    for (const neighbour of [...module.dependencies, ...module.importedBy]) touch(neighbour, 1);
   }
-  for (const fn of selectedFunctions) for (const edge of [...fn.calls, ...fn.callers]) selected.add(edge.slice(0, edge.lastIndexOf('#')));
-  const importingTests = [...new Set([...selected].flatMap(path => modules.get(path)?.tests ?? []))].sort();
-  const cards = [...selected].sort().map(path => renderModuleCard(map, path)).filter(Boolean);
+  for (const fn of selectedFunctions) for (const edge of [...fn.calls, ...fn.callers]) touch(moduleOf(edge), 2);
+  const sharedPrefix = new Map([...closeness.keys()].map(path => [path, Math.max(0, ...core.map(seed => sharedSegments(seed, path)))]));
+  const neighbours = [...closeness.keys()].sort((left, right) => closeness.get(right) - closeness.get(left)
+    || sharedPrefix.get(right) - sharedPrefix.get(left) || left.localeCompare(right)).slice(0, SLICE_NEIGHBOURS);
+  const ranked = [...core, ...neighbours];
+  const importingTests = [...new Set([...namedTests, ...ranked.flatMap(path => modules.get(path)?.tests ?? [])])].slice(0, SLICE_TESTS);
+  const cards = ranked.map(path => renderModuleCard(map, path)).filter(Boolean);
   const base = [`# Slice for #${item.item_id ?? '?'}`, `main: ${map.mainCommit}`, 'Effects the scan cannot see: not detected.'];
   const optional = [
     item.item_title ? `title: ${item.item_title}` : null,
     `named files: ${[...seeds].sort().join(', ') || 'not detected'}`,
     `functions named by the item: ${selectedFunctions.map(fn => fn.id).slice(0, 24).join(', ') || 'not detected'}`,
-    `tests with observed imports of selected modules: ${importingTests.join(', ') || 'not detected'}`,
+    `closest modules: ${ranked.join(', ') || 'not detected'}`,
+    `tests with observed imports of the closest modules: ${importingTests.join(', ') || 'not detected'}`,
     ...cards,
   ].filter(Boolean);
   const format = lines => lines.join('\n\n');
