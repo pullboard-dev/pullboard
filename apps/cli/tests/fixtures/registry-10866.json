@@ -1,0 +1,31 @@
+{
+  "cli.io-commands-fact.malformed-tick-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: a note such as 'clause 1: [test] run <id>' is refused TICK_FORMAT naming the form and that a green pullboard test run ticks [test] clauses itself; a note in the form is still recorded."
+    },
+    "why": "Builders on #10589 wrote a tick clauseTicks ignores, so accept refused CLAUSE_UNTICKED three times.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/commands/fact.js",
+      "apps/cli/tests/io/commands/fact.test.js"
+    ]
+  },
+  "cli.io-test-here.run-ticks-no-check-clauses": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim":"clause 1: runHere hands the queued run id and the green run log path to recordClauseTicks, which feeds the log's outcome rows to testRunTickNotes."
+    },
+    "why": "An item with no check got no tick from a green pullboard test run, so builders hand-ticked in a shape clauseTicks ignores.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/test/here.js",
+      "apps/cli/src/io/commands/submit.js",
+      "apps/cli/tests/io/test/here.test.js"
+    ]
+  }
+}

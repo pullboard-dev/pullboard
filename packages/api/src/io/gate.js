@@ -14,6 +14,8 @@ import { orderedReceiptMoves } from './gate/moves.js';
 import { sameTimingRed } from '../logic/gate/timing-reds.js';
 import { phaseReceiptId } from '../../../jobs/index.js';
 import { releaseBackoffMs } from '../../../jobs/index.js';
+import { readPayload } from '../../../jobs/index.js';
+import { noteLease } from '../../../jobs/index.js';
 import { jobQueueCall } from './jobs.js';
 import { offerJob } from './jobs.js';
 import { boardRun } from '../../../store/index.js';
@@ -237,14 +239,18 @@ function recordSubmitAdmission(board, { id, item, candidate, submit }) {
 export function offeredStep(db, job, { runs = null } = {}) {
   db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'offered' AND job_step_seq = 0").get(job);
-  return row ? { ...JSON.parse(row.job_step_payload), request: offeredRequest(db, job) } : null;
+  return row ? { ...readPayload(db, row.job_step_payload), request: offeredRequest(db, job) } : null;
 }
 
-/** The newest receipt posted for a job, or null. runs: as latestGateJob [#9149]. */
+/**
+ * The newest receipt posted for a job, or null. runs: as latestGateJob [#9149].
+ * Why readPayload: a step over the jobs store's blob threshold is kept as a blob stub, so a gate receipt joined from
+ * parts (#10771) read raw named no proofPlan and its last shard applied nothing (#10181) [C7,P7].
+ */
 export function postedReceipt(db, job, { runs = null } = {}) {
   db = runs ? runs.db : db;
   const row = db.prepare("SELECT job_step_payload FROM job_step WHERE job_step_job = ? AND job_step_name = 'receipt' ORDER BY job_step_seq DESC LIMIT 1").get(job);
-  return row ? JSON.parse(row.job_step_payload) : null;
+  return row ? readPayload(db, row.job_step_payload) : null;
 }
 
 /** Quote one word for a shell, as the gate's planner quotes the files it names. */
@@ -357,7 +363,51 @@ export function applyShardReceipt(board, { job }, ports = {}) {
   const gateReceipt = postedReceipt(board.db, parent)?.receipt;
   if (!gateReceipt?.gate?.proofPlan) return { applied: false, outcome: 'not-shard' };
   const combined = combinedReceipt(gateReceipt, shards.map(row => ({ job: row.job_id, posted: postedReceipt(board.db, row.job_id) })), { signatures: ports.settleOnMainReceipt === true });
-  return applyGateReceipt(board, { job: parent, receipt: combined }, ports);
+  const applied = applyGateReceipt(board, { job: parent, receipt: combined }, ports);
+  // The parent notes it settled, whatever the outcome, so settleDoneShardGates never applies it twice [C7,P7].
+  noteLease(board.db, parent, SHARDS_SETTLED, { outcome: applied.outcome }, Number.isFinite(ports.receiptNow) ? ports.receiptNow : Date.now());
+  return applied;
+}
+
+/** The note step a sharded gate job carries once its shards' combined result was applied (noteLease prefixes `note:`). */
+const SHARDS_SETTLED = 'shards.settled';
+// Budget: the reconcile looks back one day for a sharded gate whose last apply was lost; an older claim has a newer gate or none.
+const SETTLE_LOOKBACK_MS = 24 * 60 * 60_000;
+
+/**
+ * Settle every sharded gate whose shards are all done but whose result never applied: the newest gate job of a claimed
+ * item, done, with shard jobs, none open, and no settled note. Each applies through applyShardReceipt as if its last
+ * shard had just posted, so a stale claim still reads stale and records nothing. Why: the apply runs after the receipt
+ * is recorded, so a coded throw there or a lost process left the item GATE_WAITING forever (#10181) [C7,P7].
+ * With runs_store on the shards live in the runs file, which applyShardReceipt does not read, so nothing runs.
+ *
+ * @param {any} board
+ * @param {Parameters<typeof applyShardReceipt>[2]} [ports]
+ * @param {{ now?: number }} [options]
+ * @returns {{ job: string, outcome: string }[]} the gate jobs settled and their outcomes
+ */
+export function settleDoneShardGates(board, ports = {}, { now = Date.now() } = {}) {
+  if (queueFor(board, 'coordinator')) return [];
+  const { db } = board;
+  const rows = db.prepare(`SELECT job.job_id AS job, job.job_item AS item FROM item JOIN job ON job.job_item = item.item_id
+    WHERE item.item_status = 'claimed' AND job.job_kind = 'gate' AND job.job_step = 'done' AND job.job_created >= ?
+      AND NOT EXISTS (SELECT 1 FROM job_step WHERE job_step_job = job.job_id AND job_step_name = ?)`).all(now - SETTLE_LOOKBACK_MS, `note:${SHARDS_SETTLED}`);
+  const settled = [];
+  for (const { job, item } of rows) {
+    if (latestGateJob(db, item) !== job) continue;
+    const shards = shardJobs(db, job);
+    if (!shards.length || shards.some(row => row.job_step !== 'done')) continue;
+    try {
+      const applied = applyShardReceipt(board, { job: shards[shards.length - 1].job_id }, { ...ports, receiptNow: now });
+      // A gate whose own receipt holds no proof plan has nothing to combine; its note keeps later claims from reading it again.
+      if (applied.outcome === 'not-shard') noteLease(db, job, SHARDS_SETTLED, { outcome: applied.outcome }, now);
+      settled.push({ job, outcome: applied.outcome });
+    } catch (error) {
+      // One gate's refusal never stops the claim that ran the reconcile; the next claim tries it again.
+      if (!error?.code) throw error;
+    }
+  }
+  return settled;
 }
 
 /** Where each red shard of a phase keeps its full log, one line per shard. */
@@ -697,6 +747,9 @@ function applyGateReceiptReads(board, { job, receipt }, { compareWithMain = null
     const sharded = offerProofShards(board, { job, receipt, offered });
     if (sharded) return sharded;
   }
+  // Static rows main also has, which the runner's analysis let pass: each is recorded once as a known main red on the item at the job's pinned main [C7,#10567].
+  const knownMain = Array.isArray(receipt?.analysis?.staticKnownMain) ? receipt.analysis.staticKnownMain.filter(row => typeof row?.rule === 'string' && typeof row?.file === 'string') : [];
+  if (knownMain.length) store.recordKnownMainStatic(board, id, { agentId: submit.agentId, findings: knownMain.slice(0, 200), main });
   // Quarantines filed before this receipt's pairs excuse its reds; the pairs record once, after that judgement [C7,H16].
   const excused = judgePulledFlakes(board, { job, receipt, item: id, candidate, main, submit, queue, admit: () => recordSubmitAdmission(board, { id, item, candidate, submit }) });
   const trialNotes = [];
@@ -968,10 +1021,14 @@ export function provideMainComparison(lookup) {
  */
 export function boardJobQueueCall(board, body, { compareWithMain = mainComparison, landingKey = () => landingGuardKey(board.gitRoot), ordered = null, endStale = false, receiptMissingCause = false, redLocation = false, settleOnMainReceipt = false, reofferTrunkBusy = false, ...options }) {
   // Queued main-test jobs are offered before each claim, so a free runner takes one in the same call (#6063).
-  if (body?.action === 'claim' && options.mode === 'pull') offerMainTests(board, { now: options.now });
+  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
+  if (body?.action === 'claim' && options.mode === 'pull') {
+    offerMainTests(board, { now: options.now });
+    // A sharded gate whose last apply was lost settles on the next runner's claim, so its item never waits forever (#10181).
+    settleDoneShardGates(board, ports, { now: options.now });
+  }
   // With runs_store on, a shard offer or a receipt goes through the runs queue; off, queueFor is null and nothing changes [B2,P7].
   const queue = ['shards', 'receipt'].includes(body?.action) ? queueFor(board, 'coordinator') : null;
-  const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
 }

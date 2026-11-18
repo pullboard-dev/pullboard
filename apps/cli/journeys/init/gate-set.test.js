@@ -17,7 +17,7 @@ import { runPrinted } from '../../tests/fixtures/init-printed.js';
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-test('the gate is set with one pullboard command [I1,A1,B26]', async () => {
+test('cli.journeys-init-gate-set.the-gate-is-set-with-one: the gate is set with one pullboard command [I1,A1,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'one-gate-command');
   mkdirSync(root);
@@ -80,7 +80,7 @@ test('the gate is set with one pullboard command [I1,A1,B26]', async () => {
   assert.deepEqual(JSON.parse(readFileSync(marker, 'utf8')), [argument]);
 });
 
-test('NO_GATE names the project test before a spec-only fallback [I1,C3,B26]', async () => {
+test('cli.journeys-init-gate-set.no-gate-names-the-project-test: NO_GATE names the project test before a spec-only fallback [I1,C3,B26]', async () => {
   const box = e2e.sandbox();
   const root = join(box.dir, 'red-make-project');
   mkdirSync(root);
@@ -113,7 +113,7 @@ test('NO_GATE names the project test before a spec-only fallback [I1,C3,B26]', a
   assert.equal(readFileSync(marker, 'utf8'), 'tested', 'the real Makefile target ran');
 });
 
-test('gate set keeps configuration in the coordinator checkout [I1,L3,B26]', async () => {
+test('cli.journeys-init-gate-set.gate-set-keeps-configuration-in-the: gate set keeps configuration in the coordinator checkout [I1,L3,B26]', async () => {
   const box = e2e.project();
   const mainFile = join(box.repo, 'pullboard.json');
   const laneFile = join(box.web, 'pullboard.json');
