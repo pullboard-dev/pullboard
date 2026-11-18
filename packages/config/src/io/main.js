@@ -4,6 +4,7 @@
 import {
   existsSync,
   readFileSync,
+  statSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/light.js';
@@ -195,19 +196,32 @@ const isStringList = (value) =>
 /** Whether a setting is not a plain object: the shape check every block below repeats. */
 const notPlain = value => !value || typeof value !== 'object' || Array.isArray(value);
 
+/** Whether a repo-relative path names a folder in the repo. */
+function isFolder(root, entry) {
+  try { return statSync(join(root, entry)).isDirectory(); } catch { return false; }
+}
+
 /**
  * Problems in one lane's declaration.
  *
  * @param {string} name
  * @param {any} lane
+ * @param {string} [root] the repo folder, when known: owns entries are checked against it
  * @returns {string[]}
  */
-function laneProblems(name, lane) {
+function laneProblems(name, lane, root) {
   if (!LANE_NAME_RE.test(name) || name === 'all' || name === COORDINATOR) {
     return [`lane "${name}": names are lowercase words; "all" and "coordinator" are taken`];
   }
   const problems = [];
   if (!isStringList(lane?.owns)) problems.push(`lane "${name}": "owns" is a list of path prefixes`);
+  if (root && isStringList(lane?.owns)) {
+    for (const entry of lane.owns) {
+      if (!entry.endsWith('/') && !/\.[A-Za-z0-9]+$/u.test(entry) && isFolder(root, entry)) {
+        problems.push(`lane "${name}": owns entry "${entry}" names a folder and matches no file in it; write "${entry}/"`);
+      }
+    }
+  }
   if (lane?.specs !== undefined && !isStringList(lane.specs)) {
     problems.push(`lane "${name}": "specs" is a list of spec ids or prefixes`);
   }
@@ -221,9 +235,10 @@ function laneProblems(name, lane) {
  * Every problem in a merged config, empty when it is sound.
  *
  * @param {any} config
+ * @param {string} [root] the repo folder, when known: lane owns entries are checked against it
  * @returns {string[]}
  */
-export function configProblems(config) {
+export function configProblems(config, root) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   if (!Array.isArray(config.modelTiers) || config.modelTiers.some(entry => !entry || typeof entry !== 'object'
     || Array.isArray(entry) || Object.keys(entry).some(key => !['contains', 'route'].includes(key))
@@ -515,7 +530,7 @@ export function configProblems(config) {
   if (notPlain(config.lanes)) {
     problems.push('"lanes" maps lane names to { owns, specs, starts }');
   } else {
-    for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane));
+    for (const [name, lane] of Object.entries(config.lanes)) problems.push(...laneProblems(name, lane, root));
   }
   const products = config.products;
   if (notPlain(products)) {
@@ -547,7 +562,7 @@ export function loadConfig(root) {
   if (!existsSync(file)) {
     throw new Refused('NO_CONFIG', `no ${CONFIG_FILE} in ${root}; run: pullboard init`);
   }
-  const config = configFromSource(readFileSync(file, 'utf8'));
+  const config = configFromSource(readFileSync(file, 'utf8'), root);
   return { ...config, practice: doctrineFile(root, config.practice) };
 }
 
@@ -566,14 +581,14 @@ export function doctrineFile(root, name = DOCTRINE_FILE) {
 export function frozenCheckCeilingMs(config) { return config.landing?.timeoutMs ?? config.check.timeoutMs; }
 
 /** Parse committed coordinator settings with the same defaults and validation as local settings. */
-export function configFromSource(source) {
+export function configFromSource(source, root) {
   let raw;
   try { raw = JSON.parse(source); }
   catch { throw new Refused('BAD_CONFIG', 'pullboard.json is not valid JSON; restore the coordinator configuration'); }
   if (notPlain(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
   const base = defaults();
   const config = merge(base, knownConfigKeys(raw, base));
-  const problems = configProblems(config);
+  const problems = configProblems(config, root);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);
   return {
