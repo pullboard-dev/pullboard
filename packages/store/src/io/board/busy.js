@@ -21,7 +21,7 @@ function isBusy(error) {
  */
 export function boardBusyError(file, startedAt, error) {
   if (!isBusy(error)) return error;
-  return new Refused('BOARD_BUSY', `board file ${file} remained held by another process after ${Date.now() - startedAt}ms; wait for it to finish and retry${boardWriteHolderText(file)}`);
+  return new Refused('BOARD_BUSY', `board file ${file} remained held by another process after ${Date.now() - startedAt}ms; wait for it to finish and retry${boardWriteHolderText(file) || '; holder unrecorded: no live writer record names the process holding the lock'}`);
 }
 
 /** Name a failed write admission; resolve its board path only after real contention occurs. */

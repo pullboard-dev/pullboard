@@ -70,3 +70,11 @@ test('with no main tree the absolute budget alone refuses a slow door [C7]', asy
   assert.match(problem.text, /exceeds its 100 ms budget;/u);
   assert.deepEqual(await lightDoorProblems(tree(FAST), { mainRoot: null }), []);
 });
+
+test('gate.io-edges.a-wall-only-slowdown-passes-and-cpu-growth-fails: clause 1: a door that only waits 400 ms in a top-level await is not refused, and a door that burns CPU is refused, both against the unchanged 100 ms budget [C7]', async () => {
+  assert.equal(LIGHT_DOOR_BUDGET_MS, 100);
+  const WAITS = 'await new Promise(done => setTimeout(done, 400));\nexport const launch = 1;\n';
+  assert.deepEqual(await lightDoorProblems(tree(WAITS), { mainRoot: null }), []);
+  const [problem] = await lightDoorProblems(tree(SLOW), { mainRoot: null });
+  assert.match(problem.text, /light door cold load \d+ ms exceeds its 100 ms budget/u);
+});

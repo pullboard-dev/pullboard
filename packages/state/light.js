@@ -68,6 +68,7 @@ export const GENERATED_DOCS_ENGINE = engineNumber('GENERATED_DOCS_ENGINE');
 export const GONE_CLAIM_ENGINE = engineNumber('GONE_CLAIM_ENGINE');
 export const HANDOFF_ENGINE = engineNumber('HANDOFF_ENGINE');
 export const HEALTH_CAP_ENGINE = engineNumber('HEALTH_CAP_ENGINE');
+export const HEALTH_QUIET_ENGINE = engineNumber('HEALTH_QUIET_ENGINE');
 export const HEALTH_SENTINEL_ENGINE = engineNumber('HEALTH_SENTINEL_ENGINE');
 export const HISTORICAL_AUTHORS_ENGINE = engineNumber('HISTORICAL_AUTHORS_ENGINE');
 export const INFRA_HANDOFF_RECOVERY_ENGINE = engineNumber('INFRA_HANDOFF_RECOVERY_ENGINE');
