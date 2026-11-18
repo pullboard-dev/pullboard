@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fixture } from '../../fixtures/plan.js';
 import { git } from '../../fixtures/plan.js';
 import { requireSprintProof } from '../../../src/io/step/publish.js';
@@ -159,4 +161,30 @@ test('landing.publish.reprove-red-setting-off-blocks: clause 2: with landing.com
   await assert.rejects(() => requireSprintProof(state), { code: 'LAND_EXACT_RED' });
   assert.deepEqual(reopens, []);
   assert.equal(state.batch.refusal.code, 'LAND_EXACT_RED');
+});
+
+/** A main that moved on from the item's base by one edit of `file`; returns its commit and leaves the checkout where it was. */
+function moveMainOn(root, base, file) {
+  const here = git(root, 'rev-parse', 'HEAD').trim();
+  git(root, 'checkout', '-q', '--detach', base);
+  writeFileSync(join(root, file), `export const moved = 1;\n`);
+  git(root, 'add', '-A');
+  git(root, '-c', 'user.name=T', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'feat: main moves');
+  const tip = git(root, 'rev-parse', 'HEAD').trim();
+  git(root, 'checkout', '-q', '--detach', here);
+  return tip;
+}
+
+test('landing.publish.reprove-red-keeps-verdict: clause 1: with landing.composedEquality on, the reopen on a re-proof red reads the verdict projector: the review is kept when main changed no reviewed file and named stale when it did [C7,U159,#10777]', async t => {
+  for (const [file, expected] of [['packages/alpha/src/other.js', /accepted review stays bound/u], ['packages/alpha/src/a.js', /its review is stale, since main changed "packages\/alpha\/src\/a\.js"/u]]) {
+    const { state, reopens } = await reprovedRed(t, true);
+    const item = state.batch.tip;
+    const trunk = git(state.root, 'rev-parse', `${item}~1`).trim();
+    state.batch.base = moveMainOn(state.root, trunk, file);
+    state.verdictReads = { events: () => [], verdictReviewProblem: () => null, trunkRef: () => 'refs/heads/main',
+      acceptedVerdict: () => ({ review: { trunk, head: item, paths: ['packages/alpha/src/a.js'] } }),
+      getItem: (_board, id) => ({ item_id: id, item_status: 'open', item_commit: item, item_claim_head: trunk }) };
+    await assert.rejects(() => requireSprintProof(state), { code: 'LAND_REPROVE_RED' });
+    assert.match(reopens[0][1].note, expected, file);
+  }
 });
