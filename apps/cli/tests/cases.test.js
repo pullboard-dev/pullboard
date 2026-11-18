@@ -25,16 +25,29 @@ const CASES = [
 ];
 
 /**
- * How many times a file declares a case with this exact title, at the top level or inside a loop.
+ * The first string literal after each top-level `test(`, unescaped; a quote style or a stable-ID prefix does not change the title.
+ *
+ * @param {string} source
+ * @returns {string[]}
+ */
+function titles(source) {
+  return source.split(/\n {0,2}test\(/u).slice(1).flatMap(rest => {
+    const literal = /^(["'`])((?:\\.|(?!\1)[^\\])*)\1/u.exec(rest);
+    return literal ? [literal[2].replace(/\\(.)/gu, '$1')] : [];
+  });
+}
+
+/**
+ * How many times a file declares a case with this title, with or without one stable-ID prefix.
  *
  * @param {string} name
- * @param {string} quote
+ * @param {string} _quote Kept so each case lists its original quote style; the title is read unescaped.
  * @param {string} caseTitle
  * @returns {number}
  */
-function declarations(name, quote, caseTitle) {
+function declarations(name, _quote, caseTitle) {
   const source = readFileSync(join(import.meta.dirname, '../../..', name), 'utf8');
-  return source.split(/\n {0,2}test\(/u).slice(1).filter(rest => rest.startsWith(`${quote}${caseTitle}${quote}, `)).length;
+  return titles(source).filter(title => title === caseTitle || (title.endsWith(`: ${caseTitle}`) && /^[a-z0-9.-]+$/u.test(title.slice(0, -caseTitle.length - 2)))).length;
 }
 
 test('cli.cases.the-three-e2e-files-hold-every-case: clause 1: the three e2e files hold every case the single e2e.test.js held, so none was dropped to get under two minutes [C7]', () => {
