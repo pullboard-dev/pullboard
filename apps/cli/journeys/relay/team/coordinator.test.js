@@ -30,7 +30,7 @@ async function refusedCoordinatorAdd(device, lane, title, add = () => device.jou
   return refused;
 }
 
-test('one coordinator per board across machines [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
+test('cli.journeys-relay-team-coordinator.one-coordinator-per-board-across-machines: one coordinator per board across machines [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
   const pairing = await box.journeyCli('relay', 'pair');
@@ -80,7 +80,7 @@ test('one coordinator per board across machines [E19]', { timeout: relayWorkBudg
   }
 });
 
-test('an agent session on a computer that does not hold the coordinator takes it over [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
+test('cli.journeys-relay-team-coordinator.an-agent-session-on-a-computer: an agent session on a computer that does not hold the coordinator takes it over [E19]', { timeout: relayWorkBudgetMs(12) }, async t => { // budget: hang ceiling for two linked devices' real CLI and relay round trips; not a speed target.
   const box = await relayClientFixture(t);
   await box.link();
   const pairing = await box.journeyCli('relay', 'pair');

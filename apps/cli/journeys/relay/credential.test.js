@@ -180,7 +180,7 @@ function credentialCases(box) {
 }
 
 
-test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
+test('cli.journeys-relay-credential.every-current-operation-selects-its-native: every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
   const actor = 'coordinator';
   const boxes = await Promise.all(Array.from({ length: BOARDS }, () => linkedBox(t)));
   const [first] = boxes;
@@ -272,7 +272,7 @@ test('every current operation selects its native actor credential without a seco
 });
 
 
-test('a person-only move is refused before the relay is asked [H2,H9,H16]', async (t) => {
+test('cli.journeys-relay-credential.a-person-only-move-is-refused: a person-only move is refused before the relay is asked [H2,H9,H16]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
 
