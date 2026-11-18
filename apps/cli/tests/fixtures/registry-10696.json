@@ -1,0 +1,3 @@
+{
+  "cli.journeys-speed-spawns-submit-node.purposes-add-up-to-the-total": {"proves":{"specs":["C7"],"claim":"The per-purpose node child counts of one submit add up to the total the journey asserts."},"why":"Without it, a node child sorted into no purpose would hide a start from the per-purpose line the #5330 cuts are chosen from.","kind":"journey","inputs":["apps/cli/journeys/speed/spawns-submit-node.test.js"]}
+}
