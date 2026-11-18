@@ -6,7 +6,7 @@
  * on 8 Nov a test dispatcher outlived its test and relaunched real gates into a deleted home (#3850). One leak check,
  * shared, means no harness can forget it.
  */
-/** @pullboard-module-loads apps/cli/src/io/landing/budget.js apps/cli/tests/fixtures/e2e.js apps/cli/tests/fixtures/gate/execution.js packages/gate/tests/fixtures/runner/ssh.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/gate/tests/fixtures/child.js packages/drive/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/jobs/index.js */
+/** @pullboard-module-loads apps/cli/src/io/landing/budget.js apps/cli/tests/fixtures/e2e.js packages/gate/tests/fixtures/execution.js packages/gate/tests/fixtures/runner/ssh.js packages/board/tests/fixtures/board.js packages/gate/tests/fixtures/testkit.js packages/gate/tests/fixtures/child.js packages/drive/index.js packages/gate/index.js packages/gate/src/io/shards/proof.js packages/jobs/index.js */
 import assert from 'node:assert/strict';
 import {
   spawn,
