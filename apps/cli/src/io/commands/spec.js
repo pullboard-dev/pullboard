@@ -374,7 +374,7 @@ export async function specCommand(io, { first, second, rest, values }) {
     if (second || rest.length) throw new Refused('USAGE', 'pullboard spec apply takes no ids; it applies current person decisions');
     return withBoard(ctx, async (board) => {
       const me = whoAmI(ctx, board);
-      if (!ctx.info.isMain || me.id !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator applies row decisions; ask your coordinator to run pullboard spec apply');
+      applyRow.requireApplier({ isMain: ctx.info.isMain, me: me.id, coordinator: COORDINATOR, channel: io.personChannel, values, decisions: store.rowDecisions(board), events: io.personChannel === undefined ? [] : store.events(board, { kinds: ['row_decision'] }) });
       applyRow.requireCleanForCommit(ctx.info.root, values); // --commit proves the checkout clean first; every automatic proposal is preflighted before any draft or decision changes a file.
       const passkeyDecision = record => verifiedPasskeyRowDecision(board, record);
       const first = planRowApply(ctx.info.root, ctx.config, applyRow.rowDecisionsFor(store.rowDecisions(board), values.row), { passkeyDecision, holdStale: true }, { loadDoctrine });
