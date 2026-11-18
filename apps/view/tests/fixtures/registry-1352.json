@@ -1,0 +1,4 @@
+{
+  "view.footer.asks-local-view": {"proves":{"specs":["H5"],"claim":"A page reading from this machine's view still asks whether pullboard view is running."},"why":"Without it this behaviour could regress with no test naming what it proved.","kind":"cell unit","inputs":["apps/view/tests/cockpit/offline-line.test.js"]},
+  "view.footer.names-relay": {"proves":{"specs":["H5"],"claim":"A relay page's footer names the relay with one next step per fault, wait or reload, never a raw code."},"why":"Without it this behaviour could regress with no test naming what it proved.","kind":"cell unit","inputs":["apps/view/tests/cockpit/offline-line.test.js"]}
+}

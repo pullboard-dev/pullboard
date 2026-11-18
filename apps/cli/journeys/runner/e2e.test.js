@@ -43,7 +43,7 @@ async function addDiagnosedLight(box, ...args) {
   return added;
 }
 
-test('clause 1: an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
+test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
   const box = project();
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
@@ -88,7 +88,7 @@ test('clause 1: an item carries a brief to whoever claims it; a light agent sees
   assert.match((await box.runLocal(box.web, 'edit', '2', '--brief', 'mine')).err, /HELD/);
 });
 
-test('run builds routed items unattended: the failure feeds the next attempt; red work escalates, pinned [N14, B15]', async () => {
+test('cli.journeys-runner-e2e.run-builds-routed-items-unattended-the: run builds routed items unattended: the failure feeds the next attempt; red work escalates, pinned [N14, B15]', async () => {
   const box = project();
   const agent = join(box.dir, 'agent.sh');
   writeFileSync(agent, [

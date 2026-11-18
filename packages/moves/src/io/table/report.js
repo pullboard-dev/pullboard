@@ -164,3 +164,8 @@ export async function explainReport({ root, name }) {
   const loaded = await loadMoveTable(root, name, 'EXPLAIN_TABLE');
   return explainTable(loaded.table, loaded.rules);
 }
+
+/** The U152 backbone reader, loaded at the call so the hot commands that load the moves door load no new module [C7,#10580]. This door file keeps index.js a pure export front, which the source walk needs to reach the freezer [#10650]. */
+export async function readBackboneRecords(...args) { return (await import('./backbone-records.js')).readBackboneRecords(...args); }
+/** The backbone summary, loaded at the call like its reader. */
+export async function backboneSummary(...args) { return (await import('./backbone-records.js')).backboneSummary(...args); }

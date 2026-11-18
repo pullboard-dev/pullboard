@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/data/ceilings/model-names.json apps/view/src/io/presentation.js */
 /** @pullboard-world-pin reads the shipped model-names table and presentation.js source to prove the names live in data. */
 /** @pullboard-test-loads apps/view/src/io/cost/tab.js */
 /** Model and vendor names come from apps/view/data/model-names.json, not presentation.js [P5]. */
@@ -12,13 +12,13 @@ import { modelPresentation as present } from '../../src/io/presentation.js';
 const MODELS = /\b(ollama|mlx|vllm|qwen|llama|mistral|gemma|deepseek|haiku|sonnet|opus|gpt-\d|gemini|openai|anthropic)\b/i;
 const tables = JSON.parse(readFileSync(new URL('../../data/ceilings/model-names.json', import.meta.url), 'utf8'));
 
-test('clause 1: presentation.js carries no model or vendor name; the tables live in the data file [P5]', () => {
+test('view.x-io-presentation-names.clause-1-presentation-js-carries-no-model: clause 1: presentation.js carries no model or vendor name; the tables live in the data file [P5]', () => {
   const lines = readFileSync(new URL('../../src/io/presentation.js', import.meta.url), 'utf8').split('\n');
   assert.deepEqual(lines.filter((line) => MODELS.test(line)), []);
   for (const part of ['aliases', 'known', 'vendors', 'patterns']) assert.ok(tables[part], part);
 });
 
-test('clause 1: modelPresentation returns the same results as before for every known name [P5]', () => {
+test('view.x-io-presentation-names.clause-1-modelpresentation-returns-the-same-results: clause 1: modelPresentation returns the same results as before for every known name [P5]', () => {
   const expected = [
     ['claude-opus-5-5', '', 'claude-opus-5-5', 'Opus 5.5', 'Anthropic'],
     ['Sonnet 5.5', '', 'claude-sonnet-5-5', 'Sonnet 5.5', 'Anthropic'],
@@ -43,7 +43,7 @@ test('clause 1: modelPresentation returns the same results as before for every k
   }
 });
 
-test('clause 1: the browser copy of the Cost script rebuilds the same tables [P5]', () => {
+test('view.x-io-presentation-names.clause-1-the-browser-copy-of-the: clause 1: the browser copy of the Cost script rebuilds the same tables [P5]', () => {
   const script = costTabScript();
   assert.match(script, /const modelTables = \{/u);
   const build = new Function(`${script}\nreturn modelPresentation;`);
