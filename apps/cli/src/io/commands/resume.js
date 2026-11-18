@@ -303,7 +303,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   if (!isMain && !json) {
     const { branch, mainRef, behind = 0, ahead = 0 } = sources;
     // Fresh command facts compare the actual primary branch, not an unrelated detached review HEAD.
-    const against = mainRef ? `${ahead} ahead of main, ${behind} behind${behind ? ' (merge main before you submit)' : ''}` : 'main is detached for a verification, so ahead and behind are unknown';
+    const against = mainRef ? `${ahead} ahead of main, ${behind} behind` : 'main is detached for a verification, so ahead and behind are unknown';
     say(`branch ${branch}: ${against}${dirty ? `; ${plural(dirty, 'file')} uncommitted` : ''}`);
   } else if (dirty) {
     say(`${plural(dirty, 'file')} uncommitted in the main checkout`);
