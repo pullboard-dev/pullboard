@@ -12,7 +12,7 @@ import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/ch
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
-test('clause 2: relay off in a main checkout bound to another session is not refused NOT_YOUR_CHECKOUT [C7,#9415]', async t => {
+test('cli.io-relay-off-main-checkout.relay-off-in-a-main-checkout-bound: clause 2: relay off in a main checkout bound to another session is not refused NOT_YOUR_CHECKOUT [C7,#9415]', async t => {
   const files = privateFixtureFiles('pullboard-off-main-checkout-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   const home = join(files.root, 'machine-home');

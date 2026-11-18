@@ -44,7 +44,7 @@ function queueGate(board) {
   return store.queueSubmitHandoff(board, queueRecord.move.id, { agentId: queueRecord.move.actor, job: queueRecord.move.job, ...head, digest: queueRecord.snapshot.item.frozenDigest, companionDigest, leaseMs: queueRecord.snapshot.config.leaseMs });
 }
 
-test('clause 1: with moves.shadow on, a submit whose COMMIT table answer differs adds one disagreement to the commit counts [C7,#8379]', t => {
+test('board.submit-shadow-record.with-moves-shadow-submit-whose-commit: clause 1: with moves.shadow on, a submit whose COMMIT table answer differs adds one disagreement to the commit counts [C7,#8379]', t => {
   const board = boardFor(t, commitRecord.snapshot, true);
   const id = submitCommit(board);
   const agreed = store.readShadow(board, 'commit');
@@ -59,7 +59,7 @@ test('clause 1: with moves.shadow on, a submit whose COMMIT table answer differs
   assert.deepEqual(counts.last.map(({ id: item, differs }) => ({ item, differs })), [{ item: id, differs: 'events.0.detail.tree' }]);
 });
 
-test('clause 2: with moves.shadow on, a gate queue whose SUBMIT table answer matches adds one compare and no disagreement [C7,#8379]', t => {
+test('board.submit-shadow-record.with-moves-shadow-gate-queue-whose: clause 2: with moves.shadow on, a gate queue whose SUBMIT table answer matches adds one compare and no disagreement [C7,#8379]', t => {
   const board = boardFor(t, queueRecord.snapshot, true);
   assert.equal(queueGate(board).created, true);
   const counts = store.readShadow(board, 'submit');
@@ -67,7 +67,7 @@ test('clause 2: with moves.shadow on, a gate queue whose SUBMIT table answer mat
   assert.equal(counts.disagreed, 0, JSON.stringify(counts.last));
 });
 
-test('clause 3: with moves.shadow off neither the submit writer nor the queue writer records a compare [C7,#8379]', t => {
+test('board.submit-shadow-record.with-moves-shadow-off-neither-the: clause 3: with moves.shadow off neither the submit writer nor the queue writer records a compare [C7,#8379]', t => {
   const commitBoard = boardFor(t, commitRecord.snapshot);
   submitCommit(commitBoard);
   assert.equal(store.readShadow(commitBoard, 'commit'), null);

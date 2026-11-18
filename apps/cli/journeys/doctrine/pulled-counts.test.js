@@ -89,7 +89,7 @@ async function editRule(box, from, to) {
   return await box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: change the quality count');
 }
 
-test("clause 1: a pulled submit prints each doctrine count line as N, was M, holding [D1,D3,C7]", async t => {
+test('cli.journeys-doctrine-pulled-counts.a-pulled-submit-prints-each-doctrine: clause 1: a pulled submit prints each doctrine count line as N, was M, holding [D1,D3,C7]', async t => {
   const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
   // A fall passes and is shown as N, was M.

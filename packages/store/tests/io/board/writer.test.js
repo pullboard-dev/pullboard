@@ -31,7 +31,7 @@ async function fixture(t) {
   return { dir, socketDir, file, db, write, writer, socket, rows: () => db.prepare('SELECT seat, note FROM move ORDER BY n').all().map(row => ({ ...row })) };
 }
 
-test('clause 1: a writer applies a move at its snapshot version or answers changed, retry, in arrival order [H24]', async t => {
+test('store.io-board-writer.a-writer-applies-a-move-at: clause 1: a writer applies a move at its snapshot version or answers changed, retry, in arrival order [H24]', async t => {
   const f = await fixture(t);
   const seat = await connectBoardWriter(f.socket);
   t.after(() => seat.close());
@@ -47,7 +47,7 @@ test('clause 1: a writer applies a move at its snapshot version or answers chang
   assert.deepEqual(f.rows().map(row => row.note), ['first', 'retried'], 'only applied moves are written, in order');
 });
 
-test('clause 2: while one command computes with no lock held, twenty seats commit and none waits on it [H24]', async t => {
+test('store.io-board-writer.while-one-command-computes-with-no: clause 2: while one command computes with no lock held, twenty seats commit and none waits on it [H24]', async t => {
   const f = await fixture(t);
   const slow = await connectBoardWriter(f.socket);
   t.after(() => slow.close());
@@ -73,7 +73,7 @@ test('clause 2: while one command computes with no lock held, twenty seats commi
   assert.equal(f.rows().length, 21);
 });
 
-test('clause 3: with no writer running a command writes the board directly, so the board never depends on the writer [H24]', async t => {
+test('store.io-board-writer.with-no-writer-running-a-command: clause 3: with no writer running a command writes the board directly, so the board never depends on the writer [H24]', async t => {
   const f = await fixture(t);
   const absent = join(f.socketDir, 'nobody-listening.sock');
   const answer = await commitMove({ socket: absent, request: { snapshot: 0, touches: ['item:1'], move: { seat: 'direct', note: 'no writer' } }, direct: f.write });
@@ -85,7 +85,7 @@ test('clause 3: with no writer running a command writes the board directly, so t
   assert.equal(viaWriter.direct, undefined);
 });
 
-test('a socket path too long for the system is refused rather than cut into another writer\'s socket [H24]', async t => {
+test('store.io-board-writer.a-socket-path-too-long-for: a socket path too long for the system is refused rather than cut into another writer\'s socket [H24]', async t => {
   const f = await fixture(t);
   const long = join(f.dir, 'x'.repeat(120), 'writer.sock');
   assert.throws(() => connectBoardWriter(long), { code: 'BOARD_WRITER_SOCKET' });

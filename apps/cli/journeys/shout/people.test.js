@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fixtureAddArgv } from '../../tests/fixtures/testkit.js';
 
-test('the board knows its people: events name them, approvers decide [E3,E4,E20]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for two people's real CLI runs and relay calls; not a speed target.
+test('cli.journeys-shout-people.the-board-knows-its-people-events: the board knows its people: events name them, approvers decide [E3,E4,E20]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for two people's real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
   const link = JSON.parse(box.readLink());
   const alice = await personSession(box, 'alice');
@@ -91,7 +91,7 @@ test('the board knows its people: events name them, approvers decide [E3,E4,E20]
   assert.equal((await box.cliLocal('status')).code, 0, 'alice’s board still reads');
 });
 
-test('the board knows its people: a phone move names the phone’s person, refused or not [E3,E4]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
+test('cli.journeys-shout-people.the-board-knows-its-people-a: the board knows its people: a phone move names the phone’s person, refused or not [E3,E4]', { timeout: 180_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, ['alice']);
   const bob = await personSession(box, 'bob');
   // Bob's phone adds an item; alice's computer carries it out, so the move is sent with alice's credential.
@@ -113,7 +113,7 @@ test('the board knows its people: a phone move names the phone’s person, refus
   assert.equal(JSON.parse(refused.event_detail).person, 'bob', 'the refused answer still names bob, who tried it');
 });
 
-test('a board that names no approvers takes person moves as before [E4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
+test('cli.journeys-shout-people.a-board-that-names-no-approvers: a board that names no approvers takes person moves as before [E4]', { timeout: 120_000 }, async (t) => { // budget: hang ceiling for real CLI runs and relay calls; not a speed target.
   const box = await teamBoard(t, null);
   const link = JSON.parse(box.readLink());
   const bob = await personSession(box, 'bob');

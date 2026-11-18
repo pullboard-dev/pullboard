@@ -26,7 +26,7 @@ function filesUnder(path) {
   return readdirSync(full).sort().flatMap(name => filesUnder(join(path, name)));
 }
 
-test('view files never quote the owner or name a private machine [N26]', () => {
+test('sandbox.privacy.guard.view-files-no-owner-quote: view files never quote the owner or name a private machine [N26]', () => {
   const scanned = VIEW.flatMap(filesUnder).filter(path => path !== SELF && /\.(?:m?js|css)$/u.test(path));
   assert.ok(scanned.length >= 50, `the scan reads the whole view lane, not ${scanned.length} files`);
   const found = [];

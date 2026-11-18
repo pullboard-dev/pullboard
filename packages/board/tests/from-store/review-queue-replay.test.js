@@ -89,7 +89,7 @@ function eventRows(board) {
   return store.events(board);
 }
 
-test('review-skip semantics seal after released engine 1, accept legacy claims and refuse future engines before mutation [Q1,V15,H16]', (t) => {
+test('board.review-queue-replay.review-skip-semantics-seal-after-released: review-skip semantics seal after released engine 1, accept legacy claims and refuse future engines before mutation [Q1,V15,H16]', (t) => {
   const { copies: [one], item } = memoryCopies(t, true);
   const fresh = claimMove(one, item, 'web-1', 'new-engine');
   assert.ok(fresh.engine >= 2, 'released engine 1 cannot silently ignore the new claim snapshot');
@@ -117,7 +117,7 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
   assert.deepEqual(exportBoard(one), before, 'future-engine refusal preserves all rows and the replay cursor');
 });
 
-test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
+test('board.review-queue-replay.v4-review-releases-keep-their-replay: v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
   const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t, false, true);
   for (const board of [legacyBoard, currentBoard]) {
     if (board === legacyBoard) board.executionEngineVersion = 4;
@@ -175,7 +175,7 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
   assert.equal(currentBoard.executionEngineVersion, undefined, 'a refused v5 replay restores the live engine context');
 });
 
-test('sealed review-skip claims replay identically, while renewals and refusals add no skipped claim [Q1,V15,H3,H16]', (t) => {
+test('board.review-queue-replay.sealed-review-skip-claims-replay-identically: sealed review-skip claims replay identically, while renewals and refusals add no skipped claim [Q1,V15,H3,H16]', (t) => {
   const { copies: [one, two], item } = memoryCopies(t);
   const freshOne = claimMove(one, item, 'web-1', 'queue-claim');
   const freshTwo = claimMove(two, item, 'web-1', 'queue-claim');

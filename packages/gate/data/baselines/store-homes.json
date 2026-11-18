@@ -102,11 +102,13 @@
   "apps/view/src/io/serve.js": {
     "board.sqlite": 3,
     "state.json": 1,
-    "boards.json": 1,
-    "resources.sqlite": 1
+    "boards.json": 1
   },
   "apps/view/src/io/session.js": {
     "view.json": 1
+  },
+  "apps/view/src/io/state.js": {
+    "resources.sqlite": 1
   },
   "packages/api/src/io/event-signals.js": {
     "board.sqlite": 2
@@ -605,9 +607,6 @@
   },
   "packages/stats/src/io/cost/shared.js": {
     "table:board_meta": 2
-  },
-  "packages/stats/src/io/time/checkpoint.js": {
-    "stats-history.jsonl": 1
   },
   "packages/store/src/io/baseline/check.js": {
     "table:board_meta": 2

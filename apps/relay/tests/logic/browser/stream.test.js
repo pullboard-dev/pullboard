@@ -27,7 +27,7 @@ function eventResponse(id) {
 /** Resolve one event-loop turn while a test aborts a blocked stream. */
 function delay(milliseconds) { return new Promise(resolve => setTimeout(resolve, milliseconds)); }
 
-test('notice says only what is true now [H17,H5]', () => {
+test('relay.logic-browser-stream.notice-says-only-what-is-true: notice says only what is true now [H17,H5]', () => {
   const pairedId = '12345678' + 'a'.repeat(24);
   const orphanId = '87654321' + 'b'.repeat(24);
   const paired = new Map([[pairedId, { state: { personRequests: [
@@ -48,7 +48,7 @@ test('notice says only what is true now [H17,H5]', () => {
   assert.deepEqual(noticeLines({ available: [available[0]], paired: noRequests, ownedRequestIds, warnings: [] }), [], 'all paired boards and no waiting requests produce an empty notice');
 });
 
-test('device request notices track only owned ids until their final status [H17,H5]', () => {
+test('relay.logic-browser-stream.device-request-notices-track-only-owned: device request notices track only owned ids until their final status [H17,H5]', () => {
   const values = new Map();
   const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
   rememberOwnedRequestId(storage, 'owned', 'sent-here');
@@ -74,7 +74,7 @@ test('device request notices track only owned ids until their final status [H17,
   assert.equal(values.get('owned'), '[]', 'the local id is removed once its final refusal is visible');
 });
 
-test('clean SSE EOF reconnects after a bounded delay and resumes from the delivered cursor [H16,H3]', async () => {
+test('relay.logic-browser-stream.clean-sse-eof-reconnects-after-a: clean SSE EOF reconnects after a bounded delay and resumes from the delivered cursor [H16,H3]', async () => {
   const controller = new AbortController();
   const requests = [];
   const cursor = { value: 0 };
@@ -101,7 +101,7 @@ test('clean SSE EOF reconnects after a bounded delay and resumes from the delive
   assert.deepEqual(failures, []);
 });
 
-test('an unterminated SSE event is discarded at EOF and replayed from the unchanged cursor [H16,H3]', async () => {
+test('relay.logic-browser-stream.an-unterminated-sse-event-is-discarded: an unterminated SSE event is discarded at EOF and replayed from the unchanged cursor [H16,H3]', async () => {
   const controller = new AbortController();
   const requests = [];
   const cursor = { value: 0 };
@@ -134,7 +134,7 @@ test('an unterminated SSE event is discarded at EOF and replayed from the unchan
   assert.deepEqual(failures, [], 'an incomplete tail is ordinary EOF, not a fatal malformed message');
 });
 
-test('a rejected sealed-message handler stops the stream and does not poison the next board operation [H16,H3]', async () => {
+test('relay.logic-browser-stream.a-rejected-sealed-message-handler-stops: a rejected sealed-message handler stops the stream and does not poison the next board operation [H16,H3]', async () => {
   const controller = new AbortController();
   const entry = {};
   let requests = 0;
@@ -159,7 +159,7 @@ test('a rejected sealed-message handler stops the stream and does not poison the
   assert.equal(nextOperationRan, true, 'the failed stream task is handled and later board work remains usable');
 });
 
-test('an HTTP engine-version refusal is shown once and stops reconnect attempts [H16,H3]', async () => {
+test('relay.logic-browser-stream.an-http-engine-version-refusal-is: an HTTP engine-version refusal is shown once and stops reconnect attempts [H16,H3]', async () => {
   const controller = new AbortController();
   let requests = 0;
   let notice = '';
@@ -183,7 +183,7 @@ test('an HTTP engine-version refusal is shown once and stops reconnect attempts 
   assert.match(notice, /\[ENGINE_VERSION\].*Upgrade pullboard/u, 'upgrade guidance remains visible');
 });
 
-test('aborting a pending stream read prevents reconnect and closes its reader [H16,H3]', async () => {
+test('relay.logic-browser-stream.aborting-a-pending-stream-read-prevents: aborting a pending stream read prevents reconnect and closes its reader [H16,H3]', async () => {
   const controller = new AbortController();
   let requests = 0;
   let failures = 0;
@@ -204,7 +204,7 @@ test('aborting a pending stream read prevents reconnect and closes its reader [H
 });
 
 
-test('checkpoint timeout notices survive activity and recovery on another paired board [H5,H16]', () => {
+test('relay.logic-browser-stream.checkpoint-timeout-notices-survive-activity-and: checkpoint timeout notices survive activity and recovery on another paired board [H5,H16]', () => {
   const a = 'a'.repeat(32), b = 'b'.repeat(32);
   const available = [{ id: a, repository: 'fixture/one' }, { id: b, repository: 'fixture/two' }];
   const paired = new Map([[a, { repository: 'fixture/one', checkpointTimedOut: true }],
@@ -221,7 +221,7 @@ test('checkpoint timeout notices survive activity and recovery on another paired
 });
 
 
-test('phone degradation and durable queued notices remain local to each board [H5,H17]', () => {
+test('relay.logic-browser-stream.phone-degradation-and-durable-queued-notices: phone degradation and durable queued notices remain local to each board [H5,H17]', () => {
   const degradedBoards = new Map();
   recordBrowserReadFailure(degradedBoards, 'a', Date.parse('2026-01-01T10:00:00Z'));
   recordBrowserReadFailure(degradedBoards, 'a', Date.parse('2026-01-01T10:01:00Z'));
@@ -242,7 +242,7 @@ test('phone degradation and durable queued notices remain local to each board [H
   assert.match(noticeLines({ available: [{ id: 'a' }], paired: new Map([['a', paired.get('a')]]), degradedBoards, queuedRequests })[0], /count unavailable/u, 'unreadable device storage cannot claim zero pending requests');
 });
 
-test('each of the four relay faults reads as one plain next step and never as a raw code [H5,H17]', () => {
+test('relay.logic-browser-stream.each-of-the-four-relay-faults: each of the four relay faults reads as one plain next step and never as a raw code [H5,H17]', () => {
   const faults = [
     ['relay down', new TypeError('Failed to fetch'), 'down', /wait/iu],
     ['relay down, older browser', new Error('network error'), 'down', /wait/iu],

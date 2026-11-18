@@ -48,7 +48,7 @@ async function browserLogin(box) {
   return { cookie: cookie.split(';')[0], callbackURL, binding };
 }
 
-test('web redirects create HttpOnly sessions; replay and cross-origin cookie writes are refused [H8, H1]', async (t) => {
+test('relay.logic-http-device-main.web-redirects-create-httponly-sessions-replay: web redirects create HttpOnly sessions; replay and cross-origin cookie writes are refused [H8, H1]', async (t) => {
   const box = await relay(t);
   const signed = await browserLogin(box);
   const session = await fetch(box.origin + '/auth/session', { headers: { cookie: signed.cookie } });
@@ -67,7 +67,7 @@ test('web redirects create HttpOnly sessions; replay and cross-origin cookie wri
   assert.equal((await linked.json()).board.id, 'alpha');
 });
 
-test('CLI device HTTP flow returns a one-time session and individually revocable board token [H8, H1]', async (t) => {
+test('relay.logic-http-device-main.cli-device-http-flow-returns-a: CLI device HTTP flow returns a one-time session and individually revocable board token [H8, H1]', async (t) => {
   const box = await relay(t);
   const start = await fetch(box.origin + '/auth/device/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
   const grant = await start.json();
@@ -94,7 +94,7 @@ test('CLI device HTTP flow returns a one-time session and individually revocable
   assert.equal((await revoked.json()).error.code, 'AUTH_REQUIRED');
 });
 
-test('HTTP person controls expose only scoped token metadata, and agent identity stays board-bound [H2,H9]', async (t) => {
+test('relay.logic-http-device-main.http-person-controls-expose-only-scoped: HTTP person controls expose only scoped token metadata, and agent identity stays board-bound [H2,H9]', async (t) => {
   const box = await relay(t);
   const signed = await browserLogin(box);
   const headers = { cookie: signed.cookie, origin: box.origin, 'content-type': 'application/json' };
@@ -142,7 +142,7 @@ test('HTTP person controls expose only scoped token metadata, and agent identity
   assert.equal((await immediately.json()).error.code, 'AUTH_REQUIRED');
 });
 
-test('HTTP errors are versioned and bounded; production cookies are Secure [H8, H1]', async (t) => {
+test('relay.logic-http-device-main.http-errors-are-versioned-and-bounded: HTTP errors are versioned and bounded; production cookies are Secure [H8, H1]', async (t) => {
   const box = await relay(t);
   const malformed = await fetch(box.origin + '/auth/device/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '[' });
   const error = await malformed.json();
@@ -158,7 +158,7 @@ test('HTTP errors are versioned and bounded; production cookies are Secure [H8, 
   assert.throws(() => createAuthHandler({ auth: box.auth, publicOrigin: 'http://relay.example.invalid' }), { code: 'RELAY_CONFIG' });
 });
 
-test('plain public readers receive the exact missing-board HTTP refusal [H13,H14,H8]', async (t) => {
+test('relay.logic-http-device-main.plain-public-readers-receive-the-exact: plain public readers receive the exact missing-board HTTP refusal [H13,H14,H8]', async (t) => {
   const box = await relay(t);
   box.state.public = true;
   const signed = await browserLogin(box);

@@ -85,7 +85,7 @@ function differences(wrote, expected) {
 
 const records = JSON.parse(readFileSync(new URL('../../../../../store/tests/fixtures/verify-records.json', import.meta.url), 'utf8'));
 
-test('clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
+test('board.verify-table.the-store-verify-writer-agrees-with: clause 1: the store verify writer agrees with the verify table on every replayed verdict [C7,#8272]', t => {
   assert.ok(records.length >= 10, 'the replay holds accepts and rejects');
   const disagreements = [];
   const via = new Set();
@@ -100,7 +100,7 @@ test('clause 1: the store verify writer agrees with the verify table on every re
   for (const path of ['accept', 'reject', 'bar-sharpen', 'route-calibration', 'two-rejects']) assert.ok(via.has(path), `${path} replayed through the writer`);
 });
 
-test('clause 1: the writer refuses with its own code and writes nothing when the verdict is not allowed [C7,#8272]', t => {
+test('board.verify-table.the-writer-refuses-with-its-own: clause 1: the writer refuses with its own code and writes nothing when the verdict is not allowed [C7,#8272]', t => {
   const record = records.find(entry => entry.move.decision === 'ACCEPT');
   const board = boardFor(t, record);
   const count = () => board.db.prepare('SELECT COUNT(*) n FROM event').get().n;

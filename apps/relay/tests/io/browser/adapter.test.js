@@ -18,7 +18,7 @@ async function contract(adapter, origin) {
   assert.deepEqual(await response.json(), { value: 7 });
 }
 
-test('real and fake relay transports share the request response contract [C7]', async t => {
+test('relay.io-browser-adapter.real-and-fake-relay-transports-share: real and fake relay transports share the request response contract [C7]', async t => {
   const server = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk;
@@ -38,7 +38,7 @@ test('real and fake relay transports share the request response contract [C7]', 
   await contract(fake, origin);
 });
 
-test('scoped relay fakes stay isolated across concurrent async work [C7]', async () => {
+test('relay.io-browser-adapter.scoped-relay-fakes-stay-isolated-across: scoped relay fakes stay isolated across concurrent async work [C7]', async () => {
   const fake = value => createFakeRelayAdapter(async () => {
     await Promise.resolve();
     return new Response(value);
@@ -48,7 +48,7 @@ test('scoped relay fakes stay isolated across concurrent async work [C7]', async
 });
 
 /** Browser JSON uses the same contract without requiring Node's scoped storage. */
-test('browser relay JSON accepts the shared fake contract [C7]', async () => {
+test('relay.io-browser-adapter.browser-relay-json-accepts-the-shared: browser relay JSON accepts the shared fake contract [C7]', async () => {
   const fake = createFakeRelayAdapter(async (url, options) => {
     assert.equal(url, '/board');
     assert.equal(options.adapter, undefined);

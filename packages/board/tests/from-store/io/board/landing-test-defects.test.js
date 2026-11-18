@@ -18,7 +18,7 @@ function fixture(t) {
   return { board, file, open };
 }
 
-test('clause 1: two defects for one test file with different hashes leave one open item with a fact [C7,E29]', t => {
+test('board.landing-test-defects.two-defects-for-one-test-file: clause 1: two defects for one test file with different hashes leave one open item with a fact [C7,E29]', t => {
   const f = fixture(t);
   const first = f.file('a'), second = f.file('b', ['case two']);
   assert.equal(second.item, first.item);
@@ -27,7 +27,7 @@ test('clause 1: two defects for one test file with different hashes leave one op
   assert.ok(store.itemThread(f.board, first.item).some(entry => JSON.stringify(entry).includes('case two')), 'the new names and hash are logged on the open item');
 });
 
-test('clause 2: a defect whose item is withdrawn files a new item [C7,E29]', t => {
+test('board.landing-test-defects.defect-whose-item-withdrawn-files-new: clause 2: a defect whose item is withdrawn files a new item [C7,E29]', t => {
   const f = fixture(t);
   const first = f.file('a');
   store.withdraw(f.board, first.item, { agentId: 'coordinator', reason: 'test' });

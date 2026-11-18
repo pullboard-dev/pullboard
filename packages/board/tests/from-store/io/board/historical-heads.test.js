@@ -24,14 +24,14 @@ function resubmitted(t) {
   return { board, id };
 }
 
-test('clause 1: after a sibling resubmission both the old and the latest head are listed as unverified for the item [V17,V1]', (t) => {
+test('board.historical-heads.after-sibling-resubmission-both-the-old: clause 1: after a sibling resubmission both the old and the latest head are listed as unverified for the item [V17,V1]', (t) => {
   const { board, id } = resubmitted(t);
   const heads = store.unverifiedSubmissions(board).filter(s => s.item_id === id).map(s => s.item_commit).sort();
   assert.deepEqual(heads, [OLD, SIBLING]);
   assert.equal(store.getItem(board, id).item_commit, SIBLING);
 });
 
-test('clause 2: accepting the latest sibling head clears every historical head [V17,V1]', (t) => {
+test('board.historical-heads.accepting-the-latest-sibling-head-clears: clause 2: accepting the latest sibling head clears every historical head [V17,V1]', (t) => {
   const { board, id } = resubmitted(t);
   store.verify(board, id, { agentId: 'coordinator', decision: 'ACCEPT', note: 'latest head', head: SIBLING, digest: BAR.digest, policy: 'any' });
   assert.deepEqual(store.unverifiedSubmissions(board).filter(s => s.item_id === id), []);

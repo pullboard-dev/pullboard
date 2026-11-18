@@ -1,7 +1,10 @@
 /** A blocked upload probes small metadata and reports once per real device session [H15,H17]. */
 import { createRelayPageCache } from '../../../../pages/index.js';
 import { snapshotSourceId } from '../../../../pages/index.js';
-import { relayStorage } from '../../logic/relay/storage.js';
+import { relayStorage } from '../../../../pages/index.js';
+import { relayStorageLine } from '../../../../pages/index.js';
+export { relayStorage };
+export { relayStorageLine };
 import { agentSessionDigest } from '../../../../person/index.js';
 import { Refused } from '../../../../kernel/light.js';
 import { legacyPageRoute } from '../../../../pages/index.js';

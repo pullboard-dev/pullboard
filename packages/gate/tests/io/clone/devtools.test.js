@@ -15,7 +15,7 @@ import { startChrome } from '../../../../../apps/cli/tests/fixtures/chrome.js';
 import { waitForTargetAbsent } from '../../../../../apps/cli/tests/fixtures/chrome.js';
 
 /** Prove Runtime.evaluate reports page exceptions without changing successful values. */
-test('a failed browser evaluation names what the page threw [C7]', async () => {
+test('gate.io-clone-devtools.a-failed-browser-evaluation-names-what: a failed browser evaluation names what the page threw [C7]', async () => {
   const expression = '(() => { throw new Error("boom"); })();\n// ' + 'x'.repeat(240);
   const asyncExpression = '(async () => { throw new TypeError("async boom"); })()';
   const written = [];
@@ -59,7 +59,7 @@ test('a failed browser evaluation names what the page threw [C7]', async () => {
 });
 
 /** Prove real CDP failures retain their causes and whether a top-level page navigation occurred [C7]. */
-test('a failed DevTools command names its CDP error [C7]', {
+test('gate.io-clone-devtools.a-failed-devtools-command-names-its: a failed DevTools command names its CDP error [C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async () => {
   let afterRequests = 0;
@@ -108,7 +108,7 @@ test('a failed DevTools command names its CDP error [C7]', {
 });
 
 /** Prove a confirmed target close rejects a pending command instead of consuming the wait deadline [C7]. */
-test('a confirmed target close rejects pending DevTools commands [C7]', {
+test('gate.io-clone-devtools.a-confirmed-target-close-rejects-pending: a confirmed target close rejects pending DevTools commands [C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
   timeout: 70_000, // budget: outer hang ceiling for the real Chrome closure scenario; each private wait and fetch also has its own 5s ceiling.
 }, async () => {
@@ -168,7 +168,7 @@ test('a confirmed target close rejects pending DevTools commands [C7]', {
 });
 
 /** Exercise the actual target-removal waiter with one stale list and a controlled deadline. */
-test('a closed target that is still listed once is not reported as open [C7]', async () => {
+test('gate.io-clone-devtools.a-closed-target-that-is-still: a closed target that is still listed once is not reported as open [C7]', async () => {
   let clock = 0;
   let reads = 0;
   const budgets = [];
@@ -192,7 +192,7 @@ test('a closed target that is still listed once is not reported as open [C7]', a
 });
 
 /** Prove a page condition cannot spend the much longer general command allowance. */
-test('a stalled condition uses its remaining operation budget [C7]', {
+test('gate.io-clone-devtools.a-stalled-condition-uses-its-remaining: a stalled condition uses its remaining operation budget [C7]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const chrome = await startChrome();
@@ -217,7 +217,7 @@ test('a stalled condition uses its remaining operation budget [C7]', {
   assert.equal(await chrome.evaluate('1 + 1'), 2, 'timing out one command leaves the real DevTools connection usable');
 });
 
-test('a DevTools timer that fires early still times out at its budget [C7]', async () => {
+test('gate.io-clone-devtools.a-devtools-timer-that-fires-early: a DevTools timer that fires early still times out at its budget [C7]', async () => {
   let now = 10_000;
   const scheduled = [];
   const timers = {

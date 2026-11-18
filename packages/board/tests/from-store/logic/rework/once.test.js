@@ -53,7 +53,7 @@ function record(board, id) {
   return value === undefined ? undefined : JSON.parse(value);
 }
 
-test('a seat records its family once at join, its session peers included, and a seat with none records an unknown value [H24]', (t) => {
+test('board.once.seat-records-its-family-once-join: a seat records its family once at join, its session peers included, and a seat with none records an unknown value [H24]', (t) => {
   const { board, seats, lone } = fortySeats(t);
   for (const seat of seats) {
     assert.equal(record(board, seat.id)?.family, seat.family, `${seat.id} records its family at join`);
@@ -63,7 +63,7 @@ test('a seat records its family once at join, its session peers included, and a 
   assert.equal(seatFamily(board, lone), null);
 });
 
-test('every family read comes from the record, tied to the seat row [H24]', (t) => {
+test('board.once.every-family-read-comes-from-the: every family read comes from the record, tied to the seat row [H24]', (t) => {
   const { board, seats } = fortySeats(t);
   const [seat] = seats;
   const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(seat.id).agent_path;
@@ -77,7 +77,7 @@ test('every family read comes from the record, tied to the seat row [H24]', (t) 
   assert.equal(seatFamily(board, seat.id), seat.family);
 });
 
-test('claim and renew on a 40-seat board spend under 20 ms reading families [H24]', (t) => {
+test('board.once.claim-and-renew-40-seat-board: claim and renew on a 40-seat board spend under 20 ms reading families [H24]', (t) => {
   const { board, seats } = fortySeats(t);
   const claimer = seats[5].id;
   const started = performance.now();
@@ -91,7 +91,7 @@ test('claim and renew on a 40-seat board spend under 20 ms reading families [H24
 });
 
 
-test('existing and rebuilt boards backfill old seats once without changing their family [H24]', t => {
+test('board.once.existing-and-rebuilt-boards-backfill-old: existing and rebuilt boards backfill old seats once without changing their family [H24]', t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-family-old-')));
   const sourceFile = join(dir, 'source.sqlite'), copyFile = join(dir, 'copy.sqlite');
   // @pullboard-board-file persistence: the source board is reopened to check the family record rebuilds
@@ -118,7 +118,7 @@ test('existing and rebuilt boards backfill old seats once without changing their
 });
 
 
-test('a later first declaration refreshes only its unknown session peers [H24]', t => {
+test('board.once.later-first-declaration-refreshes-only-its: a later first declaration refreshes only its unknown session peers [H24]', t => {
   const { board, lone, unrelated } = fortySeats(t);
   assert.equal(seatFamily(board, lone), null);
   assert.equal(record(board, unrelated)?.family, null);

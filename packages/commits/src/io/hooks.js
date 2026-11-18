@@ -315,7 +315,9 @@ function fillRecords(root, revision, map, paths, directory = null) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
       if (directory && !map.has(path)) map.set(path, []);
-      map.get(path)?.push(record);
+      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
+      const records = map.get(path);
+      if (records && !records.includes(record)) records.push(record);
     }
   }
 }
@@ -528,7 +530,7 @@ export function preCommitProblems(context) {
 }
 
 /** The body of preCommitProblems, run with the shared git reads open (#2232). */
-function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports }) {
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts, shimImports, ceilingTables = {} }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const touchedPaths = new Set(touched), writtenPaths = new Set(written);
@@ -615,8 +617,8 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
-    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path), read: planRead,
+    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },

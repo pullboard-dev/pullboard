@@ -25,7 +25,7 @@ const SPEC_LIMIT = 1024 ** 2;
 
 guardProcesses();
 
-test('a runner request naming every test file of this repository builds a spec under 1 MiB [C7]', { timeout: 300_000 }, async () => {
+test('runner.spec.a-runner-request-naming-every-test-file: a runner request naming every test file of this repository builds a spec under 1 MiB [C7]', { timeout: 300_000 }, async () => {
   const dir = await scratch('runner-spec');
   const repo = committedCopy(ROOT, join(dir, 'repo'));
   const files = gitIn(repo, 'ls-files', '*.test.js').split('\n').filter(Boolean);

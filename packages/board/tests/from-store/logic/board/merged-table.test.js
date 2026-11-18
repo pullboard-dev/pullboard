@@ -32,7 +32,7 @@ function tableSays(answer) {
   store.provideMoveTables({ runTable: () => answer(), landingEngine: () => ({ tables: { merged: {} }, rules: {} }) });
 }
 
-test('clause 1: the merged writer writes the events the landing merged table decides, on every replayed merge [C7,#8268]', t => {
+test('board.merged-table.the-merged-writer-writes-the-events: clause 1: the merged writer writes the events the landing merged table decides, on every replayed merge [C7,#8268]', t => {
   const replays = [
     { status: 'verified', call: { agentId: 'coordinator', commit: COMMIT } },
     { status: 'verified', call: { agentId: 'coordinator', commit: COMMIT, forced: 'landed around the gate', waiveProof: 'no run' } },
@@ -53,7 +53,7 @@ test('clause 1: the merged writer writes the events the landing merged table dec
   }
 });
 
-test('clause 1: a merge the table refuses is refused with the table\'s code and writes nothing [C7,#8268]', t => {
+test('board.merged-table.merge-the-table-refuses-refused-with: clause 1: a merge the table refuses is refused with the table\'s code and writes nothing [C7,#8268]', t => {
   const board = boardWith(t, 'open');
   assert.throws(() => store.merged(board, 7, { agentId: 'coordinator', commit: COMMIT }), error => error.code === 'NOT_VERIFIED');
   assert.equal(written(board).length, 0);
@@ -63,7 +63,7 @@ test('clause 1: a merge the table refuses is refused with the table\'s code and 
   assert.equal(written(verified).length, 0);
 });
 
-test('clause 1: a landing table that throws never takes the merge down; the writer\'s own rules stand [C7,#8268]', t => {
+test('board.merged-table.landing-table-that-throws-never-takes: clause 1: a landing table that throws never takes the merge down; the writer\'s own rules stand [C7,#8268]', t => {
   tableSays(() => { throw new Error('table broke'); });
   const board = boardWith(t, 'verified');
   store.merged(board, 7, { agentId: 'coordinator', commit: COMMIT });

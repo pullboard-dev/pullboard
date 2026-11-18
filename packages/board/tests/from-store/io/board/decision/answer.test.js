@@ -21,7 +21,7 @@ import { closeCellBoard } from '../../../../fixtures/cell-board.js';
 
 const LANES = ['coordinator', 'web'];
 
-test('a decision asked on an item is answered from the queue and recorded on the item [B7,B21,B26,B27]', (t) => {
+test('board.answer.decision-asked-item-answered-from-the: a decision asked on an item is answered from the queue and recorded on the item [B7,B21,B26,B27]', (t) => {
   const board = cellBoard(t, ':memory:');
   cellSeat(board, { lane: 'coordinator', path: '/decision-root' });
   const builder = cellSeat(board, { lane: 'web', path: '/decision-root/web-1' }).id;
@@ -64,7 +64,7 @@ test('a decision asked on an item is answered from the queue and recorded on the
   assert.ok(store.inbox(board, builder).some(row => /Person answered/.test(row.shout_text)));
 });
 
-test('item decision options replay exactly and never acquire legacy engine authority [B21,H3,H16]', (t) => {
+test('board.answer.item-decision-options-replay-exactly-and: item decision options replay exactly and never acquire legacy engine authority [B21,H3,H16]', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-decision-queue-'));
   const source = openCellBoard(join(directory, 'source.sqlite'));
   const replica = openCellBoard(join(directory, 'replica.sqlite'));

@@ -10,7 +10,6 @@
     "apps/cli/journeys/request/requests/typed.test.js": 1,
     "apps/cli/journeys/runner/deadline.test.js": 1,
     "apps/cli/journeys/runner/lost.test.js": 1,
-    "apps/cli/journeys/runner/lost.recovery.test.js": 1,
     "apps/cli/journeys/runner/lost.transient.test.js": 1,
     "apps/cli/journeys/runner/stage.test.js": 1,
     "apps/cli/journeys/sentinels/main.test.js": 1,

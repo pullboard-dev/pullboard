@@ -26,7 +26,7 @@ function eventsOf(board, id) {
     .map(({ kind, by, detail }) => ({ kind, by, detail: (({ model, id: factId, ...rest }) => rest)(JSON.parse(detail)) }));
 }
 
-test('clause 1: with moves.live.claim on, a claim writes exactly the events the claim table decides [C7,#8383]', t => {
+test('board.claim-live.with-moves-live-claim-claim-writes: clause 1: with moves.live.claim on, a claim writes exactly the events the claim table decides [C7,#8383]', t => {
   const shadowed = claimable(t, { live: false });
   let decided = null;
   shadowed.board.claimShadow = answer => { decided = answer.decided; };
@@ -38,7 +38,7 @@ test('clause 1: with moves.live.claim on, a claim writes exactly the events the 
   assert.deepEqual(eventsOf(live.board, live.id), decided.events.map(strip));
 });
 
-test('clause 2: with moves.live.claim on, a claim the table refuses is refused with the table\'s code and writes nothing [C7,#8383]', t => {
+test('board.claim-live.with-moves-live-claim-claim-the: clause 2: with moves.live.claim on, a claim the table refuses is refused with the table\'s code and writes nothing [C7,#8383]', t => {
   const { board, id, claim } = claimable(t, { live: true, seatLane: 'review' });
   const before = board.db.prepare('SELECT COUNT(*) n FROM event').get().n;
   assert.throws(claim, error => error.code === 'WRONG_LANE' && /review/u.test(error.message) && typeof error.next === 'string' && error.next.length > 0);
@@ -46,7 +46,7 @@ test('clause 2: with moves.live.claim on, a claim the table refuses is refused w
   assert.equal(store.getItem(board, id).item_status, 'open');
 });
 
-test('clause 3: with moves.live.claim off (the default) the writer\'s own rules decide the same claim [C7,#8383]', t => {
+test('board.claim-live.with-moves-live-claim-off-the: clause 3: with moves.live.claim off (the default) the writer\'s own rules decide the same claim [C7,#8383]', t => {
   const { board, id, claim } = claimable(t, { live: undefined, seatLane: 'review' });
   claim();
   assert.equal(store.getItem(board, id).item_status, 'claimed', 'the writer accepted the claim the table refuses');

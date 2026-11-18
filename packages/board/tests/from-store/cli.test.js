@@ -8,7 +8,7 @@ import { cellItem } from '../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../store/tests/fixtures/cell.js';
 
-test('one seat claims and renews two separate items [B5,H16]', t => {
+test('board.cli.one-seat-claims-and-renews-two: one seat claims and renews two separate items [B5,H16]', t => {
   const project = cellProject(t, { real: true });
   const board = cellBoard(t, project.boardFile, undefined, { real: true, gitRoot: project.repo });
   const seat = cellSeat(board, { lane: 'web', path: project.repo });

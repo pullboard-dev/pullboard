@@ -53,7 +53,7 @@ async function fixture(t) {
   return box;
 }
 
-test('an old pinned reader survives replacement and only expires after its last read [H15,H17,H18]', async t => {
+test('relay.io-store-page.an-old-pinned-reader-survives-replacement: an old pinned reader survives replacement and only expires after its last read [H15,H17,H18]', async t => {
   const box = await fixture(t);
   const first = await box.stage({ marker: 'first published snapshot' });
   let head;
@@ -75,7 +75,7 @@ test('an old pinned reader survives replacement and only expires after its last 
   assert.equal(box.store.usage().objects, next.objects.length, 'only unreferenced expired data was collected');
 });
 
-test('quota refusal cannot change a previous head or partially store the refused object [H15,H17]', async t => {
+test('relay.io-store-page.quota-refusal-cannot-change-a-previous: quota refusal cannot change a previous head or partially store the refused object [H15,H17]', async t => {
   const box = await fixture(t);
   const first = await box.stage({ marker: 'previous readable head' });
   let head;
@@ -89,7 +89,7 @@ test('quota refusal cannot change a previous head or partially store the refused
   assert.equal((await box.read(head, pin)).marker, 'previous readable head');
 });
 
-test('retrying the exact object is free while changed metadata cannot reuse its identity [H15,H17]', async t => {
+test('relay.io-store-page.retrying-the-exact-object-is-free: retrying the exact object is free while changed metadata cannot reuse its identity [H15,H17]', async t => {
   const box = await fixture(t);
   let charged = 0;
   const staged = await box.stage({ marker: 'idempotent object' }, 7, bytes => { charged += bytes; });
@@ -99,7 +99,7 @@ test('retrying the exact object is free while changed metadata cannot reuse its 
   assert.throws(() => box.store.put(staged.upload.id, machine, { ...staged.objects[0], sequence: 8 }), { code: 'SNAPSHOT_PAGE_CONFLICT' });
 });
 
-test('an agent may read a pinned head but cannot publish or borrow another principal’s session [H15,H17]', async t => {
+test('relay.io-store-page.an-agent-may-read-a-pinned: an agent may read a pinned head but cannot publish or borrow another principal’s session [H15,H17]', async t => {
   const box = await fixture(t);
   assert.throws(() => box.store.begin(agent, 7), { code: 'HUMAN_REQUIRED' });
   const staged = await box.stage({ marker: 'authorized head' });
@@ -111,7 +111,7 @@ test('an agent may read a pinned head but cannot publish or borrow another princ
   assert.throws(() => box.store.put(other.id, { ...machine, machine: 'another-native' }, staged.objects[0]), { code: 'SNAPSHOT_UPLOAD_EXPIRED' });
 });
 
-test('knowing a staged object id does not make it readable through another pinned head [H15,H17]', async t => {
+test('relay.io-store-page.knowing-a-staged-object-id-does: knowing a staged object id does not make it readable through another pinned head [H15,H17]', async t => {
   const box = await fixture(t);
   const first = await box.stage({ marker: 'current root', text: 'x'.repeat(PAGE_BYTES * 2) });
   box.store.publish(first.upload.id, machine, first.reference, () => {});
@@ -122,7 +122,7 @@ test('knowing a staged object id does not make it readable through another pinne
   assert.equal((await box.read(first.reference, pin)).marker, 'current root');
 });
 
-test('missing and cyclic opaque graphs cannot publish or make staging collection permanent [H15,H17,H18]', async t => {
+test('relay.io-store-page.missing-and-cyclic-opaque-graphs-cannot: missing and cyclic opaque graphs cannot publish or make staging collection permanent [H15,H17,H18]', async t => {
   const box = await fixture(t);
   const upload = box.store.begin(machine, 7);
   const firstBytes = Uint8Array.of(1, 2, 3);
@@ -141,7 +141,7 @@ test('missing and cyclic opaque graphs cannot publish or make staging collection
   assert.equal(box.store.usage().objects, 0);
 });
 
-test('published objects and an existing reader pin survive closing the database [H15,H17]', async t => {
+test('relay.io-store-page.published-objects-and-an-existing-reader: published objects and an existing reader pin survive closing the database [H15,H17]', async t => {
   const box = await fixture(t);
   const staged = await box.stage({ marker: 'durable encrypted graph' });
   box.store.publish(staged.upload.id, machine, staged.reference, () => {});
@@ -150,7 +150,7 @@ test('published objects and an existing reader pin survive closing the database 
   assert.equal((await box.read(staged.reference, pin)).marker, 'durable encrypted graph');
 });
 
-test('one database transaction rolls back a head and upload cleanup together [H15,H17,H18]', async t => {
+test('relay.io-store-page.one-database-transaction-rolls-back-a: one database transaction rolls back a head and upload cleanup together [H15,H17,H18]', async t => {
   const box = await fixture(t);
   const staged = await box.stage({ marker: 'atomic publication fixture' }, 0);
   const journal = createRelayJournal({ directory: dirname(box.store.file), boardId: box.boardId, now: () => new Date(box.now()) });
@@ -170,7 +170,7 @@ test('one database transaction rolls back a head and upload cleanup together [H1
 });
 
 
-test('pin validates a multi-object graph with one prepared lookup [H5,H17]', async t => {
+test('relay.io-store-page.pin-validates-a-multi-object-graph: pin validates a multi-object graph with one prepared lookup [H5,H17]', async t => {
   const box = await fixture(t);
   const value = { marker: 'validated graph', text: 'g'.repeat(PAGE_BYTES * 3) };
   const staged = await box.stage(value);

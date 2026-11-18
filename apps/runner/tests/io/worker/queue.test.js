@@ -18,13 +18,13 @@ function folder(t) {
   return dir;
 }
 
-test('without the queue folder the worker keeps the stdin path, and a relative folder is refused [C7,#5467]', async t => {
+test('runner.queue.without-the-queue-folder-the-worker-keeps: without the queue folder the worker keeps the stdin path, and a relative folder is refused [C7,#5467]', async t => {
   assert.equal(queueJobFolder({}), null);
   assert.equal(await receiveQueuedPack({ transportLost: false }, join(folder(t), 'pack'), { env: {} }), false);
   assert.throws(() => queueJobFolder({ [QUEUE_JOB_ENV]: 'relative/job' }), /queue job folder is invalid/u);
 });
 
-test('the pack is copied only after source.pack.ready appears, however late [C7,#5467]', async t => {
+test('runner.queue.the-pack-is-copied-only-after-source: the pack is copied only after source.pack.ready appears, however late [C7,#5467]', async t => {
   const dir = folder(t);
   const pack = join(dir, 'worker.pack');
   writeFileSync(join(dir, 'source.pack'), 'pack-bytes');
@@ -39,7 +39,7 @@ test('the pack is copied only after source.pack.ready appears, however late [C7,
   assert.equal(readFileSync(pack, 'utf8'), 'pack-bytes');
 });
 
-test('a lost transport (cancel or an expired wanted file) ends the wait for the pack [C7,#5467]', async t => {
+test('runner.queue.a-lost-transport-cancel-or-an-expired: a lost transport (cancel or an expired wanted file) ends the wait for the pack [C7,#5467]', async t => {
   const dir = folder(t);
   const S = { transportLost: false };
   const wait = async () => { S.transportLost = true; };
@@ -47,7 +47,7 @@ test('a lost transport (cancel or an expired wanted file) ends the wait for the 
   assert.equal(existsSync(join(dir, 'worker.pack')), false);
 });
 
-test('a pack that never arrives, or a vanished job folder, ends the wait with a named refusal that frees the pin [C7,#5624]', async t => {
+test('runner.queue.a-pack-that-never-arrives-or-a: a pack that never arrives, or a vanished job folder, ends the wait with a named refusal that frees the pin [C7,#5624]', async t => {
   const dir = folder(t);
   const env = { [QUEUE_JOB_ENV]: dir };
   let clock = 0;

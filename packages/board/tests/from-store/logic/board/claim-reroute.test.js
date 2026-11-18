@@ -26,7 +26,7 @@ function handedBack(t, { first, reroute }) {
 
 const routeOf = f => store.getItem(f.board, f.id).item_route;
 
-test('clause 1: with release.rerouteUntouched on, a second untouched INELIGIBLE or ROUTED_ELSEWHERE release moves the item one route up [C7,#2970]', t => {
+test('board.claim-reroute.with-release-rerouteuntouched-second-untouched-ineligible: clause 1: with release.rerouteUntouched on, a second untouched INELIGIBLE or ROUTED_ELSEWHERE release moves the item one route up [C7,#2970]', t => {
   for (const first of ['INELIGIBLE', 'ROUTED_ELSEWHERE']) {
     for (const second of ['INELIGIBLE', 'ROUTED_ELSEWHERE']) {
       const f = handedBack(t, { first, reroute: true });
@@ -36,7 +36,7 @@ test('clause 1: with release.rerouteUntouched on, a second untouched INELIGIBLE 
   }
 });
 
-test('clause 1: with release.rerouteUntouched off or unset, untouched releases leave the route unchanged [C7,#2970]', t => {
+test('board.claim-reroute.with-release-rerouteuntouched-off-unset-untouched: clause 1: with release.rerouteUntouched off or unset, untouched releases leave the route unchanged [C7,#2970]', t => {
   for (const reroute of [false, undefined]) {
     const f = handedBack(t, { first: 'INELIGIBLE', reroute });
     f.release('INELIGIBLE');

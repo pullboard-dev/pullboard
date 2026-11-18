@@ -190,7 +190,7 @@ async function nextViewStreamEvent(reader, predicate) {
 
 after(() => { for (const dir of PRIVATE_DIRS) rmSync(dir, { recursive: true, force: true }); });
 
-test('public export refuses an exporter without declared filter support [N26]', async () => {
+test('cli.journeys-view-main.public-export-refuses-an-exporter-without: public export refuses an exporter without declared filter support [N26]', async () => {
   let called = false;
   /** Model the pre-public exporter, which ignores any extra option. */
   async function legacyExporter() { called = true; return { path: '/unused' }; }
@@ -222,7 +222,7 @@ function page(practice = standardDoctrine()) {
   });
 }
 
-test('one self-contained page with every tab and inherited doctrine row [S7,D1,D3]', () => {
+test('cli.journeys-view-main.one-self-contained-page-with-every: one self-contained page with every tab and inherited doctrine row [S7,D1,D3]', () => {
   const html = page();
   assert.ok(html.startsWith('<!doctype html>'));
   assert.ok(!/src="http|href="http/.test(html), 'nothing loads from the network');
@@ -230,27 +230,27 @@ test('one self-contained page with every tab and inherited doctrine row [S7,D1,D
   for (const id of ['O1', 'O2', 'O3', 'O4', 'PB1', 'PB12']) assert.ok(html.includes(`>${id}<`), `${id} is on the page`);
 });
 
-test('legacy repo practice rows still render without being replaced [S7,D4]', () => {
+test('cli.journeys-view-main.legacy-repo-practice-rows-still-render: legacy repo practice rows still render without being replaced [S7,D4]', () => {
   const practice = { ...parseSpec('# Legacy practice\n\n## Writing\n- W1 [fact] A local writing rule.\n\n## Git\n- G4 [fact] A local Git rule.\n'), exists: true };
   const html = page(practice);
   for (const id of ['W1', 'G4']) assert.ok(html.includes(`>${id}<`), `${id} remains on the page`);
 });
 
-test('sign-offs show as signed, stale or not signed [S5, S7]', () => {
+test('cli.journeys-view-main.sign-offs-show-as-signed-stale: sign-offs show as signed, stale or not signed [S5, S7]', () => {
   const html = page();
   assert.ok(html.includes('signed CO 2026-10-05'));
   assert.ok(html.includes('stale: text changed since sign-off'));
   assert.ok(html.includes('<b>1/2</b><span>approved must-rows signed</span>'));
 });
 
-test('row text is escaped, so a row cannot inject markup [S7]', () => {
+test('cli.journeys-view-main.row-text-is-escaped-so-a: row text is escaped, so a row cannot inject markup [S7]', () => {
   const html = page();
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.equal(esc(`a<b>"c"&'d'`), 'a&lt;b&gt;&quot;c&quot;&amp;&#39;d&#39;');
 });
 
-test("pullboard view --project scopes the view to this repository's project and refuses before registering outsiders [N26]", async (t) => {
+test('cli.journeys-view-main.pullboard-view-project-scopes-the-view: pullboard view --project scopes the view to this repository\'s project and refuses before registering outsiders [N26]', async (t) => {
   const box = privateBox();
   const project = await privateProject(box, 'view-local');
   const outside = await privateProject(box, 'view-outsider');
@@ -312,7 +312,7 @@ test("pullboard view --project scopes the view to this repository's project and 
   assert.match(help, /--project/u, 'the view-specific help names the project flag');
 });
 
-test('scoped API answers and its cache and stream never resolve a foreign roadmap [N26,A2]', async (t) => {
+test('cli.journeys-view-main.scoped-api-answers-and-its-cache: scoped API answers and its cache and stream never resolve a foreign roadmap [N26,A2]', async (t) => {
   const box = privateBox();
   const local = await privateProject(box, 'view-local');
   const foreign = await privateProject(box, 'view-foreign');
@@ -432,7 +432,7 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   controller.abort();
 });
 
-test('view listener reuse requires the exact saved scope; old records are unscoped [N26]', async (t) => {
+test('cli.journeys-view-main.view-listener-reuse-requires-the-exact: view listener reuse requires the exact saved scope; old records are unscoped [N26]', async (t) => {
   const box = privateBox();
   const restore = usePrivateEnvironment(box.env);
   t.after(restore);
