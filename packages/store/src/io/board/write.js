@@ -43,6 +43,8 @@ const PREPARATIONS = Object.freeze({
   recordGateRun: (board, args) => { warmHistories(board); return prebindGateRun(board, args); },
   recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
   // A coordinator's bar correction freezes from git (main policy, facts, spec, test hashes); freeze it here, not under the lock.
+  // An automatic conflict return checks its receipt against Git here, so the writer reads the board and never Git (#10721).
+  reopen: (board, args) => prepareReopenConflict(board, args),
   editItem: (board, args) => [args[0], prepareEditFreeze(board, args[0], args[1]), ...args.slice(2)],
 });
 
@@ -114,6 +116,20 @@ function prebindGateRun(board, args) {
   if (board.executionEngineVersion !== undefined || !request?.receipt) return args;
   try { board.enginePorts.requireBound(board, request.receipt); } catch { return args; }
   return [{ ...request, [GATE_RUN_PREBOUND]: true }, ...args.slice(1)];
+}
+
+/** Marks a reopen whose conflict receipt was checked against Git before the writer opened; a symbol, so no wire message can carry it. */
+const REOPEN_PREPARED = Symbol.for('pullboard.reopen.prepared');
+
+/**
+ * Check an automatic conflict return's receipt against its recorded objects and the current trunk with no lock held, and mark the request so the writer skips those Git reads.
+ * A refusal here is left to the writer, which refuses in the same order as before; the writer also re-prepares when the board changed since.
+ */
+function prepareReopenConflict(board, args) {
+  const request = args[1];
+  if (board.executionEngineVersion !== undefined || request?.computedConflict === undefined || request.conflict !== undefined) return args;
+  try { board.nativePorts.requirePreparedComputedConflict(board, args[0], request.agentId, request.computedConflict, { forWriter: true }); } catch { return args; }
+  return [args[0], { ...request, [REOPEN_PREPARED]: true }, ...args.slice(2)];
 }
 
 /** Read the shared gate-run and flake histories with no lock held. */
@@ -198,7 +214,7 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
   // the writer lock; the prepared plan is then stale, so prepare again from the new board. Bounded so a
   // continuously changing board still reports BOARD_BUSY. This is why concurrent renewals all succeed.
   for (let attempt = 0; ; attempt++) {
-    const snapshot = operation === 'recordGateRun' ? boardWriteSnapshot(board) : null;
+    const snapshot = operation === 'recordGateRun' || (operation === 'reopen' && args[1]?.computedConflict !== undefined) ? boardWriteSnapshot(board) : null;
     let preparing = true;
     let rollbackPrepared;
     try {
@@ -218,7 +234,7 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
         measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, current));
         measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: current, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) }));
         // A binding checked before the writer opened holds only while the board is unchanged since; otherwise prepare again (#10715).
-        if (snapshot && current[0]?.[GATE_RUN_PREBOUND]) requireBoardWriteSnapshot(board, snapshot, operation);
+        if (snapshot && (current[0]?.[GATE_RUN_PREBOUND] || current[1]?.[REOPEN_PREPARED])) requireBoardWriteSnapshot(board, snapshot, operation);
         return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...current), operation);
       });
     } catch (error) {

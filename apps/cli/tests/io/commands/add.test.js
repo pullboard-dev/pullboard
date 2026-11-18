@@ -12,10 +12,10 @@ import { createE2eHelpers } from '../../fixtures/e2e.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-/** A fixture repo whose main holds one source file and its mirrored test, returned as a context the bar check reads. */
-function mainWith() {
+/** A fixture repo whose main holds one source file and its mirrored test (plus a registry test and record when strict), returned as a context the bar check reads. */
+function mainWith(strict = false) {
   const box = helpers.project('true', helpers.sandbox());
-  for (const file of ['packages/demo/src/io/thing.js', 'packages/demo/tests/io/thing.test.js']) {
+  for (const file of ['packages/demo/src/io/thing.js', 'packages/demo/tests/io/thing.test.js', ...(strict ? ['packages/demo/tests/registry.test.js', 'packages/demo/tests/fixtures/registry.json', 'packages/plain/src/io/a.js', 'packages/plain/tests/io/a.test.js'] : [])]) {
     mkdirSync(dirname(join(box.repo, file)), { recursive: true });
     writeFileSync(join(box.repo, file), '// fixture\n');
   }
@@ -43,4 +43,23 @@ test('cli.io-commands-add.accepts-an-existing-or-mirrored-test-path: clause 2: a
 
 test('cli.io-commands-add.accepts-any-test-path-with-the-setting-off: clause 3: with the setting off, any test path is accepted as today [C7,#10629]', async () => {
   await requireTestMirror(mainWith(), bar('packages/demo/tests/io/other.test.js'), false);
+});
+
+test('cli.io-commands-add.refuses-a-test-in-a-strict-registry-cell-without-its-record: clause 1: with items.testMirrorAtAdd on, a [test] file in a cell holding registry.test.js is refused REGISTRY_TEST_ID naming the record file and the ID prefix [C7,U148,#10677]', async () => {
+  await assert.rejects(requireTestMirror(mainWith(true), bar('packages/demo/tests/io/thing.test.js'), true), error => {
+    assert.equal(error.code, 'REGISTRY_TEST_ID');
+    assert.match(error.message, /packages\/demo\/tests\/fixtures\/registry\.json/u);
+    assert.match(`${error.next ?? ''}`, /clause N/u);
+    return true;
+  });
+});
+
+test('cli.io-commands-add.accepts-a-registry-record-or-a-cell-without-one: clause 2: a bar naming the registry record, or a test file in a cell with no registry.test.js, is accepted [C7,U148,#10677]', async () => {
+  const ctx = mainWith(true);
+  await requireTestMirror(ctx, bar('packages/demo/tests/io/thing.test.js packages/demo/tests/fixtures/registry.json'), true);
+  await requireTestMirror(ctx, { criterion: '1. packages/plain/src/io/a.js is proved by packages/plain/tests/io/a.test.js [test]' }, true);
+});
+
+test('cli.io-commands-add.accepts-a-registry-cell-test-with-the-setting-off: clause 3: with the setting off, the same bar naming a strict-registry cell test without its record is accepted [C7,U148,#10677]', async () => {
+  await requireTestMirror(mainWith(true), bar('packages/demo/tests/io/thing.test.js'), false);
 });
