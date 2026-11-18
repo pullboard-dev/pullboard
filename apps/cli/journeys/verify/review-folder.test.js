@@ -47,7 +47,7 @@ async function ok(box, cwd, ...args) {
 /** Put the reviewFolder setting in the box's trunk policy (fixturePolicy commits it). */
 function setReviewFolder(box, on) {
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  fixturePolicy(box, { config: { ...config, verify: { ...config.verify, reviewFolder: on } } });
+  fixturePolicy(box, { verify: { ...config.verify, reviewFolder: on } });
 }
 
 /** A project with one submitted, green item and a reviewer seat checked out at main (not at the submitted commit), reading the policy at its trunk. */
