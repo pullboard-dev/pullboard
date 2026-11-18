@@ -7,7 +7,7 @@ import { test } from 'node:test';
 
 const SOURCE = readFileSync(new URL('../../../src/io/page/actions.js', import.meta.url), 'utf8');
 
-test('clause 1: the page controls are writable for a read-only page that takes requests [H12,#7024]', () => {
+test('view.x-io-page-new-item-control.clause-1-the-page-controls-are-writable: clause 1: the page controls are writable for a read-only page that takes requests [H12,#7024]', () => {
   const draw = SOURCE.slice(SOURCE.indexOf('function drawPageControls()'));
   const gate = /writable: ([^}]*?) \}\);/u.exec(draw.slice(0, draw.indexOf('\n}\n')));
   assert.ok(gate, 'drawPageControls passes a writable flag');
