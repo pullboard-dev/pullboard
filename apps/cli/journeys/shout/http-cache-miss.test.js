@@ -30,7 +30,7 @@ import {
 } from '../../tests/fixtures/http/view-box.js';
 
 /** A private linked code checkout keeps provenance false while a metadata touch invalidates only its private cache. */
-test('a detail read after a cache miss on a linked board spawns no git process [A2,N26]', async (t) => {
+test('cli.journeys-shout-http-cache-miss.a-detail-read-after-a-cache: a detail read after a cache miss on a linked board spawns no git process [A2,N26]', async (t) => {
   const box = fixture(t);
   const roots = [box.root];
   for (const number of [2, 3]) {

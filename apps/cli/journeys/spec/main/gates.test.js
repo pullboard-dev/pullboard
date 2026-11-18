@@ -26,7 +26,7 @@ import { answerCommandCase } from '../../../tests/fixtures/spec/box.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 
-test('an approved row waits for apply, not for the person [S1,I1,P6]', async (t) => {
+test('cli.journeys-spec-main-gates.an-approved-row-waits-for-apply: an approved row waits for apply, not for the person [S1,I1,P6]', async (t) => {
   const box = specBox(t, { specSource: SETUP_SPEC });
   /** Setup details live on the diagnostic card; retain all original person/apply assertions. */
   const resume = async () => {
@@ -58,7 +58,7 @@ test('an approved row waits for apply, not for the person [S1,I1,P6]', async (t)
   assert.doesNotMatch(after, /spec apply|Waiting for the person to (approve|decide|answer)/u, 'once applied and committed, setup moves on');
 });
 
-test('a joined seat requests answers for pending questions [S1,I1,P6]', async t => {
+test('cli.journeys-spec-main-gates.a-joined-seat-requests-answers-for: a joined seat requests answers for pending questions [S1,I1,P6]', async t => {
   for (const mixed of [false, true]) {
     const source = '# Spec\n\n## Q · Setup\n- Q1 [pending, must] It deploys to: Vercel. Choices: Vercel, Netlify. | gate: review\n'
       + (mixed ? '- A1 [draft, must] Every page works at phone width. | gate: review\n' : '');
@@ -88,7 +88,7 @@ test('a joined seat requests answers for pending questions [S1,I1,P6]', async t 
   }
 });
 
-test('a changed approved draft needs a new decision before apply [S1,I1,P6]', async t => {
+test('cli.journeys-spec-main-gates.a-changed-approved-draft-needs-a: a changed approved draft needs a new decision before apply [S1,I1,P6]', async t => {
   const box = specBox(t, { specSource: '# Spec\n\n## A · Setup\n- A1 [draft, must] Every page works at phone width. | gate: review\n' });
   assert.equal((await box.spec('approve', 'A1')).status, 0);
   const path = join(box.root, box.specName);
@@ -112,13 +112,13 @@ test('a changed approved draft needs a new decision before apply [S1,I1,P6]', as
   assert.doesNotMatch(applied.next, /spec apply|approve A1/u);
 });
 
-test('a spec answer refused in an agent shell gives the person the exact command to paste [S1,B26]', async (t) => {
+test('cli.journeys-spec-main-gates.a-spec-answer-refused-in-an: a spec answer refused in an agent shell gives the person the exact command to paste [S1,B26]', async (t) => {
   for (const separateGitDir of [false, true]) await t.test(separateGitDir ? 'Git metadata in a separate folder' : 'a plain repository', (t) => answerCommandCase(t, separateGitDir));
   assert.throws(() => requireRelayOnChannel('terminal', { CLAUDECODE: '1' }), (error) => error.code === 'B26_PERSON_CHANNEL' && /run pullboard view/u.test(error.message),
     'relay on keeps its own refusal in an agent shell');
 });
 
-test('landing repoints only Git-renamed gate paths and keeps deleted gates missing [S4,B3]', (t) => {
+test('cli.journeys-spec-main-gates.landing-repoints-only-git-renamed-gate: landing repoints only Git-renamed gate paths and keeps deleted gates missing [S4,B3]', (t) => {
   const source = '# Demo\n\n## G · Goals\n- G1 [approved, must] Original text stays exact. | gate: node test/old.test.js | serves: G2\n- G2 [approved, must] Deleted proof stays required. | gate: test/gone.test.js\n- G3 [approved, must] Untouched proof. | gate: test/still.test.js\n';
   const box = specBox(t, { specSource: SPEC });
   mkdirSync(join(box.root, 'test'));
@@ -139,7 +139,7 @@ test('landing repoints only Git-renamed gate paths and keeps deleted gates missi
   assert.ok(!findings.some(row => row.id === 'G1' || row.id === 'G3'));
 });
 
-test('spec check fails when an approved row names a missing gate [S4]', async (t) => {
+test('cli.journeys-spec-main-gates.spec-check-fails-when-an-approved: spec check fails when an approved row names a missing gate [S4]', async (t) => {
   // A gate file that was committed and then removed is a lost test: an approved must-row fails spec check and
   // names the row, the file and the removal (#809).
   const box = specBox(t, { specSource: SPEC });
@@ -155,7 +155,7 @@ test('spec check fails when an approved row names a missing gate [S4]', async (t
   assert.match(text.stdout + text.stderr, /G9 error: gate file test\/proof-gone\.test\.js was removed from the repository/u);
 });
 
-test('approving a row with a missing gate file is refused [S4]', async (t) => {
+test('cli.journeys-spec-main-gates.approving-a-row-with-a-missing: approving a row with a missing gate file is refused [S4]', async (t) => {
   // A gate committed and then removed has a last known home; approving its row would break spec check for every agent (#1276).
   const box = specBox(t, { specSource: SETUP_SPEC });
   mkdirSync(join(box.root, 'test'));
@@ -172,7 +172,7 @@ test('approving a row with a missing gate file is refused [S4]', async (t) => {
   assert.equal((await box.spec('approve', 'A1')).status, 0);
 });
 
-test('a gate test that was never written only warns, so a new project passes [S4]', async (t) => {
+test('cli.journeys-spec-main-gates.a-gate-test-that-was-never: a gate test that was never written only warns, so a new project passes [S4]', async (t) => {
   // A gate file that was never committed is a test not written yet: a warning, so the README's example still fits (#809).
   const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/never-written.test.js\n`;
   const box = specBox(t, { specSource: source });
@@ -181,7 +181,7 @@ test('a gate test that was never written only warns, so a new project passes [S4
   assert.match(text.stdout + text.stderr, /G9 warning: gate file test\/never-written\.test\.js does not exist yet/u);
 });
 
-test('a draft row with a missing gate file only warns [S4]', async (t) => {
+test('cli.journeys-spec-main-gates.a-draft-row-with-a-missing: a draft row with a missing gate file only warns [S4]', async (t) => {
   const source = `${SPEC}- G9 [draft, must] A rule not yet proved. | gate: test/not-yet.test.js\n`;
   const box = specBox(t, { specSource: source });
   const text = await box.spec('check');
@@ -189,7 +189,7 @@ test('a draft row with a missing gate file only warns [S4]', async (t) => {
   assert.match(text.stderr + text.stdout, /G9 warning: gate file test\/not-yet\.test\.js does not exist/u);
 });
 
-test('a commit that deletes an approved row test is refused [S4]', (t) => {
+test('cli.journeys-spec-main-gates.a-commit-that-deletes-an-approved: a commit that deletes an approved row test is refused [S4]', (t) => {
   // Staged deletion of the file an approved row names is refused until the same commit repoints the row (#809).
   const box = specBox(t, { specSource: `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof.test.js\n` });
   mkdirSync(join(box.root, 'test'));
@@ -209,7 +209,7 @@ test('a commit that deletes an approved row test is refused [S4]', (t) => {
   assert.ok(!repointed.some((problem) => problem.includes('G9 names')), `the same commit repoints the row: ${repointed.join('\n')}`);
 });
 
-test('an exact-content gate rename passes the commit and spec guards; changed content is refused [S4,B3]', (t) => {
+test('cli.journeys-spec-main-gates.an-exact-content-gate-rename-passes: an exact-content gate rename passes the commit and spec guards; changed content is refused [S4,B3]', (t) => {
   const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof.test.js\n`;
   const box = specBox(t, { specSource: source });
   mkdirSync(join(box.root, 'test'));
@@ -234,7 +234,7 @@ test('an exact-content gate rename passes the commit and spec guards; changed co
   assert.ok(missingGateFindings(parseSpec(source), box.root).some(row => row.id === 'G9' && row.level === 'error'));
 });
 
-test('a gate path written another way still guards its test [S4]', (t) => {
+test('cli.journeys-spec-main-gates.a-gate-path-written-another-way: a gate path written another way still guards its test [S4]', (t) => {
   // ./test/proof.test.js and test/x/../proof.test.js name the file Git reports as test/proof.test.js (#809 review).
   for (const gate of ['./test/proof.test.js', 'test/x/../proof.test.js']) {
     const box = specBox(t, { specSource: `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: ${gate}\n` });
