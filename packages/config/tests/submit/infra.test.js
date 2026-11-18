@@ -7,7 +7,7 @@ import { runFixtureChild } from '../../../gate/tests/fixtures/child.js';
 import { test } from 'node:test';
 import { configFromSource } from '../../index.js';
 
-test('infra-note policies reject invalid known values and warn on unknown keys [C7,V4,N26]', () => {
+test('config.submit-infra.infra-note-policies-reject-invalid-known: infra-note policies reject invalid known values and warn on unknown keys [C7,V4,N26]', () => {
   assert.equal(configFromSource('{}').submit.requireInfraNote, false);
   assert.equal(configFromSource('{"submit":{}}').submit.requireInfraNote, false);
   assert.equal(configFromSource('{"submit":{"requireInfraNote":true}}').submit.requireInfraNote, true);

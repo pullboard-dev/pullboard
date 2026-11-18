@@ -47,7 +47,7 @@ async function withSettings(settings, body) {
   }
 }
 
-test('clause 1: with engine.nameBehindDevice on, behindDeviceOptions returns nameBehindDevice true and a behindDevices list of device, seat and engine from the roster [H17,#9828]', async () => {
+test('link.behind-device.on-passes-roster: clause 1: with engine.nameBehindDevice on, behindDeviceOptions returns nameBehindDevice true and a behindDevices list of device, seat and engine from the roster [H17,#9828]', async () => {
   const { state, close } = await relay(ROSTER);
   try {
     const options = await withSettings({ engine: { nameBehindDevice: true } }, () => behindDeviceOptions(state));
@@ -58,7 +58,7 @@ test('clause 1: with engine.nameBehindDevice on, behindDeviceOptions returns nam
   } finally { await close(); }
 });
 
-test('clause 1: a roster fault leaves the options empty instead of failing the move [H17,#9828]', async () => {
+test('link.behind-device.roster-fault-empty: clause 1: a roster fault leaves the options empty instead of failing the move [H17,#9828]', async () => {
   const { state, close } = await relay({});
   try {
     const options = await withSettings({ engine: { nameBehindDevice: true } }, () => behindDeviceOptions(state));
@@ -67,7 +67,7 @@ test('clause 1: a roster fault leaves the options empty instead of failing the m
   } finally { await close(); }
 });
 
-test('clause 2: with the setting off or unset behindDeviceOptions passes neither option and never reads the roster [H17,#9828]', async () => {
+test('link.behind-device.off-reads-nothing: clause 2: with the setting off or unset behindDeviceOptions passes neither option and never reads the roster [H17,#9828]', async () => {
   const { state, close } = await relay(ROSTER);
   try {
     assert.deepEqual(await withSettings({}, () => behindDeviceOptions(state)), {});
@@ -75,7 +75,7 @@ test('clause 2: with the setting off or unset behindDeviceOptions passes neither
   } finally { await close(); }
 });
 
-test('clause 2: the prepareEngineMove call in relay.js spreads the behind-device options into its arguments [H17,#9828]', () => {
+test('link.behind-device.relay-spreads-options: clause 2: the prepareEngineMove call in relay.js spreads the behind-device options into its arguments [H17,#9828]', () => {
   const source = readFileSync(new URL('../../src/io/relay.js', import.meta.url), 'utf8');
   assert.match(source, /behind = await behindDeviceOptions\(state\)/u);
   assert.match(source, /prepareEngineMove\(board, operation, sent,\s*\{ \.\.\.\(.*\), \.\.\.behind \}\)/u);

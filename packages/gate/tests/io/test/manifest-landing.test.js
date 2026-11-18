@@ -40,7 +40,7 @@ function gateRun(root, id, files) {
   assert.ok(retainTestValueTimings(store, id, { files: files.map(([path, durationMs]) => ({ path, durationMs })) }));
 }
 
-test('clause 1: [C7] a landing that adds or deletes a test file updates its manifest row in the same landing', t => {
+test('gate.io-test-manifest-landing.a-landing-that-adds-or-deletes: clause 1: [C7] a landing that adds or deletes a test file updates its manifest row in the same landing', t => {
   const box = repo(t);
   deriveTestRegistries(box.root, { touched: [A] });
   assert.deepEqual(box.rows().map(row => row.file), [A]);
@@ -52,7 +52,7 @@ test('clause 1: [C7] a landing that adds or deletes a test file updates its mani
   assert.deepEqual(box.rows().map(row => row.file), [B], 'the added file has a row and the deleted file has none');
 });
 
-test('clause 2: [C7] a gate run records each test file measured time into its manifest row, and jitter rewrites nothing', t => {
+test('gate.io-test-manifest-landing.a-gate-run-records-each-test: clause 2: [C7] a gate run records each test file measured time into its manifest row, and jitter rewrites nothing', t => {
   const box = repo(t);
   assert.equal(deriveTestRegistries(box.root, { touched: [A] }).includes(MANIFEST), true);
   assert.equal(box.rows()[0].cost.ms, null);

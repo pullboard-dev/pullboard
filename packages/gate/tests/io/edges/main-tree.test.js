@@ -36,14 +36,14 @@ function runnerLayout(t) {
   return { origin, put, shell, job };
 }
 
-test('a slow door that git shows unchanged from main is main\'s own door, so a no-checkout main never refuses it [C7]', async t => {
+test('gate.io-edges-main-tree.a-slow-door-that-git-shows: a slow door that git shows unchanged from main is main\'s own door, so a no-checkout main never refuses it [C7]', async t => {
   const { shell, job } = runnerLayout(t);
   assert.equal(existsSync(join(shell, DOOR)), false, 'the clone holds no files');
   assert.equal(await doorMatchesMain(job, DOOR, importSpecifiers), true);
   assert.deepEqual(await lightDoorProblems(job), []);
 });
 
-test('main changing the door after the candidate forked is not the candidate\'s doing [C7]', async t => {
+test('gate.io-edges-main-tree.main-changing-the-door-after-the: main changing the door after the candidate forked is not the candidate\'s doing [C7]', async t => {
   const { origin, put, shell, job } = runnerLayout(t);
   put(LOOP, SLOW.replace('4e8', '5e8'));
   git(origin, 'commit', '-q', '-am', 'main moves on');
@@ -51,7 +51,7 @@ test('main changing the door after the candidate forked is not the candidate\'s 
   assert.equal(await doorMatchesMain(job, DOOR, importSpecifiers), true);
 });
 
-test('a changed module behind the door is the candidate\'s doing, and the budget alone refuses it [C7]', async t => {
+test('gate.io-edges-main-tree.a-changed-module-behind-the-door: a changed module behind the door is the candidate\'s doing, and the budget alone refuses it [C7]', async t => {
   const { job } = runnerLayout(t);
   writeFileSync(join(job, LOOP), SLOW.replace('4e8', '5e8'));
   assert.equal(await doorMatchesMain(job, DOOR, importSpecifiers), false);
@@ -60,7 +60,7 @@ test('a changed module behind the door is the candidate\'s doing, and the budget
   assert.match(problem.text, /light door cold load \d+ ms exceeds its 100 ms budget;/u);
 });
 
-test('edges.js prints every refusal on stderr, never a bare exit 1 [C7]', t => {
+test('gate.io-edges-main-tree.edges-js-prints-every-refusal-on: edges.js prints every refusal on stderr, never a bare exit 1 [C7]', t => {
   const { root, write: put } = privateFixtureFiles('edges-main-refuse-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
   put('packages/codemap/data/plan/cells.json', JSON.stringify({ cells: [{ file: 'packages/codemap/data/plan/cells/kernel.json' }], allowedEdges: ['kernel->nowhere'] }));

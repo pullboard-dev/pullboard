@@ -31,7 +31,7 @@ function repo(t) {
   return { root, add };
 }
 
-test('asked twice for commits one apart, protectHistory reads only the new commit paths (clause 1) [C7]', t => {
+test('runners.incremental.asked-twice-for-commits-one-apart: asked twice for commits one apart, protectHistory reads only the new commit paths (clause 1) [C7]', t => {
   const { root, add } = repo(t);
   const policies = [defaults().protect];
   const first = add('old/first.txt', 'one\n');
@@ -45,7 +45,7 @@ test('asked twice for commits one apart, protectHistory reads only the new commi
   assert.throws(() => protectHistory(root, { commit: third }, [{ ...defaults().protect, fresh: true }]), { code: 'RUNNER_SOURCE' }, 'with no clean ancestor the scan reads everything');
 });
 
-test('a blocked path anywhere in history is still refused (clause 2) [C7]', t => {
+test('runners.incremental.a-blocked-path-anywhere-in-history: a blocked path anywhere in history is still refused (clause 2) [C7]', t => {
   const { root, add } = repo(t);
   const policies = [defaults().protect];
   add('data/board.sqlite', 'private\n');

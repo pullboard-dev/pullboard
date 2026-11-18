@@ -42,7 +42,7 @@ function fixture(t) {
   return { root: files.root, commits, add, walked };
 }
 
-test('clause 1: the first and the second scan of a 300-commit history print the commits each walked, with a scanned ancestor and with none [C7,#9859]', t => {
+test('runners.scan-count.the-first-and-the-second-scan: clause 1: the first and the second scan of a 300-commit history print the commits each walked, with a scanned ancestor and with none [C7,#9859]', t => {
   const { root, commits, add, walked } = fixture(t);
   const policies = [defaults().protect];
   protectHistory(root, { commit: commits[HISTORY - 1] }, policies);
@@ -59,7 +59,7 @@ test('clause 1: the first and the second scan of a 300-commit history print the 
   assert.equal(cold, HISTORY + ADDED);
 });
 
-test('clause 2: a scan with a scanned ancestor walks no more commits than were added since the first [C7,#9859]', t => {
+test('runners.scan-count.a-scan-with-a-scanned-ancestor: clause 2: a scan with a scanned ancestor walks no more commits than were added since the first [C7,#9859]', t => {
   const { root, commits, add, walked } = fixture(t);
   const policies = [defaults().protect];
   protectHistory(root, { commit: commits[HISTORY - 1] }, policies);

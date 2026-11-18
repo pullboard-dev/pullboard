@@ -20,14 +20,14 @@ function withSettings(settings, work) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('the main comparison mode is on-red until the machine setting is exactly off [C7,#5565]', () => {
+test('config.logic-settings-comparison.the-main-comparison-mode-is-on-red-until: the main comparison mode is on-red until the machine setting is exactly off [C7,#5565]', () => {
   assert.equal(withSettings(null, mainComparisonMode), 'on-red');
   assert.equal(withSettings({ gate: {} }, mainComparisonMode), 'on-red');
   assert.equal(withSettings({ gate: { mainComparison: 'on-red' } }, mainComparisonMode), 'on-red');
   assert.equal(withSettings({ gate: { mainComparison: 'off' } }, mainComparisonMode), 'off');
 });
 
-test('any other main comparison value is a machine settings refusal naming the two choices [C7,#5565]', () => {
+test('config.logic-settings-comparison.any-other-main-comparison-value-is-a: any other main comparison value is a machine settings refusal naming the two choices [C7,#5565]', () => {
   for (const bad of ['Off', 'never', true, 0, null]) {
     assert.throws(() => withSettings({ gate: { mainComparison: bad } }, loadMachineSettings), /BAD_MACHINE_SETTINGS.*"on-red" or "off"/u, `${JSON.stringify(bad)} is refused`);
   }

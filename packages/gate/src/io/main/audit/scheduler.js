@@ -29,6 +29,7 @@ import {
 import {
   readMainAudit,
   saveMainAudit,
+  timerFiles,
 } from './state.js';
 
 /** Actual OS process start identity prevents mistaking a recycled PID for the timer we own. */
@@ -45,8 +46,9 @@ export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
   const due = Date.parse(dueAt);
   if (!Number.isFinite(due) || due <= Date.now()) return;
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('main audit scheduler requires its actual process entry URL');
-  await withFileLock(join(directory, 'timer.guard.sqlite'), async () => {
-    const file = join(directory, 'timer.json'), old = readMainAudit(file);
+  const { guard, timer } = timerFiles(directory);
+  await withFileLock(guard, async () => {
+    const file = timer, old = readMainAudit(file);
     if (old) {
       try {
         process.kill(old.pid, 0);
@@ -78,8 +80,9 @@ export async function waitMainAudit(directory, token, dueAt) {
     await pause(step);
     remaining -= step;
   }
-  return withFileLock(join(directory, 'timer.guard.sqlite'), () => {
-    const file = join(directory, 'timer.json'), owner = readMainAudit(file);
+  const { guard, timer } = timerFiles(directory);
+  return withFileLock(guard, () => {
+    const file = timer, owner = readMainAudit(file);
     if (owner?.token !== token || owner.pid !== process.pid || owner.dueAt !== dueAt) return false;
     rmSync(file);
     return true;

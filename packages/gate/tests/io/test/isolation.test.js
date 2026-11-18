@@ -73,7 +73,7 @@ function verdicts(stdout) {
   return PROBES.map((name) => stdout.split('\n').find((line) => /^(?:not )?ok \d+ - /u.test(line) && line.endsWith(name)) ?? `missing: ${name}`);
 }
 
-test('a test reads no machine state outside its own private home [C7]', async (t) => {
+test('gate.io-test-isolation.a-test-reads-no-machine-state: a test reads no machine state outside its own private home [C7]', async (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-test-isolation-')));
   // Cleanups run last-registered first, so the hostile lease is released before its directory goes.
   const cleanups = [() => rmSync(dir, { recursive: true, force: true })];
@@ -125,7 +125,7 @@ test('a test reads no machine state outside its own private home [C7]', async (t
   for (const index of [0, 1, 2]) assert.match(seen[index], /^not ok /u, `${PROBES[index]} catches the machine it reads`);
 });
 
-test('a forged runner preload of the same name stays foreign [C7]', (t) => {
+test('gate.io-test-isolation.a-forged-runner-preload-of-the: a forged runner preload of the same name stays foreign [C7]', (t) => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-forged-preload-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const preload = join(dir, 'child-spawn-preload.mjs');
@@ -143,7 +143,7 @@ test('a forged runner preload of the same name stays foreign [C7]', (t) => {
   assert.equal(foreignNodeOptions('--import=file:///elsewhere/unclassified.js', env), true, 'an undeclared import is foreign');
 });
 
-test('gate ports preserve machine-home and runtime-preload policy [C7]', () => {
+test('gate.io-test-isolation.gate-ports-preserve-machine-home-and: gate ports preserve machine-home and runtime-preload policy [C7]', () => {
   const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
   try {
     for (const [machine, account] of [['/tmp/private-machine', '/tmp/private-account'], ['', '/tmp/private-account']]) {

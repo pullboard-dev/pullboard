@@ -23,7 +23,7 @@ function built() {
   };
 }
 
-test('clause 1: with board.hotState on the state holds only open and recent items and counts the finished ones as the full build reports them [C7,#9725]', () => {
+test('store.io-board-hot-state.with-board-hotstate-on-the-state: clause 1: with board.hotState on the state holds only open and recent items and counts the finished ones as the full build reports them [C7,#9725]', () => {
   const full = built();
   const hot = hotStateItems(built(), { enabled: true, now: NOW });
   assert.deepEqual(hot.items.map(item => item.id), [1, 2, 3], 'open items and the recently finished item stay whole');
@@ -34,7 +34,7 @@ test('clause 1: with board.hotState on the state holds only open and recent item
   assert.deepEqual(hot.agents, full.agents);
 });
 
-test('clause 2: with board.hotState off the state is identical to today, with no new field [C7,#9725]', () => {
+test('store.io-board-hot-state.with-board-hotstate-off-the-state: clause 2: with board.hotState off the state is identical to today, with no new field [C7,#9725]', () => {
   const state = built();
   const off = hotStateItems(state, { enabled: false, now: NOW });
   assert.equal(off, state, 'the same object comes back');

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 69,
+  "total": 67,
   "files": {
     "apps/cli/src/io/commands/next.js": {
       "pause": 1
@@ -96,7 +96,6 @@
       "poll": 1
     },
     "packages/gate/src/io/run-tests.js": {
-      "poll": 2,
       "deferral0": 2
     },
     "packages/gate/src/io/slot.js": {

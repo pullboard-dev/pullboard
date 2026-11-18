@@ -24,7 +24,7 @@ function setup(t) {
   return { root, state, pack, folder: join(root, 'cache') };
 }
 
-test('clause 1: with runner.packCache on, one tree id packs once and a different id packs again [C7]', async t => {
+test('gate.io-scripts-pack-cache-door.with-runner-packcache-on-one-tree: clause 1: with runner.packCache on, one tree id packs once and a different id packs again [C7]', async t => {
   const { root, state, pack, folder } = setup(t);
   const cached = createPackCache({ enabled: true, folder, pack });
   const first = await cached('tree-a', '/work/a', join(root, 'out1'));
@@ -35,7 +35,7 @@ test('clause 1: with runner.packCache on, one tree id packs once and a different
   assert.equal(state.calls, 2);
 });
 
-test('clause 1: the cache folder is pruned by size, oldest first [C7]', async t => {
+test('gate.io-scripts-pack-cache-door.the-cache-folder-is-pruned-by: clause 1: the cache folder is pruned by size, oldest first [C7]', async t => {
   const { root, pack, folder } = setup(t);
   const cached = createPackCache({ enabled: true, folder, pack, maxBytes: 40 });
   for (const id of ['t1', 't2', 't3']) await cached(id, `/work/${id}`, join(root, `out-${id}`));
@@ -43,7 +43,7 @@ test('clause 1: the cache folder is pruned by size, oldest first [C7]', async t 
   assert.ok(left.length < 3 && left.includes('t3.tgz'), left.join());
 });
 
-test('clause 1: with the setting off every call packs [C7]', async t => {
+test('gate.io-scripts-pack-cache-door.with-the-setting-off-every-call: clause 1: with the setting off every call packs [C7]', async t => {
   const { root, state, pack, folder } = setup(t);
   const cached = createPackCache({ folder, pack });
   await cached('tree-a', '/work/a', join(root, 'o1'));

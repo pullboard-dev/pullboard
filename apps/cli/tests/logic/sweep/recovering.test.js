@@ -15,7 +15,7 @@ function stoppedJob(tools, code) {
   return common;
 }
 
-test('clause 1: a gate worker dies, the tools folder is older than the limit, and a sweep before the retry keeps it [C7]', () => {
+test('cli.logic-sweep-recovering.a-gate-worker-dies-the-tools-folder: clause 1: a gate worker dies, the tools folder is older than the limit, and a sweep before the retry keeps it [C7]', () => {
   const temp = privateFixtureFiles('pullboard-sweep-fixture-');
   const queue = privateFixtureFiles('pullboard-queue-fixture-');
   const old = new Date(Date.now() - 3 * 60 * 60_000);

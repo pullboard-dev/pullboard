@@ -7,7 +7,8 @@ import { outboxQueueable } from '../../src/io/relay.js';
 const LINKED = { mode: 'ordered', baselineAccepted: true };
 const DOWN = new Refused('RELAY_UNAVAILABLE', 'the relay did not answer');
 const UNAVAILABLE_503 = Object.assign(new Refused('RELAY_RESPONSE', 'the relay answered 503'), { httpStatus: 503 });
-const REFUSED_AUTH = new Refused('AUTH_REQUIRED', 'sign in again');
+/** A definite refusal that is not a key or sign-in failure: AUTH_REQUIRED queues on queueOnFailure since #9892. */
+const REFUSED_AUTH = new Refused('NOT_YOURS', 'this item belongs to another seat');
 
 /** Decide with the board's relay.outbox off and the machine's relay.queueOnFailure as given. */
 function queueable(error, queueOnFailure, extra = {}) {

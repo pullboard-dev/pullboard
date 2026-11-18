@@ -7,14 +7,14 @@ import { describeSetting } from '../../config/index.js';
 
 const BLANKS = ['', '  \n', undefined];
 
-test('clause 1: with freeze.refuseEmptyBar on, freezing a blank criterion is refused BAR_EMPTY with its next step [C7]', () => {
+test('moves.freeze.refuse-empty-bar-on: clause 1: with freeze.refuseEmptyBar on, freezing a blank criterion is refused BAR_EMPTY with its next step [C7]', () => {
   const freeze = criterionFreezer({ root: '/nowhere', isMain: false, config: {} }, { refuseEmpty: true });
   for (const item_criterion of BLANKS) {
     assert.throws(() => freeze({ item_id: 1908, item_criterion }), error => error.code === 'BAR_EMPTY' && /#1908/u.test(error.message) && /numbered clauses/u.test(error.next));
   }
 });
 
-test('clause 2: with freeze.refuseEmptyBar off (the default), a blank criterion is not refused BAR_EMPTY, and the setting is described [C7]', () => {
+test('moves.freeze.refuse-empty-bar-off: clause 2: with freeze.refuseEmptyBar off (the default), a blank criterion is not refused BAR_EMPTY, and the setting is described [C7]', () => {
   const freeze = criterionFreezer({ root: '/nowhere', isMain: false, config: {} }, { refuseEmpty: false });
   for (const item_criterion of BLANKS) {
     try { freeze({ item_id: 1908, item_criterion }); } catch (error) { assert.notEqual(error.code, 'BAR_EMPTY'); }

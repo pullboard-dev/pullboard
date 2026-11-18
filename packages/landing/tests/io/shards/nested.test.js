@@ -63,7 +63,7 @@ try {
   });
 }
 
-test('a landing run inside a runner slot with landingShards 6 runs as one pass and asks for no local slot [C7,V4]', async t => {
+test('landing.nested.a-landing-run-inside-a-runner: a landing run inside a runner slot with landingShards 6 runs as one pass and asks for no local slot [C7,V4]', async t => {
   const { result, runs } = await landingUnderSlot(t, true);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(runs, 1, 'the body runs once, in the held slot');
@@ -71,7 +71,7 @@ test('a landing run inside a runner slot with landingShards 6 runs as one pass a
   assert.doesNotMatch(result.stdout + result.stderr, /RESOURCE_CAPACITY_MISMATCH/u);
 });
 
-test('a landing run under a plain local slot still fans out from the controller [C7,V4]', async t => {
+test('landing.nested.a-landing-run-under-a-plain: a landing run under a plain local slot still fans out from the controller [C7,V4]', async t => {
   const { result } = await landingUnderSlot(t, false);
   assert.match(result.stdout, /# landing shards/u);
 });

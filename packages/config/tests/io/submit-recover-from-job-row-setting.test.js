@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'submit.recoverFromJobRow'));
 }
 
-test('clause 1: submit.recoverFromJobRow is a described machine setting, off by default [C7,#9824]', () => {
+test('config.io-submit-recover-from-job-row-setting.clause-1-submit-recoverfromjobrow-is-a: clause 1: submit.recoverFromJobRow is a described machine setting, off by default [C7,#9824]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,13 +34,13 @@ test('clause 1: submit.recoverFromJobRow is a described machine setting, off by 
   assert.match(unset.description ?? JSON.stringify(unset), /job row/u);
 });
 
-test('clause 1: recoverFromJobRow() is true only for an exact true [C7,#9824]', () => {
+test('config.io-submit-recover-from-job-row-setting.clause-1-recoverfromjobrow-is-true-only: clause 1: recoverFromJobRow() is true only for an exact true [C7,#9824]', () => {
   assert.equal(withSettings({}, recoverFromJobRow), false);
   assert.equal(withSettings({ submit: { recoverFromJobRow: false } }, recoverFromJobRow), false);
   assert.equal(withSettings({ submit: { recoverFromJobRow: true } }, recoverFromJobRow), true);
 });
 
-test('clause 2: a non-boolean submit.recoverFromJobRow is refused BAD_MACHINE_SETTINGS [C7,#9824]', () => {
+test('config.io-submit-recover-from-job-row-setting.clause-2-a-non-boolean-submit: clause 2: a non-boolean submit.recoverFromJobRow is refused BAD_MACHINE_SETTINGS [C7,#9824]', () => {
   for (const bad of ['yes', 1, 'true']) {
     assert.throws(() => withSettings({ submit: { recoverFromJobRow: bad } }, recoverFromJobRow), (err) => err.code === 'BAD_MACHINE_SETTINGS' && /submit\.recoverFromJobRow/u.test(err.message));
   }

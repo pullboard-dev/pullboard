@@ -6,7 +6,7 @@ import * as store from '../../../../index.js';
 import { submitFixture } from '../../../fixtures/submit.js';
 import { fixture } from '../../../fixtures/dispatch.js';
 
-test('clause 1: a verdict on an item whose gate has no receipt is refused with no BEGIN IMMEDIATE [B3,C7]', t => {
+test('store.io-board-review-receipt-outside-lock.a-verdict-on-an-item-whose: clause 1: a verdict on an item whose gate has no receipt is refused with no BEGIN IMMEDIATE [B3,C7]', t => {
   const box = fixture(t);
   const id = box.add('Gate still pending');
   box.claim(id);

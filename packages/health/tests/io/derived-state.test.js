@@ -28,7 +28,7 @@ function rows(file, kind) {
   finally { derived.close(); }
 }
 
-test('clause 1: with health.derivedState on, the sweep writes rows keyed by main commit and kind to a derived file beside the board, never the board database [C7]', t => {
+test('health.derived.sweep-writes-file: clause 1: with health.derivedState on, the sweep writes rows keyed by main commit and kind to a derived file beside the board, never the board database [C7]', t => {
   const { board, file } = heldBoard(t);
   const before = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
   const written = sweepDerivedHolds(board, { mainCommit: MAIN, enabled: true, listItems: store.listItems });
@@ -41,7 +41,7 @@ test('clause 1: with health.derivedState on, the sweep writes rows keyed by main
   assert.deepEqual(tables, [], 'the board database holds no derived table');
 });
 
-test('clause 2: the holds rows equal the holds the board reports for the same main commit [C7]', t => {
+test('health.derived.holds-match-board: clause 2: the holds rows equal the holds the board reports for the same main commit [C7]', t => {
   const { board, file, held } = heldBoard(t);
   sweepDerivedHolds(board, { mainCommit: MAIN, enabled: true, listItems: store.listItems });
   const reported = store.listItems(board).filter(item => item.item_hold_at).map(item => [String(item.item_id), item.item_hold_reason]).sort((a, b) => a[0] - b[0]);
@@ -53,7 +53,7 @@ test('clause 2: the holds rows equal the holds the board reports for the same ma
   assert.deepEqual(rows(file, 'hold').map(row => Number(row.key)), [held[1]]);
 });
 
-test('clause 3: with health.derivedState off the sweep writes no file [C7]', t => {
+test('health.derived.off-writes-nothing: clause 3: with health.derivedState off the sweep writes no file [C7]', t => {
   const { board, file } = heldBoard(t);
   assert.equal(sweepDerivedHolds(board, { mainCommit: MAIN, enabled: false, listItems: store.listItems }), null);
   assert.equal(sweepDerivedHolds(board, { mainCommit: MAIN, listItems: store.listItems }), null, 'an unset setting is off');

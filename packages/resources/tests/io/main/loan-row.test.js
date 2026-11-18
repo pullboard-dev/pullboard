@@ -27,7 +27,7 @@ function names(home) {
   try { return db.prepare('SELECT name FROM resource ORDER BY name').all().map(row => row.name); } finally { db.close(); }
 }
 
-test('a test-file-loan row is removed when its loan is released [C7]', async () => {
+test('resources.loan-row.a-test-file-loan-row-is: a test-file-loan row is removed when its loan is released [C7]', async () => {
   const home = privateFixtureFiles('pullboard-loan-row-').root;
   TEMP.push(home);
   const name = 'test-file-loan:07b1b324-a999-40a2-9581-8be1b30256f3';
@@ -37,7 +37,7 @@ test('a test-file-loan row is removed when its loan is released [C7]', async () 
   assert.ok(!names(home).includes(name), 'releasing the loan removes its row');
 });
 
-test('an expired or leftover test-file-loan row is swept by the next read and other rows stay [C7]', async () => {
+test('resources.loan-row.an-expired-or-leftover-test-file: an expired or leftover test-file-loan row is swept by the next read and other rows stay [C7]', async () => {
   const home = privateFixtureFiles('pullboard-loan-sweep-').root;
   TEMP.push(home);
   const keep = await at(home, () => takeResource({ name: 'gate', capacity: 1, scope: 'machine', agent: 'loan-keeper' }));

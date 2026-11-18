@@ -5,128 +5,24 @@ import { runFixtureExecFile as execFileSync } from '../../tests/fixtures/child.j
 import { startFixtureChild as spawn } from '../../tests/fixtures/child.js';
 import { runFixtureChild as spawnSync } from '../../tests/fixtures/child.js';
 import { runFixtureChild } from '../../tests/fixtures/child.js';
-import { runFixtureGit } from '../../tests/fixtures/child.js';
-import { runCliInProcess } from '../../tests/fixtures/process.js';
-import { HOST } from '../../tests/fixtures/runner/ssh.js';
-import { installSshStandIn } from '../../tests/fixtures/runner/ssh.js';
-import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { addItem } from '../../../../packages/store/index.js';
 import { closeBoard } from '../../../../packages/store/index.js';
 import { validateItemAddition } from '../../../../packages/store/index.js';
 import { openBoard } from '../../../lib/index.js';
-import { prepareCheckBaseline } from '../../../../packages/gate/src/io/check/baseline.js';
-import { removeFixtureDirectory } from '../../../../packages/gate/tests/fixtures/diagnostics.js';
+import { project } from '../../tests/fixtures/check-owner.js';
+import { removeSandboxes } from '../../tests/fixtures/check-owner.js';
+import { shellWord } from '../../tests/fixtures/check-owner.js';
 
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
-const BASELINE_WORKER = resolve(import.meta.dirname, '../../../lib/src/io/check/baseline.js');
-const TEMP_DIRS = [];
-const BACKGROUND_WRITERS = [];
-const SPEC = `# Check ownership fixture
-
-## G · Goals
-- G1 [approved, must] The fixture keeps its board. | gate: true
-`;
-
-/** Wait for every owned baseline worker before removing its fixture repository. */
-async function cleanupFixtures() {
-  const failures = [];
-  for (const writer of BACKGROUND_WRITERS) writeFileSync(writer.releaseFile, 'release');
-  for (const writer of BACKGROUND_WRITERS) {
-    try {
-      await writer.closed;
-      assert.notEqual(writer.child.exitCode, null, `background writer ${writer.name} did not exit before cleanup`);
-      assert.equal(writer.child.signalCode, null, `background writer ${writer.name} was signaled before cleanup`);
-      assert.equal(writer.child.exitCode, 0, `background writer ${writer.name} exited unsuccessfully before cleanup`);
-      assert.equal(readFileSync(writer.completedFile, 'utf8'), writer.completedValue,
-        `background writer ${writer.name} wrote its late marker before cleanup`);
-    } catch (error) { failures.push(error); }
-  }
-  for (const writer of BACKGROUND_WRITERS) if (writer.child.exitCode === null) await writer.closed;
-  for (const dir of TEMP_DIRS) removeFixtureDirectory(dir);
-  if (failures.length) throw failures[0];
-}
-
-after(cleanupFixtures);
-
-/** Quote a literal executable path for the fixture hook's POSIX shim. */
-function shellWord(value) {
-  return `'${value.replaceAll("'", "'\\''")}'`;
-}
-
-/** Create an isolated Git fixture with a real CLI process runner. */
-function sandbox() {
-  const dir = mkdtempSync(join(tmpdir(), 'pullboard-check-owner-'));
-  TEMP_DIRS.push(dir);
-  const bin = join(dir, 'bin');
-  mkdirSync(bin);
-  writeFileSync(join(bin, 'pullboard'), `#!/bin/sh\nexec ${shellWord(process.execPath)} ${shellWord(BIN)} "$@"\n`);
-  chmodSync(join(bin, 'pullboard'), 0o755);
-  const env = {
-    ...process.env,
-    PATH: `${bin}:${process.env.PATH}`,
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Check owner test',
-    GIT_AUTHOR_EMAIL: 'check-owner@example.invalid',
-    GIT_COMMITTER_NAME: 'Check owner test',
-    GIT_COMMITTER_EMAIL: 'check-owner@example.invalid',
-    PULLBOARD_HOME: join(dir, 'pullboard-home'),
-    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
-  };
-  /** Run Git with private fixture identity and config. */
-  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env });
-  /** Run the production dispatcher in this process, optionally with stdin; the same answer without a node start-up. */
-  const runLocal = async (cwd, args, input) => runCliInProcess(args, { cwd, env, ...(input === undefined ? {} : { input }) });
-  return { dir, env, git, runLocal };
-}
-
-/** Initialize the board and register a real worktree joined to the web lane. */
-async function project() {
-  const box = sandbox();
-  const repo = join(box.dir, 'repo');
-  mkdirSync(repo);
-  box.git(repo, 'init', '-q', '-b', 'main');
-  const initialized = await box.runLocal(repo, ['init']);
-  assert.equal(initialized.status, 0, initialized.stderr);
-  // Baseline --wait needs a registered runner; the isolated machine home starts without one.
-  const worker = join(box.dir, 'worker');
-  const remoteHome = join(box.dir, 'worker-home');
-  const remoteMachineHome = join(remoteHome, '.pullboard');
-  for (const folder of [worker, remoteHome, remoteMachineHome, box.env.PULLBOARD_MACHINE_HOME]) mkdirSync(folder, { recursive: true });
-  installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: remoteHome, machineHome: remoteMachineHome,
-    requests: join(box.dir, 'ssh-requests.jsonl') });
-  const registered = await box.runLocal(repo, ['runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json']);
-  assert.equal(registered.status, 0, registered.stderr);
-  const configPath = join(repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, `${JSON.stringify({
-    ...config,
-    gate: 'true',
-    spec: 'SPEC.md',
-    lanes: { web: { owns: ['web/'], specs: ['G1'] } },
-    shared: [],
-  }, null, 2)}\n`);
-  writeFileSync(join(repo, 'SPEC.md'), SPEC);
-  box.git(repo, 'add', '-A');
-  box.git(repo, 'commit', '-q', '-m', 'chore: set up check ownership fixture');
-  const web = join(box.dir, 'web-1');
-  box.git(repo, 'worktree', 'add', '-q', web, '-b', 'web/one');
-  const joined = await box.runLocal(web, ['join', 'web']);
-  assert.equal(joined.status, 0, joined.stderr);
-  return { ...box, repo, web };
-}
+after(removeSandboxes);
 
 /** Open the actual board database read-only and run one scalar query. */
 function queryBoard(box, sql, ...params) {
@@ -201,7 +97,7 @@ async function confirmInteractively(box, itemId, command, markerFile, json = fal
   }
 }
 
-test('[V2,N23] only the coordinator sets checks and agents confirm them before execution', async () => {
+test('cli.journeys-baseline-check.v2-n23-only-the-coordinator-sets: [V2,N23] only the coordinator sets checks and agents confirm them before execution', async () => {
   const box = await project();
   const itemCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM item').count;
   const eventCountBefore = queryBoard(box, 'SELECT COUNT(*) AS count FROM event').count;
@@ -280,61 +176,7 @@ test('[V2,N23] only the coordinator sets checks and agents confirm them before e
   assert.equal(readFileSync(join(box.web, 'check-ran-yes.txt'), 'utf8'), 'ran');
 });
 
-/** Wait for a real baseline worker to start its held check before the test body ends. */
-async function waitForFile(filename, child, description) {
-  // budget: a pulled check starts only after its enqueue, the runner agent and the job's worker each boot; at runner load
-  // that passed 10 s on the pull runners (#6917).
-  const deadline = Date.now() + 60_000;
-  while (!existsSync(filename) && child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
-  }
-  assert.ok(existsSync(filename), `${description}${child.fixtureFailure ? `: ${child.fixtureFailure}` : ''}`);
-}
-
-test('check cleanup waits for every background writer [C7]', async () => {
-  const box = await project();
-  const startedFile = join(box.dir, 'baseline-started');
-  const releaseFile = join(box.dir, 'baseline-release');
-  const completedFile = join(box.dir, 'baseline-completed');
-  const completedValue = 'late baseline write completed';
-  const source = [
-    `const fs = require('node:fs');`,
-    `fs.writeFileSync(${JSON.stringify(startedFile)}, 'started');`,
-    `while (!fs.existsSync(${JSON.stringify(releaseFile)})) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);`,
-    `fs.writeFileSync(${JSON.stringify(completedFile)}, ${JSON.stringify(completedValue)});`,
-  ].join('');
-  const command = `${shellWord(process.execPath)} -e ${shellWord(source)}`;
-  const baseline = prepareCheckBaseline(box.repo, command);
-  assert.equal(baseline.result, 'pending', 'the real fixture check starts with an authorized pending baseline');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  let itemId;
-  try {
-    itemId = addItem(board, {
-      by: 'coordinator', lane: 'web', title: 'Held baseline writer',
-      criterion: 'cleanup waits until the baseline worker exits', check: command, checkBaseline: baseline,
-    });
-  } finally { closeBoard(board); }
-
-  // Process-level: a detached baseline worker must outlive the test body until cleanup releases it.
-  const child = spawn(process.execPath, [BASELINE_WORKER, box.repo, String(itemId), baseline.request], {
-    cwd: box.repo, env: box.env, stdio: 'ignore',
-  });
-  const closed = new Promise(resolveClose => {
-    child.once('close', (code, signal) => resolveClose({ code, signal }));
-  });
-  BACKGROUND_WRITERS.push({
-    name: `baseline request ${baseline.request}`,
-    child,
-    releaseFile,
-    completedFile,
-    completedValue,
-    closed,
-  });
-  await waitForFile(startedFile, child, `background writer ${baseline.request} started its check`);
-  assert.equal(existsSync(completedFile), false, 'the baseline is still writing after the test body reaches cleanup');
-});
-
-test('a check that pipes its proof into tail is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-pipes-its-proof: a check that pipes its proof into tail is refused [C7,V4]', () => {
   const board = openBoard(':memory:');
   try {
     const masked = { by: 'coordinator', lane: 'core', title: 'Masked proof', criterion: 'the proof passes', route: 'strong', check: `${shellWord(process.execPath)} -e "process.exit(1)" | tail -5` };
@@ -343,7 +185,7 @@ test('a check that pipes its proof into tail is refused [C7,V4]', () => {
   } finally { closeBoard(board); }
 });
 
-test('a captured-output check is accepted [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-captured-output-check-is-accepted: a captured-output check is accepted [C7,V4]', () => {
   const board = openBoard(':memory:');
   try {
     const captured = `out=$(${shellWord(process.execPath)} -e "process.exit(1)"); printf '%s\\n' "$out" | grep -Eq 'never'`;
@@ -360,23 +202,23 @@ function maskRefusal(check) {
   } catch (error) { return error.code; } finally { closeBoard(board); }
 }
 
-test('an uncaptured grep that decides the exit is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.an-uncaptured-grep-that-decides-the: an uncaptured grep that decides the exit is refused [C7,V4]', () => {
   assert.equal(maskRefusal('node -e "process.exit(1)" | grep -q x'), 'CHECK_MASKS_EXIT');
 });
 
-test('a pipe into xargs that hides the exit is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-into-xargs-that-hides: a pipe into xargs that hides the exit is refused [C7,V4]', () => {
   assert.equal(maskRefusal('node -e "process.exit(1)" | xargs echo'), 'CHECK_MASKS_EXIT');
 });
 
-test('a bare pipefail mention in an echo does not stop a masked pipe being refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-bare-pipefail-mention-in-an: a bare pipefail mention in an echo does not stop a masked pipe being refused [C7,V4]', () => {
   assert.equal(maskRefusal('echo pipefail; node -e "process.exit(1)" | tail -5'), 'CHECK_MASKS_EXIT');
 });
 
-test('a check that sets pipefail as a command is accepted [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-sets-pipefail-as: a check that sets pipefail as a command is accepted [C7,V4]', () => {
   assert.equal(maskRefusal('set -o pipefail; node -e "process.exit(1)" | tail -5'), null);
 });
 
-test('a pipe into tail inside a subshell or after an assignment is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-into-tail-inside-a: a pipe into tail inside a subshell or after an assignment is refused [C7,V4]', () => {
   const masked = `node -e "console.log('proof-red'); process.exit(7)" | tail -n1`;
   // A capture exempts only a pipeline that tests the captured value; this one is never read (#812 review).
   assert.equal(maskRefusal(`out=$(printf ok); ${masked}`), 'CHECK_MASKS_EXIT');
@@ -386,12 +228,12 @@ test('a pipe into tail inside a subshell or after an assignment is refused [C7,V
   assert.equal(maskRefusal(`{ ${masked}; }`), 'CHECK_MASKS_EXIT');
 });
 
-test("the board's own captured-output form is accepted [C7,V4]", () => {
+test('cli.journeys-baseline-check.the-board-s-own-captured-output: the board\'s own captured-output form is accepted [C7,V4]', () => {
   assert.equal(maskRefusal(`out=$(node apps/cli/src/io/run/tests.js test/x.test.js 2>&1); printf "%s\\n" "$out"; printf "%s\\n" "$out" | grep -Eq "^# fail 0$" && printf "%s\\n" "$out" | grep -Eq "ok"`), null);
   assert.equal(maskRefusal(`out=$(node -e "process.exit(1)" | tail -5); echo "$out" | grep -q ok`), null, 'a pipe inside the capture is not a check pipeline');
 });
 
-test('a check that turns pipefail off or sets it conditionally is refused [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-check-that-turns-pipefail-off: a check that turns pipefail off or sets it conditionally is refused [C7,V4]', () => {
   const masked = `node -e "console.log('proof-red'); process.exit(7)" | tail -n1`;
   // /bin/sh never runs this set, since false fails first, so the pipe still exits 0 (#812 review).
   assert.equal(maskRefusal(`false && set -o pipefail; ${masked}`), 'CHECK_MASKS_EXIT');
@@ -403,7 +245,7 @@ test('a check that turns pipefail off or sets it conditionally is refused [C7,V4
   assert.equal(maskRefusal(`set -euo pipefail\n${masked}`), null, 'a first-command set that always runs keeps the producer exit');
 });
 
-test('a pipe inside a shell comment is not a pipeline [C7,V4]', () => {
+test('cli.journeys-baseline-check.a-pipe-inside-a-shell-comment: a pipe inside a shell comment is not a pipeline [C7,V4]', () => {
   assert.equal(maskRefusal('printf proof-green # example only: false | tail'), null);
   assert.equal(maskRefusal('echo a#b | tail -n1'), 'CHECK_MASKS_EXIT', 'a # inside a word starts no comment');
 });

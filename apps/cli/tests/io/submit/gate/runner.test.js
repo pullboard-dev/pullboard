@@ -45,7 +45,7 @@ export async function submitGateAdmission() { return { browser: false, gui: fals
 `);
   put('packages/landing/index.js', 'export function withMainCheckout() {}\n');
   put('bin/cells-submit-checks.js', 'export async function requireSubmitCells(root, main, source) { return { acceptedMain: main, source, cells: [], existingCuts: [] }; }\n');
-  put('packages/codemap/src/io/cells/scripts/cache.js', 'export function transferredCellsInventories() { return null; }\n');
+  put('apps/cli/src/io/cells/cache.js', 'export function transferredCellsInventories() { return null; }\n');
   put('bin/static-checks.js', '');
   // Main's doctrine module records where it ran, so the test can tell the runner checkout from the controller.
   put('packages/doctrine/index.js', `import { writeFileSync } from 'node:fs';
@@ -98,7 +98,7 @@ async function submitStages(box, runner) {
   return { settled, leases, doctrine };
 }
 
-test('clause 1: the doctrine hold runs in the runner checkout inside the one analysis job, from main\'s tooling [C7]', async t => {
+test('cli.io-submit-gate-runner.the-doctrine-hold-runs-in-the-runner: clause 1: the doctrine hold runs in the runner checkout inside the one analysis job, from main\'s tooling [C7]', async t => {
   const box = fixture(t), runner = countingRunner(box);
   const { settled, leases, doctrine } = await submitStages(box, runner);
   assert.deepEqual(settled.map(row => row.status), PARTS.map(() => 'fulfilled'));
@@ -111,7 +111,7 @@ test('clause 1: the doctrine hold runs in the runner checkout inside the one ana
   assert.deepEqual(settled[PARTS.indexOf('doctrine')].value.doctrine, RULES, 'the rule results come back as a local hold returns them');
 });
 
-test('clause 2: a doctrine that rose refuses RATCHET_ROSE with its message and machinery identity, other parts green [C7]', async t => {
+test('cli.io-submit-gate-runner.a-doctrine-that-rose-refuses-ratchet-rose: clause 2: a doctrine that rose refuses RATCHET_ROSE with its message and machinery identity, other parts green [C7]', async t => {
   const box = fixture(t, true), runner = countingRunner(box);
   const { settled } = await submitStages(box, runner);
   assert.equal(runner.counts.controllers, 1);

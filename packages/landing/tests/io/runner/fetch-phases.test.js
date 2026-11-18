@@ -32,7 +32,7 @@ function landFixture(t) {
 /** The named phases of a receipt, each as ms. */
 const named = (receipt, phase) => receipt.phases.filter(row => row.phase === phase);
 
-test('clause 1: the receipt of runLandingJob lists a fetch items phase and a fetch trunk phase with their milliseconds [C7,#9545]', async t => {
+test('landing.fetch-phases.the-receipt-of-runlandingjob-lists-a: clause 1: the receipt of runLandingJob lists a fetch items phase and a fetch trunk phase with their milliseconds [C7,#9545]', async t => {
   const box = landFixture(t);
   const receipt = await runLandingJob({ ...box.payload, check: ['sh', '-c', 'true'] }, { workdir: box.workdir });
   assert.equal(receipt.outcome, 'landed');
@@ -44,7 +44,7 @@ test('clause 1: the receipt of runLandingJob lists a fetch items phase and a fet
   assert.ok(order.indexOf('fetch items') < order.indexOf('fetch trunk') && order.indexOf('fetch trunk') < order.indexOf('merge'), 'fetches are listed before the merge');
 });
 
-test('clause 1: an item that moved still records the fetch items phase [C7,#9545]', async t => {
+test('landing.fetch-phases.an-item-that-moved-still-records: clause 1: an item that moved still records the fetch items phase [C7,#9545]', async t => {
   const box = landFixture(t);
   const payload = { ...box.payload, items: [{ ...box.payload.items[0], commit: '0'.repeat(40) }] };
   const receipt = await runLandingJob({ ...payload, check: ['sh', '-c', 'true'] }, { workdir: box.workdir });

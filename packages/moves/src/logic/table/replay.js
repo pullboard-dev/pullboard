@@ -57,14 +57,14 @@ export function replayTable(table, rules, records, { cut } = {}) {
 }
 
 /** The recorded decision as an outcome, or null when the record names neither a refusal code nor events. */
-function recordedOutcome(recorded) {
+export function recordedOutcome(recorded) {
   if (isObject(recorded) && typeof recorded.refused === 'string') return refusal(recorded.refused);
   if (isObject(recorded) && Array.isArray(recorded.events)) return acceptance(recorded.events);
   return null;
 }
 
 /** How two outcomes differ: the decision, a refusal's code, or the events written; null when they agree. */
-function difference(recorded, mine) {
+export function difference(recorded, mine) {
   if (recorded.decision !== mine.decision) return 'decision';
   if (recorded.decision === 'refused') return recorded.code === mine.code ? null : 'code';
   return isDeepStrictEqual(recorded.events, mine.events) ? null : 'detail';

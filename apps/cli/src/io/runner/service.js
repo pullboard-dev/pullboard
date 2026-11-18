@@ -30,7 +30,8 @@ try {
     fetchFailFast: runnerSettingOn(machineSettingsFile(), 'runners.fetchFailFast'), drainOnFetchFailure: runnerSettingOn(machineSettingsFile(), 'runners.drainOnFetchFailure'),
     fetchConcurrent: runnerSettingOn(machineSettingsFile(), 'runners.fetchConcurrent'),
     pruneYields: runnerSettingOn(machineSettingsFile(), 'runners.yieldWhilePruning'), handBackUnrunnable: runnerSettingOn(machineSettingsFile(), 'jobs.handBackUnrunnable'),
-    postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase') });
+    postedLineNamesCase: runnerSettingOn(machineSettingsFile(), 'runners.postedLineNamesCase'),
+    pulledProfilePaths: (await import('../../../../../packages/config/index.js')).pulledProfilePathsEnabled() });
 } catch (error) {
   // An exit is a restart: the service manager starts it again, so a refusal is logged with its code and nothing is lost.
   say(`stopped: ${error?.code ?? 'ERROR'} ${error?.message ?? error}`);

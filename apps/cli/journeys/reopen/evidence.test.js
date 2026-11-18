@@ -17,6 +17,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { landingFailures } from '../../../../packages/landing/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import {
@@ -26,7 +27,7 @@ import {
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { landProject, itemWorktree, submitItem, acceptItem, moveMainPastSubmit } = makeLandProjectFixtures(e2e);
+const { landProject, itemWorktreeLocal, commitItemLocal, submitItemLocal, acceptItemLocal } = makeLandProjectFixtures(e2e);
 
 test('a landing reopen carries the exact failing assertion [C7,B22]', async () => {
   const box = landProject();
@@ -40,15 +41,23 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', async () =
   const gate = join(box.dir, 'land-gate.cjs');
   const source = readFileSync(gate, 'utf8');
   writeFileSync(gate, source.replace("console.log('  error: fixture behavior is red');", "console.log('  error: fixture behavior is red'); console.log('  expected: 7'); console.log('  actual: 9');"));
-  const entry = itemWorktree(box, 1, 'web/land-1.test.js');
+  // The commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10463].
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const entry = await itemWorktreeLocal(box, 1, 'web/land-1.test.js');
   box.env.LAND_SUPPRESS_RED = '1';
-  submitItem(box, entry, 'RED\n');
-  acceptItem(box, entry);
+  await commitItemLocal(box, entry, 'RED\n');
+  await submitItemLocal(box, entry);
+  await acceptItemLocal(box, entry);
   delete box.env.LAND_SUPPRESS_RED; // the switch folder mirrors the delete to the pulled gate, so the red shows
   // The submit ran with its red suppressed; move main so the landing runs its own gate instead of reusing that receipt (#3685).
-  moveMainPastSubmit(box);
+  // moveMainPastSubmit awaited: with in-process hooks on, the commit answers as a promise [C7,#10463].
+  box.env.LAND_SUPPRESS_RED = '1';
+  try {
+    const moved = await e2e.commitFile(box, box.repo, 'web/main-moved-0.txt', 'main moved past submit 0\n', 'chore(web): main moves past the submit 0 [G1]');
+    assert.equal(moved.status, 0, moved.stderr);
+  } finally { delete box.env.LAND_SUPPRESS_RED; }
   const base = box.git(box.repo, 'rev-parse', 'main');
-  const landing = box.run(box.repo, 'land', '--json');
+  const landing = await box.runIn(box.repo, 'land', '--json');
   // The pulled land job returns the red item on its receipt; land itself offers the job and exits 0 [#4265].
   const settled = await settleLand(box, JSON.parse(landing.out));
   assert.deepEqual(settled.landed, [], `every candidate is a culprit, so nothing lands: ${landing.err}${landing.out}${JSON.stringify(settled.landJob ?? {})}`);

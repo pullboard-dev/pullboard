@@ -59,7 +59,7 @@ function machine(t) {
   return { dir, db, runner, leak, alive, idleProbe, quarantine };
 }
 
-test('a quarantined runner with no holders and a leftover job process is restored and the process is gone [C7]', async t => {
+test('runners.heal.a-quarantined-runner-with-no-holders: a quarantined runner with no holders and a leftover job process is restored and the process is gone [C7]', async t => {
   const m = machine(t), pid = m.leak();
   assert.ok(m.alive(pid));
   m.quarantine();
@@ -73,7 +73,7 @@ test('a quarantined runner with no holders and a leftover job process is restore
   assert.deepEqual(m.db.prepare('SELECT kind FROM runner_recovery_event ORDER BY rowid').all().map(row => row.kind), ['unavailable', 'leaked-jobs-stopped', 'available']);
 });
 
-test('a quarantined runner with a live holder keeps its leftover process and stays out with that process named [C7]', async t => {
+test('runners.heal.a-quarantined-runner-with-a-live: a quarantined runner with a live holder keeps its leftover process and stays out with that process named [C7]', async t => {
   const m = machine(t), pid = m.leak();
   m.db.prepare('INSERT INTO holder(token,name,runner) VALUES(?,?,?)').run('t1', 'runner:fixture-host', 'fixture-host');
   m.quarantine();
@@ -86,7 +86,7 @@ test('a quarantined runner with a live holder keeps its leftover process and sta
   assert.ok(held.probe_after - Date.now() > HEAL_RETRY_MS, 'a held runner keeps the long wait'); // budget: declared by the resources heal retry
 });
 
-test('a no-holder runner whose heal fails retries within 60 s, and an unreadable holder table is never zero [C7]', async t => {
+test('runners.heal.a-no-holder-runner-whose-heal: a no-holder runner whose heal fails retries within 60 s, and an unreadable holder table is never zero [C7]', async t => {
   const m = machine(t), pid = m.leak();
   m.quarantine();
   const now = Date.now() + 2000;
@@ -103,7 +103,7 @@ test('a no-holder runner whose heal fails retries within 60 s, and an unreadable
   assert.equal(existsSync(m.runner.root), true);
 });
 
-test('a registration during the leaked job cleanup cannot clear the quarantine or admit work under the kill [C7]', async t => {
+test('runners.heal.a-registration-during-the-leaked-job: a registration during the leaked job cleanup cannot clear the quarantine or admit work under the kill [C7]', async t => {
   const m = machine(t), pid = m.leak();
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = m.dir;
@@ -135,7 +135,7 @@ function admit(dir, runners, runnerWaitMs) {
     agent: 'fixture-self-heal', remote: true, runnerOnly: true, runnerWaitMs, runnerProvider: () => runners });
 }
 
-test('a multi-slot host admits no work while its leaked jobs are being stopped, then admits again [C7]', async t => {
+test('runners.heal.a-multi-slot-host-admits-no: a multi-slot host admits no work while its leaked jobs are being stopped, then admits again [C7]', async t => {
   const m = machine(t), pid = m.leak();
   useMachineHome(t, m.dir);
   const runners = [{ ...m.runner, slots: 3 }];
@@ -155,7 +155,7 @@ test('a multi-slot host admits no work while its leaked jobs are being stopped, 
   try { assert.equal(after.runner.host, m.runner.host, 'the healed host admits work again'); } finally { after.release(); }
 });
 
-test('recovery keeps the runner settings, node path and root, exactly as configured [C7]', async t => {
+test('runners.heal.recovery-keeps-the-runner-settings-node: recovery keeps the runner settings, node path and root, exactly as configured [C7]', async t => {
   const m = machine(t);
   m.leak();
   const configured = { ...m.runner, node: '/opt/fixture/bin/node', slots: 4, browser: 2 };

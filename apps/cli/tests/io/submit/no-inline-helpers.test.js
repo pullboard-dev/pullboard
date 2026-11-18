@@ -15,7 +15,7 @@ function defines(source, name) {
   return new RegExp(`(?:function\\s*\\*?\\s*|(?:const|let|var)\\s+)${name}\\b`, 'u').test(source);
 }
 
-test('clause 1: apps/cli/src/io/commands/submit.js defines none of redSubmitTestRuns, requireRedSubmitProgress, knownMainReds and restoreMergedHead [C7,#6489]', () => {
+test('cli.io-submit-no-inline-helpers.apps-cli-src-io-commands-submit-js: clause 1: apps/cli/src/io/commands/submit.js defines none of redSubmitTestRuns, requireRedSubmitProgress, knownMainReds and restoreMergedHead [C7,#6489]', () => {
   const source = readFileSync(SUBMIT, 'utf8');
   assert.deepEqual(NAMES.filter(name => defines(source, name)), [], 'the submit command defines none of the inline gate helpers');
   const moved = readFileSync(HELPERS, 'utf8');

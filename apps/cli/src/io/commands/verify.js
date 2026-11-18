@@ -170,8 +170,21 @@ import { switchToSubmitted } from '../verify.js';
 import { mainRedCheckCases } from './submit.js';
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
 import { mainComparisonMode } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { rejectKeepsCheck } from '../../../../../packages/config/index.js';
 import { gateComponentTier } from '../../../../../packages/config/index.js';
+
+/** The refusal text when main changed files a review touches: a re-review against current main, never a builder merge [C7,U159]. */
+export function trunkMovedOverlapText(paths) {
+  return `main changed files this item touches during review: ${paths.map(path => JSON.stringify(path)).join(', ')}; ask another agent to re-review against current main`;
+}
+
+/** The refusal text when main moved again during the one review retry [C7,U159]. */
+export function trunkMovedAgainText(from, to, reach) {
+  return `main moved again from ${from} to ${to} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; ask another agent to re-review against current main`;
+}
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
@@ -322,7 +335,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         ...(decision === 'REJECT' && rejectKeepsCheck() ? { keepCheck: true } : {}) }]);
     }
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
-    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
+    const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
       throw new Refused('NOT_SUBMITTED', `item #${id} is ${item.item_status}, not submitted`);
     }
@@ -380,7 +393,15 @@ export async function verifyHere(ctx, id, { second, values }) {
           unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
-        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
+        // With submit.composeAsObject on, a stale re-review is offered on a fresh object composition of current main and this head [C7,U159].
+        const composed = composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events,
+          composeAsObject: submitComposeAsObject(), composeMain: composeSubmissionMain });
+        if (composed.commit !== checkedCommit) {
+          checkedCommit = composed.commit;
+          checkedLabel = 'main-composed review';
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} with the reviewed head for the re-review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composed;
       };
       let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
@@ -493,9 +514,8 @@ export async function verifyHere(ctx, id, { second, values }) {
         // A touched file refuses only when the reviewed patch no longer composes the same: main editing another part
         // of that file leaves the reviewed diff intact, and the lander lands it on the same test. Why: on 5 Nov a
         // finished review of #3089 was thrown away over five fixture files main had moved, then offered again [V4,C7].
-        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }) : null;
-        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED',
-          `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
+        const composes = moved?.overlap.length ? composesUnchanged(root, { base: trunk.commit, checked: checkedCommit, tip: currentTrunk.commit, paths: review.paths }, { hunkKeyed: hunkFreshnessEnabled() }) : null;
+        if (moved?.overlap.length && !composes) throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedOverlapText(moved.overlap));
         if (moved && !knownMain) {
           unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and ${composes ? `its patch on ${moved.overlap.map(path => JSON.stringify(path)).join(', ')} composes unchanged` : 'its files are unchanged'}`;
           refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
@@ -506,7 +526,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
           if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
-            throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; merge the latest main and re-review the clean composition`);
+            throw new Refused('VERDICT_TRUNK_MOVED', trunkMovedAgainText(trunk.commit, currentTrunk.commit, reach));
           }
           checkedCommit = retryReviewCommit(root, checkedCommit, currentTrunk);
           checkedLabel = `retry composition ${checkedCommit}`;

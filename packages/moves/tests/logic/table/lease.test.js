@@ -20,7 +20,7 @@ const snap = (over = {}) => ({ lease: lease(), now: NOW, lineage: null, modern: 
 const ask = (n, name, more = {}) => ({ name, token: token(n), branch: 'trunk', pid: 100 + n, label: 'coordinator', lineage: null, generation: 1, ...more });
 const run = (snapshot, move) => runTable(TABLE, RULES, snapshot, move);
 
-test('acquire hands a free trunk to the first request and bumps the generation; a second request waits in line [C7,#8164]', () => {
+test('moves.lease.acquire-hands-a-free-trunk-to: acquire hands a free trunk to the first request and bumps the generation; a second request waits in line [C7,#8164]', () => {
   const free = run(snap({ lease: { generation: 0, holder: null, line: [] } }), ask(1, 'request'));
   assert.deepEqual(free.via, ['acquire']);
   assert.deepEqual([free.patch.lease.generation, free.patch.lease.holder.token, free.patch.lease.holder.generation, free.patch.lease.line], [1, token(1), 1, []]);
@@ -35,7 +35,7 @@ test('acquire hands a free trunk to the first request and bumps the generation; 
   assert.deepEqual([refresh.via, refresh.patch.lease.generation, refresh.patch.lease.holder.generation], [['acquire'], 1, 1]);
 });
 
-test('the 120 s expiry: a holder is live at its deadline minus one and reclaimed from the deadline on, which bumps the generation [C7,#8164]', () => {
+test('moves.lease.the-120-s-expiry-a-holder: the 120 s expiry: a holder is live at its deadline minus one and reclaimed from the deadline on, which bumps the generation [C7,#8164]', () => {
   assert.equal(LEASE_MS, 120_000);
   const held = (until) => snap({ lease: lease({ holder: { ...entry(1), generation: 1, until: new Date(until).toISOString() } }) });
   assert.deepEqual(run(held(NOW + 1), ask(2, 'request')).via, ['queue']);
@@ -50,13 +50,13 @@ test('the 120 s expiry: a holder is live at its deadline minus one and reclaimed
   assert.equal(runTable(short.table, short.rules, snap({ lease: { generation: 0, holder: null, line: [] } }), ask(1, 'request')).patch.lease.holder.until, new Date(NOW + 5).toISOString());
 });
 
-test('a lineage-bound holder lapses when the coordinator lineage changes, whatever its deadline [C7,#8164]', () => {
+test('moves.lease.a-lineage-bound-holder-lapses-when: a lineage-bound holder lapses when the coordinator lineage changes, whatever its deadline [C7,#8164]', () => {
   const bound = lease({ holder: { ...entry(1, { lineage: 'a' }), generation: 1 } });
   assert.deepEqual(run(snap({ lease: bound, modern: true, lineage: 'a' }), ask(2, 'request', { lineage: 'a' })).via, ['queue']);
   assert.deepEqual(run(snap({ lease: bound, modern: true, lineage: 'b' }), ask(2, 'request', { lineage: 'b' })).via, ['reclaim']);
 });
 
-test('renew extends only the live holder, and refuses LAND_LEASE_LOST for a stale fence, another token, a lapsed deadline or a free trunk [C7,#8164]', () => {
+test('moves.lease.renew-extends-only-the-live-holder: renew extends only the live holder, and refuses LAND_LEASE_LOST for a stale fence, another token, a lapsed deadline or a free trunk [C7,#8164]', () => {
   const renewed = run(snap({ now: NOW + 60_000 }), ask(1, 'renew'));
   assert.deepEqual(renewed.via, ['renew']);
   assert.equal(renewed.patch.lease.holder.until, new Date(NOW + 60_000 + LEASE_MS).toISOString());
@@ -75,7 +75,7 @@ test('renew extends only the live holder, and refuses LAND_LEASE_LOST for a stal
   assert.ok(!run(snap({ now: NOW + LEASE_MS, lease: lease({ holder: { ...entry(1, { lineage: 'a' }), generation: 1 } }), lineage: 'a' }), ask(1, 'assert')).refused);
 });
 
-test('bind names one guardian once; release frees the holder only at its own generation and always leaves the line [C7,#8164]', () => {
+test('moves.lease.bind-names-one-guardian-once-release: bind names one guardian once; release frees the holder only at its own generation and always leaves the line [C7,#8164]', () => {
   assert.equal(run(snap(), ask(1, 'bind', { guardianPid: 77 })).patch.lease.holder.guardianPid, 77);
   assert.equal(run(snap({ lease: lease({ holder: { ...entry(1, { guardianPid: 77 }), generation: 1 } }) }), ask(1, 'bind', { guardianPid: 78 })).refused.code, 'LAND_LEASE_REQUEST');
   assert.equal(run(snap(), ask(1, 'bind', { guardianPid: 0 })).refused.code, 'LAND_LEASE_REQUEST');
@@ -87,7 +87,7 @@ test('bind names one guardian once; release frees the holder only at its own gen
   assert.deepEqual(run(queued, ask(2, 'release')).events[0].queued, 0);
 });
 
-test('a request must keep the identity it first asked with, and carry a valid entry [C7,#8164]', () => {
+test('moves.lease.a-request-must-keep-the-identity: a request must keep the identity it first asked with, and carry a valid entry [C7,#8164]', () => {
   for (const change of [{ branch: 'other' }, { pid: 9 }, { lineage: 'x' }]) assert.equal(run(snap(), ask(1, 'request', change)).refused.code, 'LAND_LEASE_REQUEST');
   assert.equal(run(snap(), ask(1, 'request', { token: 'short' })).refused.row, 'entry');
   assert.equal(run(snap(), ask(1, 'nap')).refused.code, 'LAND_LEASE_REQUEST');
@@ -95,7 +95,7 @@ test('a request must keep the identity it first asked with, and carry a valid en
   assert.throws(() => leaseEngine({ leaseMs: 120_000 }), { code: 'LAND_LEASE_RULE' });
 });
 
-test('corrupt-state: a queue that is not whole is LAND_LEASE_CORRUPT for every move and writes nothing [C7,#8164]', () => {
+test('moves.lease.corrupt-state-a-queue-that-is: corrupt-state: a queue that is not whole is LAND_LEASE_CORRUPT for every move and writes nothing [C7,#8164]', () => {
   const broken = [
     null, { generation: -1, holder: null, line: [] }, { generation: 1.5, holder: null, line: [] }, { generation: 1, holder: null, line: 'x' },
     lease({ holder: { ...entry(1), generation: 2 } }), lease({ holder: { ...entry(1), generation: 0 }, generation: 0 }),
@@ -127,7 +127,7 @@ function generate(g) {
   return { snapshot, move, breaks };
 }
 
-test('generated cases reach every lease row, never write while refusing, and fail each guard when its fact is broken [C7,#8164]', () => {
+test('moves.lease.generated-cases-reach-every-lease-row: generated cases reach every lease row, never write while refusing, and fail each guard when its fact is broken [C7,#8164]', () => {
   const report = tableCases(TABLE, RULES, generate, { seed: 8164, count: 800 });
   assert.deepEqual(report.writingRefusals, []);
   assert.deepEqual(report.unbroken, []);
@@ -156,7 +156,7 @@ function simulate(seed) {
   return accepted;
 }
 
-test('generated sequences over three landers keep one holder, a rising generation and no token twice [C7,#8164]', () => {
+test('moves.lease.generated-sequences-over-three-landers-keep: generated sequences over three landers keep one holder, a rising generation and no token twice [C7,#8164]', () => {
   let reclaimed = 0, acquired = 0, queued = 0;
   for (let seed = 1; seed <= 300; seed++) {
     for (const { before, after, via } of simulate(seed)) {

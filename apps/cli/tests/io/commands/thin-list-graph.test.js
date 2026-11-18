@@ -61,7 +61,7 @@ function importersOf(barrel, loaded) {
   });
 }
 
-test('clause 1: with list.thinRead on, the thin list door loads neither the board barrel nor the outbox barrel [C7,#9278]', async () => {
+test('cli.io-commands-thin-list-graph.with-list-thinread-on-the-thin-list: clause 1: with list.thinRead on, the thin list door loads neither the board barrel nor the outbox barrel [C7,#9278]', async () => {
   const files = privateFixtureFiles('thin-graph-');
   files.write('seen.txt', '');
   const result = await loadedFiles(`${files.root}/seen.txt`);
@@ -73,7 +73,7 @@ test('clause 1: with list.thinRead on, the thin list door loads neither the boar
   assert.deepEqual(report, [], `the thin list door loaded a barrel: ${report.join('; ')}`);
 });
 
-test('clause 2: the importer finder names the file that imports a barrel it is given [C7,#9278]', () => {
+test('cli.io-commands-thin-list-graph.the-importer-finder-names-the-file-that: clause 2: the importer finder names the file that imports a barrel it is given [C7,#9278]', () => {
   const loaded = [`${ROOT}apps/lib/light.js`, `${ROOT}apps/cli/src/io/list/thin.js`];
   assert.ok(importersOf(`${ROOT}packages/store/light.js`, loaded).includes(`${ROOT}apps/cli/src/io/list/thin.js`));
   assert.deepEqual(importersOf(`${ROOT}packages/nothing.js`, loaded), []);

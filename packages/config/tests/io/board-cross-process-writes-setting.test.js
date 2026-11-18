@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'board.crossProcessWrites'));
 }
 
-test('clause 1: board.crossProcessWrites defaults to false, is listed with a description, and readCrossProcessWrites() is true only on an exact true [C7,#9814]', () => {
+test('config.io-board-cross-process-writes-setting.clause-1-board-crossprocesswrites: clause 1: board.crossProcessWrites defaults to false, is listed with a description, and readCrossProcessWrites() is true only on an exact true [C7,#9814]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -36,7 +36,7 @@ test('clause 1: board.crossProcessWrites defaults to false, is listed with a des
   assert.equal(withSettings({ board: { crossProcessWrites: false } }, readCrossProcessWrites), false);
 });
 
-test('clause 2: a non-boolean board.crossProcessWrites refuses with BAD_MACHINE_SETTINGS [C7,#9814]', () => {
+test('config.io-board-cross-process-writes-setting.clause-2-a-non-boolean-board: clause 2: a non-boolean board.crossProcessWrites refuses with BAD_MACHINE_SETTINGS [C7,#9814]', () => {
   for (const bad of ['yes', 1, 'true', null]) {
     assert.throws(() => withSettings({ board: { crossProcessWrites: bad } }, readCrossProcessWrites), error => error.code === 'BAD_MACHINE_SETTINGS' && /board\.crossProcessWrites/u.test(error.message));
   }

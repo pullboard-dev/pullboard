@@ -15,6 +15,7 @@ import { fixtureReport } from './fixtures.js';
 import { boardFileReport } from '../board/files.js';
 import { generateTestTiers } from './tiers.js';
 import { TEST_TIERS_FILE } from './tiers.js';
+import { formatTestTiers } from './tiers.js';
 import { planLintSplit } from './split/lints.js';
 import { withCellLintParser } from '../../../../codemap/index.js';
 import { cellLintReport } from '../../../../codemap/index.js';
@@ -190,7 +191,7 @@ export async function splitRegistries(root, original, siblings, { lints = measur
     const index = at < 0 ? others.length : manifest.files.slice(0, at).filter(row => !family.has(row.file)).length;
     manifest.files = [...others.slice(0, index), ...files.filter(file => fresh.has(file)).map(file => fresh.get(file)), ...others.slice(index)];
     rows.push({ registry: 'tiers', classified: fresh.size });
-    writes.set(SPLIT_REGISTRIES.tiers, pretty(manifest));
+    writes.set(SPLIT_REGISTRIES.tiers, formatTestTiers(manifest));
   }
   const rolesPath = join(root, SPLIT_REGISTRIES.roles);
   if (existsSync(rolesPath)) {

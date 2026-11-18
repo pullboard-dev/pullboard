@@ -46,7 +46,7 @@ function packDirectory(t) {
   return files.root;
 }
 
-test('clause 1: history whose object lines pass 8 MiB packs instead of refusing RUNNER_SOURCE [C7]', t => {
+test('runners.large.history-whose-object-lines-pass-8: clause 1: history whose object lines pass 8 MiB packs instead of refusing RUNNER_SOURCE [C7]', t => {
   const repo = largeHistory(t);
   const listed = runFixtureChild('git', ['rev-list', '--objects', repo.commit], { cwd: repo.root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
   assert.ok(Buffer.byteLength(listed.stdout) > MAX_BLOB_BYTES, `the fixture lists ${Buffer.byteLength(listed.stdout)} bytes of objects`);
@@ -58,7 +58,7 @@ test('clause 1: history whose object lines pass 8 MiB packs instead of refusing 
   assert.deepEqual(readdirSync(directory).filter(name => name.startsWith('history.')), [], 'the streamed reads leave no files behind');
 });
 
-test('clause 2: a private key anywhere in that large history still refuses RUNNER_SECRET [C7]', t => {
+test('runners.large.a-private-key-anywhere-in-that: clause 2: a private key anywhere in that large history still refuses RUNNER_SECRET [C7]', t => {
   const header = ['-----BEGIN', 'RSA PRIVATE', 'KEY-----'].join(' ');
   const repo = largeHistory(t, { [longPath(FILES)]: `${header}\nnot a real key\n` });
   const directory = packDirectory(t);

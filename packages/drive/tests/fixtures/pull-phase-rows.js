@@ -11,9 +11,14 @@ const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
  * The job prints one PULLBOARD_GATE_RECEIPT line holding `check` and `proof` rows; each row's profilePath sits in the job's scratch folder (its TMPDIR).
  * Why the path is built in the job: the runner picks the scratch folder, so only the running job can name a path inside it.
  */
-const JOB = `const { join } = require('node:path');
+const jobSource = profiles => `const { join } = require('node:path');
+const { writeFileSync } = require('node:fs');
 const scratch = process.env.TMPDIR;
-const phase = (name, log) => ({ name, log, profilePath: join(scratch, log + '.profile.json'), green: true });
+const phase = (name, log) => {
+  const profilePath = join(scratch, log + '.profile.json');
+  if (${profiles}) writeFileSync(profilePath, JSON.stringify({ phase: name }));
+  return { name, log, profilePath, green: true };
+};
 process.stdin.resume();
 process.stdin.on('end', () => console.log('PULLBOARD_GATE_RECEIPT ' + JSON.stringify({ version: 1, green: true, check: phase('check', 'check.log'), proof: phase('proof', 'proof.log') })));`;
 
@@ -22,9 +27,10 @@ process.stdin.on('end', () => console.log('PULLBOARD_GATE_RECEIPT ' + JSON.strin
  *
  * @param {string} trunk - An empty folder for the one-commit trunk.
  * @param {string} cache - An empty folder for the runner's cache.
+ * @param {{ profiles?: boolean, pulledProfilePaths?: boolean }} [options] - profiles: the job writes a timing profile file for each phase; pulledProfilePaths: the runner serves with gate.pulledProfilePaths on.
  * @returns {Promise<{ receipt: object, scratch: string | null }>} receipt: the body of the board's `receipt` call.
  */
-export async function runPhaseRows(trunk, cache) {
+export async function runPhaseRows(trunk, cache, { profiles = false, pulledProfilePaths = false } = {}) {
   const sh = async (...args) => (await runTestGit(trunk, ['-c', 'user.name=Tester', '-c', 'user.email=tester@example.com', ...args])).stdout;
   await sh('init', '-q', '-b', 'main');
   writeFileSync(join(trunk, 'file.txt'), 'one\n');
@@ -39,10 +45,10 @@ export async function runPhaseRows(trunk, cache) {
       claimed = true;
       return reply({ trunk, claim });
     }
-    if (call.action === 'request') return reply({ request: { run: ['node', '-e', JOB], input: { main: commit, entry: 'x', data: {} }, commits: [] } });
+    if (call.action === 'request') return reply({ request: { run: ['node', '-e', jobSource(profiles)], input: { main: commit, entry: 'x', data: {} }, commits: [] } });
     if (call.action === 'receipt') receipt = call.receipt;
     return reply({ recorded: true, renewed: true });
   };
-  await serveRunner({ git: pullGit, board: BOARD, runner: 'r-phase-rows', capabilities: [], cache, once: true, fetchImpl, trunkPack: async () => {}, say: () => {} });
+  await serveRunner({ git: pullGit, board: BOARD, runner: 'r-phase-rows', capabilities: [], cache, once: true, fetchImpl, trunkPack: async () => {}, say: () => {}, pulledProfilePaths });
   return { receipt };
 }

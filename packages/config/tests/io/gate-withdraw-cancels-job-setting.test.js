@@ -26,7 +26,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'gate.withdrawCancelsJob'));
 }
 
-test('clause 1: gate.withdrawCancelsJob defaults to false, is described, and withdrawCancelsJob() is true only on an exact true [C7,#3860]', () => {
+test('config.io-gate-withdraw-cancels-job-setting.clause-1-gate-withdrawcancelsjob: clause 1: gate.withdrawCancelsJob defaults to false, is described, and withdrawCancelsJob() is true only on an exact true [C7,#3860]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -37,7 +37,7 @@ test('clause 1: gate.withdrawCancelsJob defaults to false, is described, and wit
   assert.equal(withSettings({ gate: { withdrawCancelsJob: false } }, withdrawCancelsJob), false);
 });
 
-test('clause 2: a non-boolean gate.withdrawCancelsJob refuses with BAD_MACHINE_SETTINGS [C7,#3860]', () => {
+test('config.io-gate-withdraw-cancels-job-setting.clause-2-a-non-boolean-gate: clause 2: a non-boolean gate.withdrawCancelsJob refuses with BAD_MACHINE_SETTINGS [C7,#3860]', () => {
   for (const bad of ['yes', 1, null]) {
     assert.throws(() => withSettings({ gate: { withdrawCancelsJob: bad } }, withdrawCancelsJob), error => error.code === 'BAD_MACHINE_SETTINGS' && /gate\.withdrawCancelsJob/u.test(error.message));
   }

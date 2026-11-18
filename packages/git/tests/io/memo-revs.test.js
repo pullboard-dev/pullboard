@@ -29,14 +29,14 @@ function fixture() {
   return { root, memo, spawned, rev };
 }
 
-test('resolveRevs spawns git once for HEAD, HEAD^, trunk and the merge base [C7]', () => {
+test('git.memo-revs.single-spawn: resolveRevs spawns git once for HEAD, HEAD^, trunk and the merge base [C7]', () => {
   const { root, memo, spawned, rev } = fixture();
   const got = memo.resolveRevs(root, 'trunk');
   assert.equal(spawned.length, 1);
   assert.deepEqual(got, { ok: true, head: rev('HEAD'), parent: rev('HEAD^'), trunk: rev('trunk'), mergeBase: rev('trunk') });
 });
 
-test('a repeated resolveRevs call and a repeated first-parent log read each spawn at most once [C7]', () => {
+test('git.memo-revs.repeat-reads: a repeated resolveRevs call and a repeated first-parent log read each spawn at most once [C7]', () => {
   const { root, memo, spawned } = fixture();
   memo.resolveRevs(root, 'trunk');
   memo.resolveRevs(root, 'trunk');

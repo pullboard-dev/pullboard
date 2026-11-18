@@ -19,11 +19,11 @@ function enabledWith(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('gate.endStaleJobs reads false unset and true when set [C7,#8816]', () => {
+test('config.io-settings-end-stale-jobs.gate-endstalejobs-reads-false-unset-and: gate.endStaleJobs reads false unset and true when set [C7,#8816]', () => {
   assert.equal(enabledWith({}), false);
   assert.equal(enabledWith({ gate: { endStaleJobs: true } }), true);
 });
 
-test('a non-boolean gate.endStaleJobs is refused naming the setting [C7,#8816]', () => {
+test('config.io-settings-end-stale-jobs.a-non-boolean-gate-endstalejobs-is: a non-boolean gate.endStaleJobs is refused naming the setting [C7,#8816]', () => {
   assert.throws(() => enabledWith({ gate: { endStaleJobs: 'yes' } }), /gate\.endStaleJobs/u);
 });

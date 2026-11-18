@@ -22,14 +22,14 @@ async function handoff(error, retries) {
   return { outcome, runs };
 }
 
-test('clause 1: a runner refusing at setup requeues the gate on another attempt and returns no red [C7]', async () => {
+test('lib.runner-refused.a-runner-refusing-at-setup-requeues: clause 1: a runner refusing at setup requeues the gate on another attempt and returns no red [C7]', async () => {
   const { outcome, runs } = await handoff(refusal('RUNNER_SETUP_REFUSED'));
   assert.equal(runs, 2);
   assert.equal(outcome.attempts[0].code, 'RUNNER_SETUP_REFUSED');
   assert.deepEqual(outcome.result, { green: true });
 });
 
-test('clause 1: when the retry budget is spent the stop is an infrastructure stop that keeps the claim and records no red [C7]', async () => {
+test('lib.runner-refused.when-the-retry-budget-is-spent: clause 1: when the retry budget is spent the stop is an infrastructure stop that keeps the claim and records no red [C7]', async () => {
   await assert.rejects(handoff(refusal('RUNNER_SETUP_REFUSED'), 0), error => {
     assert.equal(error.code, 'GATE_INFRA_EXHAUSTED');
     assert.match(error.message, /RUNNER_SETUP_REFUSED/u);
@@ -38,7 +38,7 @@ test('clause 1: when the retry budget is spent the stop is an infrastructure sto
   });
 });
 
-test('clause 2: the gate and landing classify every code in the shared rerun list the same way [C7]', () => {
+test('lib.runner-refused.the-gate-and-landing-classify-every: clause 2: the gate and landing classify every code in the shared rerun list the same way [C7]', () => {
   assert.ok(RERUNNABLE_RUNNER_REFUSALS.includes('RUNNER_SETUP_REFUSED'));
   for (const code of RERUNNABLE_RUNNER_REFUSALS) {
     assert.ok(INFRASTRUCTURE_CODES.has(code), `the gate treats ${code} as infrastructure`);

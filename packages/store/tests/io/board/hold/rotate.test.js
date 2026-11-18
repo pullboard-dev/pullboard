@@ -25,7 +25,7 @@ function withHome(t, body) {
 }
 const write = command => recordBoardHold({ command, seat: 's', durationMs: 5, acquiredAt: Date.now(), allWrites: true });
 
-test('clause 1: a log past 64 MB moves to one prior file and the current write lands in the fresh log [C7,#6478]', t => withHome(t, home => {
+test('store.io-board-hold-rotate.a-log-past-64-mb-moves: clause 1: a log past 64 MB moves to one prior file and the current write lands in the fresh log [C7,#6478]', t => withHome(t, home => {
   const log = join(home, 'board-writes.jsonl');
   writeFileSync(log, 'old\n');
   truncateSync(log, BOARD_WRITES_MAX_BYTES + 1);
@@ -36,7 +36,7 @@ test('clause 1: a log past 64 MB moves to one prior file and the current write l
   assert.match(readFileSync(log, 'utf8'), /"command":"after"/u);
 }));
 
-test('clause 1: a second rotation replaces the prior file and a small log is never rotated [C7,#6478]', t => withHome(t, home => {
+test('store.io-board-hold-rotate.a-second-rotation-replaces-the-prior: clause 1: a second rotation replaces the prior file and a small log is never rotated [C7,#6478]', t => withHome(t, home => {
   const log = join(home, 'board-writes.jsonl');
   write('first');
   write('second');
