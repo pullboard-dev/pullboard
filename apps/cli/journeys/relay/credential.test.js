@@ -126,6 +126,8 @@ function credentialCases(box) {
     // A gate run with no receipt from this machine's own gate is refused before it reaches transport.
     // An automatic source advance, like a gate receipt, requires private native origin custody before transport.
     // A queue without an immutable captured job is refused by the genuine origin sealer before transport.
+    // No store writer exists for this move yet, so native preparation refuses it by name before sealing or transport.
+    if (operation === 'recaptureSubmitHandoff') return { operation, args, kind, sent: false, expected: 'NO_STORE_WRITER' };
     if (operation === 'queueSubmitHandoff') return { operation, args, kind, sent: false, expected: 'BAD_SUBMIT_HANDOFF' };
     if (operation === 'advanceItemSource') return { operation, args, kind, sent: false, expected: 'SOURCE_ADVANCE_STALE' };
     // An owner wait seals its proved source natively, so a missing item stops at that preparation before transport.
