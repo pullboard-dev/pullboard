@@ -21,7 +21,7 @@ function files(folder, endings) {
 
 const SITE = /(?<![\w$.])style\s*=\s*["'\\]|\.style\.(?:setProperty|removeProperty|cssText)\b|\.style\.[\w$]+\s*=(?!=)|\.style\s*=(?!=)|setAttribute\(\s*['"]style['"]/gu;
 
-test('apps/view source has no style attribute and no element style write; runtime geometry is one stylesheet keyed by data attributes [N26]', () => {
+test('view.x-io-no-inline-style.apps-view-source-has-no-style-attribute: apps/view source has no style attribute and no element style write; runtime geometry is one stylesheet keyed by data attributes [N26]', () => {
   const found = [];
   for (const path of files(source, ['.js'])) {
     readFileSync(path, 'utf8').split('\n').forEach((text, index) => {
@@ -49,7 +49,7 @@ function declarations(css) {
 
 const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb)\(/u;
 
-test('every colour, corner, border and shadow in apps/view CSS is a token, never a literal value [N26]', () => {
+test('view.x-io-no-inline-style.every-colour-corner-border-and-shadow-in: every colour, corner, border and shadow in apps/view CSS is a token, never a literal value [N26]', () => {
   const found = [];
   for (const path of files(source, ['.css'])) {
     for (const [property, value] of declarations(readFileSync(path, 'utf8'))) {
