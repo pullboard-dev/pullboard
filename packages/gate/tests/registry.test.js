@@ -83,6 +83,16 @@ test('gate.registry.io-admission-to-main: clause 1: [C7,U148] the io folders adm
   assert.ok(ids.length > 250);
 });
 
+test('gate.registry.logic-d: clause 2: [C7,U148] the logic test conversion, freeze-paths, journey-check, manifest-keep, progress and source tests each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['conversion', 'freeze-paths', 'journey-check', 'manifest-keep', 'progress', 'source/edits', 'source/loads'];
+  const files = names.map((name) => join(DIR, 'logic', 'test', `${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
+  assert.equal(ids.length, 45);
+});
+
 test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each carry an ID in every test title and one record per ID', () => {
   const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
   const names = ['health/red-list', 'health/runner-time', 'import-edges', 'input-coverage', 'junit-ticks', 'junit', 'literal-pins', 'load/bearing', 'markdown/allowlist', 'reporter/coverage'];
@@ -91,4 +101,14 @@ test('gate.registry.logic-b: clause 2: [C7,U148] the logic b test files each car
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
   assert.equal(ids.length, 40, 'all 40 tests of the logic b files are registered');
+});
+
+test('gate.registry.logic-c: clause 2: [C7,U148] the logic c test files each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['logic/selection-unit', 'logic/shell-freeze-row', 'logic/shell-preload-row', 'logic/source-preparation', 'logic/static/findings', 'logic/static/idiom-spread', 'logic/static/view-timer-layout', 'logic/test-registry', 'logic/test/budget/load', 'logic/test/budget/time', 'logic/wait'];
+  const files = names.map((name) => join(DIR, `${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
+  assert.equal(ids.length, 43, 'all 43 tests of the logic c files are registered');
 });

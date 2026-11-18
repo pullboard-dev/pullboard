@@ -24,7 +24,7 @@ function healthFloor() {
   return { floor, html: agentFloorHtml(floor, { back: '/dashboard' }) };
 }
 
-test('clause 1: an item row reads stalled with its idle minutes and waiting on its blockers [C7]', () => {
+test('view.x-io-dashboard-claim-health-rows.clause-1-an-item-row-reads-stalled: clause 1: an item row reads stalled with its idle minutes and waiting on its blockers [C7]', () => {
   const claimed = { status: 'claimed', claim: { by: 'web-1' } };
   const stalled = itemStagePresentation({ ...claimed, claimHealth: { state: 'stalled', idleMinutes: 21, waitingOn: [], handoffRef: null } });
   assert.deepEqual(stalled, { stage: 'Claimed', detail: 'stalled · 21 min' });
@@ -35,7 +35,7 @@ test('clause 1: an item row reads stalled with its idle minutes and waiting on i
   assert.deepEqual(itemStagePresentation(claimed), building, 'a claim without health keeps reading Building');
 });
 
-test('clause 1: the agent floor seat reads stalled and waiting claims [C7]', () => {
+test('view.x-io-dashboard-claim-health-rows.clause-1-the-agent-floor-seat-reads: clause 1: the agent floor seat reads stalled and waiting claims [C7]', () => {
   const { floor, html } = healthFloor();
   const seat = id => floor.groups.find(group => group.agents.some(agent => agent.id === id))?.key;
   assert.equal(seat('web-1'), 'stalled');
@@ -44,7 +44,7 @@ test('clause 1: the agent floor seat reads stalled and waiting claims [C7]', () 
   assert.match(html, /#10 waiting on #7/u);
 });
 
-test('clause 2: an auto-released item reads handed off with its pin, and one never handed off does not [C7]', () => {
+test('view.x-io-dashboard-claim-health-rows.clause-2-an-auto-released-item-reads: clause 2: an auto-released item reads handed off with its pin, and one never handed off does not [C7]', () => {
   const released = itemStagePresentation({ status: 'open', route: 'strong', claimHealth: { state: 'released', idleMinutes: null, waitingOn: [], handoffRef: 'view-9@4f2a1c' } });
   assert.deepEqual(released, { stage: 'Ready', detail: 'handed off · view-9@4f2a1c' });
   assert.deepEqual(itemStagePresentation({ status: 'open', route: 'strong' }), { stage: 'Ready', detail: 'strong route' });

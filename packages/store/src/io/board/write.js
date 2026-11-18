@@ -43,6 +43,8 @@ const PREPARATIONS = Object.freeze({
   recordGateRun: (board, args) => { warmHistories(board); return prebindGateRun(board, args); },
   recordFlakeObservation: (board, args) => { warmHistories(board); return args; },
   // A coordinator's bar correction freezes from git (main policy, facts, spec, test hashes); freeze it here, not under the lock.
+  // An automatic conflict return checks its receipt against Git here, so the writer reads the board and never Git (#10721).
+  reopen: (board, args) => prepareReopenConflict(board, args),
   editItem: (board, args) => [args[0], prepareEditFreeze(board, args[0], args[1]), ...args.slice(2)],
 });
 
@@ -116,6 +118,20 @@ function prebindGateRun(board, args) {
   return [{ ...request, [GATE_RUN_PREBOUND]: true }, ...args.slice(1)];
 }
 
+/** Marks a reopen whose conflict receipt was checked against Git before the writer opened; a symbol, so no wire message can carry it. */
+const REOPEN_PREPARED = Symbol.for('pullboard.reopen.prepared');
+
+/**
+ * Check an automatic conflict return's receipt against its recorded objects and the current trunk with no lock held, and mark the request so the writer skips those Git reads.
+ * A refusal here is left to the writer, which refuses in the same order as before; the writer also re-prepares when the board changed since.
+ */
+function prepareReopenConflict(board, args) {
+  const request = args[1];
+  if (board.executionEngineVersion !== undefined || request?.computedConflict === undefined || request.conflict !== undefined) return args;
+  try { board.nativePorts.requirePreparedComputedConflict(board, args[0], request.agentId, request.computedConflict, { forWriter: true }); } catch { return args; }
+  return [args[0], { ...request, [REOPEN_PREPARED]: true }, ...args.slice(2)];
+}
+
 /** Read the shared gate-run and flake histories with no lock held. */
 function warmHistories(board) {
   board.enginePorts.store.gateRuns(board);
@@ -129,7 +145,7 @@ const FILE_QUEUES = new Map();
 const QUEUE_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** The operations that go through the file write queue with board.crossProcessWrites on: one list, never a copy per operation (#9816, #9817, #8163). */
-const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify']);
+const QUEUED_OPERATIONS = new Set(['claim', 'release', 'verify', 'queueSubmitHandoff', 'startSubmitHandoff', 'completeSubmitHandoff']);
 
 /**
  * The write id of a queued write: the caller's own move id when its options carry one, else a digest of the board, the
@@ -142,7 +158,7 @@ function queuedWriteId(board, operation, args) {
 }
 
 /**
- * Submit a claim, release or verdict to the machine's shared file write queue and give back what its result file holds.
+ * Submit a claim, release, verdict or submit hand-off write to the machine's shared file write queue and give back what its result file holds.
  * With board.crossProcessWrites on this returns a promise; the queue answers across processes, so it cannot be synchronous.
  */
 async function writeThroughFileQueue(board, operation, args, actor, options) {
@@ -170,7 +186,7 @@ function readMark(file) {
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock. With
- * board.crossProcessWrites on, a claim, a release and a verdict go through the machine's file write queue instead and the call returns a promise;
+ * board.crossProcessWrites on, a claim, a release, a verdict and the three submit hand-off writes go through the machine's file write queue instead and the call returns a promise;
  * every other operation, and every operation with the setting off, writes directly as before.
  * @param {any} board
  * @param {string} operation
@@ -198,7 +214,7 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
   // the writer lock; the prepared plan is then stale, so prepare again from the new board. Bounded so a
   // continuously changing board still reports BOARD_BUSY. This is why concurrent renewals all succeed.
   for (let attempt = 0; ; attempt++) {
-    const snapshot = operation === 'recordGateRun' ? boardWriteSnapshot(board) : null;
+    const snapshot = operation === 'recordGateRun' || (operation === 'reopen' && args[1]?.computedConflict !== undefined) ? boardWriteSnapshot(board) : null;
     let preparing = true;
     let rollbackPrepared;
     try {
@@ -218,7 +234,7 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
         measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, current));
         measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: current, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) }));
         // A binding checked before the writer opened holds only while the board is unchanged since; otherwise prepare again (#10715).
-        if (snapshot && current[0]?.[GATE_RUN_PREBOUND]) requireBoardWriteSnapshot(board, snapshot, operation);
+        if (snapshot && (current[0]?.[GATE_RUN_PREBOUND] || current[1]?.[REOPEN_PREPARED])) requireBoardWriteSnapshot(board, snapshot, operation);
         return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...current), operation);
       });
     } catch (error) {
