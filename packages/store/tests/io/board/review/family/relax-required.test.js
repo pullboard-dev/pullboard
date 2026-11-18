@@ -1,8 +1,5 @@
-/** With review.relaxRequiredFamily on, a --review-family item with no live eligible seat yields a relaxation witness for a seat of another session; off, none [C7,#11127]. */
+/** With review.relaxRequiredFamily on, a strict-only-because-of-its-family --review-family item with no live eligible seat yields a relaxation witness for a seat of another session; off, none [C7,#11127]. */
 // fixture-subject: addItem (a store unit test of the required-family witness over two seeded items; the board is opened through the kit)
-import { itemReviewPolicy } from '../../../../../../verify/index.js';
-import { frozenRelaxAt } from '../../../../../src/io/relaxation.js';
-import { reviewerChecks } from '../../../../../src/io/board.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,8 +25,8 @@ function withRelax(on, read) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-/** A board with two submitted standard-tier items that require reviewer family anthropic, frozen with familyRelaxAt 2, and one openai builder seat as the only active seat. */
-function waitingBoard(t) {
+/** A board with two submitted items that require reviewer family anthropic (strict only because of that family unless `sensitive`), frozen with familyRelaxAt 2, and one openai builder seat as the only active seat. */
+function waitingBoard(t, { sensitive = false } = {}) {
   let now = new Date('2026-01-01T00:00:00.000Z');
   const board = openKitBoard(':memory:', { now: () => new Date(now) });
   t.after(() => store.closeBoard(board));
@@ -37,7 +34,7 @@ function waitingBoard(t) {
     store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: FIXTURE_MODEL });
   }
   now = new Date(now.getTime() + 16 * 60_000);
-  const items = [1, 2].map(() => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review fixture', criterion: 'prove it', reviewFamily: 'anthropic' }));
+  const items = [1, 2].map(() => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review fixture', criterion: 'prove it', reviewFamily: 'anthropic', sensitive }));
   for (const id of items) {
     store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
       freeze: () => ({ text: JSON.stringify({ policy: { verify: { familyRelaxAt: 2 } } }), digest: 'fixture-digest' }) });
@@ -50,8 +47,7 @@ test('store.io-board-review-family-relax-required.witness-for-required-family: c
   const { board, items } = waitingBoard(t);
   const item = store.getItem(board, items[0]);
   const witness = withRelax(true, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer'));
-  const dbg = { tier: itemReviewPolicy(board, item.item_id), frozen: frozenRelaxAt(item), fam: item.item_review_family, status: item.item_status, nb: String(reviewerChecks(board, { agentId: 'core-2', policy: 'any', familyPolicy: 'require' }).notBuilder(item)), on: withRelax(true, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer')), ev: board.db.prepare('select event_by,event_kind,event_at from event').all() };
-  assert.equal(witness?.queueLength, 2, JSON.stringify(dbg));
+  assert.equal(witness?.queueLength, 2);
   assert.equal(witness.threshold, 2);
   assert.deepEqual(witness.waiting, items);
   assert.deepEqual(withRelax(true, () => confirmFamilyRelaxation(board, item, witness, 'core-2', 2, 'any', 'prefer')), witness);
@@ -65,4 +61,10 @@ test('store.io-board-review-family-relax-required.no-witness-when-off: clause 2:
   assert.ok(witness, 'the same board yields a witness with the setting on');
   assert.equal(withRelax(false, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer')), null);
   assert.equal(withRelax(false, () => confirmFamilyRelaxation(board, item, witness, 'core-2', 2, 'any', 'prefer')), null);
+});
+
+test('store.io-board-review-family-relax-required.no-witness-when-sensitive: clause 3: with review.relaxRequiredFamily on, the same items made sensitive yield null from reviewFamilyRelaxation [C7,#11127]', t => {
+  const { board, items } = waitingBoard(t, { sensitive: true });
+  const item = store.getItem(board, items[0]);
+  assert.equal(withRelax(true, () => reviewFamilyRelaxation(board, item, 'core-2', 2, 'any', 'prefer')), null);
 });

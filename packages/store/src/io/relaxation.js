@@ -40,10 +40,21 @@ function blockedFor(board, item, seats, policy, { reviewerChecks, reviewReleaseC
   });
 }
 
+/**
+ * Whether an item's review tier lets a family wait relax: standard, or, when the family wait itself may widen
+ * (review.relaxRequiredFamily on), strict only because of its review family: not sensitive, no strict review tier, not
+ * classified strict [C7,#11127].
+ */
+export function relaxableTier(board, item, itemReviewPolicy, classifiedStrict, familyWaitWidens) {
+  const policy = itemReviewPolicy(board, item.item_id);
+  if (policy.tier === 'standard') return true;
+  return Boolean(familyWaitWidens) && policy.sensitive === false && policy.reviewTier === undefined && !classifiedStrict(board, item.item_id);
+}
+
 /** Whether the subject and its reviewer may be relaxed at all: a standard same-family submission under a threshold. */
-function relaxable(board, subject, agentId, threshold, policy, { seatFamily, familiesDiffer, itemReviewPolicy, reviewerChecks, requiredFamilyWaits, reviewHeartbeats = null }) {
+function relaxable(board, subject, agentId, threshold, policy, { seatFamily, familiesDiffer, itemReviewPolicy, classifiedStrict, reviewerChecks, requiredFamilyWaits, reviewHeartbeats = null }) {
   if (!Number.isSafeInteger(threshold) || threshold < 1 || subject.item_status !== 'submitted'
-    || itemReviewPolicy(board, subject.item_id).tier !== 'standard') return false;
+    || !relaxableTier(board, subject, itemReviewPolicy, classifiedStrict, requiredFamilyWaits?.(subject))) return false;
   // A required-family item waits on seats of one family; any seat of another session than its builder may stand in for it [C7,#11127].
   if (requiredFamilyWaits?.(subject)) return !reviewerChecks(board, { agentId, policy, familyPolicy: 'require' }).notBuilder(subject);
   const family = seatFamily(board, agentId);
