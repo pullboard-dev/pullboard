@@ -19,13 +19,13 @@ async function agentsAfterInit(t, extra) {
   return readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
 }
 
-test('clause 1: the AGENTS block init writes names docs/cells.md when PB13 is in the project doctrine [N26,#8819]', async t => {
+test('cli.journeys-init-agents-cells.the-agents-block-init-writes-names: clause 1: the AGENTS block init writes names docs/cells.md when PB13 is in the project doctrine [N26,#8819]', async t => {
   const agents = await agentsAfterInit(t, ROW);
   assert.match(agents, /^## Pullboard$/mu);
   assert.match(agents, /docs\/cells\.md/u);
 });
 
-test('clause 2: the AGENTS block omits docs/cells.md when PB13 is absent from the project doctrine [N26,#8819]', async t => {
+test('cli.journeys-init-agents-cells.the-agents-block-omits-docs-cells: clause 2: the AGENTS block omits docs/cells.md when PB13 is absent from the project doctrine [N26,#8819]', async t => {
   const agents = await agentsAfterInit(t, '- P1 [approved, must] Keep commits small.\n');
   assert.match(agents, /^## Pullboard$/mu);
   assert.doesNotMatch(agents, /docs\/cells\.md/u);

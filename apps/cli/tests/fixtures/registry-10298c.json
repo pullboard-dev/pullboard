@@ -1,0 +1,4 @@
+{
+  "cli.journeys-runner-setup-cache.a-refused-runner-checkout-names-its": {"proves":{"specs":["C6","C7"],"claim":"A refused runner checkout names its failed cache step and stderr."},"why":"Without it, a regression where this no longer holds would pass unnoticed: a refused runner checkout names its failed cache step and stderr.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/setup/cache.test.js"]},
+  "cli.journeys-runner-setup-large.a-refused-runner-checkout-names-its": {"proves":{"specs":["C6","C7"],"claim":"A refused runner checkout names its failed large or filesystem step and stderr."},"why":"Without it, a regression where this no longer holds would pass unnoticed: a refused runner checkout names its failed large or filesystem step and stderr.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/setup/large.test.js"]}
+}

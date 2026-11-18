@@ -38,6 +38,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
   MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit and submit again (submit composes current main)',
+  TICK_FORMAT: 'write the note as clause N [kind]: evidence, or run pullboard test <the clause test file> from the item folder so a green run ticks the [test] clause itself',
   CROSS_OWNERSHIP: 'split the item so each piece names only its own lane’s folders, or shout the owning lane to build the other paths',
   ITEM_WORK_IN_SEAT: 'move the change to the item folder that pullboard claim <id> opens, commit there, and switch this seat checkout off the item branch',
   MERGED_ALREADY: 'run pullboard show <id> to read the recorded merge commit; nothing more is needed unless a different commit must land through a new item',
@@ -635,6 +636,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   FIELD_FILTER: 'write --field <name><op><value>, such as --field priority=high or --field points>=3',
   FIELD_UNKNOWN: 'declare the field first with pullboard field declare <name> <text|choice|number>, or use a field already declared',
   RUNNER_TOOLCHAIN_MISSING: 'add a runner that has the named toolchain with pullboard runner add, or ask the person to install it on an existing runner',
+  AGENT_REQUIRED: 'send agent with the seat name pullboard join gave this clone',
+  COORDINATOR_CREDENTIAL: "run the move on the board host with the local CLI, or send the coordinator's own key as x-pullboard-coordinator-key",
   SPEC_FIELD: 'give the field as a single plain sentence, or leave it out'
 });
 

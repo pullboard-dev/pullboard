@@ -34,12 +34,12 @@ async function withSettings(settings, report, run) {
 
 const ON = { landing: { junitFailures: true }, gate: { junitReport: 'junit.xml' } };
 
-test('clause 1: with landing.junitFailures on and gate.junitReport set, a failing report case is named in the receipt failures [C7]', async () => {
+test('cli.journeys-land-landing-junit-report.with-landing-junitfailures-on-and-gate: clause 1: with landing.junitFailures on and gate.junitReport set, a failing report case is named in the receipt failures [C7]', async () => {
   const result = await withSettings(ON, FAILING, step => step.run('junit'));
   assert.deepEqual(result.failures.map(row => [row.name, row.file]), [['breaks [C7]', 'a.py']]);
 });
 
-test('clause 2: a missing or damaged report falls back to the output parse and records its code without failing the step [C7]', async () => {
+test('cli.journeys-land-landing-junit-report.a-missing-or-damaged-report-falls: clause 2: a missing or damaged report falls back to the output parse and records its code without failing the step [C7]', async () => {
   const damaged = await withSettings(ON, '<testsuites><testsuite><testcase name="a">', step => step.run('damaged'));
   assert.equal(damaged.junitCode, 'JUNIT_DAMAGED');
   assert.equal(damaged.isGreen, true);
@@ -49,7 +49,7 @@ test('clause 2: a missing or damaged report falls back to the output parse and r
   assert.equal(missing.isGreen, true);
 });
 
-test('clause 3: with the setting off the step never reads the report [C7]', async () => {
+test('cli.journeys-land-landing-junit-report.with-the-setting-off-the-step: clause 3: with the setting off the step never reads the report [C7]', async () => {
   const off = await withSettings({ gate: { junitReport: 'junit.xml' } }, FAILING, step => step.run('off'));
   assert.deepEqual(off.failures, []);
   assert.equal(off.junitCode, undefined);

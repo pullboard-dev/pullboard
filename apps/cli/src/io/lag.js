@@ -1,3 +1,5 @@
+import { checkoutHead } from '../../../../packages/git/index.js';
+import { checkoutRefCommit } from '../../../../packages/git/index.js';
 import { gitExecFileSync } from '../../../../packages/git/index.js';
 import { trunkBranch } from './item/folder.js';
 
@@ -25,6 +27,9 @@ function ageText(ms) {
  */
 export function lagLine(root, nowMs) {
   const trunk = trunkBranch(root);
+  // A checkout whose HEAD is the trunk tip, both read from Git's ref files, is zero behind with no Git launch [C7,#5329].
+  const head = checkoutHead(root);
+  if (head !== undefined && head === checkoutRefCommit(root, `refs/heads/${trunk}`)) return null;
   const behind = Number(read(root, ['rev-list', '--count', `HEAD..${trunk}`]));
   if (!Number.isInteger(behind) || behind <= 0) return null;
   const base = read(root, ['merge-base', 'HEAD', trunk]);
