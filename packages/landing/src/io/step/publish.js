@@ -468,7 +468,9 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   const { sprintProof } = await import('../exact.js');
   const proof = await sprintProof({ tree }, ports);
   if (proof.result === 'green') {
-    await save(state, { exactTree: proof });
+    // With landing.composedEquality on, a staged tree that differs from the composition (or a multi-item batch) is re-proved here and the record says so [C7,#10976].
+    const reproved = state.config.landing?.composedEquality === true && recorded.composedEqual === false;
+    await save(state, { exactTree: reproved ? { ...proof, composition: 're-proved' } : proof });
     return state.batch.exactTree;
   }
   const barFile = proof.barFile ?? proof.file;
