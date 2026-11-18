@@ -25,6 +25,7 @@ import { refusingBadPolicy } from '../disk/use.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { join } from 'node:path';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
+import { statusLines } from '../../logic/status/render.js';
 import { landWhy } from '../../../../../packages/landing/light.js';
 import { landingLine } from '../../../../../packages/landing/light.js';
 import * as store from '../../../../../packages/store/index.js';
@@ -125,45 +126,9 @@ export async function run(io, { values }) {
     return 0;
   }
   if (hasRelayState || summary.relay.excluded) for (const line of (await import('../../../../../packages/link/index.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../../../../packages/outbox/index.js')))) io.say(line);
-  const { stages, accepted, rejected } = summary.stats;
-  io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
-  for (const id of summary.noRunnerGates) io.say(`top blocker: #${id} (in the gate, no runner); next: pullboard runner local, or pullboard submit ${id} again`);
-  io.say(`board: ${Object.entries(stages).map(([stage, total]) => `${total} ${stage}`).join(', ')}`);
-  io.say(`verdicts: ${accepted} accepted, ${rejected} rejected`);
-  if (summary.specApprovalBaseline?.pending) io.say('approval baseline pending: the next coordinator or person command in the main checkout records the existing approved rows; lane work may continue and none are flagged until then');
-  if (summary.specApprovalBaseline?.invalid) io.say('approval baseline unreadable: existing rows need approval evidence; restore a known-good board export to recover the original baseline');
-  io.say(reviewQueueLine(ctx, summary.reviewQueue, span));
-  io.say(landingLine(landing));
-  if (summary.landingBatch) io.say(summary.landingBatch);
-  for (const line of capacityLines(summary.capacityForecast)) io.say(line);
-  if (summary.usefulBuilders) for (const line of usefulBuilderLines(summary.usefulBuilders)) io.say(line);
-  io.say(signingLine(summary.person));
-  for (const entry of [...summary.staleState.holds, ...summary.staleState.claims, ...summary.staleState.reviews]) {
-    const incomplete = entry.evidence?.complete !== true;
-    const classification = entry.classificationUnknown ? '; blocker classification unknown; shown at shortest possible half-limit' : '';
-    io.say(`past half limit: ${staleStateLine(incomplete ? { ...entry, expired: false } : entry)}${incomplete ? '; inactivity unproven (evidence unknown)' : ''}${classification}`);
-  }
-  for (const entry of summary.needsRescope ?? []) io.say(`needs re-scope: #${entry.id} is not offered to ${entry.lane} at the ${entry.route} route; ${entry.reasons.join('; ')}; edit, refreeze or re-route it`);
-  for (const entry of summary.staleState.claimHealth ?? []) {
-    io.say(entry.health === 'waiting' ? `waiting: #${entry.id} (${entry.actor}) waits on ${entry.waitingOn.map(id => `#${id}`).join(', ')} to land; the claim is released and the item returns when it lands`
-      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 40m`);
-  }
-  for (const gate of summary.stalledGates) io.say(`gate job ${gate.id}${gate.item ? ` (#${gate.item})` : ''}: ${gate.text}`);
-  for (const warning of summary.runnerUtilization.warnings) io.say(warning);
-  io.say(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);
-  io.say(`capacity: ${summary.capacity.liveAgents} live, ${summary.capacity.idleAgents} idle, ${summary.capacity.readyItems} ready item${summary.capacity.readyItems === 1 ? '' : 's'}`);
-  for (const seat of summary.agents.filter(seat => values.all || seat.presence !== 'gone')) io.say(`${seat.agent_id}: ${seat.presence}${seat.heartbeatAt ? ` (heartbeat ${seat.heartbeatAt})` : ' (no local heartbeat)'}`);
-  if (summary.memoryHeld === null) io.say('local memory hold status unavailable; pullboard resources shows the queue');
-  else for (const run of summary.memoryHeld) io.say(`local memory holds ${run.agent}${run.item ? ` #${run.item}` : ''}${run.kind ? ` (${run.kind})` : ''}${run.repo ? ` in ${run.repo}` : ''}`);
-  if (summary.runnerDeadlines === null) io.say('runner wait deadline status unavailable; pullboard resources shows the queue');
-  else for (const run of summary.runnerDeadlines) io.say(`${run.agent}${run.item ? ` #${run.item}` : ''}${run.repo ? ` in ${run.repo}` : ''}: ${runnerDeadlineLine(run)}`);
-  for (const hold of summary.longestHolds ?? []) io.say(`board hold ${hold.at}: ${hold.heldMs} ms in ${hold.move ?? 'unknown move'}${hold.step ? `, slowest step ${hold.step} ${hold.stepMs ?? '?'} ms` : ''}`);
-  for (const line of diskLines(summary.disk)) io.say(line);
-  for (const proposal of summary.submitInvariantProposals) io.say(submitInvariantLine(proposal));
-  for (const need of summary.needs.filter(need => need.kind === 'agent-approved')) io.say(`${need.text}; ${need.what}`);
-  if (!summary.relay.linked && !originRepository(ctx.info.root, { optional: true })) {
-    io.say('optional: add a GitHub origin and run pullboard relay on to link this board');
-  }
+  const originHint = !summary.relay.linked && !originRepository(ctx.info.root, { optional: true });
+  const format = { capacityLines, usefulBuilderLines, signingLine, staleStateLine, runnerDeadlineLine, submitInvariantLine, diskLines };
+  for (const line of statusLines(summary, { all: values.all, reviewQueue: reviewQueueLine(ctx, summary.reviewQueue, span), landing: landingLine(landing), originHint, format })) io.say(line);
   if (Object.keys(ctx.config.products).length) {
     const all = await withBoardRead(ctx, (board) => store.listItems(board, { all: true }));
     productSummaries(ctx.config, loadSpec(ctx.info.root, ctx.config), all).forEach((product) => io.say(productLine(product)));
