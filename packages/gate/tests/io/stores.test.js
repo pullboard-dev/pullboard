@@ -367,3 +367,12 @@ test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store p
   assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
   assert.deepEqual(storeWriteProblems(registry, read), []);
 });
+
+test('#10814 clause 1: table:verdict is owned by the verify io module that writes it, and the logic file holds no verdict write [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:verdict'].owner;
+  assert.equal(owner, 'packages/verify/src/io/verdict/record.js');
+  assert.match(readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8'), /INSERT INTO verdict /u);
+  assert.doesNotMatch(readFileSync(new URL('../../../verify/src/logic/verdict/assurance.js', import.meta.url), 'utf8'), /INSERT INTO verdict /u);
+  assert.deepEqual(storeOwnerProblems(registry), []);
+});
