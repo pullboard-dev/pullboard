@@ -8,7 +8,7 @@ import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
 
 /** A project whose item adds an import edge between two modules, submitted and settled with the setting on or off; returns the box and the item's children. */
-async function settled(t, edgeFollowUps, files = { 'src/b.js': 'export const b = 1;\n', 'src/a.js': "import './b.js';\nexport const value = 1;\n" }) {
+async function settled(t, edgeFollowUps, expectChild = edgeFollowUps, files = { 'src/b.js': 'export const b = 1;\n', 'src/a.js': "import './b.js';\nexport const value = 1;\n" }) {
   const { box } = await project(t, { extra: { submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps } } });
   for (const [file, text] of Object.entries(files)) put(box.root, file, text);
   commitAll(box, 'feat(core): a imports b [G1]');
@@ -17,7 +17,7 @@ async function settled(t, edgeFollowUps, files = { 'src/b.js': 'export const b =
   const exported = await inProcess(box, box.root, 'export', '--json');
   assert.equal(exported.code, 0, exported.err);
   const children = JSON.parse(exported.out).tables.item.filter(row => row.item_parent_id === 1);
-  if (!children.length && edgeFollowUps) assert.fail(`no follow-up filed; the item's thread: ${(await inProcess(box, box.root, 'show', '1')).out.slice(-1500)}`);
+  if (!children.length && expectChild) assert.fail(`no follow-up filed; the item's thread: ${(await inProcess(box, box.root, 'show', '1')).out.slice(-1500)}`);
   return children;
 }
 
@@ -32,5 +32,5 @@ test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-at-its-defaul
 });
 
 test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit-no-edge: clause 1: with submit.edgeFollowUps on, a submit whose diff adds a file with no import changes no import edge and files no follow-up [C7]', async t => {
-  assert.deepEqual(await settled(t, true, { 'src/lone.js': 'export const lone = 1;\n' }), []);
+  assert.deepEqual(await settled(t, true, false, { 'src/lone.js': 'export const lone = 1;\n' }), []);
 });
