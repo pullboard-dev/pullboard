@@ -130,3 +130,33 @@ test('landing.publish.composed-equality-off-saves-no-composition: clause 2: with
   assert.equal(record.result, 'green');
   assert.equal('composition' in state.batch.exactTree, false, 'no composition field is saved');
 });
+
+/** The batch of composedBatch with a bar port that is red for item 7's file, and a write that records the reopen. */
+async function reprovedRed(t, composedEquality) {
+  const { state } = await composedBatch(t, { composedEquality, composedEqual: false });
+  const reopens = [];
+  const write = state.write;
+  state.write = async (name, args) => (name === 'reopen' ? reopens.push(args) : write(name, args));
+  state.config.landing.sprintBarTests = true;
+  state.sprintPorts.runBar = async () => ({ isGreen: false, refused: true, output: 'not ok', file: 'packages/alpha/tests/a.test.js', item: 7, items: [{ item: 7, files: ['packages/alpha/tests/a.test.js'] }] });
+  return { state, reopens };
+}
+
+test('landing.publish.reprove-red-reopens-the-item: clause 1: with landing.composedEquality on, a re-proved tree red in an item bar test leaves main where it was and reopens that item naming the file and the 12-character main-at [C7,#10776]', async t => {
+  const { state, reopens } = await reprovedRed(t, true);
+  await assert.rejects(() => requireSprintProof(state), { code: 'LAND_REPROVE_RED' });
+  assert.equal(reopens.length, 1);
+  assert.equal(reopens[0][0], 7);
+  assert.match(reopens[0][1].note, /packages\/alpha\/tests\/a\.test\.js/);
+  assert.ok(reopens[0][1].note.includes(`main ${state.batch.base.slice(0, 12)};`), 'main-at is the 12-character sha');
+  assert.ok(!reopens[0][1].note.includes(state.batch.base), 'not the full sha');
+  assert.doesNotMatch(reopens[0][1].note, /merge main/);
+  assert.equal(state.batch.state, 'blocked');
+});
+
+test('landing.publish.reprove-red-setting-off-blocks: clause 2: with landing.composedEquality off a red bar test is still the LAND_EXACT_RED batch block and reopens nothing [C7,#10776]', async t => {
+  const { state, reopens } = await reprovedRed(t, false);
+  await assert.rejects(() => requireSprintProof(state), { code: 'LAND_EXACT_RED' });
+  assert.deepEqual(reopens, []);
+  assert.equal(state.batch.refusal.code, 'LAND_EXACT_RED');
+});
