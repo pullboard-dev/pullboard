@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fileChangeWaiter } from '../../index.js';
 
 /** A native watch that hands its callbacks to the test, and a timer the test fires by hand. */
