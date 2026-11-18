@@ -1,5 +1,4 @@
 /** Argument and lane helpers for `pullboard add` and `pullboard edit`. Split from src/cli.js, which re-exports it [C7]. */
-import { fileURLToPath } from 'node:url';
 import { main } from './main.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
 import { outOfLane } from '../../../../packages/seats/index.js';
@@ -21,8 +20,17 @@ import { textArg } from './read.js';
 export { editAfter } from './read.js';
 export { textArg } from './read.js';
 
-/** The detached baseline worker, an executable of the lib app; the gate package spawns it by this path. */
-const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baseline.js', import.meta.url));
+/**
+ * Queue the baseline as a runner job on this board: any runner, this machine's local runner included, runs the check at
+ * main and posts its result, and the board records it on the item [#6560]. False when this machine holds no board to
+ * queue on, as behind a relay link.
+ */
+function offerBaseline(ctx, board, id, baseline) {
+  const root = ctx.info.root;
+  if (relayLinked(root) || !board?.db) return false;
+  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
+  return true;
+}
 
 /**
  * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
@@ -34,11 +42,9 @@ const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baselin
  * @returns {Promise<boolean>} True when the job is offered and the local runner runs; false leaves the baseline to the worker.
  */
 async function offerLocalBaseline(ctx, board, id, baseline) {
-  const root = ctx.info.root;
-  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
+  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled()) return false;
   const host = primaryCheckoutRoot(ctx.info);
-  if (!host) return false;
-  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
+  if (!host || !offerBaseline(ctx, board, id, baseline)) return false;
   return (await ensureLocalRunner(host)).running;
 }
 
@@ -54,14 +60,25 @@ async function settled(board, id) {
 }
 
 /**
- * Start an already-recorded request, recording an unavailable result if its child cannot start.
- * With no registered runner the baseline is a pulled job on the local runner and `wait` has nothing to wait for;
- * otherwise, with `wait`, resolves to a promise that settles when the worker process has exited.
+ * Start an already-recorded request where the lib launcher routes it, recording an unavailable result if it cannot start:
+ * with gate.runnersOnly on or any registered runner it is a runner job and nothing starts on this machine [#10787].
+ * With runners off it is a job for this machine's one local runner; no detached worker starts, as it has no runner to use.
+ * A pulled job has no process here, so `wait` waits for its result; a worker's `wait` settles when that worker exits.
+ * Why lazy: the launcher loads only when an add or edit records a baseline, so neither command's cold path grows.
  */
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
-  try { if (await offerLocalBaseline(ctx, board, id, baseline)) return options.wait ? settled(board, id) : undefined; } catch { /* the worker below leaves it pending */ }
-  try { return await startCheckBaseline(ctx.info.root, id, baseline, { ...options, worker: BASELINE_WORKER }); }
-  catch {
+  const { launchCheckBaseline, BASELINE_WORKER } = await (await import('../../../lib/light.js')).checkBaselineLauncher();
+  const root = ctx.info.root;
+  try {
+    const launched = await launchCheckBaseline({ id, baseline }, {
+      settings: loadMachineSettings(),
+      offer: () => { try { return offerBaseline(ctx, board, id, baseline); } catch { return false; } },
+      local: () => offerLocalBaseline(ctx, board, id, baseline).catch(() => false),
+      spawn: () => startCheckBaseline(root, id, baseline, { ...options, worker: BASELINE_WORKER }),
+    });
+    if (launched.route === 'runner-job' || launched.route === 'local-runner') return options.wait ? settled(board, id) : undefined;
+    return launched.exited;
+  } catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
   }

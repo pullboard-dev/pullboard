@@ -1,5 +1,8 @@
 /** Marker rows for further ecosystems: each language is one row of data, not more detection code [#3707,C7]. */
 
+/** Whether a pubspec.yaml declares a Flutter project: a line that is exactly `flutter:` (a key, not `sdk: flutter` or `flutter_test:`). */
+const FLUTTER_LINE = /^[ \t]*flutter:[ \t]*$/mu;
+
 /** The default `npm init` test script, which is not a real test. */
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -349,8 +352,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'dart',
-    detect: null,
-    tests: [],
+    detect: { markers: ['pubspec.yaml'], command: (_names, contents) => (FLUTTER_LINE.test(contents('pubspec.yaml') ?? '') ? 'flutter test' : 'dart test') },
+    tests: ['**/*_test.dart'],
     toolchains: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
     junit: null,
     affected: null,
@@ -359,8 +362,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'swift',
-    detect: null,
-    tests: [],
+    detect: { markers: ['Package.swift'], command: 'swift test' },
+    tests: ['**/Tests/**/*Tests.swift'],
     toolchains: ['swift'],
     junit: { command: `swift test --xunit-output ${JUNIT_DIR}/swift.xml`, report: `${JUNIT_DIR}/swift.xml`, needs: null },
     affected: { none: 'AFFECTED_NONE: swift has no per-file test command; run the full gate or declare affectedSuites' },
