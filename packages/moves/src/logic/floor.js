@@ -13,3 +13,8 @@ export function frozenRelaxationEngine(board, itemId) {
     } catch { return false; }
   }) ? REVIEW_FAMILY_RELAX_ENGINE : 1;
 }
+
+/** The engine floor is the largest engine number of every trigger whose condition holds, and 1 when none does; each pair is [engineNumber, condition] [H16]. */
+export function floorMax(...pairs) {
+  return Math.max(1, ...pairs.filter(([, condition]) => condition).map(([engine]) => engine));
+}
