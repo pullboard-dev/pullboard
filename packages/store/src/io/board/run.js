@@ -147,7 +147,7 @@ export function applyRunReceipt(board, { by, job, attempt, outcome, summary = {}
     red = failedMachineClause(board, run, summary);
     return red ? { applied: true, machineAccepted: false } : { applied: true, machineAccepted: acceptPulledMachine(board, run, summary) };
   });
-  if (red) throw new Refused('MACHINE_CLAUSE_RED', `${red.clause ? `clause ${red.clause}` : 'the frozen check'} failed on the pulled gate (${red.command}, receipt ${red.receipt}); fix it, commit, merge main, then submit again`);
+  if (red) throw new Refused('MACHINE_CLAUSE_RED', `${red.clause ? `clause ${red.clause}` : 'the frozen check'} failed on the pulled gate (${red.command}, receipt ${red.receipt}); fix it, commit and submit again (submit composes current main)`);
   return result;
 }
 

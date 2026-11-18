@@ -7,6 +7,7 @@ import { landingRunFiles } from '../../../../gate/index.js';
 import { testTierCommand } from '../../../../gate/index.js';
 import { VALUE_GATE } from '../../../../gate/index.js';
 import { gateStages } from '../../../../gate/index.js';
+import { detectLanguages } from '../../../../gate/index.js';
 import { blockingFailures } from '../../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from '../completion.js';
@@ -51,7 +52,6 @@ import { environmentWarnings } from './selection.js';
 import { singleItemLanding } from './selection.js';
 import { smokeCandidate } from '../smoke.js';
 import { landingFailures } from './failures.js';
-import { landingJunitLanguage } from './failures.js';
 import { save } from './merge.js';
 import { coveredFailures } from './failures.js';
 import { accountedFailures } from './failures.js';
@@ -84,15 +84,19 @@ export function sprintPorts(state) {
   const directory = join(dirname(root), 'logs');
   let plan;
   /** Run the tests of these files under the guard's slot: a cell with no test file has nothing to run and is green. */
-  const runFiles = async (files, label) => {
+  const runFiles = async (files, label, { required = false } = {}) => {
     const command = plan?.tiers ? testTierCommand(plan.tiers, files) : state.config.affectedTests?.trim() && files.length ? affectedTestsCommand(state.config, files) : '';
-    if (!command) return { isGreen: true };
+    if (!command) return required && files.length ? { isGreen: false, output: 'no test command is configured (affectedTests), so these test files cannot run' } : { isGreen: true };
     mkdirSync(directory, { recursive: true });
     const run = await runLocalLandingGuard(root, { ...state.config, gate: command, [VALUE_GATE]: true }, { files, directory, label,
       onWait: state.onWait, waivers: [], onFailure: async () => {}, quarantines: [], proofContext: undefined }, GUARD_PORTS);
     return { isGreen: run.isGreen === true, output: run.output };
   };
+  /** The tier plan of the changed packages, read once; a repository without tiers selects by import reach [V37]. */
+  const tiers = () => (plan ??= { tiers: selectTestTiers(root, { base: state.batch.base, commit: state.batch.tip, runner: state.config.affectedTests, componentTier: gateComponentTier() }) });
   return {
+    // landing.sprintBarTests on: the batch items' frozen bar tests run on this exact tree besides the cells' own tests [U147].
+    ...(state.config.landing?.sprintBarTests === true ? { runBar: barTestPort(state, (files, label, options) => { tiers(); return runFiles(files, label, options); }) } : {}),
     changedFiles: () => git(root, ['diff', '--no-renames', '--name-only', state.batch.base, state.batch.tip]).split('\n').filter(Boolean),
     pin: () => headCommit(state.root),
     runStatic: () => runStaticChecks(root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() },
@@ -100,7 +104,7 @@ export function sprintPorts(state) {
       .then(run => ({ isGreen: run === null || run.isGreen !== false, output: run?.output }), error => ({ isGreen: false, output: error?.message })),
     runCell: async cell => {
       // The change's own cells are the units the tier plan selects for the changed packages; a repository without tiers selects by import reach [V37].
-      plan ??= { tiers: selectTestTiers(root, { base: state.batch.base, commit: state.batch.tip, runner: state.config.affectedTests, componentTier: gateComponentTier() }) };
+      tiers();
       const named = plan.tiers ? plan.tiers.units : (plan.reach ??= selectAffectedTests(root, { base: state.batch.base, commit: state.batch.tip, suites: state.config.affectedSuites }).files);
       const run = await runFiles(named.filter(file => file.startsWith(`${cell}/`)), `sprint-${cell.replace('/', '-')}`);
       return run.isGreen ? run : { ...run, files: [...new Set(landingFailures(run.output ?? '', root).map(failure => failure.file).filter(Boolean))] };
@@ -111,6 +115,40 @@ export function sprintPorts(state) {
       const outcome = carriedMainOutcome(state.root, file)?.files[0];
       return outcome ? { result: outcome.result, main: outcome.main, receiptId: outcome.receiptId } : null;
     },
+  };
+}
+
+/**
+ * The Sprint proof's bar-test port: the union of every batch item's frozen bar test files, run once on the exact staged tree [U147].
+ * Why: the white paper's "proven" is the exact tree that lands passing the tests frozen with the bar; the cells' own files cannot say that.
+ * An item whose frozen bar names no readable file list, or a named file the staged tree lacks, or no test command, is refused naming the item (and file).
+ * The item and event readers come from the state when it carries them (a test's board), else the board.
+ *
+ * @param {any} state The landing state.
+ * @param {(files: string[], label: string, options?: { required?: boolean }) => Promise<{ isGreen: boolean, output?: string }>} runFiles Runs the files under the guard's slot.
+ */
+export function barTestPort(state, runFiles) {
+  const root = state.batch.root;
+  const readItem = state.readItem ?? (id => store.getItem(state.board, id));
+  const readEvents = state.readEvents ?? (id => store.events(state.board, { itemId: id }));
+  return async () => {
+    const items = [];
+    for (const entry of state.batch.items) {
+      let detail = {};
+      try { detail = JSON.parse(readEvents(entry.id).findLast(row => row.event_kind === 'submit')?.event_detail ?? '{}') ?? {}; } catch { detail = {}; }
+      const files = criterionTestFiles(root, entry, readItem(entry.id), state.config.affectedTests, detail);
+      if (files === null) return { isGreen: false, refused: true, item: entry.id, items, output: `the frozen bar of item #${entry.id} names no readable list of test files` };
+      const absent = files.find(file => !existsSync(join(root, file)));
+      if (absent) return { isGreen: false, refused: true, item: entry.id, file: absent, items, output: `the frozen bar test ${absent} of item #${entry.id} is missing from the staged tree` };
+      items.push({ item: entry.id, files });
+    }
+    const union = [...new Set(items.flatMap(row => row.files))].sort();
+    if (!union.length) return { isGreen: true, items };
+    const run = await runFiles(union, 'sprint-bar', { required: true });
+    if (run.isGreen) return { isGreen: true, items };
+    const red = [...new Set(landingFailures(run.output ?? '', root).map(failure => failure.file).filter(Boolean))];
+    if (!red.length) return { isGreen: false, refused: true, item: items[0].item, items, output: run.output };
+    return { ...run, items, files: red };
   };
 }
 
@@ -382,6 +420,16 @@ export function gateGroup(state, label, options) {
   return timedPhase(state.say, 'gate', () => runGateGroup(state, label, options));
 }
 
+/**
+ * The one language a project root is gated in, or null when it has none, several, or one per folder.
+ * Why: a JUnit row maps a case to a file by its language, and a guess in a multi-language repo would name the wrong file [C7,#10591].
+ */
+export function landingJunitLanguage(root) {
+  const entries = detectLanguages(root);
+  const languages = new Set(entries.map(entry => entry.language));
+  return languages.size === 1 && entries.every(entry => !entry.folder) ? entries[0].language : null;
+}
+
 /** Run one source-pinned gate or selective floor, retaining its complete immutable phase log. */
 async function runGateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
@@ -432,7 +480,7 @@ async function runGateGroup(state, label, options) {
   // read is recorded and the output parse stands, never a refusal of the step [C7].
   const reportPath = landingJunitFailures() ? gateJunitReport() : null;
   const report = reportPath ? readJunitReport(state.batch.root, reportPath) : null;
-  if (report?.code) state.say(`gate ${label}: JUnit report ${reportPath} not used (${report.code}); parsing the output`);
+  if (report?.code || report?.unreadable?.length) state.say(`gate ${label}: JUnit report ${reportPath} ${report.code ? `not used (${report.code}); parsing the output` : `skipped ${report.unreadable.join(', ')}`}`);
   const junit = { ...(report?.xml ? { junitFailures: true, junitXml: report.xml, junitLanguage: landingJunitLanguage(state.batch.root) } : {}), cargoFailures: landingCargoFailures() };
   const failures = blockingFailures(gate, landingFailures(gate.output, state.batch.root, junit));
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');

@@ -6,7 +6,7 @@ import { dashboardModel } from '../../../../src/io/dashboard/model.js';
 import { board } from './fixture.js';
 import { now } from './fixture.js';
 
-test('clauses 1-3 of #8060: one row per registered runner by name, load or offline, and a count that equals the rows [C7]', () => {
+test('view.x-render-dashboard-runners.clauses-1-3-of-8060-one-row: clauses 1-3 of #8060: one row per registered runner by name, load or offline, and a count that equals the rows [C7]', () => {
   const { project, events } = board();
   project.dashboardRunners = { runners: [
     { runner: 1, name: '203.0.113.51', offline: false, busy: true, cpu: 40, ram: 50, jobs: [{ kind: 'gate', item: 6 }] },

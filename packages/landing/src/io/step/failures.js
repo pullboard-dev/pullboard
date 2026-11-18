@@ -4,7 +4,6 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.
 import { completeGate } from '../completion.js';
 import { junitFailures } from '../../logic/junit-failures.js';
 import { cargoTestCases } from '../../../../gate/light.js';
-import { detectLanguages } from '../../../../gate/index.js';
 import { junitFile } from '../../logic/junit-files.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
@@ -98,16 +97,6 @@ export function landingFailures(output, root, { excludeCancelled = false, junitF
   }
   if (cargoOn === true) addCargoRows(unique, output);
   return [...unique.values()];
-}
-
-/**
- * The one language a project root is gated in, or null when it has none, several, or one per folder.
- * Why: a JUnit row maps a case to a file by its language, and a guess in a multi-language repo would name the wrong file [C7,#10591].
- */
-export function landingJunitLanguage(root) {
-  const entries = detectLanguages(root);
-  const languages = new Set(entries.map(entry => entry.language));
-  return languages.size === 1 && entries.every(entry => !entry.folder) ? entries[0].language : null;
 }
 
 /** The `Running <path>` line before a libtest line, as the repo file its binary was built from, or null when none came before. */
