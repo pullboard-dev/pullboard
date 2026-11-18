@@ -3,6 +3,7 @@ import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { quarantineBatchGates } from '../../../../verify/index.js';
 import { receiptBlockingGreen } from '../../../../verify/index.js';
+import { verdictProjector } from '../../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from '../land/envelope.js';
@@ -442,6 +443,19 @@ function redFileDetail(proof) {
 }
 
 /**
+ * Whether the item a landing re-proof red reopens keeps its accepted verdict: kept unless main at the batch base changed a file the review covered [C7,U159,#10777].
+ * Why: the red is the tree's fault, not the review's; a verdict read that fails never blocks the reopen, it just keeps nothing.
+ */
+function reopenedVerdict(state, id) {
+  try {
+    const reads = state.verdictReads ?? { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, getItem: store.getItem };
+    const projector = verdictProjector(state.root, state.board, { main: state.batch.base },
+      { events: reads.events, acceptedVerdict: reads.acceptedVerdict, verdictReviewProblem: reads.verdictReviewProblem, trunkRef: reads.trunkRef });
+    return projector.reopened(reads.getItem(state.board, id), { composedEquality: state.config.landing?.composedEquality === true });
+  } catch { return { keep: false }; }
+}
+
+/**
  * Prove the batch's exact tree at Sprint depth before main moves: static checks, then the tests of each cell the batch changes [V37].
  * The record lands on the batch as exactTree.pin, .cells and .result beside exactTree.tree. A red leaves main where it was, records
  * the batch blocked with the failing cell named, and refuses LAND_EXACT_RED.
@@ -476,6 +490,15 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   const barFile = proof.barFile ?? proof.file;
   const where = proof.failed === 'bar' ? `the frozen bar tests of item #${proof.item}${barFile ? ` (file ${barFile})` : ''}` : proof.failed;
   const message = `the Sprint proof is red on tree ${tree} in ${where}${proof.barFile ? '' : redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : proof.failed === 'bar' ? `the bar tests of item #${proof.item}` : `the tests of ${proof.failed}`} and resubmit`;
+  // With landing.composedEquality on, a red in one item's frozen bar tests sends that item back to its lane naming the file and main-at, and the batch's other items are not blamed [C7,#10776].
+  if (state.config.landing?.composedEquality === true && proof.failed === 'bar' && Number.isInteger(proof.item)) {
+    const kept = reopenedVerdict(state, proof.item);
+    const note = `the re-proved tree is red in the frozen bar tests of this item (file ${barFile ?? 'unknown'}) at main ${String(state.batch.base).slice(0, 12)}; main was not moved; fix that test and resubmit${kept.keep ? '; its accepted review stays bound, since main changed no file the review covered' : kept.stale?.file ? `; its review is stale, since main changed ${JSON.stringify(kept.stale.file)}, so another agent re-reviews it` : ''}`;
+    await state.write('reopen', [proof.item, { agentId: 'coordinator', note }]);
+    await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: barFile ?? null, name: note }], refusal: { code: 'LAND_REPROVE_RED', message: `item #${proof.item} reopened: ${note}`, at: state.board.clock.now().toISOString() } });
+    state.say?.(`finish: item #${proof.item} reopened to its lane: ${note}`);
+    throw new Refused('LAND_REPROVE_RED', `item #${proof.item} reopened: ${note}`);
+  }
   await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
   state.say?.(`finish: ${message}`);
   throw new Refused('LAND_EXACT_RED', message);
