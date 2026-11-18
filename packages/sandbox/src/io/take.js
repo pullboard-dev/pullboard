@@ -190,11 +190,17 @@ export const takeSelection = {
   reviewOffer: (board, who) => store.reviewOffer(board, who),
 };
 
+/** The phases a next enters right before its claim or review reservation is written; a run through one may hand an item. */
+const COMMITTING = new Set(['claim', 'review reservation']);
+
 /** Bound active routing retries while yielding so native progress and peer work can run [C7,1811]. */
 export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetries = 16, now = () => performance.now(), monitor = null } = {}) {
   // Budget: #1811 allows one minute of active routing and names a phase after ten seconds.
   let started = now(), lastIdleNotice = -Infinity;
   let phase = 'startup', item = null, phaseStarted = started, timer = null, warned = false, retries = 0;
+  // Custody: once a run that entered a committing phase returns its item, that claim is this next's answer, so the budget
+  // never refuses after it; the seat would keep the claim, hear NEXT_TIMEOUT, and claim again on its retry (#10690).
+  let committing = false, custody = false;
   const repeated = new Map();
   // Profile: every millisecond since started belongs to exactly one named span, so the spans add up to the wall time [N2].
   const spans = []; let cursor = started, label = 'startup';
@@ -213,19 +219,25 @@ export function nextProgress(io, { timeoutMs = 60_000, phaseMs = 10_000, maxRetr
   function enter(name, id = null) {
     check();
     cut(name); stop(); phase = name; item = Number.isSafeInteger(id) ? id : null; phaseStarted = now(); warned = false;
+    if (COMMITTING.has(name)) committing = true;
     if (monitor) monitor.enter(phase, item);
     else { timer = setTimeout(warn, phaseMs); timer.unref?.(); }
   }
   /** Refuse only between completed native attempts, preserving any committed claim's custody. */
   function check() {
     if (now() - phaseStarted >= phaseMs) warn();
-    if (now() - started >= timeoutMs) throw new Refused('NEXT_TIMEOUT',
+    if (!custody && now() - started >= timeoutMs) throw new Refused('NEXT_TIMEOUT',
       `next exceeded its active routing budget in ${phase}; item ${item === null ? 'not yet selected' : '#' + item}; inspect your current claim or review before retrying`);
   }
   /** Observe an actual phase and check its completed result; never race an ordered write against a timer. */
   async function run(name, id, work) {
+    committing = false;
     enter(name, id);
-    try { const value = await work(); check(); return value; }
+    try {
+      const value = await work();
+      if (committing && value?.item && !value.retry) custody = true;
+      check(); return value;
+    }
     finally { stop(); cut('between phases'); }
   }
   /** Retry transient peer races finitely; an unchanged refusal cannot create a microtask/SQLite spin. */

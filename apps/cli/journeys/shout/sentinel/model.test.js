@@ -18,7 +18,7 @@ function sentinelShouts(box) {
     .map(event => JSON.parse(event.event_detail));
 }
 
-test('clause 1: a sentinel shout from waits record declares the model of the seat that ran it [I13,C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-sentinel-shout-from-waits-record: clause 1: a sentinel shout from waits record declares the model of the seat that ran it [I13,C7]', async t => {
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
@@ -32,7 +32,7 @@ test('clause 1: a sentinel shout from waits record declares the model of the sea
   assert.equal(shouts[0].model, FIXTURE_MODEL);
 });
 
-test('clause 1: a sentinel notice from claim maintenance declares the model of the seat that ran it [I13,C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-sentinel-notice-from-claim-maintenance: clause 1: a sentinel notice from claim maintenance declares the model of the seat that ran it [I13,C7]', async t => {
   const box = await fixture(t);
   const joined = await cli(box, box.root, ['join', 'coordinator', '--model', FIXTURE_MODEL]);
   assert.equal(joined.code, 0, joined.out + joined.err);
@@ -46,7 +46,7 @@ test('clause 1: a sentinel notice from claim maintenance declares the model of t
   for (const detail of shouts) assert.equal(detail.model, FIXTURE_MODEL, JSON.stringify(detail));
 });
 
-test('clause 2: a detached wake timer ends under an inherited frozen clock instead of waiting forever [C7]', async t => {
+test('cli.journeys-shout-sentinel-model.a-detached-wake-timer-ends-under: clause 2: a detached wake timer ends under an inherited frozen clock instead of waiting forever [C7]', async t => {
   const box = await fixture(t);
   const frozen = `data:text/javascript,${encodeURIComponent('const fixed = Date.parse("2026-10-06T12:00:00.000Z"); const Native = Date; globalThis.Date = class extends Native { constructor(...args) { super(...(args.length ? args : [fixed])); } static now() { return fixed; } };')}`;
   const scheduler = pathToFileURL(join(import.meta.dirname, '../../../../../packages/gate/src/io/main/audit/scheduler.js')).href;

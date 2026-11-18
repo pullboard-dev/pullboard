@@ -479,9 +479,10 @@ export function reviewCanonicalFamilies() {
   return loadMachineSettings().review?.canonicalFamilies === true;
 }
 
-/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on. */
+/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on, under the flat key "join.coordinatorSeat" or the nested form (#10669). */
 export function joinCoordinatorSeat() {
-  return loadMachineSettings().join?.coordinatorSeat === true;
+  const settings = loadMachineSettings();
+  return settings['join.coordinatorSeat'] === true || settings.join?.coordinatorSeat === true;
 }
 
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
@@ -600,6 +601,11 @@ export function lapsedSweepEnabled() {
 /** Whether docs.regenerateOnCommit is on (#9664): off by default; only an exact `true` turns it on. */
 export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
+}
+
+/** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
+export function itemsTestMirrorAtAdd() {
+  return loadMachineSettings().items?.testMirrorAtAdd === true;
 }
 
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
