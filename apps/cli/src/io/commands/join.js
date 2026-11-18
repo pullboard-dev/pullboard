@@ -54,7 +54,8 @@ function registeredFamily(label) {
 
 /**
  * Join a lane on the board host board.url names [P7]. The served board registers the seat with a remote marker in
- * place of a path here, and this worktree's git config pullboard.agent keeps its name for later board calls.
+ * place of a path here, and this worktree's git config keeps its name (pullboard.agent) and its own key
+ * (pullboard.seatKey), which every later move as this seat carries [#10790].
  * @param {any} io
  * @param {{ positionals: string[], values: any }} parsed
  * @param {string} origin The board host, as the seat prints it.
@@ -70,6 +71,9 @@ export async function joinRemote(io, { positionals, values }, origin, postMove) 
   // Per-worktree config, so each seat's worktree in one clone keeps its own name.
   gitExecFileSync(['config', 'extensions.worktreeConfig', 'true'], { cwd: ctx.info.root, stdio: 'ignore' });
   gitExecFileSync(['config', '--worktree', 'pullboard.agent', result.agent], { cwd: ctx.info.root, stdio: 'ignore' });
+  // A board host from before seat keys issues none: the old key is removed so it is never sent as the new seat's.
+  if (result.key) gitExecFileSync(['config', '--worktree', 'pullboard.seatKey', result.key], { cwd: ctx.info.root, stdio: 'ignore' });
+  else try { gitExecFileSync(['config', '--worktree', '--unset', 'pullboard.seatKey'], { cwd: ctx.info.root, stdio: 'ignore' }); } catch { /* none was kept */ }
   io.result?.({ agent: result.agent, lane, route, model, board: origin });
   io.say(`joined as ${result.agent} in the ${lane} lane via ${origin}${route === 'light' ? ', on the light route' : ''}`);
 }
