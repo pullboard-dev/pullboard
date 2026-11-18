@@ -27,7 +27,7 @@ function leaksOf(surface, texts) {
   return texts.flatMap(text => personSurfaceLeaks(text).map(leak => `${surface}: ${leak.kind}: ${leak.match}`));
 }
 
-test('no internals reach a person-facing surface [H23,C6,N26]', () => {
+test('cli.journeys-help-surfaces-all.no-internals-reach-a-person-facing: no internals reach a person-facing surface [H23,C6,N26]', () => {
   const board = seededPersonBoard();
   assert.ok(board.length > 100, 'one case per catalog refusal, never hand-listed');
   const leaks = new Set();
@@ -55,7 +55,7 @@ test('no internals reach a person-facing surface [H23,C6,N26]', () => {
   assert.deepEqual([...leaks], []);
 });
 
-test('clause 2: agent-facing output keeps its codes [H23,C6,N26]', () => {
+test('cli.journeys-help-surfaces-all.agent-facing-output-keeps-its-codes: clause 2: agent-facing output keeps its codes [H23,C6,N26]', () => {
   const [{ code, agentText }] = seededPersonBoard();
   const seat = refusalDocument(new Refused(code, 'refused for the fixture'), { caller: 'seat' });
   assert.equal(seat.error.code, code, 'the seat sees the refusal code');

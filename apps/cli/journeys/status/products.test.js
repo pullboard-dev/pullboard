@@ -81,7 +81,7 @@ after(() => {
  */
 const freeze = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
 
-test('an entry names a row by its id and sub-ids, or a whole section by its letters [S11]', () => {
+test('cli.journeys-status-products.an-entry-names-a-row-by: an entry names a row by its id and sub-ids, or a whole section by its letters [S11]', () => {
   assert.equal(names('B', 'B1'), true);
   assert.equal(names('B', 'B16'), true);
   assert.equal(names('B', 'BX1'), false, 'section letters name their own section only');
@@ -91,7 +91,7 @@ test('an entry names a row by its id and sub-ids, or a whole section by its lett
   assert.equal(names('N2', 'N26'), false);
 });
 
-test('rows, items and lanes belong to the products that name them, and nothing stores it [S12]', () => {
+test('cli.journeys-status-products.rows-items-and-lanes-belong-to: rows, items and lanes belong to the products that name them, and nothing stores it [S12]', () => {
   const spec = parseSpec(SPEC);
   assert.deepEqual(productsOfRow(CONFIG, 'B2'), ['Core']);
   assert.deepEqual(productsOfRow(CONFIG, 'N26.1'), ['View']);
@@ -105,7 +105,7 @@ test('rows, items and lanes belong to the products that name them, and nothing s
   assert.deepEqual(productsOfLane(moved, spec, 'web'), ['Core']);
 });
 
-test('config refuses products that are not named lists of spec ids or section letters [S11]', () => {
+test('cli.journeys-status-products.config-refuses-products-that-are-not: config refuses products that are not named lists of spec ids or section letters [S11]', () => {
   const problems = (products) => configProblems({ ...defaults(), products });
   assert.deepEqual(problems({ Core: ['B'] }).filter((problem) => problem.includes('product')), []);
   assert.ok(problems(['B']).some((problem) => problem.startsWith('"products" maps product names')));
@@ -115,7 +115,7 @@ test('config refuses products that are not named lists of spec ids or section le
   assert.deepEqual(productProblems({ products: { Core: ['B', 'Q9'] } }, parseSpec(SPEC)), ['product "Core": "Q9" names no row in the spec']);
 });
 
-test('in a real repo, status prints each product, and spec check fails on an entry that names no row [S11, S12]', async () => {
+test('cli.journeys-status-products.in-a-real-repo-status-prints: in a real repo, status prints each product, and spec check fails on an entry that names no row [S11, S12]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-products-')));
   dirs.push(dir);
   const repo = join(dir, 'repo');
@@ -181,7 +181,7 @@ test('in a real repo, status prints each product, and spec check fails on an ent
   assert.doesNotMatch((await run('status')).stdout, /^product /m, 'no products, no product lines');
 });
 
-test('a product counts only rows in force, but its items by the one membership rule [S12]', () => {
+test('cli.journeys-status-products.a-product-counts-only-rows-in: a product counts only rows in force, but its items by the one membership rule [S12]', () => {
   const spec = parseSpec(SPEC);
   const items = [
     { item_spec_ids: 'B1', item_status: 'verified' },

@@ -14,7 +14,7 @@ const TABLE = [
   '3 waits; 1 over budget',
 ].join('\n');
 
-test('clause 1: the waits measurement ignores a /tmp/pullboard-* orphan process the fixture did not start [C7]', () => {
+test('cli.logic-budget-measure-orphans.the-waits-measurement-ignores-a-tmp-pullboard: clause 1: the waits measurement ignores a /tmp/pullboard-* orphan process the fixture did not start [C7]', () => {
   const kept = withoutOrphanRows(TABLE);
   assert.doesNotMatch(kept, /orphan|pid 99|pid 98|parent gone/u);
   assert.match(kept, /pool/u);

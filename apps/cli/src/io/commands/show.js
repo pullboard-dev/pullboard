@@ -14,12 +14,16 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
+import { queueWaitLines } from '../../logic/show/gate.js';
 import { landingPhaseLines } from '../../logic/show/gate.js';
 import { exactTreeLine } from '../../logic/show/gate.js';
 import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../../packages/config/index.js';
+import { verdictTrunk } from '../../../../../packages/verify/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
@@ -113,6 +117,19 @@ function newestRunGateJob(db, id, receipts, runs) {
     gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
+/**
+ * The main commit and the verdict reader of the derived-state table, or null when the table is not current for main [C7,#10572].
+ * Why lazy: the health cell loads only with health.derivedState on, so the cold path of show loads nothing more with it off.
+ * An item with no row answers undefined, and the projector computes its freshness as before.
+ */
+async function derivedVerdictTable(root, board) {
+  let main;
+  try { main = verdictTrunk(root, { trunkRef }); } catch { return null; }
+  const { readDerivedState } = await import('../../../../../packages/health/index.js');
+  const table = readDerivedState(board, { mainCommit: main, enabled: true });
+  return table ? { main, derived: item => table.verdicts.get(String(item.item_id)) } : null;
+}
+
 /** Run `pullboard show` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
@@ -121,7 +138,9 @@ export async function run(io, { first, values }) {
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
   const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
-    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project(store.getItem(board, id));
+    // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its row [C7,#10572].
+    const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board) : null;
+    const item = verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
@@ -200,6 +219,7 @@ export async function run(io, { first, values }) {
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
   for (const line of pulledWaitingLines(gateJob, item)) io.say(line);
+  for (const line of queueWaitLines(gateJob)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
@@ -214,7 +234,7 @@ export async function run(io, { first, values }) {
     }
   }
   if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
-  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
   // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].

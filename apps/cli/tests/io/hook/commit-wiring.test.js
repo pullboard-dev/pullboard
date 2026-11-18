@@ -75,7 +75,7 @@ for (const [name, path, message, status] of CASES) {
   });
 }
 
-test('clause 2: with the setting off a commit starts the real hooks, and --amend, -F, -e or no -m take them with it on [C7,#9215]', async () => {
+test('cli.io-hook-commit-wiring.with-the-setting-off-a-commit-starts: clause 2: with the setting off a commit starts the real hooks, and --amend, -F, -e or no -m take them with it on [C7,#9215]', async () => {
   const off = await project(false);
   assert.equal((await commit(off.box, 'web/off.txt', 'feat(web): add the page [G1]')).status, 0);
   assert.deepEqual(off.started(), ['pre-commit', 'commit-msg']);

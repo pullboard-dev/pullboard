@@ -55,7 +55,7 @@ async function gateJobWithin(box, item) {
   } catch { return newestGateJob(box, item); }
 }
 
-test('clause 1: after runnersOnly turns off, the submit --wait gate job settles, or the failure names its job_step, job_lease_owner and the runner log tail at 30 s [C7,Q1,V4]', async () => {
+test('cli.journeys-resources-runner-optout-settle.after-runnersonly-turns-off-the-submit: clause 1: after runnersOnly turns off, the submit --wait gate job settles, or the failure names its job_step, job_lease_owner and the runner log tail at 30 s [C7,Q1,V4]', async () => {
   const box = helpers.project('true');
   const marker = join(box.dir, 'submit-frozen-body');
   const command = `printf ran > '${marker.replaceAll("'", "'\\''")}'`;

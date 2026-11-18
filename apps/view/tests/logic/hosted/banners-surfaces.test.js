@@ -18,7 +18,7 @@ const PROSE = ['heading', 'text', 'small', 'live', 'lead', 'help', 'detail'];
 /** The words a banner model shows the person. */
 const words = (model) => PROSE.flatMap((key) => (typeof model[key] === 'string' ? [model[key]] : []));
 
-test('every banner state, over every refusal in the seeded board, is free of codes, commands, tokens and relay terms [C6,N26]', () => {
+test('view.hosted-banners-surfaces.every-banner-state-over-every-refusal-in: every banner state, over every refusal in the seeded board, is free of codes, commands, tokens and relay terms [C6,N26]', () => {
   const board = seededPersonBoard();
   assert.ok(board.length > 100, 'one refusal per catalog entry, never hand-listed');
   const leaks = new Set();
@@ -37,12 +37,12 @@ test('every banner state, over every refusal in the seeded board, is free of cod
   assert.deepEqual([...leaks], []);
 });
 
-test('a refusal handed to a banner as plain words is shown as written [C6,N26]', () => {
+test('view.hosted-banners-surfaces.a-refusal-handed-to-a-banner-as: a refusal handed to a banner as plain words is shown as written [C6,N26]', () => {
   const detail = 'This computer could not reach the board.';
   assert.equal(hostedState('local-failed', { detail }).detail, detail);
 });
 
-test('a bracketed code in a refusal is dropped from a banner and its plain words stay [C6,N26]', () => {
+test('view.hosted-banners-surfaces.a-bracketed-code-in-a-refusal-is: a bracketed code in a refusal is dropped from a banner and its plain words stay [C6,N26]', () => {
   assert.equal(hostedState('problem', { detail: '[RELAY_UNAVAILABLE] The relay is busy.' }).text, 'The relay is busy.');
   assert.equal(hostedState('problem').text, 'This page could not take the connection Pullboard on this computer sent back.');
 });

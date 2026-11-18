@@ -315,7 +315,9 @@ function fillRecords(root, revision, map, paths, directory = null) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
       if (directory && !map.has(path)) map.set(path, []);
-      map.get(path)?.push(record);
+      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
+      const records = map.get(path);
+      if (records && !records.includes(record)) records.push(record);
     }
   }
 }

@@ -21,7 +21,7 @@ import {
 import { runFixtureExecFile } from '../../tests/fixtures/child.js';
 import { runCliInProcess } from '../../tests/fixtures/process.js';
 
-test('show prints a frozen check exactly as stored, with no added escaping [N30,A1]', async () => {
+test('cli.journeys-show-check.show-prints-a-frozen-check-exactly: show prints a frozen check exactly as stored, with no added escaping [N30,A1]', async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-show-check-')));
   const repo = join(dir, 'repo');
   mkdirSync(repo);

@@ -41,7 +41,7 @@ function submitting(box, title) {
   return id;
 }
 
-test('a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
+test('cli.journeys-next-take.a-free-seat-is-handed-one: a free seat is handed one eligible item without screening [N2,V1,B3]', async t => {
   const box = await fixture(t, { route: 'light' });
   const future = box.add('Older item in a future release', { route: 'light' });
   const wrongLane = box.add('Wrong lane', { lane: 'docs', route: 'light' });
@@ -68,7 +68,7 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
 });
 
-test('next --take gives a seat with a running handoff a different item and no --wait [C7,#2882]', async t => {
+test('cli.journeys-next-take.next-take-gives-a-seat-with: next --take gives a seat with a running handoff a different item and no --wait [C7,#2882]', async t => {
   const box = await fixture(t);
   const held = submitting(box, 'Submitted and gating');
   const other = box.add('Another open item', { brief: 'Files: web/other.js\nTest: an unrelated file.' });
@@ -80,7 +80,7 @@ test('next --take gives a seat with a running handoff a different item and no --
   assert.equal(store.getItem(box.board, other).item_owner, box.seats.actor.id);
 });
 
-test('the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
+test('cli.journeys-next-take.the-commit-msg-hook-accepts-the: the commit-msg hook accepts the submitted item trailer while its handoff runs [C7,#2882]', async t => {
   const box = await fixture(t);
   const id = submitting(box, 'Submitted and gating');
   const cwd = box.seats.actor.path;
@@ -93,7 +93,7 @@ test('the commit-msg hook accepts the submitted item trailer while its handoff r
 });
 
 /** Keep an existing claim's lease and event history intact when ordinary next resumes it. */
-test('default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
+test('cli.journeys-next-take.default-next-resumes-its-held-claim: default next resumes its held claim without renewing or refreezing it [C7,N2,B5,V2]', async t => {
   const box = await fixture(t);
   const id = box.add('Claim already held by this seat');
   box.claim(id, box.seats.actor);
@@ -110,7 +110,7 @@ test('default next resumes its held claim without renewing or refreezing it [C7,
 });
 
 /** A current spec correction must not force an existing holder through a fresh claim freeze. */
-test('default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
+test('cli.journeys-next-take.default-next-resumes-a-held-claim: default next resumes a held claim after its cited row leaves the live spec [C7,N2,V2]', async t => {
   const box = await fixture(t);
   const id = box.add('Claim with a retired cited row');
   box.claim(id, box.seats.actor);
@@ -140,7 +140,7 @@ for (const reason of ['BLOCKED', 'ROUTED_ELSEWHERE', 'INELIGIBLE']) {
   });
 }
 
-test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
+test('cli.journeys-next-take.a-coordinator-edit-never-leaves-an: a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   const box = await fixture(t);
   const id = box.add('An open corrected bar');
   const edited = await cli(box, box.root, ['edit', String(id), '--criterion', 'The corrected open criterion', '--reason', 'Correct the fixture bar']);
@@ -173,7 +173,7 @@ test('a coordinator edit never leaves an item unclaimable [V2,N2]', async t => {
   assert.equal(Object.hasOwn(JSON.parse(checkless.item_frozen), 'check'), false, 'the established frozen format omits an empty check');
 });
 
-test('an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
+test('cli.journeys-next-take.an-explicit-heartbeat-and-the-installed: an explicit heartbeat and the installed native stop hook record presence and never claim [N2,I6,C7,#3001]', async t => {
   const box = await fixture(t);
   const id = box.add('A heartbeat leaves work for next --take');
   const beat = await cli(box, box.seats.actor.path, ['heartbeat']);
@@ -187,7 +187,7 @@ test('an explicit heartbeat and the installed native stop hook record presence a
   assert.equal(store.getItem(box.board, id).item_owner, box.seats.actor.id);
 });
 
-test('an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
+test('cli.journeys-next-take.an-atomic-correction-replays-identically-and: an atomic correction replays identically and a bad frozen payload changes no item [V2,H16]', async t => {
   const box = await fixture(t);
   const id = box.add('A deterministic corrected bar');
   box.claim(id, box.seats.actor);
@@ -226,7 +226,7 @@ test('an atomic correction replays identically and a bad frozen payload changes 
   assert.deepEqual(exportBoard(replica), unchanged, 'an old envelope cannot disguise the new semantics');
 });
 
-test('health reads each seat session instead of offering its own material for review [V1,B3,A6]', async t => {
+test('cli.journeys-next-take.health-reads-each-seat-session-instead: health reads each seat session instead of offering its own material for review [V1,B3,A6]', async t => {
   const box = await fixture(t);
   const id = box.add('Material from an earlier seat in the same session');
   box.submit(id);
@@ -244,7 +244,7 @@ test('health reads each seat session instead of offering its own material for re
   assert.ok(later.findings.every(finding => !finding.subject.includes(box.seats.actor.id)), 'no five-minute warning names an ineligible session');
 });
 
-test('health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
+test('cli.journeys-next-take.health-observes-each-of-two-free: health observes each of two free seats beside the item next selects for it [N2,A6]', async t => {
   const box = await fixture(t);
   const first = box.add('First ready item');
   const second = box.add('Second ready item');
