@@ -10,9 +10,11 @@ import { apiStatus } from '../../../../../packages/api/index.js';
 import { readApiBody } from '../../../../../packages/api/index.js';
 import { privateFixtureFiles } from '../../../../../packages/gate/tests/fixtures/child.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
-import { refusalDocument } from '../../../../cli/index.js';
 import { createVaultStore } from '../../../src/io/store/vault.js';
 import { createVaultHandler } from '../../../src/logic/http/vault.js';
+
+/** The refusal body the real service renders from the CLI, reduced to the code and message this test reads. */
+const refusalDocument = (error) => ({ version: 1, error: { code: error.code, message: error.message } });
 
 /** Serve the handler on loopback with a fake person session: a request with a `x-session` header is account `acct`, any other is refused. */
 async function serving(run) {
