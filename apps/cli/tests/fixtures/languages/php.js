@@ -86,7 +86,6 @@ export function writeProject(root) {
 
 /** A scratch board on the project: init'd, one lane owning it, the project committed on main, and one joined seat. */
 export async function composerBoard(helpers) {
-  process.stdout.write(`# OP7TIME board start ${Date.now()}\n`);
   const box = composerSandbox(helpers);
   const repo = join(box.dir, 'repo');
   mkdirSync(repo);
@@ -95,9 +94,7 @@ export async function composerBoard(helpers) {
   box.git(repo, 'config', 'user.email', 'agent@example.com');
   writeProject(repo);
   // Lock phpunit once over the network, so each gate installs from the lock into the shared vendor folder without resolving again.
-  const t0 = Date.now();
   const locked = spawnSync(join(box.dir, 'toolchain-bin', 'composer'), ['update', '--no-interaction', '--no-progress', '--quiet'], { cwd: repo, env: box.env, encoding: 'utf8', timeout: 150_000 });
-  process.stdout.write(`# OP7TIME composer update ${Date.now() - t0}ms\n`);
   assert.equal(locked.status, 0, `composer update: ${locked.stderr}${locked.error ?? ''}`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: the scratch project');
@@ -133,7 +130,6 @@ export async function buildAndSubmit(board, id, itemText, priorReds = 0) {
   box.git(web, 'add', '-A');
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);
-  process.stdout.write(`# OP7TIME before submit ${Date.now()}\n`);
   const submitted = await box.runIn(web, 'submit', item, '--no-next');
   // The pulled gate may still be running when submit returns: read the item until it is red again or has left the building state.
   const reds = text => (text.match(/Gate job \S+ red at/gu) ?? []).length;
@@ -143,7 +139,6 @@ export async function buildAndSubmit(board, id, itemText, priorReds = 0) {
     return status !== 'claimed' || reds(shown.out) > priorReds ? { shown, status } : null;
   };
   const { shown, status } = await whenRunnerSettles(box.env, read, { deadlineMs: 150_000, what: `the gate of item ${item}` });
-  process.stdout.write(`# OP7TIME settled ${Date.now()}\n# OP7SHOW ${shown.out.replaceAll("\n", " | ")}\n`);
   return { item, reds: reds(shown.out), commit: box.git(web, 'rev-parse', 'HEAD'), submitted, shown, status, text: `${submitted.out}\n${submitted.err}\n${shown.out}\n${shown.err}` };
 }
 
@@ -155,8 +150,6 @@ export async function acceptAndLand(board, item, commit) {
     const verdict = await verifySettled(box, box.runLocal, repo, ['verify', item, 'accept', '--as', 'coordinator', '--note', 'scratch project gate is green']);
     assert.equal(verdict.code, 0, verdict.err);
   } finally { box.git(repo, 'switch', '-q', 'main'); }
-  process.stdout.write(`# OP7TIME land start ${Date.now()}\n`);
   const landing = await box.runIn(repo, 'land', '--json');
-  process.stdout.write(`# OP7TIME land end ${Date.now()}\n`);
   return { landing, settled: await settleLand(box, JSON.parse(landing.out)) };
 }
