@@ -151,6 +151,34 @@ test('cli.item-folder.checkout-workers-include-asks-git: clause 2: a config file
   assert.ok(launches >= 1, 'an include directive is answered by git');
 });
 
+/** Put GIT_CONFIG_COUNT pairs in the environment for one case, then take them out again. */
+function configPairs(t, pairs) {
+  const keys = ['GIT_CONFIG_COUNT', ...pairs.flatMap((_, index) => [`GIT_CONFIG_KEY_${index}`, `GIT_CONFIG_VALUE_${index}`])];
+  process.env.GIT_CONFIG_COUNT = String(pairs.length);
+  pairs.forEach(([key, value], index) => { process.env[`GIT_CONFIG_KEY_${index}`] = key; process.env[`GIT_CONFIG_VALUE_${index}`] = value; });
+  t.after(() => { for (const key of keys) delete process.env[key]; });
+}
+
+test('cli.item-folder.config-count-no-launch: clause 1: parallelCheckout launches no git process when GIT_CONFIG_COUNT carries three pairs that do not name checkout.workers [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { primary, seat } = repository(t);
+  configPairs(t, [['user.useConfigOnly', 'true'], ['gc.auto', '0'], ['maintenance.auto', 'false']]);
+  const { launches, result } = await countingGit(() => [parallelCheckout(seat), parallelCheckout(primary)]);
+  assert.deepEqual(result, [['-c', 'checkout.workers=0'], ['-c', 'checkout.workers=0']]);
+  assert.deepEqual(result[0], gitsAnswer(seat), 'the same arguments as git');
+  assert.equal(launches, 0, `launched ${launches} git processes`);
+});
+
+test('cli.item-folder.config-count-sets-workers: clause 2: parallelCheckout returns what git returns when a GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n pair sets checkout.workers [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { seat } = repository(t);
+  configPairs(t, [['gc.auto', '0'], ['Checkout.Workers', '2']]);
+  const { launches, result } = await countingGit(() => parallelCheckout(seat));
+  assert.deepEqual(result, []);
+  assert.deepEqual(result, gitsAnswer(seat), 'the same arguments as git');
+  assert.equal(launches, 0, `launched ${launches} git processes`);
+});
+
 test('cli.io-item-folder.defers-the-running-folder: clause 2: inside a running command the folder it runs in waits for main to finish while other idle folders go at once; outside a command it goes at once [B5,#10891]', async t => {
   const { ctx } = repository(t);
   const seat = ctx.info.root;
