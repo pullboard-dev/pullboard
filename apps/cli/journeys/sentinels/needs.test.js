@@ -11,6 +11,7 @@ import {
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { describe } from 'node:test';
 import { test } from 'node:test';
 import {
   SPEC,
@@ -55,9 +56,11 @@ async function confirmBaseline(view, repo) {
   assert.equal(reply.status, 200, 'the real private view confirms the baseline G1/G2 approvals');
 }
 
+// Each case builds its own private board, view and Chrome profile, so the cases run side by side on one runner [N26].
+describe('Rulings cases [N26]', { concurrency: true }, () => {
 test('every Rulings surface follows the shared builder [N26,A9]', async () => {
   const box = machine();
-  const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`);
+  const alpha = project(box, 'builder substitution', `${SPEC}- G3 [pending] Raw board question. | gate: review\n- G4 [draft, aim] Raw board draft. | gate: review\n`, {}, { bare: true });
   await box.inProcess(alpha.repo, 'shout', 'person', 'Raw board decision?', '--decision');
   await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Raw board hold');
   const view = await startView(box);
@@ -110,7 +113,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the relay-health Rulings inspection check.');
   const box = machine();
-  project(box, 'relay health inspection');
+  project(box, 'relay health inspection', undefined, {}, { bare: true });
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-relay-health-needs-'));
   let chrome;
@@ -165,7 +168,7 @@ test('a local relay-health Rulings entry is an inspection with no release or hol
 
 test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_000 }, async (t) => { // budget: hang ceiling for private board/API setup and the two real browser modes, not a throughput claim.
   const box = machine();
-  const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`);
+  const alpha = project(box, 'shared needs', `${SPEC}- G3 [pending] Choose the greeting. | gate: review\n- G4 [draft, must] Keep the footer. | gate: review\n- G5 [draft, aim] Keep the header. | gate: review\n`, {}, { plumbing: true });
   await box.inProcess(alpha.repo, 'shout', 'person', 'Ship the greeting?', '--decision');
   await box.inProcess(alpha.web, 'shout', 'coordinator', 'An agent-only question?', '--decision', '--kind', 'question');
   await box.inProcess(alpha.repo, 'hold', 'web', '--reason', 'Wait for the greeting decision');
@@ -251,7 +254,7 @@ test("the page's Rulings comes from the shared builder [N26]", { timeout: 180_00
 
 test('a person-only block shows in Rulings with its one step [N26]', async () => {
   const box = machine();
-  const alpha = project(box, 'person block');
+  const alpha = project(box, 'person block', undefined, {}, { bare: true });
   box.env.CLAUDECODE = '1';
   const refused = await runCliInProcess(['answer', '1', 'yes', '--as', 'person'], { cwd: alpha.repo, env: box.env });
   delete box.env.CLAUDECODE;
@@ -297,7 +300,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Rulings and Shouts checks.');
   const box = machine();
   const spec = `${SPEC}- G3 [pending] Should the greeting name the visitor? | gate: review\n- G4 [draft, must] The footer links home. | gate: web test\n- G5 [draft, aim] The header stays put. | gate: web test\n`;
-  const alpha = project(box, 'asks', spec);
+  const alpha = project(box, 'asks', spec, {}, { plumbing: true });
   await box.inProcess(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
   await box.inProcess(alpha.repo, 'add', 'web', 'Farewell', '--specs', 'G2', '--criterion', 'says goodbye');
   await box.inProcess(alpha.web, 'claim', '1');
@@ -464,4 +467,5 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     rmSync(profile, { recursive: true, force: true });
     await view.stop();
   }
+});
 });
