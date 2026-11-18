@@ -16,7 +16,7 @@ function repo(files, ceilings) {
   return tree.root;
 }
 
-test('clause 1: with the setting on, a file outside the kernel reading Date.now and timers fails naming file, line and adapter [C7,#9447]', () => {
+test('gate.logic-adapter-lints-clock.with-the-setting-on-a-file: clause 1: with the setting on, a file outside the kernel reading Date.now and timers fails naming file, line and adapter [C7,#9447]', () => {
   const root = repo({
     'packages/a/src/x.js': 'export const a = 1;\nexport const t = Date.now();\nsetTimeout(() => {}, 5);\n',
     'packages/kernel/src/logic/clock.js': 'export const now = () => Date.now();\n',
@@ -29,7 +29,7 @@ test('clause 1: with the setting on, a file outside the kernel reading Date.now 
   assert.ok(rows.every(row => !row.includes('packages/kernel/src')), 'the kernel folder is exempt');
 });
 
-test('clause 1: comments, tests and method calls are not direct reads [C7,#9447]', () => {
+test('gate.logic-adapter-lints-clock.comments-tests-and-method-calls-are: clause 1: comments, tests and method calls are not direct reads [C7,#9447]', () => {
   const root = repo({
     'packages/a/src/x.js': '// Date.now() is faked\n/** setTimeout( here */\nsocket.setTimeout(5);\n',
     'packages/a/tests/x.test.js': 'Date.now();\n',
@@ -37,7 +37,7 @@ test('clause 1: comments, tests and method calls are not direct reads [C7,#9447]
   assert.deepEqual(clockLintRows(root, { enabled: true }), []);
 });
 
-test('clause 2: offenders at their ceiling pass and a new read in the same file fails; the ceiling never rises [C7,#9447]', () => {
+test('gate.logic-adapter-lints-clock.offenders-at-their-ceiling-pass-and: clause 2: offenders at their ceiling pass and a new read in the same file fails; the ceiling never rises [C7,#9447]', () => {
   const files = { 'packages/a/src/x.js': 'Date.now();\nDate.now();\n', 'packages/b/src/y.js': 'Date.now();\n' };
   const root = repo(files, { 'packages/a/src/x.js': 2 });
   const rows = clockLintRows(root, { enabled: true });
@@ -46,7 +46,7 @@ test('clause 2: offenders at their ceiling pass and a new read in the same file 
   assert.equal(clockLintRows(grown, { enabled: true }).length, 3);
 });
 
-test('clause 2: with the setting off, which is the default, the lint reports nothing [C7,#9447]', () => {
+test('gate.logic-adapter-lints-clock.with-the-setting-off-which-is: clause 2: with the setting off, which is the default, the lint reports nothing [C7,#9447]', () => {
   const root = repo({ 'packages/a/src/x.js': 'Date.now();\n' });
   assert.deepEqual(clockLintRows(root), []);
   assert.deepEqual(clockLintRows(root, { enabled: false }), []);
