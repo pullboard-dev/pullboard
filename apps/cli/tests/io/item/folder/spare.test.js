@@ -115,7 +115,7 @@ function sized(t, files) {
     mkdirSync(join(primary, 'many'));
     for (let n = 0; n < files; n++) writeFileSync(join(primary, 'many', `f${n}.txt`), `${n}\n`);
     runFixtureGit(['add', '-A'], { cwd: primary });
-    runFixtureGit(['commit', '-q', '-m', 'many files'], { cwd: primary });
+    runFixtureGit(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-q', '-m', 'many files'], { cwd: primary });
   }
   const linked = join(root, 'linked');
   runFixtureGit(['worktree', 'add', '-q', '--detach', linked, 'main'], { cwd: primary });
@@ -138,13 +138,13 @@ test('cli.item-folder-spare.index-count-without-git: clause 1: with next.oneGitR
   assert.equal(existsSync(spareFolderPath(seat)), false);
 });
 
-test('cli.item-folder-spare.index-count-git-fallback: clause 2: a checkout whose repository files cannot be read directly still counts its index through git [C7,#10864]', t => {
+test('cli.item-folder-spare.index-count-git-fallback: clause 2: a checkout whose repository files cannot answer the index path (a reftable layout) still counts its index through git [C7,#10864]', t => {
   const { primary, tracked } = sized(t, 0);
-  const saved = process.env.GIT_DIR;
-  process.env.GIT_DIR = join(primary, '.git');
-  try {
+  // A reftable directory is a layout the file reader leaves to Git; the stray directory does not change how Git itself reads refs or the index.
+  mkdirSync(join(primary, '.git', 'reftable'));
+  {
     const { launches, result } = countingGit(() => indexEntries(primary));
     assert.ok(launches >= 1, 'git answered the index path');
     assert.equal(result, tracked, 'the count is the same');
-  } finally { if (saved === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = saved; }
+  }
 });
