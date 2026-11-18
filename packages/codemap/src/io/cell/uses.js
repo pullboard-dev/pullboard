@@ -32,7 +32,8 @@ function compiles(sources) {
   const parser = currentCellLintParser();
   if (parser) return parser(sources).map(row => row.compiles);
   if (foreignNodeOptions(process.env.NODE_OPTIONS, process.env)) return compileFresh(sources);
-  const epoch = JSON.stringify(['cell-bindings', process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, COMPILER]);
+  // Known owned preloads (a test run's per-run recorder path) never change what V8 compiles, so the key names them as one class, as the accepted inventory does.
+  const epoch = JSON.stringify(['cell-bindings', process.execPath, process.versions.node, 'pullboard-known-owned-preloads-v1', COMPILER]);
   return storedCompilations(epoch, sources, missing => compileFresh(missing).map(valid => ({ compiles: valid, imports: [] }))).map(row => row.compiles);
 }
 
