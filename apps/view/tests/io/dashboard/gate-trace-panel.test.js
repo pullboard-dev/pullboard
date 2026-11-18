@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view */
 /** #10315: clicking an In the gate row on the Dashboard opens that item's gate trace panel, phase by phase in ms [C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

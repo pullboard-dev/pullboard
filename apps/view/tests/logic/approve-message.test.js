@@ -1,5 +1,4 @@
 /** The approval message says committed, or the one command left, instead of pending apply [N26,#9348]. */
-/** @pullboard-test-input source-cell apps/view */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { approveMessage } from '../../src/logic/approve-message.js';
