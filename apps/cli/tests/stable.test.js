@@ -160,7 +160,8 @@ test('cli.stable.journeys-registered-10551: clause 1: [C7,U148] every core-owned
 });
 
 test('cli.stable.journeys-registered-10545: clause 1: [C7,U148] every core-owned test under the journeys fact, hooks, imports, inbox, intake and join folders has a registered cli.<area>.<slug> title ID', () => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry-10545.json'), 'utf8'));
+  // The join lanes-off-cells journey landed with its own records in registry-10838.json.
+  const records = Object.assign({}, ...['registry-10545.json', 'registry-10838.json'].map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
   const journeys = join(DIR, '..', 'journeys');
   // View-lane files are the view lane's own slice; core may not edit them. Excluded: inbox/sidebar.test.js.
   const viewOwned = new Set(['inbox/sidebar.test.js']);
