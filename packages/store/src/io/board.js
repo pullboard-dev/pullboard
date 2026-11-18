@@ -550,6 +550,6 @@ export function admitSubmit(board, id, options) {
   return applySubmitAdmission(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, prepareRecaptureSubmitHandoff, recaptureSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit/handoff/retry.js";
 
 export { createItemSlice } from "./board/item/slice.js";
