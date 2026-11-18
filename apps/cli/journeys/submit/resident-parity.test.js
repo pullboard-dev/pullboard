@@ -46,6 +46,7 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
   async function submitItem(id, residentChecks) {
     fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { submit: { residentChecks } });
     await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', `test -f web/page-${id}.txt`, '--json'));
+    box.git(box.web, 'reset', '-q', '--hard', 'main'); // each item starts from main, never stacked on the one before
     await json(box.runLocal(box.web, 'claim', String(id), '--json'));
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, `web/page-${id}.txt`), 'built\n');
