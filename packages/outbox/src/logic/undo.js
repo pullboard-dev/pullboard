@@ -178,13 +178,14 @@ function legacyRowConflict(db, bytes) {
  *
  * The store's transaction and guard-lifting bindings come in as `ports`, because the store's shell owns them [C7].
  *
- * @param {{ atomic: (board: any, work: () => void) => any, suspendStoreGuards: (board: any) => () => void }} ports
+ * @param {{ atomic: (board: any, work: () => void) => any, suspendStoreGuards: (board: any) => () => void, holdMoving: (db: any) => void, releaseMoving: (db: any) => void }} ports
  * @param {any} board
  * @param {{ changes?: string[], sequences?: { name: string, seq: number }[] }[]} entries - Oldest first.
  * @param {((board: any) => void) | undefined} within - Runs in the same transaction once every move is back, so a journal entry commits with the undo.
  * @returns {string | null}
  */
-export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries, within) {
+export function undoQueuedWith(ports, board, entries, within) {
+  const { atomic, suspendStoreGuards } = ports;
   const db = board.db;
   let conflict = null;
   const callbacks = callbackConflicts(db);
@@ -194,7 +195,7 @@ export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries, w
       db.exec('PRAGMA defer_foreign_keys = ON');
       const restoreGuards = suspendStoreGuards(board);
       // This connection lets an item's status change only under moveItem's token; taking a move back holds it too.
-      db.exec('CREATE TEMP TABLE IF NOT EXISTS moving (token INTEGER); INSERT INTO temp.moving (token) VALUES (1)');
+      ports.holdMoving(db);
       for (const entry of [...entries].reverse()) {
         for (const change of [...(entry.changes ?? [])].reverse()) {
           // A row changed again since, as a seat's read position is, is put back all the same (its newer read
@@ -223,7 +224,7 @@ export function undoQueuedWith({ atomic, suspendStoreGuards }, board, entries, w
         const insert = db.prepare('INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)');
         for (const row of counters) insert.run(row.name, row.seq);
       }
-      db.exec('DELETE FROM temp.moving');
+      ports.releaseMoving(db);
       restoreGuards();
       within?.(board);
     });
