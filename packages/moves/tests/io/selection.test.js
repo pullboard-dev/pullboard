@@ -105,3 +105,22 @@ test('moves.selection.warm-files-bounded: clause 1: with 50 closed items by othe
   // The board holds 50 + 4 built items besides the open one; the warm read returned three rows, not the list.
   assert.equal(read.rows.length, 3);
 });
+
+test('moves.selection.derived-gate-port: clause 1: with ports.derivedGateAtHead returning a reader, pick passes it to nextFor, so an item the reader names as gated is not picked and the next free item is [C7,#10881]', t => {
+  const box = fixture(t);
+  const gated = box.add('Gated by the derived table');
+  const free = box.add('Free work');
+  const derivedGateAtHead = () => entry => (entry.item_id === gated ? `gate green at ${'a'.repeat(12)}` : undefined);
+  const picked = nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, { ...box.ports, derivedGateAtHead });
+  assert.equal(picked.item?.item_id, free, 'the item the reader names as gated is skipped');
+  assert.notEqual(picked.item?.item_id, gated);
+});
+
+test('moves.selection.derived-gate-port-absent: clause 2: with no port, or a port returning null, pick returns the same item as before and no reader reaches nextFor [C7,#10881]', t => {
+  const box = fixture(t);
+  const first = box.add('First work');
+  box.add('Second work');
+  const pick = ports => nextSelection.pick(box.ctx, box.board, { defaultLoop: true, observeIdle: true, omitIds: [] }, ports).item?.item_id;
+  assert.equal(pick(box.ports), first, 'no port');
+  assert.equal(pick({ ...box.ports, derivedGateAtHead: () => null }), first, 'a port returning null');
+});

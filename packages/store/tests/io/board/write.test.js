@@ -1,12 +1,15 @@
 /** A submit reads before the board's write lock, so its writer and a preflight's dry run hold the lock only to write [C7,#10850]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../index.js';
 import { submitPreflight } from '../../../../items/index.js';
+import { fixtureMachineSettings } from '../../../../gate/tests/fixtures/testkit.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
@@ -113,4 +116,43 @@ test('store.io-board-write.submit-preparation-wired: clause 3: the native submit
   for (const name of ['gitRoot', 'movesShadow', 'movesLive']) assert.ok(seen.some(read => read.name === name), `the submit read ${name}`);
   assert.deepEqual(seen.filter(read => read.locked), [], 'no submit read ran while the write lock was held');
   assert.equal(store.getItem(f.board, f.id).item_status, 'submitted');
+});
+
+const HANDOFF_WRITES = ['queueSubmitHandoff', 'startSubmitHandoff', 'completeSubmitHandoff'];
+
+/** A private machine home holding the given settings, for the life of the test. */
+function machineHome(t, settings) {
+  const home = join(temporaryRepository(t, 'pullboard-submit-queue-home-'), 'machine-home');
+  mkdirSync(home, { recursive: true });
+  fixtureMachineSettings(home, settings);
+  const previous = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = previous; });
+  return join(home, 'board-write-queue');
+}
+
+/** The hand-off write's arguments: a job that was never queued, so the move itself refuses or no-ops; only the route is under test. */
+const handoffArgs = (f, operation) => [f.id, { agentId: f.builder.id, job: `${operation}-never-queued`, result: { code: 1 } }];
+
+test('store.io-board-write.submit-handoff-queued: clause 1: with board.crossProcessWrites on, the three submit hand-off writes go through the machine file write queue and return a promise [C7]', async t => {
+  const queue = machineHome(t, { board: { crossProcessWrites: true } });
+  const f = fixture(t);
+  for (const operation of HANDOFF_WRITES) {
+    const before = existsSync(queue) ? readdirSync(queue).filter(name => name.endsWith('.result')).length : 0;
+    const call = store.writeBoardCommand(f.board, operation, handoffArgs(f, operation), f.builder.id);
+    assert.equal(typeof call?.then, 'function', `${operation} returns a promise, as the file queue answers across processes`);
+    await call.catch(() => {});
+    assert.equal(readdirSync(queue).filter(name => name.endsWith('.result')).length, before + 1, `${operation} left its own result file in the queue folder`);
+  }
+});
+
+test('store.io-board-write.submit-handoff-direct: clause 2: with board.crossProcessWrites off, the three submit hand-off writes go direct as today, with no queue folder and no promise [C7]', t => {
+  const queue = machineHome(t, {});
+  const f = fixture(t);
+  for (const operation of HANDOFF_WRITES) {
+    let answer;
+    try { answer = store.writeBoardCommand(f.board, operation, handoffArgs(f, operation), f.builder.id); } catch { answer = undefined; /* a direct refusal throws in the caller */ }
+    assert.equal(typeof answer?.then, 'undefined', `${operation} did not return a promise`);
+  }
+  assert.equal(existsSync(queue), false, 'no queue folder was made');
 });
