@@ -1,0 +1,30 @@
+{
+  "cli.item-folder-spare.index-count-without-git": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With next.oneGitRead at its default, the spare's index entry count is read without launching git for a primary checkout and a linked worktree, and a spare is due at the same threshold."
+    },
+    "why": "Without it, a regression that launches git on every claim to find the index path, or one that miscounts the index without git, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder/spare.test.js",
+      "apps/cli/src/io/item/folder/spare.js"
+    ]
+  },
+  "cli.item-folder-spare.index-count-git-fallback": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A checkout whose repository files cannot be read directly still counts its index through git."
+    },
+    "why": "Without it, a regression that launches git on every claim to find the index path, or one that miscounts the index without git, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder/spare.test.js",
+      "apps/cli/src/io/item/folder/spare.js"
+    ]
+  }
+}

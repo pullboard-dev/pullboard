@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 import { requireOwnLaneCheck } from '../lane.js';
 import {
   COORDINATOR,
@@ -16,10 +18,11 @@ import { itemText } from '../../../../../packages/search/index.js';
 import { nearestOpenItems } from '../../../../../packages/search/index.js';
 import { searchSidecarPath } from '../../../../../packages/search/index.js';
 import { requireBarPathsOnMain } from '../item/bar.js';
+import { requireTestMirror } from '../item/bar.js';
 import { guardDuplicate } from '../item/duplicate.js';
-import { guardOtherBoard } from '../item/other-board.js';
 import { guardBar } from '../../../../../packages/state/index.js';
 import { addWarnUnnamedTest } from '../../../../../packages/config/index.js';
+import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../../../../../packages/items/index.js';
 import { parseCheckTiming } from '../../../../../packages/items/index.js';
 import { criterionSize } from '../../../../../packages/items/index.js';
@@ -50,6 +53,7 @@ import {
 } from '../../../../../packages/gate/index.js';
 import {
   isLane,
+  listProjects,
 } from '../../../../../packages/seats/index.js';
 import {
   Refused,
@@ -76,6 +80,19 @@ import {
   CHECKOUT_LEASES,
 } from '../entry.js';
 import { anyRunnerLive } from '../runner/local.js';
+
+/** A path in a bar that leaves this board's folder: absolute, home-relative or climbing out with `../`. */
+const LEAVES_BOARD = /(?:^|[\s`'"(\[,])(?:~?\/|\.\.\/)/u;
+
+/**
+ * Whether the other-board check can matter: the bar names a path outside this board's folder, or another registered board sits inside it.
+ * Why: the guard module loads only then, so a plain one-board add pays no module load for it [C7].
+ */
+function mayNameOtherBoard(ctx, item) {
+  if (LEAVES_BOARD.test([item.criterion, item.check, item.brief].filter(Boolean).join('\n'))) return true;
+  const root = resolve(ctx.info.root);
+  try { return listProjects({ pruneMissing: false }).some(project => resolve(project.root).startsWith(root + sep)); } catch { return false; }
+}
 
 /**
  * The route an add files for a shape route. A diagnosis can only follow the add, so on a board that requires one a light
@@ -167,6 +184,7 @@ export async function run(io, args) {
   requireNoCoordinatorPath(ctx.config, me, item);
   if (item.check) refuseCheckPullboardTest(item.check);
   await requireBarPathsOnMain(ctx, { criterion: item.criterion, check: item.check });
+  await requireTestMirror(ctx, { criterion: item.criterion, check: item.check }, itemsTestMirrorAtAdd());
   const { command, brief, evidenceWarnings = [] } = store.validateItemAddition(board, item);
   item.brief = brief;
   if (command) refuseCheckSyntax(command);
@@ -174,7 +192,8 @@ export async function run(io, args) {
   if (command) store.guardGreenCheck(board, item.checkBaseline, values['accept-green']);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const differs = guardDuplicate(ctx, board, item, values['not-duplicate-of']);
-  const elsewhere = guardOtherBoard(ctx, item, values.here);
+  // The guard module loads only when the bar can name another board's files (or --here is given), so a one-board add pays nothing for it [C7].
+  const elsewhere = values.here !== undefined || mayNameOtherBoard(ctx, item) ? (await import('../item/other-board.js')).guardOtherBoard(ctx, item, values.here) : null;
   const id = await ordered(ctx, board, 'addItem', [item]);
   if (elsewhere) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Filed here though its files belong to the ${elsewhere.boards.join(', ')} board: ${elsewhere.reason}` }]);
   if (differs) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note', text: `Not a duplicate of #${differs.id}: ${differs.reason}` }]);

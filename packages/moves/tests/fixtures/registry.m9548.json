@@ -1,0 +1,3 @@
+{
+  "moves.submit.recapture-table": {"proves":{"specs":["C7"],"claim":"The RECAPTURE table refuses a bad main, a foreign job or sender, and a job not queued or not serving its claim, and otherwise records the saved job with main replaced.","move":"submit:recapture"},"why":"The recapture hand-off write in retry.js must keep one pure restatement in the moves cell.","kind":"cell unit","inputs":["packages/moves/src/logic/table/submit.table.js","packages/moves/tests/logic/table/submit-generated.test.js"]}
+}

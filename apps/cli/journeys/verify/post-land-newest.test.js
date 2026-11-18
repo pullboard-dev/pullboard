@@ -9,7 +9,7 @@ import { offerLandedReviews } from '../../tests/fixtures/verify/post-land-order.
 import { offeredTo } from '../../tests/fixtures/verify/post-land-order.js';
 import { seatOf } from '../../tests/fixtures/verify/post-land-order.js';
 
-test('clause 2: two landed items are offered newest landing first [C7,#9864]', async t => {
+test('cli.journeys-verify-post-land-newest.two-landed-items-are-offered-newest: clause 2: two landed items are offered newest landing first [C7,#9864]', async t => {
   const box = await fixture(t);
   const older = await landedBy(box, t, { family: `${BUILDER} A`, name: 'Landed older' });
   const newer = await landedBy(box, t, { family: `${BUILDER} B`, name: 'Landed newer' });

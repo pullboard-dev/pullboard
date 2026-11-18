@@ -307,6 +307,8 @@ const runPhase = async (role, command, PATH, selected = null) => {
   try { testRuntimes = capture?.finish() ?? null; } catch { testRuntimes = null; }
   const output = Buffer.concat([ran.stdout ?? Buffer.alloc(0), ran.stderr ?? Buffer.alloc(0)]);
   const text = output.toString('utf8'), kept = keepOutput(role + '.log', output);
+  // A phase that wrote its timing profile beside its log in the checkout names it on its row, so the runner keeps it with the sanitized log [C7,#7301].
+  const profileFile = join(root, role + '.log.profile.json'), profilePath = existsSync(profileFile) ? profileFile : null;
   const cases = ran.status !== 0 ? failingCases(ran.status, text, run) : null;
   const failures = cases ? cases.map(row => ({ ...row, name: row.name.slice(0, 500) })) : null;
   // A red with no case account still names its failed files when Node's spec reporter footer lists them, so the board compares them with main [V1,C7].
@@ -333,7 +335,7 @@ const runPhase = async (role, command, PATH, selected = null) => {
   let digest = null;
   try { digest = ran.status !== 0 && !failures?.length && typeof gate?.digestOf === 'function' ? gate.digestOf(text).slice(0, 3000) : null; } catch { digest = null; }
   return { role, status: ran.status, signal: ran.signal, sha256: createHash('sha256').update(output).digest('hex'), bytes: output.length, tail: tail(text), ...(counts ? { counts } : {}),
-    ...(kept ? { kept } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
+    ...(kept ? { kept } : {}), ...(profilePath ? { profilePath } : {}), ...(ran.status !== 0 ? { failures, ...(failedFiles.length ? { failedFiles } : {}), ...(failureSignatures ? { failureSignatures } : {}), errors, errorCount: errors.length, ...(errorsKept ? { errorsKept } : {}), exit: exitLines(text), ...(digest ? { digest } : {}) } : {}), ...(ledger ? { ledger } : {}), ...(outcomes ? { testOutcomes: outcomes } : {}), ...(Array.isArray(testRuntimes) && testRuntimes.length ? { testRuntimes } : {}), ...(blocked ? { sandboxBlocked: blocked } : {}), ...(unreported ? { unreported } : {}) };
 };
 const shardBrowserless = shard ? browserless(shard.files, false) : [];
 if (shardBrowserless.length) receipt.error = 'BROWSER_UNAVAILABLE: ' + browserRefusal(shardBrowserless);
@@ -362,6 +364,8 @@ else {
   receipt.analysis = { steps: analysis.steps ?? {}, refusals, infra: analysis.infra ?? analysis.refusal ?? null,
     // Each doctrine rule's count line rides first in the notes, as the controller submit printed it ("doctrine: Q1 · 1, was 2 · holding") [D1,D3,C7].
     notes: [...(Array.isArray(analysis.doctrine) ? analysis.doctrine.map(rule => 'doctrine: ' + ruleLine(rule)) : []), ...(analysis.notes ?? [])].slice(0, 20),
+    // Static rows main also has ride to the board as data, so it records them as known main reds (gate.knownMainStatic) [C7,#10567].
+    ...(Array.isArray(analysis.staticKnownMain) && analysis.staticKnownMain.length ? { staticKnownMain: analysis.staticKnownMain.slice(0, 200).map(row => ({ rule: row.rule, file: row.file })) } : {}),
     ...(ownership ? { ownership: { code: 'OUTSIDE_LANE', message: String(ownership.message ?? '').slice(0, 2000), paths: (ownership.paths ?? []).slice(0, 200) } } : {}),
     authorization: analysis.authorization ? { skipped: analysis.authorization.skipped ?? null, paths: (analysis.authorization.paths ?? []).length, mechanical: analysis.authorization.mechanical ?? [] } : null,
     doctrine: Array.isArray(analysis.doctrine) ? analysis.doctrine.length : null, cells: Boolean(analysis.cells),
@@ -593,7 +597,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
     ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
-    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });
+    authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen, item_brief: held.item_brief, item_files: held.item_files } } : authorize || null });
   mark('request');
   const pairing = typeof pairPrefix === 'function' ? pairRequest(root, { main, config, source, check }, pairPrefix) : null;
   if (pairing) request.input.data.flakes = pairing;

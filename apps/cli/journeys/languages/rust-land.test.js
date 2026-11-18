@@ -13,7 +13,7 @@ import { crateBoard } from '../../tests/fixtures/languages/rust.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 3: the fixed commit passes cargo test, is accepted and lands on the scratch board main [C7,#10387]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-rust-land.the-fixed-commit-passes-cargo-test: clause 3: the fixed commit passes cargo test, is accepted and lands on the scratch board main [C7,#10387]', { timeout: 240_000 }, async (t) => {
   if (!CARGO) return t.skip(UNAVAILABLE);
   const board = await crateBoard(helpers);
   const fixed = await buildAndSubmit(board, null, PASSING);
