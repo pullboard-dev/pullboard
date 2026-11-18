@@ -12,7 +12,7 @@ import { submitAndSettle } from '../../../tests/fixtures/submit/fail.js';
 import { commitAll } from '../../../tests/fixtures/submit/gate.js';
 import { put } from '../../../tests/fixtures/submit/gate.js';
 
-test('submit precheck refuses a candidate stacked on an unverified item without scanning cells or running a gate [V4,V17,C7]', async t => {
+test('cli.journeys-submit-fail-gate-stacked.submit-precheck-refuses-a-candidate-stacked: submit precheck refuses a candidate stacked on an unverified item without scanning cells or running a gate [V4,V17,C7]', async t => {
   const { box, markers } = await project(t);
   put(box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(box, 'feat(core): the first item changes the source [G1]');
