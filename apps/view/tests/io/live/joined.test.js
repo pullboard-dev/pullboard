@@ -14,7 +14,7 @@ import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js'
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../packages/store/tests/fixtures/cell.js';
 
-test('clause 1: a joined agent that holds no claim is counted as joined beside the agents at work [C7]', t => {
+test('view.x-io-live-joined.clause-1-a-joined-agent-that-holds: clause 1: a joined agent that holds no claim is counted as joined beside the agents at work [C7]', t => {
   const project = cellProject(t), board = cellBoard(t, project.boardFile);
   cellSeat(board, { lane: 'web', path: project.repo + '/.claude/worktrees/web-1' });
   const state = projectState(project.repo, { board });
@@ -22,7 +22,7 @@ test('clause 1: a joined agent that holds no claim is counted as joined beside t
   assert.equal(state.counts.joined, 1, 'the joined seat shows, and the coordinator does not count');
 });
 
-test('clause 1: the runner that ran and finished a gate stays on the card after the job clears its lease owner [C7]', t => {
+test('view.x-io-live-joined.clause-1-the-runner-that-ran-and: clause 1: the runner that ran and finished a gate stays on the card after the job clears its lease owner [C7]', t => {
   const project = cellProject(t), board = cellBoard(t, project.boardFile);
   const common = dirname(dirname(project.boardFile)), now = Date.now(), offeredAt = now - 10 * 60_000;
   offerJob(board.db, { id: 'gate:1:a', kind: 'gate', needs: [], item: 1, candidate: 'd'.repeat(40), base: 'a'.repeat(40), request: { run: ['node', 'run.js'] }, now: offeredAt });
@@ -34,7 +34,7 @@ test('clause 1: the runner that ran and finished a gate stays on the card after 
   assert.equal(projectState(project.repo, { board }).counts.runners, 1);
 });
 
-test('clause 1: the dashboard Agents heading names the joined seats beside the agents at work [C7]', t => {
+test('view.x-io-live-joined.clause-1-the-dashboard-agents-heading-names: clause 1: the dashboard Agents heading names the joined seats beside the agents at work [C7]', t => {
   const project = cellProject(t), board = cellBoard(t, project.boardFile);
   cellSeat(board, { lane: 'web', path: project.repo + '/.claude/worktrees/web-1' });
   const state = projectState(project.repo, { board });
