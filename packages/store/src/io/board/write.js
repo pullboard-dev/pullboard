@@ -27,6 +27,8 @@ const PREPARE_ATTEMPTS = 4;
 const PREPARATIONS = Object.freeze({
   claim: (board, args) => [args[0], store.prepareClaim(board, args[0], args[1])],
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
+  // A recapture checks its captured main here, before the writer opens; it reads no git.
+  recaptureSubmitHandoff: (board, args) => [args[0], store.prepareRecaptureSubmitHandoff(board, args[0], args[1])],
   // A submit seals its git reads, policy, settings and inspection proofs here, so its writer only writes (#10850).
   submit: (board, args) => [args[0], store.prepareSubmit(board, args[0], args[1]), ...args.slice(2)],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
