@@ -348,15 +348,20 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
   // A shout with no item has one thread per sender (5084b13705), so the three questions sit in three threads: open each in turn
   // and read its messages, in the order they were said.
   const readConversations = async () => {
-    const keys = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-th')].map((row) => row.dataset.shoutThread))`));
-    const seen = new Map();
-    for (const key of keys) {
-      await click('#feed [data-shout-thread=' + JSON.stringify(key) + ']');
-      await chrome.waitFor('!!document.querySelector("#feed .conversation-heading")');
+    const seen = new Map(), visited = [];
+    for (;;) {
+      // A row that asks for an answer also follows its answer link when pressed, so each thread opens through the page's own opener.
+      const key = await chrome.stable(`[...document.querySelectorAll('#feed .sx-th')].map((row) => row.dataset.shoutThread).find((key) => !${JSON.stringify(visited)}.includes(key)) ?? null`);
+      if (key === null) break;
+      visited.push(key);
+      await chrome.stable(`openShoutThread(${JSON.stringify(key)})`);
+      await chrome.waitFor(`!!document.querySelector('#feed [data-thread-panel=' + ${JSON.stringify(JSON.stringify(key))} + ']')`);
       const cards = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#feed .sx-msg')].map((card) => [Number(card.dataset.shoutId), [...card.querySelector('.sx-tx').childNodes].filter((node) => !node.classList?.contains('sx-mk')).map((node) => node.textContent).join('')]))`));
       for (const [id, text] of cards) seen.set(id, text);
     }
-    return [...seen].sort((a, b) => a[0] - b[0]);
+    const said = [...seen].sort((a, b) => a[0] - b[0]);
+    said.threads = visited;
+    return said;
   };
   // The reply below answers the ruling, so the thread that holds the passed ask is the one left open.
   const openPassed = async () => {
@@ -394,7 +399,7 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
         await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .sx-th')");
         await click('[data-page-ctl=shouts][data-value=questions]');
         const said = await readConversations();
-        assert.equal(said.length, await chrome.stable('data.project.shouts.length'), `${at}: every shout is in one of the threads`);
+        assert.equal(said.length, await chrome.stable('data.project.shouts.length'), `${at}: every shout is in one of the threads ${JSON.stringify(said.threads)}`);
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
         // The original native questions now share the Questions segment and an actual conversation.
