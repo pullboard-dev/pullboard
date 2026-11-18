@@ -15,14 +15,14 @@ function home(settings) {
   return { PULLBOARD_MACHINE_HOME: dir };
 }
 
-test('clause 1: inProcessHooksOn returns false with no setting [C7,#9214]', () => {
+test('cli.io-hook-mode.inprocesshookson-returns-false-with-no-setting: clause 1: inProcessHooksOn returns false with no setting [C7,#9214]', () => {
   assert.equal(inProcessHooksOn(home(null)), false);
   assert.equal(inProcessHooksOn(home({})), false);
   assert.equal(inProcessHooksOn(home({ test: {} })), false);
   assert.equal(inProcessHooksOn({}), false);
 });
 
-test('clause 1: inProcessHooksOn returns true when the fixture machine home holds test.inProcessHooks true [C7,#9214]', () => {
+test('cli.io-hook-mode.inprocesshookson-returns-true-when-the-fixture-machine: clause 1: inProcessHooksOn returns true when the fixture machine home holds test.inProcessHooks true [C7,#9214]', () => {
   assert.equal(inProcessHooksOn(home({ test: { inProcessHooks: true } })), true);
   assert.equal(inProcessHooksOn(home({ test: { inProcessHooks: false } })), false);
   assert.equal(inProcessHooksOn(home({ test: { inProcessHooks: 'true' } })), false);

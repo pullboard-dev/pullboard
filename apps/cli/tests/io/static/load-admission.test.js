@@ -18,7 +18,7 @@ function isolatedMachine(settings) {
   };
 }
 
-test('clause 1: with gate.staticLoadAdmission on, slots drop to 1 above twice the core count and return to gate.staticSlots below it [C7,#8735]', () => {
+test('cli.io-static-load-admission.with-gate-staticloadadmission-on-slots-drop-to: clause 1: with gate.staticLoadAdmission on, slots drop to 1 above twice the core count and return to gate.staticSlots below it [C7,#8735]', () => {
   const restore = isolatedMachine({ gate: { staticSlots: 3, staticLoadAdmission: true } });
   try {
     assert.equal(staticCheckSlots({ load: 17, cores: 8 }), 1, 'load 17 is above 16');
@@ -27,7 +27,7 @@ test('clause 1: with gate.staticLoadAdmission on, slots drop to 1 above twice th
   } finally { restore(); }
 });
 
-test('clause 1: with gate.staticLoadAdmission off, heavy load leaves the slots at gate.staticSlots [C7,#8735]', () => {
+test('cli.io-static-load-admission.with-gate-staticloadadmission-off-heavy-load-leaves: clause 1: with gate.staticLoadAdmission off, heavy load leaves the slots at gate.staticSlots [C7,#8735]', () => {
   const restore = isolatedMachine({ gate: { staticSlots: 3 } });
   try { assert.equal(staticCheckSlots({ load: 100, cores: 8 }), 3); } finally { restore(); }
 });

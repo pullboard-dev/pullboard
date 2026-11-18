@@ -15,8 +15,14 @@ import { merged } from "./merged.js";
 import { recordLandingBatch } from "./record/landing/batch.js";
 import { persistShout } from "./shout.js";
 
-/** Atomically record a pushed batch's first-containing merges and one main-moved receipt [B3,R3]. */
-export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
+/**
+ * Atomically record a pushed batch's first-containing merges and one main-moved receipt [B3,R3].
+ * With `exactTreeCheck` on, a batch whose exact-tree record is missing or not green is refused inside this write, so no
+ * main-moved receipt exists and the lander never moves main [V16,V36]. Why here: the compare-and-set write is the one place every
+ * path to main passes, and a git hook was the race source in #10404. The caller reads landing.exactTreeCheck and passes it in;
+ * the move never reads a setting, so a replay with the setting off decides the same.
+ */
+export function finishLandingBatch(board, { agentId, id, tip, landingFence, exactTreeCheck = false }) {
   coordinatorOnly(agentId, 'finishes a landing');
   board.nativePorts.landingEnvironment.requireTrunk(board);
   return atomic(board, () => {
@@ -25,6 +31,9 @@ export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
     if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
     board.nativePorts.landingEnvironment.requireStoredBatch(board, batch);
     if (batch.state === 'landed') return batch;
+    if (exactTreeCheck === true && batch.exactTree?.result !== 'green') {
+      throw new Refused('LAND_EXACT_TREE', `tree ${batch.exactTree?.tree ?? 'unknown'} has no green exact-tree record (${batch.exactTree?.result ?? 'none'}), so main must not move to it; prove the tree, then pullboard land --adopt`);
+    }
     board.nativePorts.quarantine.validateQuarantineLandingProof(board, batch);
     if (batch.state !== 'pushed' && !(batch.state === 'trunk' && (board.executionEngineVersion ?? ENGINE_VERSION) >= LOCAL_LANDING_ENGINE)) throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
     for (const entry of batch.items) {

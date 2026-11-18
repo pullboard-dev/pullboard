@@ -1,0 +1,4 @@
+{
+  "cli.io-submit-no-inline-gate.submit-here-reaches-a-gate-only-through-offer-submit-gate": {"proves":{"specs":["C7"],"claim":"SubmitHere calls offerSubmitGate and calls no function that runs a gate in the process."},"why":"Without it, a regression where submitHere runs a gate inline again would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/submit/no-inline-gate.test.js","apps/cli/src/io/commands/submit.js"]},
+  "cli.io-submit-no-inline-gate.the-submit-command-imports-no-gate-run-export": {"proves":{"specs":["C7"],"claim":"The submit command names none of the gate-run exports of the gate and landing doors."},"why":"Without it, a regression where the submit command imports a gate runner would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/submit/no-inline-gate.test.js","apps/cli/src/io/commands/submit.js"]}
+}

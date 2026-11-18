@@ -24,7 +24,7 @@ function fixture(t) {
   return { board, seat, add, setting, order, advance: minutes => { at += minutes * 60_000; } };
 }
 
-test('an old low-rank ready item outranks newly arriving work at the recorded aging rate [N2,B3]', t => {
+test('lib.fairness.an-old-low-rank-ready-item-outranks: an old low-rank ready item outranks newly arriving work at the recorded aging rate [N2,B3]', t => {
   const f = fixture(t);
   const old = f.add('Old strong work', 'strong');
   f.advance(600);
@@ -43,7 +43,7 @@ test('an old low-rank ready item outranks newly arriving work at the recorded ag
   assert.deepEqual(f.order(), [recent, old], 'turning policy off restores the prior comparator');
 });
 
-test('fairness never makes a dependency-blocked item eligible and preserves historical ordering [N2,H16]', t => {
+test('lib.fairness.fairness-never-makes-a-dependency-blocked-item: fairness never makes a dependency-blocked item eligible and preserves historical ordering [N2,H16]', t => {
   const f = fixture(t);
   const blocker = f.add('Unfinished prerequisite');
   const blocked = f.add('Old dependent work', 'strong', [blocker]);

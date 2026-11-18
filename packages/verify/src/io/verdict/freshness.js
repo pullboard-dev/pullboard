@@ -5,6 +5,7 @@ import {
   mainCheckout,
 } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
+import { changedHunkHeaders } from '../../logic/verdict/own-patch.js';
 import { ownPatchChanges } from '../../logic/verdict/own-patch.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 
@@ -77,6 +78,23 @@ export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKey
 }
 
 /**
+ * The hunks of the reviewed patch that main's move changed or that a merge onto main cannot carry, as `{ file, header }` with the full hunk header line.
+ * When the merge composes, these are the hunks that differ before and after it; when the merge conflicts, they are the reviewed hunks of the touched paths, since main's change reaches them.
+ * Why: a refusal naming only the file leaves the reviewer hunting for the hunk that went stale [C7,#2981].
+ */
+export function changedHunks(root, { base, checked, tip, paths }) {
+  const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
+    { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const tree = merged.status === 0 ? merged.stdout.trim().split('\n')[0] : null;
+  return paths.flatMap(path => {
+    try {
+      const reviewed = pathDiff(root, base, checked, path);
+      return changedHunkHeaders(tree ? reviewed : '', tree ? pathDiff(root, tip, tree, path) : reviewed);
+    } catch { return []; }
+  });
+}
+
+/**
  * True when main already carries the checked bytes on every reviewed path, so landing adds nothing [C7,#2980].
  * Why: #1939's change reached main through #1938; its empty post-merge patch read as a rewrite and stayed stale.
  */
@@ -121,18 +139,20 @@ export function captureVerdictReview(root, board, item, trunk = undefined, head 
   }
 }
 
-/** Name the concrete stale proof and the required re-review without changing the original verdict. */
-export function staleVerdictRefusal(item, state) {
+/** Name the concrete stale proof and the required re-review without changing the original verdict; `composeAsObject` words the next step for a board whose re-review composes main as an object. */
+export function staleVerdictRefusal(item, state, { composeAsObject = false } = {}) {
   if (state.landingCode === 'LAND_ITEM_MOVED') return new Refused('STALE_VERDICT',
     `item #${item.item_id}: ${state.reason}; keep its landing receipt and ask the coordinator to create a correction item, then have another agent verify that correction before landing it`);
   const changed = state.file && state.commit
     ? `${JSON.stringify(state.file)} changed on main in ${state.commit}`
     : state.reason ?? 'the reviewed Git history is unavailable';
+  // With submit.composeAsObject on, the re-review runs on a fresh composition of current main, so the builder merges nothing [C7,U159].
+  if (composeAsObject) return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; another agent re-reviews a fresh composition of current main and the submitted commit: pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
   return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; merge current main into the submitted commit, commit a clean composition, then another agent runs pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, derived }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -209,6 +229,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const state = item => {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
+    // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
+    const known = derived?.(item);
+    if (known !== undefined) return known;
     const accepted = acceptedVerdict(board, item);
     const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };

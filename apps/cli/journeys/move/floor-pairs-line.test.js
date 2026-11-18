@@ -11,7 +11,7 @@ import {
   LINE_TABLE,
 } from '../../tests/fixtures/move/registry/floor-pairs-line.js';
 
-test('clause 1: every setLineSetting key that raises its floor is listed with that floor, and each pair below the larger floor is on the allow-list with its conflict named [C7,V4,H16]', () => {
+test('cli.journeys-move-floor-pairs-line.every-setlinesetting-key-that-raises-its: clause 1: every setLineSetting key that raises its floor is listed with that floor, and each pair below the larger floor is on the allow-list with its conflict named [C7,V4,H16]', () => {
   assert.equal(LINE_TABLE.move, 'setLineSetting');
   const keys = LINE_TABLE.options.filter(option => option.group === 'key');
   assert.ok(keys.length >= 8, 'the table lists the setting keys');

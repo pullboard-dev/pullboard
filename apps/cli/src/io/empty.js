@@ -65,11 +65,14 @@ export function proofOnlyTicked(item, thread, commit) {
  * @param {number|string} id the item id
  * @param {string} commit the head being submitted, after main is composed in
  * @param {string} main the accepted main commit
- * @param {{ proofOnly?: () => boolean }} [allow] reads submit.proofOnly and the item's ticks only once the head is empty
+ * @param {{ proofOnly?: () => boolean, proofShaped?: () => boolean }} [allow] proofOnly reads submit.proofOnly and the item's ticks; proofShaped reads only the ticks, so the refusal can name the setting
  * @returns {void}
  */
-export function requireNonEmptySubmit(root, id, commit, main, { proofOnly = () => false } = {}) {
+export function requireNonEmptySubmit(root, id, commit, main, { proofOnly = () => false, proofShaped = () => false } = {}) {
   if (tryGit(root, ['diff', '--quiet', main, commit]).status === 0 && !landedHotfix(root, id, commit, main) && !proofOnly()) {
+    if (proofShaped()) {
+      throw new Refused('EMPTY_SUBMIT', `this head has no change against main, and #${id} is a proof-only item with every clause ticked; turn on submit.proofOnly to submit it with no change`);
+    }
     const [folder] = itemCommitFolders(root, id, main);
     throw new Refused('EMPTY_SUBMIT', folder
       ? `this head has no change against main; the commits for #${id} are in ${folder}, so cd there and run pullboard submit ${id}`

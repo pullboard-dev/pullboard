@@ -37,7 +37,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   BOARD_TOO_OLD: 'open this board with pullboard 0.9.3 first, then open it with this version',
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
-  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit, merge main, then submit again',
+  MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit and submit again (submit composes current main)',
   CROSS_OWNERSHIP: 'split the item so each piece names only its own lane’s folders, or shout the owning lane to build the other paths',
   ITEM_WORK_IN_SEAT: 'move the change to the item folder that pullboard claim <id> opens, commit there, and switch this seat checkout off the item branch',
   MERGED_ALREADY: 'run pullboard show <id> to read the recorded merge commit; nothing more is needed unless a different commit must land through a new item',
@@ -45,6 +45,11 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   ITEM_FOLDER_UNREGISTERED: 'commit or move the changes out of that folder yourself, or shout the coordinator to archive it, then claim the item again',
   COMPANION_WINDOW: 'take other work with pullboard next --take, and run the command again after the objection deadline named in the message',
   LAND_RUNNER_FAULT: 'no action needed: the landing retries on its own; if it repeats, run pullboard runner list to find the unhealthy runner',
+  ITEM_FOLDER_ARCHIVE_UNREACHABLE: 'reconnect the archive volume the link points to, or shout the coordinator to repoint the archive folder; the item folder was kept untouched',
+  LAND_EXACT_RED: 'fix the cell the message names, commit, merge main, and submit again; main did not move',
+  LAND_EXACT_TREE: 'prove the tree with pullboard land, which records the exact-tree proof before main moves; run pullboard resume if the batch has no tree',
+  LAND_RUNNER_REQUIRED: 'fix the runner with pullboard runner list, then let the landing retry; or turn landing.runnerOnlyCompose off to merge on the coordinator',
+  LAND_YIELDED: 'no action needed: the landing restages on its own; run pullboard resume if it does not start again',
   LAND_CODE_STALE: 'no action needed: a fresh lander takes over; run pullboard resume if none starts',
   LAND_MAIN_COMPARISON: 'retry the landing once main can run the named files; run pullboard resume to start it',
   LAND_MAIN_MOVED: 'run pullboard resume so landing restarts from the new main tip',
@@ -630,6 +635,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   FIELD_FILTER: 'write --field <name><op><value>, such as --field priority=high or --field points>=3',
   FIELD_UNKNOWN: 'declare the field first with pullboard field declare <name> <text|choice|number>, or use a field already declared',
   RUNNER_TOOLCHAIN_MISSING: 'add a runner that has the named toolchain with pullboard runner add, or ask the person to install it on an existing runner',
+  AGENT_REQUIRED: 'send agent with the seat name pullboard join gave this clone',
+  COORDINATOR_CREDENTIAL: "run the move on the board host with the local CLI, or send the coordinator's own key as x-pullboard-coordinator-key",
   SPEC_FIELD: 'give the field as a single plain sentence, or leave it out'
 });
 

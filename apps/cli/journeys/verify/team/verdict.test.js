@@ -38,7 +38,7 @@ import { withGitAdapter } from '../../../../../packages/git/index.js';
 import { verdictProjector } from '../../../../../packages/verify/index.js';
 import { temporaryRepository } from '../../../tests/fixtures/board/submit.js';
 
-test('a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
+test('cli.journeys-verify-team-verdict.a-verdict-reads-stale-when-main: a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
@@ -89,7 +89,9 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   let streamController;
   let streamReader;
   let builds = 0;
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
+  /** Resolvers waiting for the next state build to start. */
+  const buildWaiters = [];
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; for (const built of buildWaiters.splice(0)) built(); } });
   t.after(async () => {
     streamController?.abort();
     await streamReader?.cancel().catch(() => {});
@@ -106,9 +108,18 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
     return document;
   };
   const initialState = (await http('/state')).state;
+  // The first read answers before the view has read its row ages, and that build is never current (#10869): read until
+  // the ages are in, so the count below starts at the first complete build and the reads after it are unchanged.
+  // A read of a build that is not current asks for the next build; wait for that build to start, then read again.
+  for (let state = initialState; Object.values(state.rowAgesAt ?? {}).some(at => at === null);) {
+    const nextBuild = new Promise(built => buildWaiters.push(built));
+    state = (await http('/state')).state;
+    if (Object.values(state.rowAgesAt ?? {}).some(at => at === null)) await nextBuild;
+  }
+  const builtWithAges = builds;
   const phoneBefore = relaySnapshot(reviewer, {}, RELAY_PRESENTATION_PORTS);
   await http('/state');
-  assert.equal(builds, 1, 'unchanged HTTP reads reuse the state cache');
+  assert.equal(builds, builtWithAges, 'unchanged HTTP reads reuse the state cache');
   await http('/items/1'); // Warm the independent detail freshness projection for a verified item.
   const processMethods = ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync'];
   const originals = new Map(processMethods.map(method => [method, childProcess[method]]));
@@ -275,7 +286,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.ok(existsSync(join(peer, '.git', 'pullboard', 'board.sqlite')));
 });
 
-test('an accepted verdict reads stale through the CLI once main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('cli.journeys-verify-team-verdict.an-accepted-verdict-reads-stale-through: an accepted verdict reads stale through the CLI once main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
@@ -304,7 +315,7 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
   assert.equal(stale.item_verdict, 'ACCEPT', 'the historical acceptance remains a fact');
 });
 
-test('many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
+test('cli.journeys-verify-team-verdict.many-verified-items-at-one-commit: many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
   const dir = temporaryRepository(t, 'verdict-ancestry-memo-');
   const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
   git('commit', '--allow-empty', '-q', '-m', 'base');
@@ -332,7 +343,7 @@ test('many verified items at one commit cost one ancestry check per state build,
   assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');
 });
 
-test('legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
+test('cli.journeys-verify-team-verdict.legacy-receipts-on-a-cold-state: legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
   const dir = temporaryRepository(t, 'verdict-legacy-bounded-');
   const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
   git('commit', '--allow-empty', '-q', '-m', 'base');

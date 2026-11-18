@@ -20,8 +20,6 @@ import { resolve } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { spawnReachable } from '../../../jobs/index.js';
 import { serveRunner } from './pull.js';
-import { WAKE_FILE } from './wake.js';
-import { watchWake } from './wake.js';
 
 /** The capability only a runner on the board host has: it reaches the board host's own repository by its path. */
 export const BOARD_HOST = 'board-host';
@@ -30,6 +28,10 @@ const HEARTBEAT_MS = 5_000;
 const STALE_MS = 30_000;
 // Budget: a board the runner cannot serve yet (no board file, a refusal) is tried again after 1 s, doubling to a minute.
 const RETRY = { firstMs: 1_000, maxMs: 60_000 };
+// The file an offering command touches in the runner folder; wake.js, which watches it, loads only when runners.localWake is on [#10409].
+export const WAKE_FILE = 'wake';
+// The file startLocalRunner writes as it starts the process: its pid and start time, read by localRunnerStarting.
+const STARTING_FILE = 'starting.json';
 
 /** Read a JSON file, or the fallback when it is missing or damaged. */
 function readJson(file, fallback) {
@@ -107,9 +109,27 @@ export function addLocalBoard(folder, root) {
  * @param {{ cwd: string, env: NodeJS.ProcessEnv }} options
  * @returns {Promise<number | null>}
  */
-export async function startLocalRunner(folder, argv, { cwd, env }) {
+export async function startLocalRunner(folder, argv, { cwd, env, spawn = spawnReachable }) {
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  return (await spawnReachable(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') })).pid;
+  const { pid } = await spawn(process.execPath, argv, { cwd, env, log: join(folder, 'runner.log') });
+  // The new process writes its state only once it has loaded and taken the lock; until then this marker says it is on its way [P7,C7].
+  if (Number.isSafeInteger(pid)) writeJson(join(folder, STARTING_FILE), { pid, startedAt: Date.now() });
+  return pid ?? null;
+}
+
+/**
+ * The pid of a local runner started moments ago that has not written its state yet, or null: the process is alive and
+ * was started under STALE_MS ago. Why: a command straight after the one that started the runner (an in-process submit
+ * right after add) saw no state, started a second runner that only exited on the lock, and said it had started one [P7,C7,#10709].
+ *
+ * @param {string} folder
+ * @param {number} [now]
+ * @returns {number | null}
+ */
+export function localRunnerStarting(folder, now = Date.now()) {
+  const starting = readJson(join(folder, STARTING_FILE), null);
+  if (!starting || !processAlive(starting.pid) || !(now - Number(starting.startedAt) < STALE_MS)) return null;
+  return starting.pid;
 }
 
 /** Take the folder's lock, or answer false while a live local runner holds it; a dead holder's lock is taken over. */
@@ -130,7 +150,7 @@ function takeLock(folder) {
 async function serveBoard({ root, id }, { origin, key, runner, folder, capabilities, handlers, admit, git, signal, say, wakeOnOffer }) {
   const cache = join(folder, 'cache', createHash('sha256').update(root).digest('hex').slice(0, 16));
   // With runners.localWake on, an offering command's touch of the wake file ends this board's idle wait at once [#10409].
-  const wake = wakeOnOffer ? watchWake(folder) : null;
+  const wake = wakeOnOffer ? (await import('./wake.js')).watchWake(folder) : null;
   for (let wait = RETRY.firstMs; !signal.aborted; wait = Math.min(wait * 2, RETRY.maxMs)) {
     try {
       say(`serving ${root} as board ${id}`);
