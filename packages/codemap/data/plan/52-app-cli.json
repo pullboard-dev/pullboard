@@ -1,5 +1,5 @@
 {
- "order": 50,
+ "order": 52,
  "name": "app:cli",
  "kind": "app",
  "root": "apps/cli",
