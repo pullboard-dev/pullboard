@@ -459,7 +459,12 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:verify');
     // The control answers at once and the page draws on the next turn, so wait for the draw before reading Rulings.
-    await pressedInto(chrome, "document.querySelector('[data-page-ctl=state][data-value=verify]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#needs').hidden");
+    try {
+      await pressedInto(chrome, "document.querySelector('[data-page-ctl=state][data-value=verify]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('#needs').hidden");
+    } catch (error) {
+      const held = await chrome.stable('JSON.stringify({ dialogs: pageDialogs.size, held: heldClickPointer, deferred: deferredClickRender })').catch((failure) => failure.message);
+      throw new Error(`${error.message}; the page holds ${held}; exceptions ${JSON.stringify(chrome.exceptions)}`, { cause: error });
+    }
     assert.equal((await read()).needsShown, false, 'under In review, Rulings steps aside');
     await click('[data-tab=items]');
     await chooseFilter(chrome, 'state:active');
