@@ -66,6 +66,15 @@ test('cli.item-folder.new-folder-git-launches: clause 1: opening a new item fold
   const { ctx } = repository(t);
   const { launches } = await countingGit(() => openItemFolder(ctx, ME, 7));
   console.log(`# git launches opening a new item folder: ${launches}`);
+  // The same open timed on two more fresh repositories: the median of three, for the measurement clause.
+  const times = [];
+  for (const id of [8, 9]) {
+    const other = repository(t);
+    const start = process.hrtime.bigint();
+    await openItemFolder(other.ctx, ME, id);
+    times.push(Number(process.hrtime.bigint() - start) / 1e6);
+  }
+  console.log(`# item folder open ms (two fresh repositories): ${times.map(ms => ms.toFixed(1)).join(', ')}`);
   assert.ok(launches <= 3, `opening the folder launched ${launches} git processes`);
 });
 
