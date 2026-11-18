@@ -70,3 +70,14 @@ test('config.settings-inventory.sprint-bar-tests-declared: clause 1: landing.spr
   const [bad] = repoRows(t, { landing: { sprintBarTests: 'yes' } }, 'landing.sprintBarTests');
   assert.ok(bad.error, 'a non-boolean value is reported as an error on the row, never read as on');
 });
+
+test('config.settings-inventory.unrelated-trunk-moves-off-by-default: clause 3: verify.unrelatedTrunkMoves is a described setting with default false, off on a repo that does not set it, and on only when the repo sets true [C7,#2981]', t => {
+  const [unset] = repoRows(t, null, 'verify.unrelatedTrunkMoves');
+  assert.equal(unset.default, false);
+  assert.equal(unset.value, false);
+  assert.equal(unset.origin, 'default');
+  assert.ok(unset.label && unset.description && !unset.description.includes('\n'), 'a plain label and a one-line description');
+  const [on] = repoRows(t, { verify: { unrelatedTrunkMoves: true } }, 'verify.unrelatedTrunkMoves');
+  assert.equal(on.value, true);
+  assert.equal(on.origin, 'configured');
+});
