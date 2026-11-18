@@ -32,3 +32,4 @@ export { parseSpec, STATUSES, TIERS, SPEC_GRAMMAR_VERSION, ID_RE } from "./light
 export { SIGNOFFS_FILE, replaceRowGate, loadSpec, legacyDoctrineRenameBase, checkFieldFindings, gateFiles, missingGateFindings, lintSpec, nextRowId, insertSectionRows, idProblems, frozenCriterion, readSignoffs, standings, unmetRows, signOff, citedIds, permanenceProblems, deletedIds, headerRows, CHOICES, MOST_CHOICE_PARTS, positions, answerQuestion, answerFromText } from "./src/io/main.js";
 export { specGateMoveOnly } from "./src/io/gate/move.js";
 export { CITATIONS_FILE, qualifiedId, loadSpecBoards, qualifiedIdProblems, readCitationCorrections, correctedCitations } from "./src/io/boards.js";
+export { raisedStakesRows } from "./src/logic/stakes.js";
