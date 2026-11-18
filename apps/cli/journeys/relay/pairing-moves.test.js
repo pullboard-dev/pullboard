@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { ENGINE_VERSION } from '../../../../packages/state/index.js';
 import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
 
-test('pairing again after a device joined and a move was added succeeds [H15,H17,H16]', async t => {
+test('cli.journeys-relay-pairing-moves.pairing-again-after-a-device-joined: pairing again after a device joined and a move was added succeeds [H15,H17,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const first = await box.cliLocal('relay', 'pair');
@@ -30,7 +30,7 @@ test('pairing again after a device joined and a move was added succeeds [H15,H17
   }));
 });
 
-test('a newly paired device imports the acknowledged moved board [H15,H17,H16]', async t => {
+test('cli.journeys-relay-pairing-moves.a-newly-paired-device-imports-the: a newly paired device imports the acknowledged moved board [H15,H17,H16]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const added = await box.cliLocal('add', box.lane, 'The next computer sees this acknowledged move', '--criterion', 'The native checkpoint and move agree');
@@ -45,7 +45,7 @@ test('a newly paired device imports the acknowledged moved board [H15,H17,H16]',
 });
 
 
-test('a move made during pairing is still refused as busy [H15,H17]', async t => {
+test('cli.journeys-relay-pairing-moves.a-move-made-during-pairing-is: a move made during pairing is still refused as busy [H15,H17]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const result = await box.script(`
@@ -79,7 +79,7 @@ test('a move made during pairing is still refused as busy [H15,H17]', async t =>
 });
 
 
-test('a local move during pairing upload refuses before issuing a code [H15,H17]', async t => {
+test('cli.journeys-relay-pairing-moves.a-local-move-during-pairing-upload: a local move during pairing upload refuses before issuing a code [H15,H17]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
   const result = await box.script(`
@@ -113,7 +113,7 @@ test('a local move during pairing upload refuses before issuing a code [H15,H17]
 });
 
 
-test('a refused upload race discards only its unprinted package [H15,H17]', async t => {
+test('cli.journeys-relay-pairing-moves.a-refused-upload-race-discards-only: a refused upload race discards only its unprinted package [H15,H17]', async t => {
   const box=await relayClientFixture(t);
   await box.link();
   const result=await box.script(`
@@ -148,7 +148,7 @@ test('a refused upload race discards only its unprinted package [H15,H17]', asyn
 });
 
 
-test('a local move while sealing is refused before the pairing upload [H15,H17]', async t => {
+test('cli.journeys-relay-pairing-moves.a-local-move-while-sealing-is: a local move while sealing is refused before the pairing upload [H15,H17]', async t => {
   const box=await relayClientFixture(t);
   await box.link();
   const result=await box.script(`

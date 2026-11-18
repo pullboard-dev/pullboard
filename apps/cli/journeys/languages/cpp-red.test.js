@@ -13,7 +13,7 @@ import { cmakeBoard } from '../../tests/fixtures/languages/cpp.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 2: a submitted commit with a failing ctest case is refused red and the refusal names the case [C7,#10515]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-cpp-red.a-submitted-commit-with-a-failing: clause 2: a submitted commit with a failing ctest case is refused red and the refusal names the case [C7,#10515]', { timeout: 240_000 }, async (t) => {
   if (!CMAKE) return t.skip(UNAVAILABLE);
   const board = await cmakeBoard(helpers);
   const red = await buildAndSubmit(board, null, BROKEN);

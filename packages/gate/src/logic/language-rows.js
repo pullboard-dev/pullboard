@@ -236,7 +236,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['shard.yml'], command: 'crystal spec' },
     tests: ['spec/**/*_spec.cr', '**/spec/**/*_spec.cr'],
     toolchains: ['crystal'],
-    junit: null,
+    junit: { command: `crystal spec --junit_output ${JUNIT_DIR}/crystal.xml`, report: `${JUNIT_DIR}/crystal.xml`, needs: null },
     affected: null,
     // crystal spec --junit writes the spec file path (spec/calc_spec.cr) in classname and no file attribute on the case.
     cases: { name: 'crystal', inputs: [], file: row => (row.classname && /\.cr$/u.test(row.classname) ? row.classname : null) },

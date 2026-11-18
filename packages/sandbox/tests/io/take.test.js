@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
+import { DatabaseSync } from 'node:sqlite';
+import { closePassingMainReds } from '../../src/io/take.js';
 import { mainRedBuildOffer } from '../../src/io/take.js';
 import { takeSelection } from '../../src/io/take.js';
 import { nextProgress } from '../../src/io/take.js';
@@ -101,4 +103,26 @@ test('sandbox.take.main-red-claim-worktrees-in-flight: clause 1: the claim workt
   assert.ok(seen[0].some(item => item.item_id === held), 'the claimed item is listed');
   assert.deepEqual([...new Set(seen[0].map(item => item.item_status))].sort(), ['claimed'], 'no open item is listed for the claim worktrees');
   assert.deepEqual(recorded(seen[0]), recorded(store.listItems(box.board)), 'the same claimed items\' recorded files as the whole open list gives');
+});
+
+/** The SQL a work function prepares on any connection, recorded by wrapping DatabaseSync.prototype.prepare. */
+async function preparedBy(t, work) {
+  const prepared = [];
+  const prepare = DatabaseSync.prototype.prepare;
+  DatabaseSync.prototype.prepare = function recording(sql) { prepared.push(String(sql)); return prepare.call(this, sql); };
+  t.after(() => { DatabaseSync.prototype.prepare = prepare; });
+  try { await work(); } finally { DatabaseSync.prototype.prepare = prepare; }
+  return prepared;
+}
+
+test('sandbox.take.closing-reads-no-list-without-main-run: clause 1: closePassingMainReds with no run recorded for main\'s commit sends the board no open-items list query [C7,#5329]', async t => {
+  const box = fixture(t);
+  box.add('Open item one');
+  box.add('Open item two');
+  const listing = await preparedBy(t, () => store.listItems(box.board));
+  assert.ok(listing.length > 0, 'the open-items list read prepares a query');
+  /** passingMainRedItems with no run recorded for main: it answers nothing and never calls a function it is given. */
+  const passingMainRedItems = () => [];
+  const closing = await preparedBy(t, () => closePassingMainReds(box.ctx, { ...box.services, passingMainRedItems }));
+  assert.deepEqual(closing.filter(sql => listing.includes(sql)), [], `the closing read prepared a list query: ${JSON.stringify(closing)}`);
 });

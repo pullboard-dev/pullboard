@@ -13,7 +13,7 @@ import { pythonBoard } from '../../tests/fixtures/languages/python.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 
-test('clause 3: the fixed commit passes python3 -m unittest, is accepted and lands on the scratch board main [C7,#10559]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-languages-python-land.the-fixed-commit-passes-python3-m: clause 3: the fixed commit passes python3 -m unittest, is accepted and lands on the scratch board main [C7,#10559]', { timeout: 240_000 }, async (t) => {
   if (!PYTHON) return t.skip(UNAVAILABLE);
   const board = await pythonBoard(helpers);
   const fixed = await buildAndSubmit(board, null, PASSING);
