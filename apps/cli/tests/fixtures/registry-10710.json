@@ -1,0 +1,3 @@
+{
+  "cli.journeys-gate-pulled-withdraw-ends.withdrawn-job-process-gone-within-60s": {"proves":{"specs":["C7"],"claim":"The process of a pull runner job whose gate was withdrawn is gone within 60 s of the withdraw, ended by the runner serve's own lease-lost handling."},"why":"Without it, a withdrawn gate's job process could keep running on a runner for the rest of its ceiling.","kind":"journey","inputs":["apps/cli/journeys/gate/pulled-withdraw-ends.test.js","packages/drive/src/io/pull.js"]}
+}

@@ -33,7 +33,7 @@ function fixture(t, { independentOpenAI = true } = {}) {
   return { board, id, claimed, attachment };
 }
 
-test('Claude builder and OpenAI companion use one eligibility rule for live attach, submit and independent verify [V4,H16]', t => {
+test('store.io-board-patch-attach.claude-builder-and-openai-companion-use: Claude builder and OpenAI companion use one eligibility rule for live attach, submit and independent verify [V4,H16]', t => {
   const { board, id, claimed, attachment } = fixture(t);
   const before = exportBoard(board);
   assert.doesNotThrow(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW }));
@@ -52,7 +52,7 @@ test('Claude builder and OpenAI companion use one eligibility rule for live atta
   assert.equal(store.getItem(board, id).item_status, 'verified');
 });
 
-test('claimed attachment cannot infer future companion ownership from absent submit counts [V4,H16]', t => {
+test('store.io-board-patch-attach.claimed-attachment-cannot-infer-future-companion: claimed attachment cannot infer future companion ownership from absent submit counts [V4,H16]', t => {
   const { board, id, attachment } = fixture(t, { independentOpenAI: false });
   const before = exportBoard(board);
   assert.throws(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW }), { code: 'NO_ELIGIBLE_REVIEWER' });

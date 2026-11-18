@@ -1,4 +1,3 @@
-import { coordinatorMilestoneRelease } from '../../../../stats/light.js';
 /** Canonical store composition for roadmap operations; the public board facade retains historical signatures [N26,H16]. */
 import * as roadmapMoves from "../../../../roadmap/index.js";
 import { atomic } from "./event/log.js";
@@ -7,17 +6,21 @@ import { itemById } from "./query.js";
 import { listItems } from "./query.js";
 import { PERSON } from "./query.js";
 import { milestones } from "./read/shouts.js";
+import { Refused } from "../../../../kernel/index.js";
 
 let provided = null;
 /**
  * Inject the coordinator milestone release from the board root, as provideMoveTables injects the move tables, so the store needs no stats
- * edge of its own to answer it; a null provider restores the imported release [C7,dep16].
+ * edge of its own to answer it; a null provider removes it, and a ship that needs one is then refused [C7,dep16].
  *
  * @param {Function | null} release the coordinatorMilestoneRelease function
  */
 export function provideCoordinatorMilestoneRelease(release) { provided = release; }
-/** Release through the provided function when one is set, otherwise through the import, so a store used alone is unchanged. */
-const release = (...args) => (provided ?? coordinatorMilestoneRelease)(...args);
+/** Release through the provided function; with none set the store has no stats edge to answer it, so it refuses and names the fix. */
+const release = (...args) => {
+  if (!provided) throw new Refused('NO_MILESTONE_RELEASE', 'no coordinator milestone release is provided; open the board through packages/board, or call provideCoordinatorMilestoneRelease first');
+  return provided(...args);
+};
 
 const ports = Object.freeze({ atomic, itemById, listItems, logEvent, milestones, PERSON, coordinatorMilestoneRelease: release });
 

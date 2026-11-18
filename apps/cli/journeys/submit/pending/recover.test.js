@@ -38,7 +38,7 @@ async function submitAgain(fixture, timing, item, recoverFromJobRow) {
   return { again, detail: JSON.stringify(again.document).slice(0, 1200) };
 }
 
-test('clause 1 and clause 2: [C7,P7,#9740] a lost gate-offer reply is recovered from the runner job row with submit.recoverFromJobRow on, with no second offer, and not with it off', { timeout: 170_000 }, async (t) => { // budget: one three-replica setup, a lost offer and two submits.
+test('cli.journeys-submit-pending-recover.a-lost-gate-offer-reply-is: clause 1 and clause 2: [C7,P7,#9740] a lost gate-offer reply is recovered from the runner job row with submit.recoverFromJobRow on, with no second offer, and not with it off', { timeout: 170_000 }, async (t) => { // budget: one three-replica setup, a lost offer and two submits.
   const timing = threeReplicaPhaseCapture(t);
   return timing.run(async () => {
     const fixture = await threeReplicaFixture(t, timing);

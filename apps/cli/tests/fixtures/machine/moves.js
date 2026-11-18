@@ -85,6 +85,7 @@ export const NOT_MOVES = {
   BAD_BROWSER_SLOTS: 'machine-wide browser capacity checked before a command runs',
   BAD_SHORT_SLOTS: 'machine-wide short gate slot count checked before a command runs',
   BAD_SHORT_SLOT_REQUEST: 'only a machine gate run that names its test files may ask for a short slot, checked before admission',
+  SELECTION_UNIT_COMMAND: 'the affected-tests command is checked against gate.selectionUnit when selection builds it, a gate setting error rather than an item guard',
   BAD_RESOURCE_NAME: 'machine resource names are validated before admission',
   RESERVED_RUNNER_RESOURCE: 'runner resource rows are managed by machine admission rather than item moves',
   BAD_RESOURCE_CAPACITY: 'machine resource capacity is validated before admission',

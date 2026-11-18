@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/stage.css apps/view/src/io/item/rows.css apps/view/src/io/dashboard.css apps/view/src/io/cost.css */
 /** Stage colors are one set of tokens, used the same way on every screen [N26]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -40,7 +40,7 @@ const contrast = (a, b) => {
   return (x + .05) / (y + .05);
 };
 
-test('the stage tokens live in one place with the approved light and dark values (clause 1) [N26]', () => {
+test('view.x-summary-roadmap-colors.the-stage-tokens-live-in-one-place: the stage tokens live in one place with the approved light and dark values (clause 1) [N26]', () => {
   for (const [name, [light, dark]] of Object.entries(TOKENS)) {
     const matches = [...all.matchAll(new RegExp(`--${name}:\\s*light-dark\\((#[0-9a-f]{6}),\\s*(#[0-9a-f]{6})\\)`, 'g'))];
     assert.equal(matches.length, 1, `--${name} is defined exactly once`);
@@ -50,7 +50,7 @@ test('the stage tokens live in one place with the approved light and dark values
   assert.match(css['main.css'], /--mark-held:/, '--mark-held is defined with the stage tokens');
 });
 
-test('every stage color in the view resolves to its token, never a literal or a screen-own color (clause 1) [N26]', () => {
+test('view.x-summary-roadmap-colors.every-stage-color-in-the-view-resolves: every stage color in the view resolves to its token, never a literal or a screen-own color (clause 1) [N26]', () => {
   const expect = [
     [/\.roadmap-stage-swatch\.review\b[^{]*\{[^}]*\}/, 'stage-review'], [/\.roadmap-stage-swatch\.building\b[^{]*\{[^}]*\}/, 'stage-building'],
     [/\.roadmap-stage-swatch\.open\b[^{]*\{[^}]*\}/, 'stage-ready'], [/\.roadmap-stage-swatch\.waiting\b[^{]*\{[^}]*\}/, 'stage-gated'],
@@ -89,7 +89,7 @@ test('every stage color in the view resolves to its token, never a literal or a 
   assert.match(all, /\.stage-mark\.gate \{[^}]*background: none;[^}]*dashed/, 'the Held mark is dashed, with no fill');
 });
 
-test('stage chip text on its tint is at least 4.5:1 in light and dark (clause 3) [N26]', () => {
+test('view.x-summary-roadmap-colors.stage-chip-text-on-its-tint-is: stage chip text on its tint is at least 4.5:1 in light and dark (clause 3) [N26]', () => {
   const pair = /background:\s*color-mix\(in oklab, var\(--([\w-]+)\) (\d+)%, var\(--surface\)\);\s*color:\s*color-mix\(in oklab, var\(--\1\) (\d+)%, var\(--ink\)\)/g;
   let seen = 0;
   for (const m of all.matchAll(pair)) {
@@ -106,7 +106,7 @@ test('stage chip text on its tint is at least 4.5:1 in light and dark (clause 3)
   assert.ok(!/color-mix\(in srgb, var\(--(stage|mark)-/.test(all), 'every stage mix is in oklab, as the mockup mixes it');
 });
 
-test('the Roadmap bar paints Landing from a stripe pattern its rect references, and Merged solid (clause 2) [N26]', () => {
+test('view.x-summary-roadmap-colors.the-roadmap-bar-paints-landing-from-a: the Roadmap bar paints Landing from a stripe pattern its rect references, and Merged solid (clause 2) [N26]', () => {
   const html = roadmapSummary({ name: 'M', summary: { total: 10, left: 6, landed: 4, landing: 2, review: 1, building: 1, waiting: 2, held: 0 } }).header;
   assert.ok(/<pattern id="roadmap-summary-stripe"/.test(html), 'the bar defines the stripe pattern');
   assert.match(html, /<rect class="roadmap-summary-segment landing"[^>]*fill="url\(#roadmap-summary-stripe\)"/, 'the landing rect fills from the pattern');

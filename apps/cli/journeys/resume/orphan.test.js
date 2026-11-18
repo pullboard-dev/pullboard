@@ -45,7 +45,7 @@ async function orphaned(t, { setting }) {
   return { box, id, head, pin, fresh };
 }
 
-test('clause 1: resume in a fresh worktree adopts an orphaned seat claim from its pinned ref with credit [C7]', async t => {
+test('cli.journeys-resume-orphan.resume-in-a-fresh-worktree-adopts: clause 1: resume in a fresh worktree adopts an orphaned seat claim from its pinned ref with credit [C7]', async t => {
   const f = await orphaned(t, { setting: true });
   const resumed = await f.box.runLocal(f.fresh, 'resume');
   assert.equal(resumed.code, 0, resumed.err + resumed.out);
@@ -55,7 +55,7 @@ test('clause 1: resume in a fresh worktree adopts an orphaned seat claim from it
   assert.match(shown.out, /web-2/u, 'the fresh seat now holds the item');
 });
 
-test('clause 2: the adopted claim restores the orphaned head, and with the setting off resume adopts nothing [C7]', async t => {
+test('cli.journeys-resume-orphan.the-adopted-claim-restores-the-orphaned: clause 2: the adopted claim restores the orphaned head, and with the setting off resume adopts nothing [C7]', async t => {
   const on = await orphaned(t, { setting: true });
   await on.box.runLocal(on.fresh, 'resume');
   const folder = join(on.box.dir, `web-2-item-${on.id}`);

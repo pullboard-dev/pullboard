@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css apps/view/src/io/cost.css */
 /** @pullboard-world-pin reads the private Cost stylesheet beside the shared ones to prove the phone rules. */
 /** At a 390 px phone the Items rows, the search box and the Cost models table stay inside the screen [U94,#6930]. */
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ const last = (selector) => blocks(selector).at(-1);
 const hiddenInMedia = (selector) => [...css.matchAll(/@media[^{]*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/gu)]
   .filter((m) => [...m[1].matchAll(/([^{}]+)\{([^{}]*)\}/gu)].some((r) => r[1].split(',').some((p) => p.includes(selector)) && /display:\s*none/u.test(r[2])));
 
-test('clause 1: at 390 px an Items row title, code included, is one line cut with an ellipsis and never wraps into the next row [U94,#6930]', () => {
+test('view.x-io-phone-widths.clause-1-at-390-px-an-items: clause 1: at 390 px an Items row title, code included, is one line cut with an ellipsis and never wraps into the next row [U94,#6930]', () => {
   const title = last('.row .t').body;
   assert.match(title, /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/u, 'the title line is cut with an ellipsis');
   const wrapping = last('code.inline.long');
@@ -31,7 +31,7 @@ test('clause 1: at 390 px an Items row title, code included, is one line cut wit
   assert.match(last('.row.item-row > .row-copy').body, /min-width: 0;/u, 'the copy column may shrink below its text');
 });
 
-test('clause 2: at 390 px the search box keeps its key hint and cuts its placeholder with an ellipsis, never the hint [U94,#6930]', () => {
+test('view.x-io-phone-widths.clause-2-at-390-px-the-search: clause 2: at 390 px the search box keeps its key hint and cuts its placeholder with an ellipsis, never the hint [U94,#6930]', () => {
   assert.deepEqual(hiddenInMedia('.top-find kbd').map((m) => m[0].slice(0, 30)), [], 'no media query hides the key hint');
   assert.deepEqual(hiddenInMedia('.pal-hint').map((m) => m[0].slice(0, 30)), [], 'no media query hides the key hint the palette adds');
   assert.match(last(':root[data-nav] .top-find input').body, /text-overflow: ellipsis;/u, 'a long placeholder ends in an ellipsis');
@@ -40,7 +40,7 @@ test('clause 2: at 390 px the search box keeps its key hint and cuts its placeho
   assert.match(last(':root[data-nav] .top-find').body, /min-width: 0;/u, 'the box shrinks with the screen instead of pushing it');
 });
 
-test('clause 2: at 390 px the Cost models table scrolls inside its card and the page does not scroll sideways [U94,#6930]', () => {
+test('view.x-io-phone-widths.clause-2-at-390-px-the-cost: clause 2: at 390 px the Cost models table scrolls inside its card and the page does not scroll sideways [U94,#6930]', () => {
   const wrap = blocks('.cost-model-table-wrap').map((b) => b.body).join(' ');
   assert.match(wrap, /overflow-x: auto;/u, 'the table scrolls inside its wrap');
   assert.match(wrap, /max-width: 100%;/u, 'the wrap is never wider than its card');

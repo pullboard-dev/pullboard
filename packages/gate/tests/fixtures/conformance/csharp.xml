@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written in the shape of: dotnet test --logger "junit;LogFilePath=report.xml" (JunitXml.TestLogger)
+     classname is the namespace and class (MathTests.CalcTests), name is the method, and there is no file attribute.
+     Names read "clause N: ..." as a naming attribute would write them. No tool is needed to read it. -->
+<testsuites>
+  <testsuite name="MathTests.dll" tests="3" skipped="1" failures="1" errors="0" time="0.021" timestamp="2026-11-17T12:00:00" hostname="runner">
+    <testcase classname="MathTests.CalcTests" name="clause 1: adds two numbers" time="0.001"/>
+    <testcase classname="MathTests.CalcTests" name="clause 2: halves a number" time="0.002">
+      <failure message="Assert.Equal() Failure&#10;Expected: 2&#10;Actual:   1" type="Xunit.Sdk.EqualException">   at MathTests.CalcTests.Half() in /work/repo/MathTests/CalcTests.cs:line 14</failure>
+    </testcase>
+    <testcase classname="MathTests.CalcTests" name="clause 3: later" time="0.000">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuites>
