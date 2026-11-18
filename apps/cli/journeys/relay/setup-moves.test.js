@@ -69,7 +69,7 @@ async function relayOffWorktree(t, { stale }) {
   return { worktree, env };
 }
 
-test('a move from an agent worktree prints no relay-link line [C6,H5]', async (t) => {
+test('cli.journeys-relay-setup-moves.a-move-from-an-agent-worktree: a move from an agent worktree prints no relay-link line [C6,H5]', async (t) => {
   for (const stale of [true, false]) {
     const { worktree, env } = await relayOffWorktree(t, { stale });
     const move = await relayOffCommand(worktree, env, ['spec', 'draft', 'A fixture row', '--section', 'G']);

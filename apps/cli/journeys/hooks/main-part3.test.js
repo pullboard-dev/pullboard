@@ -56,7 +56,7 @@ for (const inProcessHooks of [false, true]) {
   });
 }
 
-test('clause 2: with test.inProcessHooks on, the installed pre-commit and commit-msg hooks are still the real scripts that start pullboard hook [C7]', async () => {
+test('cli.journeys-hooks-main-part3.with-test-inprocesshooks-on-the-installed: clause 2: with test.inProcessHooks on, the installed pre-commit and commit-msg hooks are still the real scripts that start pullboard hook [C7]', async () => {
   const { root } = await hookedRepo(true);
   for (const name of ['pre-commit', 'commit-msg']) {
     assert.match(readFileSync(join(root, '.githooks', name), 'utf8'), new RegExp(`hook ${name}`, 'u'), `${name} runs pullboard hook ${name}`);
