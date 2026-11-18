@@ -36,13 +36,13 @@ async function submitted(regenerateDeclared) {
   return box;
 }
 
-test('clause 1: with submit.regenerateDeclared on, a submit whose diff changes a declared input commits the regenerated file [C7]', async () => {
+test('cli.journeys-submit-regenerate-declared.with-submit-regeneratedeclared-on-a-submit: clause 1: with submit.regenerateDeclared on, a submit whose diff changes a declared input commits the regenerated file [C7]', async () => {
   const box = await submitted(true);
   assert.equal(box.git(box.web, 'show', 'HEAD:gen/out.txt').trim(), 'two');
   assert.match(box.git(box.web, 'log', '-1', '--format=%s'), /regenerate gen\/out\.txt/u);
 });
 
-test('clause 2: with submit.regenerateDeclared at its default (off), the same submit leaves the generated file as committed [C7]', async () => {
+test('cli.journeys-submit-regenerate-declared.with-submit-regeneratedeclared-at-its-default: clause 2: with submit.regenerateDeclared at its default (off), the same submit leaves the generated file as committed [C7]', async () => {
   const box = await submitted(false);
   assert.equal(box.git(box.web, 'show', 'HEAD:gen/out.txt').trim(), 'one');
 });
