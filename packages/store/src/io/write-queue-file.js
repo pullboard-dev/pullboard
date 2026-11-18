@@ -19,7 +19,6 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { sleepBlocking } from '../../../kernel/index.js';
 import { writeFileAtomic } from './atomic.js';
 
 const LOCK_STALE_MS = 5_000;
@@ -99,10 +98,10 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
    * larger of the clock and one above the highest visible record, so sequence order is visibility order: a process
    * stalled before publishing takes a number above every record already visible, never below one that ran [C7,#11021].
    */
-  function publish(id) {
+  async function publish(id) {
     while (!takeLock(publishLock)) {
       if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
-      else sleepBlocking(LOCK_RETRY_MS);
+      else await pause(LOCK_RETRY_MS);
     }
     try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
     finally { rmSync(publishLock, { recursive: true, force: true }); }
@@ -156,8 +155,8 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
     async submit({ id, run }) {
       const done = readRecord(resultFile(id));
       if (done) return done;
-      if (!existsSync(pendingFile(id))) publish(id);
       runs.set(id, run);
+      if (!existsSync(pendingFile(id))) await publish(id);
       if (transaction) await new Promise(done => queueMicrotask(done)); // let every write submitted in this turn queue before the drain
       for (let stored = readRecord(resultFile(id)); !stored; stored = readRecord(resultFile(id))) {
         if (takeLock(lock)) {
