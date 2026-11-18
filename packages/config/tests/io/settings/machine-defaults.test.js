@@ -200,7 +200,7 @@ const BEFORE = {
   'submit.composeAsObject': false,
   'submit.composeOnRunner': false,
   'submit.pendingFromJobRow': false,
-  'submit.proofOnly': false,
+  'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
@@ -429,4 +429,34 @@ test('config.io-settings-machine-defaults.composed-equality-exact-true: clause 2
   assert.equal(await composedEqualityWith({ landing: { composedEquality: false } }), false);
   assert.equal(await composedEqualityWith({ landing: { composedEquality: true } }), true);
   await assert.rejects(composedEqualityWith({ landing: { composedEquality: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /landing\.composedEquality/u.test(error.message));
+});
+
+async function proofOnlyWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { submitProofOnly } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-proof-only-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return submitProofOnly();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.submit-proofonly-on-by-default: clause 1: submit.proofOnly is true in BEFORE and MACHINE_DEFAULTS, submitProofOnly() is true for an empty machine file and false when the file sets submit: { proofOnly: false } [C7,#11048]', async () => {
+  assert.equal(BEFORE['submit.proofOnly'], true);
+  assert.equal(MACHINE_DEFAULTS['submit.proofOnly'], true);
+  assert.equal(await proofOnlyWith({}), true);
+  assert.equal(await proofOnlyWith({ submit: { proofOnly: false } }), false);
+});
+
+test('config.io-settings-machine-defaults.submit-proofonly-description-says-on: clause 2: describeSetting(submit.proofOnly) says the setting is on by default and still names an empty submit [C7,#11048]', async () => {
+  const { describeSetting } = await import('../../../index.js');
+  const row = describeSetting('submit.proofOnly');
+  assert.match(row.description, /\(default\)/u);
+  assert.match(row.description, /empty/u);
 });
