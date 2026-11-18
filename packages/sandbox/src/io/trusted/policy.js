@@ -125,6 +125,18 @@ function importOnlyAtCandidate(root, base, commit, path, moves) {
   return movedImportOnlyChange(beforeBytes, afterBytes, path, moves);
 }
 
+/** A path's cell, the codemap cell rule kept here so a cold path loads no further module [C7,#8907]. */
+function cellOfPath(path) {
+  return /^(?:apps|packages)\/[^/]+(?=\/)/u.exec(path)?.[0] ?? null;
+}
+
+/** The cells of the files the item's bar names: its `Files:` brief list and its recorded file inventory [C7,#8907]. */
+function namedCells(item) {
+  const listed = /^[ \t]*Files:[ \t]*\n((?:[ \t]*-[ \t]+[^\n]*(?:\n|$))+)/mu.exec(item.item_brief ?? '')?.[1] ?? '';
+  const lines = [...listed.split('\n').map(line => line.replace(/^[ \t]*-[ \t]+/u, '').trim().split(/\s+/u)[0]), ...(item.item_files ?? '').split('\n').map(line => line.trim())];
+  return new Set(lines.map(line => cellOfPath(line.replaceAll('`', ''))).filter(Boolean));
+}
+
 /** Enforce item changes from every shared ancestry base; newer unrelated main changes are not item reversions.
  *
  * @param {string} root
@@ -151,7 +163,9 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
   const changed = bases.flatMap(start => policyGit(root, ['diff', '--no-renames', '--name-only', '-z', start, commit, '--']).split('\0').filter(Boolean));
   const paths = [...new Set(changed)];
   const ownership = config ?? policy.config;
-  const foreign = paths.filter(path => outOfLane(ownership, item.item_lane, [path]).length);
+  // laneMode off: the lane folders are only labels, so the cells of the files the item's bar names are its own [C7,#8907].
+  const ownCells = ownership.laneMode === 'off' ? namedCells(item) : new Set();
+  const foreign = paths.filter(path => outOfLane(ownership, item.item_lane, [path]).length && !ownCells.has(cellOfPath(path)));
   const accepted = dependencies.map(dependency => ({ ...dependency,
     paths: new Set(policyGit(root, ['diff', '--no-renames', '--name-only', '-z', dependency.base, dependency.commit, '--']).split('\0').filter(Boolean)),
   }));
