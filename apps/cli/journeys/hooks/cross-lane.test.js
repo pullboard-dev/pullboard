@@ -33,7 +33,7 @@ test('cli.journeys-hooks-cross-lane.claimed-cells-pass: clause 1: with laneMode 
   const seat = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', 'api/one');
   assert.equal(fixtureJoin(box.run, seat, 'api', '--route', 'light').code, 0);
-  const taken = await box.inProcess(seat, 'next', '--take', '--json');
+  const taken = await box.inProcess(seat, 'next', '--build', '--json');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.equal(JSON.parse(taken.out).item.item_id, 1, 'the api seat claims the web-lane item');
   const folder = seat + '-item-1';
