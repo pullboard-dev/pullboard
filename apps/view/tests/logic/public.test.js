@@ -7,7 +7,7 @@ const ID = '018fc314-57c9-7318-a11f-55a08a28a101';
 const receipt = { id: ID, commit: 'a'.repeat(40), tree: 'b'.repeat(40), main: 'c'.repeat(40), submitReusePlan: 'd'.repeat(64), command: 'e'.repeat(64), submitReuse: true };
 const publicReceipt = { id: ID, commit: 'a'.repeat(40), tree: 'b'.repeat(40), submitReuse: true };
 
-test('a submit-reuse receipt drops its trunk, plan and command digests in every history projection [N26]', () => {
+test('view.x-public.a-submit-reuse-receipt-drops-its-trunk: a submit-reuse receipt drops its trunk, plan and command digests in every history projection [N26]', () => {
   const document = { state: { state: { items: [{ thread: [{ kind: 'proof-run', detail: { receipt } }] }],
     events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } },
   events: { events: [{ event_kind: 'proof-run', event_detail: JSON.stringify({ receipt }) }] } };
@@ -17,7 +17,7 @@ test('a submit-reuse receipt drops its trunk, plan and command digests in every 
   assert.deepEqual(JSON.parse(exported.events.events[0].event_detail).receipt, publicReceipt);
 });
 
-test('a fact keeps its ref to the receipt id, and a landing lease drops its token [N26]', () => {
+test('view.x-public.a-fact-keeps-its-ref-to-the: a fact keeps its ref to the receipt id, and a landing lease drops its token [N26]', () => {
   const fact = { id: '018fc314-57c9-7318-a11f-55a08a28a102', kind: 'measurement', text: 'Tier-1 shadow for gate receipt (see ref): green.', ref: { kind: 'proof-run', id: ID }, supersedes: null };
   const document = { state: { state: { items: [{ thread: [{ type: 'fact', kind: 'fact', ...fact }] }],
     events: [{ event_kind: 'fact', event_detail: JSON.stringify(fact) }, { event_kind: 'landing_lease', event_detail: JSON.stringify({ token: ID, state: 'held' }) }] } } };
@@ -27,7 +27,7 @@ test('a fact keeps its ref to the receipt id, and a landing lease drops its toke
   assert.deepEqual(JSON.parse(exported.state.state.events[1].event_detail), { state: 'held' });
 });
 
-test('native claim, submit and reject digests keep their exact identity widths [N26]', () => {
+test('view.x-public.native-claim-submit-and-reject-digests-keep: native claim, submit and reject digests keep their exact identity widths [N26]', () => {
   const events = [{ event_kind: 'claim', event_detail: JSON.stringify({ digest: 'a'.repeat(64), policyRefreshed: 'b'.repeat(64) }) },
     { event_kind: 'submit', event_detail: JSON.stringify({ commit: 'a'.repeat(40), tooling: 'c'.repeat(40) }) },
     { event_kind: 'reject', event_detail: JSON.stringify({ commit: 'a'.repeat(40), barKey: 'd'.repeat(64) }) }];
@@ -38,7 +38,7 @@ test('native claim, submit and reject digests keep their exact identity widths [
   }
 });
 
-test('the same values anywhere else are still refused [N26]', () => {
+test('view.x-public.the-same-values-anywhere-else-are-still: the same values anywhere else are still refused [N26]', () => {
   for (const forged of [
     { main: 'c'.repeat(40) }, { submitReusePlan: 'd'.repeat(64) }, { command: 'e'.repeat(64) },
     { events: { events: [{ event_kind: 'fact', event_detail: JSON.stringify({ receipt }) }] } },

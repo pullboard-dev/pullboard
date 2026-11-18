@@ -50,8 +50,8 @@ export const CARGO = cargoEnvironment();
 export const UNAVAILABLE = 'cargo unavailable on this machine';
 
 const BRIEF = 'Files:\n- src/item.rs\nChange:\n- Add the item test.\nTest:\n- cargo test passes.';
-/** An item check that fails on main and passes once the item's test is committed. */
-const CHECK = 'grep -q adds_small_numbers src/item.rs';
+/** An item check that fails on main and passes once the item's test is committed; it avoids the test name, so only the gate output can name it. */
+export const CHECK = "grep -q 'add(1, 2)' src/item.rs";
 const MANIFEST = '[package]\nname = "scratch_crate"\nversion = "0.1.0"\nedition = "2021"\n';
 export const MATH = 'pub fn add(a: i32, b: i32) -> i32 {\n    a + b\n}\n';
 const LIB = 'pub mod math;\n\n#[cfg(test)]\nmod item;\n';
@@ -116,7 +116,7 @@ export async function buildAndSubmit(board, id, itemText, priorReds = 0) {
   const { box, repo, web } = board;
   const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, check: CHECK, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
   if (!id) assert.equal((await box.runLocal(web, 'claim', item)).code, 0);
-  writeFileSync(join(web, 'src', 'item.rs'), itemText);
+  writeFileSync(join(web, 'src/item.rs'), itemText);
   box.git(web, 'add', '-A');
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);

@@ -37,7 +37,7 @@ function freshBoard(t, landings = 3) {
   return { project, board, landed, ready, blocked };
 }
 
-test('clause 1: a fresh board with 3 merged items shows 3 landed on the Dashboard flow, its four-hour list, its totals and Pace [C7]', t => {
+test('view.x-io-counts-fresh.clause-1-a-fresh-board-with-3: clause 1: a fresh board with 3 merged items shows 3 landed on the Dashboard flow, its four-hour list, its totals and Pace [C7]', t => {
   const { project, board } = freshBoard(t);
   const state = projectState(project.repo, { board }), now = Date.now();
   assert.deepEqual(state.counts.landed, { total: 3, last4h: 3, last24h: 3 });
@@ -54,14 +54,14 @@ test('clause 1: a fresh board with 3 merged items shows 3 landed on the Dashboar
   }
 });
 
-test('clause 1: the first recording of each current merge counts once, whatever later events say [C7]', () => {
+test('view.x-io-counts-fresh.clause-1-the-first-recording-of-each: clause 1: the first recording of each current merge counts once, whatever later events say [C7]', () => {
   const at = minutes => new Date(Date.UTC(2026, 10, 14, 0, minutes)).toISOString();
   const merged = (id, minutes, commit) => ({ item_id: id, event_at: at(minutes), event_detail: JSON.stringify({ commit }) });
   const list = firstLandings(new Map([[1, 'a'], [2, 'b'], [3, 'c']]), [merged(1, 1, 'a'), merged(1, 90, 'a'), merged(2, 2, 'old'), merged(2, 3, 'b'), { item_id: 3, event_at: at(4), event_detail: '{' }]);
   assert.deepEqual(list.map(entry => [entry.id, entry.at]), [[1, Date.parse(at(1))], [2, Date.parse(at(3))]]);
 });
 
-test('clause 2: an item NOW calls ready is not called blocked by Release or the Roadmap header [C7]', t => {
+test('view.x-io-counts-fresh.clause-2-an-item-now-calls-ready: clause 2: an item NOW calls ready is not called blocked by Release or the Roadmap header [C7]', t => {
   const { project, board, ready, blocked } = freshBoard(t, 0);
   const read = projectState(project.repo, { board }), now = Date.now();
   assert.deepEqual([read.counts.ready, read.counts.blocked], [1, 1]);
@@ -91,7 +91,7 @@ test('clause 2: an item NOW calls ready is not called blocked by Release or the 
   assert.deepEqual(splitReady([{ summary: { waiting: 0 }, items: [] }], [1])[0].summary, { waiting: 0, ready: 0 });
 });
 
-test('clause 3: the Runners card lists the local runner that ran the gates, though it holds no lease and no job is live [C7]', t => {
+test('view.x-io-counts-fresh.clause-3-the-runners-card-lists-the: clause 3: the Runners card lists the local runner that ran the gates, though it holds no lease and no job is live [C7]', t => {
   const { project, board } = freshBoard(t, 0);
   const common = dirname(dirname(project.boardFile));
   const now = Date.now(), offeredAt = now - 10 * 60_000;

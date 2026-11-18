@@ -37,7 +37,7 @@ function commitFile(box, cwd, path, text, message) {
   return box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', async () => {
+test('cli.journeys-runner-e2e-sweep.sweep-files-one-light-item-per: sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', async () => {
   const box = project();
   writeFileSync(join(box.dir, 'novar.mjs'), [
     "import fs from 'node:fs';",
@@ -84,7 +84,7 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.equal(pending.item_route, 'mid', 'unknown checker rules stay mid until actually diagnosed');
 });
 
-test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', async () => {
+test('cli.journeys-runner-e2e-sweep.pre-commit-runs-the-fixers-on: pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', async () => {
   const box = project();
   const fixer = join(box.dir, 'trim.mjs');
   writeFileSync(fixer, "import fs from 'node:fs';\nfor (const f of process.argv.slice(2)) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/[ \\t]+$/gm, ''));\n");
@@ -99,11 +99,11 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   writeFileSync(join(box.repo, 'docs', 'c.js'), 'const c = 1;   \nconst d = 2;\n');
   const committed = await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: three files');
   assert.equal(committed.status, 0, committed.stderr);
-  const committedText = (path) => box.tryGit(box.repo, 'show', `HEAD:${path}`).stdout;
-  assert.equal(committedText('docs/a.js'), 'const a = 1;\n');
+  const committedText = async (path) => (await box.tryGit(box.repo, 'show', `HEAD:${path}`)).stdout;
+  assert.equal(await committedText('docs/a.js'), 'const a = 1;\n');
   assert.equal(readFileSync(join(box.repo, 'docs', 'a.js'), 'utf8'), 'const a = 1;\n');
-  assert.equal(committedText('docs/b.md'), 'text   \n');
-  assert.equal(committedText('docs/c.js'), 'const c = 1;   \n');
+  assert.equal(await committedText('docs/b.md'), 'text   \n');
+  assert.equal(await committedText('docs/c.js'), 'const c = 1;   \n');
   assert.match(committed.stderr, /not fixed, because they are partly staged: docs\/c.js/);
   fixtureProjectPolicy(box.repo, { config: { ...config, fix: [{ run: 'false', files: ['*.js'] }] } });
   box.git(box.repo, 'commit', '-qam', 'chore: a fixer that fails');
@@ -112,10 +112,10 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   const failed = await box.tryGit(box.repo, 'commit', '-q', '-m', 'docs: one more');
   assert.equal(failed.status, 0, failed.stderr);
   assert.match(failed.stderr, /fixer "false" failed \(1\); staged nothing from it/);
-  assert.equal(committedText('docs/e.js'), 'const e = 1;   \n');
+  assert.equal(await committedText('docs/e.js'), 'const e = 1;   \n');
 });
 
-test('resume puts an agent back to work from the board: its claim, its branch, what came back, the next step [N19]', async () => {
+test('cli.journeys-runner-e2e-sweep.resume-puts-an-agent-back-to: resume puts an agent back to work from the board: its claim, its branch, what came back, the next step [N19]', async () => {
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
@@ -155,7 +155,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   assert.match(back, /^next: pullboard next; pullboard claim 1, fix what the verifier found, and submit again$/m);
 });
 
-test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', async () => {
+test('cli.journeys-runner-e2e-sweep.next-takes-work-near-your-recent: next takes work near your recent files; submit records them; show names related verified work [N20, N21]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');

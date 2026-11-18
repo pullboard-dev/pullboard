@@ -55,6 +55,8 @@ import { rowFileTimes } from '../../logic/census.js';
 import { rerunRow } from '../../logic/census.js';
 import { rerunnable } from '../../logic/census.js';
 import { censusVerdictLists } from '../../logic/census.js';
+import { censusIdleSlots } from '../../logic/census.js';
+import { censusIdleLine } from '../../logic/census.js';
 import { censusPhases } from '../../logic/census.js';
 import { censusPhaseLine } from '../../logic/census.js';
 import { censusPlan } from '../../logic/census.js';
@@ -309,8 +311,11 @@ export async function runCensus(io, ctx, values, { shards, prefixes = [], run, c
   const counts = {};
   for (const row of rows.values()) counts[row.status] = (counts[row.status] ?? 0) + 1;
   const phases = censusPhases({ ...marks, end: clock() }), seconds = phases.wallSecs;
-  io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, counts });
+  const idleSlots = censusIdleSlots(rows.values(), censusStart.getTime());
+  io.result?.({ out, sha, files: everyFile.length, carried: carry.carried.length, shards: plan.length, seconds, phases, idleSlots, counts });
   io.say(`census of ${everyFile.length} files${carry.carried.length ? ` (${carry.carried.length} carried from ${carry.from.slice(0, 10)})` : ''} at ${sha.slice(0, 10)} in ${seconds}s over ${plan.length} shards: ${Object.entries(counts).map(([status, n]) => `${n} ${status}`).join(', ')}; rows in ${out}`);
   io.say(censusPhaseLine(phases));
+  const idleLine = censusIdleLine(idleSlots);
+  if (idleLine) io.say(idleLine);
   return (counts.green ?? 0) === everyFile.length ? 0 : 1;
 }

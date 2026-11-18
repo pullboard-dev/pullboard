@@ -41,7 +41,7 @@ const prepare = (model, { itemAddress = id => '#item/' + id } = {}) => {
 };
 const render = (data, options = {}) => activityHtml(prepare(activityModel({ items, agents, ...data })), options);
 
-test('Activity questions keep their item as a quiet inline link without changing native words [N26]', () => {
+test('view.activity-model-sentences.activity-questions-keep-their-item-as-a: Activity questions keep their item as a quiet inline link without changing native words [N26]', () => {
   const data = { items, agents,
     shouts: [{ shout_id: 20, shout_from: 'view-1', shout_to: 'coordinator', shout_decision: 1, shout_text: 'Keep <these words> about #1?' }],
     events: [event(20, 'shout', { item: 1, detail: { shout: 20, decision: true } })] };
@@ -54,7 +54,7 @@ test('Activity questions keep their item as a quiet inline link without changing
   assert.doesNotMatch(html, /<span class="activity-item"/u, 'the shout has no duplicate work-item title underneath');
 });
 
-test('Activity related items prefer native context and otherwise only resolve actual mentioned items [N26]', () => {
+test('view.activity-model-sentences.activity-related-items-prefer-native-context-and: Activity related items prefer native context and otherwise only resolve actual mentioned items [N26]', () => {
   const shouts = [
     { shout_id: 1, shout_to: 'item:2', shout_text: 'A scoped question about #1?' },
     { shout_id: 2, shout_to: 'coordinator', shout_text: 'Unknown #999 first, then actual #1.' },
@@ -74,7 +74,7 @@ test('Activity related items prefer native context and otherwise only resolve ac
 
 for (const [kind, verb] of Object.entries({ claim: 'started building', release: 'let go of', fact: 'added a note', note: 'added a note',
   'proof-run': 'ran the proof', reserve: 'started reviewing', accept: 'passed', reject: 'sent back', reopen: 'sent back' })) {
-  test(`Activity ${kind} reads as ${verb}, with its item underneath [N26]`, () => {
+  test(`view.activity-model-sentences.reads-as-${kind}: Activity ${kind} reads as ${verb}, with its item underneath [N26]`, () => {
     const html = render({ events: [event(1, kind)] });
     assert.match(html, new RegExp(`title="Test Model">view-1</span> ${verb}</p><span class="activity-item"`, 'u'));
     assert.match(html, /data-go="item:1">#1<\/a>First &lt;item&gt;/u);
@@ -84,13 +84,13 @@ for (const [kind, verb] of Object.entries({ claim: 'started building', release: 
   });
 }
 
-test('Activity item links retain the supplied board-scoped address [N26]', () => {
+test('view.activity-model-sentences.activity-item-links-retain-the-supplied-board: Activity item links retain the supplied board-scoped address [N26]', () => {
   const model = activityModel({ items, agents, events: [event(1, 'claim')] });
   const html = activityHtml(prepare(model, { itemAddress: () => '/board/project%20one/items/1?tab=activity&from=feed' }));
   assert.match(html, /href="\/board\/project%20one\/items\/1\?tab=activity&amp;from=feed" data-go="item:1"/u);
 });
 
-test('Activity presentation groups explicit UTC days without mutating the model [N26]', () => {
+test('view.activity-model-sentences.activity-presentation-groups-explicit-utc-days-without: Activity presentation groups explicit UTC days without mutating the model [N26]', () => {
   const model = activityModel({ items, agents, events: [event(20, 'fact', { minutes: 252 }), event(21, 'fact', { minutes: 253 })] });
   const before = JSON.stringify(model);
   const html = activityHtml(prepare(model));
@@ -99,7 +99,7 @@ test('Activity presentation groups explicit UTC days without mutating the model 
   assert.equal(JSON.stringify(model), before, 'preparing presentation leaves model input unchanged');
 });
 
-test('a release and claim by one seat in the same minute form one handoff sentence, in either event order [N26]', () => {
+test('view.activity-model-sentences.a-release-and-claim-by-one-seat: a release and claim by one seat in the same minute form one handoff sentence, in either event order [N26]', () => {
   for (const reverse of [false, true]) {
     const events = [event(1, reverse ? 'claim' : 'release', { item: reverse ? 2 : 1, minutes: 1 }), event(2, reverse ? 'release' : 'claim', { item: reverse ? 1 : 2, minutes: 1 })];
     const model = activityModel({ items, agents, events });
@@ -111,7 +111,7 @@ test('a release and claim by one seat in the same minute form one handoff senten
   assert.equal(activityModel({ items, agents, events: [event(1, 'release', { minutes: 1, by: 'other-1' }), event(2, 'claim', { item: 2, minutes: 1 })] }).rows.length, 2, 'different seats do not merge');
 });
 
-test('a native sentinel scan is one collapsed disclosure, deduplicates addressed notices and retains its next step [N26]', () => {
+test('view.activity-model-sentences.a-native-sentinel-scan-is-one-collapsed: a native sentinel scan is one collapsed disclosure, deduplicates addressed notices and retains its next step [N26]', () => {
   const data = scannedBoard(), model = activityModel(data);
   assert.deepEqual(model.counts, { all: 2, work: 0, sentinels: 1, shouts: 1 });
   const run = model.rows.find(row => row.kind === 'sentinels');
@@ -130,7 +130,7 @@ test('a native sentinel scan is one collapsed disclosure, deduplicates addressed
     'a valid date-only since value retains its prepared time label');
 });
 
-test('resolved and still-stuck findings stay in their own run, with all filter counts [N26]', () => {
+test('view.activity-model-sentences.resolved-and-still-stuck-findings-stay-in: resolved and still-stuck findings stay in their own run, with all filter counts [N26]', () => {
   const data = scannedBoard();
   data.events.push(event(9, 'health-resolved', { by: 'sentinel', detail: { key: data.finding.key, cause: 'refusal:RANK_INVERSION', since: data.finding.since, subject: '#1' } }),
     event(10, 'health-scan', { item: null, by: 'coordinator', detail: { active: [] } }), event(11, 'fact'));
@@ -145,14 +145,14 @@ test('resolved and still-stuck findings stay in their own run, with all filter c
   }
 });
 
-test('shouts preserve all their own words, quoted markup and lines; only machine timestamps become clock times [N26]', () => {
+test('view.activity-model-sentences.shouts-preserve-all-their-own-words-quoted: shouts preserve all their own words, quoted markup and lines; only machine timestamps become clock times [N26]', () => {
   const html = render(scannedBoard(), { filter: 'shouts' });
   assert.match(html, /view-1<\/span> told the coordinator/u);
   assert.match(html, /Keep \[MY_CODE\] and &lt;these words&gt;\.\nNext appointment: \d{1,2}:\d\d [AP]M/u);
   assert.doesNotMatch(html, /2026-10-28T|\(unknown\)/u);
 });
 
-test('sentinel words cover rank, elapsed idle time, withdrawn dependencies and unknown future codes without code tokens [N26]', () => {
+test('view.activity-model-sentences.sentinel-words-cover-rank-elapsed-idle-time: sentinel words cover rank, elapsed idle time, withdrawn dependencies and unknown future codes without code tokens [N26]', () => {
   const labels = new Map([[at(37), activityTime(at(37))]]);
   const idle = activityWords({ cause: 'IDLE_AGENT', owner: 'view-1', since: at(37), why: 'view-1 has held no claim or review and pulled nothing for 30 minutes, while #2 waits in view and it could take it', next: 'take #2' }, { now, timestampLabels: labels });
   assert.match(idle.text, /idle for 37 minutes while #2 waits in its view lane/u);
@@ -165,7 +165,7 @@ test('sentinel words cover rank, elapsed idle time, withdrawn dependencies and u
 });
 
 /** Event-shaped coverage only; this fixture is not a native scan or execution receipt. */
-test('an idle sentinel finding measures from its containing scan time [N26]', () => {
+test('view.activity-model-sentences.an-idle-sentinel-finding-measures-from-its: an idle sentinel finding measures from its containing scan time [N26]', () => {
   const since = at(42), scan = event(12, 'health-scan', { item: null, by: 'coordinator', minutes: 5,
     detail: { active: [{ key: 'IDLE_AGENT:view-1', cause: 'IDLE_AGENT', owner: 'view-1', subject: 'view-1', since,
       why: 'view-1 has held no claim or review and pulled nothing, while #2 waits in view and it could take it', next: 'take #2' }] } });
@@ -173,7 +173,7 @@ test('an idle sentinel finding measures from its containing scan time [N26]', ()
   assert.match(html, /view-1 has been idle for 37 minutes while #2 waits in its view lane/u);
 });
 
-test('Activity omits absent and unknown model hover titles and retains a known model [N26]', () => {
+test('view.activity-model-sentences.activity-omits-absent-and-unknown-model-hover: Activity omits absent and unknown model hover titles and retains a known model [N26]', () => {
   for (const metadata of [{}, { model: '' }, { model: 'unknown' }, { agent_model: 'unknown' }, { model: ' UNKNOWN ' }]) {
     const html = render({ agents: [{ agent_id: 'coordinator', ...metadata }], events: [event(1, 'fact', { by: 'coordinator' })] });
     assert.match(html, /<span class="activity-who">The coordinator<\/span>/u);
@@ -183,7 +183,7 @@ test('Activity omits absent and unknown model hover titles and retains a known m
   assert.match(known, /class="activity-who" title="&lt;Known &amp; model&gt;">view-1/u);
 });
 
-test('sentinel rejection reasons become words while the reviewer note keeps its own code text [N26]', () => {
+test('view.activity-model-sentences.sentinel-rejection-reasons-become-words-while-the: sentinel rejection reasons become words while the reviewer note keeps its own code text [N26]', () => {
   const reasons = { TEST_FAILURE: 'Tests failed', BEHAVIOR_MISMATCH: 'Behavior did not match', INSUFFICIENT_EVIDENCE: 'Not enough evidence', STALE_HEAD: 'Source changed', OTHER: 'Other reason', FUTURE_REASON: 'future reason' };
   const note = 'Keep [MY_CODE] and (TEST_FAILURE) exactly; quoted words are evidence.';
   for (const [reason, label] of Object.entries(reasons)) {
@@ -199,7 +199,7 @@ test('sentinel rejection reasons become words while the reviewer note keeps its 
   }
 });
 
-test('Activity filters keep explicit counts and the feed can omit duplicated controls [N26,C7]', () => {
+test('view.activity-model-sentences.activity-filters-keep-explicit-counts-and-the: Activity filters keep explicit counts and the feed can omit duplicated controls [N26,C7]', () => {
   const model = { rows: [], counts: { all: 9, work: 4, sentinels: 2, shouts: 3 } };
   const html = activityFilters(model, 'shouts');
   assert.match(html, /data-activity-filter="shouts"[^>]*aria-pressed="true"|aria-pressed="true"[^>]*data-activity-filter="shouts"/u);

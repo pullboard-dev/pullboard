@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
 import { takeSelection } from '../../src/io/take.js';
+import { nextProgress } from '../../src/io/take.js';
 import { actorClaims } from '../fixtures/ports.js';
 import { counted } from '../fixtures/ports.js';
 import { fixture } from '../fixtures/ports.js';
@@ -41,4 +42,42 @@ test('sandbox.take.write-runs-chosen-item-guards: next --take: the write runs on
   assert.equal(result.item?.item_id, spare, JSON.stringify(result));
   assert.deepEqual(actorClaims(box), [spare]);
   assert.equal(counts.selected, 2, 'one read selection per loop, none inside a write');
+});
+
+/** A next's progress on a hand-moved clock, so a phase can outlast the whole budget without waiting for it. */
+function slowProgress(t) {
+  const clock = { at: 0 };
+  const progress = nextProgress({ stderr: { write() {} } }, { timeoutMs: 1_000, phaseMs: 500, now: () => clock.at });
+  t.after(progress.stop);
+  return { clock, progress };
+}
+
+test('sandbox.take.claim-kept-past-budget: clause 1: a claim written as the routing budget runs out is returned, and the code map run after it completes [N2,C7]', async t => {
+  const { clock, progress } = slowProgress(t);
+  const found = await progress.run('selection', null, async () => {
+    progress.enter('claim', 7);
+    // The claim's write outlasts the whole budget: the board now holds it for this seat.
+    clock.at = 2_000;
+    return { item: { item_id: 7 }, itemFolder: '/seat-item-7' };
+  });
+  assert.equal(found.item.item_id, 7, 'the committed claim is the answer, not NEXT_TIMEOUT');
+  let mapped = false;
+  await progress.run('code map', 7, () => { mapped = true; });
+  assert.equal(mapped, true, 'the phases after the claim still run');
+});
+
+test('sandbox.take.no-claim-still-times-out: clause 2: a run past the budget that returns no item, a retry, or an item it never claimed still refuses NEXT_TIMEOUT [N2,C7]', async t => {
+  const runs = [
+    ['selection', true, { reasons: [] }],
+    ['selection', true, { retry: true, item: { item_id: 7 }, retryDetail: { phase: 'claim', item: 7, code: 'HELD' } }],
+    ['main-red routing', false, { item: { item_id: 7 }, reasons: [] }],
+  ];
+  for (const [name, claims, result] of runs) {
+    const { clock, progress } = slowProgress(t);
+    await assert.rejects(progress.run(name, null, async () => {
+      if (claims) progress.enter('claim', 7);
+      clock.at = 2_000;
+      return result;
+    }), error => error.code === 'NEXT_TIMEOUT', JSON.stringify([name, result]));
+  }
 });

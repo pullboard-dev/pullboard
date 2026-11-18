@@ -109,10 +109,15 @@ export async function run(io, { values }) {
   result.setupCommit = setupCommit;
   const handleIdentity = await withBoard(context(io), board => projectBoardIdentity(info.root, store.boardId(board)));
   if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity, projectLinkPorts(io))) io.say('registered this project on this machine, so pullboard view lists it');
+  // The managed repo gets background git maintenance, so loose objects are packed and the commit graph refreshed on a schedule (#10782).
+  const { maintenanceLine, scheduleGitMaintenance } = await import('../init/git-maintenance.js');
+  const maintenance = scheduleGitMaintenance(info.root);
   // Once registered, a background view lists this board for pullboard.dev [H5,N26].
   // --no-open asks for no browser and no background process, so it starts no view either.
   const view = values['no-open'] ? { state: 'off' } : await keepViewRunning();
-  io.result?.({ ...result, view });
+  io.result?.({ ...result, view, maintenance });
+  const maintenanceSaid = maintenanceLine(maintenance, { verbose: values.verbose });
+  if (maintenanceSaid) io.say(maintenanceSaid);
   const viewLine = initViewLine(view, { verbose: values.verbose });
   if (viewLine) io.say(viewLine);
   // Sharing remains a separate choice; --yes confirms only the setup commit.
