@@ -213,6 +213,7 @@ const BEFORE = {
   'tests.requireRegistered': false,
   'verify.hunkFreshness': false,
   'verify.rejectKeepsCheck': false,
+  'verify.soloLowStakes': false,
   'view.background': true,
   'watch.quietReads': false,
 };
@@ -459,4 +460,28 @@ test('config.io-settings-machine-defaults.submit-proofonly-description-says-on: 
   const row = describeSetting('submit.proofOnly');
   assert.match(row.description, /\(default\)/u);
   assert.match(row.description, /empty/u);
+});
+
+test('config.io-settings-machine-defaults.solo-low-stakes-listed: clause 1: verify.soloLowStakes is a machine setting, false by default, accepted as a boolean, with a description row [C7,#11138]', async () => {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { soloLowStakesEnabled } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  assert.equal(MACHINE_DEFAULTS['verify.soloLowStakes'], false);
+  assert.ok(SETTING_DESCRIPTIONS['verify.soloLowStakes']);
+  const { root } = privateFixtureFiles('pullboard-solo-low-stakes-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  const read = (settings) => {
+    process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return soloLowStakesEnabled();
+  };
+  try {
+    assert.equal(read({}), false);
+    assert.equal(read({ verify: { soloLowStakes: false } }), false);
+    assert.equal(read({ verify: { soloLowStakes: true } }), true);
+    assert.throws(() => read({ verify: { soloLowStakes: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /verify\.soloLowStakes/u.test(error.message));
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 });

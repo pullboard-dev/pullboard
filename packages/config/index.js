@@ -153,6 +153,7 @@ export {
   statusShowUsefulBuilders,
   refuseEmptyBar,
   rejectKeepsCheck,
+  soloLowStakesEnabled,
   viewBackgroundEnabled,
   healthSentinelEnabled,
   reviewReleaseReasonsRequired,
