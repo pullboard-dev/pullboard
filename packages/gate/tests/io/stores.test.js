@@ -368,6 +368,15 @@ test('gate.io-stores.writeownerdebt-in-stores-json-ends: #8623 clause 2: writeOw
   assert.deepEqual(storeWriteProblems(registry, read), []);
 });
 
+test('gate.io-stores.verdict-owned-by-verify-io: #10814 clause 1: table:verdict is owned by the verify io module that writes it, and the logic file holds no verdict write [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:verdict'].owner;
+  assert.equal(owner, 'packages/verify/src/io/review/independence.js');
+  assert.match(readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8'), /INSERT INTO verdict /u);
+  assert.doesNotMatch(readFileSync(new URL('../../../verify/src/logic/verdict/assurance.js', import.meta.url), 'utf8'), /INSERT INTO verdict /u);
+  assert.deepEqual(storeOwnerProblems(registry), []);
+});
+
 test('gate.io-stores.temp-owned-by-outbox-io: #10813 clause 1: table:temp is owned by the outbox io module that writes it, and the logic file holds no write call [CD2]', () => {
   const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
   const owner = registry.stores['table:temp'].owner;

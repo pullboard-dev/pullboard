@@ -34,7 +34,7 @@ function closure(entry) {
   return [...seen];
 }
 
-test('clause 1: list and show reach no engine leaf, so a new engine file adds no module to either [C7]', () => {
+test('gate.io-engine-lazy-door.list-and-show-reach-no-engine: clause 1: list and show reach no engine leaf, so a new engine file adds no module to either [C7]', () => {
   const leaves = readdirSync(LEAVES).filter(name => /^[\w-]+-engine\.js$/u.test(name));
   assert.ok(leaves.length >= 190, `found ${leaves.length} engine leaves`);
   for (const command of ['list', 'show']) {
