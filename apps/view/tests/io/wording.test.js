@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/** */
 /** The view's own source never says Needs you, Gated, Done at this pace, Shipping now or between items [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view packages/store packages/api */
 /** The state the view serves and the native board state carry the same holds and itemHolds [C7,#3043]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
