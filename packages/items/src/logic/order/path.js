@@ -1,6 +1,6 @@
 /** Unit-item Hu priorities use only the recorded dependency graph, never invented duration estimates [N2,H16]. */
-import { ENGINE_VERSION } from "../../../../state/index.js";
-import { CRITICAL_PATH_ENGINE } from "../../../../state/index.js";
+import { ENGINE_VERSION } from "../../../../state/light.js";
+import { CRITICAL_PATH_ENGINE } from "../../../../state/light.js";
 import { briefFiles } from "../brief.js";
 import { itemFiles } from "../files.js";
 
