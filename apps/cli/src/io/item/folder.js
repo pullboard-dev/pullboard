@@ -4,9 +4,11 @@ import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { basename } from 'node:path';
 import { resolve } from 'node:path';
 import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { agentAt } from '../../../../../packages/store/index.js';
 import { getItem } from '../../../../../packages/store/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
@@ -441,6 +443,33 @@ export async function openItemFolder(ctx, me, id, options = {}) {
   return path;
 }
 
+/**
+ * Whether the repository has a primary checkout to build a new folder from, answered from Git's files for an ordinary clone and by Git only otherwise [C7,#10821].
+ * Why: asking Git (a worktree list and a rev-parse) cost two launches on every claim that opens a new folder.
+ * An ordinary clone's shared Git directory is the .git folder inside its primary checkout, which is what the files show.
+ * @param {{ isMain?: boolean, root: string, commonDir: string }} info the checkout facts of the command
+ * @returns {boolean}
+ */
+function hasPrimaryCheckout(info) {
+  if (info.isMain) return true;
+  try {
+    const common = realpathSync(info.commonDir);
+    if (basename(common) === '.git' && statSync(common).isDirectory() && realpathSync(join(dirname(common), '.git')) === common) return true;
+  } catch { /* Files cannot answer; Git does. */ }
+  return Boolean(primaryCheckoutRoot(info));
+}
+
+/**
+ * Whether the item's branch exists, read from Git's ref files, or from Git when the files cannot answer [C7,#10821].
+ * @param {string} root any checkout of the repository
+ * @param {string} ref the item branch
+ * @returns {boolean}
+ */
+function branchExists(root, ref) {
+  const commit = checkoutRefCommit(root, `refs/heads/${ref}`);
+  return commit === undefined ? tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0 : commit !== null;
+}
+
 /** The runner hosting this seat's item folders, or null; the runner command and its cells load only when the seat names one, so a plain command never pays for them [C7]. */
 async function hostedRunner() {
   return process.env.PULLBOARD_ITEM_FOLDER_RUNNER?.trim() ? (await import('../commands/runner.js')).itemFolderRunner() : null;
@@ -480,9 +509,8 @@ async function openFolder(ctx, me, id, options = {}) {
     writeItemMarker(path, me.id, id);
     return path;
   }
-  const main = primaryCheckoutRoot(ctx.info);
-  if (!main) throw new Error('cannot locate the primary checkout for the item folder');
-  const exists = tryGit(root, ['show-ref', '--verify', '--quiet', `refs/heads/${ref}`]).status === 0;
+  if (!hasPrimaryCheckout(ctx.info)) throw new Error('cannot locate the primary checkout for the item folder');
+  const exists = branchExists(root, ref);
   if (exists && await recoverPriorFolder(ctx, me, id, path, ref, options)) {
     writeItemMarker(path, me.id, id);
     return path;
