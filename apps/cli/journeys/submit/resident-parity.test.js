@@ -19,7 +19,7 @@ import { fixtureProjectPolicy } from '../../../../packages/gate/tests/fixtures/t
 
 /** What differs between two submits of identical work and is not a mark: ids, hashes, counts and timings. */
 function marks(text) {
-  return text.replace(/\b[0-9a-f]{7,40}\b/gu, '<sha>').replace(/(job gate:\d+:<sha>:)\w+/gu, '$1<job>').replace(/\d+(?:\.\d+)?/gu, 'N').split('\n').map(line => line.trimEnd())
+  return text.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gu, '<uuid>').replace(/\b[0-9a-f]{7,64}\b/gu, '<sha>').replace(/(job gate:\d+:<sha>:)\w+/gu, '$1<job>').replace(/\d+(?:\.\d+)?/gu, 'N').split('\n').map(line => line.trimEnd())
     .filter(line => line && !/\bactivity\b|lane updates|\bshouts\b|^receipt |^check digest|^ {2}(?:commit|Node|exit) | (?:renew|check-baseline)$/u.test(line)).sort().join('\n'); // the order of a background renew is timing, not a mark
 }
 
