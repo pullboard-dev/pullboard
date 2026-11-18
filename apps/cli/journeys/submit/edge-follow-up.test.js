@@ -1,6 +1,8 @@
 /** With submit.edgeFollowUps on, a settled submit whose diff adds an import edge files one linked follow-up; off, it files nothing (#8874) [C7]. */
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
 import { inProcess } from '../../tests/fixtures/submit/fail.js';
 import { project } from '../../tests/fixtures/submit/fail.js';
 import { submitAndSettle } from '../../tests/fixtures/submit/fail.js';
@@ -43,8 +45,18 @@ test('cli.journeys-submit-edge-follow-up.a-second-submit-of-the-same-edge: claus
   const box = await settledBox(t, true);
   const first = await childrenOf(box, true);
   assert.equal(first.length, 1, JSON.stringify(first));
+  const reviewer = join(box.dir, 'repo');
+  runFixtureGit(['fetch', '--quiet', box.root, 'HEAD'], { cwd: reviewer, env: box.env });
+  runFixtureGit(['switch', '--quiet', '--detach', 'FETCH_HEAD'], { cwd: reviewer, env: box.env });
+  const rejected = await inProcess(box, reviewer, 'verify', '1', 'reject', '--as', 'coordinator', '--reason', 'TEST_FAILURE', '--clause', 'the fixture change is submitted or refused', '--note', 'send it back so the same edge is submitted again');
+  assert.equal(rejected.code, 0, JSON.stringify(rejected));
+  runFixtureGit(['switch', '--quiet', 'main'], { cwd: reviewer, env: box.env });
   put(box.root, 'src/a.js', "import './b.js';\nexport const value = 2;\n");
   commitAll(box, 'feat(core): a imports b, value 2 [G1]');
+  const dropped = await inProcess(box, reviewer, 'withdraw', String(first[0].item_id), 'the follow-up is closed so the item can be submitted again');
+  assert.equal(dropped.code, 0, JSON.stringify(dropped));
+  const claimed = await inProcess(box, box.root, 'claim', '1');
+  assert.equal(claimed.code, 0, JSON.stringify(claimed));
   const again = await submitAndSettle(t, box);
   assert.equal(again.gate?.green, true, JSON.stringify(again.gate));
   const second = await childrenOf(box, true);
