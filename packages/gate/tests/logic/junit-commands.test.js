@@ -6,7 +6,7 @@ import { JUNIT_LANGUAGES } from '../../src/logic/junit.js';
 import { junitCommand } from '../../src/logic/junit.js';
 import { junitCommand as lightJunitCommand } from '../../light.js';
 
-const LANGUAGES = ['bun', 'cmake', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'haskell', 'maven', 'node', 'perl', 'php', 'python', 'ruby', 'rust', 'sbt', 'swift'];
+const LANGUAGES = ['bun', 'cmake', 'crystal', 'csharp', 'deno', 'elixir', 'go', 'gradle', 'haskell', 'maven', 'node', 'perl', 'php', 'python', 'ruby', 'rust', 'sbt', 'swift'];
 const TOOL_FOLDERS = { sbt: 'target/test-reports', gradle: 'build/test-results/test', maven: 'target/surefire-reports', rust: 'target/nextest/ci/junit.xml' };
 const NEEDS = ['csharp', 'elixir', 'go', 'haskell', 'perl', 'ruby', 'rust'];
 
@@ -76,4 +76,16 @@ test('gate.junit-commands.perl-row: clause 1: junitCommand(perl) runs prove with
 
 test('gate.junit-commands.perl-door: clause 2: junitCommand(perl) imported from packages/gate/light.js returns the same row init reads [C7]', () => {
   assert.deepEqual(lightJunitCommand('perl'), junitCommand('perl'));
+});
+
+test('gate.junit-commands.crystal-row: clause 1: junitCommand(crystal) returns its report command and needs, and JUNIT_LANGUAGES includes crystal [C7]', () => {
+  const row = junitCommand('crystal');
+  assert.ok(row.command.startsWith('crystal spec --junit_output'));
+  assert.equal(row.report, '.pullboard/junit/crystal.xml');
+  assert.equal(row.needs, null);
+  assert.ok(JUNIT_LANGUAGES.includes('crystal'));
+});
+
+test('gate.junit-commands.crystal-door: clause 2: junitCommand(crystal) from the gate light door returns the same row init reads [C7]', () => {
+  assert.deepEqual(lightJunitCommand('crystal'), junitCommand('crystal'));
 });

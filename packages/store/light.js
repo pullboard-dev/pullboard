@@ -12,3 +12,5 @@ export { schemaMissing, writeRefused } from './src/io/board/migrate.js';
 export { PERSON, events, listAgents, agentById, ensureCoordinator, ReadNeedsWrite, acceptedVerdict, verdictReviewProblem, getItem, itemThread, proofReceipts, relatedItems, reviewHolder, verdictsFor, specApprovalBaseline, rowDecisions } from './src/io/board/query.js';
 export { allItemsNeedingRescope } from './src/io/cooldown.js';
 export { rotateBoardWritesLog, BOARD_WRITES_MAX_BYTES } from './src/io/board/hold/rotate.js';
+/** One seat heartbeat from the board file alone: every CLI command beats its seat, and presence.js already loads through query.js [C7,#10873]. */
+export { beatSeatFile } from './src/io/presence.js';

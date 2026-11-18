@@ -60,6 +60,7 @@ import { measureBoardWritePhase } from './write/lock.js';
 import { endReviewLease } from './review/lease.js';
 import { applyVerdict } from './verify-table.js';
 import { verifyDecision } from './verify-table.js';
+import { readVerifyFacts } from './verify-table.js';
 import { pipelineCause } from "../../../../kernel/index.js";
 import { frozenBar } from "../../../../verify/index.js";
 import { namedClause } from "../../../../verify/index.js";
@@ -124,6 +125,20 @@ export function verdictEvidence(board, id, { agentId, isAccept, engine, review, 
 }
 
 /**
+ * The reads the verify table needs for this verdict (the item's history and verdicts, the seat's route and flakes, the next ids), taken with no lock held.
+ * Why: they depend on no write of this verdict, so the writer decides from them while its guard still matches the board and holds the lock only to write [#10868].
+ *
+ * @returns {object | undefined} The prepared facts, or undefined when the table does not model this call.
+ */
+export function prepareVerdictFacts(board, id, { agentId, review }) {
+  const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  if (engine < VERDICT_REVIEW_ENGINE || review === undefined) return undefined;
+  const item = getItem(board, id);
+  if (!item || !item.item_built_by) return undefined;
+  return readVerifyFacts(board, item, agentId, VERIFY_TABLE_DEPS) ?? undefined;
+}
+
+/**
  * Record a verdict on submitted work, or a sealed re-review of unlanded work (E8,V1,V3,V8).
  * An accept verifies it; a reject
  * reopens it for rework.
@@ -140,7 +155,7 @@ export function verdictEvidence(board, id, { agentId, isAccept, engine, review, 
  * @param {{ agentId: string, decision: string, reason?: string, note?: string, cause?: string, clause?: string, head: string, digest: string, policy: string, familyPolicy?: string, check?: 'none' | 'green', review?: {commit: string, head?: string, trunk: string, paths: string[]}, implies?: number[], impliesId?: string }} verdict - implies: items this verdict changes (B29)
  * @returns {{ decision: string, reason: string, check?: 'none' | 'green' }}
  */
-export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false }) {
+export function verify(board, id, { agentId, decision, reason, note = '', cause, clause, head, digest, policy, familyPolicy = 'off', landed, keepCheck, check, review, companionDigest, implies, impliesId, reopenFirstRefusalMinutes, environment, sandbox, sourceAdvanceHead, quarantineProofId, knownMainFailures, prechecked = false, verifyFacts }) {
   const verb = { ACCEPT: 'accept', REJECT: 'reject' }[decision];
   if (!verb) throw new Refused('BAD_DECISION', 'the decision is accept or reject');
   const isAccept = verb === 'accept';
@@ -170,7 +185,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
     // The verify table decides the verdict event and its follow-ups from the board before the move; where it does not model the call, the original rules below run.
     const decided = newReview ? verifyDecision(board, getItem(board, id), { agentId, decision, reason, note: givenNote, relaxation: relaxation ? relaxationLine : null, cause, clause, head, digest, review,
-      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS) : null;
+      companionDigest, implies, environment, sandbox, sourceAdvanceHead, quarantineProofId, check, knownMainFailures: proofKnown }, VERIFY_TABLE_DEPS, verifyFacts) : null;
     const item = moveItem(board, id, verb, {
       transition,
       checks: {
