@@ -1,4 +1,4 @@
-/** @pullboard-test-input packages/store/src/io/home.js */
+/** @pullboard-test-input packages/store/src/io/home.js packages/store/index.js */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -6,6 +6,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { syncMayAct } from '../../src/io/home.js';
+import { relayMachineDirectory } from '../../src/io/home.js';
+import * as door from '../../index.js';
 import { cellRepo } from '../fixtures/cell.js';
 
 /** A fresh repository with no relay link (cellRepo), and a pullboard home inside it whose files the test chooses; PULLBOARD_HOME points there until the test ends. */
@@ -55,4 +57,10 @@ test('store.io-home.syncmayact-stays-true-for-a-runner: syncMayAct stays true fo
   const repo = machine(t, RUNNER_HOME);
   writeFileSync(join(repo, '.git', 'pullboard', 'relay.json'), '{}\n');
   assert.equal(syncMayAct(repo), true);
+});
+
+test('store.io-home.relaymachinestatefile-names-state-json: relayMachineStateFile returns state.json inside relayMachineDirectory and the store door exports it [C7,#9586]', t => {
+  machine(t, {});
+  assert.equal(door.relayMachineStateFile(), join(relayMachineDirectory(), 'state.json'));
+  assert.equal(typeof door.relayMachineStateFile, 'function');
 });
