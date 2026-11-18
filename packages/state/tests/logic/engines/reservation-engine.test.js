@@ -10,12 +10,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
-import * as light from '../../light.js';
-import { assignEngineNumbers } from '../../src/io/engine/numbers.js';
-import { readEngineLeaves } from '../../src/io/engine/numbers.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import * as light from '../../../light.js';
+import { assignEngineNumbers } from '../../../src/io/engine/numbers.js';
+import { readEngineLeaves } from '../../../src/io/engine/numbers.js';
 
-const ROOT = resolve(import.meta.dirname, '../../../..');
+const ROOT = resolve(import.meta.dirname, '../../../../..');
 const FOLDER = 'packages/state/src/logic/engines';
 const TABLE = 'packages/state/src/logic/engine/table.js';
 const LEAF = 'reservation-engine.js';
