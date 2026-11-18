@@ -2,11 +2,10 @@
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from "../../../../../kernel/index.js";
 import { boardReferenceId } from "../../../../../kernel/index.js";
+import { writeFileAtomic } from '../../atomic.js';
 import { boardLinkEnvelope } from "./envelope.js";
 import { boardLinkEnvelopeDigest } from "./envelope.js";
 import { boardLinkDeliveryReceipt } from "./envelope.js";
@@ -44,8 +43,7 @@ export function createBoardLinkFileTransport(folder, { board } = {}) {
         destinationBoardId: envelope.destinationBoardId, linkId: envelope.linkId, generation: envelope.generation,
         correlationId: envelope.correlationId, position: envelope.position, digest, at: new Date().toISOString() }, envelope);
       const name = String(deliveryId).padStart(12, '0');
-      writeFileSync(join(directory, `${name}.tmp`), JSON.stringify({ envelope, receipt }));
-      renameSync(join(directory, `${name}.tmp`), join(directory, `${name}.envelope`));
+      writeFileAtomic(join(directory, `${name}.envelope`), JSON.stringify({ envelope, receipt }));
       return receipt;
     },
     /** Read the destination board's deliveries after a delivery ID, as the relay page does. */
