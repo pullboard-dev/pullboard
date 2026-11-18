@@ -153,6 +153,10 @@ export function serviceBoard(board) {
 /**
  * The installer the runner's Node runs: it reads the plan from stdin, stops any running copy, and then either writes
  * the files, the key and the launchd job and loads it, or removes them. It prints one JSON line.
+ * A serve the bootout could not reach (a system LaunchDaemon run as this user, or one left by ssh) gets SIGTERM once
+ * the new app folder is in place, so launchd's KeepAlive starts it on the new code; the reply names it in restarted.
+ * Why: on 18 Nov every mini kept serving pre-#10774 code from memory after install-serve replaced its files, and
+ * gates went red with no PULLBOARD_GATE_RECEIPT line (#10839).
  * A LaunchAgent loads in the login session. A LaunchDaemon, chosen for a board on the local network, is loaded at once
  * when this runs as root; otherwise it is staged beside the service with the one sudo command that loads it, since
  * install-serve never runs sudo.
@@ -182,6 +186,16 @@ export async function runnerServiceInstaller() {
   await launchctl('bootout', `gui/${uid}/${plan.label}`);
   await launchctl('bootout', `user/${uid}/${plan.label}`);
   if (uid === 0) await launchctl('bootout', `system/${plan.label}`);
+  // The serves of this install still running after the bootout, by pid: this user's processes running <dir>/app/<entry>.
+  const app = join(dir, 'app');
+  const stale = plan.remove ? [] : await new Promise(done => execFile('ps', ['-A', '-ww', '-o', 'pid=,uid=,args='], { maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => {
+    const entry = join(app, plan.entry || '');
+    done(error ? [] : String(stdout).split('\n').flatMap(row => {
+      const found = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(row);
+      if (!found || Number(found[1]) === process.pid || Number(found[2]) !== uid) return [];
+      return found[3].split(/\s+/u).includes(entry) ? [Number(found[1])] : [];
+    }));
+  }));
   rmSync(agentPlist, { force: true });
   if (uid === 0) rmSync(daemonPlist, { force: true });
   // A daemon this user cannot remove is left to one sudo line, so no older copy keeps pulling unseen.
@@ -193,7 +207,6 @@ export async function runnerServiceInstaller() {
     process.stdout.write(`${JSON.stringify({ removed: true, plist: daemonLeft ? daemonPlist : agentPlist, dir, sudo })}\n`);
     return;
   }
-  const app = join(dir, 'app');
   const next = join(dir, 'app.next');
   rmSync(next, { recursive: true, force: true });
   for (const [path, text] of Object.entries(plan.files)) {
@@ -206,6 +219,7 @@ export async function runnerServiceInstaller() {
   const keyFile = join(dir, 'board.key');
   writeFileSync(keyFile, `${plan.key}\n`, { mode: 0o600 });
   chmodSync(keyFile, 0o600);
+  const restarted = stale.filter(pid => { try { process.kill(pid, 'SIGTERM'); return true; } catch { return false; } });
   const log = join(dir, 'serve.log');
   const daemon = plan.form === 'daemon';
   const plist = daemon ? uid === 0 ? daemonPlist : staged : agentPlist;
@@ -241,7 +255,7 @@ export async function runnerServiceInstaller() {
     }
     if (domain) break;
   }
-  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist,
+  process.stdout.write(`${JSON.stringify({ installed: true, form: daemon ? 'daemon' : 'agent', loaded: domain !== null, domain, plist, restarted,
     ...(daemon ? { daemonPlist, user: uid === 0 ? 'root' : user } : {}), sudo, dir, log, args })}\n`);
 }
 
