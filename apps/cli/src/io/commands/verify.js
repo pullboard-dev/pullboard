@@ -15,7 +15,6 @@ import { committedTestOutcomes } from '../../../../../packages/gate/index.js';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
 import { sealedMoveOverlap } from '../../../../../packages/verify/index.js';
-import { submittedPolicyCommit } from '../../../../../packages/verify/index.js';
 import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { sealedFallbackMain } from '../../../../../packages/verify/index.js';
 import { toolingFor } from '../../../../../packages/pin/index.js';
