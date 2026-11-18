@@ -1,0 +1,3 @@
+{
+  "cli.item-folder.live-folder-no-launch": {"proves":{"specs":["C7","#10862"],"claim":"liveFolderRefusal launches no git process for an item whose folder does not exist and answers as git does for no checkout, one elsewhere, a locked one and a spaced path."},"why":"Without it, a regression where liveFolderRefusal launches no git process for an item whose folder does not exist and answers as git does for no checkout, one elsewhere, a locked one and a spaced path would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/io/item/folder.test.js","apps/cli/src/io/item/folder.js"]}
+}
