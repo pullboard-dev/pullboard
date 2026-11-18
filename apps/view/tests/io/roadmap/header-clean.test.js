@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/main.css apps/view/src/io/item/rows.css apps/view/src/io/stage.css apps/view/src/io/dashboard.css apps/view/src/io/activity.css apps/view/src/io/project-menu.css apps/view/src/io/palette/palette.css apps/view/src/io/nav.css apps/view/src/io/shouts.css apps/view/src/io/notch.css */
 /** #7547: the Roadmap release header sits above its card, each number once, with no pace line, Rulings box or rail count tiles [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -13,7 +13,7 @@ const read = readMilestoneModel({ name: '0.9.4: Speed', items: [], summary }, ro
 const headers = new Map([[read, roadmapHeaders({ targetLabels: new Map(), addresses: new Map(), root: '/r', now: Date.parse('2026-11-13T12:00:00Z'), locale: 'en-US', timeZone: 'UTC' })(read)]]);
 const html = roadmapCardsHtml([read], { root: '/r', headers });
 
-test('clause 1: the header is a sibling above the card, led by a grey version and the bold name, with no chevron [N26]', () => {
+test('view.x-io-roadmap-header-clean.clause-1-the-header-is-a-sibling: clause 1: the header is a sibling above the card, led by a grey version and the bold name, with no chevron [N26]', () => {
   const section = html.match(/<section class="milestone roadmap-has-summary"[^>]*>/u);
   assert.ok(section, 'the release section is not itself a card');
   assert.doesNotMatch(section[0], /card-panel/u);
@@ -23,7 +23,7 @@ test('clause 1: the header is a sibling above the card, led by a grey version an
   assert.doesNotMatch(header, /class="caret"/u, 'no collapse chevron in the header');
 });
 
-test('clause 1: one "of" count with thousands separators, the legend with landing and square chips, and the thin bar [N26]', () => {
+test('view.x-io-roadmap-header-clean.clause-1-one-of-count-with-thousands: clause 1: one "of" count with thousands separators, the legend with landing and square chips, and the thin bar [N26]', () => {
   const big = readMilestoneModel({ name: '0.9.4: Speed', items: [], summary: { ...summary, total: 1738, landed: 1705, left: 33, landing: 0, review: 0, building: 13, waiting: 19, held: 1 } }, rows);
   const text = roadmapCardsHtml([big], { root: '/r', headers: new Map([[big, roadmapHeaders({ targetLabels: new Map(), addresses: new Map(), root: '/r', locale: 'en-US' })(big)]]) }).replace(/<[^>]*>/gu, '|');
   assert.equal(text.match(/1,705 of 1,738 landed/gu).length, 1, 'the of-line appears once');
@@ -36,11 +36,11 @@ test('clause 1: one "of" count with thousands separators, the legend with landin
   assert.doesNotMatch(html.replace(/<[^>]*>/gu, '|'), /25\/40/u, 'the Releases list repeats no landed count');
 });
 
-test('clause 2: no pace line and no Rulings box in the header [N26]', () => {
+test('view.x-io-roadmap-header-clean.clause-2-no-pace-line-and-no: clause 2: no pace line and no Rulings box in the header [N26]', () => {
   assert.doesNotMatch(html, /items an hour|landed in the last|roadmap-pace|Rulings|roadmap-summary-needs|roadmap-need/u);
 });
 
-test('clause 3: the rail lists releases only, with no count tiles [N26]', () => {
+test('view.x-io-roadmap-header-clean.clause-3-the-rail-lists-releases-only: clause 3: the rail lists releases only, with no count tiles [N26]', () => {
   const rail = html.match(/<aside.*?<\/aside>/su)[0];
   assert.match(rail, /roadmap-release-index/u);
   assert.doesNotMatch(rail, /roadmap-stage-counts|roadmap-shipping|roadmap-last-shipped|data-shipping-stage/u);

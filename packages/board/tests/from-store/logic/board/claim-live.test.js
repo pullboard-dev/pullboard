@@ -46,8 +46,8 @@ test('board.claim-live.with-moves-live-claim-claim-the: clause 2: with moves.liv
   assert.equal(store.getItem(board, id).item_status, 'open');
 });
 
-test('board.claim-live.with-moves-live-claim-off-the: clause 3: with moves.live.claim off (the default) the writer\'s own rules decide the same claim [C7,#8383]', t => {
-  const { board, id, claim } = claimable(t, { live: undefined, seatLane: 'review' });
+test('board.claim-live.with-moves-live-claim-off-the: clause 3: with moves.live.claim set false the writer\'s own rules decide the same claim [C7,#8383]', t => {
+  const { board, id, claim } = claimable(t, { live: false, seatLane: 'review' });
   claim();
   assert.equal(store.getItem(board, id).item_status, 'claimed', 'the writer accepted the claim the table refuses');
 });

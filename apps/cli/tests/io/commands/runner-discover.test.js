@@ -35,19 +35,19 @@ async function add({ box, env }, ...flags) {
   return { ran, toolchains: settings.runners?.[0]?.toolchains, output: ran.stdout + ran.stderr };
 }
 
-test('clause 1: runner add --toolchain auto with a probe that answers python3 and swift records exactly those two toolchains [C7,#10376]', async t => {
+test('cli.io-commands-runner-discover.runner-add-toolchain-auto-with-a-probe: clause 1: runner add --toolchain auto with a probe that answers python3 and swift records exactly those two toolchains [C7,#10376]', async t => {
   const { ran, toolchains, output } = await add(runnerBox(t, { python3: 'Python 3.12.1', swift: 'Swift version 6.0.2' }), '--toolchain', 'auto');
   assert.equal(ran.status, 0, output);
   assert.deepEqual(toolchains, { python3: '3.12.1', swift: '6.0.2' });
 });
 
-test('clause 2: a declared --toolchain list records the declared versions the runner verifies, exactly as without auto [C7,#10376]', async t => {
+test('cli.io-commands-runner-discover.a-declared-toolchain-list-records-the-declared: clause 2: a declared --toolchain list records the declared versions the runner verifies, exactly as without auto [C7,#10376]', async t => {
   const { ran, toolchains, output } = await add(runnerBox(t, { python3: 'Python 3.12.1', swift: 'Swift version 6.0.2' }), '--toolchain', 'python3=3.12');
   assert.equal(ran.status, 0, output);
   assert.deepEqual(toolchains, { python3: '3.12' });
 });
 
-test('clause 3: --toolchain auto with nothing answering records no toolchains and says so [C7,#10376]', async t => {
+test('cli.io-commands-runner-discover.toolchain-auto-with-nothing-answering-records-no: clause 3: --toolchain auto with nothing answering records no toolchains and says so [C7,#10376]', async t => {
   const { ran, toolchains, output } = await add(runnerBox(t, {}), '--toolchain', 'auto');
   assert.equal(ran.status, 0, output);
   assert.equal(toolchains, undefined);

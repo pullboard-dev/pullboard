@@ -5,6 +5,7 @@ import {
   mainCheckout,
 } from '../../../../git/light.js';
 import { Refused } from '../../../../kernel/light.js';
+import { changedHunkHeaders } from '../../logic/verdict/own-patch.js';
 import { ownPatchChanges } from '../../logic/verdict/own-patch.js';
 import { gitSpawnSync } from '../../../../git/light.js';
 
@@ -61,11 +62,16 @@ function sameHunks(root, reviewed, merged) {
  * every other accept stale and each needed a re-review of identical work.
  * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
  * a changed hunk of the submit's own patch makes the review stale; the caller reads the setting and passes `hunkKeyed`, so the light read door never loads the config package.
+ * When git's merge conflicts, the optional `residualConflicts(root, tip, checked)` port returns the files the mechanical merge cannot resolve: none keeps the accept fresh, any file or no port leaves it stale.
  */
-export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = false } = {}) {
+export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKeyed = false, residualConflicts = null } = {}) {
   const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-  if (merged.status !== 0) return false;
+  if (merged.status !== 0) {
+    // A conflict the mechanical merge resolves keeps the accept fresh; the port lists the files it cannot resolve, injected so this light read door never loads the merge package [C7].
+    const left = typeof residualConflicts === 'function' ? residualConflicts(root, tip, checked) : null;
+    return Array.isArray(left) && left.length === 0;
+  }
   const tree = merged.stdout.trim().split('\n')[0];
   return paths.every(path => {
     if (hunkKeyed) {
@@ -73,6 +79,23 @@ export function composesUnchanged(root, { base, checked, tip, paths }, { hunkKey
       if (keyed !== null) return keyed;
     }
     return pathPatchId(root, base, checked, path) === pathPatchId(root, tip, tree, path);
+  });
+}
+
+/**
+ * The hunks of the reviewed patch that main's move changed or that a merge onto main cannot carry, as `{ file, header }` with the full hunk header line.
+ * When the merge composes, these are the hunks that differ before and after it; when the merge conflicts, they are the reviewed hunks of the touched paths, since main's change reaches them.
+ * Why: a refusal naming only the file leaves the reviewer hunting for the hunk that went stale [C7,#2981].
+ */
+export function changedHunks(root, { base, checked, tip, paths }) {
+  const merged = gitSpawnSync(['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, checked],
+    { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const tree = merged.status === 0 ? merged.stdout.trim().split('\n')[0] : null;
+  return paths.flatMap(path => {
+    try {
+      const reviewed = pathDiff(root, base, checked, path);
+      return changedHunkHeaders(tree ? reviewed : '', tree ? pathDiff(root, tip, tree, path) : reviewed);
+    } catch { return []; }
   });
 }
 
@@ -121,18 +144,20 @@ export function captureVerdictReview(root, board, item, trunk = undefined, head 
   }
 }
 
-/** Name the concrete stale proof and the required re-review without changing the original verdict. */
-export function staleVerdictRefusal(item, state) {
+/** Name the concrete stale proof and the required re-review without changing the original verdict; `composeAsObject` words the next step for a board whose re-review composes main as an object. */
+export function staleVerdictRefusal(item, state, { composeAsObject = false } = {}) {
   if (state.landingCode === 'LAND_ITEM_MOVED') return new Refused('STALE_VERDICT',
     `item #${item.item_id}: ${state.reason}; keep its landing receipt and ask the coordinator to create a correction item, then have another agent verify that correction before landing it`);
   const changed = state.file && state.commit
     ? `${JSON.stringify(state.file)} changed on main in ${state.commit}`
     : state.reason ?? 'the reviewed Git history is unavailable';
+  // With submit.composeAsObject on, the re-review runs on a fresh composition of current main, so the builder merges nothing [C7,U159].
+  if (composeAsObject) return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; another agent re-reviews a fresh composition of current main and the submitted commit: pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
   return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; merge current main into the submitted commit, commit a clean composition, then another agent runs pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
 }
 
 /** Create one read's projector, sharing Git history lookups across its unlanded acceptances. */
-export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false }) {
+export function verdictProjector(root, board, { main } = {}, { events, acceptedVerdict, verdictReviewProblem, trunkRef, hunkKeyed = false, residualConflicts = null, derived }) {
   let tip = main;
   let resolved = main !== undefined;
   const histories = new Map();
@@ -209,6 +234,9 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
   const state = item => {
     if (item.item_status !== 'verified') return null;
     if (item.item_rehome_import?.sourceStatus === 'verified') return null;
+    // A caller-supplied reader answers from the derived-state table: a state or null is final, undefined computes below [#8945].
+    const known = derived?.(item);
+    if (known !== undefined) return known;
     const accepted = acceptedVerdict(board, item);
     const carryProblem = !item.item_merged_commit && mergeOnlyLandingProblem(root, board, item, { acceptedVerdict: acceptedVerdict });
     if (carryProblem) return { code: 'STALE_VERDICT', reason: carryProblem.message, main: tip ?? null };
@@ -255,7 +283,7 @@ export function verdictProjector(root, board, { main } = {}, { events, acceptedV
       for (const commit of history(review.trunk, paths)) {
         const file = changedFiles(commit).find(path => paths.has(path));
         if (file && mainContains(root, { checked, tip, paths: [...paths] })) return null;
-        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] }, { hunkKeyed })) return null;
+        if (file && !review.legacy && composesUnchanged(root, { base: review.trunk, checked, tip, paths: [...paths] }, { hunkKeyed, residualConflicts })) return null;
         if (file) return { code: 'STALE_VERDICT', file, commit, reviewedTrunk: review.trunk, main: tip,
           ...(review.legacy ? { legacy: true } : {}) };
       }

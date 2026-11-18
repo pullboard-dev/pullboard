@@ -46,14 +46,15 @@ export async function run(io, { first, second, rest, values }) {
   const asPerson = personMode(ctx, me, values);
   // With signed person moves on, the answer goes to the person's passkey as this exact request [E22].
   if (asPerson) { const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'answer', item: idArg(first), args: { as: 'person', text: [second, ...rest].filter(Boolean).join(' '),
-    ...(values.implies === undefined ? {} : { implies: String(values.implies) }), ...(values.supersedes === undefined ? {} : { supersedes: String(values.supersedes) }) } });
+    ...(values.implies === undefined ? {} : { implies: String(values.implies) }), ...(values.supersedes === undefined ? {} : { supersedes: String(values.supersedes) }), ...(values.cause === undefined ? {} : { cause: String(values.cause) }) } });
   if (confirmed !== null) return confirmed; }
   if (asPerson) requirePersonChannel(ctx.io.personChannel);
   const implies = parseImplies(values.implies);
   const supersedes = values.supersedes === undefined ? undefined : idArg(String(values.supersedes).replace(/^#/u, ''));
   const id = await ordered(ctx, board, 'answerDecision', [idArg(first), { agentId: me.id, text: [second, ...rest].filter(Boolean).join(' '), lanes: laneNames(ctx.config), asPerson, channel: ctx.io.personChannel ?? 'terminal',
     ...(implies ? { implies } : {}), ...(supersedes ? { supersedes } : {}),
-    ...(values.origin === undefined ? {} : { origin: values.origin }), ...(values.rationale === undefined ? {} : { rationale: values.rationale }) }]);
+    ...(values.origin === undefined ? {} : { origin: values.origin }), ...(values.rationale === undefined ? {} : { rationale: values.rationale }),
+    ...(values.cause === undefined ? {} : { cause: String(values.cause) }) }]);
   const ask = store.getShout(board, idArg(first));
   io.result?.({ id, answers: ask.shout_id });
   if (asPerson) {

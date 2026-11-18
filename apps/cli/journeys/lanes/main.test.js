@@ -17,7 +17,7 @@ import { submissionPaths } from '../../../../packages/sandbox/index.js';
 import { ownsNewFile } from '../../../../packages/sandbox/src/io/trusted/policy.js';
 import { planRowChange } from '../../../../packages/commits/light.js';
 
-test('a lane commits only exact gate paths for its staged test rename [L3,B34]', async t => {
+test('cli.journeys-lanes-main.a-lane-commits-only-exact-gate: a lane commits only exact gate paths for its staged test rename [L3,B34]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -60,7 +60,7 @@ test('a lane commits only exact gate paths for its staged test rename [L3,B34]',
   'the exact committed gate move also passes native submission ownership');
 });
 
-test('WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', async t => {
+test('cli.journeys-lanes-main.wrong-lane-names-a-clean-native: WRONG_LANE names a clean native lane checkout and the claim there retains its lane hook [L2,B13,N2]', async t => {
   const box = crossLaneFixture(t);
   const web = box.seat('claim-web', 'web', box.session);
   const api = box.seat('claim api', 'api', box.session);
@@ -88,7 +88,7 @@ test('WRONG_LANE names a clean native lane checkout and the claim there retains 
 });
 
 
-test('lane hook permits only an owned rename and its exact foreign import repoint [L3]', async t => {
+test('cli.journeys-lanes-main.lane-hook-permits-only-an-owned: lane hook permits only an owned rename and its exact foreign import repoint [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -119,7 +119,7 @@ test('lane hook permits only an owned rename and its exact foreign import repoin
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
 });
 
-test('lane hook accepts a deleted shim repoint only to its exact body [L3]', async t => {
+test('cli.journeys-lanes-main.lane-hook-accepts-a-deleted-shim: lane hook accepts a deleted shim repoint only to its exact body [L3]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -166,7 +166,7 @@ function planBlobs(placements) {
   return { before: path => before[path], after: path => after[path] };
 }
 
-test('a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
+test('cli.journeys-lanes-main.a-plan-row-for-a-file: a plan row for a file the item created before a reclaim is accepted while main lacks it, and refused once main has it [L3,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'lanes-plan-'));
   try {
     planGit(root, 'init', '-q', '-b', 'main');
@@ -195,7 +195,7 @@ test('a plan row for a file the item created before a reclaim is accepted while 
 });
 
 
-test('cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
+test('cli.journeys-lanes-main.cross-lane-import-edits-follow-only: cross-lane import edits follow only same-item moves or removed forwarding shims [L3]', async () => {
   const { movedImportOnlyChange, movedImportTargets } = await import('../../../../packages/commits/src/logic/import-only-change.js');
   const diff = 'R100\0api/old.js\0api/new.js\0D\0api/shim.js\0';
   const moves = movedImportTargets(diff, path => path === 'api/shim.js' ? "export { value } from './new.js';\n" : null, path => path === 'api/new.js');

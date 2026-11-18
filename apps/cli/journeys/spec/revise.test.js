@@ -34,7 +34,7 @@ function row(box, id) {
   return parseSpec(readFileSync(join(box.repo, 'SPEC.md'), 'utf8')).rows.find(entry => entry.id === id);
 }
 
-test('a proposed change to an approved row waits in Needs you and applies only when the person approves it [P6,B23,N39]', { timeout: 120_000 }, async () => {
+test('cli.journeys-spec-revise.a-proposed-change-to-an-approved: a proposed change to an approved row waits in Needs you and applies only when the person approves it [P6,B23,N39]', { timeout: 120_000 }, async () => {
   const box = fixtures.project('true');
   const file = join(box.repo, 'SPEC.md');
   const original = readFileSync(file, 'utf8');
@@ -96,7 +96,7 @@ test('a proposed change to an approved row waits in Needs you and applies only w
 
 });
 
-test('[P6,B23,N39] revisions require a reason and stale proposals cannot change a newer approved row', { timeout: 120_000 }, async () => {
+test('cli.journeys-spec-revise.p6-b23-n39-revisions-require-a: [P6,B23,N39] revisions require a reason and stale proposals cannot change a newer approved row', { timeout: 120_000 }, async () => {
   const box = fixtures.project('true');
   assert.notEqual((await box.runIn(box.web, 'spec', 'draft', 'Missing reason.', '--revises', 'G1')).code, 0);
   assert.notEqual((await box.runIn(box.web, 'spec', 'draft', 'Missing target.', '--revises', 'G99', '--reason', 'No such row.')).code, 0);
@@ -121,7 +121,7 @@ test('[P6,B23,N39] revisions require a reason and stale proposals cannot change 
   assert.ok(!personNeedsState(box.repo).needs.some(entry => entry.id === first.id));
 });
 
-test('[B23,N39] a real gate rename gives the new path and an exact revision command', { timeout: 120_000 }, async () => {
+test('cli.journeys-spec-revise.b23-n39-a-real-gate-rename: [B23,N39] a real gate rename gives the new path and an exact revision command', { timeout: 120_000 }, async () => {
   const box = fixtures.sandbox();
   const root = join(box.dir, 'existing-repo');
   mkdirSync(root);
@@ -144,7 +144,7 @@ test('[B23,N39] a real gate rename gives the new path and an exact revision comm
   assert.ok(output.includes("pullboard spec draft 'The page renders.' --revises 'G1' --gate 'node --test test/new.test.js' --reason 'Gate renamed from test/old.test.js to test/new.test.js.'"));
 });
 
-test('[P6,B23] revision plans preserve omitted fields and refuse formatting-only changes', { timeout: 120_000 }, () => {
+test('cli.journeys-spec-revise.p6-b23-revision-plans-preserve-omitted: [P6,B23] revision plans preserve omitted fields and refuse formatting-only changes', { timeout: 120_000 }, () => {
   const box = fixtures.project('true');
   const file = join(box.repo, 'SPEC.md');
   const source = readFileSync(file, 'utf8').replace('- G1 [approved, must] The page renders. | gate: web test',

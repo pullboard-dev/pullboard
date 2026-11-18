@@ -92,18 +92,18 @@ function printedPhrases(usage) {
   return expanded;
 }
 
-test('help has no import path back to the CLI [N26]', () => {
+test('cli.journeys-help-main.help-has-no-import-path-back: help has no import path back to the CLI [N26]', () => {
   const files = helpGraph();
   assert.ok(files.has(resolve(ROOT, 'packages/state/src/io/machine.js')), 'lifecycle help stays generated from the leaf declaration');
   assert.ok(files.has(resolve(ROOT, 'package.json')), 'the version stays sourced from package metadata');
 });
 
-test('view help names its fixed loopback port and explicit port 0 [N26]', async () => {
+test('cli.journeys-help-main.view-help-names-its-fixed-loopback: view help names its fixed loopback port and explicit port 0 [N26]', async () => {
   assert.match(HELP.all, /pullboard view \[--project\] \[--port N\].*default http:\/\/127\.0\.0\.1:4890/u);
   assert.match(HELP.all, /--port 0 chooses a free port/u);
 });
 
-test('command phrases match help --all, longest first [N26]', async t => {
+test('cli.journeys-help-main.command-phrases-match-help-all-longest: command phrases match help --all, longest first [N26]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
@@ -152,7 +152,7 @@ test('command phrases match help --all, longest first [N26]', async t => {
   assert.equal(new Set(added).size, added.length, 'each phrase occurs once');
 });
 
-test('help spec lists every spec subcommand and who runs it [N32]', async t => {
+test('cli.journeys-help-main.help-spec-lists-every-spec-subcommand: help spec lists every spec subcommand and who runs it [N32]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.sandbox();
@@ -175,7 +175,7 @@ test('help spec lists every spec subcommand and who runs it [N32]', async t => {
   assert.match(result.out, /spec apply — coordinator: apply recorded row decisions to the files/u);
 });
 
-test('full help is assembled from the independently editable command groups [C7,N26]', async () => {
+test('cli.journeys-help-main.full-help-is-assembled-from-the: full help is assembled from the independently editable command groups [C7,N26]', async () => {
   const graph = helpGraph();
   let offset = 0;
   for (const section of HELP_SECTIONS) {
@@ -195,7 +195,7 @@ test('full help is assembled from the independently editable command groups [C7,
   }
 });
 
-test('clause 1: help lists every edit option [C7]', async t => {
+test('cli.journeys-help-main.help-lists-every-edit-option: clause 1: help lists every edit option [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');
@@ -209,12 +209,13 @@ test('clause 1: help lists every edit option [C7]', async t => {
   const source = readFileSync(resolve(ROOT, 'apps/cli/src/io/commands/edit.js'), 'utf8');
   const parsed = new Set([...source.matchAll(/values(?:\.([a-z]+)|\['([a-z-]+)'\])/gu)].map(match => match[1] ?? match[2]));
   for (const name of ['brief', 'brief-file']) parsed.add(name); // briefArg reads both for edit
+  if (parsed.delete('route')) parsed.add('level'); // options.js folds --level into values.route (U136)
   parsed.delete('as'); // the person flag is documented under the person's own commands
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
 });
 
-test('clause 1: help says merge conflicts never count, scopes handoff to agent worktrees and names what resume --diagnostics adds [V32]', () => {
+test('cli.journeys-help-main.help-says-merge-conflicts-never-count: clause 1: help says merge conflicts never count, scopes handoff to agent worktrees and names what resume --diagnostics adds [V32]', () => {
   const text = HELP_SECTIONS.map(section => section.text).join('');
   const entry = (usage, next) => text.slice(text.indexOf(usage), text.indexOf(next, text.indexOf(usage)));
   assert.ok(entry('  pullboard rigor  ', '  pullboard rigor --draft-splits').includes('merge conflicts never count'));
@@ -222,7 +223,7 @@ test('clause 1: help says merge conflicts never count, scopes handoff to agent w
   assert.ok(entry('  pullboard resume', '  pullboard badge').includes('--diagnostics adds git checks and verified-not-merged work (merges cleanly, conflicts, claimed for integration)'));
 });
 
-test('every flag in pullboard help has a one-line meaning [I11]', () => {
+test('cli.journeys-help-main.every-flag-in-pullboard-help-has: every flag in pullboard help has a one-line meaning [I11]', () => {
   const bare = [];
   for (const [command, declaration] of Object.entries(HELP.commands)) {
     for (const flag of declaration.flags) {

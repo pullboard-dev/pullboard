@@ -22,8 +22,7 @@ const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { BIN, sandbox } = e2e;
 
-/** The two cases own separate sandboxes and homes [C7,N10]. */
-test('a second tour replaces the first demo and links nothing to the relay [N10]', { timeout: 300_000 }, async () => {
+test('cli.journeys-fact-e2e-tour.a-second-tour-replaces-the-first: a second tour replaces the first demo and links nothing to the relay [N10]', { timeout: 300_000 }, async () => {
   // The machine's own list and relay state hold their own home, so a tour run here can only touch that home (#951).
   const box = sandbox();
   const home = join(box.dir, 'private-home');

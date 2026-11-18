@@ -11,7 +11,7 @@ import {
   advanceOutsideFixture,
   calls,
   configureFixtureSandbox,
-  fixtureJSON,
+  fixtureJSONIn,
   intakeFixture,
 } from "../../tests/fixtures/intake.js";
 
@@ -21,12 +21,12 @@ function refusal(result, expected) {
   assert.equal(JSON.parse(result.out || result.err).error.code, expected, result.out + result.err);
 }
 
-test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
+test('cli.journeys-intake-main.an-intaken-pull-request-is-verified: an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', async t => {
   const box = intakeFixture(t);
-  const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url,
+  const filed = await fixtureJSONIn(box, box.repo, 'intake', box.pull.html_url,
     '--criterion', 'The contributed behavior works.', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item?.item_id ?? filed.id);
-  let item = fixtureJSON(box, box.repo, 'show', id);
+  let item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_commit, box.commit);
   assert.equal(item.item_tree, box.tree);
@@ -43,9 +43,9 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
 
   // These simulated image versions/TAP rows prove adapter/receipt protocol only, never real containment.
   const provider = configureFixtureSandbox(box);
-  const verdict = fixtureJSON(box, box.web, 'verify', id, 'accept', '--sandbox', '--note', 'private stand-in provider protocol');
+  const verdict = await fixtureJSONIn(box, box.web, 'verify', id, 'accept', '--sandbox', '--note', 'private stand-in provider protocol');
   assert.equal(verdict.decision, 'ACCEPT');
-  item = fixtureJSON(box, box.repo, 'show', id);
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.item_status, 'verified');
   assert.equal(item.outside.sandbox.commit, box.commit);
   assert.equal(item.outside.sandbox.tree, box.tree);
@@ -54,8 +54,8 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
   // Landing is a runner job now: `land` only offers it, and the job's publish step refuses an unapproved outside item (publish.js publicationInputs) [C7].
   await runCliInProcess(['land', '--json'], { cwd: box.repo, env: box.env });
   assert.equal(box.git(box.repo, 'rev-parse', 'HEAD') === box.commit, false, 'sensitive PR never reaches the local trunk without its owner');
-  fixtureJSON(box, box.repo, 'intake', 'approve', id);
-  item = fixtureJSON(box, box.repo, 'show', id);
+  await fixtureJSONIn(box, box.repo, 'intake', 'approve', id);
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.outside.ownerApproval.commit, box.commit, 'person approval binds this exact outside commit');
   assert.equal(item.outside.ownerApproval.by, 'person');
 
@@ -72,11 +72,11 @@ test('an intaken pull request is verified only in the sandbox [V1,V2,V3,B26]', a
 });
 
 
-test('outside issue intake retains source state and distinguishes a maintainer reply [V2,N2]', t => {
+test('cli.journeys-intake-main.outside-issue-intake-retains-source-state: outside issue intake retains source state and distinguishes a maintainer reply [V2,N2]', async t => {
   const box = intakeFixture(t);
-  const first = fixtureJSON(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
+  const first = await fixtureJSONIn(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
   const id = String(first.item?.item_id ?? first.id);
-  let item = fixtureJSON(box, box.repo, 'show', id);
+  let item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.outside.kind, 'issue');
   assert.equal(item.outside.author, 'issue-author');
   assert.equal(item.outside.state, 'open');
@@ -84,38 +84,38 @@ test('outside issue intake retains source state and distinguishes a maintainer r
   const facts = JSON.parse(readFileSync(box.facts, 'utf8'));
   facts.issueComments = [{ user: { login: 'another-outsider' }, author_association: 'CONTRIBUTOR', body: 'Following.' }];
   writeFileSync(box.facts, JSON.stringify(facts));
-  fixtureJSON(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
-  item = fixtureJSON(box, box.repo, 'show', id);
+  await fixtureJSONIn(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.outside.maintainerReplied, false, 'an arbitrary comment is not a maintainer response');
   facts.issue.state = 'closed';
   facts.issueComments.push({ user: { login: 'maintainer' }, author_association: 'MEMBER', body: 'Recorded on our board.' });
   writeFileSync(box.facts, JSON.stringify(facts));
-  const refreshed = fixtureJSON(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
+  const refreshed = await fixtureJSONIn(box, box.repo, 'intake', 'https://github.com/fixture/project/issues/6');
   assert.equal(String(refreshed.item?.item_id ?? refreshed.id), id, 'refresh updates the existing outside-source record');
-  item = fixtureJSON(box, box.repo, 'show', id);
+  item = await fixtureJSONIn(box, box.repo, 'show', id);
   assert.equal(item.outside.state, 'closed');
   assert.equal(item.outside.maintainerReplied, true);
   assert.equal(item.item_status, 'open', 'GitHub closure alone does not verify or land a local board item');
 });
 
 
-test('the lower sealing definition still requires outside owner approval [B26,V3]', t => {
+test('cli.journeys-intake-main.the-lower-sealing-definition-still-requires: the lower sealing definition still requires outside owner approval [B26,V3]', async t => {
   const box = intakeFixture(t);
   const path = 'packages/kernel/src/logic/seal.js';
   advanceOutsideFixture(box, path, 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);
-  const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
-  const source = fixtureJSON(box, box.repo, 'show', String(filed.item.item_id)).outside;
+  const filed = await fixtureJSONIn(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
+  const source = (await fixtureJSONIn(box, box.repo, 'show', String(filed.item.item_id))).outside;
   assert.equal(source.sensitive, true);
   assert.ok(source.sensitivity.some(reason => reason.path === path && reason.rule === 'declared-sensitive-path'));
 });
 
-test('outside sealing and command-bearing changes require owner approval [B26,V3]', t => {
+test('cli.journeys-intake-main.outside-sealing-and-command-bearing-changes: outside sealing and command-bearing changes require owner approval [B26,V3]', async t => {
   const box = intakeFixture(t);
   // Remove the original relay path so it cannot conceal an omitted sealing classification.
   advanceOutsideFixture(box, 'packages/kernel/src/logic/seal.js', 'export const sealFixture = true;\n', ['apps/relay/src/io/deploy/outside.js']);
-  const filed = fixtureJSON(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
+  const filed = await fixtureJSONIn(box, box.repo, 'intake', box.pull.html_url, '--criterion', 'the fixture behavior works', '--check', 'node --test test/contribution.test.js');
   const id = String(filed.item.item_id);
-  const source = fixtureJSON(box, box.repo, 'show', id).outside;
+  const source = (await fixtureJSONIn(box, box.repo, 'show', id)).outside;
   assert.equal(source.sensitive, true, 'the existing sealing boundary needs owner approval even without a relay change');
   assert.ok(source.sensitivity.some(reason => reason.path === 'packages/kernel/src/logic/seal.js' && reason.rule === 'declared-sensitive-path'));
 });

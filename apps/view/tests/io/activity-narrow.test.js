@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 const css = readFileSync(new URL('../../src/io/activity.css', import.meta.url), 'utf8');
 
-test('clause 1: the legend lines are block lines that cut with an ellipsis, and the narrow resource bars keep a fixed width [N26,#7308]', () => {
+test('view.x-io-activity-narrow.clause-1-the-legend-lines-are-block: clause 1: the legend lines are block lines that cut with an ellipsis, and the narrow resource bars keep a fixed width [N26,#7308]', () => {
   assert.match(css, /\.act-lg > div \{[^}]*text-overflow: ellipsis/u, 'the legend lines cut with an ellipsis');
   assert.doesNotMatch(css, /\.act-lg > div \{[^}]*display: flex/u, 'an ellipsis needs a block line, not a flex row');
   assert.match(css, /svg\.split, svg\.load \{ flex: 0 0 56px/u, 'the Runners load bar has the Agents bar width');

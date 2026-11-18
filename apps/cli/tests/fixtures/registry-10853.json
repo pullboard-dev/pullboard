@@ -1,0 +1,28 @@
+{
+  "cli.io-presence.overlaps-off-no-item-query": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A registered seat's presence heartbeat with overlaps off sends no item-list query to the board."
+    },
+    "why": "Without it, a regression where every claiming next lists the whole board's items for overlap lines it never prints would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/presence.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/cell.js"
+    ]
+  },
+  "cli.io-presence.overlaps-on-prints-line": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "With overlaps on and two claims recording the same file, the presence heartbeat prints the claim overlap line."
+    },
+    "why": "Without it, a regression where the heartbeat stops printing a claim overlap once the item list is read lazily would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/presence.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/cell.js"
+    ]
+  }
+}

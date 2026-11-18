@@ -27,7 +27,7 @@ async function withdrawn(t, gate) {
   return { box, id, board, call, held, sent, out, hopBefore };
 }
 
-test('clause 1: with gate.withdrawCancelsJob on, gate --withdraw cancels the item\'s gate job row, so a runner status poll reads cancelled [C7,#3860]', async t => {
+test('cli.journeys-gate-withdraw-cancel.with-gate-withdrawcancelsjob-on-gate-withdraw: clause 1: with gate.withdrawCancelsJob on, gate --withdraw cancels the item\'s gate job row, so a runner status poll reads cancelled [C7,#3860]', async t => {
   const { board, id, call, held, out } = await withdrawn(t, { withdrawCancelsJob: true });
   const rows = gateRows(board, id);
   assert.equal(rows.length, 1, 'the item has the one gate job row');
@@ -37,7 +37,7 @@ test('clause 1: with gate.withdrawCancelsJob on, gate --withdraw cancels the ite
   assert.equal(renewed.renewed, false, 'the runner\'s next renew is refused');
 });
 
-test('clause 2: a withdrawn gate never posts a verdict later, and a fresh submit of the item starts a new gate at once [C7,#3860]', async t => {
+test('cli.journeys-gate-withdraw-cancel.a-withdrawn-gate-never-posts-a: clause 2: a withdrawn gate never posts a verdict later, and a fresh submit of the item starts a new gate at once [C7,#3860]', async t => {
   const { box, id, board, call, held, sent } = await withdrawn(t, { withdrawCancelsJob: true });
   const late = await call({ action: 'receipt', ...held, receipt: { status: 0, gate: { green: true, phases: [] } } }).catch(() => ({ recorded: false }));
   assert.equal(late.recorded, false, 'the cancelled job takes no receipt from its runner');
@@ -50,7 +50,7 @@ test('clause 2: a withdrawn gate never posts a verdict later, and a fresh submit
   assert.notEqual(live[0].id, held.job, 'the new gate job is not the cancelled one');
 });
 
-test('clause 3: with gate.withdrawCancelsJob off, gate --withdraw leaves the job row as today [C7,#3860]', async t => {
+test('cli.journeys-gate-withdraw-cancel.with-gate-withdrawcancelsjob-off-gate-withdraw: clause 3: with gate.withdrawCancelsJob off, gate --withdraw leaves the job row as today [C7,#3860]', async t => {
   const { board, id, out } = await withdrawn(t, { withdrawCancelsJob: false });
   assert.notEqual(out.code, 0, 'a pulled gate has no hand-off record to withdraw while the setting is off');
   assert.match(out.out + out.err, /GATE_NOT_WAITING/u);
@@ -59,7 +59,7 @@ test('clause 3: with gate.withdrawCancelsJob off, gate --withdraw leaves the job
   assert.notEqual(rows[0].step, 'cancelled', 'the job row is not cancelled while the setting is off');
 });
 
-test('clause 4: with gate.withdrawCancelsJob off, a real gate --withdraw leaves the job and its drive hop alone, so the runner\'s renew still succeeds, and with it on the hop ends [C7,#3860]', async t => {
+test('cli.journeys-gate-withdraw-cancel.with-gate-withdrawcancelsjob-off-a-real: clause 4: with gate.withdrawCancelsJob off, a real gate --withdraw leaves the job and its drive hop alone, so the runner\'s renew still succeeds, and with it on the hop ends [C7,#3860]', async t => {
   const off = await withdrawn(t, { withdrawCancelsJob: false });
   assert.notEqual(gateRows(off.board, off.id)[0].step, 'cancelled', 'the job is not cancelled');
   assert.notEqual(readGateHop(off.board.db, off.id)?.state, 'ended', 'the hop is not ended');

@@ -64,7 +64,7 @@ function commits() {
   return { root, source, older, tree: git('rev-parse', `${source}^{tree}`), treeOf: commit => git('rev-parse', `${commit}^{tree}`) };
 }
 
-test('clause 1: a rerun with the same main, source and tooling admits no analysis part and returns the same results [C7]', async () => {
+test('cli.io-submit-gate-parts.a-rerun-with-the-same-main-source: clause 1: a rerun with the same main, source and tooling admits no analysis part and returns the same results [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, tree } = commits();
   const box = { root, main: source, source, tree, nextPart: '' };
@@ -79,7 +79,7 @@ test('clause 1: a rerun with the same main, source and tooling admits no analysi
   process.stderr.write(`stage seconds: first run ${(first.ms / 1000).toFixed(3)}s, rerun ${(second.ms / 1000).toFixed(3)}s\n`);
 });
 
-test('clause 2: a change in the main commit runs every part fresh [C7]', async () => {
+test('cli.io-submit-gate-parts.a-change-in-the-main-commit-runs: clause 2: a change in the main commit runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, older, tree } = commits();
   const box = { root, main: source, source, tree, nextPart: '' };
@@ -90,7 +90,7 @@ test('clause 2: a change in the main commit runs every part fresh [C7]', async (
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'a new main admits every part again');
 });
 
-test('clause 2: a change in the source commit runs every part fresh [C7]', async () => {
+test('cli.io-submit-gate-parts.a-change-in-the-source-commit-runs: clause 2: a change in the source commit runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, older, tree, treeOf } = commits();
   const box = { root, main: source, source, tree, nextPart: '' };
@@ -103,7 +103,7 @@ test('clause 2: a change in the source commit runs every part fresh [C7]', async
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'a new source admits every part again');
 });
 
-test('clause 2: a change in the board cut rows runs the part fresh [C7]', async () => {
+test('cli.io-submit-gate-parts.a-change-in-the-board-cut-rows: clause 2: a change in the board cut rows runs the part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, tree } = commits();
   const box = { root, main: source, source, tree, nextPart: '' };
@@ -114,7 +114,7 @@ test('clause 2: a change in the board cut rows runs the part fresh [C7]', async 
   assert.deepEqual(runner.admitted, [...PARTS, 'static']);
 });
 
-test('clause 2: a change in the tooling id runs every part fresh [C7]', async () => {
+test('cli.io-submit-gate-parts.a-change-in-the-tooling-id-runs: clause 2: a change in the tooling id runs every part fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, tree } = commits();
   const box = { root, main: source, source, tree, nextPart: '' };
@@ -125,7 +125,7 @@ test('clause 2: a change in the tooling id runs every part fresh [C7]', async ()
   assert.deepEqual(runner.admitted, [...PARTS, ...PARTS], 'new tooling admits every part again');
 });
 
-test('clause 2: a part that refused is never recorded, so its rerun runs fresh [C7]', async () => {
+test('cli.io-submit-gate-parts.a-part-that-refused-is-never-recorded: clause 2: a part that refused is never recorded, so its rerun runs fresh [C7]', async () => {
   const files = privateFixtureFiles('pullboard-rerun-parts-');
   const { root, source, tree } = commits();
   const box = { root, main: source, source, tree, nextPart: 'static', refuse: true };

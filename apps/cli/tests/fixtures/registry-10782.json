@@ -1,0 +1,75 @@
+{
+  "cli.io-commands-init.registers-incremental-maintenance": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Init on a fresh repository registers it for git maintenance with the incremental strategy and prefetch off, and schedules it with git own scheduler choice."
+    },
+    "why": "Without it, a regression that leaves a managed repo with no background maintenance, so loose objects pile up and every git command slows, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/init.test.js",
+      "apps/cli/src/io/init/git-maintenance.js",
+      "apps/cli/src/io/commands/init.js"
+    ]
+  },
+  "cli.io-commands-init.each-platform-uses-its-git-scheduler": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "The macOS, Windows and Linux schedulers (launchctl, schtasks, a systemd timer, cron) each schedule the repo through git maintenance start --scheduler."
+    },
+    "why": "Without it, a regression that schedules maintenance on one platform only would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/init.test.js",
+      "apps/cli/src/io/init/git-maintenance.js"
+    ]
+  },
+  "cli.io-commands-init.no-scheduler-records-unscheduled": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Init on a machine with no supported scheduler records that maintenance is not scheduled, says how to run it by hand, and still succeeds."
+    },
+    "why": "Without it, a regression that fails init or stays silent where no scheduler exists would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/init.test.js",
+      "apps/cli/src/io/init/git-maintenance.js",
+      "apps/cli/src/io/commands/init.js"
+    ]
+  },
+  "cli.io-commands-init.runner-job-never-schedules": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A runner job without git test scheduler, or git with no global config, never runs git maintenance start."
+    },
+    "why": "Without it, a regression that lets a test or runner job install jobs in the machine scheduler would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/init.test.js",
+      "apps/cli/src/io/init/git-maintenance.js"
+    ]
+  },
+  "cli.io-commands-doctor-toolchains.doctor-reports-unregistered-git-maintenance": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "Doctor reports a managed repo with git maintenance not registered, and registering it clears the line."
+    },
+    "why": "Without it, a regression that hides an unmaintained repo from doctor would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/commands/doctor-toolchains.test.js",
+      "apps/cli/src/io/init/git-maintenance.js",
+      "apps/cli/src/io/commands/doctor.js"
+    ]
+  }
+}

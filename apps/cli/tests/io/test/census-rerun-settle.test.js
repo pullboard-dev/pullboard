@@ -67,14 +67,14 @@ async function census(t, settings, wait) {
   return { events, args };
 }
 
-test('clause 1: with census.rerunOnSettle on, the rerun is offered before the other pass-1 job posts [C7,#9283]', async (t) => {
+test('cli.io-test-census-rerun-settle.with-census-rerunonsettle-on-the-rerun-is: clause 1: with census.rerunOnSettle on, the rerun is offered before the other pass-1 job posts [C7,#9283]', async (t) => {
   // Job 2 waits for a rerun to be offered; if reruns waited for the whole pass this would never release.
   const { events } = await census(t, { census: { rerunOnSettle: true } }, seen => Promise.race([seen, new Promise(resolve => setTimeout(resolve, 3000))]));
   assert.ok(events.indexOf('post 1/2') < events.findIndex(event => event.startsWith('rerun')), 'a rerun follows its job');
   assert.ok(events.findIndex(event => event.startsWith('rerun')) < events.indexOf('post 2/2'), `the rerun came before job 2 posted: ${events.join(' | ')}`);
 });
 
-test('clause 2: the settle rerun carries the 3-minute file kill, not the 10-minute hard stop [C7,#9283]', async (t) => {
+test('cli.io-test-census-rerun-settle.the-settle-rerun-carries-the-3-minute: clause 2: the settle rerun carries the 3-minute file kill, not the 10-minute hard stop [C7,#9283]', async (t) => {
   const { args } = await census(t, { census: { rerunOnSettle: true } }, seen => Promise.race([seen, new Promise(resolve => setTimeout(resolve, 3000))]));
   const first = args.find(call => call.count !== 1), reruns = args.filter(call => call.count === 1);
   assert.ok(reruns.length >= 1);
@@ -82,7 +82,7 @@ test('clause 2: the settle rerun carries the 3-minute file kill, not the 10-minu
   for (const call of reruns) assert.equal(call.fileLimit, false, 'a settle rerun asks for the usual per-file kill');
 });
 
-test('clause 3: with census.rerunOnSettle off, reruns still wait for the whole pass [C7,#9283]', async (t) => {
+test('cli.io-test-census-rerun-settle.with-census-rerunonsettle-off-reruns-still-wait: clause 3: with census.rerunOnSettle off, reruns still wait for the whole pass [C7,#9283]', async (t) => {
   const { events } = await census(t, { census: { rerunNonGreen: true } }, async () => {});
   assert.ok(events.indexOf('post 2/2') < events.findIndex(event => event.startsWith('rerun')), `the reruns came after both jobs posted: ${events.join(' | ')}`);
 });

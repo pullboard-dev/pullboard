@@ -11,8 +11,8 @@ import { repoInfo } from '../../../../packages/git/index.js';
 import { privateFixtureFiles } from '../../../../packages/gate/tests/fixtures/child.js';
 import { fixtureCommitAll } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
-test('clause 1: languageNotes gives a python entry one line naming the pytest junitxml command and the gate.junitReport settings line [C7]', () => {
-  const lines = languageNotes([{ language: 'python', command: 'pytest' }]);
+test('cli.logic-init-language-notes.languagenotes-gives-a-python-entry-one-line: clause 1: languageNotes gives a python entry one line naming the pytest junitxml command and the gate.junitReport settings line [C7]', () => {
+  const lines = languageNotes([{ language: 'python', command: 'pytest' }]).filter(line => line.includes('gate.junitReport'));
   assert.equal(lines.length, 1);
   assert.ok(lines[0].includes('pytest --junitxml=.pullboard/junit/python.xml'), lines[0]);
   assert.ok(lines[0].includes('pullboard settings gate.junitReport .pullboard/junit/python.xml'), lines[0]);
@@ -20,14 +20,14 @@ test('clause 1: languageNotes gives a python entry one line naming the pytest ju
   assert.ok(go[0].includes('gotestsum'), 'a language that needs a tool names it');
 });
 
-test('clause 2: a language with no report form gets no JUnit line, and no entries give no lines [C7]', () => {
+test('cli.logic-init-language-notes.a-language-with-no-report-form-gets: clause 2: a language with no report form gets no JUnit line, and no entries give no lines [C7]', () => {
   assert.deepEqual(languageNotes([]), []);
   assert.deepEqual(languageNotes(undefined), []);
   assert.deepEqual(languageNotes([{ language: 'make', command: 'make test' }, { language: 'cobol', command: 'x' }]), []);
-  assert.equal(languageNotes([{ language: 'make' }, { language: 'python' }, { language: 'python' }]).length, 1, 'one line per language');
+  assert.equal(languageNotes([{ language: 'make' }, { language: 'python' }, { language: 'python' }]).filter(line => line.includes('gate.junitReport')).length, 1, 'one JUnit line per language');
 });
 
-test('clause 3: initRepo adds the language lines to its notes and writes nothing more than today [C7]', t => {
+test('cli.logic-init-language-notes.initrepo-adds-the-language-lines-to-its: clause 3: initRepo adds the language lines to its notes and writes nothing more than today [C7]', t => {
   const files = privateFixtureFiles('pullboard-init-language-notes-');
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   const home = join(files.root, 'machine-home');

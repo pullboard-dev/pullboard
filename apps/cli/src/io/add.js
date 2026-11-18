@@ -1,5 +1,4 @@
 /** Argument and lane helpers for `pullboard add` and `pullboard edit`. Split from src/cli.js, which re-exports it [C7]. */
-import { fileURLToPath } from 'node:url';
 import { main } from './main.js';
 import { COORDINATOR } from '../../../../packages/config/index.js';
 import { outOfLane } from '../../../../packages/seats/index.js';
@@ -7,12 +6,13 @@ import { Refused } from '../../../../packages/kernel/index.js';
 import { briefFiles } from '../../../../packages/items/index.js';
 import { startCheckBaseline } from '../../../../packages/gate/index.js';
 import { runnerBaselineCommand } from '../../../../packages/gate/index.js';
-import { offerCheckBaseline } from '../../../../packages/api/index.js';
-import { queueFor } from '../../../../packages/api/index.js';
+import { offerCheckBaseline } from '../../../../packages/api/light.js';
+import { queueFor } from '../../../../packages/api/light.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../packages/config/index.js';
 import { getItem } from '../../../../packages/store/index.js';
+import { boardRunsReader } from '../../../../packages/store/index.js';
 import { relayLinked } from '../../../../packages/link/index.js';
 import { ensureLocalRunner } from './runner/local.js';
 import { primaryCheckoutRoot } from './worktree.js';
@@ -21,8 +21,17 @@ import { textArg } from './read.js';
 export { editAfter } from './read.js';
 export { textArg } from './read.js';
 
-/** The detached baseline worker, an executable of the lib app; the gate package spawns it by this path. */
-const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baseline.js', import.meta.url));
+/**
+ * Queue the baseline as a runner job on this board: any runner, this machine's local runner included, runs the check at
+ * main and posts its result, and the board records it on the item [#6560]. False when this machine holds no board to
+ * queue on, as behind a relay link.
+ */
+function offerBaseline(ctx, board, id, baseline) {
+  const root = ctx.info.root;
+  if (relayLinked(root) || !board?.db) return false;
+  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
+  return true;
+}
 
 /**
  * Offer the baseline as a pull job for this machine's local runner, which runs the check at main and posts its result.
@@ -34,11 +43,9 @@ const BASELINE_WORKER = fileURLToPath(new URL('../../../lib/src/io/check/baselin
  * @returns {Promise<boolean>} True when the job is offered and the local runner runs; false leaves the baseline to the worker.
  */
 async function offerLocalBaseline(ctx, board, id, baseline) {
-  const root = ctx.info.root;
-  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled() || (loadMachineSettings().runners ?? []).length || relayLinked(root) || !board?.db) return false;
+  if (runnerDispatchMode() !== 'pull' || !localRunnerEnabled()) return false;
   const host = primaryCheckoutRoot(ctx.info);
-  if (!host) return false;
-  offerCheckBaseline(board.db, { item: id, expected: baseline, command: runnerBaselineCommand(root, baseline), queue: queueFor(board, 'coordinator', { file: ctx.file }) });
+  if (!host || !offerBaseline(ctx, board, id, baseline)) return false;
   return (await ensureLocalRunner(host)).running;
 }
 
@@ -54,14 +61,46 @@ async function settled(board, id) {
 }
 
 /**
- * Start an already-recorded request, recording an unavailable result if its child cannot start.
- * With no registered runner the baseline is a pulled job on the local runner and `wait` has nothing to wait for;
- * otherwise, with `wait`, resolves to a promise that settles when the worker process has exited.
+ * Whether a runner serve pulls this board's queue: one claimed a job here within SERVE_RECENT_MS, as the board's one
+ * serve reading counts it. Why: a runner registered with `pullboard runner add` and no `runner install-serve` takes work
+ * only over ssh and never pulls the queue, so a baseline queued for it stayed pending forever and a waited add sat silent
+ * for BASELINE_WAIT_MS (#10844). An unreadable queue reads as pulled, so a read failure never starts a worker per add (#10787).
+ * Why lazy: the runners package loads only when an add or edit records a baseline with runners registered.
+ */
+async function servePullsQueue(ctx, board) {
+  let runs = null;
+  try {
+    const { readPulledCapacity } = await import('../../../../packages/runners/index.js');
+    const reader = boardRunsReader(board, ctx.file);
+    runs = reader ? { db: reader.db } : null;
+    return readPulledCapacity(board.db, { runs }).totals.serves > 0;
+  } catch { return true; } finally { try { runs?.db?.close(); } catch { /* a read-only handle */ } }
+}
+
+/**
+ * Start an already-recorded request where the lib launcher routes it, recording an unavailable result if it cannot start:
+ * with gate.runnersOnly on or any registered runner it is a runner job and nothing starts on this machine [#10787].
+ * Registered runners with no serve pulling the queue get the detached worker, which measures on a registered runner
+ * over ssh; queued, the job would wait for a serve that never comes [#10844].
+ * With runners off it is a job for this machine's one local runner; no detached worker starts, as it has no runner to use.
+ * A pulled job has no process here, so `wait` waits for its result; a worker's `wait` settles when that worker exits.
+ * Why lazy: the launcher loads only when an add or edit records a baseline, so neither command's cold path grows.
  */
 export async function launchBaseline(ctx, board, id, baseline, options = {}) {
-  try { if (await offerLocalBaseline(ctx, board, id, baseline)) return options.wait ? settled(board, id) : undefined; } catch { /* the worker below leaves it pending */ }
-  try { return await startCheckBaseline(ctx.info.root, id, baseline, { ...options, worker: BASELINE_WORKER }); }
-  catch {
+  const { launchCheckBaseline, BASELINE_WORKER } = await (await import('../../../lib/light.js')).checkBaselineLauncher();
+  const root = ctx.info.root;
+  const settings = loadMachineSettings();
+  const pulled = (settings.runners ?? []).length ? await servePullsQueue(ctx, board) : true;
+  try {
+    const launched = await launchCheckBaseline({ id, baseline }, {
+      settings,
+      offer: () => { if (!pulled) return false; try { return offerBaseline(ctx, board, id, baseline); } catch { return false; } },
+      local: () => offerLocalBaseline(ctx, board, id, baseline).catch(() => false),
+      spawn: () => startCheckBaseline(root, id, baseline, { ...options, worker: BASELINE_WORKER }),
+    });
+    if (launched.route === 'runner-job' || launched.route === 'local-runner') return options.wait ? settled(board, id) : undefined;
+    return launched.exited;
+  } catch {
     await ordered(ctx, board, 'completeCheckBaseline', [id, { agentId: COORDINATOR, expected: baseline,
       baseline: { command: baseline.command, main: baseline.main, result: 'unavailable', reason: 'background worker could not start; set --check again from the coordinator' } }]);
   }
@@ -96,6 +135,7 @@ export function buildInFilelessLane(config, lane, after) {
 /**
  * A brief whose Files section stays inside the item's lane (B14), so a builder working from it
  * never runs into the lane check: an item's files sit in its lane.
+ * With laneMode off the lane folders are only labels and the claimed item's cells are its own, so any brief stands [C7,#10843].
  *
  * @param {any} ctx
  * @param {string} lane
@@ -103,6 +143,7 @@ export function buildInFilelessLane(config, lane, after) {
  * @returns {string}
  */
 export function briefInLane(ctx, lane, brief) {
+  if (ctx.config.laneMode === 'off') return brief;
   const foreign = outOfLane(ctx.config, lane, briefFiles(brief));
   if (foreign.length) {
     throw new Refused('BRIEF_LANE', `the brief names files outside the ${lane} lane: ${foreign.join(', ')}; split the item by lane, or wait on the other lane's item with --after`);
