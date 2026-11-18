@@ -203,7 +203,7 @@ export const FIXTURE_GATE_DISPATCH = Object.freeze({ runnerDispatch: 'pull' });
  */
 export function fixtureSettledMachine(machineHome, settings = {}) {
   mkdirSync(machineHome, { recursive: true });
-  const hooks = true ? { test: { inProcessHooks: true, ...settings.test } } : {};
+  const hooks = process.env.PULLBOARD_FIXTURE_INPROCESS_HOOKS === '1' ? { test: { inProcessHooks: true, ...settings.test } } : {};
   fixtureMachineSettings(machineHome, { ...settings, ...hooks, gate: { ...settings.gate, ...FIXTURE_GATE_DISPATCH } });
 }
 
