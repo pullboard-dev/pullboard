@@ -527,6 +527,24 @@ function shadowOf(db) {
     seen: compare => recordShadow({ db }, 'job', compare.job, jobDiffers(compare), compare.wrote?.refused ?? null) };
 }
 
+/** The longest one job write may hold the board's write lock before it rolls back and refuses [C7,#11029]. */
+export const JOB_WRITE_BOUND_MS = 5000;
+
+/**
+ * Run a job write in one transaction that gives the lock up when it ran past the bound: the write rolls back and refuses JOB_WRITE_TIMEOUT,
+ * so one slow write can never hold every seat off the board for minutes. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
+ */
+function boundedAtomically(db, work) {
+  const bound = db.jobWriteBoundMs ?? JOB_WRITE_BOUND_MS;
+  const started = Date.now();
+  return atomically(db, () => {
+    const result = work();
+    const took = Date.now() - started;
+    if (took > bound) throw new Refused('JOB_WRITE_TIMEOUT', `a job write held the board lock for ${took} ms, over the ${bound} ms bound; it was rolled back`, 'retry the call');
+    return result;
+  });
+}
+
 /**
  * With moves.live.job on, the job table decides the move: it refuses before anything is written, and the job row it names is the one left behind.
  * The writer still records the steps the table does not model; then the row's step, owner and lease are set to the table's answer.
@@ -538,7 +556,7 @@ function followTable(db, move, now, write) {
   if (answer?.refused) throw new Refused(answer.refused.code, answer.refused.message ?? `the job table refused ${move.name} on job ${move.job}`, answer.refused.next);
   const decided = answer?.patch?.job;
   if (!decided) return write();
-  return atomically(db, () => {
+  return boundedAtomically(db, () => {
     const result = write();
     setJobRow(db, move.job, decided, { now });
     return result;
@@ -565,7 +583,7 @@ function shadowed(db, move, now, write) {
   // from another process between the table's read and the write would otherwise leave the table on `claimed` and the row on `done` [C7,#9360].
   let seen;
   try {
-    return atomically(db, () => {
+    return boundedAtomically(db, () => {
       const answer = shadow.decide(jobSnapshot(db, move.job, now), { ...move, token: tokenHash(move.token ?? '') });
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
