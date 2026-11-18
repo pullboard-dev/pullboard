@@ -15,7 +15,7 @@ function seedReport(board) {
   for (const key of KEYS) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(key, '{"data":{"last":9},"numbers":[]}');
 }
 
-test('clause 2: a versioned report namespace is neither exported nor part of the native digest [R1,R2]', (t) => {
+test('store.io-report-namespace.a-versioned-report-namespace-is-neither: clause 2: a versioned report namespace is neither exported nor part of the native digest [R1,R2]', (t) => {
   const board = fixtureBoard(t);
   const before = semanticBoardDigest(exportBoard(board));
   seedReport(board);
@@ -24,7 +24,7 @@ test('clause 2: a versioned report namespace is neither exported nor part of the
   assert.equal(semanticBoardDigest(exported), before, 'report shards leave the native digest unchanged, so replicas never diverge');
 });
 
-test('clause 2: an import skips a supplied versioned report namespace instead of refusing or storing it [R1,R2]', (t) => {
+test('store.io-report-namespace.an-import-skips-a-supplied-versioned: clause 2: an import skips a supplied versioned report namespace instead of refusing or storing it [R1,R2]', (t) => {
   const source = fixtureBoard(t), target = fixtureBoard(t);
   const document = exportBoard(source);
   document.tables.board_meta = [...document.tables.board_meta, ...KEYS.map(meta_key => ({ meta_key, meta_value: '{"data":{"last":9},"numbers":[]}' }))];

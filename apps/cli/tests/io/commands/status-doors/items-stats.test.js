@@ -25,21 +25,21 @@ function importedFrom() {
   return found;
 }
 
-test('clause 1: status imports every items, stats and queue name through that package light door [C7]', () => {
+test('cli.io-commands-status-doors-items-stats.status-imports-every-items-stats-and-queue: clause 1: status imports every items, stats and queue name through that package light door [C7]', () => {
   const from = importedFrom();
   for (const [pkg, names] of Object.entries(NAMES)) {
     for (const name of names) assert.ok(from.get(name)?.endsWith(`/packages/${pkg}/light.js`), `${name} comes from ${from.get(name)}, not packages/${pkg}/light.js`);
   }
 });
 
-test('clause 1: each light door exports the names status takes from it [C7]', () => {
+test('cli.io-commands-status-doors-items-stats.each-light-door-exports-the-names-status: clause 1: each light door exports the names status takes from it [C7]', () => {
   for (const pkg of Object.keys(NAMES)) {
     const door = readFileSync(resolve(REPO, `packages/${pkg}/light.js`), 'utf8');
     for (const name of NAMES[pkg]) assert.match(door, new RegExp(`\\b${name}\\b`, 'u'), `packages/${pkg}/light.js does not export ${name}`);
   }
 });
 
-test('clause 1: status keeps no stats or queue barrel import and no items barrel import of these names [C7]', () => {
+test('cli.io-commands-status-doors-items-stats.status-keeps-no-stats-or-queue-barrel: clause 1: status keeps no stats or queue barrel import and no items barrel import of these names [C7]', () => {
   assert.doesNotMatch(STATUS, /packages\/(?:stats|queue)\/index\.js/u);
   for (const match of STATUS.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'[^']*packages\/items\/index\.js'/gmu)) {
     for (const name of NAMES.items) assert.doesNotMatch(match[1], new RegExp(`\\b${name}\\b`, 'u'));

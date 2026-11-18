@@ -13,13 +13,13 @@ import { reviewOffer } from '../../index.js';
 
 const database = t => cellBoard(t, ':memory:').db;
 
-test('a review job is named by its item, and a bad item or reviewer is refused [C7]', t => {
+test('jobs.review.named-by-item: a review job is named by its item, and a bad item or reviewer is refused [C7]', t => {
   assert.equal(reviewJobId(12), 'review:12');
   for (const bad of [0, -1, 1.5, '3', null]) assert.throws(() => reviewJobId(bad), error => error.code === 'REVIEW_ITEM');
   assert.throws(() => reserveReview(database(t), 5, ''), error => error.code === 'REVIEW_RESERVER');
 });
 
-test('reserveReview gives the review to one reviewer and names the holder to a second [C7]', t => {
+test('jobs.review.reserve-one-reviewer: reserveReview gives the review to one reviewer and names the holder to a second [C7]', t => {
   const db = database(t);
   assert.deepEqual(reserveReview(db, 5, 'r1', { now: 1000 }), { reserved: true, holder: 'r1' });
   assert.deepEqual(reserveReview(db, 5, 'r2', { now: 1500 }), { reserved: false, holder: 'r1' });
@@ -30,7 +30,7 @@ test('reserveReview gives the review to one reviewer and names the holder to a s
   assert.equal(job.leaseUntil, 1000 + LEASE_MS);
 });
 
-test('renewReview extends the holder\'s reservation only [C7]', t => {
+test('jobs.review.renew-holder-only: renewReview extends the holder\'s reservation only [C7]', t => {
   const db = database(t);
   reserveReview(db, 5, 'r1', { now: 1000, leaseMs: 100 });
   assert.equal(renewReview(db, 5, 'r2', { now: 1050 }), false);
@@ -38,7 +38,7 @@ test('renewReview extends the holder\'s reservation only [C7]', t => {
   assert.equal(jobView(db, 'review:5').leaseUntil, 1450);
 });
 
-test('a lapsed reservation is reclaimed with a lapsed step and offered again, and a fresh sighting of the reviewer extends it instead [C7]', t => {
+test('jobs.review.lapsed-reclaimed: a lapsed reservation is reclaimed with a lapsed step and offered again, and a fresh sighting of the reviewer extends it instead [C7]', t => {
   const db = database(t);
   reserveReview(db, 5, 'r1', { now: 1, leaseMs: 100 });
   reserveReview(db, 6, 'r2', { now: 1, leaseMs: 100 });
@@ -58,7 +58,7 @@ test('a lapsed reservation is reclaimed with a lapsed step and offered again, an
   assert.deepEqual(jobView(db, 'review:5').steps.map(step => [step.name, step.seq]), [['reserved', 0], ['lapsed', 0], ['reserved', 1]], 'each attempt writes its own steps');
 });
 
-test('releaseReview frees a held review and says who held it, and answers null when nobody did [C7]', t => {
+test('jobs.review.release-names-holder: releaseReview frees a held review and says who held it, and answers null when nobody did [C7]', t => {
   const db = database(t);
   assert.equal(releaseReview(db, 9), null, 'no job at all');
   reserveReview(db, 9, 'r1', { now: 1000 });
@@ -69,7 +69,7 @@ test('releaseReview frees a held review and says who held it, and answers null w
   assert.deepEqual(job.steps.map(step => step.name), ['reserved', 'released']);
 });
 
-test('reviewOffer offers an item nobody holds and names the live holder otherwise [C7]', t => {
+test('jobs.review.offer-names-holder: reviewOffer offers an item nobody holds and names the live holder otherwise [C7]', t => {
   const db = database(t);
   assert.deepEqual(reviewOffer(db, 3), { offered: true, holder: null, lapses: [] });
   reserveReview(db, 3, 'r1', { now: 1000, leaseMs: 100 });
@@ -77,7 +77,7 @@ test('reviewOffer offers an item nobody holds and names the live holder otherwis
   assert.deepEqual(reviewOffer(db, 3, { now: 1101 }), { offered: true, holder: null, lapses: [] }, 'a lapsed lease offers the review even before it is reclaimed');
 });
 
-test('SM5: releaseReview releases a live holder, then marks the review job done; a lapsed or missing job ends without a released step [C7]', t => {
+test('jobs.review.release-marks-done: SM5: releaseReview releases a live holder, then marks the review job done; a lapsed or missing job ends without a released step [C7]', t => {
   const db = database(t);
   assert.equal(releaseReview(db, 4), null, 'no job at all');
   reserveReview(db, 4, 'r1', { now: 1000 });
@@ -94,7 +94,7 @@ test('SM5: releaseReview releases a live holder, then marks the review job done;
   assert.equal(jobView(db, 'review:4').step, 'reserved');
 });
 
-test('SM5: reclaimLapsedReviews never extends a lease whose item is not submitted, however fresh the heartbeat [C7]', t => {
+test('jobs.review.reclaim-needs-submitted: SM5: reclaimLapsedReviews never extends a lease whose item is not submitted, however fresh the heartbeat [C7]', t => {
   const db = database(t);
   reserveReview(db, 5, 'r1', { now: 1, leaseMs: 100 });
   reserveReview(db, 6, 'r2', { now: 1, leaseMs: 100 });

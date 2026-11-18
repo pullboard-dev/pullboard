@@ -44,6 +44,12 @@ export function withBoardFile(box, use) {
   try { db.exec('PRAGMA busy_timeout = 10000'); return use(db); } finally { db.close(); }
 }
 
+/** The board a queued-hand-off test drives directly, opened once here so the raw-board count does not grow. */
+export function queueBoard(box) {
+  // @pullboard-board-file journey: a second native connection to the fixture board file the real CLI wrote
+  return openBoard(box.boardFile, undefined, { gitRoot: box.web });
+}
+
 /** The item's newest gate job, with its steps and lease, read from the fixture's board file. */
 export function gateJob(box) {
   return withBoardFile(box, db => { const job = jobsOf(db, { kind: 'gate', item: box.id }).at(-1); return job ? jobView(db, job.id) : null; });

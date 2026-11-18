@@ -98,10 +98,14 @@ export function returnedMainReceipts(jobs, db, kind) {
  * @returns {object} the stored verdict payload
  */
 function writeVerdict(jobs, db, id, judged, now) {
-  const payload = judged.verdict === 'green'
+  return jobs.writeStep(db, id, 'verdict', verdictPayload(judged), { now }).payload;
+}
+
+/** The stored verdict for a judged gate: green with the main-owned cases, or red with the candidate's own. */
+function verdictPayload(judged) {
+  return judged.verdict === 'green'
     ? { green: true, mainOwned: judged.mainOwned, receipts: [...new Set(judged.mainOwned.map(row => row.receipt))] }
     : { green: false, own: judged.own, mainOwned: judged.mainOwned };
-  return jobs.writeStep(db, id, 'verdict', payload, { now }).payload;
 }
 
 /**
@@ -111,7 +115,8 @@ function writeVerdict(jobs, db, id, judged, now) {
  *
  * @param {{ jobs: { createJob: Function, writeStep: Function, jobView: Function, jobsOf: Function },
  *   queueMainTest: (db: import('node:sqlite').DatabaseSync, at: { tree: string, file: string, command: string, now: number }) => string,
- *   mainTestKind: string }} ports - the jobs cell, and the drive cell's main-test enqueue and job kind
+ *   mainTestKind: string, verdictRun?: VerdictRuns }} ports - the jobs cell, and the drive cell's main-test enqueue and job kind.
+ *   verdictRun: given while the board's runs_store is on; the verdict is then a run row (awaiting, then done) carrying its record, and no job row is written for it.
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ item: number, candidate: string, base: { commit: string, tree: string, at: number }, command: string,
  *   reds: { file: string, name: string }[], receipts?: Iterable<object>, now?: number }} gate
@@ -119,11 +124,19 @@ function writeVerdict(jobs, db, id, judged, now) {
  */
 export function recordGateVerdict(ports, db, { item, candidate, base, command, reds, receipts = [], now = Date.now() }) {
   const id = gateVerdictJobId(item, candidate);
-  ports.jobs.createJob(db, { id, kind: GATE_VERDICT_KIND, item, candidate, base: base.commit, now });
+  const run = ports.verdictRun;
+  if (!run) ports.jobs.createJob(db, { id, kind: GATE_VERDICT_KIND, item, candidate, base: base.commit, now });
   const judged = judgeMainOwnedReds({ base, command, reds, receipts: [...receipts, ...returnedMainReceipts(ports.jobs, db, ports.mainTestKind)] });
-  if (judged.verdict !== 'pending') return { id, ...judged, queued: [], stored: writeVerdict(ports.jobs, db, id, judged, now) };
+  if (judged.verdict !== 'pending') {
+    if (!run) return { id, ...judged, queued: [], stored: writeVerdict(ports.jobs, db, id, judged, now) };
+    const stored = verdictPayload(judged);
+    run.write(db, { id, item, candidate, base: base.commit, state: 'done', outcome: judged.verdict, record: stored, now });
+    return { id, ...judged, queued: [], stored };
+  }
   const queued = judged.missing.map(file => ports.queueMainTest(db, { tree: base.tree, file, command, now }));
-  ports.jobs.writeStep(db, id, AWAITING_MAIN_STEP, { base, command, reds, missing: judged.missing, queued }, { now });
+  const waiting = { base, command, reds, missing: judged.missing, queued };
+  if (run) run.write(db, { id, item, candidate, base: base.commit, state: 'awaiting', record: waiting, now });
+  else ports.jobs.writeStep(db, id, AWAITING_MAIN_STEP, waiting, { now });
   return { id, ...judged, queued };
 }
 
@@ -148,7 +161,7 @@ export function returnMainTest(jobs, db, job, receipt, { now = Date.now() } = {}
  * item is no longer submitted at its candidate (withdrawn, released or resubmitted at another head) ends in a
  * `withdrawn` step and writes no verdict (SM16); with no `itemSubmittedAt` port, no item is checked.
  *
- * @param {{ jobs: { writeStep: Function, jobsOf: Function }, mainTestKind: string,
+ * @param {{ jobs: { writeStep: Function, jobsOf: Function }, mainTestKind: string, verdictRun?: VerdictRuns,
  *   itemSubmittedAt?: (db: import('node:sqlite').DatabaseSync, item: number, candidate: string) => boolean }} ports
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ now?: number }} [options]
@@ -157,6 +170,7 @@ export function returnMainTest(jobs, db, job, receipt, { now = Date.now() } = {}
 export function finishAwaitingVerdicts(ports, db, { now = Date.now() } = {}) {
   const receipts = returnedMainReceipts(ports.jobs, db, ports.mainTestKind);
   const finished = [];
+  if (ports.verdictRun) return finishAwaitingRuns(ports, db, receipts, now);
   for (const job of ports.jobs.jobsOf(db, { kind: GATE_VERDICT_KIND })) {
     if (job.step !== AWAITING_MAIN_STEP) continue;
     if (ports.itemSubmittedAt && !ports.itemSubmittedAt(db, job.item, job.candidate)) {
@@ -171,3 +185,29 @@ export function finishAwaitingVerdicts(ports, db, { now = Date.now() } = {}) {
   }
   return finished;
 }
+
+/**
+ * finishAwaitingVerdicts over run rows: each awaiting verdict is judged again with the returned receipts, or ends
+ * `withdrawn` when its item is no longer submitted at its candidate; a verdict still missing receipts keeps waiting.
+ */
+function finishAwaitingRuns(ports, db, receipts, now) {
+  const finished = [];
+  for (const row of ports.verdictRun.awaiting(db)) {
+    const { id, item, candidate, record: waiting } = row;
+    if (ports.itemSubmittedAt && !ports.itemSubmittedAt(db, item, candidate)) {
+      ports.verdictRun.write(db, { id, item, candidate, base: waiting.base?.commit ?? null, state: 'withdrawn', outcome: 'withdrawn', record: { item, candidate }, now });
+      continue;
+    }
+    const judged = judgeMainOwnedReds({ base: waiting.base, command: waiting.command, reds: waiting.reds, receipts });
+    if (judged.verdict === 'pending') continue;
+    ports.verdictRun.write(db, { id, item, candidate, base: waiting.base?.commit ?? null, state: 'done', outcome: judged.verdict, record: verdictPayload(judged), now });
+    finished.push({ id, verdict: judged.verdict, mainOwned: judged.mainOwned, own: judged.own });
+  }
+  return finished;
+}
+
+/**
+ * @typedef {object} VerdictRuns - The run rows a verdict is kept on while runs_store is on; the caller's store supplies them.
+ * @property {(db: import('node:sqlite').DatabaseSync, row: { id: string, item: number, candidate: string, base?: string | null, state: 'awaiting'|'done'|'withdrawn', outcome?: string | null, record: object, now?: number }) => unknown} write
+ * @property {(db: import('node:sqlite').DatabaseSync) => { id: string, item: number, candidate: string, record: Record<string, any> }[]} awaiting
+ */

@@ -34,7 +34,7 @@ async function relay() {
   return { state, close: () => new Promise(done => server.close(done)) };
 }
 
-test('clause 1: boardPhones and joinedComputers return the recorded engine integer, or null when none [H17]', async () => {
+test('link.roster-engine.records-engine-or-null: clause 1: boardPhones and joinedComputers return the recorded engine integer, or null when none [H17]', async () => {
   const { state, close } = await relay();
   try {
     const phones = await boardPhones(state);

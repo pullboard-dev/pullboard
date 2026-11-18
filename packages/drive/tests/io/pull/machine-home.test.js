@@ -20,7 +20,7 @@ function inside(folder, path) {
   return rest !== '' && !rest.startsWith('..');
 }
 
-test('clause 1: a test process in a pulled job gets a machine pool inside its own job folder, never the host\'s runner pools [C7]', t => {
+test('drive.machine-home.a-test-process-in-a: clause 1: a test process in a pulled job gets a machine pool inside its own job folder, never the host\'s runner pools [C7]', t => {
   const cache = cacheFolder(t);
   const real = join(cache, 'real-account', '.pullboard');
   const host = { PATH: '/usr/bin:/bin', HOME: join(cache, 'real-account'), PULLBOARD_MACHINE_HOME: real, PULLBOARD_ACCOUNT_HOME: join(cache, 'real-account') };
@@ -31,7 +31,7 @@ test('clause 1: a test process in a pulled job gets a machine pool inside its ow
   assert.equal(env.PULLBOARD_ACCOUNT_HOME, undefined, 'the host account home is not passed down either');
 });
 
-test('clause 2: a pulled gate shard on a runner whose service has no machine home still runs on its own pool, not the account\'s ~/.pullboard [C7]', t => {
+test('drive.machine-home.a-pulled-gate-shard-on: clause 2: a pulled gate shard on a runner whose service has no machine home still runs on its own pool, not the account\'s ~/.pullboard [C7]', t => {
   // 15 Nov: the local runner's service carried only PULLBOARD_ACCOUNT_HOME; its job had neither, read the OS account's
   // ~/.pullboard, and fanned its 10 files out onto the real runners' pools for 37 min.
   const cache = cacheFolder(t);

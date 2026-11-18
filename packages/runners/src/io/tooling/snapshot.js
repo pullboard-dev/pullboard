@@ -22,7 +22,7 @@ let lastCaptureReaders = null;
 const CONTROLLER_STEPS = ['packages/runners/index.js', 'packages/runners/src/io/main.js',
   'packages/runners/src/io/source/scan.js', 'packages/runners/src/io/pack.js',
   'packages/runners/src/io/tooling/remote.js', 'packages/runners/src/io/request.js',
-  'packages/runners/src/io/result.js', 'packages/runners/src/io/dispatch.js',
+  'packages/runners/src/io/result.js', 'packages/runners/src/io/dispatch.js', 'packages/runners/src/io/run-async.js',
   'packages/runners/src/io/health.js'];
 
 /** Read each controller step's bytes, null when absent, so a fixture holding only runners.js still pins. */

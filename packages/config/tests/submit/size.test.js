@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { configFromSource } from '../../index.js';
 
 // AFTER-only validation controls; the original causal case and every assertion above are unchanged.
-test('the item size budget defaults to 100 and rejects invalid board settings [V4,C7]', () => {
+test('config.submit-size.the-item-size-budget-defaults-to-100-and: the item size budget defaults to 100 and rejects invalid board settings [V4,C7]', () => {
   assert.equal(configFromSource('{}').itemSizeBudget, 100);
   for (const budget of [1, 50, 200]) {
     assert.equal(configFromSource(JSON.stringify({ itemSizeBudget: budget })).itemSizeBudget, budget);

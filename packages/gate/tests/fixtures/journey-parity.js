@@ -9,14 +9,18 @@ import { privateFixtureFiles } from './child.js';
 
 const REPOSITORY = resolve(import.meta.dirname, '../../../..');
 
-/** Run one journey's sample in a child node --test in one mode and return each CLI call's record, in call order. */
+/**
+ * Run one journey's sample in a child node --test in one mode and return each CLI call's record, in call order.
+ * PULLBOARD_SUBMIT_MARKS is blanked in both runs: it is a timing diagnostic a runner's environment may set, written straight to the real process's
+ * stderr where an in-process call never sees it, so it would differ in every run for a reason that is not a behaviour difference.
+ */
 export async function runSample(mode, { journey, cases }) {
   const dir = privateFixtureFiles('pullboard-journey-parity-').root;
   const record = join(dir, `${mode}.jsonl`);
   try {
     const pattern = cases.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|');
     const run = await runChildTestsAsync([journey], { cwd: REPOSITORY, args: [`--test-name-pattern=^(?:${pattern})`],
-      env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record } });
+      env: { ...process.env, PULLBOARD_JOURNEY_MODE: mode, PULLBOARD_PARITY_RECORD: record, PULLBOARD_SUBMIT_MARKS: '' } });
     assert.equal(run.status, 0, `the ${mode} run of the ${journey} sample passes:\n${run.stdout.slice(-3000)}\n${run.stderr.slice(-2000)}`);
     assert.equal(run.pass, cases.length, `every sampled case of ${journey} ran in the ${mode} run`);
     return readFileSync(record, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line));

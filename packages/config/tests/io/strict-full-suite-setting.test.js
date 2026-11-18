@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.strictFullSuite'));
 }
 
-test('clause 1: landing.strictFullSuite is false in the defaults and has a description [M2,#9323]', () => {
+test('config.io-strict-full-suite-setting.clause-1-landing-strictfullsuite-is: clause 1: landing.strictFullSuite is false in the defaults and has a description [M2,#9323]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -35,13 +35,13 @@ test('clause 1: landing.strictFullSuite is false in the defaults and has a descr
   assert.equal(withSettings({}, strictFullSuiteEnabled), false);
 });
 
-test('clause 2: a settings read returns true once landing.strictFullSuite is set [M2,#9323]', () => {
+test('config.io-strict-full-suite-setting.clause-2-a-settings-read-returns-true: clause 2: a settings read returns true once landing.strictFullSuite is set [M2,#9323]', () => {
   assert.equal(withSettings({ landing: { strictFullSuite: true } }, strictFullSuiteEnabled), true);
   assert.equal(withSettings({ landing: { strictFullSuite: false } }, strictFullSuiteEnabled), false);
   assert.equal(row({ landing: { strictFullSuite: true } }).value, true);
 });
 
-test('clause 3: a non-boolean landing.strictFullSuite is refused naming the key [M2,#9323]', () => {
+test('config.io-strict-full-suite-setting.clause-3-a-non-boolean-landing: clause 3: a non-boolean landing.strictFullSuite is refused naming the key [M2,#9323]', () => {
   for (const bad of ['yes', 1, null]) {
     assert.throws(() => withSettings({ landing: { strictFullSuite: bad } }, strictFullSuiteEnabled), error => error.code === 'BAD_MACHINE_SETTINGS' && /landing\.strictFullSuite/u.test(error.message));
   }

@@ -74,7 +74,7 @@ function observe(t, live) {
   return { actual: { ...JSON.parse(result.stdout), probes, workerError }, probes, healthLine: result.stderr };
 }
 
-test('an unresponsive exact worker restarts through the pinned idle proof on the next probe [C7]', t => {
+test('resources.unresponsive.an-unresponsive-exact-worker-restarts-through: an unresponsive exact worker restarts through the pinned idle proof on the next probe [C7]', t => {
   const { actual, probes, healthLine } = observe(t, false);
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
@@ -93,7 +93,7 @@ test('an unresponsive exact worker restarts through the pinned idle proof on the
   assert.match(healthLine, /runner fixture-host recovered: pinned worker ready; no live runner process/u);
 });
 
-test('an unresponsive worker with a live job stays held and names its actual pid [C7]', t => {
+test('resources.unresponsive.an-unresponsive-worker-with-a-live: an unresponsive worker with a live job stays held and names its actual pid [C7]', t => {
   const { actual, probes } = observe(t, true);
   assert.equal(actual.recovered, false);
   assert.equal(actual.held.detail, 'WORKER_UNRESPONSIVE');

@@ -15,7 +15,7 @@ const { nativeCommit, nativeFixture, stagedCoordinatorPolicyConflict } = hookFix
 
 
 
-test("merging main brings in main's own changes outside the lane [H16,B26]", (t) => {
+test('doctrine.hooks-main-merge.merging-main-brings-in-main-s-own: merging main brings in main\'s own changes outside the lane [H16,B26]', (t) => {
   const box = nativeFixture(t);
   writeFileSync(join(box.lane, 'core', 'file'), 'lane core\n');
   let result = box.git(box.lane, 'add', '-A');
@@ -38,7 +38,7 @@ test("merging main brings in main's own changes outside the lane [H16,B26]", (t)
     'the exact policy change from main is present in the lane checkout');
 });
 
-test('resolving a foreign main conflict completes the merge and names the coordinator [H16,B26]', (t) => {
+test('doctrine.hooks-main-merge.resolving-a-foreign-main-conflict: resolving a foreign main conflict completes the merge and names the coordinator [H16,B26]', (t) => {
   const { box, mainHead } = stagedCoordinatorPolicyConflict(t);
   const result = nativeCommit(box, box.lane, 'chore: resolve accepted coordinator policy');
   assert.equal(result.status, 0, result.stderr);
@@ -47,7 +47,7 @@ test('resolving a foreign main conflict completes the merge and names the coordi
     'the resolved commit retains the accepted main commit as its second parent');
 });
 
-test('a foreign edit beside a resolved main conflict remains refused [H16,B26]', (t) => {
+test('doctrine.hooks-main-merge.a-foreign-edit-beside-a-resolved-main: a foreign edit beside a resolved main conflict remains refused [H16,B26]', (t) => {
   const { box } = stagedCoordinatorPolicyConflict(t);
   writeFileSync(join(box.lane, 'view', 'file'), 'unrelated foreign edit\n');
   let result = box.git(box.lane, 'add', 'view/file');
@@ -59,7 +59,7 @@ test('a foreign edit beside a resolved main conflict remains refused [H16,B26]',
     'the refused commit did not finish the merge');
 });
 
-test('a mode change on a resolved foreign main conflict remains refused [H16,B26]', (t) => {
+test('doctrine.hooks-main-merge.a-mode-change-on-a-resolved-foreign-main: a mode change on a resolved foreign main conflict remains refused [H16,B26]', (t) => {
   const { box } = stagedCoordinatorPolicyConflict(t);
   chmodSync(join(box.lane, 'pullboard.json'), 0o755);
   const staged = box.git(box.lane, 'add', 'pullboard.json');

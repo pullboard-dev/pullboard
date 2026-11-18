@@ -31,7 +31,7 @@ function offerOne(t, flag) {
   return { board, queue, job };
 }
 
-test('clause 1: with runs_store on, offerLandingJob and reofferLandingJob offer through queueRun and the board holds a queued run row per offer [B2,P7]', t => {
+test('api.landing-queue.runs-store-offerlandingjob-reofferlandingjob-offer: clause 1: with runs_store on, offerLandingJob and reofferLandingJob offer through queueRun and the board holds a queued run row per offer [B2,P7]', t => {
   const { board, queue, job } = offerOne(t, true);
   assert.equal(boardRun(board.db, job.id).run_state, 'queued', 'the board holds the run');
   assert.equal(boardRun(board.db, job.id).run_kind, 'land');
@@ -46,7 +46,7 @@ test('clause 1: with runs_store on, offerLandingJob and reofferLandingJob offer 
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM run').get().n, 2, 'a retried offer writes no second run');
 });
 
-test('clause 2: with runs_store off, both offers write the same board job rows as on main and no run row [B2,P7]', t => {
+test('api.landing-queue.runs-store-off-both-offers: clause 2: with runs_store off, both offers write the same board job rows as on main and no run row [B2,P7]', t => {
   const { board, queue, job } = offerOne(t, false);
   assert.equal(queue, null, 'the flag is off, so there is no queue');
   assert.equal(jobView(board.db, job.id).step, 'offered');

@@ -29,7 +29,7 @@
       { "verb": "reserve", "declared": true, "from": ["submitted"], "to": "submitted", "by": "agent|coordinator", "cause": "next --verify, plain next's mandatory review", "at": "packages/store/src/io/board/reserve/review.js:reserveWithin", "guard": "NOT_SUBMITTED, GATE_PENDING, REVIEW_COOLDOWN, COMPANION_WINDOW, SELF_VERIFY, SAME_FAMILY, REQUIRED_REVIEW_FAMILY, ROUTE, REVIEW_HELD", "emits": "reserve", "harness": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js" },
       { "verb": "accept", "declared": true, "from": ["submitted", "verified"], "to": "verified", "by": "agent|coordinator", "cause": "pullboard verify <id> accept; verified to verified only for a new review on newer engines", "at": "packages/store/src/io/board/verify.js:verify", "guard": "NOT_SUBMITTED, GATE_PENDING, ALREADY_MERGED, SELF_VERIFY, CRITERIA_CHANGED, PROOF_REQUIRED, CHECK_RED", "emits": "accept and a verdict row", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "accept (machine)", "declared": false, "from": ["submitted"], "to": "verified", "by": "coordinator", "cause": "a machine-proved submission is accepted after submit", "at": "packages/verify/src/io/machine.js:acceptMachineSubmission", "guard": "every accept guard passed as null; only the caller's MACHINE_PROOF check and the database proof trigger", "emits": "accept by coordinator", "harness": "NONE" },
-      { "verb": "reject", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard verify <id> reject", "at": "packages/store/src/io/board/verify.js:verify", "guard": "as accept, plus BAD_REASON, NOTE_REQUIRED, BAR_CLAUSE_REQUIRED", "emits": "reject and a verdict row (+hold_item, bar-sharpen)", "harness": "packages/store/tests/any.test.js" },
+      { "verb": "reject", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard verify <id> reject", "at": "packages/store/src/io/board/verify.js:verify", "guard": "as accept, plus BAD_REASON, NOTE_REQUIRED, BAR_CLAUSE_REQUIRED", "emits": "reject and a verdict row (+hold_item, bar-sharpen)", "harness": "packages/board/tests/from-store/any.test.js" },
       { "verb": "reopen", "declared": true, "from": ["submitted", "verified"], "to": "open", "by": "agent|coordinator", "cause": "pullboard reopen; automatic trunk conflict; verdict withdrawal; stale verdict at landing", "at": "packages/store/src/io/board/reopen.js:reopen", "guard": "NOT_SUBMITTED, COORDINATOR_ONLY, ALREADY_MERGED, VERDICT_WITHDRAW_*, NOTE_REQUIRED, BAD_CONFLICT", "emits": "reopen", "harness": "apps/cli/journeys/land/merge.test.js" },
       { "verb": "escalate", "declared": true, "from": ["open", "claimed"], "to": "open", "by": "agent|coordinator", "cause": "pullboard escalate", "at": "packages/store/src/logic/board/escalate.js:escalate", "guard": "CLOSED, NOTE_REQUIRED, NOT_YOURS", "emits": "escalate", "harness": "apps/cli/journeys/verify/machine.test.js" },
       { "verb": "refreeze", "declared": true, "from": ["open", "claimed", "submitted", "verified"], "to": "open", "by": "coordinator", "cause": "pullboard refreeze (edit --criterion)", "at": "packages/store/src/io/board/refreeze.js:refreeze", "guard": "COORDINATOR_ONLY, CLOSED (verified only inside a spec correction, never merged), BAR_NOT_READY", "emits": "refreeze", "harness": "apps/cli/journeys/verify/machine.test.js" },
@@ -69,7 +69,7 @@
       "id": "<hand-off id>",
       "created": "packages/jobs/src/io/shadow.js:shadowSubmitHandoff",
       "serves": "item claimed by the hand-off's seat at its commit and frozen digest, until the gate's green turns into the submit",
-      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "withdrawn", "done"],
+      "states": ["queued", "running", "green", "submitted", "red", "incomplete", "infrastructure", "ownership-wait", "ended", "reoffered", "withdrawn", "done"],
       "terminal": ["green", "submitted", "red", "incomplete", "ownership-wait", "ended", "withdrawn", "done"],
       "lease": "none in production since f226542983; legacy handoff-drive rows carried a 2-minute lease (LEASE_MS)",
       "transitions": [
@@ -85,7 +85,8 @@
         { "from": "queued", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "pullboard gate --withdraw by the item's holder or the coordinator; the running driver is not told", "at": "packages/store/src/io/submit/handoff/retry.js:withdrawGate" },
         { "from": "running", "to": "withdrawn", "trigger": "legacy leased row only: the fallback finds its item no longer submitted at its commit", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
-        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" }
+        { "from": "running", "to": "ended", "trigger": "legacy leased row only: the fallback finds no step for 20 minutes", "at": "packages/drive/src/io/reclaim.js:endDeadGateJobs" },
+        { "from": "ended", "to": "reoffered", "trigger": "gate.reofferInfraEnd is on and the job ended as infrastructure: one more gate job is offered for the same candidate, then this one is done", "at": "packages/drive/src/io/reclaim.js:reofferGateJob" }
       ],
       "servingCheck": { "status": "partial", "at": "packages/store/src/io/submit/handoff/retry.js:startSubmitHandoff", "note": "checked on queue and on queued to running; a running record is resumed with no item check (no driver resumes one since #6580 deleted the hand-off worker). The fallback's predicate is submitted-at-commit (submittedAt), which is the wrong serving state for a pre-submit gate." },
       "harness": "apps/cli/journeys/submit/handoff.test.js"
@@ -544,7 +545,7 @@
         "at": "packages/api/src/io/baseline.js:applyCheckBaselineReceipt",
         "note": "a moved request refuses the result (stale); no driver ends the job on an item move"
       },
-      "harness": "packages/store/tests/check-baseline-worker.test.js"
+      "harness": "packages/board/tests/from-store/check-baseline-worker.test.js"
     },
     {
       "kind": "screen",
@@ -678,7 +679,7 @@
     { "case": "dead seat holding a claim", "current": "the lease runs out; readers see open; the next write frees it with builder first refusal", "intended": "same", "harness": "apps/lib/tests/lapse/claim.test.js" },
     { "case": "heartbeat-only claim (seat alive, no work)", "current": "a live holder heartbeat vetoes expiry; idle maintenance releases it after health.stuck", "intended": "a heartbeat proves the seat, never the work; an untouched claim frees after its idle window", "harness": "apps/lib/tests/lapse/idle.test.js" },
     { "case": "dead reviewer", "current": "the review job lapses after 2 minutes and the item is offered again", "intended": "same", "harness": "packages/moves/tests/logic/moves/reserveNextReview/durable.test.js" },
-    { "case": "red gate", "current": "the hand-off ends red; the builder keeps the claim with a renewed lease and next tells it once", "intended": "same", "harness": "apps/cli/journeys/submit/handoff.test.js" },
+    { "case": "red gate", "current": "the hand-off ends red; the builder keeps the claim with a renewed lease and next tells it once", "intended": "same", "harness": "apps/cli/journeys/submit/handoff/red-and-stop.test.js" },
     { "case": "red notice after the claim lapsed", "current": "next still says the item stays claimed by you until a past time", "intended": "the notice reads the live lease and says the claim lapsed", "harness": "packages/gate/tests/fixtures/pipeline/red-notice-after-the-claim-lapsed.js" },
     { "case": "a red from an older head shown at claim", "current": "returnedRecord shows the newest red or infrastructure gate without matching the current commit", "intended": "only a red at the item's current commit is shown", "harness": "packages/gate/tests/fixtures/pipeline/a-red-from-an-older-head-shown-at-claim.js" },
     { "case": "main moved while an item was in review", "current": "a clean move keeps the verdict; a real conflict reopens the item naming the file", "intended": "same", "harness": "apps/cli/journeys/land/merge.test.js" },

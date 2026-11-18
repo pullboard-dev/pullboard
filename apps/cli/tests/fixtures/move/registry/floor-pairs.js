@@ -6,14 +6,24 @@ function isOptions(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** Merge two option objects, descending into nested plain objects so `receipt` or `batch` keep both options' keys. */
+function mergeOptions(first, second) {
+  const merged = { ...first };
+  for (const [key, value] of Object.entries(second)) {
+    merged[key] = isOptions(value) && isOptions(first[key]) ? mergeOptions(first[key], value) : value;
+  }
+  return merged;
+}
+
 /**
- * Combine two options' arguments slot by slot: option objects merge, any other slot keeps the first one's value.
+ * Combine two options' arguments slot by slot: option objects merge (nested objects too), any other slot keeps the
+ * first one's value.
  * Why: a real move carries both options at once, so the registry sees one argument list.
  */
 export function combineArgs(first, second) {
   const length = Math.max(first.length, second.length);
   return Array.from({ length }, (_, slot) => (isOptions(first[slot]) && isOptions(second[slot])
-    ? { ...first[slot], ...second[slot] } : first[slot] ?? second[slot]));
+    ? mergeOptions(first[slot], second[slot]) : first[slot] ?? second[slot]));
 }
 
 /** The name of a pair, in a stable order, as the allow-list spells it. */

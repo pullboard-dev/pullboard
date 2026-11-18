@@ -20,7 +20,7 @@ function importersOfAppBoardFixture() {
   }
 }
 
-test('no package test file imports the CLI app board test fixture, and the app reaches the package one through the lib door [C7]', () => {
+test('doctrine.kit-board-fixture.no-package-test-file-imports-the-cli-app: no package test file imports the CLI app board test fixture, and the app reaches the package one through the lib door [C7]', () => {
   assert.deepEqual(importersOfAppBoardFixture(), []);
   const door = readFileSync(`${ROOT}apps/lib/tests/fixtures/board.js`, 'utf8');
   assert.match(door, /import \{[^}]*fixtureBoard[^}]*\} from '[./]*packages\/board\/tests\/fixtures\/board\.js'/u);

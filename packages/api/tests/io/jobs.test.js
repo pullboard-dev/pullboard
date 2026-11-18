@@ -5,10 +5,11 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
-import { fetchFresh } from '../../../../apps/cli/tests/fixtures/http.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
+import { fetchFresh } from '../../../sync/tests/fixtures/http.js';
 import { runnerDispatchMode } from '../../../config/index.js';
 import { jobView } from '../../../jobs/index.js';
+import { settledGate } from '../../../jobs/index.js';
 import { createApiHandler } from '../../index.js';
 import { jobQueueCall } from '../../index.js';
 import { offerJob } from '../../index.js';
@@ -18,7 +19,7 @@ function refusalDocument(error) {
   return { error: { code: error.code ?? 'INTERNAL', message: String(error.message) } };
 }
 
-test('clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', async (t) => {
+test('api.jobs.clauses-over-loopback-api-runner: clauses 1-3: over the loopback API a runner claims by capability, a rival gets nothing, and its receipt lands under the job [P7]', async (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-api-');
   const home = join(root, 'machine-home');
   mkdirSync(home, { recursive: true });
@@ -64,7 +65,7 @@ test('clauses 1-3: over the loopback API a runner claims by capability, a rival 
   assert.deepEqual(view.steps.find(step => step.name === 'receipt').payload, { runner: 'r-a', attempt: 1, receipt: { status: 0, digest: 'f00d' } });
 });
 
-test('clause 1: a large-change gate request over 60 KiB is offered with its big parts named, and the runner holding it reads it back whole [P7]', (t) => {
+test('api.jobs.large-change-gate-request-over: clause 1: a large-change gate request over 60 KiB is offered with its big parts named, and the runner holding it reads it back whole [P7]', (t) => {
   const { root } = privateFixtureFiles('pullboard-jobs-large-');
   const db = cellBoard(t, join(root, 'board.sqlite')).db;
   // Shaped as submit's gate request (#5417): inlined entry code, a config whose lanes block grew (#6150), and a change of 2,000 files.
@@ -89,4 +90,21 @@ test('clause 1: a large-change gate request over 60 KiB is offered with its big 
   assert.equal(claim?.job, 'gate:large', 'the large-change job is offered and claimable');
   const input = jobQueueCall(db, { action: 'request', job: 'gate:large', runner: 'r-a', token: claim.token }, { mode: 'pull' });
   assert.deepEqual(input.request, request, 'the runner holding the job reads the whole request back');
+});
+
+test('api.jobs.a-pulled-gate-receipt-holds-queuewaitseconds-claim: clause 1: a pulled gate job receipt holds queueWaitSeconds, its first claim minus its enqueue time, and shows on the settled gate [C7,#10524]', (t) => {
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'gate:wait', kind: 'gate', needs: [] });
+  offerJob(db, { id: 'gate:none', kind: 'gate', needs: [] });
+  db.prepare('UPDATE job SET job_created = 1000000 WHERE job_id IN (?, ?)').run('gate:wait', 'gate:none');
+  const claim = jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now: 1007500 }).claim;
+  const other = jobQueueCall(db, { action: 'claim', runner: 'r-b', capabilities: [] }, { mode: 'pull', now: 1012000 }).claim;
+  const gate = { green: true, phases: [{ role: 'check', status: 0 }] };
+  jobQueueCall(db, { action: 'receipt', job: claim.job, runner: 'r-a', token: claim.token, receipt: { status: 0, gate } }, { mode: 'pull', now: 1020000 });
+  jobQueueCall(db, { action: 'receipt', job: other.job, runner: 'r-b', token: other.token, receipt: { status: 0, digest: 'f00d' } }, { mode: 'pull', now: 1020000 });
+  const waits = Object.fromEntries([claim, other].map(held => [held.job, jobView(db, held.job).steps.find(step => step.name === 'receipt').payload.receipt.queueWaitSeconds]));
+  assert.equal(waits[claim.job], 7.5);
+  assert.equal(waits[other.job], undefined, 'a receipt with no gate is stored as it was posted');
+  const posted = jobView(db, claim.job).steps.find(step => step.name === 'receipt').payload;
+  assert.equal(settledGate(claim.job, posted).queueWaitSeconds, 7.5);
 });

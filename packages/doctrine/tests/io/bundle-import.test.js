@@ -13,7 +13,7 @@ const make = (originBoardId, rules) => {
   return { bundle: { bytes, digest, signatures: [signature] }, key: signature.key };
 };
 
-test('clause 1: a verified bundle imports its rules keyed by origin board and rule id [C7]', () => {
+test('doctrine.io-bundle-import.clause-1-a-verified-bundle-imports-its: clause 1: a verified bundle imports its rules keyed by origin board and rule id [C7]', () => {
   const { bundle, key } = make('board-a', [{ id: 'R1', text: 'one' }, { id: 'R2', text: 'two', originBoardId: 'board-z' }]);
   const imported = importBundle(bundle, [key]);
   assert.equal(imported.digest, bundle.digest);
@@ -22,7 +22,7 @@ test('clause 1: a verified bundle imports its rules keyed by origin board and ru
   assert.equal(imported.rules['board-a'].R2, undefined);
 });
 
-test('clause 1: a bundle that fails verification imports nothing [C7]', () => {
+test('doctrine.io-bundle-import.clause-1-a-bundle-that-fails: clause 1: a bundle that fails verification imports nothing [C7]', () => {
   const { bundle, key } = make('board-a', [{ id: 'R1', text: 'one' }]);
   const tampered = { ...bundle, bytes: bundle.bytes.replace('"one"', '"ONE"') };
   assert.throws(() => importBundle(tampered, [key]), error => error.code === 'BUNDLE_BYTES_CHANGED');
@@ -30,7 +30,7 @@ test('clause 1: a bundle that fails verification imports nothing [C7]', () => {
   assert.throws(() => importBundle(bundle, ['not-the-key']), error => error.code === 'BUNDLE_WRONG_ISSUER');
 });
 
-test('clause 1: origins and rule ids named like inherited properties stay own keys and pollute nothing [C7]', () => {
+test('doctrine.io-bundle-import.clause-1-origins-and-rule-ids-named-like: clause 1: origins and rule ids named like inherited properties stay own keys and pollute nothing [C7]', () => {
   const names = ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf'];
   const { bundle, key } = make('constructor', names.map(id => ({ id, text: `rule ${id}` })).concat(names.map(id => ({ id: 'R1', text: `origin ${id}`, originBoardId: id }))));
   const imported = importBundle(bundle, [key]);
@@ -48,14 +48,14 @@ test('clause 1: origins and rule ids named like inherited properties stay own ke
   assert.equal(({}).R1, undefined);
 });
 
-test('clause 2: ruleIdentity is the same before and after import [C7]', () => {
+test('doctrine.io-bundle-import.clause-2-ruleidentity-is-the-same-before: clause 2: ruleIdentity is the same before and after import [C7]', () => {
   const { bundle, key } = make('board-a', [{ id: 'R1', text: 'one' }]);
   const before = { id: 'R1', text: 'one', originBoardId: 'board-a' };
   const after = importBundle(bundle, [key]).rules['board-a'].R1;
   assert.equal(ruleIdentity(after), ruleIdentity(before));
 });
 
-test('clause 2: two boards using the same rule id each keep their own identity, board and id joined, so the two differ [C7]', () => {
+test('doctrine.io-bundle-import.clause-2-two-boards-using-the-same-rule: clause 2: two boards using the same rule id each keep their own identity, board and id joined, so the two differ [C7]', () => {
   const one = make('board-a', [{ id: 'R1', text: 'x' }]);
   const two = make('board-b', [{ id: 'R1', text: 'x' }]);
   const a = importBundle(one.bundle, [one.key]).rules['board-a'].R1;

@@ -99,7 +99,7 @@ export const SEAT_LOOP = `## Worker loop
 Never wait: submit and move on.
 
 1. \`pullboard next\`: a build or a verify.
-2. \`pullboard show <id>\`: your bar, frozen at claim.
+2. \`next\` printed your bar; \`pullboard show <id>\` only for the thread and history.
 3. **Build** in your lane's folders; pre-commit refuses others.
 4. **Commit**, then \`pullboard submit <id>\`; it returns at once.
 5. **Repeat.** \`next\` returns reds and rejects; fix and resubmit.
@@ -135,6 +135,27 @@ description: 'Run the worker loop on a Pullboard seat: take the next build or ve
 
 # Worker loop
 ${body}`;
+}
+
+/** Where init writes the Codex automation template, relative to the repo root. */
+export const CODEX_AUTOMATION_FILE = '.codex/automations/pullboard-worker.toml';
+
+/**
+ * A Codex automation for the worker loop, generated from SEAT_LOOP so it cannot drift from the AGENTS.md
+ * block [#8534]. It starts paused: the person unpauses it, so init never starts unattended work.
+ *
+ * @returns {string}
+ */
+export function renderCodexAutomation() {
+  const prompt = `Run the Pullboard worker loop on this seat.\n\n${SEAT_LOOP}`;
+  return `version = 1
+id = "pullboard-worker"
+kind = "heartbeat"
+name = "Pullboard worker"
+prompt = ${JSON.stringify(prompt)}
+status = "PAUSED"
+rrule = "FREQ=MINUTELY;INTERVAL=15"
+`;
 }
 
 /** The most words the seat loop may hold; a longer loop is one agents skim past, so trim before raising this. */

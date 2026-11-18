@@ -20,7 +20,7 @@ const CUT = '2026-11-10T00:00:00.000Z';
 const record = (id, over = {}) => ({ event: { id, at: '2026-11-12T00:00:00.000Z' }, snapshot: { item: { status: 'claimed', owner: 'a' } }, move: { name: 'release', actor: 'a' }, recorded: { events: [{ kind: 'release', by: 'a' }] }, ...over });
 const replay = (records) => replayTable(TABLE, RULES, records, { cut: CUT });
 
-test('replay counts agreed, disagreed and not-replayable records [C7,#8069]', () => {
+test('moves.replay.replay-counts-agreed-disagreed-and-not: replay counts agreed, disagreed and not-replayable records [C7,#8069]', () => {
   const report = replay([
     record(1),
     record(2, { recorded: { refused: 'NOT_YOURS' }, move: { name: 'release', actor: 'b' } }),
@@ -34,7 +34,7 @@ test('replay counts agreed, disagreed and not-replayable records [C7,#8069]', ()
   assert.match(report.unreplayable[2].reason, /rules could not read the snapshot: TypeError/);
 });
 
-test('each disagreement names its event id, the recorded outcome and the table outcome [C7,#8069]', () => {
+test('moves.replay.each-disagreement-names-its-event-id: each disagreement names its event id, the recorded outcome and the table outcome [C7,#8069]', () => {
   const report = replay([
     record(11, { recorded: { refused: 'NOT_CLAIMED' } }),
     record(12, { recorded: { events: [{ kind: 'release', by: 'a', note: 'late' }] } }),
@@ -49,7 +49,7 @@ test('each disagreement names its event id, the recorded outcome and the table o
   ]);
 });
 
-test('a record from before the 0.9.4 cut is counted before-cut and never replayed [C7,#8069]', () => {
+test('moves.replay.a-record-from-before-the-0: a record from before the 0.9.4 cut is counted before-cut and never replayed [C7,#8069]', () => {
   let ran = 0;
   const counting = { ...TABLE, outcomes: [{ ...TABLE.outcomes[0], events: (s, m) => { ran++; return TABLE.outcomes[0].events(s, m); } }] };
   const old = record(21, { event: { id: 21, at: '2026-11-09T23:59:59.999Z' }, recorded: { refused: 'NOT_CLAIMED' } });
@@ -60,7 +60,7 @@ test('a record from before the 0.9.4 cut is counted before-cut and never replaye
   assert.equal(replayTable(counting, RULES, [old], { cut: Date.parse(CUT) }).beforeCut, 1);
 });
 
-test('replay needs a cut that parses and a list of records, and never reads the clock or writes a snapshot [C7,#8069]', () => {
+test('moves.replay.replay-needs-a-cut-that-parses: replay needs a cut that parses and a list of records, and never reads the clock or writes a snapshot [C7,#8069]', () => {
   assert.throws(() => replayTable(TABLE, RULES, [], {}), { code: 'REPLAY_CUT' });
   assert.throws(() => replayTable(TABLE, RULES, [], { cut: 'soon' }), { code: 'REPLAY_CUT' });
   assert.throws(() => replayTable(TABLE, RULES, 'nope', { cut: CUT }), { code: 'REPLAY_RECORDS' });

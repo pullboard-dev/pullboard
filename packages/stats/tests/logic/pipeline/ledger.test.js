@@ -89,13 +89,13 @@ function assertTiles(ledger) {
   assert.equal(cursor, ledger.end, `#${ledger.item} hops reach the cycle's end`);
 }
 
-test('tile splits an interval by the latest-started covering span and names the gaps [C7]', () => {
+test('stats.ledger.tile-splits-an-interval-by-the: tile splits an interval by the latest-started covering span and names the gaps [C7]', () => {
   const pieces = tile(0, 100, [{ start: 10, end: 60, label: 'a' }, { start: 20, end: 30, label: 'b' }, { start: 80, end: 200, label: 'c' }], 'gap');
   assert.deepEqual(pieces.map(piece => [piece.label, piece.start, piece.end]),
     [['gap', 0, 10], ['a', 10, 20], ['b', 20, 30], ['a', 30, 60], ['gap', 60, 80], ['c', 80, 100]]);
 });
 
-test('an item ledger names every hop from claim to merged: gate phases, red-gate rework, review, landing steps [C7]', () => {
+test('stats.ledger.an-item-ledger-names-every-hop: an item ledger names every hop from claim to merged: gate phases, red-gate rework, review, landing steps [C7]', () => {
   const fixture = loop();
   const ledger = itemLedger({ item: 7, ...fixture, now: at(90) });
   assert.equal(ledger.totalMs, 56 * MIN);
@@ -114,7 +114,7 @@ test('an item ledger names every hop from claim to merged: gate phases, red-gate
   assert.equal(ledger.compute.testFiles, 5);
 });
 
-test('tokens follow the seat that held the item: builder in its seat and item folder, reviewer, coordinator apart [C7,N2]', () => {
+test('stats.ledger.tokens-follow-the-seat-that-held: tokens follow the seat that held the item: builder in its seat and item folder, reviewer, coordinator apart [C7,N2]', () => {
   const fixture = loop();
   const { agents, sessions: logs } = sessions();
   const seatEvents = fixture.events;
@@ -140,7 +140,7 @@ test('tokens follow the seat that held the item: builder in its seat and item fo
   assert.ok(lines.some(line => /^ {2}gate\.tests\s+1\s/u.test(line)), 'gate phases print under the gate hop');
 });
 
-test('audit: every second of every item\'s claim-to-end time is attributed to a hop, unattributed under 1% [C7]', () => {
+test('stats.ledger.audit-every-second-of-every-item: audit: every second of every item\'s claim-to-end time is attributed to a hop, unattributed under 1% [C7]', () => {
   const events = [];
   const gateSpans = [];
   for (let item = 1; item <= 12; item += 1) {
@@ -208,7 +208,7 @@ function bucketSum(buckets) {
   return buckets.reduce((sum, bucket) => ({ fresh: sum.fresh + bucket.fresh, read: sum.read + bucket.read, write: sum.write + bucket.write, out: sum.out + bucket.out }), { fresh: 0, read: 0, write: 0, out: 0 });
 }
 
-test('a Claude transcript folds into thinking, waiting and idle time, and a streamed message counts its tokens once [C7,N2]', () => {
+test('stats.ledger.a-claude-transcript-folds-into-thinking: a Claude transcript folds into thinking, waiting and idle time, and a streamed message counts its tokens once [C7,N2]', () => {
   const out = { segments: [], buckets: [] };
   foldText(newFold('claude'), jsonl(claudeRows('/w/seat-1')), out);
   assert.deepEqual(out.segments.map(segment => [segment.k, (segment.s - T0) / 1000, (segment.e - T0) / 1000]),
@@ -217,7 +217,7 @@ test('a Claude transcript folds into thinking, waiting and idle time, and a stre
   assert.ok(out.segments.slice(1).every(segment => segment.m === BUILDER_MODEL));
 });
 
-test('a Codex rollout folds into turns, command time from completed commands, and per-response usage [C7,N2]', () => {
+test('stats.ledger.a-codex-rollout-folds-into-turns: a Codex rollout folds into turns, command time from completed commands, and per-response usage [C7,N2]', () => {
   const out = { segments: [], buckets: [] };
   foldText(newFold('codex'), jsonl(codexRows('/w/seat-3')), out);
   assert.deepEqual(out.segments.map(segment => [segment.k, (segment.s - T0) / 1000, (segment.e - T0) / 1000]),
@@ -226,7 +226,7 @@ test('a Codex rollout folds into turns, command time from completed commands, an
   assert.equal(out.buckets[0].m, REVIEWER_MODEL);
 });
 
-test('a coordinator subagent driving a seat through its wrapper or a cd is credited to that seat, not the coordinator [C7,N2]', () => {
+test('stats.ledger.a-coordinator-subagent-driving-a-seat: a coordinator subagent driving a seat through its wrapper or a cd is credited to that seat, not the coordinator [C7,N2]', () => {
   const usage = { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 9 };
   const main = '/w/repo';
   const rows = [
@@ -261,7 +261,7 @@ function scratch(t) {
   return { home: join(root, 'home'), repo, commonDir };
 }
 
-test('session logs are read once: a later read folds only the bytes a log gained, and matches a full fold [C7,N2]', t => {
+test('stats.ledger.session-logs-are-read-once-a: session logs are read once: a later read folds only the bytes a log gained, and matches a full fold [C7,N2]', t => {
   const { home, repo } = scratch(t);
   const claudeFolder = join(home, '.claude', 'projects', claudeProjectName(repo));
   const codexFolder = join(home, '.codex', 'sessions', '2026', '11', '09');
@@ -290,7 +290,7 @@ test('session logs are read once: a later read folds only the bytes a log gained
   assert.equal(readSessions(window).parsed, 0, 'an unchanged log is not read at all');
 });
 
-test('readPipelineLedger joins a real SQLite board, span files and receipts, and traces one item [C7]', t => {
+test('stats.ledger.readpipelineledger-joins-a-real-sqlite-board: readPipelineLedger joins a real SQLite board, span files and receipts, and traces one item [C7]', t => {
   const { home, commonDir } = scratch(t);
   const fixture = loop();
   const db = new DatabaseSync(join(commonDir, 'pullboard', 'board.sqlite'));

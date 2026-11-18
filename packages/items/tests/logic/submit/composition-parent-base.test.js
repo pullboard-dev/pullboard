@@ -23,7 +23,7 @@ function history() {
   return { root, run, initial, hotfix, main, side };
 }
 
-test('clause 1: a head that is an ancestor of main but not its tip passes when the base is its parent [C7,V4]', () => {
+test('items.composition.ancestor-parent-base: clause 1: a head that is an ancestor of main but not its tip passes when the base is its parent [C7,V4]', () => {
   const f = history();
   assert.throws(() => requireSubmitComposition(f.root, f.hotfix, { commit: f.main }, f.main), e => e.code === 'MAIN_NOT_COMPOSED', 'without the parent base the old rule holds');
   assert.doesNotThrow(() => requireSubmitComposition(f.root, f.hotfix, { commit: f.main }, f.main, f.initial));
@@ -31,7 +31,7 @@ test('clause 1: a head that is an ancestor of main but not its tip passes when t
   assert.throws(() => requireSubmitComposition(f.root, f.hotfix, { commit: f.main }, f.initial, f.initial), e => e.code === 'MAIN_NOT_COMPOSED', 'a different authority snapshot is still refused');
 });
 
-test('clause 2: a head not on main still refuses MAIN_NOT_COMPOSED until it contains main [C7,V4]', () => {
+test('items.composition.off-main-refuses: clause 2: a head not on main still refuses MAIN_NOT_COMPOSED until it contains main [C7,V4]', () => {
   const f = history();
   assert.throws(() => requireSubmitComposition(f.root, f.side, { commit: f.main }, f.main, f.initial), e => e.code === 'MAIN_NOT_COMPOSED', 'the side head is not in main history, so its parent base does not excuse it');
   f.run('merge', '-qm', 'test: composition', f.main);

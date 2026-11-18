@@ -70,8 +70,37 @@ export function labelRows(declared, items, context = {}) {
   return [...holders.keys()].sort().map(label => {
     const { min = null, max = null } = declared?.[label] ?? {};
     const who = [...holders.get(label)].sort();
-    return { label, min, max, holders: who, unmet: min !== null && who.length < min };
+    return { label, min, max, holders: who, unmet: min !== null && who.length < min, capped: max !== null && who.length >= max };
   });
+}
+
+/**
+ * The labels an item carries that already have as many holders as their declared max, so a pin on it must not win [N2,B13,#9165].
+ * Why pure: `next` and the labels listing both ask it, so the offer and the listing agree on what is capped.
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item, to count each label's holders.
+ * @param {object} item - The item asked about.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {string[]} Sorted capped labels the item carries; empty when it is free to offer.
+ */
+export function cappedLabelsOf(declared, items, item, context = {}) {
+  if (item.item_status === 'claimed') return [];
+  const mine = new Set(itemLabels(item, context));
+  return labelRows(declared, items, context).filter(row => row.capped && mine.has(row.label)).map(row => row.label);
+}
+
+/**
+ * The first candidate, in queue order, that carries no label at its max, or null when every candidate is capped [N2,B13,#9165].
+ *
+ * @param {Record<string, { min?: number, max?: number }>} declared - The validated `labels` declaration.
+ * @param {Array<object>} items - Every board item.
+ * @param {Array<object>} candidates - Items this agent could serve, in queue order.
+ * @param {{ brokenMain?: boolean }} [context] - Passed to itemLabels for every item.
+ * @returns {object | null}
+ */
+export function firstUnderLabelMax(declared, items, candidates, context = {}) {
+  return candidates.find(item => !cappedLabelsOf(declared, items, item, context).length) ?? null;
 }
 
 /**

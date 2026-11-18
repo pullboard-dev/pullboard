@@ -17,7 +17,7 @@ function snapshot(pace = 'sprint') {
 }
 const select = (s) => runTable(ENGINE.tables.select, ENGINE.rules, structuredClone(s), { name: 'select', id: ID });
 
-test('clause 1: a sprint item with a screen receipt from an older base is refused at landing-select with SCREEN_PENDING [M2,V3]', () => {
+test('moves.landing-screen.a-sprint-item-with-a-screen-receipt: clause 1: a sprint item with a screen receipt from an older base is refused at landing-select with SCREEN_PENDING [M2,V3]', () => {
   assert.deepEqual(select(snapshot()).via, ['ready'], 'screened on the current base, it lands');
   const s = snapshot();
   s.io.screen.base = 'b1';
@@ -26,14 +26,14 @@ test('clause 1: a sprint item with a screen receipt from an older base is refuse
   assert.equal(select(s).refused?.code, 'SCREEN_PENDING', 'no screen at all');
 });
 
-test('clause 2: a sprint item whose bar changed since claim is refused with CRITERIA_CHANGED [M2,V3]', () => {
+test('moves.landing-screen.a-sprint-item-whose-bar-changed-since: clause 2: a sprint item whose bar changed since claim is refused with CRITERIA_CHANGED [M2,V3]', () => {
   const s = snapshot();
   s.item.digest = 'd2';
   s.io.screen.digest = 'd2';
   assert.deepEqual([select(s).refused?.code, select(s).refused?.row], ['CRITERIA_CHANGED', 'a6-bar-frozen']);
 });
 
-test('#8865: steady reads neither the screen nor the Always rows, and a screen without the trusted re-check does not land a sprint item [M2,V3]', () => {
+test('moves.landing-screen.case-8865-steady-reads-neither-the-screen-nor: #8865: steady reads neither the screen nor the Always rows, and a screen without the trusted re-check does not land a sprint item [M2,V3]', () => {
   const steady = { ...snapshot('steady'), io: {} };
   steady.item.status = 'verified';
   steady.item.claimDigest = 'd0';

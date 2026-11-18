@@ -49,7 +49,7 @@ function slice(script, from, to) {
 
 /** Run the page's boardState against explicit API replies, recording every path it asks for. */
 function sidebarReader(boards, { summaryServed = true } = {}) {
-  const script = pageScriptPart3({ applyStateDelta, expandItemSummaries });
+  const script = pageScriptPart3({ applyStateDelta, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, expandItemSummaries });
   const source = slice(script, '/**\n * An opened board', '/** Format an API-measured')
     + slice(script, '/**\n * What the page last drew', '/** Whether a board state already carries');
   const paths = [];

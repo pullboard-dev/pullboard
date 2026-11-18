@@ -133,3 +133,28 @@ export async function shoutConflictedReviews(ctx, board, ordered) {
   }
   return shouted;
 }
+
+/**
+ * Shout the coordinator once per green submission that has waited past review.starveMinutes with no eligible reviewer, naming
+ * each guard that refuses the seats. One shout per head commit: an unchanged submission stays quiet on every later sweep.
+ * Why: #2940 #2943 #2948 sat green for hours while ten seats were live and nobody saw which guard refused them (#9682).
+ */
+export async function shoutStarvedReviews(ctx, board, ordered) {
+  const minutes = ctx.config.review?.starveMinutes ?? 5;
+  const seats = listAgents(board).filter(seat => seat.agent_id !== 'coordinator');
+  const shouted = [];
+  for (const row of greenReviews(board, listItems(board), board.clock.now().getTime())) {
+    if (row.ageMs <= minutes * 60_000) continue;
+    const refusals = seats.map(seat => eligibilityProblem(board, row.item, seat, { policy: ctx.config.verify?.policy, familyPolicy: ctx.config.verify?.family })?.code ?? null);
+    if (refusals.includes(null)) continue;
+    const marker = `Stuck: review starved. #${row.item.item_id} (${String(row.item.item_commit).slice(0, 12)})`;
+    if (board.db.prepare("SELECT 1 FROM shout WHERE shout_from='sentinel' AND shout_to='coordinator' AND shout_text LIKE ?").get(`${marker}%`)) continue;
+    const counts = new Map();
+    for (const code of refusals) counts.set(code, (counts.get(code) ?? 0) + 1);
+    const guards = [...counts].sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]))).map(([code, n]) => `${code} x${n}`).join(', ') || 'no seat joined';
+    await ordered(ctx, board, 'shout', [{ from: 'sentinel', to: 'coordinator', lanes: [], kind: 'blocker',
+      text: `${marker} is green and has waited ${Math.floor(row.ageMs / 60_000)} minutes with no eligible reviewer. Refused by: ${guards}.` }]);
+    shouted.push(row.item.item_id);
+  }
+  return shouted;
+}

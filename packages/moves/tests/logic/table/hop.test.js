@@ -19,7 +19,7 @@ const hop = (over = {}) => ({ state: 'driven', owner: 'a', epoch: 2, leaseUntil:
 const snap = (over = {}) => ({ item: item(), hop: hop(), now: NOW, ...over });
 const run = (snapshot, move) => runTable(HOP_TABLE, HOP_RULES, snapshot, move);
 
-test('a step or finish from a non-holder or a stale owner epoch is HOP_FENCED, and nothing is written [C7,#8068]', () => {
+test('moves.hop.a-step-or-finish-from-a-non-holder: a step or finish from a non-holder or a stale owner epoch is HOP_FENCED, and nothing is written [C7,#8068]', () => {
   for (const name of ['step', 'finish']) {
     for (const move of [{ name, actor: 'b', epoch: 2 }, { name, actor: 'a', epoch: 1 }, { name, actor: 'a', epoch: 3 }, { name, actor: 'a', epoch: undefined }]) {
       const answer = run(snap(), move);
@@ -34,7 +34,7 @@ test('a step or finish from a non-holder or a stale owner epoch is HOP_FENCED, a
   assert.match(old.refused.message, /owner b at epoch 3/);
 });
 
-test('acquire succeeds only on a queued or lapsed hop, and bumps the owner epoch [C7,#8068]', () => {
+test('moves.hop.acquire-succeeds-only-on-a-queued-or: acquire succeeds only on a queued or lapsed hop, and bumps the owner epoch [C7,#8068]', () => {
   const queued = run(snap({ hop: hop({ state: 'queued', owner: null, epoch: 0, leaseUntil: 0 }) }), { name: 'acquire', actor: 'b' });
   assert.deepEqual(queued.patch.hop, { ...hop({ state: 'driven', owner: 'b', epoch: 1, leaseUntil: NOW + LEASE_MS }) });
   const lapsed = run(snap({ hop: hop({ leaseUntil: NOW - 1 }) }), { name: 'acquire', actor: 'b' });
@@ -47,7 +47,7 @@ test('acquire succeeds only on a queued or lapsed hop, and bumps the owner epoch
   assert.equal(run(snap({ item: item({ commit: 'c2' }), hop: hop({ leaseUntil: NOW - 1 }) }), { name: 'acquire', actor: 'b' }).refused.code, 'HOP_ITEM_MOVED');
 });
 
-test('the third driver death ends the hop instead of handing it on [C7,#8068]', () => {
+test('moves.hop.the-third-driver-death-ends-the-hop: the third driver death ends the hop instead of handing it on [C7,#8068]', () => {
   const dead = (attempts) => run(snap({ hop: hop({ leaseUntil: NOW - 1, attempts }) }), { name: 'acquire', actor: 'b' });
   assert.equal(HOP_ATTEMPT_CAP, 3);
   assert.equal(dead(HOP_ATTEMPT_CAP - 2).patch.hop.state, 'driven');
@@ -56,7 +56,7 @@ test('the third driver death ends the hop instead of handing it on [C7,#8068]', 
   assert.equal(capped.patch.hop.epoch, 3);
 });
 
-test('a queued acquire is not a death, create is once per commit, and only an item move ends the hop [C7,#8068]', () => {
+test('moves.hop.a-queued-acquire-is-not-a-death: a queued acquire is not a death, create is once per commit, and only an item move ends the hop [C7,#8068]', () => {
   const queuedAgain = run(snap({ hop: hop({ state: 'queued', owner: null, attempts: 2, leaseUntil: 0 }) }), { name: 'acquire', actor: 'b' });
   assert.equal(queuedAgain.patch.hop.attempts, 2);
   const made = run({ item: item(), hop: null, now: NOW }, { name: 'create' });
@@ -73,14 +73,14 @@ test('a queued acquire is not a death, create is once per commit, and only an it
   assert.equal(run(snap(), { name: 'nap', actor: 'a' }).refused.code, 'HOP_UNKNOWN_MOVE');
 });
 
-test('the hop needs the job lease rule handed in, and its lease length is the table lease [C7,#8068]', () => {
+test('moves.hop.the-hop-needs-the-job-lease-rule: the hop needs the job lease rule handed in, and its lease length is the table lease [C7,#8068]', () => {
   assert.throws(() => hopEngine({}), { code: 'HOP_LEASE' });
   const queued = hop({ state: 'queued', owner: null, epoch: 0, leaseUntil: 0 });
   const short = hopEngine({ leaseMs: 5, leaseLapsed });
   assert.equal(runTable(short.table, short.rules, snap({ hop: queued }), { name: 'acquire', actor: 'b' }).patch.hop.leaseUntil, NOW + 5);
 });
 
-test('explain reads the hop table in order from the rule words its guards run [C7,#8068]', () => {
+test('moves.hop.explain-reads-the-hop-table-in-order: explain reads the hop table in order from the rule words its guards run [C7,#8068]', () => {
   const explained = explainTable(HOP_TABLE, HOP_RULES);
   assert.equal(explained.guards.find(guard => guard.code === 'HOP_FENCED').says, HOP_RULES.fenced.says);
   assert.deepEqual(explained.outcomes.map(outcome => outcome.id), ['create', 'take', 'retake', 'cap', 'step', 'finish', 'end']);
@@ -103,7 +103,7 @@ function generate(g) {
   return { snapshot: base, move, breaks: { fenced: (s, m) => ({ snapshot: s, move: { ...m, epoch: m.epoch + 1 } }), serving: (s, m) => ({ snapshot: moved(s), move: m }), present: (s, m) => ({ snapshot: { ...s, hop: null }, move: m }), live: (s, m) => ({ snapshot: { ...s, hop: { ...s.hop, state: 'done' } }, move: m }) } };
 }
 
-test('generated cases reach every hop row, never write while refusing, and fail each guard when its fact is broken [C7,#8068]', () => {
+test('moves.hop.generated-cases-reach-every-hop-row-never: generated cases reach every hop row, never write while refusing, and fail each guard when its fact is broken [C7,#8068]', () => {
   const report = tableCases(HOP_TABLE, HOP_RULES, generate, { seed: 8068, count: 600 });
   assert.deepEqual(report.writingRefusals, []);
   assert.deepEqual(report.unbroken, []);
@@ -155,7 +155,7 @@ function simulate(seed) {
   return { state, accepted };
 }
 
-test('generated fault sequences over two drivers never reach a double drive, debris, a zombie or a lost result [C7,#8068]', () => {
+test('moves.hop.generated-fault-sequences-over-two-drivers-never: generated fault sequences over two drivers never reach a double drive, debris, a zombie or a lost result [C7,#8068]', () => {
   let capped = 0, finished = 0, ended = 0, takenOver = 0;
   for (let seed = 1; seed <= 400; seed++) {
     const { state, accepted } = simulate(seed);

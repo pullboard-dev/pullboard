@@ -36,6 +36,10 @@
       "cells": 2,
       "deep": 0
     },
+    "apps/cli/src/io/cells/cache.js": {
+      "cells": 4,
+      "deep": 0
+    },
     "apps/cli/src/io/claim.js": {
       "cells": 10,
       "deep": 1
@@ -1345,11 +1349,15 @@
       "deep": 0
     },
     "apps/view/src/io/serve.js": {
-      "cells": 14,
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/io/session.js": {
       "cells": 3,
+      "deep": 0
+    },
+    "apps/view/src/io/state.js": {
+      "cells": 11,
       "deep": 0
     },
     "apps/view/src/logic/main.js": {
@@ -1535,10 +1543,6 @@
     "packages/codemap/src/io/cells/plan/cuts.js": {
       "cells": 2,
       "deep": 2
-    },
-    "packages/codemap/src/io/cells/scripts/cache.js": {
-      "cells": 4,
-      "deep": 0
     },
     "packages/codemap/src/io/cells/scripts/plan.js": {
       "cells": 5,
@@ -3888,10 +3892,6 @@
       "cells": 3,
       "deep": 0
     },
-    "packages/store/src/io/board/patch/remove.js": {
-      "cells": 1,
-      "deep": 0
-    },
     "packages/store/src/io/board/ports.js": {
       "cells": 4,
       "deep": 1
@@ -4246,14 +4246,6 @@
     },
     "packages/store/tests/fixtures/dispatch.js": {
       "cells": 2,
-      "deep": 0
-    },
-    "packages/store/tests/fixtures/stats/compare.js": {
-      "cells": 3,
-      "deep": 0
-    },
-    "packages/store/tests/fixtures/stats/time.js": {
-      "cells": 3,
       "deep": 0
     },
     "packages/sync/src/io/git/lock.js": {
@@ -5983,10 +5975,6 @@
     }
   },
   "packageApps": {
-    "packages/gate/tests/fixtures/resources/lease.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
     "packages/gate/tests/fixtures/resources/runner.js": [
       "apps/cli"
     ],
@@ -6004,14 +5992,6 @@
     ],
     "packages/store/tests/fixtures/dispatch.js": [
       "apps/cli"
-    ],
-    "packages/store/tests/fixtures/stats/compare.js": [
-      "apps/cli",
-      "apps/lib"
-    ],
-    "packages/store/tests/fixtures/stats/time.js": [
-      "apps/cli",
-      "apps/lib"
     ]
   },
   "lightDoors": {

@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-tree */
 /** @pullboard-world-pin reads the page script text readCostHistory is served in, and runs it against stand-in page globals. */
 /** The Cost tab reads cost-analytics once per window and again only on cost-bearing events, keeping its numbers meanwhile [N26]. */
 import assert from 'node:assert/strict';
@@ -7,7 +6,7 @@ import { pageScriptPart3 } from '../../../index.js';
 
 /** Build the served readCostHistory against a stand-in page whose cost-analytics replies the test releases. */
 function page() {
-  const script = pageScriptPart3({ applyStateDelta() {}, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
+  const script = pageScriptPart3({ applyStateDelta() {}, deriveMilestoneForecasts: function deriveMilestoneForecasts(state) { return state; }, costPrices: {}, costTabScript: () => '', expandItemSummaries() {}, privateCost: true });
   const start = script.indexOf('function readCostHistory'), end = script.indexOf('function costPaneHtml');
   const source = script.slice(start, end);
   const calls = [], waiting = [], drawn = [], logs = [];

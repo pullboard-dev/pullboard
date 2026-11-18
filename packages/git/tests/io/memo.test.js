@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { createGitMemo } from '../../src/io/memo.js';
-import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 
 /** A real repository with one commit, and a memo whose runner counts the git processes it spawns. */
 function fixture() {
@@ -22,7 +22,7 @@ function fixture() {
   return { root, memo, spawned, files };
 }
 
-test('the same read-only git call run twice through the memo spawns git once [C7]', () => {
+test('git.memo.read-twice-once: the same read-only git call run twice through the memo spawns git once [C7]', () => {
   const { root, files, memo, spawned } = fixture();
   try {
     files.write('new.txt', 'x\n');
@@ -37,7 +37,7 @@ test('the same read-only git call run twice through the memo spawns git once [C7
   } finally { /* the private fixture lives in the temp folder */ }
 });
 
-test('a git write through the memo clears it [C7]', () => {
+test('git.memo.write-clears: a git write through the memo clears it [C7]', () => {
   const { root, files, memo, spawned } = fixture();
   try {
     files.write('b.txt', 'b\n');
@@ -49,7 +49,7 @@ test('a git write through the memo clears it [C7]', () => {
   } finally { /* the private fixture lives in the temp folder */ }
 });
 
-test('a different folder or arguments never share a result [C7]', () => {
+test('git.memo.folder-args-separate: a different folder or arguments never share a result [C7]', () => {
   const one = fixture();
   const two = fixture();
   try {

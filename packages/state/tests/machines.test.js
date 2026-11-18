@@ -113,7 +113,7 @@ function named(page, value) {
   return page.includes('`' + value + '`');
 }
 
-test('every item status and declared move is in the map and the page, and every refused move is listed [C7]', () => {
+test('state.machines.every-item-status-and-declared-move-is: every item status and declared move is in the map and the page, and every refused move is listed [C7]', () => {
   const page = section();
   assert.deepEqual(MAP.item.statuses.map(state => state.id).sort(), STATES.map(state => state.id).sort(), 'the map names exactly the declared statuses');
   for (const state of STATES) {
@@ -138,7 +138,7 @@ test('every item status and declared move is in the map and the page, and every 
   for (const pair of refused) assert.ok(page.includes(pair.replace('>', ' → ')), `the page lists the refused change ${pair}`);
 });
 
-test('every job kind and step the code writes is in the map and the page, and every mapped one is in the code [C7]', () => {
+test('state.machines.every-job-kind-and-step-the-code-writes: every job kind and step the code writes is in the map and the page, and every mapped one is in the code [C7]', () => {
   const page = section();
   const kinds = new Set();
   for (const source of SOURCES) {
@@ -166,7 +166,7 @@ test('every job kind and step the code writes is in the map and the page, and ev
   }
 });
 
-test('every citation names a function in an existing file, and every harness exists or is NONE [C7]', () => {
+test('state.machines.every-citation-names-a-function-in-an: every citation names a function in an existing file, and every harness exists or is NONE [C7]', () => {
   const problems = [];
   const visit = (value, where) => {
     if (typeof value === 'string') {
@@ -187,7 +187,7 @@ test('every citation names a function in an existing file, and every harness exi
   assert.deepEqual(problems, []);
 });
 
-test('every next branch that can hand out a wrong state, and every job that outlives its item, names a gap the page lists [C7]', () => {
+test('state.machines.every-next-branch-that-can-hand-out-a: every next branch that can hand out a wrong state, and every job that outlives its item, names a gap the page lists [C7]', () => {
   const page = section();
   const gaps = new Set(MAP.gaps.map(gap => gap.id));
   for (const branch of MAP.next) {

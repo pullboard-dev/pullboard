@@ -22,7 +22,7 @@ function queueWith(holders) {
   return { db, home };
 }
 
-test('clause 1: a quarantine heal on a runner with a holder never calls the leak stop and records the runner was busy [C7]', async () => {
+test('resources.jobs.a-quarantine-heal-on-a-runner: clause 1: a quarantine heal on a runner with a holder never calls the leak stop and records the runner was busy [C7]', async () => {
   const { db, home } = queueWith(['live-1']);
   try {
     const proof = await healLeakedRunner(db, row, { host: HOST }, unhealthy,

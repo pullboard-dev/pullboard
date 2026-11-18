@@ -6,7 +6,7 @@ import { FILE_EXIT_LINE } from '../../src/io/shards.js';
 import { FILE_TIME_LINE } from '../../src/io/shards.js';
 import { shardFileLines } from '../../src/io/shards.js';
 
-test('clause 1: a landing shard prints one exit line per test file, keeping the worst exit code when a file ran twice [C7]', () => {
+test('landing.file-exits.a-landing-shard-prints-one-exit: clause 1: a landing shard prints one exit line per test file, keeping the worst exit code when a file ran twice [C7]', () => {
   const record = [
     { file: 'apps/a.test.js', ms: 1200, code: 0 },
     { file: 'apps/b.test.js', ms: 900, code: 1 },

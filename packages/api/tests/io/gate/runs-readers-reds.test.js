@@ -36,7 +36,7 @@ function redGate(db, id, repo, runner) {
   return job;
 }
 
-test('clause 1: with runs_store on, pulledGateReds reads the done gate from the runs file as it reads the job rows with it off [P7,#9150]', t => {
+test('api.gate-runs-readers-reds.runs-store-pulledgatereds-reads-done: clause 1: with runs_store on, pulledGateReds reads the done gate from the runs file as it reads the job rows with it off [P7,#9150]', t => {
   const on = setup(t), off = setup(t);
   for (const [one, db] of [[on, on.runs.db], [off, off.board.db]]) {
     const job = redGate(db, one.id, one.repo, 'r-9150');
@@ -48,7 +48,7 @@ test('clause 1: with runs_store on, pulledGateReds reads the done gate from the 
   assert.deepEqual(pulledGateReds(on.board, on.id), [], 'the board holds no job row of its own');
 });
 
-test('clause 1: with runs_store on, recordPhaseReceipts names the runner from the runs file receipt row, and reportRunaway names the land job items from its offered row [P7,#9150]', t => {
+test('api.gate-runs-readers-reds.runs-store-recordphasereceipts-names-runner: clause 1: with runs_store on, recordPhaseReceipts names the runner from the runs file receipt row, and reportRunaway names the land job items from its offered row [P7,#9150]', t => {
   const { board, repo, seat, id, runs } = setup(t);
   const job = redGate(runs.db, id, repo, 'r-from-runs');
   const seen = [];
@@ -65,7 +65,7 @@ test('clause 1: with runs_store on, recordPhaseReceipts names the runner from th
   assert.ok(store.itemThread(board, id).some(fact => String(fact.text).startsWith(`Land job ${land} was released to the lane`)), 'the item is noted from the runs file offer');
 });
 
-test('clause 2: with runs_store off (the default) the three read the board exactly as on main [P7,#9150]', t => {
+test('api.gate-runs-readers-reds.runs-store-off-default-three: clause 2: with runs_store off (the default) the three read the board exactly as on main [P7,#9150]', t => {
   const { board, repo, seat, id } = setup(t);
   const job = redGate(board.db, id, repo, 'r-board');
   store.appendFact(board, id, { agentId: seat.id, kind: 'measurement', text: `Gate job ${job} red at ${repo.commit.slice(0, 12)}` });

@@ -33,6 +33,7 @@ import {
 import { readBoardKey } from '../../../keys/index.js';
 import { leaveConflictNotice } from './relay/conflicts.js';
 import { withOutboxGuard } from './relay/guard.js';
+import { behindDeviceOptions } from '../../../link/index.js';
 import { transientRelayFailure } from '../../../link/index.js';
 import {
   RECOVER_COMMAND,
@@ -371,9 +372,22 @@ async function finishEntry(link, outbox, where, key) {
 
 export { outboxFields } from '../../light.js';
 
-/** Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21). */
+/**
+ * Whether this command may queue a move in the ordered outbox: the board's relay.outbox setting, on unless opted out (#922,H21),
+ * or the machine's relay.queueOnFailure, which queues a move on a down relay even with the outbox off (#9410).
+ */
 function outboxEnabled(io) {
-  try { return io?.relayOutbox?.() === true; } catch { return false; }
+  try { if (io?.relayOutbox?.() === true) return true; } catch { /* fall through to the machine setting */ }
+  try { return io?.relayQueueOnFailure?.() === true; } catch { return false; }
+}
+
+/** Codes of a stale or missing relay key and a needed sign-in: queueable only with the machine's relay.queueOnFailure on (#9892). */
+const KEY_FAILURE_CODES = ['SEAL_AUTH_FAILED', 'SEAL_KEY', 'RELAY_KEY_MISSING', 'RELAY_KEY_FILE_ENV_MISMATCH', 'AUTH_REQUIRED'];
+
+/** Whether relay.queueOnFailure is on and the error is a key or sign-in failure, which the user fixes later while the move waits. */
+function queueableKeyFailure(error, io) {
+  if (!KEY_FAILURE_CODES.includes(error?.code)) return false;
+  try { return io?.relayQueueOnFailure?.() === true; } catch { return false; }
 }
 
 /**
@@ -385,7 +399,7 @@ export function outboxQueueable(state, error, operation, io, args = []) {
   return state.mode === 'ordered' && state.baselineAccepted === true && !state.baselineConflict && !state.environment
     && process.env.PULLBOARD_RELAY_TOKEN === undefined && !io?.relayCanary && !io?.personRequest && !io?.personRequestMoveId
     && !ACKNOWLEDGED_OPERATIONS.includes(operation)
-    && !args.some(arg => arg?.landingFence !== undefined) && transientRelayFailure(error) && outboxEnabled(io);
+    && !args.some(arg => arg?.landingFence !== undefined) && (transientRelayFailure(error) && outboxEnabled(io) || queueableKeyFailure(error, io));
 }
 
 /** Keep the key-free outbox summary beside the link, or drop it once the outbox is empty. */
@@ -464,8 +478,8 @@ export async function queueMove(link, { operation, args, command, move, error, a
   const outbox = await readOutbox(where, key, state.board)
     ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
   if (!move) {
-    const sent = withSeatName(root, operation, args, io);
-    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName, senderPolicy);
+    const sent = withSeatName(root, operation, args, io), behind = await behindDeviceOptions(state);
+    move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent, behind)), state.machine, state.computerName, senderPolicy);
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }
   refuseRevokedSeat(state, senderPolicy.credentialActor(move));

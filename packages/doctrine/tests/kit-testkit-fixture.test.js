@@ -20,7 +20,7 @@ function importersOfAppTestkit() {
   }
 }
 
-test('no package test file imports the CLI app testkit, and the app reaches the package one through its door [C7]', () => {
+test('doctrine.kit-testkit-fixture.no-package-test-file-imports-the-cli-app: no package test file imports the CLI app testkit, and the app reaches the package one through its door [C7]', () => {
   assert.deepEqual(importersOfAppTestkit(), []);
   const home = readFileSync(`${ROOT}packages/gate/tests/fixtures/testkit.js`, 'utf8');
   assert.match(home, /export function fileFixtureItem\(/u);

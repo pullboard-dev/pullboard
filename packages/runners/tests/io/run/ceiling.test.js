@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { RUN_CEILING_MS } from '../../../src/io/dispatch.js';
 import { runCeilingMs } from '../../../src/io/dispatch.js';
 
-test('a gate item check or proof with no timeout of its own gets the 20-minute run ceiling; landings, trusted checks and main comparisons keep their own budgets [C7]', () => {
+test('runners.ceiling.a-gate-item-check-or-proof: a gate item check or proof with no timeout of its own gets the 20-minute run ceiling; landings, trusted checks and main comparisons keep their own budgets [C7]', () => {
   // #2828 (9 Nov): an item check's hanging test held its gate 55 minutes; the same check hung 9 and 11 hours elsewhere.
   assert.equal(RUN_CEILING_MS, 20 * 60_000);
   assert.equal(runCeilingMs({ kind: 'submit' }, {}), RUN_CEILING_MS, 'a submit run with no timeout is bounded');

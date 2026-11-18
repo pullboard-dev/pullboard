@@ -12,12 +12,12 @@ import { sampleDifferences } from './fixtures/journey-parity.js';
 
 const SAMPLES = [{ journey: 'apps/cli/journeys/add/split.test.js', cases: ['clause 2: split files each child after the previous one and the first after nothing [C7,#8916]'] }];
 
-test('clause 1: a land-board sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-land-board.a-land-board-sample-gives-the-same: clause 1: a land-board sample gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 2: the land board fixture starts no CLI process for json() or manual merged records when the journey runs in-process [C7]', () => {
+test('gate.journey-parity-land-board.the-land-board-fixture-starts-no-cli: clause 2: the land board fixture starts no CLI process for json() or manual merged records when the journey runs in-process [C7]', () => {
   const source = readFileSync(new URL('../../../apps/cli/tests/fixtures/land/board.js', import.meta.url), 'utf8');
   const quick = source.slice(source.indexOf('function quick('), source.indexOf('/** Run a successful JSON command'));
   assert.match(quick, /box\.runSync\(cwd, \.\.\.args\)/u, 'a quick command is answered on the worker thread');

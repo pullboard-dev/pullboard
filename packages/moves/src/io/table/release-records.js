@@ -13,8 +13,8 @@ function detailOf(text) {
   } catch { return {}; }
 }
 
-/** As the board stores it, without the actor's model, which the event writer stamps on every event and no move decides. */
-const stored = ({ model, ...rest }) => JSON.parse(JSON.stringify(rest));
+/** As the board stores it, without the actor's model or the engine, which the event writer stamps on an event and no move decides; the engine rides in the snapshot instead [#9831]. */
+const stored = ({ model, engine, ...rest }) => JSON.parse(JSON.stringify(rest));
 
 /** The item's route and hold as they stood before an event, rebuilt from its own history. */
 function itemBefore(before) {
@@ -71,7 +71,9 @@ function rebuild(db, since, only) {
     }
     return [...head, { kind: 'release', by: r.event_by, detail }, ...tail].map(e => ({ kind: e.kind, by: e.by, detail: stored(e.detail) }));
   };
-  const push = (table, r, snapshot, move, detail) => out[table].push({ event: { id: r.event_id, at: r.event_at }, snapshot, move, recorded: { events: written(r, detail) } });
+  /** A release record's snapshot also carries the engine its release was written at (null when an older engine recorded none), so the table can tell engines apart; no rule reads it yet [#9831]. */
+  const withEngine = (table, snapshot, detail) => (table === 'release' ? { ...snapshot, engine: detail.engine ?? null } : snapshot);
+  const push = (table, r, snapshot, move, detail) => out[table].push({ event: { id: r.event_id, at: r.event_at }, snapshot: withEngine(table, snapshot, detail), move, recorded: { events: written(r, detail) } });
 
   for (const r of releases) {
     if (only && !only.has(r.event_id)) continue;
@@ -147,6 +149,8 @@ function releaseRecord(r, detail, before, routes, { push, skip, written }) {
   const lastClaim = before.filter(e => e.kind === 'claim').at(-1) ?? null;
   const escalated = written(r, detail).find(e => e.kind === 'escalate');
   if (escalated && escalated.detail.from !== it.route) return skip(r, 'release: the item route changed off the record');
+  // #2956 stopped a structured-blocker release counting toward release-twice; one recorded before then followed up on it.
+  if (detail.blockedOn?.length && written(r, detail).some(e => e.kind === 'escalate' || e.kind === 'hold_item')) return skip(r, 'release: counted a structured blocker, which no longer counts');
   const base = { item: { id: r.item_id, status: 'claimed', owner: r.event_by, route: it.route, after: [], leaseUntil: FAR, holdReason: it.hold, holdBy: it.hold ? 'coordinator' : null, reviewer: null },
     actor: { id: r.event_by, route: routes[r.event_by] ?? null, path: '/seat' }, owner: null, diagnosed: true, firstRefusalBuilder: null,
     items: { [r.item_id]: { status: 'claimed', after: [] }, ...Object.fromEntries((detail.blockedOn ?? []).map(id => [id, { status: 'open', after: [] }])) },

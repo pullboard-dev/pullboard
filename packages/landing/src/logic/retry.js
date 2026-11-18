@@ -10,7 +10,7 @@ export const LANDING_ADOPT_REFUSALS = Object.freeze(new Set(['LAND_LEASE_LOST', 
 
 /** A new accepted main may repair diagnostics or executor admission, never an attributed item defect [B35,C7]. */
 export function retryableLandingRefusal(code) {
-  return code === 'LAND_DIAGNOSTIC' || code === 'SLOT_DB_LOCKED' || code === 'POLICY_SNAPSHOT_STALE' || code === 'LAND_GATE_TIMEOUT' || code === 'LAND_RUNNER_FAULT'
+  return code === 'LAND_DIAGNOSTIC' || code === 'SLOT_DB_LOCKED' || code === 'POLICY_SNAPSHOT_STALE' || code === 'LAND_GATE_TIMEOUT' || code === 'LAND_RUNNER_FAULT' || code === 'LAND_YIELDED'
     || typeof code === 'string' && code.startsWith('RUNNER_');
 }
 

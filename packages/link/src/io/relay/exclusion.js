@@ -2,6 +2,7 @@ import { logEvent } from '../../../../store/index.js';
 import { PERSON } from '../../../../store/index.js';
 /** Person-owned machine exclusions carry key-free native provenance [H5,H17,B26]. */
 import { repoInfo } from '../../../../git/index.js';
+import { sameCommonDir } from '../../../../git/index.js';
 import { readRelayMachine } from './machine.js';
 import { updateRelayMachine } from './machine.js';
 import { requirePersonChannel } from '../../../../person/index.js';
@@ -16,9 +17,9 @@ function exclusionKeys(root, state) {
   const info = repoInfo(root);
   if (!relayExcludeByBoard()) return { key: info.root, matching: [info.root] };
   const sameBoard = entry => {
-    try { return repoInfo(entry).commonDir === info.commonDir; } catch { return false; }
+    try { return sameCommonDir(repoInfo(entry).commonDir, info.commonDir); } catch { return false; }
   };
-  return { key: info.commonDir, matching: [info.commonDir, ...state.excluded.filter(entry => entry !== info.commonDir && sameBoard(entry))] };
+  return { key: info.commonDir, matching: [info.commonDir, ...state.excluded.filter(entry => !sameCommonDir(entry, info.commonDir) && sameBoard(entry))] };
 }
 
 /**

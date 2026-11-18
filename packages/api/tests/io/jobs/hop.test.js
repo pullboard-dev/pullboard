@@ -44,7 +44,7 @@ provideGateHopTable(leaseMs => ({ hop, now }, { name, actor, epoch }) => {
 const claim = (db, runner, now, fencedHop = true) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(fencedHop) });
 const claimedEpoch = (db, job) => jobView(db, job).steps.filter(step => step.name === 'claimed').at(-1).payload.hopEpoch;
 
-test('clause 1: with gate.fencedHop on, claimJob for a gate job takes the next hop epoch through the fenced gate row [C7,#8352]', t => {
+test('api.jobs-hop.gate-fencedhop-claimjob-gate-job: clause 1: with gate.fencedHop on, claimJob for a gate job takes the next hop epoch through the fenced gate row [C7,#8352]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   assert.deepEqual([readGateHop(db, ITEM).owner, readGateHop(db, ITEM).epoch], ['r1', 1], 'the first claim owns the hop at epoch 1');
@@ -56,14 +56,14 @@ test('clause 1: with gate.fencedHop on, claimJob for a gate job takes the next h
   assert.equal(claimedEpoch(db, second.job), 2);
 });
 
-test('clause 1: with gate.fencedHop off, a gate job claim writes no hop row and records no epoch [C7,#8352]', t => {
+test('api.jobs-hop.gate-fencedhop-off-gate-job: clause 1: with gate.fencedHop off, a gate job claim writes no hop row and records no epoch [C7,#8352]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000, false);
   assert.equal(claimedEpoch(db, first.job), undefined);
   assert.equal(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gate_hop'").get(), undefined, 'no gate_hop table was made');
 });
 
-test('clause 2: a claim holding a stale epoch is refused HOP_FENCED on renew, and the new owner renews [C7,#8352]', t => {
+test('api.jobs-hop.claim-holding-stale-epoch-refused: clause 2: a claim holding a stale epoch is refused HOP_FENCED on renew, and the new owner renews [C7,#8352]', t => {
   const db = board(t, ['gate:7:a', 'gate:7:b']);
   const stale = claim(db, 'r1', 5000);
   // r1 keeps its job's lease but not its hop; once the hop lapses, r2 claims the item's other gate job and takes the hop at epoch 2.
@@ -79,7 +79,7 @@ test('clause 2: a claim holding a stale epoch is refused HOP_FENCED on renew, an
   assert.equal(renewJob(db, { job: owner.job, runner: 'r2', token: owner.token, now: 5000 + LEASE + 2, leaseMs: LEASE, hop: gateClaimHop(true) }).renewed, true);
 });
 
-test('clause 2: while one runner holds the hop live, a claim of the item\'s other gate job is refused HOP_FENCED naming it [C7,#8352]', t => {
+test('api.jobs-hop.while-runner-holds-hop-live: clause 2: while one runner holds the hop live, a claim of the item\'s other gate job is refused HOP_FENCED naming it [C7,#8352]', t => {
   const db = board(t, ['gate:7:a', 'gate:7:b']);
   claim(db, 'r1', 5000);
   assert.throws(() => claim(db, 'r2', 5001), error => {

@@ -34,7 +34,7 @@ async function lapseOnce(board) {
   finally { clearInterval(alive); await held.release().catch(() => {}); }
 }
 
-test('clause 1: a lapsed landing lease adds one to the count under LANDING_LOCAL_PREFIX + stepaside: + the head item id [C7]', async t => {
+test('landing.step-aside-count.a-lapsed-landing-lease-adds-one: clause 1: a lapsed landing lease adds one to the count under LANDING_LOCAL_PREFIX + stepaside: + the head item id [C7]', async t => {
   const board = lapsingBoard(t);
   assert.equal(store.stepAsideCount(board, HEAD), 0);
   await lapseOnce(board);
@@ -45,7 +45,7 @@ test('clause 1: a lapsed landing lease adds one to the count under LANDING_LOCAL
   assert.equal(row.meta_value, '2', 'the row is a JSON count under the prefix and the item id');
 });
 
-test('clause 2: the head item landing deletes its count [C7]', async t => {
+test('landing.step-aside-count.the-head-item-landing-deletes-its: clause 2: the head item landing deletes its count [C7]', async t => {
   const board = lapsingBoard(t);
   store.countLeaseLapse(board, HEAD);
   store.countLeaseLapse(board, 1);
@@ -56,7 +56,7 @@ test('clause 2: the head item landing deletes its count [C7]', async t => {
   assert.equal(store.stepAsideCount(board, 1), 1, 'another head item keeps its count');
 });
 
-test('clause 3: a board export leaves the count out [C7]', async t => {
+test('landing.step-aside-count.a-board-export-leaves-the-count: clause 3: a board export leaves the count out [C7]', async t => {
   const board = lapsingBoard(t);
   store.countLeaseLapse(board, HEAD);
   const exported = store.exportBoard(board);

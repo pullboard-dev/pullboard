@@ -22,7 +22,7 @@ function provider(prefix, t) {
   return fixture;
 }
 
-test('clause 1: the fingerprint of an export changes when an imported helper body changes and not when an unrelated file changes [C7]', t => {
+test('codemap.contract-fingerprint.the-fingerprint-of-an-export: clause 1: the fingerprint of an export changes when an imported helper body changes and not when an unrelated file changes [C7]', t => {
   const fixture = provider('pullboard-fingerprint-', t);
   const entry = join(fixture.root, 'main.js');
   const before = fingerprintExport(entry, 'seal');
@@ -36,7 +36,7 @@ test('clause 1: the fingerprint of an export changes when an imported helper bod
   assert.notEqual(fingerprintExport(entry, 'seal'), fingerprintExport(entry, 'other'));
 });
 
-test('clause 2: the manifest lists each contract with its fingerprint and is identical across two runs on the same tree [C7]', t => {
+test('codemap.contract-fingerprint.the-manifest-lists-each-contract: clause 2: the manifest lists each contract with its fingerprint and is identical across two runs on the same tree [C7]', t => {
   const fixture = provider('pullboard-fingerprint-manifest-', t);
   const contract = join(fixture.root, 'contract.json');
   writeContractFile(contract, {

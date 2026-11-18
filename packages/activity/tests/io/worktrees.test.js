@@ -36,7 +36,7 @@ function twoWorktrees(t) {
   return { repo, base, first, second, items, agents };
 }
 
-test('each claimed seat\'s worktree is read from Git against its claim base, and a seat with no checkout reads unknown [N2]', t => {
+test('activity.worktrees.claim-base-read: each claimed seat\'s worktree is read from Git against its claim base, and a seat with no checkout reads unknown [N2]', t => {
   const { items, agents, first } = twoWorktrees(t);
   const seen = claimWorktrees(items, agents);
   assert.deepEqual([...seen.keys()], [1, 2, 3], 'only claimed items are observed');
@@ -51,7 +51,7 @@ test('each claimed seat\'s worktree is read from Git against its claim base, and
   assert.equal(claimWorktrees([{ ...items[0], item_claim_head: 'not-a-commit' }], agents).get(1).unknown, true, 'an unusable claim base is unknown, never zero');
 });
 
-test('overlap lines name a shared edit and an out-of-scope edit to the holder only, and an unobserved claim is named unknown [N2]', t => {
+test('activity.worktrees.overlap-lines: overlap lines name a shared edit and an out-of-scope edit to the holder only, and an unobserved claim is named unknown [N2]', t => {
   const { items, agents } = twoWorktrees(t);
   const project = () => new Map([[1, { overlaps: [{ item: 2, builder: 'two', files: ['shared.js'] }], outOfScope: [{ item: 4, files: ['a.js', 'b.js'] }], unknown: false }],
     [2, { overlaps: [], outOfScope: [], unknown: true }]]);
@@ -62,7 +62,7 @@ test('overlap lines name a shared edit and an out-of-scope edit to the holder on
   assert.deepEqual(claimOverlapLines(items, agents, 'nobody', () => assert.fail('no claim, no projection')), []);
 });
 
-test('background maintenance records each claim\'s files, and a later read answers from the record with no Git [N2,B3]', t => {
+test('activity.worktrees.maintenance-record: background maintenance records each claim\'s files, and a later read answers from the record with no Git [N2,B3]', t => {
   const { repo, items, agents, first } = twoWorktrees(t);
   const board = cellBoard(t, repo.boardFile, undefined, { real: true });
   const observed = recordClaimWorktrees(board, items, agents, { now: new Date('2026-11-09T12:00:00.000Z') });
@@ -78,7 +78,7 @@ test('background maintenance records each claim\'s files, and a later read answe
   assert.deepEqual(recordedClaimWorktrees(items, agents, null).get(1), { files: [], unknown: true, unrecorded: true });
 });
 
-test('a landed commit names the files it changed against its base, and an unreadable pair is unknown [R2,N26]', t => {
+test('activity.worktrees.landed-commit-files: a landed commit names the files it changed against its base, and an unreadable pair is unknown [R2,N26]', t => {
   const repo = cellRepo(t, { real: true });
   repo.put('a.txt', 'one\n');
   const first = repo.commitAll();
@@ -95,7 +95,7 @@ test('a landed commit names the files it changed against its base, and an unread
   assert.deepEqual(activityMainFiles(repo.root, second, { base: first }, { batch }), { files: ['b.txt'], rows: [], unknownRows: false });
 });
 
-test('the file waiter wakes on a change made before it sleeps, honours a past deadline, and settles on close [C7]', async t => {
+test('activity.worktrees.file-waiter: the file waiter wakes on a change made before it sleeps, honours a past deadline, and settles on close [C7]', async t => {
   const scratch = privateFixtureFiles('pullboard-waiter-');
   const file = join(scratch.root, 'watched.txt');
   writeFileSync(file, 'one\n');

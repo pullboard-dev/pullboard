@@ -75,6 +75,7 @@ import {
 } from './execution.js';
 import { overlapStaticProofEnabled } from '../../../config/index.js';
 import { tableReplayEnabled } from '../../../config/index.js';
+import { gateComponentTier } from '../../../config/index.js';
 import { shardSlotOptions } from './shards/proof.js';
 import { shardStartupMs } from './shards/proof.js';
 import { freeRunnerSlots } from './shards/proof.js';
@@ -89,6 +90,7 @@ import { whileGateRuns } from './progress.js';
 import {
   runStaticChecks,
 } from './static/check.js';
+import { staticFindingsOnMain } from './static/main-findings.js';
 /** Freeze submission execution policy with the same accepted-main floors at every origin and run. */
 export function submitGateConfig(config, accepted) {
   return { ...config, gate: config.gate.trim() ? config.gate : accepted.gate, submitGate: accepted.submitGate, staticChecks: accepted.staticChecks,
@@ -116,7 +118,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly });
+  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests, auditOnly: config.landing?.auditOnly, componentTier: gateComponentTier() });
   const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
@@ -306,7 +308,7 @@ function reusedCheckNote(lease) {
  * @param {{timedShell?: string, base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, tableReplay, timedShell, onMachineryNote = text => process.stderr.write(text + '\n'),
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, earlyCriterion, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, withMainCheckout, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, tableReplay, timedShell, onMachineryNote = text => process.stderr.write(text + '\n'),
   planners = { plan: submitGatePlan, admission: submitGateAdmission }, signal }) {
 
   if (!config.gate.trim()) throw missingGate(root);
@@ -318,12 +320,16 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const overlap = !staticChecked && overlapStaticProofEnabled();
   let staticRun = null;
   let stopProof = null;
+  let staticKnownMain;
+  // gate.knownMainStatic: the static step reads main's own findings at the pinned main, so a red main also has never refuses the item [C7,#10564].
+  const mainFindings = withMainCheckout && loadMachineSettings().gate?.knownMainStatic === true
+    ? () => staticFindingsOnMain(root, config, trunk ?? mainPolicy(root).commit, { withMainCheckout }) : undefined;
   if (overlap) {
     stopProof = new AbortController();
     signal = signal ? AbortSignal.any([signal, stopProof.signal]) : stopProof.signal;
-    staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal });
+    staticRun = runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, signal, mainFindings });
     staticRun.catch(() => stopProof.abort());
-  } else if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
+  } else if (!staticChecked) staticKnownMain = (await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined, mainFindings }))?.knownMain;
   // A changed move table must still agree with the board; the setting is off until the person turns it on [C7,#8073].
   if (tableReplay && tableReplayEnabled()) await tableReplay({ root, changed });
   // A remote plan is reused only when it covers the required call-adjacent tests.
@@ -515,7 +521,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   // The cells step is awaited after the proof's slot is free, so a one-slot gate cannot wait on itself; its red result refuses before any verdict returns [C7,#9576].
   let gateResult;
   try { gateResult = await gateRun; } catch (error) { stopProof?.abort(); throw error; }
-  if (staticRun) await staticRun;
+  if (staticRun) staticKnownMain = (await staticRun)?.knownMain;
+  if (staticKnownMain?.length) gateResult.staticKnownMain = staticKnownMain;
   // The verdict returns now: diagnostics are queued as flake-diagnose jobs and run in a slot of their own afterwards [C7].
   if (diagnostics.length) gateResult.diagnosing = (await startDiagnostics(root, onFailure, diagnostics, slotOptions)).done;
   return gateResult;

@@ -10,32 +10,32 @@ import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
 import { jobWorkers } from '../../../src/io/pull.js';
 import { JOB_WORKERS_ENV } from '../../../light.js';
-import { privateFixtureFiles } from '../../../../../apps/cli/tests/fixtures/child.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { privateFixtureFiles } from '../../../../gate/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 
 const BOARD = 'http://board.invalid/api/v1/boards/b?k=x';
 const CONCURRENCY = pathToFileURL(resolve(import.meta.dirname, '../../../../gate/src/io/test/concurrency.js')).href;
 
-test('#5919 clause 1: a job gets twice its share of the cores, at least 2 [P7]', () => {
+test('drive.workers.c-5919-clause-1-a-job: #5919 clause 1: a job gets twice its share of the cores, at least 2 [P7]', () => {
   assert.equal(jobWorkers(3, 10), 7);
   assert.equal(jobWorkers(1, 10), 20, 'a lone job may overlap its waits');
   assert.equal(jobWorkers(12, 10), 2, 'more jobs than cores still leaves each job two workers');
   assert.equal(jobWorkers(1, 1), 2);
 });
 
-test('#6464 clause 1: with 20 slots on a 10-core runner, a job with 4 files runs at least 2 files at once [C7]', () => {
+test('drive.workers.c-6464-clause-1-with-20: #6464 clause 1: with 20 slots on a 10-core runner, a job with 4 files runs at least 2 files at once [C7]', () => {
   assert.ok(jobWorkers(20, 10, 4) >= 2);
   assert.equal(jobWorkers(20, 10, 4), 2);
   assert.equal(jobWorkers(16, 10, 4), 2);
 });
 
-test('#6464 clause 2: a job\'s workers never exceed its file count [C7]', () => {
+test('drive.workers.c-6464-clause-2-a-jobs: #6464 clause 2: a job\'s workers never exceed its file count [C7]', () => {
   assert.equal(jobWorkers(1, 10, 3), 3);
   assert.equal(jobWorkers(2, 10, 1), 1);
   for (const [slots, cores, files] of [[1, 64, 5], [3, 10, 2], [20, 10, 4], [4, 16, 9]]) assert.ok(jobWorkers(slots, cores, files) <= files);
 });
 
-test('#5919 clause 2: with 3 jobs on a 10-core runner the job env carries 7 workers, and its test run uses 7 files at once [P7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
+test('drive.workers.c-5919-clause-2-with-3: #5919 clause 2: with 3 jobs on a 10-core runner the job env carries 7 workers, and its test run uses 7 files at once [P7]', { timeout: 60_000 }, // budget: one local git checkout and one node child.
   async t => {
     const { root: trunk } = privateFixtureFiles('pullboard-workers-trunk-');
     const { root: cache } = privateFixtureFiles('pullboard-workers-cache-');
@@ -73,7 +73,7 @@ test('#5919 clause 2: with 3 jobs on a 10-core runner the job env carries 7 work
     assert.match(receipts[0].tail, /^FILES 7$/mu, 'the job\'s test run spreads over 7 files at once');
   });
 
-test('#6307: a job whose environment folder removal fails with ENOTEMPTY still posts its receipt, and the serve claims the next job [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
+test('drive.workers.c-6307-a-job-whose-environment: #6307: a job whose environment folder removal fails with ENOTEMPTY still posts its receipt, and the serve claims the next job [C7]', { timeout: 60_000 }, // budget: one local git checkout and two node children.
   async t => {
     const { root: trunk } = privateFixtureFiles('pullboard-cleanup-trunk-');
     const { root: cache } = privateFixtureFiles('pullboard-cleanup-cache-');

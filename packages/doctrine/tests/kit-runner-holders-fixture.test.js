@@ -20,7 +20,7 @@ function importersOfAppFixture() {
   }
 }
 
-test('clause 1: no package test file imports the CLI app runner holders fixture, and the app path re-exports the package one [C7]', () => {
+test('doctrine.kit-runner-holders-fixture.clause-1-no-package-test-file-imports: clause 1: no package test file imports the CLI app runner holders fixture, and the app path re-exports the package one [C7]', () => {
   assert.deepEqual(importersOfAppFixture(), []);
   const holders = readFileSync(`${ROOT}packages/gate/tests/fixtures/runner/holders.js`, 'utf8');
   assert.match(holders, /export function readRemoteGateHolders\(/u);

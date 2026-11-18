@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { configFromSource } from '../../index.js';
 import { SETTING_DESCRIPTIONS } from '../../index.js';
 
-test('clause 1: landing.shardProof defaults off, is a described on/off setting and accepts only a boolean [C7,#8255]', () => {
+test('config.io-landing-shard-proof.clause-1-landing-shardproof-defaults-off: clause 1: landing.shardProof defaults off, is a described on/off setting and accepts only a boolean [C7,#8255]', () => {
   assert.equal(configFromSource('{}').landing?.shardProof, undefined, 'a project that never sets it has it off');
   assert.equal(configFromSource('{"landing":{"shardProof":true}}').landing.shardProof, true, 'a project may turn it on');
   assert.equal(SETTING_DESCRIPTIONS['landing.shardProof'].unit, 'on/off', 'it is a described on/off setting');

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/spec */
 /** spec draft writes the draft row it prints, and refuses without printing an id when it cannot [S1]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';

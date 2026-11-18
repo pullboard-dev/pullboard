@@ -25,7 +25,7 @@ function runLints(...args) {
   });
 }
 
-test('lints.js --init stages the baseline directory so a fresh baseline verifies without CELL_BASELINE, clause 1 [C7,CD64]', async t => {
+test('codemap.lints-init.lints-js-init-stages-the: lints.js --init stages the baseline directory so a fresh baseline verifies without CELL_BASELINE, clause 1 [C7,CD64]', async t => {
   const { root } = fixture(t);
   const initial = await runLints('--init', root);
   assert.equal(initial.status, 0, initial.stderr);

@@ -12,7 +12,7 @@ import { cellLintGrowth } from '../../../../codemap/index.js';
 import { readCellLintBaseline } from '../../../../codemap/index.js';
 
 // The analyzer compiles bounded source probes in Node children; it never executes repository modules.
-test('the repository cell guard enforces strict debt and reports named transition rises [C7,CD64]', () => {
+test('gate.io-browser-guard.the-repository-cell-guard-enforces-strict: the repository cell guard enforces strict debt and reports named transition rises [C7,CD64]', () => {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const report = cellLintReport(root, { importsIn, commonJsIn }), baseline = readCellLintBaseline(root);
   const growth = cellLintGrowth(report, baseline);

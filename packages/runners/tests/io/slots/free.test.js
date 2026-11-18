@@ -35,7 +35,7 @@ function admitNow(base, options) {
   return takeResource({ ...base, ...options, onWait: () => { throw new Error(`${options.agent} ${options.kind} waited while runner slots were free`); } });
 }
 
-test('clause 1: with runner slots free, a request is admitted at once whatever its queue rule; the one-test-per-seat rule binds only the last slots [C7]', async t => {
+test('runners.free.with-runner-slots-free-a-request: clause 1: with runner slots free, a request is admitted at once whatever its queue rule; the one-test-per-seat rule binds only the last slots [C7]', async t => {
   const base = pool(t);
   const held = [];
   try {
@@ -47,7 +47,7 @@ test('clause 1: with runner slots free, a request is admitted at once whatever i
   } finally { for (const lease of held) lease.release(); }
 });
 
-test('clause 2: a pullboard test run and a gate both admit at once with 100 of 118 runner slots free, through the real admission path [C7]', async t => {
+test('runners.free.a-pullboard-test-run-and-a: clause 2: a pullboard test run and a gate both admit at once with 100 of 118 runner slots free, through the real admission path [C7]', async t => {
   const base = pool(t);
   const held = [];
   try {
@@ -60,7 +60,7 @@ test('clause 2: a pullboard test run and a gate both admit at once with 100 of 1
   } finally { for (const lease of held) lease.release(); }
 });
 
-test('clause 3: a run queued from a checkout whose HEAD then moves still runs its captured commit, never RUNNER_SOURCE_CHANGED [C7]', () => {
+test('runners.free.a-run-queued-from-a-checkout: clause 3: a run queued from a checkout whose HEAD then moves still runs its captured commit, never RUNNER_SOURCE_CHANGED [C7]', () => {
   const files = privateFixtureFiles('pullboard-queued-source-');
   const git = args => runFixtureGit(['-C', files.root, '-c', 'user.email=a@example.test', '-c', 'user.name=A', ...args]);
   runFixtureGit(['-C', files.root, 'init', '-q', '-b', 'main']);

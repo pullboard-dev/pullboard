@@ -63,7 +63,7 @@ function fixture() {
   return { add, jobs, scans };
 }
 
-test('clause 1: four runner jobs started together for one new commit run exactly one history git log through protectHistory and all pass from its cached answer [C7]', async () => {
+test('runners.flight.four-runner-jobs-started-together-for: clause 1: four runner jobs started together for one new commit run exactly one history git log through protectHistory and all pass from its cached answer [C7]', async () => {
   const { add, jobs, scans } = fixture();
   add('src/first.txt', 'one\n');
   const head = add('src/second.txt', 'two\n');
@@ -71,7 +71,7 @@ test('clause 1: four runner jobs started together for one new commit run exactly
   assert.equal(scans(), 1, 'one history scan ran between the four concurrent jobs');
 });
 
-test('clause 2: a blocked private path in history is still refused RUNNER_SECRET for every waiting caller [C7]', async () => {
+test('runners.flight.a-blocked-private-path-in-history: clause 2: a blocked private path in history is still refused RUNNER_SECRET for every waiting caller [C7]', async () => {
   const { add, jobs, scans } = fixture();
   add('data/board.sqlite', 'private\n');
   const head = add('src/later.txt', 'later\n');

@@ -22,6 +22,7 @@ import { symlinkSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { sharedCompileCache } from './sandbox/compile-cache.js';
 import { DatabaseSync } from 'node:sqlite';
 import { request } from 'node:http';
 import { connect } from 'node:net';
@@ -44,6 +45,8 @@ import { fileFixtureItem } from './testkit.js';
 import { fixtureAddRoute } from './testkit.js';
 import { fixtureJoinRoute } from './testkit.js';
 import { fixtureSettledMachine } from './testkit.js';
+import { commitInProcess } from './hook/commit.js';
+import { inProcessHooksOn } from './hook/mode.js';
 import { fixtureProjectPolicy } from './testkit.js';
 import { joinFixtureSeat } from './testkit.js';
 
@@ -249,6 +252,7 @@ function sandboxViewPids(dir) {
 /** Create isolated real-repository helpers for one parallel end-to-end test file. */
 export function createE2eHelpers() {
   const sandboxes = [];
+  const compileCache = sharedCompileCache();
   /**
    * Remove this test file's fixtures after its tests finish. A detached writer (a gate or board worker a
    * fixture command started) can still be flushing into the tree on a loaded runner, so the removal waits up
@@ -273,6 +277,7 @@ export function createE2eHelpers() {
         }
       }
     }
+    compileCache.remove();
   };
 const BIN = resolve(import.meta.dirname, '../../pullboard.js');
 const cockpitSource = () => readFileSync(resolve(import.meta.dirname, '../../src/io/cockpit.js'), 'utf8');
@@ -311,6 +316,8 @@ function sandbox({ declareFamilies = false } = {}) {
     PULLBOARD_VIEW_BACKGROUND: '0',
     // A fixed fixture model, so no fixture reads the machine's or the agent seat's identity [C7].
     PULLBOARD_MODEL: FIXTURE_MODEL,
+    // Every sandbox of this file compiles the CLI once, not once per sandbox: one shared compile cache [C7,#10415].
+    NODE_COMPILE_CACHE: compileCache.folder,
     // The loopback local runner a pull submit starts stops with this test process, never outliving the journey [P7].
     ...(process.env.PULLBOARD_TEST_RUNNER_PID ? { PULLBOARD_TEST_RUNNER_PID: process.env.PULLBOARD_TEST_RUNNER_PID } : {}),
   });
@@ -319,7 +326,8 @@ function sandbox({ declareFamilies = false } = {}) {
   // A journey's submit settles the same way whatever the machine's dispatch default is [P7].
   fixtureSettledMachine(env.PULLBOARD_MACHINE_HOME);
   const git = (cwd, ...args) => runFixtureSetupGit(args, { cwd, env });
-  const tryGit = (cwd, ...args) => runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
+  // With test.inProcessHooks on, a plain `commit -m` runs both hooks in this process and answers with a promise; every other call is git as before [C7,#9215].
+  const tryGit = (cwd, ...args) => (inProcessHooksOn(env) ? commitInProcess({ env }, cwd, args) : null) ?? runFixtureChild('git', args, { cwd, env, encoding: 'utf8' });
   const declaredFamilies = new Map();
   /** Explicit private vendor labels are fixture data, independent of model and parent identity. */
   const declareFamily = (cwd, family) => {

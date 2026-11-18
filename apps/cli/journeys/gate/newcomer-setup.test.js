@@ -37,7 +37,7 @@ function project(t) {
   return { root, env, git, inProcess: run };
 }
 
-test('clause 1: setup offers a gate to a board with no build [I1,I2]', async (t) => {
+test('cli.journeys-gate-newcomer-setup.setup-offers-a-gate-to-a: clause 1: setup offers a gate to a board with no build [I1,I2]', async (t) => {
   const box = project(t);
   const initialized = await box.inProcess('init', '--verbose');
   assert.equal(initialized.status, 0, initialized.stderr);
@@ -88,7 +88,7 @@ function checkoutPullboard(root) {
   return bin;
 }
 
-test('clause 2: init --yes commits its setup and exits in every agent session [I1,I2]', { timeout: 600_000 }, async (t) => { // budget: hang ceiling for eight inits, each about 2 s.
+test('cli.journeys-gate-newcomer-setup.init-yes-commits-its-setup-and: clause 2: init --yes commits its setup and exits in every agent session [I1,I2]', { timeout: 600_000 }, async (t) => { // budget: hang ceiling for eight inits, each about 2 s.
   for (const marker of AGENT_SHELL_MARKERS) {
     const box = project(t);
     for (const name of [...AGENT_SHELL_MARKERS, CHECKOUT_SESSION_TOKEN_ENV]) delete box.env[name];

@@ -86,8 +86,9 @@ export async function runRemoteMove(io, parsed, remote) {
     const agent = seatAgent(io.cwd);
     if (!agent) throw new Refused('NO_AGENT', 'this seat has no agent name; run pullboard join <lane> with board.url set, or set PULLBOARD_AGENT');
     const body = moveBody(parsed, agent);
-    // Off by default: board.commits bundle sends the clone's commits with its submit [P7,C7].
-    if (remote.commits === 'bundle' && (body.verb === 'submit' || body.verb === 'done')) body.commits = (await import('../submit/pull.js')).bundleCommits(io.cwd, body);
+    // Off by default: board.commits bundle sends the clone's commits with its submit, and pushed names the commit it pushed [P7,C7].
+    const commits = await (await import('../submit/push-ref.js')).carriedCommits(remote, body, io.cwd);
+    if (commits) body.commits = commits;
     const moved = await requestJson(remote, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.(moved.result ?? moved);

@@ -39,7 +39,7 @@ import {
   caughtFrom,
 } from "../logic/caught.js";
 
-import { secretsIn } from "../../../commits/index.js";
+import { secretsIn } from "../../../commits/light.js";
 import { Refused } from "../../../kernel/index.js";
 
 

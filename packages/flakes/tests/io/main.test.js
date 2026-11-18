@@ -47,7 +47,7 @@ function observation(box, id) {
 /** Exercise the public observation operation with the same lane and registered actor as an actual adapter. */
 function record(box, value) { return nativeRecordFlakeObservation(box.board, { agentId: box.builder, observation: value, lane: 'app' }); }
 
-test('one observation is immutable and idempotent; the first files one ordinary repair item and a second joins it [D1,H16]', t => {
+test('flakes.ledger.observation-immutable-idempotent: one observation is immutable and idempotent; the first files one ordinary repair item and a second joins it [D1,H16]', t => {
   const box = ledgerFixture(t), first = observation(box, 'synthetic-one');
   record(box, first);
   const count = store.events(box.board).length;
@@ -66,7 +66,7 @@ test('one observation is immutable and idempotent; the first files one ordinary 
   assert.ok(!store.events(box.board).some(event => /row_decision|doctrine/u.test(event.event_kind)), 'drafting never approves governing rows');
 });
 
-test('a landed repair is fixed until the same test is seen again [D1,H16]', t => {
+test('flakes.ledger.landed-repair-fixed-until-seen: a landed repair is fixed until the same test is seen again [D1,H16]', t => {
   const box = ledgerFixture(t);
   record(box, observation(box, 'synthetic-one')); box.advance(); record(box, observation(box, 'synthetic-two'));
   const row = nativeFlakeLedger(box.board)[0], id = row.item;
@@ -83,7 +83,7 @@ test('a landed repair is fixed until the same test is seen again [D1,H16]', t =>
   assert.equal(again.firstSeen, row.firstSeen); assert.ok(again.lastSeen > row.lastSeen);
 });
 
-test('flake observations replay exactly and duplicate engine receipts do not add sightings [H16]', t => {
+test('flakes.ledger.replays-exactly: flake observations replay exactly and duplicate engine receipts do not add sightings [H16]', t => {
   const box = ledgerFixture(t), replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(box.board));
@@ -102,7 +102,7 @@ test('flake observations replay exactly and duplicate engine receipts do not add
   for (const [table, rows] of Object.entries(source.tables)) if (table !== 'board_meta') assert.deepEqual(target.tables[table], rows, table);
 });
 
-test('old engines, unjoined actors and impossible evidence cannot add observations [H16]', t => {
+test('flakes.ledger.refuses-impossible-evidence: old engines, unjoined actors and impossible evidence cannot add observations [H16]', t => {
   const box = ledgerFixture(t), value = observation(box, 'synthetic-one');
   assert.throws(() => nativeRecordFlakeObservation(box.board, { agentId: 'not-joined', observation: value, lane: 'app' }), error => error.code === 'NOT_JOINED');
   assert.throws(() => record(box, { ...value, original: { ...value.original, green: true } }), error => error.code === 'FLAKE_EVIDENCE');

@@ -33,14 +33,14 @@ function landing(t) {
 
 const stored = board => board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key = 'landing_phases:7'").get();
 
-test('clause 1: applyLandingReceipt stores the landing receipt\'s phases, with the gate split from the runner, on the landed item [C7,#8960]', t => {
+test('api.landing-phases.applylandingreceipt-stores-landing-receipt-phases: clause 1: applyLandingReceipt stores the landing receipt\'s phases, with the gate split from the runner, on the landed item [C7,#8960]', t => {
   const { board, post } = landing(t);
   post({ kind: 'land', outcome: 'landed', trunk: TRUNK, landed: [7], already: [], phases: PHASES });
   assert.equal(board.db.prepare('SELECT item_merged_commit FROM item WHERE item_id = 7').get().item_merged_commit, TRUNK);
   assert.deepEqual(JSON.parse(stored(board).meta_value), PHASES);
 });
 
-test('clause 2: show --json reads those phases for the landed item and prints them as landing_phases [C7,#8960]', t => {
+test('api.landing-phases.show-json-reads-those-phases: clause 2: show --json reads those phases for the landed item and prints them as landing_phases [C7,#8960]', t => {
   const source = readFileSync(new URL('../../../../apps/cli/src/io/commands/show.js', import.meta.url), 'utf8');
   assert.match(source, /landing_phases:\$\{id\}/u);
   assert.match(source, /item\.landing_phases = JSON\.parse\(/u);

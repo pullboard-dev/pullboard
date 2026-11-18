@@ -9,7 +9,7 @@ const tree = 'e'.repeat(40);
 const base = { commit: 'c'.repeat(40), tree, at: 1000 };
 const receipts = [{ id: 'j', tree, file, command, verdict: 'red', failing: ['main fails'], signatures: [null], main: 'c'.repeat(40), at: 1500 }];
 
-test('clause 3: a gate red only on a case the main receipt names passes as main-owned; a case it does not name stays the candidate\'s own [C7,P7]', () => {
+test('gate.main-owned-reds.gate-red-only-case-main: clause 3: a gate red only on a case the main receipt names passes as main-owned; a case it does not name stays the candidate\'s own [C7,P7]', () => {
   const same = judgeMainOwnedReds({ base, command, reds: [{ file, name: 'main fails' }], receipts });
   assert.equal(same.verdict, 'green');
   assert.equal(same.mainOwned.length, 1);

@@ -11,7 +11,9 @@ import { itemAuthorProblem } from '../../../../items/index.js';
 import { itemReviewPolicy } from '../../io/review/independence.js';
 import { reviewFamilyProblem } from '../../io/review/independence.js';
 import { twoTierReviews } from '../../io/review/independence.js';
+import { agentParent } from '../../../../seats/index.js';
 import { canTake } from '../../../../seats/index.js';
+import { itemAuthors } from '../../../../items/index.js';
 import { requiredReviewFamilyProblem } from '../required.js';
 import { familiesDiffer } from './policy.js';
 import { builderFamilyOf } from '../../io/review/routing.js';
@@ -84,6 +86,7 @@ function projectEligibility(board, item, options, strictOnly) {
   const fallback = policy.tier === 'strict' ? compositionFamilyFallback(board, item) : null;
   if (fallback) result.owner = fallback.owner;
   if (!result.ready || strictOnly && result.tier !== 'strict') return result;
+  result.authorParents = authorParents(board, item);
   const agents = board.db.prepare('SELECT agent_id,agent_route FROM agent ORDER BY agent_id').all();
   for (const agent of agents) {
     const problem = eligibilityProblem(board, item, agent, options);
@@ -91,4 +94,18 @@ function projectEligibility(board, item, options, strictOnly) {
     else result.eligible.push(agent.agent_id);
   }
   return result;
+}
+
+/**
+ * Group the item's authors by their declared parent session, so show can say once why seats under that parent are not offered
+ * the review. A seat that joined without a parent groups under `unknown` and excludes no one by parent [V1,B3,C7].
+ */
+function authorParents(board, item) {
+  const ports = { reviewPatchAuthors, committedItemAuthors, twoTierReviews };
+  const groups = new Map();
+  for (const author of itemAuthors(board, item, ports)) {
+    const digest = agentParent(board, author), label = digest ? digest.slice(0, 12) : 'unknown';
+    groups.set(label, [...groups.get(label) ?? [], author]);
+  }
+  return [...groups].map(([parent, seats]) => ({ parent, seats }));
 }

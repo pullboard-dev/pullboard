@@ -31,7 +31,7 @@ function outcomeRunId(output) {
   return /^# pullboard test outcomes \{"version":1,"id":"([^"]+)"/mu.exec(output)?.[1] ?? null;
 }
 
-test('a failing fixture run through the real runner parses to a complete account naming exactly that case [C7]', () => {
+test('landing.failures.a-failing-fixture-run-through-the: a failing fixture run through the real runner parses to a complete account naming exactly that case [C7]', () => {
   const { root, result, output } = runRedFixture();
   assert.equal(result.status, 1, output);
   const account = tapFailures(output, root, { outcomeRunId: outcomeRunId(output) });
@@ -39,7 +39,7 @@ test('a failing fixture run through the real runner parses to a complete account
   assert.deepEqual(account.map(row => row.name), ['contract failing case']);
 });
 
-test('every line the runner prints after the TAP count is accepted by the parser [C7]', () => {
+test('landing.failures.every-line-the-runner-prints-after: every line the runner prints after the TAP count is accepted by the parser [C7]', () => {
   const { root, output } = runRedFixture();
   const lines = output.split('\n');
   const summary = lines.findLastIndex(line => /^# fail \d+\s*$/u.test(line));

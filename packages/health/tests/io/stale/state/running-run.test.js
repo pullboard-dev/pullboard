@@ -40,7 +40,7 @@ function fixture(t) {
   return { id, holder, job, returned, now: () => now };
 }
 
-test('clause 1: with claim.keepWhileRunning on, a claim past the idle release with a live test-run, test or gate job on its item is not returned [C7,#9498]', t => {
+test('health.running-run.keep-while-running: clause 1: with claim.keepWhileRunning on, a claim past the idle release with a live test-run, test or gate job on its item is not returned [C7,#9498]', t => {
   const f = fixture(t);
   assert.deepEqual(f.returned(true), [f.id], 'with nothing in flight the idle claim is returned, setting on or not');
   f.job({ kind: 'test-run', step: 'queued', agent: f.holder });
@@ -53,7 +53,7 @@ test('clause 1: with claim.keepWhileRunning on, a claim past the idle release wi
   assert.deepEqual(h.returned(true), [], 'a gate job under a live lease keeps the claim');
 });
 
-test('clause 2: with claim.keepWhileRunning at its default (off) the same claim is returned as today, and a claim with no job in flight is still returned with it on [C7,#9498]', t => {
+test('health.running-run.default-off: clause 2: with claim.keepWhileRunning at its default (off) the same claim is returned as today, and a claim with no job in flight is still returned with it on [C7,#9498]', t => {
   assert.equal(MACHINE_DEFAULTS['claim.keepWhileRunning'], false);
   const f = fixture(t);
   f.job({ kind: 'test-run', step: 'queued', agent: f.holder });

@@ -29,7 +29,7 @@ function store(sequence = 7) {
   };
 }
 
-test('a page digest is the SHA-256 of exactly the bytes it is given, and a reference is validated before use [H15]', async () => {
+test('pages.sealed.a-page-digest-is-the-sha: a page digest is the SHA-256 of exactly the bytes it is given, and a reference is validated before use [H15]', async () => {
   assert.equal(await pageDigest(new TextEncoder().encode('abc')), createHash('sha256').update('abc').digest('hex'));
   const id = 'f'.repeat(64);
   assert.deepEqual(pageReference({ id, sequence: 3, bytes: 10, extra: 'dropped' }), { id, sequence: 3, bytes: 10 });
@@ -38,7 +38,7 @@ test('a page digest is the SHA-256 of exactly the bytes it is given, and a refer
   }
 });
 
-test('a small value seals into one encrypted object that reads back, and plaintext never appears in what is stored [H15,H17]', async () => {
+test('pages.sealed.a-small-value-seals-into-one: a small value seals into one encrypted object that reads back, and plaintext never appears in what is stored [H15,H17]', async () => {
   const box = store();
   const value = { marker: 'a recognisable plaintext marker', list: [1, 2, 3] };
   const reference = await writeSealedValue(value, box.write);
@@ -51,7 +51,7 @@ test('a small value seals into one encrypted object that reads back, and plainte
   assert.deepEqual(await readSealedValue(reference, box.read), value);
 });
 
-test('a value past one page splits into bounded leaves under an index and reads back in order [H15,H17]', async () => {
+test('pages.sealed.a-value-past-one-page-splits: a value past one page splits into bounded leaves under an index and reads back in order [H15,H17]', async () => {
   const box = store();
   const value = { text: 'x'.repeat(PAGE_BYTES * 2 + 50) };
   const reference = await writeSealedValue(value, box.write);
@@ -71,7 +71,7 @@ test('a value past one page splits into bounded leaves under an index and reads 
   assert.deepEqual(box.gets[1][1], [reference.id], 'a child is requested under its parent');
 });
 
-test('a device-private lookup reuses pages already uploaded instead of putting them again [H15]', async () => {
+test('pages.sealed.a-device-private-lookup-reuses-pages: a device-private lookup reuses pages already uploaded instead of putting them again [H15]', async () => {
   const box = store();
   const known = new Map();
   const context = { ...box.write, lookup: fingerprint => known.get(fingerprint), remember: (fingerprint, reference) => { known.set(fingerprint, reference); } };
@@ -82,7 +82,7 @@ test('a device-private lookup reuses pages already uploaded instead of putting t
   assert.equal(box.objects.size, puts, 'nothing new was uploaded');
 });
 
-test('tampered bytes, a wrong key and a wrong position are refused before any content is returned [H15,H17]', async () => {
+test('pages.sealed.tampered-bytes-a-wrong-key-and: tampered bytes, a wrong key and a wrong position are refused before any content is returned [H15,H17]', async () => {
   const box = store();
   const reference = await writeSealedValue({ secret: 'value' }, box.write);
   const original = box.objects.get(reference.id);
@@ -100,7 +100,7 @@ test('tampered bytes, a wrong key and a wrong position are refused before any co
   assert.deepEqual(await readSealedValue(reference, box.read), { secret: 'value' });
 });
 
-test('a reader\'s byte budget refuses a value larger than it will allocate, before fetching a page [H15]', async () => {
+test('pages.sealed.a-reader-s-byte-budget-refuses: a reader\'s byte budget refuses a value larger than it will allocate, before fetching a page [H15]', async () => {
   const box = store();
   const reference = await writeSealedValue({ text: 'y'.repeat(1000) }, box.write);
   box.gets.length = 0;
@@ -109,7 +109,7 @@ test('a reader\'s byte budget refuses a value larger than it will allocate, befo
   assert.deepEqual((await readSealedValue(reference, box.read, { maxBytes: 2000 })).text.length, 1000);
 });
 
-test('a value that cannot be written as JSON, or a writer with nowhere to put pages, is refused [H15]', async () => {
+test('pages.sealed.a-value-that-cannot-be-written: a value that cannot be written as JSON, or a writer with nowhere to put pages, is refused [H15]', async () => {
   const box = store();
   const loop = {};
   loop.self = loop;
@@ -118,7 +118,7 @@ test('a value that cannot be written as JSON, or a writer with nowhere to put pa
   await assert.rejects(writeSealedValue({}, { ...box.write, put: undefined }), refused('SNAPSHOT_PAGE_FORMAT'));
 });
 
-test('a descriptor seals a value with the references it reaches, and reading one touches none of them [H15,H18]', async () => {
+test('pages.sealed.a-descriptor-seals-a-value-with: a descriptor seals a value with the references it reaches, and reading one touches none of them [H15,H18]', async () => {
   const box = store();
   const child = await writeSealedValue({ child: true }, box.write);
   const reference = await writeSealedDescriptor({ head: 'current' }, [child], box.write);
@@ -131,7 +131,7 @@ test('a descriptor seals a value with the references it reaches, and reading one
   await assert.rejects(writeSealedDescriptor({}, 'not links', box.write), refused('SNAPSHOT_PAGE_FORMAT'));
 });
 
-test('the private fingerprint of a page is stable for equal content and differs for other content [H15]', async () => {
+test('pages.sealed.the-private-fingerprint-of-a-page: the private fingerprint of a page is stable for equal content and differs for other content [H15]', async () => {
   const first = store();
   const second = store();
   const a = await writeSealedValue({ n: 1 }, first.write);

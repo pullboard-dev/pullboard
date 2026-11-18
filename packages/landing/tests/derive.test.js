@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-cell packages/landing packages/state */
 /** A named landing's engine numbers are built by a runner job and applied by the coordinator as a patch [C7,#5568]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -53,7 +53,7 @@ function runnerOutput(root, sh) {
   return ran.stdout;
 }
 
-test('commitDerived applies a runner patch that numbers the engine, without deriving on the coordinator [C7,#5568]', async t => {
+test('landing.derive.commitderived-applies-a-runner-patch-that: commitDerived applies a runner patch that numbers the engine, without deriving on the coordinator [C7,#5568]', async t => {
   const { root, sh } = repo(t);
   const output = runnerOutput(root, sh);
   const said = [];
@@ -66,7 +66,7 @@ test('commitDerived applies a runner patch that numbers the engine, without deri
   assert.equal(merged[0].merge, sh('rev-parse', 'HEAD'), 'the item merge entry follows the amended commit');
 });
 
-test('commitDerived derives on the coordinator when the runner could not answer [C7,#5568]', async t => {
+test('landing.derive.commitderived-derives-on-the-coordinator-when: commitDerived derives on the coordinator when the runner could not answer [C7,#5568]', async t => {
   const { root, sh } = repo(t);
   const said = [];
   const state = { batch: { root }, config: {}, say: line => said.push(line), guardServices: { runStaticChecks: async () => ({ output: 'LANDING_DERIVE_UNAVAILABLE\n' }) } };
@@ -75,7 +75,7 @@ test('commitDerived derives on the coordinator when the runner could not answer 
   assert.match(said.join('\n'), /could not derive this batch/u);
 });
 
-test('the derive job writes the badge documents it is handed and counts held doctrine rules on the derived tree [C7,#5583]', async t => {
+test('landing.derive.the-derive-job-writes-the-badge: the derive job writes the badge documents it is handed and counts held doctrine rules on the derived tree [C7,#5583]', async t => {
   const { root, sh } = repo(t);
   const { root: twin } = privateFixtureFiles('landing-derive-badges-');
   runFixtureGit(['clone', '-q', root, twin], { cwd: root });
@@ -90,7 +90,7 @@ test('the derive job writes the badge documents it is handed and counts held doc
   assert.doesNotMatch(ran.stdout, /LANDING_DERIVE_RULES=\[\{/u);
 });
 
-test('commitDerived hands the runner-counted doctrine rows to the landing and writes badges only in the job [C7,#5583]', async t => {
+test('landing.derive.commitderived-hands-the-runner-counted-doctrine: commitDerived hands the runner-counted doctrine rows to the landing and writes badges only in the job [C7,#5583]', async t => {
   const { root, sh } = repo(t);
   const output = `${runnerOutput(root, sh)}LANDING_DERIVE_RULES=[{"id":"D1","count":3,"found":2,"broken":null}]\n`;
   const state = { batch: { root }, config: {}, say() {}, guardServices: { runStaticChecks: async () => ({ output }) },
@@ -129,7 +129,7 @@ function composeOutput(root, state, plan) {
   return ran.stdout;
 }
 
-test('composeOnRunner brings the runner-built landing commit here as objects and moves the checkout to it [C7,#5585]', async t => {
+test('landing.derive.composeonrunner-brings-the-runner-built-landing: composeOnRunner brings the runner-built landing commit here as objects and moves the checkout to it [C7,#5585]', async t => {
   const { root, sh, base, plan } = composeRepo(t);
   const state = { batch: { root, base }, config: { spec: 'SPEC.md' }, say() {} };
   let seen = null;
@@ -151,7 +151,7 @@ test('composeOnRunner brings the runner-built landing commit here as objects and
   for (const entry of plan) runFixtureGit(['merge-base', '--is-ancestor', entry.commit, composed.tip], { cwd: root });
 });
 
-test('composeOnRunner hands the batch back to a local merge when the runner could not compose it [C7,#5585]', async t => {
+test('landing.derive.composeonrunner-hands-the-batch-back-to: composeOnRunner hands the batch back to a local merge when the runner could not compose it [C7,#5585]', async t => {
   const { root, sh, base, plan } = composeRepo(t);
   for (const output of ['LANDING_COMPOSE_UNAVAILABLE\n', 'LANDING_COMPOSE_CONFLICT=2\n', '']) {
     const state = { batch: { root, base }, config: {}, say() {}, guardServices: { runStaticChecks: async () => ({ output }) } };
@@ -160,7 +160,7 @@ test('composeOnRunner hands the batch back to a local merge when the runner coul
   }
 });
 
-test('composeOnRunner refuses a returned commit that does not carry every planned item [C7,#5585]', async t => {
+test('landing.derive.composeonrunner-refuses-a-returned-commit-that: composeOnRunner refuses a returned commit that does not carry every planned item [C7,#5585]', async t => {
   const { root, sh, base, plan } = composeRepo(t);
   const output = `LANDING_COMPOSE_MERGES=[]\nLANDING_COMPOSE_TIP=${plan[0].commit}\n`;
   const state = { batch: { root, base }, config: {}, say() {}, guardServices: { runStaticChecks: async () => ({ output }) } };

@@ -43,6 +43,7 @@ import { fixStagedImportBindings } from '../../../../../packages/commits/index.j
 import { landingRows } from '../../../../../packages/commits/index.js';
 import { hookReader } from '../hook/read.js';
 import { stagedStaticProblems } from '../hook/static.js';
+import { stagedCeilingTables } from '../hook/static.js';
 import { readStdin } from '../hook/stdin.js';
 import { checkedLandingCommit } from '../../../../../packages/verify/index.js';
 import {
@@ -143,6 +144,12 @@ export async function hookCommand(io, { first, second }) {
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
     if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    // Behind docs.regenerateOnCommit (off by default): the generated documentation copies follow the declarations they are built from [C7,#9664].
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1' && (await import('../../../../../packages/config/index.js')).docsRegenerateOnCommit()) {
+      const { regenerateStagedDocs } = await import('../generated/docs.js');
+      const { openBoard } = await import('../../../../lib/index.js');
+      regenerateStagedDocs(info.root, { openBoard }).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    }
     if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
     // A boardless clone with board.url set is a seat whose lane the served board names, never the coordinator [P7].
     const remoteSeat = existsSync(ctx.file) ? null : await (await import('../remote/board.js')).remoteHookSeat(info.root);
@@ -165,7 +172,8 @@ export async function hookCommand(io, { first, second }) {
     const accepted = (trunk?.startsWith('refs/heads/') ? checkoutRefCommit(info.root, trunk) : null) || tryGit(info.root, ['rev-parse', '--verify', trunk]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     const staticProblems = await stagedStaticProblems(info.root, process.env);
-    problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
+    const ceilingTables = await stagedCeilingTables(process.env);
+    problems = [...staticProblems, ...withGitCommandMemo(() => preCommitProblems({ shimImports, approvedRowPorts, ceilingTables, root: info.root, isMain: isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) }))];
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {

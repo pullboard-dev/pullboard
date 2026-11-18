@@ -12,8 +12,11 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CODEX_AUTOMATION_FILE } from '../../../../packages/config/index.js';
+import { renderCodexAutomation } from '../../../../packages/config/index.js';
 import { renderWorkerSkill } from '../../../../packages/config/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
@@ -240,4 +243,22 @@ export function installSkills(root, onWrite = () => {}, tools = ['claude']) {
     notes.push(written.length ? `wrote ${label} skills: ${written.join(', ')}` : `kept the ${label} skills`);
   }
   return notes;
+}
+
+/**
+ * Write the paused Codex automation template for a project that declares Codex, never replacing one that is there.
+ *
+ * @param {string} root
+ * @param {(path: string) => void} [onWrite]
+ * @param {Array<'claude'|'codex'>} [tools]
+ * @returns {string[]} What happened.
+ */
+export function installCodexAutomation(root, onWrite = () => {}, tools = ['claude']) {
+  if (!tools.includes('codex')) return [];
+  const file = join(root, CODEX_AUTOMATION_FILE);
+  if (existsSync(file)) return ['kept the Codex automation template'];
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, renderCodexAutomation());
+  onWrite(CODEX_AUTOMATION_FILE);
+  return [`wrote the paused Codex automation template ${CODEX_AUTOMATION_FILE}`];
 }
