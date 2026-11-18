@@ -1,0 +1,4 @@
+{
+  "cli.io-submit-pull.static-known-main-rows-reach-the-receipt": {"proves":{"specs":["C7"],"claim":"the runner gate job entry writes an analysis result's staticKnownMain rows to receipt.analysis.staticKnownMain, at most 200"},"why":"Without it the board never learns which static reds main already had, so slice 4 has nothing to record.","kind":"contract","inputs":["apps/cli/src/io/submit/pull.js","apps/cli/tests/io/submit/pull.test.js"]},
+  "cli.io-submit-pull.no-static-known-main-key-without-rows": {"proves":{"specs":["C7"],"claim":"receipt.analysis has no staticKnownMain key when the analysis has no such rows"},"why":"Without it the board never learns which static reds main already had, so slice 4 has nothing to record.","kind":"contract","inputs":["apps/cli/src/io/submit/pull.js","apps/cli/tests/io/submit/pull.test.js"]}
+}

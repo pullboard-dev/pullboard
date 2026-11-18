@@ -13,7 +13,7 @@ function gateRows(box) {
   return withBoardFile(box, db => jobsOf(db, { kind: 'gate', item: box.id }));
 }
 
-test('clause 1: a submit leaves exactly one gate job row for the item, through the pull path [C7,V4,#6489]', async t => {
+test('cli.journeys-submit-one-gate-row.a-submit-leaves-exactly-one-gate: clause 1: a submit leaves exactly one gate job row for the item, through the pull path [C7,V4,#6489]', async t => {
   const box = fixture(t);
   // The submit must not wait for the held gate to settle, or it would never return before the release file is written.
   box.env.PULLBOARD_FIXTURE_UNSETTLED = '1';
