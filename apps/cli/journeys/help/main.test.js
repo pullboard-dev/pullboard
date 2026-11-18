@@ -209,6 +209,7 @@ test('cli.journeys-help-main.help-lists-every-edit-option: clause 1: help lists 
   const source = readFileSync(resolve(ROOT, 'apps/cli/src/io/commands/edit.js'), 'utf8');
   const parsed = new Set([...source.matchAll(/values(?:\.([a-z]+)|\['([a-z-]+)'\])/gu)].map(match => match[1] ?? match[2]));
   for (const name of ['brief', 'brief-file']) parsed.add(name); // briefArg reads both for edit
+  if (parsed.delete('route')) parsed.add('level'); // options.js folds --level into values.route (U136)
   parsed.delete('as'); // the person flag is documented under the person's own commands
   assert.ok(parsed.has('after'), 'the parsed set includes --after');
   for (const name of parsed) assert.ok(block.includes(`--${name}`), `help --all lists edit --${name}`);
