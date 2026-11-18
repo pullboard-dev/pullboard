@@ -1,5 +1,4 @@
-/** @pullboard-test-input source-tree */
-/** @pullboard-test-input packages/doctrine/src/io/standard.md */
+/** @pullboard-test-input docs/rfcs/0001-standard-doctrine.md packages/doctrine/src/io/standard.md */
 /** Standard doctrine and repo overrides (D1–D4), using real private files. */
 import assert from 'node:assert/strict';
 import {
