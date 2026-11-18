@@ -17,4 +17,8 @@ test('view.x-panel-model-no-item.clause-1-shouts-with-no-item-from: clause 1: sh
   assert.ok(threads.every((thread) => thread.chip === null || thread.chip.label !== 'No item'), 'no chip reads No item');
   assert.ok(threads.every((thread) => !/no item/iu.test(thread.title)), 'no thread is titled with No item');
   assert.equal(threads.find((thread) => thread.title === 'sentinel').quiet, true, 'an automated sender stays a muted notice thread');
+  // A reply that names no item sits in the thread of the question it answers, not in a thread of its own sender.
+  const replied = shoutsModel({ startOfToday: today, messages: [shout(1, 'core-1', today + 1e6), shout(2, 'person', today + 2e6, { answers: 1, to: 'core-1' })] });
+  const repliedThreads = [...replied.needs, ...replied.threads];
+  assert.deepEqual(repliedThreads.map((thread) => [thread.title, thread.count]), [['core-1', 2]], 'the reply joins its question thread');
 });
