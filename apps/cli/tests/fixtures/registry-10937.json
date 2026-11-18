@@ -1,0 +1,3 @@
+{
+  "cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on-runs": {"proves":{"specs":["C7"],"claim":"A submit with submit.residentChecks on and a resident process running runs the commit hooks and leaves the same marks on the item as with it off."},"why":"Without it, a regression where the resident preflight changes what a submit runs or records would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/submit/resident-parity.test.js"]}
+}
