@@ -4,7 +4,7 @@ import { cellRepo } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { test } from 'node:test';
 import { testJobRow } from '../../../src/io/test/pull.js';
 
-const SHELL = { PATH: '/usr/bin', HOME: '/home/x', NODE_OPTIONS: '--require ./evil.js', FIXTURE_ONE: '1', PULLBOARD_FIXTURE_INPROCESS_HOOKS: '1', PULLBOARD_FIXTUREX: 'no', MY_FIXTURE_A: 'no' };
+const SHELL = { PATH: '/usr/bin', HOME: '/home/user', NODE_OPTIONS: '--require ./evil.js', FIXTURE_ONE: '1', PULLBOARD_FIXTURE_INPROCESS_HOOKS: '1', PULLBOARD_FIXTUREX: 'no', MY_FIXTURE_A: 'no' };
 
 /** The row testJobRow offers for a commit in a throwaway repository, given the caller's shell variables. */
 async function rowFor(t, environment) {

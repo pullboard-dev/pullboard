@@ -96,11 +96,11 @@ function rawChromeBypasses(root = ROOT) {
   return violations;
 }
 
-test('real Chrome tests measure and click only through the shared wait [N26,C7]', () => {
+test('gate.logic-wait.real-chrome-tests-measure-and-click: real Chrome tests measure and click only through the shared wait [N26,C7]', () => {
   assert.deepEqual(rawChromeBypasses(), [], 'every cockpit test uses the stable API; raw CDP plumbing stays in the four named helpers');
 });
 
-test('each raw-client allowance names a real file, a written reason, and still holds raw calls [N26,C7]', () => {
+test('gate.logic-wait.each-raw-client-allowance-names-a: each raw-client allowance names a real file, a written reason, and still holds raw calls [N26,C7]', () => {
   for (const [file, reason] of RAW_CLIENT_TESTS) {
     assert.ok(existsSync(join(ROOT, file)), `${file} exists`);
     assert.ok(reason.length >= 20, `${file} states why its raw calls are allowed`);
@@ -109,7 +109,7 @@ test('each raw-client allowance names a real file, a written reason, and still h
   }
 });
 
-test('the shared-wait guard reports a synthetic direct Chrome evaluation by file and line [N26,C7]', () => {
+test('gate.logic-wait.the-shared-wait-guard-reports-a: the shared-wait guard reports a synthetic direct Chrome evaluation by file and line [N26,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-shared-wait-guard-'));
   try {
     mkdirSync(join(root, 'nested'));
@@ -122,7 +122,7 @@ test('the shared-wait guard reports a synthetic direct Chrome evaluation by file
   }
 });
 
-test('raw protocol exceptions are limited to named stable helpers [N26,C7]', () => {
+test('gate.logic-wait.raw-protocol-exceptions-are-limited-to: raw protocol exceptions are limited to named stable helpers [N26,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-shared-wait-scope-'));
   try {
     writeFileSync(join(root, 'stable.js'), [
@@ -148,7 +148,7 @@ test('raw protocol exceptions are limited to named stable helpers [N26,C7]', () 
   }
 });
 
-test('the guard catches each low-level protocol bypass outside shared helpers [N26,C7]', () => {
+test('gate.logic-wait.the-guard-catches-each-low-level: the guard catches each low-level protocol bypass outside shared helpers [N26,C7]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-shared-wait-protocol-'));
   try {
     const forbiddenCalls = [
@@ -164,7 +164,7 @@ test('the guard catches each low-level protocol bypass outside shared helpers [N
   }
 });
 
-test('a changed cockpit test selects the shared-wait scanner [C7,B3]', (t) => {
+test('gate.logic-wait.a-changed-cockpit-test-selects-the: a changed cockpit test selects the shared-wait scanner [C7,B3]', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-view-scanner-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
