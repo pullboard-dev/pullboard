@@ -78,9 +78,10 @@ export async function run(io, { values }) {
   const reclaim = await fallbackReclaim(ctx, 'status');
   let landing = null;
   let batchLine = null;
-  // Loaded here, not at the top, so the landing batch module stays out of status's startup imports [C7].
-  const { adaptiveBatchLine } = await import('../landing/adaptive.js');
+  // Loaded only when landing.adaptiveBatch is on: off, the landing batch module stays out of status, which pays for render.js [C7].
   const { adaptiveBatchEnabled } = await import('../../../../../packages/config/index.js');
+  const adaptiveBatch = adaptiveBatchEnabled();
+  const adaptiveBatchLine = adaptiveBatch ? (await import('../landing/adaptive.js')).adaptiveBatchLine : null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: relay?.relayLinked ?? (() => false) }, readers);
@@ -103,7 +104,7 @@ export async function run(io, { values }) {
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../../../../../packages/person/index.js')).personSigning(board).signed } : { signed: false };
     landing = landWhy(board, ctx.clock.now());
-    batchLine = adaptiveBatchLine(board, adaptiveBatchEnabled());
+    batchLine = adaptiveBatchLine?.(board, adaptiveBatch) ?? null;
     return { noRunnerGates: store.listItems(board).filter(item => item.item_gate_runner === 'none').map(item => item.item_id), stalledGates: stalledGates(board.db, { workerAlive: view => { const job = view.item == null ? null : submitHandoff(board, view.item); return job?.id === view.id && handoffWorkerAlive(board, job); } }), needsRescope, me, mine, claimHealth: Object.fromEntries(claimHealthProjection(observedStaleState)), person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), usefulBuilders: statusShowUsefulBuilders() ? readMaxUsefulBuilders(board.db, ctx.clock.now()) : null, staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
