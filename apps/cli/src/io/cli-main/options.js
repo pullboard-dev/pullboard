@@ -85,6 +85,7 @@ const OPTIONS = {
   source: { type: 'string' },
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
+  role: { type: 'string' },
   route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
