@@ -78,6 +78,10 @@ export function parityText(text, dir) {
     // The detached comparison worker also writes its own thread facts at no fixed moment, so the lines and the digest's fact count follow timing, not the runtime.
     .replace(/^ +<time> +.*fact measurement <uuid>: Review comparison: .*\n/gmu, '')
     .replace(/\b\d+ fact activities\b/gu, '<n> fact activities')
+    // The add's check-baseline job runs on the loopback local runner at no fixed moment, and a seat's first delivery starts at the board head,
+    // so its event shows in the second submit's digest only when it lands after the first submit's delivery: call speed, not the runtime (#10746).
+    // Only that one digest line goes; the board's event counts still compare.
+    .replace(/^\d+ check-baseline activit(?:y|ies); details remain on the board\n?/gmu, '')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
     .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
