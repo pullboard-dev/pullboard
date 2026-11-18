@@ -14,6 +14,7 @@ import { test } from 'node:test';
 import { SPARE_FROM_FILES } from '../../../../src/io/item/folder/spare.js';
 import { indexEntries } from '../../../../src/io/item/folder/spare.js';
 import { prepareSpareFolder } from '../../../../src/io/item/folder/spare.js';
+import { enterGitAdapter } from '../../../../../../packages/git/index.js';
 import { spareFolderPath } from '../../../../src/io/item/folder/spare.js';
 import { takeSpareFolder } from '../../../../src/io/item/folder/spare.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
@@ -91,18 +92,30 @@ test('cli.item-folder-spare.no-existing-folder-unchanged: clause 3: with no item
 
 const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec'];
 
-/** Run `work` while every git child this process starts is noted; the number of git launches comes back with the result. */
+/**
+ * Run `work` while every git launch this process makes is counted; the count comes back with the result.
+ * Why both seams: node:child_process sees a launch made by the real Git adapter, and a call chain that selected another
+ * adapter (the store fixtures do) never reaches it, so the chain's adapter is replaced by one that counts and launches real Git.
+ */
 function countingGit(work) {
   const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
   let launches = 0;
+  let counting = true;
   for (const api of APIS) {
     childProcess[api] = function counted(...args) {
-      if ((typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '').endsWith('git')) launches++;
+      if (counting && (typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '').endsWith('git')) launches++;
       return real[api].apply(this, args);
     };
   }
   syncBuiltinESMExports();
-  try { return { launches, result: work() }; } finally {
+  enterGitAdapter({
+    spawnSync(args, options) { if (counting) launches++; return real.spawnSync('git', args, options); },
+    execFileSync(args, options) { if (counting) launches++; return real.execFileSync('git', args, options); },
+    spawn(args, options) { if (counting) launches++; return real.spawn('git', args, options); },
+  });
+  try { const result = work();
+    return { launches, result }; } finally {
+    counting = false;
     for (const api of APIS) childProcess[api] = real[api];
     syncBuiltinESMExports();
   }
