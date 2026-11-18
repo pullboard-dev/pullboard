@@ -26,7 +26,7 @@ async function view(t, machineName) {
   const box = cellProject(t, { real: true });
   const secret = ['machine', 'name', 'test', '0123456789'].join('-');
   const none = () => { throw new Error('not used by a board list'); };
-  const served = await serveView({ secret, projectRoot: box.repo, machineName, runCommand: none, renderPage: () => '', refusalDocument: () => ({}), boardOpeners: apiBoardOpeners });
+  const served = await serveView({ secret, projects: () => [{ root: box.repo, name: 'Machine fixture', project: 'machine', added: '2026-11-17T00:00:00.000Z' }], machineName, runCommand: none, renderPage: () => '', refusalDocument: () => ({}), boardOpeners: apiBoardOpeners });
   t.after(() => served.close());
   return boards(served.port, secret);
 }
