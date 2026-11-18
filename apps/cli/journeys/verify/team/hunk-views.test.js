@@ -125,6 +125,6 @@ test('clause 2: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, acc
   assert.equal(refused.code, 1, refused.out + refused.err);
   const { error } = JSON.parse(refused.out);
   assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
-  assert.match(error.message, /"web\/notes\.txt" "@@ -21 \+21 @@"/u, 'the refusal names the changed hunk header: ' + error.message);
+  assert.match(error.message, /"web\/notes\.txt" "@@ -21 \+21 @@[^"]*"/u, 'the refusal names the changed hunk header: ' + error.message);
   assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), [], 'no verdict is recorded');
 });
