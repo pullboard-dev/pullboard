@@ -32,7 +32,7 @@ function lanesOffProject(...briefs) {
   const box = project('true');
   const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
   fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'packages/'] } } });
-  briefs.forEach((brief, index) => fileFixtureItem(box, box.repo, { lane: 'web', title: `Cell item ${index + 1}`, brief, args: ['--specs', 'G1'] }));
+  briefs.forEach((brief, index) => fileFixtureItem(box, box.repo, { lane: 'web', title: `Cell item ${index + 1}`, brief, diagnose: false, args: ['--specs', 'G1'] }));
   fixturePolicy(box, { laneMode: 'off', lanes });
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   return box;
