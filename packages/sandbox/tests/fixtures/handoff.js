@@ -54,6 +54,13 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
     assert.equal(queued?.created, true, 'a refused setup or repeated queue never counts as coverage');
     assert.equal(queued.job.state, 'queued');
     assert.equal(store.getItem(board, item).item_status, 'claimed', 'queueing is not a submission');
+    // Main moves while the gate waits: a recapture replaces the queued job's captured main with the newest main and nothing else.
+    const newest = git(root, ['commit-tree', tree, '-p', commit, '-m', 'fixture: newer main for the recapture']);
+    const recaptured = await exercise('recaptureSubmitHandoff', () => store.writeBoardCommand(board, 'recaptureSubmitHandoff',
+      [item, { agentId, job: queued.job.id, main: newest }], agentId));
+    assert.equal(recaptured?.job.main, newest, 'a refused setup never counts as recapture coverage');
+    assert.equal(recaptured.job.state, 'queued');
+    assert.equal(recaptured.job.commit, commit, 'only the captured main changes');
     const started = await exercise('startSubmitHandoff', () => store.startSubmitHandoff(board, item,
       { agentId, job: queued.job.id }));
     assert.equal(started?.started, true);
@@ -83,7 +90,7 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
     assert.equal(store.getItem(board, item).item_commit, null, 'owner waiting is never a submission');
     const states = store.events(board, { itemId: item }).filter(event => event.event_kind === 'submit-handoff')
       .map(event => JSON.parse(event.event_detail).state);
-    assert.deepEqual(states, ['queued', 'running', 'red'], 'all three real mutations carry their public event before parity coverage');
+    assert.deepEqual(states, ['queued', 'queued', 'running', 'red'], 'all four real mutations carry their public event before parity coverage');
   } finally {
     try { git(box.root, ['worktree', 'remove', '--force', root]); }
     finally { rmSync(directory, { recursive: true, force: true }); }
