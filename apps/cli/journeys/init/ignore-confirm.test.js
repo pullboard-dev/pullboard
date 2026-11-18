@@ -21,7 +21,7 @@ import {
   SSH_SHELL_MARKERS,
 } from '../../../../packages/kernel/index.js';
 
-test('setup confirmation does not adopt a later user edit to a generated file [I1,I2]', async t => {
+test('cli.journeys-init-ignore-confirm.setup-confirmation-does-not-adopt-a: setup confirmation does not adopt a later user edit to a generated file [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   assert.equal((await box.invoke('init')).code, 0);
@@ -35,7 +35,7 @@ test('setup confirmation does not adopt a later user edit to a generated file [I
     'the unchanged-write receipt cannot authorize a later user edit');
 });
 
-test('setup confirmation leaves a later executable-mode edit uncommitted [I1,I2]', async t => {
+test('cli.journeys-init-ignore-confirm.setup-confirmation-leaves-a-later-executable: setup confirmation leaves a later executable-mode edit uncommitted [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   assert.equal((await box.invoke('init', '--yes')).code, 0);
@@ -50,7 +50,7 @@ test('setup confirmation leaves a later executable-mode edit uncommitted [I1,I2]
   assert.match(box.git('diff', '--summary'), /mode change/u);
 });
 
-test('setup confirmation preserves a different version staged from its saved working bytes [I1,I2]', async t => {
+test('cli.journeys-init-ignore-confirm.setup-confirmation-preserves-a-different-version: setup confirmation preserves a different version staged from its saved working bytes [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   writeFileSync(join(box.root, 'README.md'), '# Existing repository\n');
@@ -93,7 +93,7 @@ async function confirmSetupAfter(t, box, beforeEnter) {
   return { entered, output, code: Number(/pty-exit:(\d+)/u.exec(output)?.[1]) };
 }
 
-test('setup confirmation preserves an index-only edit made while the prompt is open [I1,I2]', { timeout: 30_000 }, async t => {
+test('cli.journeys-init-ignore-confirm.setup-confirmation-preserves-an-index-only: setup confirmation preserves an index-only edit made while the prompt is open [I1,I2]', { timeout: 30_000 }, async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   writeFileSync(join(box.root, 'README.md'), '# Existing repository\n');
