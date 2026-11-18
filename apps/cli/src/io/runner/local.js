@@ -15,6 +15,7 @@ import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { localRunnerEnabled } from '../../../../../packages/config/index.js';
 import { addLocalBoard } from '../../../../../packages/drive/index.js';
 import { localBoards } from '../../../../../packages/drive/index.js';
+import { localRunnerStarting } from '../../../../../packages/drive/index.js';
 import { localRunnerState } from '../../../../../packages/drive/index.js';
 import { startLocalRunner as startProcess } from '../../../../../packages/drive/index.js';
 import { wakeLocalRunner } from '../../../../../packages/drive/index.js';
@@ -76,6 +77,9 @@ export async function ensureLocalRunner(root, { start = startLocalRunner } = {})
   }
   const state = localRunnerState(folder);
   if (state) { wakeRunnerForOffer(); return { running: true, started: false, pid: state.pid, reason: null }; }
+  // A runner an earlier command started moments ago is still loading: it serves this board once up, so start no second one [P7,C7,#10709].
+  const starting = localRunnerStarting(folder);
+  if (starting !== null) return { running: true, started: false, pid: starting, reason: null };
   const pid = await start(board);
   return { running: pid !== null, started: pid !== null, pid, reason: pid === null ? 'the local runner did not start' : null };
 }

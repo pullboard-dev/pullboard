@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input apps/view/src/logic/needs/summary.js apps/view/src/logic/resume.js */
 /** @pullboard-world-pin reads the two summary sources to prove neither imports the person package. */
 /** The needs summary takes an injected passkey decision, and only the io wrappers bind the person's [N26]. */
 import assert from 'node:assert/strict';
@@ -16,14 +16,14 @@ import { resumeNeeds as boundResume } from '../../../../src/io/needs.js';
 
 const source = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-test('clause 1: neither logic file imports the person package [N26]', () => {
+test('view.needs-summary-with.clause-1-neither-logic-file-imports-the: clause 1: neither logic file imports the person package [N26]', () => {
   for (const file of ['../../../../src/logic/needs/summary.js', '../../../../src/logic/resume.js']) {
     assert.doesNotMatch(source(file), /from ['"][^'"]*packages\/person\//u, file);
     assert.doesNotMatch(source(file), /verifiedPasskeyRowDecision\s*\}\s*from/u, file);
   }
 });
 
-test('clause 1: the summary and resume take the passkey decision as an argument [N26]', t => {
+test('view.needs-summary-with.clause-1-the-summary-and-resume-take: clause 1: the summary and resume take the passkey decision as an argument [N26]', t => {
   const repo = cellRepo(t);
   const board = cellBoard(t, repo.boardFile);
   const config = loadConfig(repo.root);
@@ -34,7 +34,7 @@ test('clause 1: the summary and resume take the passkey decision as an argument 
   assert.ok(Array.isArray(resume.needs));
 });
 
-test('clause 1: the person-bound wrappers live in io/needs.js and index.js re-exports the same names [N26]', t => {
+test('view.needs-summary-with.clause-1-the-person-bound-wrappers-live: clause 1: the person-bound wrappers live in io/needs.js and index.js re-exports the same names [N26]', t => {
   const repo = cellRepo(t);
   const board = cellBoard(t, repo.boardFile);
   const config = loadConfig(repo.root);

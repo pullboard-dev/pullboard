@@ -49,3 +49,53 @@ export function mergeSubmissionMain(root, main, { checkout = true } = {}) {
   }
   return { source, commit, merged: true };
 }
+
+/** The ref that keeps a submit composition reachable, so git gc cannot drop it before landing: one per item and main [C7,U159]. */
+export function composeRef(item, main) {
+  return `refs/pullboard/compose/${item}/${String(main).slice(0, 12)}`;
+}
+
+/**
+ * Compose an exact main commit with the builder's head as a throwaway commit object, never a branch commit [C7,U159].
+ *
+ * The composition is a pure function of (main, head): `merge-tree --write-tree` then `commit-tree` with parents main then
+ * head, identity "Pullboard compose", kept under refs/pullboard/compose/<item>/<main12>. HEAD, the index, the checkout and
+ * the branch never move and no hook runs, so the builder's branch gets no sync merge. A runner or lander can recompute
+ * the same tree id from the two commits alone. Why: a sync merge in the builder's branch was a third of all commits and
+ * stale again by landing; the proof needs the composed tree, not a builder commit.
+ *
+ * @param {string} root - The builder checkout.
+ * @param {string} main - The exact accepted main commit.
+ * @param {{ item: number|string }} options - The item whose composition ref is written.
+ * @returns {{ source: string, commit: string, merged: boolean, composed: boolean, ref?: string, tree?: string }}
+ */
+export function composeSubmissionMain(root, main, { item } = {}) {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(main)) throw new Refused('NO_POLICY', 'read an exact accepted main before composing the submission');
+  if (!/^[1-9]\d*$/u.test(String(item ?? ''))) throw new Refused('MERGE_CHECK_FAILED', 'a submit composition needs the item id for its ref');
+  const env = cleanGitEnvironment();
+  const source = git(root, ['rev-parse', 'HEAD'], { env });
+  if (tryGit(root, ['merge-base', '--is-ancestor', main, source], { env }).status === 0) return { source, commit: source, merged: false, composed: false };
+  if (git(root, ['status', '--porcelain=v1', '--untracked-files=all'], { env })) throw new Refused('DIRTY', 'commit all changes before submitting');
+  if (tryGit(root, ['config', '--get-regexp', '^merge\\..*\\.driver$'], { env }).stdout.trim())
+    throw new Refused('MERGE_CHECK_FAILED', 'external merge drivers cannot establish an exact submit composition; remove the merge driver or merge main yourself, then submit again');
+  const merged = tryGit(root, ['merge-tree', '--write-tree', '--name-only', '-z', main, source], { env });
+  const fields = merged.stdout.split('\0');
+  if (merged.status !== 0) {
+    const end = fields.indexOf('', 1);
+    const paths = fields.slice(1, end < 0 ? undefined : end).filter(Boolean);
+    if (paths.length) throw new Refused('MERGE_CONFLICT', `main conflicts in ${paths.map(path => JSON.stringify(path)).join(', ')}; resolve and commit those files`);
+    throw new Refused('MERGE_CHECK_FAILED', 'Git could not compute the exact main composition; inspect its output and retry');
+  }
+  const tree = fields[0].trim();
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tree)) throw new Refused('MERGE_CHECK_FAILED', 'Git did not return a valid composition tree');
+  const identity = { ...env, GIT_AUTHOR_NAME: 'Pullboard compose', GIT_AUTHOR_EMAIL: 'compose@pullboard.invalid',
+    GIT_COMMITTER_NAME: 'Pullboard compose', GIT_COMMITTER_EMAIL: 'compose@pullboard.invalid' };
+  const message = `Compose main ${main.slice(0, 12)} with #${item} head ${source.slice(0, 12)}`;
+  const written = tryGit(root, ['-c', 'commit.gpgSign=false', 'commit-tree', tree, '-p', main, '-p', source, '-m', message], { env: identity });
+  const commit = written.stdout.trim();
+  if (written.status !== 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) throw new Refused('MERGE_CHECK_FAILED', `the composition could not be written: ${written.stderr || written.stdout}`);
+  const ref = composeRef(item, main);
+  const kept = tryGit(root, ['update-ref', '-m', `pullboard compose #${item}`, ref, commit], { env });
+  if (kept.status !== 0) throw new Refused('MERGE_CHECK_FAILED', `the composition ref ${ref} could not be written: ${kept.stderr || kept.stdout}`);
+  return { source, commit, merged: true, composed: true, ref, tree };
+}

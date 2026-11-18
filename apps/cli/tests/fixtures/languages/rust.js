@@ -116,7 +116,7 @@ export async function buildAndSubmit(board, id, itemText, priorReds = 0) {
   const { box, repo, web } = board;
   const item = id ?? String((await fileFixtureItem(box, repo, { lane: 'web', title: 'Add numbers', brief: BRIEF, check: CHECK, args: ['--specs', 'G1'], run: box.runLocal })).item_id);
   if (!id) assert.equal((await box.runLocal(web, 'claim', item)).code, 0);
-  writeFileSync(join(web, 'src', 'item.rs'), itemText);
+  writeFileSync(join(web, 'src/item.rs'), itemText);
   box.git(web, 'add', '-A');
   const committed = box.tryGit(web, 'commit', '-q', '-m', `feat(web): test adding numbers [G1]`);
   assert.equal(committed.status, 0, committed.stderr);

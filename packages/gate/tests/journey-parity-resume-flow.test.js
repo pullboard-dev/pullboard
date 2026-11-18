@@ -1,5 +1,6 @@
 /** @pullboard-test-input apps/cli/journeys/resume/flow.test.js */
-/** @pullboard-world-pin: clause 2 reads the committed journey source to prove it still declares all of its cases. */
+/** @pullboard-test-input apps/cli/journeys/resume/flow-upgrade.test.js */
+/** @pullboard-world-pin: clause 2 reads the committed journey sources to prove they still declare all of its cases. */
 /**
  * The parity check for the resume/flow journey (U149): one representative case runs twice, once with every CLI call a real process
  * and once in-process, and the exit codes, JSON results and board state must agree. One file per journey, so each has its own budget
@@ -18,7 +19,9 @@ test('gate.journey-parity-resume-flow.a-sample-of-the-resume-flow-journey: claus
 });
 
 test('gate.journey-parity-resume-flow.the-resume-flow-journey-still-declares-all: clause 2: the resume/flow journey still declares all 16 of its test blocks, none dropped, skipped or merged [C7]', () => {
-  const source = readFileSync(new URL('../../../apps/cli/journeys/resume/flow.test.js', import.meta.url), 'utf8');
+  // Three of the 16 blocks moved to flow-upgrade.test.js (#9491); the journey is both files together.
+  const source = ['flow.test.js', 'flow-upgrade.test.js']
+    .map(name => readFileSync(new URL('../../../apps/cli/journeys/resume/' + name, import.meta.url), 'utf8')).join('\n');
   assert.equal([...source.matchAll(/^test\(/gmu)].length, 16, 'the journey keeps its 16 top-level test blocks');
   assert.doesNotMatch(source, /\b(?:test|it)\.(?:skip|todo|only)\b|\{\s*skip\s*:/u, 'no case is skipped');
 });

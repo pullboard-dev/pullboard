@@ -21,7 +21,7 @@ async function document(box, root, ...args) {
   return JSON.parse(result.out);
 }
 
-test('a row approved without a person move reads as agent-approved until the person confirms it [S1,B26,P6]', async t => {
+test('cli.journeys-spec-approval.a-row-approved-without-a-person: a row approved without a person move reads as agent-approved until the person confirms it [S1,B26,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   // This normal fixture's setup commit writes approved rows, without any person row decision.
@@ -76,7 +76,7 @@ test('a row approved without a person move reads as agent-approved until the per
   assert.equal(kept.event_detail, acceptance.event_detail, 'confirmation never rewrites the historical verification receipt');
 });
 
-test('agent approval settings preserve the filename form and reject ambiguous choices [S1,P6]', () => {
+test('cli.journeys-spec-approval.agent-approval-settings-preserve-the-filename: agent approval settings preserve the filename form and reject ambiguous choices [S1,P6]', () => {
   assert.equal(configFromSource('{}').specAgentApproval, 'flag');
   assert.equal(configFromSource('{"spec":"requirements.md"}').spec, 'requirements.md');
   for (const agentApproval of ['flag', 'allow', 'refuse']) {
@@ -92,7 +92,7 @@ test('agent approval settings preserve the filename form and reject ambiguous ch
   assert.equal(unknown.specAgentApproval, 'flag', 'an unknown spec key changes no approval setting');
 });
 
-test('allow suppresses approval calls and explicit refuse protects a new claim [S1,B26,P6]', async t => {
+test('cli.journeys-spec-approval.allow-suppresses-approval-calls-and-explicit: allow suppresses approval calls and explicit refuse protects a new claim [S1,B26,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   for (const mode of ['allow', 'refuse']) {
@@ -117,7 +117,7 @@ test('allow suppresses approval calls and explicit refuse protects a new claim [
   }
 });
 
-test('confirmation follows the exact row and an unsigned ledger cannot impersonate it [S1,S19,P6]', async t => {
+test('cli.journeys-spec-approval.confirmation-follows-the-exact-row-and: confirmation follows the exact row and an unsigned ledger cannot impersonate it [S1,S19,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -138,7 +138,7 @@ test('confirmation follows the exact row and an unsigned ledger cannot impersona
   assert.equal((await document(box, box.repo, 'status')).needs.some(need => need.kind === 'agent-approved' && need.id === 'G1'), false);
 });
 
-test('the actual API reports approval calls and accepts one person confirmation [A9,S1,P6]', async t => {
+test('cli.journeys-spec-approval.the-actual-api-reports-approval-calls: the actual API reports approval calls and accepts one person confirmation [A9,S1,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -154,7 +154,7 @@ test('the actual API reports approval calls and accepts one person confirmation 
   assert.equal(after.spec.find(row => row.id === 'G1').agentApproval, null);
 });
 
-test('approval projection leaves a board with no Spec readable [I10,S1,P6]', async t => {
+test('cli.journeys-spec-approval.approval-projection-leaves-a-board-with: approval projection leaves a board with no Spec readable [I10,S1,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -170,7 +170,7 @@ test('approval projection leaves a board with no Spec readable [I10,S1,P6]', asy
   assert.equal(state.needs.some(need => need.kind === 'agent-approved'), false);
 });
 
-test('only new-engine acceptance receipts retain the verification note [H16,S1,P6]', t => {
+test('cli.journeys-spec-approval.only-new-engine-acceptance-receipts-retain: only new-engine acceptance receipts retain the verification note [H16,S1,P6]', t => {
   const payloads = [];
   const note = 'Fixture verification note; verified against agent-approved G1';
   for (const version of [SPEC_APPROVAL_ENGINE - 1, SPEC_APPROVAL_ENGINE]) {

@@ -202,7 +202,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] }) : null,
+          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [], outcomes: greenProofOutcomes(board, id, commit) }) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -272,6 +272,12 @@ export function submit(board, id, options) {
 function greenProofFiles(board, id, commit) {
   return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
+}
+
+/** The per-case outcomes every green proof of this exact commit recorded, so a file whose cases were all skipped is not proof. */
+function greenProofOutcomes(board, id, commit) {
+  return proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
+    .flatMap(receipt => Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : []);
 }
 
 const EDGE_FILED = /^Edge follow-up filed as #\d+/u;
