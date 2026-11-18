@@ -109,5 +109,5 @@ test('gate.registry.io-stores: clause 2: [C7,U148] the io stores test file carri
   const { ids, findings } = registryFindings(files, records);
   const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
   assert.deepEqual(mine, [], 'every test in that file is titled with a registered ID');
-  assert.equal(ids.length, 36, 'all 36 tests of the io stores file are registered');
+  assert.equal(ids.length, 37, 'all 37 tests of the io stores file are registered');
 });

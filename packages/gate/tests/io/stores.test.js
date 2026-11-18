@@ -368,7 +368,7 @@ test('gate.io-stores.writeownerdebt-in-stores-json-ends: #8623 clause 2: writeOw
   assert.deepEqual(storeWriteProblems(registry, read), []);
 });
 
-test('#10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
+test('gate.io-stores.person-enrollment-owned-by-relay-io: #10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
   const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
   const owner = registry.stores['table:person_enrollment'].owner;
   assert.equal(owner, 'apps/relay/src/io/store/enrollment.js');
