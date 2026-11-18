@@ -1513,7 +1513,7 @@
     },
     "table:temp": {
       "kind": "table",
-      "owner": "packages/outbox/src/logic/undo.js"
+      "owner": "packages/outbox/src/io/relay/undo.js"
     },
     "table:test_result": {
       "kind": "table",
