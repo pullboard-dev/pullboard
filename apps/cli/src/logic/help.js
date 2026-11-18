@@ -135,6 +135,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--note-file': 'keeps quotes, $ and backticks intact',
   '--private': 'keeps an added item in this device-local repo board, or selects that board for move IDs',
   '--route': 'sets which work the model can take',
+  '--level': 'sets which work the model can take',
   '--source': 'where the person gave the ruling; required with --doctrine',
 };
 
