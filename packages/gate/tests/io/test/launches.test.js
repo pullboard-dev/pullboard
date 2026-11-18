@@ -133,6 +133,17 @@ test('gate.io-test-launches.the-repository-has-no-new-cli: clause 1: the reposit
   assert.deepEqual(cliLaunchGrowth(cliLaunchReport(ROOT), baseline), []);
 });
 
+test('gate.io-test-launches.no-stale-rows: clause 1: cli-launches.json holds no row above the counted launches of its file for the stats cost, shout and fixture journeys [C7]', () => {
+  const baseline = JSON.parse(readFileSync(new URL('../../../data/baselines/cli-launches.json', import.meta.url), 'utf8'));
+  const counts = new Map();
+  for (const site of cliLaunchReport(ROOT)) counts.set(site.path, (counts.get(site.path) ?? 0) + 1);
+  for (const [path, launches] of [['apps/cli/journeys/stats/cost.test.js', 0], ['apps/cli/journeys/shout/journeys/fixture-api.test.js', 0],
+    ['apps/cli/journeys/shout/journeys/fixture-presentation.test.js', 0], ['apps/cli/journeys/shout/journeys/fixture-setup.test.js', 1]]) {
+    assert.equal(counts.get(path) ?? 0, launches, `${path} is counted at ${launches}`);
+    assert.equal(baseline[path]?.launch ?? 0, launches, `${path} holds no stale row`);
+  }
+});
+
 test('gate.io-test-launches.the-report-gives-each-file-a: clause 1: the report gives each file a pullboard CLI count and an other-child count, with both totals [C7,#5946]', () => {
   const sites = cliLaunchSites("box.run(a);\nspawnSync(process.execPath, ['--test', 'x.test.js']);\nexecFileSync('node', ['-e', 'x']);\nspawnSync(process.execPath, [BIN, 'show']);", PATH);
   assert.deepEqual(cliLaunchSplit(sites), { files: { [PATH]: { cli: 2, other: 2 } }, totals: { cli: 2, other: 2 } });
