@@ -27,7 +27,7 @@ async function openItem(t) {
   };
   /** The item id next hands the actor seat, or null with the reasons it gave. */
   const handed = async () => {
-    const taken = await cli(box, box.seats.actor.path, ['next', '--take']);
+    const taken = await cli(box, box.seats.actor.path, ['next']);
     assert.equal(taken.code, 0, taken.out + taken.err);
     return { id: taken.document.item?.item_id ?? null, text: taken.out };
   };
