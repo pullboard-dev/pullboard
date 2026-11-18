@@ -1,6 +1,7 @@
 /** Pure discovery, parsing, refusal and registry obligations shared by every cell [C7]. */
 export * from './src/logic/discovery.js';
 export * from './src/logic/lex.js';
+export { sleepBlocking } from './src/logic/sleep.js';
 export * from './src/logic/words.js';
 export { Refused, repoPath } from './light.js';
 export * from './src/logic/registry.js';

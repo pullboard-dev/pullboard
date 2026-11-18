@@ -19,11 +19,11 @@ import { rmSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { sleepBlocking } from '../../../kernel/index.js';
 import { writeFileAtomic } from './atomic.js';
 
 const LOCK_STALE_MS = 5_000;
 const LOCK_RETRY_MS = 5;
-const PUBLISH_WAIT = new Int32Array(new SharedArrayBuffer(4));
 
 /** Read a JSON record, or null when it is missing or unreadable. */
 function readRecord(file) {
@@ -49,9 +49,6 @@ function takeLock(lock) {
   writeFileSync(join(lock, `${process.pid}.holder`), '');
   return true;
 }
-
-/** Wait a few ms, blocking this thread: the publish step is synchronous so writes submitted in one turn keep their order. */
-const nap = ms => Atomics.wait(PUBLISH_WAIT, 0, 0, ms);
 
 /** Wait a few ms without blocking the event loop. */
 const pause = ms => new Promise(done => setTimeout(done, ms));
@@ -105,7 +102,7 @@ export function createFileWriteQueue(dir, { transaction, savepoint } = {}) {
   function publish(id) {
     while (!takeLock(publishLock)) {
       if (lockIsStale(publishLock)) rmSync(publishLock, { recursive: true, force: true });
-      else nap(LOCK_RETRY_MS);
+      else sleepBlocking(LOCK_RETRY_MS);
     }
     try { writeFileAtomic(pendingFile(id), JSON.stringify({ seq: Math.max(Date.now() * 1000, highestVisibleSeq() + 1), pid: process.pid })); }
     finally { rmSync(publishLock, { recursive: true, force: true }); }
