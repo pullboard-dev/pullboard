@@ -16,6 +16,7 @@ import { ENGINE_VERSION } from '../../../../state/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
+import { submitFixture } from '../../fixtures/submit.js';
 import { temporaryRepository } from '../../fixtures/submit.js';
 import { serveBoardWriter } from '../../../src/io/board/writer.js';
 
@@ -189,4 +190,59 @@ test('store.io-board-writer.gate-run-reprepares-when-stale: clause 2: a recordGa
   assert.ok(seen.rollbacks >= 1, 'the stale first attempt wrote nothing');
   assert.ok(seen.begins >= 2, 'the writer opened again after preparing from the changed board');
   assert.equal(gateRunEvents(f).length, 1, 'the run is recorded once');
+});
+
+/** A real board file with a submitted item, and native ports whose conflict checks record whether a write transaction was open. */
+function reopenFixture(t, onPrepare = () => {}) {
+  const repo = temporaryRepository(t, 'pullboard-reopen-prepare-');
+  mkdirSync(join(repo, '.git', 'pullboard'));
+  const file = join(repo, '.git', 'pullboard', 'board.sqlite');
+  const board = cellBoard(t, file, { now: () => new Date() }, { real: true, gitRoot: repo });
+  cellSeat(board, { lane: 'coordinator', path: '/repo' });
+  const seat = cellSeat(board, { lane: 'core', path: '/builder', family: 'Reopen Vendor', route: 'mid' });
+  const id = cellItem(board, { lane: 'core', title: 'Reopen', criterion: 'one', route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves it' }).item_id;
+  store.claim(board, id, { agentId: seat.id, lane: 'core', leaseMs: 7_200_000, freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: DIGEST }) });
+  submitFixture(board, id, { agentId: seat.id, commit: SHA, tree: SHA });
+  const probe = new DatabaseSync(file);
+  probe.exec('PRAGMA busy_timeout = 0');
+  t.after(() => probe.close());
+  const seen = watchLookups({ board });
+  const checks = { prepared: [], locked: [] };
+  board.nativePorts = { ...board.nativePorts,
+    conflictValue: () => ({ files: ['src/a.js'], trunk: SHA }),
+    requirePreparedComputedConflict: () => { checks.prepared.push(seen.open); onPrepare(probe, checks); },
+    computedConflictProblem: () => { checks.locked.push(seen.open); return null; } };
+  const receipt = { version: 4, item: id, actor: 'coordinator', head: SHA, trunk: SHA, files: ['src/a.js'], submission: 1 };
+  return { board, id, seen, checks, probe, reopen: () => store.writeBoardCommand(board, 'reopen', [id, { agentId: 'coordinator', computedConflict: receipt }], 'coordinator') };
+}
+
+/** The reopen events an item has on the board. */
+function reopenEvents(f) {
+  return f.board.db.prepare("SELECT event_id FROM event WHERE event_kind='reopen' AND item_id=?").all(f.id);
+}
+
+test('store.io-board-writer.reopen-reads-before-lock: clause 1: the reads reopen does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10721]', t => {
+  const f = reopenFixture(t);
+  const result = f.reopen();
+  assert.equal(result.id, f.id);
+  assert.deepEqual(f.checks.prepared, [false], 'the conflict receipt is checked once, before the write transaction opens');
+  assert.deepEqual(f.checks.locked, [true], 'the writer still binds the receipt to the board under its own transaction');
+  assert.equal(reopenEvents(f).length, 1);
+});
+
+test('store.io-board-writer.reopen-reprepares-when-stale: clause 2: a reopen whose board changed between preparation and the writer re-prepares and still reopens the item once [C7,#10721]', t => {
+  let poked = false;
+  const f = reopenFixture(t, probe => {
+    if (poked) return;
+    poked = true;
+    // Another connection commits while the first preparation is still running.
+    probe.exec('CREATE TABLE IF NOT EXISTS reopen_poke (n INTEGER)');
+    probe.exec('INSERT INTO reopen_poke VALUES (1)');
+  });
+  const result = f.reopen();
+  assert.equal(result.id, f.id);
+  assert.ok(poked, 'the board changed during the first preparation');
+  assert.ok(f.checks.prepared.length >= 2, 'the receipt was prepared again from the changed board');
+  assert.ok(f.seen.rollbacks >= 1, 'the stale first attempt wrote nothing');
+  assert.equal(reopenEvents(f).length, 1, 'the item is reopened once');
 });
