@@ -1,0 +1,15 @@
+{
+  "view.x-hosted-sidebar.clause-1-the-hosted-sidebar-renders-one-group-per-machine": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: the hosted sidebar renders one group per machine name with its boards, local and relay together."
+    },
+    "why": "Without it this behaviour could regress with no test naming what it proved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/view/tests/logic/hosted-sidebar.test.js"
+    ]
+  }
+}
