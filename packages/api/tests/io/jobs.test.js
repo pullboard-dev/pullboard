@@ -115,6 +115,18 @@ test('api.jobs.a-pulled-gate-receipt-holds-queuewaitseconds-claim: clause 1: a p
   assert.equal(settledGate(claim.job, posted).queueWaitSeconds, 7.5);
 });
 
+test('api.jobs.claim-except-skips-kinds: #10794: a claim naming except skips open jobs of those kinds and takes any other kind; a claim without it takes them as before [C7]', (t) => {
+  const db = cellBoard(t, ':memory:').db;
+  offerJob(db, { id: 'baseline:1:a', kind: 'check-baseline', needs: [] });
+  offerJob(db, { id: 'gate:except', kind: 'gate', needs: [] });
+  db.prepare('UPDATE job SET job_created = 1000000 WHERE job_id = ?').run('baseline:1:a');
+  const claim = body => jobQueueCall(db, { action: 'claim', capabilities: [], ...body }, { mode: 'pull' }).claim;
+  assert.equal(claim({ runner: 'local-a', except: ['check-baseline'] })?.job, 'gate:except', 'the baseline is skipped and the gate taken');
+  assert.equal(claim({ runner: 'local-a', except: ['check-baseline'] }), null, 'only the excepted kind is left, so nothing is claimed');
+  assert.equal(claim({ runner: 'local-b' })?.job, 'baseline:1:a', 'a claim without except takes it');
+  assert.throws(() => claim({ runner: 'local-c', except: 'check-baseline' }), { code: 'JOB_CAPABILITY' }, 'except is a list of names');
+});
+
 /** A held claim of one offered gate job, and a call that posts as its runner. */
 function heldGate(t, id) {
   const db = cellBoard(t, ':memory:').db;

@@ -1,6 +1,6 @@
 /** Carry opaque person enrollment traffic without becoming its cryptographic trust root [H15]. */
-import { Refused } from '../../../../../../packages/kernel/index.js';
-import { personEnrollmentBody } from '../../../../../../packages/person/index.js';
+import { Refused } from '../../../../../packages/kernel/index.js';
+import { personEnrollmentBody } from '../../../../../packages/person/index.js';
 
 /** Use the device store's private SQLite connection and durable revocation tombstones. */
 export function createPersonEnrollmentStore({ database, now }) {
