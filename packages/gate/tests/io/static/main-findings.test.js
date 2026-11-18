@@ -30,7 +30,7 @@ function repoWithCheck(lines, status) {
   return { root, commit: git('rev-parse', 'HEAD'), git };
 }
 
-test('clause 1: staticFindingsOnMain runs the static command in a throwaway checkout at main\'s commit, returns its findings, and removes the checkout [C7,#10449]', async () => {
+test('gate.io-static-main-findings.runs-static-in-a-throwaway-checkout: clause 1: staticFindingsOnMain runs the static command in a throwaway checkout at main\'s commit, returns its findings, and removes the checkout [C7,#10449]', async () => {
   const { root, commit, git } = repoWithCheck(['STATIC_RED packages/a/x.js:3: runs a git fetch outside the one entry point [C7]', 'packages/b/y.js:9: 12 tests over the ratchet of 11'], 1);
   writeFileSync(join(root, 'dirty.txt'), 'uncommitted\n');
   const seen = [];
@@ -51,7 +51,7 @@ test('clause 1: staticFindingsOnMain runs the static command in a throwaway chec
   assert.equal(git('status', '--porcelain', '--untracked-files=no'), '', 'the repository itself is untouched');
 });
 
-test('clause 2: a green main run returns an empty list, and a main without a static command returns an empty list [C7,#10449]', async () => {
+test('gate.io-static-main-findings.green-main-returns-no-findings: clause 2: a green main run returns an empty list, and a main without a static command returns an empty list [C7,#10449]', async () => {
   const { root, commit } = repoWithCheck(['static style, prose declarations, clock budgets and doctrine hold'], 0);
   assert.deepEqual(await staticFindingsOnMain(root, { staticChecks: 'sh check.sh' }, commit, { withMainCheckout }), []);
   assert.deepEqual(await staticFindingsOnMain(root, { staticChecks: '' }, commit, { withMainCheckout }), []);
