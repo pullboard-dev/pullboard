@@ -34,7 +34,8 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
   });
   // The project runs Pullboard's own static check as its commit hook, so submit asks the preflight, which the resident process can answer.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  fixtureProjectPolicy(box.repo, { config: { ...config, staticChecks: 'node apps/cli/src/io/static/checks.js' } });
+  const lanes = { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'packages/'] } };
+  fixtureProjectPolicy(box.repo, { config: { ...config, lanes, staticChecks: 'node apps/cli/src/io/static/checks.js' } });
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: run the static check as the commit hook');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -42,27 +43,38 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
   process.env.PULLBOARD_RESIDENT = '1';
   const json = async (pending) => { const result = await pending; assert.equal(result.code, 0, result.out + result.err); return result; };
 
-  /** Submit one item whose work is the same as the other's, with the setting on or off; what the submit printed and what show lists afterwards. */
+  /** Submit one item twice, a change the commit hooks refuse and then a clean one, with the setting on or off; what each submit printed and what show lists afterwards. */
   async function submitItem(id, residentChecks) {
     fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { submit: { residentChecks } });
-    await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', `test -f web/page-${id}.txt`, '--json'));
+    await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', `test -f packages/x/src/page-${id}.js`, '--json'));
     box.git(box.web, 'reset', '-q', '--hard', 'main'); // each item starts from main, never stacked on the one before
     await json(box.runLocal(box.web, 'claim', String(id), '--json'));
-    mkdirSync(join(box.web, 'web'), { recursive: true });
-    writeFileSync(join(box.web, `web/page-${id}.txt`), 'built\n');
-    box.git(box.web, 'add', `web/page-${id}.txt`);
-    box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
-    const submitted = await json(box.runLocal(box.web, 'submit', String(id), '--no-next'));
+    mkdirSync(join(box.web, 'packages/x/src'), { recursive: true });
+    const file = join(box.web, `packages/x/src/page-${id}.js`);
+    const submit = async (source) => {
+      writeFileSync(file, source);
+      box.git(box.web, 'add', '-A');
+      box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
+      const result = await box.runLocal(box.web, 'submit', String(id), '--no-next');
+      return { code: result.code, printed: marks(result.out + result.err) };
+    };
+    const refused = await submit('export function a() { try { b(); } catch {}\n}\n');
+    const clean = await submit('export const a = 1;\n');
     const shown = await json(box.runLocal(box.web, 'show', String(id)));
-    return { printed: marks(submitted.out + submitted.err), shown: marks(shown.out) };
+    return { refused, clean, shown: marks(shown.out) };
   }
 
   const off = await submitItem(1, false);
   const place = await startFixtureResident(box, { ...process.env });
   assert.ok(existsSync(place.pid), 'a resident process is running for the on submit');
   const on = await submitItem(2, true);
-  assert.match(off.printed, /preflight clean: N checks/u, 'the off submit ran the commit hooks');
-  assert.match(on.printed, /preflight clean: N checks/u, 'the on submit ran the commit hooks');
-  assert.equal(on.printed, off.printed, 'the submit prints the same hook lines');
+  for (const [label, run] of [['off', off], ['on', on]]) {
+    assert.notEqual(run.refused.code, 0, `the ${label} submit is refused by the commit hooks`);
+    assert.match(run.refused.printed, /empty-catch/u, `the ${label} submit names the hook that refused it`);
+    assert.equal(run.clean.code, 0, `the ${label} submit of the clean change is accepted: ${run.clean.printed}`);
+  }
+  assert.equal(on.refused.code, off.refused.code, 'the refusal exits the same');
+  assert.equal(on.refused.printed, off.refused.printed, 'the refusal prints the same hook lines');
+  assert.equal(on.clean.printed, off.clean.printed, 'the accepted submit prints the same lines');
   assert.equal(on.shown, off.shown, 'the item shows the same marks');
 });
