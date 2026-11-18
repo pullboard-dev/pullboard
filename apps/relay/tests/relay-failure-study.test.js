@@ -42,18 +42,25 @@ async function localTitles(box) {
   return (await box.cliLocal('export')).document.tables.item.map(row => row.item_title);
 }
 
-for (const fault of ['down', '5xx']) {
-  test(`relay.relay-failure-study.${fault === 'down' ? 'relay-down' : 'http-503'}-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study's ${fault === 'down' ? 'relay DOWN' : 'HTTP 503'} case records 1, queues 1 and exits 0 [H5,H17,C7]`, { timeout: 300_000 }, async t => {
-    const box = await linked(t);
-    if (fault === 'down') await box.stopRelay();
-    else (await faultProxy(t, box)).set({ delayMs: 0, status: 503, code: 'RELAY_UNAVAILABLE' });
-    const title = 'Study move during ' + fault;
-    const move = await box.cliLocal('add', box.lane, title);
-    assert.equal(move.code, 0, JSON.stringify(move.document));
-    assert.equal((await localTitles(box)).filter(found => found === title).length, 1, 'recorded 1');
-    assert.deepEqual(queuedOperations(box), ['addItem'], 'queued 1');
-  });
+/** The study's add during one fault, with relay.queueOnFailure on: it exits 0, records the item once and queues one addItem. */
+async function addDuring(t, fault) {
+  const box = await linked(t);
+  if (fault === 'down') await box.stopRelay();
+  else (await faultProxy(t, box)).set({ delayMs: 0, status: 503, code: 'RELAY_UNAVAILABLE' });
+  const title = 'Study move during ' + fault;
+  const move = await box.cliLocal('add', box.lane, title);
+  assert.equal(move.code, 0, JSON.stringify(move.document));
+  assert.equal((await localTitles(box)).filter(found => found === title).length, 1, 'recorded 1');
+  assert.deepEqual(queuedOperations(box), ['addItem'], 'queued 1');
 }
+
+test('relay.relay-failure-study.relay-down-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study relay DOWN case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
+  await addDuring(t, 'down');
+});
+
+test('relay.relay-failure-study.http-503-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study HTTP 503 case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
+  await addDuring(t, '5xx');
+});
 
 test('relay.relay-failure-study.queued-move-sent-in-order: clause 2: a move queued while the relay answers 503 is sent before the next move once the relay answers, and the outbox empties [H5,H17,C7]', { timeout: 300_000 }, async t => {
   const box = await linked(t);
