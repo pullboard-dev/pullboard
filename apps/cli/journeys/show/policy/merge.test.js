@@ -21,7 +21,7 @@ const {
   attackCommit, project,
 } = e2e;
 
-test('accepted-main merges carry foreign files without granting permission to alter them [L3,V4]', async t => {
+test('cli.journeys-show-policy-merge.accepted-main-merges-carry-foreign-files: accepted-main merges carry foreign files without granting permission to alter them [L3,V4]', async t => {
   const box = project('true');
   assert.equal(fixtureAdd(box.run, box.repo, 'web', 'Main merge', '--specs', 'G1', '--criterion', 'foreign main object preserved').code, 0);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);

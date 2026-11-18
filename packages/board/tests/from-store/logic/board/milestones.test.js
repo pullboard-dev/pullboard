@@ -10,6 +10,7 @@ import { exportBoard } from '../../../../../store/index.js';
 import { importBoard } from '../../../../../store/index.js';
 import { orderMilestoneItems } from '../../../../../store/index.js';
 import { roadmap } from '../../../../../store/index.js';
+import { provideCoordinatorMilestoneRelease } from '../../../../../store/index.js';
 import { shipMilestone } from '../../../../../store/index.js';
 import { ENGINE_VERSION } from '../../../../../state/index.js';
 import { appliedSequence } from '../../../../../state/index.js';
@@ -31,6 +32,9 @@ import { cellItem } from '../../../../../store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../../store/tests/fixtures/cell.js';
 import { openCellBoard } from '../../../fixtures/cell-board.js';
+
+// The store has no stats edge; these ships do not read the gauge, so a stub release stands in [C7].
+provideCoordinatorMilestoneRelease(() => ({ gauge: null, previous: null, problem: null }));
 
 const HOUR = 3_600_000;
 const SETUP = 'fixture release setup';

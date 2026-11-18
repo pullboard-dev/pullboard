@@ -60,3 +60,54 @@ export function judgeRecords(records, releasedAnswers, currentAnswers) {
   rows.sort(byEvent);
   return { rows, counts };
 }
+
+/** A release tag: v, then major, minor and patch numbers, and nothing after them. */
+const RELEASE_TAG = /^v(\d+)\.(\d+)\.(\d+)$/u;
+
+/**
+ * Pick the last release from a list of tag names: the highest vMAJOR.MINOR.PATCH, each part compared as a number.
+ * Prerelease tags (v0.9.5-rc.1), unprefixed ones (0.9.5) and any other name are skipped.
+ * Why: "the last released kernel" must be found the same way on every machine; tag creation dates and text order disagree (v0.9.10 sorts before v0.9.9 as text).
+ * Pure: reads no clock, file or git, and does not change the list.
+ *
+ * @param {string[]} tags - Tag names, in any order.
+ * @returns {string | null} The highest release tag, or null when no name is a release tag.
+ */
+export function lastReleaseTag(tags) {
+  let best = null;
+  let bestParts = null;
+  for (const tag of tags ?? []) {
+    const match = RELEASE_TAG.exec(String(tag));
+    if (!match) continue;
+    const parts = match.slice(1).map(Number);
+    const at = bestParts ? parts.findIndex((part, i) => part !== bestParts[i]) : 0;
+    if (!bestParts || (at >= 0 && parts[at] > bestParts[at])) { best = tag; bestParts = parts; }
+  }
+  return best;
+}
+
+/**
+ * Fold per-table judge counts into one release verdict: a row per judged table, the tables the release lacked, the drifted ones and a clean flag.
+ * A table drifted when any record is current-drifted or both-differ; released-wrong is never drift, since the current table fixed what the release got wrong.
+ * Why: a release script needs one answer for about 15 tables, not 15 row lists.
+ * Pure: reads no clock, file or git, gives the same result in any input order and does not change the array.
+ *
+ * @param {{ table: string, judge?: { against: string, counts: { same: number, currentDrifted: number, releasedWrong: number, bothDiffer: number } }, missing?: boolean }[]} tables
+ * @returns {{ rows: { table: string, against: string | null, counts: object }[], newTables: string[], drifted: string[], clean: boolean }}
+ */
+export function judgeSummary(tables) {
+  const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const rows = [];
+  const newTables = [];
+  const drifted = [];
+  for (const entry of tables ?? []) {
+    if (entry?.missing || !entry?.judge) { newTables.push(entry?.table); continue; }
+    const counts = entry.judge.counts ?? {};
+    rows.push({ table: entry.table, against: entry.judge.against ?? null, counts });
+    if ((counts.currentDrifted ?? 0) + (counts.bothDiffer ?? 0) > 0) drifted.push(entry.table);
+  }
+  rows.sort((a, b) => byName(a.table, b.table));
+  newTables.sort(byName);
+  drifted.sort(byName);
+  return { rows, newTables, drifted, clean: drifted.length === 0 };
+}

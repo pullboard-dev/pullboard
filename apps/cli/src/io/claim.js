@@ -17,6 +17,8 @@ import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
+import { nextLightShapedStrong } from '../../../../packages/config/index.js';
+import { lightShaped } from '../../../../packages/seats/index.js';
 
 /**
  * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
@@ -279,7 +281,7 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
     ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);

@@ -18,12 +18,16 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ensureLocalRunner } from './runner/local.js';
+import { startLocalRunner } from './runner/local.js';
 import { slowestSteps } from '../logic/tour-steps.js';
 import { typed } from '../logic/tour-steps.js';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
 import { displayAgentName } from '../../../../packages/seats/index.js';
 import { scratchFolder } from '../../../../packages/config/index.js';
 import { loadConfig } from '../../../../packages/config/index.js';
+import { loadMachineSettings } from '../../../../packages/config/index.js';
+import { setLocalWake } from '../../../../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../../../../packages/kernel/index.js';
 import { AGENT_SESSION_IDS } from '../../../../packages/kernel/index.js';
 import {
@@ -95,6 +99,41 @@ function pause(ms) {
 }
 
 /**
+ * Carry the caller's runners.localWake into the demo machine home when the caller has it on, so the demo's local runner
+ * claims each offered gate and land job at once; with it off (the default) the demo settings are left as they are.
+ * Why a swap: the settings writer reads the machine home from this process's environment, and the swap lasts one synchronous call [C7,#10418].
+ *
+ * @param {string} demoHome - The demo's machine home folder.
+ * @returns {void}
+ */
+function carryLocalWake(demoHome) {
+  if (loadMachineSettings()['runners.localWake'] !== true) return;
+  const caller = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = demoHome;
+  try { setLocalWake(true); } finally {
+    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+  }
+}
+
+/**
+ * Start the demo's local runner before the first offer when the caller has runners.localWake on, so its cold start is spent
+ * while the coordinator files the item and the first claim follows its offer at once like every later one [C7,#10565].
+ * Why a swap held across the start: the runner folder is found from this process's machine home; with wake off nothing starts early.
+ *
+ * @param {string} repo - The demo board's checkout.
+ * @param {Record<string, string>} env - The demo's environment.
+ * @returns {Promise<void>}
+ */
+async function warmLocalRunner(repo, env) {
+  if (loadMachineSettings()['runners.localWake'] !== true) return;
+  const caller = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
+  try { await ensureLocalRunner(repo, { start: (root) => startLocalRunner(root, { env }) }); } finally {
+    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+  }
+}
+
+/**
  * Run the tour. Pauses only when a person is watching a terminal.
  *
  * @param {{ say: (line: string) => void, stdout: any }} io
@@ -113,6 +152,7 @@ export async function tour(io) {
   // stays out as well, so each seat is judged as its own session below (#952).
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'NODE_TEST_CONTEXT' && !CALLER_SESSION_NAMES.has(name)));
   Object.assign(env, { PATH: `${shims}:${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', PULLBOARD_HOME: join(dir, '.pullboard'), PULLBOARD_MACHINE_HOME: join(dir, '.pullboard-machine') });
+  carryLocalWake(env.PULLBOARD_MACHINE_HOME);
   const repo = join(dir, 'greeter');
   const app = `${repo}-app-1`;
   const review = `${repo}-review-1`;
@@ -235,6 +275,7 @@ export async function tour(io) {
     const tree = run('coordinator', 'git', ['write-tree'], { label: '', show: null });
     const root = run('coordinator', 'git', ['commit-tree', tree, '-m', 'chore: the greeter, on pullboard'], { label: '', show: null });
     run('coordinator', 'git', ['update-ref', 'HEAD', root], { label: '', show: null });
+    await warmLocalRunner(repo, env);
 
     step(1, 'The person approved one spec row. The coordinator files it as work.');
     io.say('   G1: greet(name) returns "Hello, <name>!"; a blank name greets the world: "Hello, world!"');

@@ -1,11 +1,12 @@
-/** Turn changed paths into the units a test selection picks: file, package (Go), crate (Rust) or project (C#, Elixir) [C7]. */
+/** Turn changed paths into the units a test selection picks: file, package (Go), crate (Rust), project (C#, Elixir) or module (Maven, Gradle) [C7]. */
 
 /** The values gate.selectionUnit accepts; file is the default and keeps today's behaviour. */
-export const SELECTION_UNITS = ['file', 'package', 'crate', 'project'];
+export const SELECTION_UNITS = ['file', 'package', 'crate', 'project', 'module'];
 
 /** The manifest file names that mark a unit directory, by unit. */
 const MARKERS = {
   crate: name => name === 'Cargo.toml',
+  module: name => name === 'pom.xml' || name === 'build.gradle' || name === 'build.gradle.kts',
   project: name => name === 'mix.exs' || name.endsWith('.csproj') || name.endsWith('.sln'),
 };
 
@@ -41,7 +42,7 @@ function nearestMarked(path, marked) {
 }
 
 /** Manifest names whose change alters how every unit builds, so selection stops narrowing. */
-const SHARED_MANIFESTS = name => ['Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'go.work', 'mix.exs', 'mix.lock', 'Directory.Build.props'].includes(name)
+const SHARED_MANIFESTS = name => ['Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'go.work', 'mix.exs', 'mix.lock', 'Directory.Build.props', 'pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'].includes(name)
   || name.endsWith('.csproj') || name.endsWith('.sln');
 
 /** The first changed path that is a build manifest, or null; a manifest change selects the full gate [C7]. */
@@ -66,7 +67,7 @@ export function selectionUnits(unit, paths, manifests) {
   const changed = (paths ?? []).map(clean).filter(Boolean);
   if (unit === 'file') return { units: [...new Set(changed)].sort(), full: false, reason: null };
   if (unit === 'binary') return full('SELECTION_UNIT_BINARY: C and C++ select by test binary; declare them through affectedSuites');
-  if (unit !== 'package' && unit !== 'crate' && unit !== 'project') return full(`SELECTION_UNIT_UNKNOWN: ${String(unit)} is not one of ${SELECTION_UNITS.join(', ')}`);
+  if (unit !== 'package' && unit !== 'crate' && unit !== 'project' && unit !== 'module') return full(`SELECTION_UNIT_UNKNOWN: ${String(unit)} is not one of ${SELECTION_UNITS.join(', ')}`);
   const marked = unit === 'package' ? null : markedDirectories(unit, manifests);
   const units = new Set();
   for (const path of changed) {

@@ -2051,6 +2051,30 @@
         "packages/person/tests/logic/row-decisions.test.js",
         "seed"
       ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/api-identity.test.js",
+        "packages/store/tests/io/board.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/board-capture.test.js",
+        "packages/store/tests/io/board/capture.test.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "store",
+      "row": [
+        "test/shout-item.test.js",
+        "packages/store/tests/logic/board/item/baseline/shout.test.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

@@ -42,7 +42,7 @@ export const receiptsHelp = `Receipts
   pullboard ledger --since 2h [--item <id>]
                                         pipeline ledger: time per hop (p50, p90, sum, share), runner and coordinator
                                         compute, agent minutes and tokens per role and model, per landing; --json
-  pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json
+  pullboard capacity [--window 14d]      carrying capacity with held-out error, plus test-work and conversion priority; --json; --audit: board-data counts
   pullboard test-value                   fourteen-day per-file runs, code-fixed catches, flakes, runtime, edits and value; --json
                                         report-only costs in pullboard.json testEconomics: costOfEscape 3600, costOfWaiting 1, costOfFalseRed 300
                                         runtime gaps remain unknown; no test admission policy changes

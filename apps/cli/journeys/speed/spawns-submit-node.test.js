@@ -40,7 +40,7 @@ async function countNodeChildren(work) {
   return seen;
 }
 
-test(`clause 1: one submit on the large board starts at most ${MEASURED_NODE_SPAWNS} node child processes [C7]`, async (t) => {
+test('cli.journeys-speed-spawns-submit-node.one-submit-on-the-large-board: clause 1: [C7] one submit on the large board starts at most ' + MEASURED_NODE_SPAWNS + ' node child processes', async (t) => {
   const box = largeBoard(t);
   // Pullboard's own static checker is the configured check, so submit's preflight starts its node children as it does on this repo.
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));

@@ -48,9 +48,53 @@ import { block, documentedEvents } from '../apps/lib/tests/fixtures/formats-guid
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');
 /** The SPEC.md and DOCTRINE.md section lives on its own page; its sentences and marked tables are read there. */
 const specPage = readFileSync(new URL('./formats/spec.md', import.meta.url), 'utf8');
+/** The proposed-rulings section lives on its own page; its sentences are read there. */
+const rulingsPage = readFileSync(new URL('./formats/rulings.md', import.meta.url), 'utf8');
+/** The resume-release-notes section lives on its own page; its marked block is read there. */
+const resumeNotesPage = readFileSync(new URL('./formats/resume-notes.md', import.meta.url), 'utf8');
+/** The static-view-export section lives on its own page; its snapshot table and sentences are read there. */
+const staticViewPage = readFileSync(new URL('./formats/static-view.md', import.meta.url), 'utf8');
 
-test('formats guide documents resume release notes and checkout recording [N19]', () => {
-  const section = block('<!-- resume-release-notes:start -->', '<!-- resume-release-notes:end -->');
+/** The recorded-board-line-settings section lives on its own page; its table and sentences are read there. */
+const settingsPage = readFileSync(new URL('./formats/settings.md', import.meta.url), 'utf8');
+
+/** The runner-rate-card section lives on its own page; its sentences are read there. */
+const rateCardPage = readFileSync(new URL('./formats/rate-card.md', import.meta.url), 'utf8');
+
+test('clause 1: formats.md links the rate card page and the rate card sentences are read from it [I1]', () => {
+  assert.match(guide, /## Machine-local runner rate card\n\n[^\n]*\]\(formats\/rate-card\.md\)/u);
+  assert.doesNotMatch(guide, /a missing or invalid field refuses with `BAD_RUNNER_RATES`/u);
+  assert.match(rateCardPage, /a missing or invalid field refuses with `BAD_RUNNER_RATES` and stores nothing/u);
+  assert.match(rateCardPage, /`\{price, months, watts, kwhPrice\}`/u);
+});
+
+test('clause 1: formats.md links the settings page and the line settings sentences are read from it [I1]', () => {
+  assert.match(guide, /## Recorded board line settings\n\n[^\n]*\]\(formats\/settings\.md\)/u);
+  assert.doesNotMatch(guide, /`pullboard settings line --json` reads eight board-owned controller inputs/u);
+  assert.match(settingsPage, /`pullboard settings line --json` reads eight board-owned controller inputs/u);
+  assert.match(settingsPage, /\| `collisionFreeBatch` \|/u);
+});
+
+test('clause 1: formats.md links the static view page and its snapshot table is read from it [I1]', () => {
+  assert.match(guide, /## Static view export\n\n[^\n]*\]\(formats\/static-view\.md\)/u);
+  assert.doesNotMatch(guide, /snapshot-files:start/u);
+  assert.match(staticViewPage, /<!-- snapshot-files:start -->/u);
+});
+
+test('clause 1: formats.md links the rulings page and the rulings sentences are read from it [I1]', () => {
+  assert.match(guide, /## Proposed rulings and resume doctrine notes\n\n[^\n]*\]\(formats\/rulings\.md\)/u);
+  assert.doesNotMatch(guide, /pullboard spec draft "<rule>" --doctrine/u);
+  assert.match(rulingsPage, /pullboard spec draft "<rule>" --doctrine --source/u);
+  assert.match(rulingsPage, /`resume --json` includes `doctrineNotes`/u);
+});
+
+test('clause 1: formats.md links the resume notes page and the whatsNew sentences are read from it [I1,N19]', () => {
+  assert.match(guide, /## Resume release notes\n\n[^\n]*\]\(formats\/resume-notes\.md\)/u);
+  assert.doesNotMatch(guide, /resume-release-notes:start/u);
+  const start = resumeNotesPage.indexOf('<!-- resume-release-notes:start -->');
+  const end = resumeNotesPage.indexOf('<!-- resume-release-notes:end -->');
+  assert.ok(start !== -1 && end > start, 'the resume notes page holds the marked block');
+  const section = resumeNotesPage.slice(start, end);
   const example = /```json\n([\s\S]*?)\n```/u.exec(section);
   assert.ok(example, 'the resume contract includes a JSON example');
   assert.deepEqual(JSON.parse(example[1]), {
@@ -92,7 +136,8 @@ function filesUnder(root, directory = root) {
 
 /** Read the documented static snapshot file paths. */
 function documentedSnapshotFiles() {
-  return block('<!-- snapshot-files:start -->', '<!-- snapshot-files:end -->').split(/\r?\n/).flatMap((line) => {
+  const begin = staticViewPage.indexOf('<!-- snapshot-files:start -->') + '<!-- snapshot-files:start -->'.length;
+  return staticViewPage.slice(begin, staticViewPage.indexOf('<!-- snapshot-files:end -->', begin)).split(/\r?\n/).flatMap((line) => {
     const row = /^\| `([^`]+)` \|/.exec(line);
     return row ? [row[1]] : [];
   });
@@ -377,7 +422,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     assert.match(page, /href="view\.css"/);
     assert.match(page, /path = snapshot \? path\.split\('\?'\)\[0\]\.slice\(1\) \+ '\.json'/);
     assert.match(page, /api\(boardPath\(view\.root\) \+ '\/events'\)/);
-    assert.match(guide, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
+    assert.match(staticViewPage, /The page fetches these files without a session key and reads the events file to replay the snapshot/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

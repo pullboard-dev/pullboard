@@ -77,7 +77,7 @@ function busyBoard(t) {
   return { project, board, builder };
 }
 
-test('clause 1: agents and runners come from the state\'s one count, so the top bar, Dashboard and Activity show the same number [N26]', t => {
+test('view.x-io-counts-pages.clause-1-agents-and-runners-come-from: clause 1: agents and runners come from the state\'s one count, so the top bar, Dashboard and Activity show the same number [N26]', t => {
   const { project, board, builder } = busyBoard(t);
   const state = projectState(project.repo, { board }), now = Date.now();
   assert.equal(state.counts.agents, 1, 'the claim holder is the one agent at work');
@@ -99,7 +99,7 @@ test('clause 1: agents and runners come from the state\'s one count, so the top 
   assert.equal(shownDrifted.agents.activity, 2);
 });
 
-test('clause 1: a fresh board shows the same agents and runners on every page, the claim holder at work and no runner [N26]', t => {
+test('view.x-io-counts-pages.clause-1-a-fresh-board-shows-the: clause 1: a fresh board shows the same agents and runners on every page, the claim holder at work and no runner [N26]', t => {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
   const seat = cellSeat(board, { lane: 'web', path: project.repo + '/a' });
@@ -115,7 +115,7 @@ test('clause 1: a fresh board shows the same agents and runners on every page, t
   assert.deepEqual(shown.runners, { dashboard: 0, activity: 0 });
 });
 
-test('clause 2: the top bar counts the calls only the person can make, and Spec, Doctrine and Activity each name what their Rulings count is [N26]', t => {
+test('view.x-io-counts-pages.clause-2-the-top-bar-counts-the: clause 2: the top bar counts the calls only the person can make, and Spec, Doctrine and Activity each name what their Rulings count is [N26]', t => {
   const { project, board } = busyBoard(t);
   const state = projectState(project.repo, { board }), now = Date.now();
   assert.equal(state.counts.rulings, state.needs.length);
@@ -129,7 +129,7 @@ test('clause 2: the top bar counts the calls only the person can make, and Spec,
   assert.match(shown.actHtml, /data-act-go="ruling" title="Rulings raised in this window, not the top bar count"/u, 'Activity names its window count');
 });
 
-test('clause 3: sent back is a reject or a reopen on the Dashboard, Pipeline and Cost, and no sent-back dash sits beside a Rework share [N26]', t => {
+test('view.x-io-counts-pages.clause-3-sent-back-is-a-reject: clause 3: sent back is a reject or a reopen on the Dashboard, Pipeline and Cost, and no sent-back dash sits beside a Rework share [N26]', t => {
   const { project, board } = busyBoard(t);
   const state = projectState(project.repo, { board }), now = Date.now();
   assert.deepEqual(state.counts.sentBack, { count: 2, verdicts: 3, share: 2 / 3, hours: 4 }, 'the reject and the reopen, over three verdicts');

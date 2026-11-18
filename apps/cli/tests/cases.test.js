@@ -37,7 +37,7 @@ function declarations(name, quote, caseTitle) {
   return source.split(/\n {0,2}test\(/u).slice(1).filter(rest => rest.startsWith(`${quote}${caseTitle}${quote}, `)).length;
 }
 
-test('clause 1: the three e2e files hold every case the single e2e.test.js held, so none was dropped to get under two minutes [C7]', () => {
+test('cli.cases.the-three-e2e-files-hold-every-case: clause 1: the three e2e files hold every case the single e2e.test.js held, so none was dropped to get under two minutes [C7]', () => {
   for (const [quote, caseTitle] of CASES) {
     const found = FILES.map(name => declarations(name, quote, caseTitle));
     assert.equal(found.reduce((sum, count) => sum + count, 0), 1, `${caseTitle}: declared once across ${FILES.join(', ')}`);

@@ -35,7 +35,7 @@ function fileBoard(t) {
 /** Read one counter from the derived database, decoded, or null. */
 const derived = (board, key) => derivedProofCounter(board, key);
 
-test('a board whose counters are current opens for writing while another process holds the write lock [C7]', t => {
+test('lib.logic-native-hold.a-board-whose-counters-are-current: a board whose counters are current opens for writing while another process holds the write lock [C7]', t => {
   const { file } = fileBoard(t);
   const holder = new DatabaseSync(file);
   t.after(() => holder.close());
@@ -50,7 +50,7 @@ test('a board whose counters are current opens for writing while another process
   } finally { holder.exec('ROLLBACK'); }
 });
 
-test('a move holds the write lock under 1 s and derives no capacity forecast inside it [C7]', t => {
+test('lib.logic-native-hold.a-move-holds-the-write-lock: a move holds the write lock under 1 s and derives no capacity forecast inside it [C7]', t => {
   const { board } = fileBoard(t);
   const before = derived(board, 'capacity-snapshot');
   const started = performance.now();
@@ -64,7 +64,7 @@ test('a move holds the write lock under 1 s and derives no capacity forecast ins
   assert.notEqual(derived(board, 'capacity-snapshot'), null);
 });
 
-test('a checkpoint never blocks a reader, during or after it [C7]', t => {
+test('lib.logic-native-hold.a-checkpoint-never-blocks-a-reader: a checkpoint never blocks a reader, during or after it [C7]', t => {
   const { file, board } = fileBoard(t);
   const reader = new DatabaseSync(file, { readOnly: true });
   t.after(() => reader.close());
@@ -83,7 +83,7 @@ test('a checkpoint never blocks a reader, during or after it [C7]', t => {
   assert.equal(fresh.prepare('SELECT count(*) AS n FROM item').get().n, seen + 20, 'a new reader sees every write with no wait');
 });
 
-test('clause 2: a counter rebuild on open and a board import derive no capacity forecast under the write lock [C7]', t => {
+test('lib.logic-native-hold.a-counter-rebuild-on-open-and: clause 2: a counter rebuild on open and a board import derive no capacity forecast under the write lock [C7]', t => {
   const { dir, file, board } = fileBoard(t);
   const snapshot = exportBoard(board);
   board.db.prepare('DELETE FROM board_meta WHERE meta_key IN (?, ?)').run('local:proof-stats:v2:summary', 'local:proof-stats:v2:capacity-snapshot');

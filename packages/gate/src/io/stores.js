@@ -198,13 +198,24 @@ export function storeDirGrowth(registry, accepted) {
   return risen;
 }
 
-/** Ceilings that rose against accepted main's baseline: the baseline may only fall. */
+/**
+ * Ceilings that rose against accepted main's baseline: the baseline may only fall. A row moved with its code from one
+ * file to another is not a rise: a file's row may grow only while that store's total across all files does not
+ * (coordinator ruling 17 Nov, #10242); the lane check decides who may move which rows.
+ */
 export function storeBaselineGrowth(current, accepted) {
   const risen = [];
+  /** Each store's count summed over every file of one baseline. */
+  const totals = baseline => {
+    const sums = {};
+    for (const stores of Object.values(baseline)) for (const [store, count] of Object.entries(stores)) sums[store] = (sums[store] ?? 0) + count;
+    return sums;
+  };
+  const now = totals(current), was = totals(accepted);
   for (const [path, stores] of Object.entries(current)) {
     for (const [store, count] of Object.entries(stores)) {
       const before = accepted[path]?.[store] ?? 0;
-      if (count > before) risen.push({ path: STORE_BASELINE, line: 1, text: `CD2_BASELINE_ROSE: ${path} ${store} ${before} -> ${count}; the store baseline may only fall` });
+      if (count > before && now[store] > (was[store] ?? 0)) risen.push({ path: STORE_BASELINE, line: 1, text: `CD2_BASELINE_ROSE: ${path} ${store} ${before} -> ${count}; the store baseline may only fall` });
     }
   }
   return risen;

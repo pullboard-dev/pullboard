@@ -13,6 +13,7 @@ import {
   COORDINATOR,
   COORDINATOR_GUIDE_FILE,
   reviewCanonicalFamilies,
+  joinCoordinatorSeat,
 } from '../../../../../packages/config/index.js';
 import {
   isLane,
@@ -108,7 +109,9 @@ export async function run(io, { first: named, values }) {
     io.say(`coordinator: read ${COORDINATOR_GUIDE_FILE} before you route anything`);
     return 0;
   }
-  if (!first || first === COORDINATOR || !isLane(ctx.config, first)) {
+  // join.coordinatorSeat (off by default, read here in the command layer): a second coordinator-lane seat in a worktree [#10573].
+  const coordinatorSeat = first === COORDINATOR && joinCoordinatorSeat();
+  if (!first || (first === COORDINATOR && !coordinatorSeat) || !isLane(ctx.config, first)) {
     throw new Refused('NO_LANE', `no lane "${first ?? ''}"; lanes: ${laneNames(ctx.config).slice(1).join(', ') || 'none yet, declare them in pullboard.json'}`);
   }
   const model = requiredModel(values.model, process.env, `join ${shellWord(first)}${values.route ? ` --route ${shellWord(values.route)}` : ''}${values.family ? ` --family ${shellWord(values.family)}` : ''}`);
@@ -135,7 +138,7 @@ export async function run(io, { first: named, values }) {
   if (!projectRoot) throw new Refused('NO_POLICY', 'cannot safely register the project without locating its main checkout; restore Git worktree metadata and retry join');
   // Read the family from the same board connection as registration, avoiding a costly reopen on large boards.
   const joined = await withBoard(ctx, async (board) => {
-    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
+    const id = await ordered(ctx, board, 'register', [{ lane: first, path: ctx.info.root, route, family: registeredFamily(values.family), model, parentDigest, sessionDigest, ...(coordinatorSeat ? { coordinatorSeat: true } : {}), ...(values['lock-lane'] ? { lockLane: true } : {}), ...(reviewLimits.length ? { reviewLimits } : {}) }]);
     return { id, boardId: store.boardId(board), family: seatFamily(board, id) };
   });
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
