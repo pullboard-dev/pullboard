@@ -13,6 +13,10 @@ import { boardId } from '../../../store/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { serveApi } from '../../index.js';
 import { createLocalApiHandler } from '../../index.js';
+import { createHash } from 'node:crypto';
+import { cellSeat } from '../../../store/tests/fixtures/cell.js';
+import { cellRepo } from '../../../store/tests/fixtures/cell.js';
+import { listBoardMetaWithPrefix } from '../../../store/index.js';
 
 /** The renderer the API takes as a port: a refusal becomes its public error body. */
 function refusalDocument(error) {
@@ -281,15 +285,85 @@ test('api.main.coordinator-move-needs-own-credential: clause 2 [P7]: a move nami
   assert.deepEqual(owned.calls, [{ argv: ['fact'], remoteAgent: null }, { argv: ['fact'], remoteAgent: null }], 'both ran as the coordinator, at the board root');
 });
 
-test('api.main.seat-moves-with-board-key: clause 3 [P7]: through packages/api/src/io/main.js a seat joins with the shared board key and its own moves run as that seat, unchanged (#10785)', async (t) => {
+test('api.main.seat-moves-with-board-key: clause 3 [P7]: through packages/api/src/io/main.js a seat joins with the shared board key, and its own moves, sent with the board key and the key its join issued, run as that seat (#10785,#10790)', async (t) => {
   const project = cellProject(t, { real: true });
   const served = await servedMoves(t, project);
   const joined = await served.move({ verb: 'join', args: { lane: 'api', model: FIXTURE_MODEL, family: 'anthropic' } });
   assert.equal(joined.status, 200, JSON.stringify(joined.body));
   const seat = joined.body.result.agent;
   assert.match(String(seat), /\S/u, 'the join names the new seat');
-  const moved = await served.move({ ...FACT, agent: seat });
+  const moved = await served.move({ ...FACT, agent: seat }, seatHeaders(joined.body.result.key));
   assert.equal(moved.status, 200, JSON.stringify(moved.body));
   assert.equal(moved.body.event.event_kind, 'fact');
   assert.deepEqual(served.calls, [{ argv: ['fact'], remoteAgent: seat }], 'the move ran once as the seat that named itself');
+});
+
+/** The headers a seat joined over the API sends: the shared board key and its own seat key. */
+function seatHeaders(key) {
+  return { 'x-pullboard-key': BOARD_KEY, 'x-pullboard-seat-key': key };
+}
+
+/** Join one seat over the served API with the board key alone, and return its name and the key the join issued. */
+async function joinSeat(served) {
+  const joined = await served.move({ verb: 'join', args: { lane: 'api', model: FIXTURE_MODEL, family: 'anthropic' } });
+  assert.equal(joined.status, 200, JSON.stringify(joined.body));
+  return { agent: joined.body.result.agent, key: joined.body.result.key };
+}
+
+test('api.main.join-issues-own-seat-key: clause 1 [P7]: joining a seat over the board API issues that seat its own key, kept on the board only as a digest, and a move naming the seat with a different seat\'s key is refused SEAT_CREDENTIAL before anything runs (#10790)', async (t) => {
+  const project = cellProject(t, { real: true });
+  const served = await servedMoves(t, project);
+  const first = await joinSeat(served);
+  const second = await joinSeat(served);
+  for (const seat of [first, second]) assert.match(String(seat.key), /^[\w-]{43}$/u, 'each join returns a 256-bit key');
+  assert.notEqual(first.key, second.key, 'each seat gets its own key');
+  const board = openCellBoard(project.boardFile);
+  let kept;
+  try { kept = listBoardMetaWithPrefix(board.db, '').map(({ value }) => String(value)); } finally { closeCellBoard(board); }
+  for (const { key } of [first, second]) {
+    assert.equal(kept.some((value) => value.includes(key)), false, 'the board never stores a seat key itself');
+    assert.ok(kept.includes(createHash('sha256').update(key).digest('hex')), 'the board keeps the key\'s digest');
+  }
+  const crossed = await served.move({ ...FACT, agent: first.agent }, seatHeaders(second.key));
+  assert.equal(crossed.status, 403, JSON.stringify(crossed.body));
+  assert.equal(crossed.body.error.code, 'SEAT_CREDENTIAL');
+  const carried = await served.move({ verb: 'submit', item: 1, args: {}, agent: first.agent, commits: { bundle: 'AA==' } }, seatHeaders(second.key));
+  assert.equal(carried.body.error?.code, 'SEAT_CREDENTIAL', 'a submit carrying commits is refused before its commits are taken');
+  assert.equal(served.calls.length, 0, 'no command ran as a seat named with another seat\'s key');
+});
+
+test('api.main.seat-moves-with-own-key: clause 2 [P7]: a move naming the seat with its own key runs as today, a test receipt fact and next included; the coordinator\'s own credential still moves as any seat (#10790)', async (t) => {
+  const project = cellProject(t, { real: true });
+  const served = await servedMoves(t, project);
+  const seat = await joinSeat(served);
+  const receipt = { verb: 'fact', item: 1, args: { kind: 'note', text: 'test receipt: green pullboard test run of a.test.js at abc on studio in 1s (exit 0)' }, agent: seat.agent };
+  for (const body of [{ ...FACT, agent: seat.agent }, receipt, { verb: 'next', args: {}, agent: seat.agent }]) {
+    const moved = await served.move(body, seatHeaders(seat.key));
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.equal(moved.body.event.event_kind, body.verb);
+  }
+  assert.deepEqual(served.calls, ['fact', 'fact', 'next'].map((verb) => ({ argv: [verb], remoteAgent: seat.agent })), 'each move ran once as the seat');
+  // A loopback serve's session secret is the coordinator's credential, as the view's session is: it acts as a seat with no seat key.
+  const local = await servedMoves(t, project, { allowedHosts: [] });
+  const asCoordinator = await local.move({ ...FACT, agent: seat.agent });
+  assert.equal(asCoordinator.status, 200, JSON.stringify(asCoordinator.body));
+  assert.deepEqual(local.calls, [{ argv: ['fact'], remoteAgent: seat.agent }]);
+});
+
+test('api.main.board-key-joins-not-moves: clause 3 [P7]: through packages/api/src/io/main.js the shared board key alone may join a seat but cannot move as an existing seat, joined over the API or in a worktree on the board host (#10790)', async (t) => {
+  const project = cellProject(t, { real: true });
+  const served = await servedMoves(t, project);
+  const seat = await joinSeat(served);
+  const worktree = cellRepo(t, { real: true }).root;
+  const board = openCellBoard(project.boardFile);
+  let hosted;
+  try { hosted = cellSeat(board, { lane: 'api', path: worktree }).id; } finally { closeCellBoard(board); }
+  for (const agent of [seat.agent, hosted]) {
+    for (const headers of [{ 'x-pullboard-key': BOARD_KEY }, seatHeaders(''), seatHeaders(BOARD_KEY), seatHeaders(seat.key.slice(1))]) {
+      const refused = await served.move({ ...FACT, agent }, headers);
+      assert.equal(refused.status, 403, `${agent}: ${JSON.stringify(refused.body)}`);
+      assert.equal(refused.body.error.code, 'SEAT_CREDENTIAL', 'the board key alone never moves as a seat');
+    }
+  }
+  assert.equal(served.calls.length, 0, 'no command ran as a seat on the board key alone');
 });
