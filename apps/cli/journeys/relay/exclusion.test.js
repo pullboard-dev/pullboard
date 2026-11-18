@@ -47,7 +47,7 @@ test('cli.journeys-relay-exclusion.relay-on-clears-the-exclusion-of-a-paused: cl
   assert.ok(JSON.parse(readFileSync(box.linkFile, 'utf8')).baselinePause, 'the baseline upload is paused');
   markExcluded(box);
   assert.equal((await box.cliLocal('status')).document.relay.excluded, true, 'the board is excluded before relay on');
-  const on = await box.cli('relay', 'on', '--url', box.origin);
+  const on = await box.cliLocal('relay', 'on', '--url', box.origin);
   assert.equal(on.code, 0, on.failure);
   const status = (await box.cliLocal('status')).document.relay;
   assert.equal(status.excluded, undefined, 'relay on cleared the exclusion');
@@ -59,7 +59,7 @@ test('cli.journeys-relay-exclusion.relay-off-then-on-ends-unexcluded: clause 2: 
   await box.link();
   assert.equal((await box.cliLocal('relay', 'off')).code, 0);
   assert.equal((await box.cliLocal('status')).document.relay.excluded, true, 'relay off excludes the board');
-  const on = await box.cli('relay', 'on', '--url', box.origin);
+  const on = await box.cliLocal('relay', 'on', '--url', box.origin);
   assert.equal(on.code, 0, on.failure);
   assert.equal((await box.cliLocal('status')).document.relay.excluded, undefined, 'relay on leaves it unexcluded');
 });
