@@ -7,7 +7,7 @@ import { roadmapCardsHtml } from '../../../../src/io/roadmap/render.js';
 import { roadmapRemainingCount } from '../../../../src/io/roadmap/render.js';
 import { roadmapSummary } from '../../../../src/logic/summary/roadmap.js';
 
-test('Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
+test('view.x-summary-roadmap-pure.roadmap-title-totals-use-shown-header-authority: Roadmap title totals use shown header authority, retain legacy completion and exclude shipped history [N26,N38,C7]', () => {
   const modern = readMilestoneModel({ name: 'Next', items: [1, 2], shipped: null, summary: { total: 8, landed: 3, left: 5 } },
     [{ state: 'verified', stage: 'accepted' }]);
   const legacy = readMilestoneModel({ name: 'Old export', items: [3, 4] },
@@ -22,7 +22,7 @@ test('Roadmap title totals use shown header authority, retain legacy completion 
   assert.equal(roadmapRemainingCount([{ milestone: {}, total: Infinity, done: 0 }]), null, 'invalid legacy totals remain unknown');
 });
 
-test('Roadmap ranks supplied work by shipping stage and preserves modern and legacy completion rules [N26,N38,C7]', () => {
+test('view.x-summary-roadmap-pure.roadmap-ranks-supplied-work-by-shipping-stage: Roadmap ranks supplied work by shipping stage and preserves modern and legacy completion rules [N26,N38,C7]', () => {
   const rows = [
     { label: '#1', state: 'verified', stage: 'merged' }, { label: '#2', state: 'open', stage: 'open', held: 'Hold' },
     { label: '#3', state: 'open', stage: 'open' }, { label: '#4', state: 'back', stage: 'open' },
@@ -44,7 +44,7 @@ test('Roadmap ranks supplied work by shipping stage and preserves modern and leg
   assert.equal(JSON.stringify({ rows, milestone }), before);
 });
 
-test('milestone rows keep explicit disclosure, foreign navigation, pending detail and prepared text [N26,N38,C7]', () => {
+test('view.x-summary-roadmap-pure.milestone-rows-keep-explicit-disclosure-foreign-navigation: milestone rows keep explicit disclosure, foreign navigation, pending detail and prepared text [N26,N38,C7]', () => {
   const row = { label: 'other#7', title: 'Title <seven>', state: 'open', stage: 'open', held: 'Wait <here>', pending: true,
     open: { root: '/other "board"', id: 7 }, block: { dot: '<i class="block-dot"></i>', detail: '<p>Prepared detail</p>' } };
   const html = milestoneRowHtml(row, { root: '/local', open: true, hidden: true, titleHtml: '<b>Prepared title</b>' });
@@ -59,7 +59,7 @@ test('milestone rows keep explicit disclosure, foreign navigation, pending detai
   assert.match(accepted, /class="milestone-why" hidden/u);
 });
 
-test('Roadmap cards preserve shipping counters, per-board folds and shipped history from prepared reads [N26,N38,C7]', () => {
+test('view.x-summary-roadmap-pure.roadmap-cards-preserve-shipping-counters-per-board: Roadmap cards preserve shipping counters, per-board folds and shipped history from prepared reads [N26,N38,C7]', () => {
   const upcoming = { name: 'Next <release>', items: [1, 2], limit: 4, count: 2, summary: { total: 2, landed: 0, left: 2,
     landing: 1, review: 0, building: 0, waiting: 0, held: 1 } };
   const rows = [{ label: '#1', state: 'verified', stage: 'accepted', title: 'Accepted' },
@@ -89,7 +89,7 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(roadmapCardsHtml([]), /No milestones yet/u);
 });
 
-test('Roadmap names a limit only within ten percent and formats the forecast for people [N26]', () => {
+test('view.x-summary-roadmap-pure.roadmap-names-a-limit-only-within-ten: Roadmap names a limit only within ten percent and formats the forecast for people [N26]', () => {
   const rows = [{ label: '#1', state: 'open', stage: 'open', title: 'One item' }];
   /** Render one milestone count against its declared limit through the actual Roadmap card renderer. */
   const capacity = (count, limit = 700) => {
@@ -115,7 +115,7 @@ test('Roadmap names a limit only within ten percent and formats the forecast for
     'held retains the same dot, bold number, whitespace and separate label structure');
 });
 
-test('Roadmap renders open items in the backend queue position order and shows each position [N26,N38,C7]', () => {
+test('view.x-summary-roadmap-pure.roadmap-renders-open-items-in-the-backend: Roadmap renders open items in the backend queue position order and shows each position [N26,N38,C7]', () => {
   const rows = [
     { label: '#102', state: 'building', stage: 'claimed', position: 2 },
     { label: '#101', state: 'open', stage: 'open', held: 'Pinned', position: 1 },
@@ -127,7 +127,7 @@ test('Roadmap renders open items in the backend queue position order and shows e
   assert.match(html, /queue-position[^>]*>1</);
 });
 
-test('Roadmap rows use the approved plain status words and quiet linked waits [N26]', () => {
+test('view.x-summary-roadmap-pure.roadmap-rows-use-the-approved-plain-status: Roadmap rows use the approved plain status words and quiet linked waits [N26]', () => {
   const cases = [
     [{ stage: 'open', state: 'open' }, 'Ready'],
     [{ stage: 'claimed', state: 'building' }, 'Building'],
