@@ -65,12 +65,37 @@ export async function requireTestMirror(ctx, bar, on) {
   if (!on) return;
   const listed = tryGit(ctx.info.root, ['ls-tree', '-r', '--name-only', trunkBranch(ctx.info.root)]);
   if (listed.status !== 0) return;
-  const { newTestMirrorFindings } = await import('../../../../../packages/codemap/index.js');
-  const { bad, use } = newTestMirrorFindings(listed.stdout.split('\n').filter(Boolean), barPaths({ criterion: bar.criterion, check: bar.check }));
+  const tracked = listed.stdout.split('\n').filter(Boolean);
+  const named = barPaths({ criterion: bar.criterion, check: bar.check });
+  const { newTestMirrorFindings, isDefaultTestFile } = await import('../../../../../packages/codemap/index.js');
+  requireRegistryRecord(tracked, named, isDefaultTestFile);
+  const { bad, use } = newTestMirrorFindings(tracked, named);
   if (!bad.length) return;
   throw new Refused('LAYOUT_TEST_MIRROR', `the bar names ${bad.join(', ')}, a new test file that mirrors no source file`,
     use ? `name ${use}, the test that mirrors the source file the bar names, or put the cases in an existing test of that source`
       : 'name a test under tests/<logic|io>/ for the src/<logic|io>/ file it proves, or put the cases in an existing test of that source');
+}
+
+/**
+ * Refuse a bar whose test file sits in a strict-registry cell (its tests folder holds a registry.test.js) while the bar names
+ * none of that cell's fixtures registry records (#10677).
+ * Why: a bare `clause N:` title in such a cell turned main red on 17 Nov; the refusal names the record file and the ID prefix.
+ *
+ * @param {string[]} tracked Every file on main.
+ * @param {string[]} named The paths the bar names.
+ * @param {(path: string) => boolean} isTest The codemap's test-file predicate, passed in so this module never names a test file itself.
+ */
+export function requireRegistryRecord(tracked, named, isTest) {
+  for (const path of named) {
+    const at = path.lastIndexOf('/tests/');
+    if (at < 0 || !isTest(path) || path.slice(at).startsWith('/tests/registry')) continue;
+    const cell = path.slice(0, at);
+    if (!tracked.some(file => file.startsWith(`${cell}/tests/registry`) && isTest(file))) continue;
+    if (named.some(other => other.startsWith(`${cell}/tests/fixtures/registry`) && other.endsWith('.json'))) continue;
+    const record = `${cell}/tests/fixtures/registry.json`;
+    throw new Refused('REGISTRY_TEST_ID', `the bar names ${path}, a test in a strict-registry cell, but not its registry record ${record}`,
+      `name ${record} in the bar and title each test <cell id>.<area>.<name>: clause N: ..., not a bare clause N title`);
+  }
 }
 
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
