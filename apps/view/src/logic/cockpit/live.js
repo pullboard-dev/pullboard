@@ -326,7 +326,7 @@ function catchUp() {
   for (const root of catchEvery ? [] : catchRoots) for (const named of namedBoards(root)) fresh.add(named);
   catchEvery = false;
   catchRoots.clear();
-  catching = refresh(fresh).catch(() => { $('live').textContent = 'offline: is pullboard view still running?'; }).finally(() => {
+  catching = refresh(fresh).catch((error) => { $('live').textContent = offlineLine(error); }).finally(() => {
     catching = null;
     if (catchAgain) { catchAgain = false; catchUp(); }
   });

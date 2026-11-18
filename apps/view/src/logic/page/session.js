@@ -20,6 +20,16 @@ let transportModule = configuredTransportModule;
 const connection = ${connection};
 let transport = null;
 let transportLoadError = null;
+/**
+ * The footer's words when a read fails. A page reading through the relay names the relay and says the one next step for
+ * its fault, wait for a relay that is down, slow or failing, or reload for a new version; this machine's view is asked
+ * about only when the page reads from it. The text is searched, never matched with a pattern that needs an escape [H5].
+ */
+function offlineLine(error) {
+  if (!transport) return 'offline: is pullboard view still running?';
+  if (/ENGINE_VERSION/.test(String(error?.code ?? '') + ' ' + String(error?.message ?? error ?? ''))) return 'offline: this page is older than the relay. Reload this page to get the new version.';
+  return 'offline: the relay is not answering. Wait a moment; this page tries again by itself.';
+}
 // Hosted pages can read two independent authorities at once. Local boards use the view's API; relay boards
 // retain the relay client's device-only decryption and event stream. The board id, never a mutable global mode,
 // selects the authority for each request.
