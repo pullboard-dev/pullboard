@@ -1216,3 +1216,8 @@ export function renewAfterSyncEnabled() {
 export function reuseGateReceiptsEnabled() {
   return loadMachineSettings().landing?.reuseGateReceipts === true;
 }
+
+/** Whether review.relaxRequiredFamily is on [C7]: off by default; only an exact `true` turns it on. */
+export function relaxRequiredFamilyEnabled() {
+  return loadMachineSettings().review?.relaxRequiredFamily === true;
+}

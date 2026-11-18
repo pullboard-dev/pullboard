@@ -17,6 +17,8 @@ import { sweepLapsedReviews } from '../review/lease.js';
 import { holdReviewLease } from '../review/lease.js';
 import { REVIEW_GATE_RECEIPT_ENGINE } from '../../../../../state/light.js';
 import { gateReceiptProblem } from '../../board.js';
+import { reviewReleases } from '../../../logic/board/release.js';
+import { REVIEW_RELEASE_TWICE_ENGINE } from '../../../../../state/light.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -40,6 +42,22 @@ export function reserveReview(board, id, who) {
     }
     return reserveWithin(board, id, { ...who, reviewHeartbeats, prepared: { witness: known.witness } });
   });
+}
+
+/**
+ * With board.holdAfterTwoReleases on, at REVIEW_RELEASE_TWICE_ENGINE, a seat whose model family already released this
+ * review twice since the latest submit is refused: that family cannot judge it, so another family or the coordinator does [C7].
+ *
+ * @param {any} board
+ * @param {number} id
+ * @param {string} agentId
+ * @returns {Refused|null} the refusal, or null when the rule is off or the family has not released it twice
+ */
+export function reviewReleasedTwiceBy(board, id, agentId) {
+  if (board.holdAfterTwoReleases !== true || (board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_RELEASE_TWICE_ENGINE) return null;
+  const family = board.db.prepare('SELECT agent_family AS family FROM agent WHERE agent_id = ?').get(agentId)?.family ?? null;
+  if (!family || reviewReleases(board, id).filter(row => row.family === family).length < 2) return null;
+  return new Refused('REVIEW_RELEASE_TWICE', `a seat of the ${family} family released the review of #${id} twice without a verdict; a seat of another model family reviews #${id}, or the coordinator rules`);
 }
 
 /** Explicit reservations prepared before the writer's transaction, keyed by the frozen options the writer receives. */
@@ -90,6 +108,11 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
   const witness = !enabled || !found ? null
     : prepared ? (prepared.witness ? confirmFamilyRelaxation(board, found, prepared.witness, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) : null)
       : reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy, null, reviewHeartbeats);
+  // Not a guard of the move: the state machine's guards are fixed per engine, so this refusal gates itself on REVIEW_RELEASE_TWICE_ENGINE and the board flag.
+  if (found?.item_status === 'submitted') {
+    const twice = reviewReleasedTwiceBy(board, id, agentId);
+    if (twice) throw twice;
+  }
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,

@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { joinCoordinatorSeat } from '../../index.js';
+import { relaxRequiredFamilyEnabled } from '../../index.js';
 import { privateFixtureFiles } from '../../../gate/tests/fixtures/child.js';
 import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js';
 
@@ -28,4 +29,11 @@ test('config.io-settings.join-coordinator-seat-off-by-default: clause 2: joinCoo
   assert.equal(withSettings({}, joinCoordinatorSeat), false);
   assert.equal(withSettings({ 'join.coordinatorSeat': false }, joinCoordinatorSeat), false);
   assert.throws(() => withSettings({ 'join.coordinatorSeat': 'yes' }, joinCoordinatorSeat), /join\.coordinatorSeat/u);
+});
+
+test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredFamilyEnabled() is false for empty settings and for review.relaxRequiredFamily false, and true only for an exact true [C7]', () => {
+  assert.equal(withSettings({}, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: false } }, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: 'true' } }, relaxRequiredFamilyEnabled), false);
+  assert.equal(withSettings({ review: { relaxRequiredFamily: true } }, relaxRequiredFamilyEnabled), true);
 });
