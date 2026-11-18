@@ -56,7 +56,8 @@ export async function run(io, args) {
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
-    io.result?.({ item: store.getItem(board, id) });
+    const filed = store.getItem(board, id);
+    io.result?.({ item: filed, route: filed.item_route, level: filed.item_route });
     io.say(`edited #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
     await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
@@ -133,7 +134,8 @@ export async function run(io, args) {
     }
   }
   const warnings = [...evidenceWarnings, ...barWarnings];
-  io.result?.({ item: store.getItem(board, id), ...(warnings.length ? { warnings } : {}) });
+  const filed = store.getItem(board, id);
+  io.result?.({ item: filed, route: filed.item_route, level: filed.item_route, ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.err(`warning: [${warning.code ?? 'BAR'}] ${warning.message}`);
   io.say(`edited #${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
