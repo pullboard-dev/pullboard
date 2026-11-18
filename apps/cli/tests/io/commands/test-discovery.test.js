@@ -210,7 +210,7 @@ test('cli.io-commands-test-discovery.a-name-pattern-that-matches-no-test: a name
   const defaultDestination = execute('--test-name-pattern', 'one discovered test',
     '--test-reporter-destination', output, file);
   assert.equal(defaultDestination.status, 0, `${defaultDestination.stdout}${defaultDestination.stderr}`);
-  assert.match(readFileSync(output, 'utf8'), /ok 1 - one discovered test/u);
+  assert.match(readFileSync(output, 'utf8'), /ok 1 - cli\.io-commands-test-discovery\.one-discovered-test: one discovered test/u);
   assert.equal(readFileSync(box.marker, 'utf8'), 'xxxx');
   const absentWithDestination = execute('--test-reporter-destination=' + output,
     '--test-name-pattern=absent default reporter case 1018', file);
