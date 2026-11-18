@@ -43,7 +43,7 @@ async function proposed(box, channel, text = 'The page renders accessibly.', tar
   else succeeds(await box.runIn(box.repo, 'spec', 'approve', draft.id));
 }
 
-test('clause 1: on the view channel, spec apply --row G1 --commit succeeds for a row whose pending approve that channel recorded [C7,#9627]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-person.on-the-view-channel-spec-apply: clause 1: on the view channel, spec apply --row G1 --commit succeeds for a row whose pending approve that channel recorded [C7,#9627]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await proposed(box, 'view');
   fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { spec: { commitOnApply: true } });
@@ -52,7 +52,7 @@ test('clause 1: on the view channel, spec apply --row G1 --commit succeeds for a
   assert.equal(row(box, 'G1').text, 'The page renders accessibly.');
 });
 
-test('clause 2: on the view channel the same call refuses COORDINATOR_ONLY with no pending decision, one decided on another channel, or no --commit [C7,#9627]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-person.on-the-view-channel-the-same: clause 2: on the view channel the same call refuses COORDINATOR_ONLY with no pending decision, one decided on another channel, or no --commit [C7,#9627]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   const before = readFileSync(join(box.repo, 'SPEC.md'), 'utf8');
   const call = (...flags) => onChannel(box, box.repo, 'view', 'spec', 'apply', ...flags, '--json');
@@ -67,7 +67,7 @@ test('clause 2: on the view channel the same call refuses COORDINATOR_ONLY with 
   assert.equal(readFileSync(join(box.repo, 'SPEC.md'), 'utf8'), mid, 'the later refusals left the row file as it was');
 });
 
-test('clause 3: a seat channel still refuses COORDINATOR_ONLY for the same call [C7,#9627]', { timeout: 180_000 }, async () => {
+test('cli.journeys-spec-apply-person.a-seat-channel-still-refuses-coordinator: clause 3: a seat channel still refuses COORDINATOR_ONLY for the same call [C7,#9627]', { timeout: 180_000 }, async () => {
   const box = fixtures.project('true');
   await proposed(box, 'view');
   const seat = await box.runIn(box.web, 'spec', 'apply', '--row', 'G1', '--commit', '--json');
