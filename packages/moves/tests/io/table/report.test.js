@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/moves */
 /** Replay and explain reports load a table by name, count how often it agrees with the board, and refuse an unknown table naming the known ones [C7,#8071,#8072]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';

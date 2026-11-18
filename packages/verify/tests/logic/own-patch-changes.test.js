@@ -2,6 +2,7 @@
 /** ownPatchChanges lists the hunks that differ between two versions of a submit's own patch, keyed by file and hunk header [C7,#2981,#9437]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { changedHunkHeaders } from '../../index.js';
 import { ownPatchChanges } from '../../index.js';
 
 /** One file's patch with the given hunks, each `[start, context, lines]`. */
@@ -31,4 +32,13 @@ test('clause 1: two hunks under one header key apart by order, so a change to th
   const before = patch('a.js', [[10, '', '+one'], [30, '', '+two']]);
   const after = patch('a.js', [[12, '', '+one'], [33, '', '+two edited']]);
   assert.deepEqual(ownPatchChanges(before, after), [{ file: 'a.js', header: '', change: 'changed' }]);
+});
+
+test('clause 1: a changed hunk in a file whose name Git quotes is found, and changedHunkHeaders names its full header [C7,#2981]', () => {
+  const quoted = (lines) => `diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"\n--- "a/caf\\303\\251.txt"\n+++ "b/caf\\303\\251.txt"\n@@ -5 +5 @@ context\n-old\n${lines}\n`;
+  const before = quoted('+new');
+  const after = quoted('+newer');
+  assert.deepEqual(ownPatchChanges(before, after), [{ file: 'caf\u00e9.txt', header: 'context', change: 'changed' }]);
+  assert.deepEqual(ownPatchChanges(before, before), []);
+  assert.deepEqual(changedHunkHeaders(before, after), [{ file: 'caf\u00e9.txt', header: '@@ -5 +5 @@ context' }]);
 });

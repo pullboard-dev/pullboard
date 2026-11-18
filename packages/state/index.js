@@ -166,6 +166,7 @@ export { validate } from "./src/logic/engine/move/decisions.js";
 export { prepareBefore as engine_move_queue_submit_handoff_prepareBefore } from "./src/io/engine/move/handoff.js";
 export const FAMILY_ALIAS_ENGINE = engineNumber('FAMILY_ALIAS_ENGINE');
 export const RELEASE_REASONS_ENGINE = engineNumber('RELEASE_REASONS_ENGINE');
+export const RELEASE_TWICE_ENGINE = engineNumber('RELEASE_TWICE_ENGINE');
 export const DECISION_ORIGIN_ENGINE = engineNumber('DECISION_ORIGIN_ENGINE');
 export const ITEM_NOTES_ENGINE = engineNumber('ITEM_NOTES_ENGINE');
 export const CRITICAL_PATH_ENGINE = engineNumber('CRITICAL_PATH_ENGINE');
@@ -215,6 +216,7 @@ export const COORDINATOR_USAGE_ENGINE = engineNumber('COORDINATOR_USAGE_ENGINE')
 export const MILESTONE_MODE_ENGINE = engineNumber('MILESTONE_MODE_ENGINE');
 export const REVIEW_RELEASE_REASON_ENGINE = engineNumber('REVIEW_RELEASE_REASON_ENGINE');
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
+export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');

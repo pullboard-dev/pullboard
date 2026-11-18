@@ -41,13 +41,13 @@ async function timeNext(box, title) {
   return samples;
 }
 
-test('clause 1: pullboard next runs three times in process on the 2,500-item board and prints each run in ms [C7,#5329]', async (t) => {
+test('cli.journeys-speed-budget.pullboard-next-runs-three-times-in: clause 1: pullboard next runs three times in process on the 2,500-item board and prints each run in ms [C7,#5329]', async (t) => {
   const samples = await timeNext(largeBoard(t), 'Next sample');
   assert.equal(samples.length, RUNS);
   samples.forEach(ms => assert.ok(ms > 0, `a run took ${ms} ms`));
 });
 
-test('clause 2: the median of the three timed runs is a positive number, with no millisecond bar asserted yet [C7,#5329]', async (t) => {
+test('cli.journeys-speed-budget.the-median-of-the-three-timed: clause 2: the median of the three timed runs is a positive number, with no millisecond bar asserted yet [C7,#5329]', async (t) => {
   const middle = median(await timeNext(largeBoard(t), 'Median sample'));
   assert.ok(Number.isFinite(middle) && middle > 0, `median ${middle}`);
 });
