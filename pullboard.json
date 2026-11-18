@@ -315,6 +315,7 @@
         "apps/cli/journeys/shout/overlap.test.js",
         "apps/cli/journeys/shout/prose.test.js",
         "apps/cli/journeys/shout/references.test.js",
+        "apps/cli/journeys/shout/references-part2.test.js",
         "apps/cli/journeys/shout/rows.test.js",
         "apps/cli/journeys/shout/journeys/search-ages.test.js",
         "apps/cli/journeys/shout/journeys/search-capture.test.js",
