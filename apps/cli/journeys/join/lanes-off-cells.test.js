@@ -53,12 +53,13 @@ test('cli.journeys-join-lanes-off-cells.own-cells-pass: clause 1: with laneMode 
   const box = lanesOffProject(ALPHA);
   assert.equal((await box.inProcess(box.web, 'claim', '1')).code, 0);
   const folder = `${box.web}-item-1`;
-  write(folder, 'packages/alpha/src/a.js', 'packages/alpha/tests/a.test.js');
+  write(folder, 'packages/alpha/src/a.js', 'packages/alpha/src/extra.js');
   const committed = commit(box, folder, 'feat(alpha): alpha change [G1]');
   assert.equal(committed.status, 0, committed.stdout + committed.stderr);
   const submitted = await box.inProcess(folder, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
-  assert.equal((await settleSubmit(t, box, JSON.parse(submitted.out))).gate.green, true);
+  const settled = await settleSubmit(t, box, JSON.parse(submitted.out));
+  assert.equal(settled.gate.green, true, JSON.stringify(settled.gate));
 });
 
 test('cli.journeys-join-lanes-off-cells.foreign-cell-refused: clause 2: with laneMode off a commit touching a path outside those cells is refused naming the path [C7,#8907]', async () => {
