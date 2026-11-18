@@ -124,7 +124,7 @@ function partsOf(text, count) {
   return { count, bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex') };
 }
 
-test('api.jobs.receipt-parts-any-size: clause 1: a gate receipt over 100 KiB posts as receiptPart calls under the inline step size, and the board stores and applies it whole with every proofPlan file [C7,P7,#10771]', (t) => {
+test('api.jobs.receipt-parts-any-size: clause 1: a gate receipt over 100 KiB posts as receiptPart calls, each one queue call, and the board stores and applies it whole with every proofPlan file [C7,P7,#10771]', (t) => {
   const { db, claim, call } = heldGate(t, 'gate:big');
   const files = Array.from({ length: 2000 }, (_, n) => `packages/store/tests/io/queued/red/case-${n}.test.js`);
   const gate = { version: 1, green: false, proofPlan: { runner: 'node --test', files, cores: 12, account: true } };
@@ -141,7 +141,7 @@ test('api.jobs.receipt-parts-any-size: clause 1: a gate receipt over 100 KiB pos
   assert.deepEqual(stored.gate.proofPlan.files, files, 'the stored receipt holds every proof file');
   assert.equal(stored.gateParts, undefined);
   assert.deepEqual(applied[0].receipt.gate.proofPlan.files, files, 'the receipt the board applies is whole');
-  assert.deepEqual(steps.filter(step => step.name.startsWith('receipt-part:')), [], 'the joined parts are dropped');
+  assert.deepEqual(steps.filter(step => step.name.startsWith('artifact:receipt-part.')), [], 'the joined parts are dropped');
 });
 
 test('api.jobs.receipt-parts-refused: clause 2: a receipt part from a runner not holding the claim is refused, and a receipt whose parts are missing or do not match gateParts is refused JOB_RECEIPT and records nothing [C7,P7,#10771]', (t) => {
