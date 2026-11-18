@@ -175,7 +175,7 @@ test('cli.journeys-status-writer.the-write-guard-follows-named-aliased: the writ
   assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
 });
 
-test('cli.journeys-status-writer.the-runs-store-opener-is-refused-inside: the runs store opener is refused inside an atomic board write, with its chain, and allowed outside one [C7,CD39,#7430]', () => {
+test('cli.journeys-status-writer.the-runs-store-opener-is-refused-inside: clause 1: the runs store opener is refused inside an atomic board write, with its chain, and allowed outside one [C7,CD39,#7430]', () => {
   const atomic = "import {atomic} from '../packages/store/src/io/board/event/log.js';";
   const extra = [{ file: 'packages/store/index.js', source: "export { openRunsStore } from './src/io/board/sqlite.js';" },
     { file: 'packages/store/src/io/board/sqlite.js', source: 'export function openRunsStore(file, options) { return { file, options }; }' },
