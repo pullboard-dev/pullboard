@@ -21,6 +21,7 @@ import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
@@ -216,7 +217,7 @@ export async function run(io, { first, values }) {
     }
   }
   if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
-  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
   // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].

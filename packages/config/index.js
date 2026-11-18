@@ -132,6 +132,7 @@ export {
   nextAdoptPreserved,
   nextItemNotices,
   reviewCanonicalFamilies,
+  joinCoordinatorSeat,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextLabelBounds,

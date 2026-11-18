@@ -155,7 +155,7 @@ async function plainNext(box, seat) {
   return out;
 }
 
-test('clause 1: next prints the bar line once, directly after the check line of every claim [C7,#10557]', async t => {
+test('cli.journeys-next-claims.next-prints-the-bar-line-once: clause 1: next prints the bar line once, directly after the check line of every claim [C7,#10557]', async t => {
   const box = await fixture(t, { perSeat: 2 });
   const first = box.add('First claimed work', { brief: 'Files: web/first.js\nTest: the real board selects the item.' });
   const second = box.add('Second claimed work', { brief: 'Files: web/second.js\nTest: the real board selects the item.' });
@@ -169,7 +169,7 @@ test('clause 1: next prints the bar line once, directly after the check line of 
   for (const index of bars) assert.match(lines[index], /pullboard show \d+ adds the thread and history only/u);
 });
 
-test('clause 2: a plain next that offers a review prints no bar line and stays under 2,048 bytes [C7,#10557]', async t => {
+test('cli.journeys-next-claims.a-plain-next-that-offers-a: clause 2: a plain next that offers a review prints no bar line and stays under 2,048 bytes [C7,#10557]', async t => {
   const box = await fixture(t);
   const review = box.add('Review before another build');
   box.submit(review);

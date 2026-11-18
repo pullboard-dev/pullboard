@@ -1,5 +1,5 @@
+/** @pullboard-test-input apps/view/src/** */
 /** @pullboard-module-loads apps/view/needs.js apps/view/index.js */
-/** @pullboard-test-input source-cell apps/view */
 /** The needs door exports one name and loads no view shell [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

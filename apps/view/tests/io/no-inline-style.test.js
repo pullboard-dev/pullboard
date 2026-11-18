@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/** */
 /** @pullboard-world-pin reads every apps/view source and stylesheet file to prove the view holds no inline style and no hand-typed colour, corner, border or shadow. */
 /** The view sets no inline style, and every colour, corner, border and shadow in its CSS is a token [N26]. */
 import assert from 'node:assert/strict';
