@@ -482,6 +482,9 @@ export function configProblems(config, root) {
   if (config.verify?.queueAccept !== undefined && typeof config.verify.queueAccept !== 'boolean') {
     problems.push('"verify.queueAccept" is true or false; true makes verify accept queue its frozen check as a runner job and return');
   }
+  if (config.verify?.reviewFolder !== undefined && typeof config.verify.reviewFolder !== 'boolean') {
+    problems.push('"verify.reviewFolder" is true or false; true lets a review use a detached folder at the submitted commit');
+  }
   if (config.verify?.requireRowRewrite !== undefined && typeof config.verify.requireRowRewrite !== 'boolean') {
     problems.push('"verify.requireRowRewrite" is true or false; true makes a restructure move refuse while an open item cites a spec row whose text changed with no rewrite edit');
   }

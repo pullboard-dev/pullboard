@@ -247,10 +247,10 @@ export function installRunnerOnlyDoctrineCase(fixtures) {
   });
 }
 
-/** Install the uncountable and final green submits alone, with the receipts they bind to the registered worker [C7,D1,D3]. */
+/** Install the uncountable submit alone: its exit is retained rather than counted as a passing empty count [C7,D1,D3]. */
 export function installRunnerOnlyUncountedCase(fixtures) {
-  test('clause 2: runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', async t => {
-    const { box, marker, paths, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
+  test('clause 1: runner-only doctrine refuses an uncountable check with RATCHET_UNCOUNTED in the registered worker [C7,D1,D3]', async t => {
+    const { box, id } = await runnerOnlyDoctrineSetup(t, fixtures);
     await t.test('clause 3: the uncounted file sits in the test manifest and tiers beside doctrine.test.js with the same tier [C7]', () => {
       const tiers = {};
       for (const registry of ['test-manifest.json', 'tiers.json']) {
@@ -268,6 +268,13 @@ export function installRunnerOnlyUncountedCase(fixtures) {
     const broken = await submitSettled(box, fixtures, id);
     assert.deepEqual(doctrineRefusals(broken), ['RATCHET_UNCOUNTED'], JSON.stringify(broken.gate.analysis));
     assert.match(broken.gate.analysis.refusals.find(row => row.part === 'doctrine').message, /its check exited 3/u, 'the uncountable exit is retained rather than a passing empty count');
+  });
+}
+
+/** Install the ordinary submission alone: a touched existing problem keeps its count, measured only in the registered worker's candidate and baseline [C7,D1,D3]. */
+export function installRunnerOnlyOrdinaryCase(fixtures) {
+  test('clause 1: runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', async t => {
+    const { box, marker, paths, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
     writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
     writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
     box.git(box.web, 'add', '-A');
