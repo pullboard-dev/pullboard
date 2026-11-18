@@ -1,3 +1,2 @@
-import { unassignedEngine } from './engine-next.js';
 /** The recorded seat role (advisor) has its own engine number, so older replays never see an advisor role [C7,#6496]. */
-export const ADVISOR_ROLE_ENGINE = unassignedEngine();
+export const ADVISOR_ROLE_ENGINE = 269;
