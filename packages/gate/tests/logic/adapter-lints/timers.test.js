@@ -27,7 +27,7 @@ function repo(files, ceilings) {
   return tree.root;
 }
 
-test('clause 1: with the setting on, a file gaining a deferral, poll or pause fails naming file, kind and line [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.with-the-setting-on-a-file: clause 1: with the setting on, a file gaining a deferral, poll or pause fails naming file, kind and line [C7,#9518]', () => {
   const root = repo({
     'packages/a/src/x.js': [
       'setTimeout(() => {}, 0);',
@@ -45,7 +45,7 @@ test('clause 1: with the setting on, a file gaining a deferral, poll or pause fa
   assert.ok(rows.some(row => /^packages\/a\/src\/x\.js:5: pause /u.test(row)));
 });
 
-test('clause 1: a slow interval, a budget-marked poll, comments and method calls are not counted [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.a-slow-interval-a-budget-marked: clause 1: a slow interval, a budget-marked poll, comments and method calls are not counted [C7,#9518]', () => {
   const uses = timerUses([
     'setInterval(f, 5000);',
     'setTimeout(f, 250);',
@@ -58,13 +58,13 @@ test('clause 1: a slow interval, a budget-marked poll, comments and method calls
   assert.deepEqual(uses, []);
 });
 
-test('clause 1: an awaited sleep inside a loop is a poll, outside a loop it is not [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.an-awaited-sleep-inside-a-loop: clause 1: an awaited sleep inside a loop is a poll, outside a loop it is not [C7,#9518]', () => {
   const looped = timerUses('async function w() {\n  while (!done()) {\n    await sleep(50);\n  }\n}\n');
   assert.deepEqual(looped.map(use => [use.line, use.kind]), [[3, 'poll']]);
   assert.deepEqual(timerUses('async function w() {\n  await sleep(50);\n}\n'), []);
 });
 
-test('clause 2: counts at their ceiling pass, a rise in any kind fails, and a swap between kinds fails [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.counts-at-their-ceiling-pass-a: clause 2: counts at their ceiling pass, a rise in any kind fails, and a swap between kinds fails [C7,#9518]', () => {
   const ceilings = { 'packages/a/src/x.js': { deferral0: 1 } };
   const at = repo({ 'packages/a/src/x.js': 'setImmediate(f);\n' }, ceilings);
   assert.deepEqual(timerLintRows(at, { enabled: true }), []);
@@ -78,7 +78,7 @@ test('clause 2: counts at their ceiling pass, a rise in any kind fails, and a sw
   assert.deepEqual(timerLintRows(fell, { enabled: true }), []);
 });
 
-test('clause 2: the lint holds its own ceilings file and leaves the clock ceilings file untouched [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.the-lint-holds-its-own-ceilings: clause 2: the lint holds its own ceilings file and leaves the clock ceilings file untouched [C7,#9518]', () => {
   assert.notEqual(TIMERS_CEILING_FILE, CLOCK_CEILING_FILE);
   const root = repo({ 'packages/a/src/x.js': 'setImmediate(f);\n' }, { 'packages/a/src/x.js': { deferral0: 1 } });
   const clockFile = join(root, CLOCK_CEILING_FILE);
@@ -88,7 +88,7 @@ test('clause 2: the lint holds its own ceilings file and leaves the clock ceilin
   assert.equal(readFileSync(clockFile, 'utf8'), '{"version":1,"files":{}}');
 });
 
-test('clause 3: with the setting off, which is the default, the lint reports nothing [C7,#9518]', () => {
+test('gate.logic-adapter-lints-timers.with-the-setting-off-which-is: clause 3: with the setting off, which is the default, the lint reports nothing [C7,#9518]', () => {
   const root = repo({ 'packages/a/src/x.js': 'setImmediate(f);\nsetInterval(f, 10);\n' });
   assert.deepEqual(timerLintRows(root), []);
   assert.deepEqual(timerLintRows(root, { enabled: false }), []);
