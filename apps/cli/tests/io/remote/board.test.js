@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import { apiHttpBox } from '../../fixtures/api.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
+import { createServer } from 'node:http';
+import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
 
 /** One successful versioned CLI call on the served board's own checkout, run in this process. */
 async function served(box, cwd, ...args) {
@@ -81,4 +83,44 @@ async (t) => {
   assert.equal(away.status, 1);
   assert.match(away.stderr, /^pullboard: \[BOARD_UNREACHABLE\] .*\nnext: .+/mu);
   assert.equal(cloneBoard(seat.clone), false, 'a refused read opened no local board');
+});
+
+/** A stand-in board host that records each move posted to it and answers it as recorded. */
+async function recordingHost(t) {
+  const moves = [];
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (part) => { body += part; });
+    request.on('end', () => {
+      moves.push({ path: request.url, seatKey: request.headers['x-pullboard-seat-key'] ?? null, body: JSON.parse(body || 'null') });
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ version: 1, event: null, result: {} }));
+    });
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { server.close(done); server.closeIdleConnections(); }));
+  return { moves, url: `http://127.0.0.1:${server.address().port}/api/v1/boards/fixture` };
+}
+
+test('cli.io-remote-board.join-keeps-and-moves-send-seat-key: a join by URL keeps the key the served board issued, and a move as that seat sends it, never as another seat [P7,#10790]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and six CLI calls, not a throughput claim.
+async (t) => {
+  const seat = await remoteSeat(t);
+  const own = (agent, ...args) => runCliInProcess(args, { cwd: seat.clone, env: { ...seat.env, PULLBOARD_AGENT: agent } });
+  assert.equal((await own('', 'settings', 'board.url', seat.box.origin)).status, 0);
+  assert.equal((await own('', 'settings', 'board.token', '--', seat.box.key)).status, 0);
+  const joined = await own('', 'join', 'app', '--model', FIXTURE_MODEL, '--json');
+  assert.equal(joined.status, 0, joined.stdout + joined.stderr);
+  const agent = JSON.parse(joined.stdout).agent;
+  const key = String(runFixtureGit(['config', '--worktree', '--get', 'pullboard.seatKey'], { cwd: seat.clone, env: seat.env })).trim();
+  assert.match(key, /^[\w-]{43}$/u, 'the clone keeps the seat key its join was issued');
+  const host = await recordingHost(t);
+  assert.equal((await own('', 'settings', 'board.url', host.url)).status, 0);
+  const moved = await own('', 'fact', String(seat.item), 'note', 'from the clone');
+  assert.equal(moved.status, 0, moved.stdout + moved.stderr);
+  const other = await own(seat.agent, 'fact', String(seat.item), 'note', 'as another seat');
+  assert.equal(other.status, 0, other.stdout + other.stderr);
+  assert.deepEqual(host.moves.map((move) => [move.path, move.body.agent, move.seatKey]), [
+    ['/api/v1/boards/fixture/moves', agent, key],
+    ['/api/v1/boards/fixture/moves', seat.agent, null],
+  ], 'the move as the joined seat carries its key; a move naming another seat carries none');
 });

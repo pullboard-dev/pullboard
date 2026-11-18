@@ -67,6 +67,25 @@ import { lapsedSweepEnabled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
 
+/** claims.perSeat from one accepted config, or null when it leaves N to the board. */
+function seatCapOf(config) {
+  const n = config?.claims?.perSeat;
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
+/**
+ * The claims.perSeat a claim on this board obeys: accepted main's committed config, never this seat's checkout [C7,#10831].
+ * Why: a seat on a stale or edited branch read its own pullboard.json and sealed N = 5 into its claims after main set 1,
+ * so one builder held 6-8 claims per next. mainPolicy caches the committed bytes by commit, and the claim reads the same
+ * policy, so next runs no extra Git process for it.
+ *
+ * @param {any} ctx
+ * @returns {number | null}
+ */
+export function trunkPerSeat(ctx) {
+  return seatCapOf(mainPolicy(ctx.info.root).config);
+}
+
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */
 export function currentReworkRoutingPolicy(ctx, board) {
   if (store.lineSettings(board).reworkSameFamily !== true) return null;
@@ -259,6 +278,7 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const accepted = mainPolicy(ctx.info.root).config;
+  const perSeat = seatCapOf(accepted);
   const exitRules = accepted.exitRules;
   const held = store.getItem(board, args[0]);
   if (exitRules?.enabled && !(held.item_status === 'claimed' && held.item_owner === args[1].agentId)) {
@@ -281,9 +301,9 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(perSeat === null ? {} : { perSeat }),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
-    ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
+    ...store.claimAdmission(board, args[0], args[1].agentId, perSeat, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await (await import('./exit/rules.js')).loadExitRules()).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   // seat.checkpoints (off by default): a fresh claim records what is left to build; a renewal or a correction re-claim records nothing [C7,#8549].
