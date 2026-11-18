@@ -47,7 +47,7 @@ function selected(ctx, board, values, services) {
   // Items this call already passed over (an unbuildable bar, #5786) are never selected again.
   const omitted = values.omitIds ?? [];
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board).filter(id => !omitted.includes(id)), caller: me.id, runnable: values.runnable, routes: values.routes,
-    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
+    workingFiles: services.claimWorktrees && (() => services.claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)), pendingFromJobRow: pendingFromJobRow() });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return withCover({ item: routing.item, reasons: routing.reasons, review: false, held: false });
     return { ...routing, review: false, held: false };
@@ -69,7 +69,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
     if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
       skipIds: agentSessionDigest ? ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) : [] })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes, pendingFromJobRow: pendingFromJobRow(),
-      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board), store.listAgents(board), board)) });
+      workingFiles: claimWorktrees && (() => claimWorktrees(store.listItems(board, { inFlight: true }), store.listAgents(board), board)) });
   });
 }
 
@@ -79,7 +79,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
  */
 export async function closePassingMainReds(ctx, { passingMainRedItems, withBoard, withBoardRead, ordered }) {
   if (!passingMainRedItems) return;
-  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, store.listItems(board)));
+  const passing = withBoardRead(ctx, board => passingMainRedItems(ctx.info.root, () => store.listItems(board)));
   if (!passing.length) return;
   await withBoard(ctx, async board => {
     const open = new Set(store.listItems(board).filter(item => item.item_status === 'open').map(item => item.item_id));

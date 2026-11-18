@@ -41,7 +41,7 @@ async function offeredTo(cli) {
   try { return JSON.parse(result.out).item?.item_id ?? null; } catch { return null; }
 }
 
-test('clause 1: with verify.landedReviews and verify.family require, next --verify offers a forced landing without a verdict to a seat of another model family [C7,#9863]', async t => {
+test('cli.journeys-verify-post-land-family.with-verify-landedreviews-and-verify-family: clause 1: with verify.landedReviews and verify.family require, next --verify offers a forced landing without a verdict to a seat of another model family [C7,#9863]', async t => {
   const { box, item } = await landedUnderFamilyRule(t);
   const other = await seatOf(box, OTHER);
   assert.equal(await offeredTo(other), item);

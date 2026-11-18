@@ -1,5 +1,5 @@
 /** Background git maintenance for the repo Pullboard manages: register it and schedule it through git's own --scheduler choice [C7,#10782]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../../../packages/git/light.js';
 import { realpathSync } from 'node:fs';
 import {
   basename,
@@ -14,7 +14,7 @@ function noGlobalConfig(env) {
 
 /** Run one git command with this environment; never throws. */
 function runGit(root, args, env) {
-  const ran = spawnSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+  const ran = gitSpawnSync(args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   return { status: ran.status ?? 1, stdout: ran.stdout ?? '', stderr: String(ran.stderr || ran.error?.message || '').trim() };
 }
 

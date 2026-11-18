@@ -75,14 +75,20 @@ function subjectOf(root, commit) {
  * Read this checkout's recorded main runs and name the open Main red items that run proves already fixed.
  * Why lineage only on a find: every `next` asks, and almost always nothing passes, so Git runs only when an item closes
  * (a warm next spent a rev-list on it each time, #8691) [C7,H24].
+ * Why items may be a function: every `next` asks, and almost always the cache holds no run for main's current commit, so the open
+ * list is built only once an entry for that commit exists, and then once [C7,#5329].
+ * @param {string} root
+ * @param {object[] | (() => object[])} items - The open items, or a function that reads them.
  */
 export function passingMainRedItems(root, items) {
   try {
     const main = mainCheckout(root);
     if (!main?.commit) return [];
     const entries = readCache(cacheFile(root)).entries;
-    if (!passingMainReds(items, main.commit, entries).length) return [];
-    return passingMainReds(items, main.commit, entries, mainLineage(root, main.commit))
+    if (!entries?.[main.commit]) return [];
+    const list = typeof items === 'function' ? items() : items;
+    if (!passingMainReds(list, main.commit, entries).length) return [];
+    return passingMainReds(list, main.commit, entries, mainLineage(root, main.commit))
       .map(row => ({ ...row, landing: subjectOf(root, row.turnedGreen) }));
   } catch { return []; }
 }

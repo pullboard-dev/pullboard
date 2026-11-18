@@ -15,6 +15,7 @@ import { openItemFolder } from './item/folder.js';
 import { liveFolderRefusal } from './item/folder.js';
 import { claimOrdered } from './claim.js';
 import { currentReworkRoutingPolicy } from './claim.js';
+import { trunkPerSeat } from './claim.js';
 import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { dirtyFiles } from './submit.js';
@@ -78,7 +79,7 @@ export function seatClaims(ctx) {
 
 /**
  * Claim ready items for this seat, each sharing no file with work it holds, until it holds N build claims [C7,#6263,#7461].
- * Why: a seat builds its next item while earlier ones' tests run; N is claims.perSeat or the board's free slots per live seat,
+ * Why: a seat builds its next item while earlier ones' tests run; N is main's claims.perSeat or the board's free slots per live seat,
  * and the claim guard records the N it used. `most` bounds one call: submit adds one at a time.
  *
  * @param {any} ctx
@@ -89,7 +90,8 @@ export function seatClaims(ctx) {
 export async function topUpClaims(ctx, values, { most = Infinity } = {}) {
   const omit = new Set(values.omitIds ?? []);
   const taken = [];
-  const perSeat = Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null;
+  // Main's committed claims.perSeat, never this seat's checkout, so a stale branch cannot raise its own N [#10831].
+  const perSeat = trunkPerSeat(ctx);
   for (let tries = 0; tries < 10 && taken.length < most; tries += 1) {
     const room = withBoardRead(ctx, board => {
       const me = whoAmI(ctx, board).id, items = store.listItems(board);

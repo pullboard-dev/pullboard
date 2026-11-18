@@ -21,7 +21,7 @@ import { linkedBoardCount } from '../../tests/fixtures/relay/auth.js';
 import { fixture } from '../../tests/fixtures/relay/auth.js';
 import { login } from '../../tests/fixtures/relay/auth.js';
 
-test('relay on from an SSH shell links only after the person confirms in the browser [P6, H5, H8, B26]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.relay-on-from-an-ssh-shell: relay on from an SSH shell links only after the person confirms in the browser [P6, H5, H8, B26]', async (t) => {
   const box = await relayClientFixture(t);
   const ssh = { SSH_CONNECTION: '192.0.2.10 12345 192.0.2.20 22', PULLBOARD_RELAY_TOKEN: 'pa_' + 'x'.repeat(43) };
   const running = box.startCli(['relay', 'on', '--url', box.origin], ssh);
@@ -84,7 +84,7 @@ test('relay on from an SSH shell links only after the person confirms in the bro
     'refused shell actions never start another browser grant');
 });
 
-test('an unanswered device board confirmation expires after ten minutes [H8]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.an-unanswered-device-board-confirmation-expires: an unanswered device board confirmation expires after ten minutes [H8]', async (t) => {
   const box = await fixture(t);
   const intent = { board: 'ssh-board', boardName: 'fixture-board', host: 'fixture-host', repository: 'fixture/repository' };
   const flow = await box.auth.beginDevice({ intent });
@@ -107,7 +107,7 @@ test('an unanswered device board confirmation expires after ten minutes [H8]', a
   } finally { db.close(); }
 });
 
-test('a confirmation approved before its deadline can reach the SSH CLI just after ten minutes [P6, H5]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.a-confirmation-approved-before-its-deadline: a confirmation approved before its deadline can reach the SSH CLI just after ten minutes [P6, H5]', async (t) => {
   const box = await fixture(t);
   const intent = { board: 'ssh-board', boardName: 'fixture-board', host: 'fixture-host', repository: 'fixture/repository' };
   const flow = await box.auth.beginDevice({ intent });
@@ -127,7 +127,7 @@ test('a confirmation approved before its deadline can reach the SSH CLI just aft
   assert.match(delivered.token, /^ps_[A-Za-z0-9_-]{43}$/u);
 });
 
-test('device authorization stays serialized while GitHub confirms its user [P6, H5]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.device-authorization-stays-serialized-while-github: device authorization stays serialized while GitHub confirms its user [P6, H5]', async (t) => {
   const box = await fixture(t);
   const intent = { board: 'ssh-board', boardName: 'fixture-board', host: 'fixture-host', repository: 'fixture/repository' };
   const flow = await box.auth.beginDevice({ intent });
@@ -177,7 +177,7 @@ test('device authorization stays serialized while GitHub confirms its user [P6, 
   }
 });
 
-test('unreadable links are refused; agent tokens belong to exactly one board [H8, H1]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.unreadable-links-are-refused-agent-tokens: unreadable links are refused; agent tokens belong to exactly one board [H8, H1]', async (t) => {
   const box = await fixture(t);
   const signed = await login(box);
   box.state.access = false;
@@ -195,7 +195,7 @@ test('unreadable links are refused; agent tokens belong to exactly one board [H8
   await assert.rejects(box.auth.linkBoard(agent.token, 'gamma', 'fixture/repository'), { code: 'HUMAN_REQUIRED' });
 });
 
-test('lost GitHub access takes effect at ten minutes for reads and writes alike, and GitHub is asked once per window, never per write [H8, H1, H21]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.lost-github-access-takes-effect-at: lost GitHub access takes effect at ten minutes for reads and writes alike, and GitHub is asked once per window, never per write [H8, H1, H21]', async (t) => {
   const box = await fixture(t);
   const signed = await login(box);
   await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
@@ -225,7 +225,7 @@ test('lost GitHub access takes effect at ten minutes for reads and writes alike,
   assert.equal((await box.auth.authenticate(signed.token, { board: 'alpha', write: true })).user.id, signed.user.id, 'the next window checks restored access again');
 });
 
-test('person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.person-token-management-lists-only-owned: person token management lists only owned scoped metadata and preserves independent revocation [H2,H9]', async (t) => {
   const box = await fixture(t);
   const person = await login(box);
   await box.auth.linkBoard(person.token, 'alpha', 'fixture/repository');
@@ -262,7 +262,7 @@ test('person token management lists only owned scoped metadata and preserves ind
   await assert.rejects(box.auth.listTokens(person.token, 'alpha'), { code: 'WRITE_REQUIRED' });
 });
 
-test('credentials are hash-only, expire, revoke individually and survive relay restart [H8, H1]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.credentials-are-hash-only-expire-revoke: credentials are hash-only, expire, revoke individually and survive relay restart [H8, H1]', async (t) => {
   const box = await fixture(t, { sessionTTL: 30_000 });
   const signed = await login(box);
   await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
@@ -289,7 +289,7 @@ test('credentials are hash-only, expire, revoke individually and survive relay r
   await assert.rejects(restarted.authenticate(signed.token), { code: 'AUTH_REQUIRED' });
 });
 
-test('revoking during an awaited GitHub write check refuses the pending write [H8, H1]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.revoking-during-an-awaited-github-write: revoking during an awaited GitHub write check refuses the pending write [H8, H1]', async (t) => {
   const box = await fixture(t);
   const signed = await login(box);
   await box.auth.linkBoard(signed.token, 'alpha', 'fixture/repository');
@@ -305,7 +305,7 @@ test('revoking during an awaited GitHub write check refuses the pending write [H
   await assert.rejects(pending, { code: 'AUTH_REQUIRED' });
 });
 
-test('revoking a board credential while its upload body is open stores nothing [H8, A4, H7]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.revoking-a-board-credential-while-its: revoking a board credential while its upload body is open stores nothing [H8, A4, H7]', async (t) => {
   const box = await fixture(t);
   const person = await login(box);
   const board = 'b'.repeat(32);
@@ -362,7 +362,7 @@ test('revoking a board credential while its upload body is open stores nothing [
   assert.equal(existsSync(join(dirname(box.database), 'journal', `${board}.journal.sqlite`)), true);
 });
 
-test('revoking a person token during snapshot upload preserves the prior snapshot [H8, A4, H7]', async (t) => {
+test('cli.journeys-relay-main-pairing-part2.revoking-a-person-token-during-snapshot: revoking a person token during snapshot upload preserves the prior snapshot [H8, A4, H7]', async (t) => {
   const box = await fixture(t);
   const person = await login(box);
   const observer = await login(box);

@@ -154,7 +154,7 @@ function lastInitLine(output) {
 /** Whether a repository's board is linked to the relay. */
 const linked = (root) => existsSync(join(root, '.git', 'pullboard', 'relay.json'));
 
-test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-init-offer.a-person-at-init-shares-with: a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
   await useLoopbackRelay(box);
   const person = personEnvironment(box);
@@ -229,7 +229,7 @@ test('a person at init shares with one Enter [H5,H17,B26]', { timeout: 240_000 }
   });
 });
 
-test('an agent or CI init stays noninteractive and shows one next step [H5,B26]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-init-offer.an-agent-or-ci-init-stays: an agent or CI init stays noninteractive and shows one next step [H5,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
   await useLoopbackRelay(box);
   const person = personEnvironment(box);
@@ -250,7 +250,7 @@ test('an agent or CI init stays noninteractive and shows one next step [H5,B26]'
   assert.equal(signIns(box), before, 'no sign-in starts without the person');
 });
 
-test('verbose init retains sharing and setup recipes without starting either [I1,I2,H5,B26]', { timeout: 240_000 }, async (t) => {
+test('cli.journeys-init-offer.verbose-init-retains-sharing-and-setup: verbose init retains sharing and setup recipes without starting either [I1,I2,H5,B26]', { timeout: 240_000 }, async (t) => {
   const box = await relayClientFixture(t);
   await useLoopbackRelay(box);
   const person = personEnvironment(box);

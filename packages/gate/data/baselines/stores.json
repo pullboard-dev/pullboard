@@ -1381,7 +1381,7 @@
     },
     "table:person_enrollment": {
       "kind": "table",
-      "owner": "apps/relay/src/logic/person/enrollment/store.js"
+      "owner": "apps/relay/src/io/store/enrollment.js"
     },
     "table:phone_approval": {
       "kind": "table",

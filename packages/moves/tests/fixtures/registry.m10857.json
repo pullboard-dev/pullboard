@@ -1,0 +1,3 @@
+{
+  "moves.reasons.own-waiting-lines-in-flight-read": {"proves":{"specs":["C7"],"claim":"ownWaitingLines names a seat's submitted item and its claim in its gate as the whole open list gives, and sends the board no open-items list query."},"why":"Without it, a regression where next lists every open item after the claim to find a seat's few waiting items, or names a different set, would pass unnoticed.","kind":"contract","inputs":["packages/moves/src/logic/reasons.js","packages/moves/tests/logic/reasons.test.js","packages/moves/tests/fixtures/next.js"]}
+}
