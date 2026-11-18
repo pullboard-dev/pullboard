@@ -36,6 +36,8 @@ import { MAIN_CASE_NAME_UNITS } from './recheck.js';
 import { offerMainTests } from './recheck.js';
 import { endStaleGateJobs } from './stale.js';
 import { landingGuardKey } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
+import { trunkRevisionReader } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { plainTrunkRef } from '../../../git/index.js';
 import { resolveCommit } from '../../../git/index.js';
@@ -972,6 +974,19 @@ export function boardJobQueueCall(board, body, { compareWithMain = mainCompariso
   const ports = { compareWithMain, ordered, endStale, receiptMissingCause, redLocation, settleOnMainReceipt, reofferTrunkBusy, receiptNow: options.now };
   const answer = jobQueueCall(board.db, body, { queue, onRunaway: posted => reportRunaway(board, posted), onRepeatClaim: posted => reportRepeatClaims(board, posted), ...options, onReceipt: posted => queue ? applyQueuedReceipt(board, queue, posted, ports) : applyJobReceipt(board, posted, ports) });
   return ['claim', 'renew'].includes(body?.action) ? withLandingPermit(board.db, body, answer, landingKey) : answer;
+}
+
+/**
+ * The runnerCommit port a board's claim answers carry with runners.reportCommit on: the commit the board's trunk main
+ * ref points at, read from Git's ref files so no Git process runs on the request path; null (no port) when off, so the
+ * claim answer stays today's. Why: a pull runner's long-lived serve code had no way to learn the board moved past it [C7,#10819].
+ *
+ * @param {string} root - The board's repository root.
+ * @param {boolean} enabled - runners.reportCommit, this machine's setting.
+ * @returns {(() => string | null) | null}
+ */
+export function runnerCommitPort(root, enabled) {
+  return enabled ? () => trunkRevisionReader(repoInfo(root))() : null;
 }
 
 /**
