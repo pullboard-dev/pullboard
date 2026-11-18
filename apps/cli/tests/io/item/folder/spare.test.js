@@ -1,14 +1,19 @@
-/** A claim moves the seat's spare checkout to the item folder path and never nests it inside a folder already there [C7,#10784]. */
+/** A claim moves the seat's spare checkout to the item folder path and never nests it inside a folder already there [C7,#10784], and counts the index without launching Git [C7,#10864]. */
 import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { SPARE_FROM_FILES } from '../../../../src/io/item/folder/spare.js';
+import { indexEntries } from '../../../../src/io/item/folder/spare.js';
+import { prepareSpareFolder } from '../../../../src/io/item/folder/spare.js';
 import { spareFolderPath } from '../../../../src/io/item/folder/spare.js';
 import { takeSpareFolder } from '../../../../src/io/item/folder/spare.js';
 import { privateFixtureFiles } from '../../../fixtures/child.js';
@@ -82,4 +87,64 @@ test('cli.item-folder-spare.no-existing-folder-unchanged: clause 3: with no item
   assert.equal(existsSync(join(desired, 'pullboard.json')), true, 'the tracked file is in place');
   assert.deepEqual(nestedGitEntries(desired), []);
   assert.deepEqual(keptFolders(root, desired), [], 'nothing was set aside');
+});
+
+const APIS = ['spawnSync', 'execFileSync', 'execSync', 'spawn', 'execFile', 'exec'];
+
+/** Run `work` while every git child this process starts is noted; the number of git launches comes back with the result. */
+function countingGit(work) {
+  const real = Object.fromEntries(APIS.map(api => [api, childProcess[api]]));
+  let launches = 0;
+  for (const api of APIS) {
+    childProcess[api] = function counted(...args) {
+      if ((typeof args[0] === 'string' ? args[0].trim().split(/\s+/u)[0] : '').endsWith('git')) launches++;
+      return real[api].apply(this, args);
+    };
+  }
+  syncBuiltinESMExports();
+  try { return { launches, result: work() }; } finally {
+    for (const api of APIS) childProcess[api] = real[api];
+    syncBuiltinESMExports();
+  }
+}
+
+/** A primary checkout and a linked worktree of it, tracking `files` extra files on top of pullboard.json. */
+function sized(t, files) {
+  const { root, primary } = repository(t);
+  if (files > 0) {
+    mkdirSync(join(primary, 'many'));
+    for (let n = 0; n < files; n++) writeFileSync(join(primary, 'many', `f${n}.txt`), `${n}\n`);
+    runFixtureGit(['add', '-A'], { cwd: primary });
+    runFixtureGit(['commit', '-q', '-m', 'many files'], { cwd: primary });
+  }
+  const linked = join(root, 'linked');
+  runFixtureGit(['worktree', 'add', '-q', '--detach', linked, 'main'], { cwd: primary });
+  return { primary, linked, tracked: Number(runFixtureGit(['ls-files'], { cwd: primary }).split('\n').length) };
+}
+
+test('cli.item-folder-spare.index-count-without-git: clause 1: with next.oneGitRead at its default the index entry count is read without launching git, for a primary checkout and a linked worktree, and a spare is due exactly when the count reaches the threshold [C7,#10864]', async t => {
+  const small = sized(t, 0);
+  const large = sized(t, SPARE_FROM_FILES);
+  for (const [name, root, tracked] of [['small primary', small.primary, small.tracked], ['small linked', small.linked, small.tracked], ['large primary', large.primary, large.tracked], ['large linked', large.linked, large.tracked]]) {
+    const { launches, result } = countingGit(() => indexEntries(root));
+    assert.equal(launches, 0, `${name}: no git process`);
+    assert.equal(result, tracked, `${name}: the entries Git lists`);
+  }
+  assert.ok(indexEntries(large.primary) >= SPARE_FROM_FILES && indexEntries(small.primary) < SPARE_FROM_FILES, 'the threshold splits the two repositories as before');
+  const seat = join(small.primary, '..', 'small-seat');
+  const { launches, result } = countingGit(() => prepareSpareFolder(small.primary, seat, 'main'));
+  assert.equal(await result, false, 'a small repository starts no spare');
+  assert.equal(launches, 0, 'and launches no git process deciding so');
+  assert.equal(existsSync(spareFolderPath(seat)), false);
+});
+
+test('cli.item-folder-spare.index-count-git-fallback: clause 2: a checkout whose repository files cannot be read directly still counts its index through git [C7,#10864]', t => {
+  const { primary, tracked } = sized(t, 0);
+  const saved = process.env.GIT_DIR;
+  process.env.GIT_DIR = join(primary, '.git');
+  try {
+    const { launches, result } = countingGit(() => indexEntries(primary));
+    assert.ok(launches >= 1, 'git answered the index path');
+    assert.equal(result, tracked, 'the count is the same');
+  } finally { if (saved === undefined) delete process.env.GIT_DIR; else process.env.GIT_DIR = saved; }
 });
