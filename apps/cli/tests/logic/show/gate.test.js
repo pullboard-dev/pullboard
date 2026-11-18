@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   pulledRedLines,
   pulledWaitingLines,
+  settledGateWord,
   queueWaitLines,
   queuedGateLines,
   supersededStop,
@@ -71,6 +72,19 @@ test('cli.logic-show-gate.show-names-a-deferred-gate-as-passed: clause 2: show n
   assert.match(line, /^GATE_WAITING: gate job gate:2 passed its checks; its proof waits on its shard jobs/u);
   assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: { ...DEFERRED, deferred: false } }, { item_id: 2, item_status: 'claimed' }), [], 'a plain red is not waiting');
   assert.deepEqual(pulledWaitingLines({ id: 'gate:2', step: 'done', gate: DEFERRED }, { item_id: 2, item_status: 'submitted' }), []);
+});
+
+test('cli.logic-show-gate.a-deferred-gate-settled-red-or-unknown: clause 1: a deferred gate whose shards settled red or unknown prints GATE_RED or GATE_UNKNOWN, and GATE_WAITING only while no settled fact exists [C7,#10893]', () => {
+  const job = { id: 'gate:3', step: 'done', gate: DEFERRED }, item = { item_id: 3, item_status: 'claimed' };
+  const fact = text => ({ type: 'fact', text });
+  const sharded = fact('Gate job gate:3 passed its checks at abc; its proof of 9 files is offered as 3 shard jobs');
+  assert.match(pulledWaitingLines(job, item, [sharded])[0], /^GATE_WAITING: gate job gate:3 /u, 'shards still pending');
+  assert.match(pulledWaitingLines(job, item, [sharded, fact('Gate job gate:3 red at abc; failing parts:\nproof not ok: x')])[0], /^GATE_RED: gate job gate:3 settled red/u);
+  assert.doesNotMatch(pulledWaitingLines(job, item, [sharded, fact('Gate job gate:3 red at abc; failing parts:')]).join('\n'), /GATE_WAITING|do not resubmit/u);
+  assert.match(pulledWaitingLines(job, item, [fact("Gate job gate:3 unknown at abc until main's missing receipts record; failing parts:")])[0], /^GATE_UNKNOWN: gate job gate:3 settled unknown/u);
+  assert.deepEqual(pulledWaitingLines(job, item, [fact('Gate job gate:3 green')]), [], 'a green settle prints no waiting line');
+  assert.match(pulledWaitingLines(job, item, [fact('Gate job gate:2 red at abc; failing parts:')])[0], /^GATE_WAITING/u, 'another gate job\'s settle does not count');
+  assert.equal(settledGateWord([], 'gate:3'), null);
 });
 
 test('cli.logic-show-gate.show-prints-queuewaitseconds-in-under-200-ms: clause 2: show prints queueWaitSeconds from a fixture gate receipt in under 200 ms [C7,#10524]', () => {

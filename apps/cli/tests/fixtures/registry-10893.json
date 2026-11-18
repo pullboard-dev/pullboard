@@ -1,0 +1,3 @@
+{
+  "cli.logic-show-gate.a-deferred-gate-settled-red-or-unknown": {"proves":{"specs":["C7"],"claim":"Show prints GATE_RED or GATE_UNKNOWN for a sharded gate that settled, and GATE_WAITING only while its shards are pending."},"why":"Without it, a regression where show tells a builder do not resubmit for a sharded gate that already settled red or unknown would pass unnoticed.","kind":"cell unit","inputs":["apps/cli/tests/logic/show/gate.test.js"]}
+}
