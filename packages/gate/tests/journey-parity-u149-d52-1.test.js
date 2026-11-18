@@ -16,12 +16,12 @@ const SAMPLES = [
   { journey: 'apps/cli/journeys/verify/team/repair-landing.test.js', cases: ['clause 2: landing retains the exact repair that passed stale re-review [E8,V8,R3]'] },
 ];
 
-test('clause 1: a sample of the verify/team repair journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
+test('gate.journey-parity-u149-d52-1.a-sample-of-the-verify-team-repair: clause 1: a sample of the verify/team repair journey gives the same exit codes, JSON results and board state in a real process and in-process [C7]', async () => {
   const differences = await sampleDifferences(SAMPLES);
   assert.deepEqual(differences, [], `the two runtimes disagree:\n${differences.join('\n')}`);
 });
 
-test('clause 3: both converted journeys keep their one case each [C7]', () => {
+test('gate.journey-parity-u149-d52-1.both-converted-journeys-keep-their-one: clause 3: both converted journeys keep their one case each [C7]', () => {
   for (const { journey, cases } of SAMPLES) {
     const source = readFileSync(resolve(import.meta.dirname, '../../..', journey), 'utf8');
     assert.equal(source.match(/^test\(/gmu).length, 1, `${journey} keeps exactly one case`);
