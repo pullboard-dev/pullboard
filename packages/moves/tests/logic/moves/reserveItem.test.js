@@ -20,7 +20,7 @@ function reservable(t) {
   return { board, id };
 }
 
-test('clause 1: reserveItem records holder, by and at, and a second reservation replaces the first [C7]', t => {
+test('moves.reserve-item.records-holder-by-at-and-replaces: clause 1: reserveItem records holder, by and at, and a second reservation replaces the first [C7]', t => {
   const { board, id } = reservable(t);
   store.reserveItem(board, id, { agentId: 'coordinator', holder: 'web-1' });
   const first = store.getItem(board, id);
@@ -33,7 +33,7 @@ test('clause 1: reserveItem records holder, by and at, and a second reservation 
   assert.equal(second.item_status, first.item_status);
 });
 
-test('clause 2: an engine below RESERVATION_ENGINE refuses reserveItem with ENGINE_VERSION [C7]', t => {
+test('moves.reserve-item.older-engine-refuses: clause 2: an engine below RESERVATION_ENGINE refuses reserveItem with ENGINE_VERSION [C7]', t => {
   const { board, id } = reservable(t);
   board.executionEngineVersion = RESERVATION_ENGINE - 1;
   assert.throws(() => store.reserveItem(board, id, { agentId: 'coordinator', holder: 'web-1' }), { code: 'ENGINE_VERSION' });
