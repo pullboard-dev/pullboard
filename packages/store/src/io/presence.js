@@ -105,6 +105,15 @@ export function heartbeatSeat(board, id) {
   }
 }
 
+/**
+ * Refresh `seat`'s presence observation for the board at `file`, opening the board read-only; the heartbeat throttle holds.
+ * Why: every CLI command beats its seat from the board file alone, without the board graph [C7,#10873].
+ */
+export function beatSeatFile(file, seat) {
+  const db = new DatabaseSync(file, { readOnly: true });
+  try { heartbeatSeat({ db, clock: { now: () => new Date() } }, seat); } finally { db.close(); }
+}
+
 /** A busy class keeps its last rows, says so once per process, and is not read again for the backoff. */
 function busyRows(cached, kind) {
   cached.busyUntil.set(kind, Date.now() + PRESENCE_BUSY_BACKOFF_MS);

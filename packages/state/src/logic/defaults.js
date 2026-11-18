@@ -635,6 +635,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   FIELD_FILTER: 'write --field <name><op><value>, such as --field priority=high or --field points>=3',
   FIELD_UNKNOWN: 'declare the field first with pullboard field declare <name> <text|choice|number>, or use a field already declared',
   RUNNER_TOOLCHAIN_MISSING: 'add a runner that has the named toolchain with pullboard runner add, or ask the person to install it on an existing runner',
+  AGENT_REQUIRED: 'send agent with the seat name pullboard join gave this clone',
+  COORDINATOR_CREDENTIAL: "run the move on the board host with the local CLI, or send the coordinator's own key as x-pullboard-coordinator-key",
   SPEC_FIELD: 'give the field as a single plain sentence, or leave it out'
 });
 

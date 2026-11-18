@@ -27,6 +27,11 @@ export function relayMachineDirectory() {
   return join(pullboardHome(), 'relay-machine');
 }
 
+/** The relay machine state file, inside the machine's relay settings folder. */
+export function relayMachineStateFile() {
+  return join(relayMachineDirectory(), 'state.json');
+}
+
 /** The machine's relay key folder. */
 export function relayKeyDirectory() {
   return join(pullboardHome(), 'relay-keys');
