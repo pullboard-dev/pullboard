@@ -40,12 +40,39 @@ export function queuedGateLines(queued, gateText = null) {
  *
  * @param {{ id: string, step: string, gate: Record<string, any> | null } | null} gateJob - show's newest gate job.
  * @param {{ item_id: number, item_status?: string }} item
+ * @param {Array<{ type?: string, text?: string }>} [thread] - show's thread; a settled red or unknown fact for this gate job replaces the waiting line.
  * @returns {string[]} none unless the gate is done, deferred, and the item is still claimed.
  */
-export function pulledWaitingLines(gateJob, item) {
+export function pulledWaitingLines(gateJob, item, thread = []) {
   const gate = gateJob?.gate;
   if (gateJob?.step !== 'done' || !gate || gate.green === true || gate.deferred !== true || item?.item_status !== 'claimed') return [];
+  const settled = settledGateWord(thread, gateJob.id);
+  if (settled === 'red') return [`GATE_RED: gate job ${gateJob.id} settled red when its shards posted; read the failing parts in the thread, fix, commit, and run pullboard submit ${item.item_id} again`];
+  if (settled === 'unknown') return [`GATE_UNKNOWN: gate job ${gateJob.id} settled unknown until main's missing receipts record; run pullboard submit ${item.item_id} again once they do`];
+  if (settled) return [];
   return [`GATE_WAITING: gate job ${gateJob.id} passed its checks; its proof waits on its shard jobs, so do not resubmit #${item.item_id}`];
+}
+
+/**
+ * How a gate job settled, read from the thread fact the board writes when the last shard posts: "red", "unknown", or
+ * "other" for a green, waived or main-owned settle; null while no such fact exists. Why: the main gate job's receipt stays
+ * deferred after its shards settle, so the receipt alone cannot tell waiting from settled [C7,#10893].
+ *
+ * @param {Array<{ type?: string, text?: string }>} thread - show's thread entries.
+ * @param {string} jobId
+ * @returns {'red' | 'unknown' | 'other' | null}
+ */
+export function settledGateWord(thread, jobId) {
+  const prefix = `Gate job ${jobId} `;
+  for (const entry of [...(Array.isArray(thread) ? thread : [])].reverse()) {
+    if (entry?.type !== 'fact' || typeof entry.text !== 'string' || !entry.text.startsWith(prefix)) continue;
+    const rest = entry.text.slice(prefix.length);
+    if (rest.startsWith('passed its checks')) continue;
+    if (/^red at /u.test(rest)) return 'red';
+    if (/^unknown at /u.test(rest)) return 'unknown';
+    if (/^(green|waived|passed but not submitted)/u.test(rest)) return 'other';
+  }
+  return null;
 }
 
 /**
