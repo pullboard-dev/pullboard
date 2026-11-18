@@ -8,10 +8,9 @@ import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
 
 /** A project whose item adds an import edge between two modules, submitted and settled with the setting on or off; returns the box and the item's children. */
-async function settled(t, edgeFollowUps) {
+async function settled(t, edgeFollowUps, files = { 'src/b.js': 'export const b = 1;\n', 'src/a.js': "import './b.js';\nexport const value = 1;\n" }) {
   const { box } = await project(t, { extra: { submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps } } });
-  put(box.root, 'src/b.js', 'export const b = 1;\n');
-  put(box.root, 'src/a.js', "import './b.js';\nexport const value = 1;\n");
+  for (const [file, text] of Object.entries(files)) put(box.root, file, text);
   commitAll(box, 'feat(core): a imports b [G1]');
   const done = await submitAndSettle(t, box);
   assert.equal(done.gate?.green, true, JSON.stringify(done.gate));
@@ -30,4 +29,8 @@ test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit: 
 
 test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-at-its-default: clause 2: with submit.edgeFollowUps at its default (off), the same submit files nothing [C7]', async t => {
   assert.deepEqual(await settled(t, false), []);
+});
+
+test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit-no-edge: clause 1: with submit.edgeFollowUps on, a submit whose diff adds a file with no import changes no import edge and files no follow-up [C7]', async t => {
+  assert.deepEqual(await settled(t, true, { 'src/lone.js': 'export const lone = 1;\n' }), []);
 });
