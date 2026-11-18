@@ -78,9 +78,14 @@ async function cells(root, input, log, services) {
  */
 export function requireComposedTree(root, { main, head, tree }) {
   const id = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
-  const composed = id.test(main) && id.test(head) ? gitOut(root, ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head]).split('\n')[0] : '';
-  if (composed && composed === tree) return;
-  throw refusal('COMPOSITION_MISMATCH', `the submit composed main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} as tree ${tree}, but the runner composes tree ${composed || 'none (Git could not compose them here)'}; run pullboard submit again, and if it repeats report both tree ids to the coordinator (a merge driver or Git version difference)`);
+  const run = id.test(main) && id.test(head) ? spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', main, head], { cwd: root, encoding: 'utf8' }) : null;
+  // A conflicted merge-tree still prints a tree id but exits non-zero: only a clean exit is a composition.
+  const composed = run?.status === 0 ? (run.stdout ?? '').split('\n')[0].trim() : '';
+  // A triple with no tree is a submit that left composing to the runner (submit.composeOnRunner): any clean composition is the tree to prove.
+  if (composed && (!tree || composed === tree)) return;
+  throw refusal('COMPOSITION_MISMATCH', tree
+    ? `the submit composed main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} as tree ${tree}, but the runner composes tree ${composed || 'none (Git could not compose them here)'}; run pullboard submit again, and if it repeats report both tree ids to the coordinator (a merge driver or Git version difference)`
+    : `the runner could not compose main ${String(main).slice(0, 12)} with head ${String(head).slice(0, 12)} (they conflict); merge main into the item branch, fix the conflict, and submit again`);
 }
 
 /**

@@ -10,7 +10,7 @@ import { runHandoffStages } from '../../../src/io/handoff.js';
 const quiet = async () => {};
 
 /** A real repository where an item head and a moved main edit different files, so Git composes them cleanly. */
-function repo(t) {
+function repo(t, conflict = false) {
   const root = temporaryRepository(t, 'pb-handoff-compose-');
   const git = (...args) => runFixtureGit(['-c', 'user.name=T', '-c', 'user.email=t@example.com', '-c', 'commit.gpgsign=false', ...args], { cwd: root });
   const commit = (file, text, message) => {
@@ -20,16 +20,17 @@ function repo(t) {
     return git('rev-parse', 'HEAD');
   };
   git('checkout', '-q', '-b', 'item');
-  const head = commit('b.txt', 'item\n', 'item');
+  const head = commit(conflict ? 'c.txt' : 'b.txt', 'item\n', 'item');
   git('checkout', '-q', 'main');
   const main = commit('c.txt', 'main\n', 'main moved');
-  const tree = git('merge-tree', '--write-tree', main, head).split('\n')[0];
+  // A conflicting pair has no clean composition, so the fixture carries no tree for it.
+  const tree = conflict ? '' : git('merge-tree', '--write-tree', main, head).split('\n')[0];
   return { root, head, main, tree };
 }
 
 /** Run the hand-off on the repository with `extra` ticket fields; the criterion and proof stages record that they ran. */
-async function handoff(t, extra, composition = { requireSubmitComposition() {} }) {
-  const { root, head, main, tree } = repo(t);
+async function handoff(t, extra, composition = { requireSubmitComposition() {} }, conflict = false) {
+  const { root, head, main, tree } = repo(t, conflict);
   writeFileSync(join(root, '.pullboard-handoff.log'), '');
   const ran = [];
   const stages = { authorization: quiet, doctrine: quiet, cells: quiet, criterion: async () => { ran.push('criterion'); }, proof: async () => { ran.push('proof'); } };
@@ -64,4 +65,18 @@ test('runner.handoff-composition.no-triple: clause 3: an input without the tripl
   assert.equal(result.green, true);
   assert.deepEqual(calls.map(([, ...rest]) => rest), [[head, { commit: main }, main, 'parent1']], 'the rule gets the candidate, trunk, main and parent base as before');
   assert.deepEqual(ran, ['criterion', 'proof']);
+});
+
+test('runner.handoff-composition.no-tree-composed: clause 1: a composition triple with main and head but no tree is composed by the runner and the proof stage runs [C7,#11009]', async t => {
+  const { result, ran } = await handoff(t, ({ head, main }) => ({ compositionTriple: { main, head } }));
+  assert.equal(result.green, true);
+  assert.deepEqual(ran, ['criterion', 'proof']);
+});
+
+test('runner.handoff-composition.no-tree-conflict: clause 2: a main and head that conflict are refused COMPOSITION_MISMATCH when no tree is sent, before any proof stage [C7,#11009]', async t => {
+  const { result, ran } = await handoff(t, ({ head, main }) => ({ compositionTriple: { main, head } }), undefined, true);
+  assert.equal(result.green, false);
+  assert.equal(result.failed.stage, 'composition');
+  assert.equal(result.failed.code, 'COMPOSITION_MISMATCH');
+  assert.deepEqual(ran, []);
 });
