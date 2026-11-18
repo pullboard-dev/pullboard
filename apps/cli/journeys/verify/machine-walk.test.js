@@ -342,7 +342,7 @@ function codeProblems(machine, read = fromDisk) {
   }
   const commandFiles = fs.readdirSync(new URL('../../src/io/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `../apps/cli/src/io/commands/${name}`);
   const moveFiles = new Set([...read('../packages/store/src/io/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(?:board-[\w-]+|board\/[\w/-]+)\.js)\1;$/gmu)].map((match) => posix.join('../packages/store/src/io', match[2]))), raised = new Set([
-    '../packages/store/src/io/board.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
+    '../packages/store/src/io/board.js', '../packages/store/src/logic/board/reland.js', ...moveFiles, '../apps/cli/src/io/entry.js', '../packages/spec/src/io/main.js', '../packages/gate/src/io/submit.js', ...RUNNER_ENTRY_FILES, ...INJECTED_GATE_FILES, ...TABLE_RAISER_FILES, ...commandFiles,
   ].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   // A code a move's own entry reaches is raised by the code, whichever file holds the entry (the pulled submit gate's table replay, for one).
   for (const { at } of ENTRY_POINTS) for (const entry of at) for (const code of walk.refusalsOf(entry)) raised.add(code);
