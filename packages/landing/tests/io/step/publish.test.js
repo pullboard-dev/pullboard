@@ -1,6 +1,12 @@
 /** A refused flake ratchet ends the landing as a recorded block, so a restart never gates the batch again [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rmSync } from 'node:fs';
+import { fixture } from '../../fixtures/plan.js';
+import { git } from '../../fixtures/plan.js';
+import { requireSprintProof } from '../../../src/io/step/publish.js';
+import { save } from '../../../src/io/step/merge.js';
+import { validateLandingBatch } from '../../../../items/index.js';
 import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { prepareFlakeLanding } from '../../../src/io/step/publish.js';
@@ -48,4 +54,79 @@ test('landing.publish.before-its-gate-an-allowed-ratchet: before its gate an all
   assert.equal(latest().state, 'gating');
   assert.equal(latest().flakeRatchet, undefined, 'the snapshot binds later, after the gate');
   await assert.rejects(() => prepareFlakeLanding({ ...state, landingPorts: { landingFlakeRatchet: () => ({ allowed: false, unprotected: [{ file: 'a.test.js', name: 'n' }], malformed: [], unjustified: [] }) } }), { code: 'FLAKE_RATCHET' });
+});
+
+/** A one-item batch on a real repository whose staged tip has the receipt and composedEqual flag the case gives it. */
+async function composedBatch(t, { composedEquality = true, composedEqual = true, receipt }) {
+  const { root, put } = fixture(t);
+  put('packages/alpha/src/a.js', 'export const a = 1;\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'chore: base');
+  const base = git(root, 'rev-parse', 'HEAD').trim();
+  put('packages/alpha/src/a.js', 'export const a = 2;\n');
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'feat: item 7');
+  const tip = git(root, 'rev-parse', 'HEAD').trim();
+  const batchRoot = `${root}-batch`;
+  git(root, 'worktree', 'add', '-q', '--detach', batchRoot, tip);
+  t.after(() => rmSync(batchRoot, { recursive: true, force: true }));
+  const tree = git(root, 'rev-parse', `${tip}^{tree}`).trim();
+  const calls = [];
+  const batch = { version: 1, id: 'batch-7', state: 'gating', base, tip, root: batchRoot, branch: 'refs/heads/main', items: [], owner: 'coordinator',
+    logPath: '/dev/null', conflicts: [], resolutions: [], revision: 0, exactTree: { tree, composedEqual }, proof: { tree, ...(receipt ? { receipt: receipt(tree) } : {}) } };
+  const ports = {
+    changedFiles: () => ['packages/alpha/src/a.js'],
+    pin: () => 'tooling-pin-0123456789abcdef0123456789abcdef0123',
+    runStatic: async () => { calls.push('static'); return { isGreen: true, output: '' }; },
+    runCell: async cell => { calls.push(cell); return { isGreen: true, output: '' }; },
+  };
+  const state = { root, batch, config: { landing: { composedEquality } }, say: () => {}, checkLease: async () => {}, sprintPorts: ports,
+    write: async (name, [{ batch: next, revision }]) => { validateLandingBatch(next, revision); return { ...next, revision: revision + 1 }; },
+    board: { clock: { now: () => new Date('2026-11-18T20:00:00.000Z') } } };
+  await save(state, { state: 'gating' });
+  return { state, calls, tree };
+}
+
+test('landing.publish.composed-equality-skips-retest-same-tree: clause 1: with landing.composedEquality on, a composedEqual batch with a green receipt for the same tree runs no Sprint retest and records green, same-tree and the receipt id [C7,#10975]', async t => {
+  const { state, calls, tree } = await composedBatch(t, { receipt: treeId => ({ id: 'receipt-1', tree: treeId, green: true }) });
+  const record = await requireSprintProof(state);
+  assert.deepEqual(calls, [], 'no static stage and no cell ran');
+  assert.equal(record.result, 'green');
+  assert.equal(record.composition, 'same-tree');
+  assert.equal(record.receipt, 'receipt-1');
+  assert.equal(record.tree, tree);
+});
+
+test('landing.publish.composed-equality-reproves-without-green-receipt: clause 2: a composedEqual batch whose receipt is red, missing or for another tree id, or whose setting is off, still runs the Sprint proof [C7,#10975]', async t => {
+  const cases = [
+    { receipt: treeId => ({ id: 'r', tree: treeId, green: false }) },
+    { receipt: null },
+    { receipt: () => ({ id: 'r', tree: 'a'.repeat(40), green: true }) },
+    { receipt: treeId => ({ id: 'r', tree: treeId, green: true }), composedEquality: false },
+    { receipt: treeId => ({ id: 'r', tree: treeId, green: true }), composedEqual: false },
+  ];
+  for (const given of cases) {
+    const { state, calls } = await composedBatch(t, given);
+    const record = await requireSprintProof(state);
+    assert.deepEqual(calls, ['static', 'packages/alpha'], `the proof ran for ${JSON.stringify(given.receipt?.('x') ?? null)} ${given.composedEquality} ${given.composedEqual}`);
+    assert.equal(record.composition, given.composedEqual === false && given.composedEquality !== false ? 're-proved' : undefined);
+  }
+});
+
+test('landing.publish.composed-equality-reproves-differing-tree: clause 1: with landing.composedEquality on, requireSprintProof on a batch whose composedEqual is false runs the Sprint proof on the staged tree and records composition re-proved [C7,#10976]', async t => {
+  const { state, calls, tree } = await composedBatch(t, { composedEqual: false, receipt: treeId => ({ id: 'receipt-1', tree: treeId, green: true }) });
+  const record = await requireSprintProof(state);
+  assert.deepEqual(calls, ['static', 'packages/alpha'], 'the proof ran on the staged tree');
+  assert.equal(record.result, 'green');
+  assert.equal(record.composition, 're-proved');
+  assert.equal(record.tree, tree);
+  assert.equal(state.batch.exactTree.composition, 're-proved', 'the saved record carries it');
+});
+
+test('landing.publish.composed-equality-off-saves-no-composition: clause 2: with landing.composedEquality off the Sprint proof runs as before and the saved exactTree carries no composition field [C7,#10976]', async t => {
+  const { state, calls } = await composedBatch(t, { composedEquality: false, composedEqual: false });
+  const record = await requireSprintProof(state);
+  assert.deepEqual(calls, ['static', 'packages/alpha']);
+  assert.equal(record.result, 'green');
+  assert.equal('composition' in state.batch.exactTree, false, 'no composition field is saved');
 });

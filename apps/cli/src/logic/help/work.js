@@ -187,7 +187,7 @@ ${RELEASE_REASON_LINES.map(line => `                                        ${li
                                         answer your decision; person mode is main-checkout only
                                         repo#id answers a sibling repo's decision on its own board
                                         Other options: [--implies <ids>] [--supersedes <answer-id>]
-                                                      [--origin person-relayed|agent|inherited] [--rationale <why>]
+                                                      [--origin person-relayed|agent|inherited] [--rationale <why>] [--cause <key>]
                                         --supersedes tells the items an earlier answer implied; only the person
                                         supersedes the person's answer
   pullboard pass <shout-id> <note>                lead escalates to coordinator; coordinator passes to person
