@@ -1,10 +1,18 @@
 /** landingOfferBatches cuts one offer's free items into jobs: sliced by size as before, or one job per item of the first parallel start group [C7,#9836]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { landingOfferBatches } from '../../../src/io/landing/pull.js';
 import { mechanicalConflictFiles } from '../../../../../packages/merge/index.js';
 import { mechanicalOnlyConflictRepo } from '../../fixtures/landing/conflict-repos.js';
 import { realConflictRepo } from '../../fixtures/landing/conflict-repos.js';
+import { underBoardWriteLock } from '../../../src/io/landing/pull.js';
+import { fixtureBoard } from '../../fixtures/board.js';
+import { temporaryDirectory } from '../../fixtures/board.js';
 
 /** Accepted entries in accept order: #1 and #2 are disjoint, #3 shares #1's file, #4 shares #2's test. */
 const free = [
@@ -39,4 +47,42 @@ test('cli.io-landing-pull.conflict-repos-mechanical-only: clause 1: the conflict
 test('cli.io-landing-pull.conflict-repos-real: clause 2: the conflict-repos helper builds a real conflict [C7,#3064]', () => {
   const { root, main, head, file } = realConflictRepo();
   assert.deepEqual(mechanicalConflictFiles(root, main, head), [file]);
+});
+
+/** A real file board whose machine logs go to a private home; returns the board, its holder folder and a reader of board-writes.jsonl. */
+function lockedBoard(t) {
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  const home = temporaryDirectory('pullboard-offer-lock-');
+  process.env.PULLBOARD_MACHINE_HOME = home;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'locking' });
+  const file = realpathSync(board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file);
+  const holders = () => existsSync(file + '.write-holders') ? readdirSync(file + '.write-holders') : [];
+  const rows = () => existsSync(join(home, 'board-writes.jsonl')) ? readFileSync(join(home, 'board-writes.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  return { board, holders, rows };
+}
+
+test('cli.io-landing-pull.offer-lock-records-hold: clause 1: an offer through underBoardWriteLock() appends one row to the machine board-writes.jsonl naming its command, pid and outcome [C7,#11027]', t => {
+  const { board, rows } = lockedBoard(t);
+  assert.equal(underBoardWriteLock(board, () => 'offered'), 'offered');
+  const offers = () => rows().filter(row => row.move === 'offerPulledLanding');
+  const [row, ...rest] = offers();
+  assert.deepEqual(rest, [], 'one row for one offer');
+  assert.equal(row.move, 'offerPulledLanding');
+  assert.equal(row.pid, process.pid);
+  assert.equal(row.outcome, 'committed');
+  assert.ok(typeof row.command === 'string' && row.command.length > 0);
+  assert.throws(() => underBoardWriteLock(board, () => { throw new Error('refused offer'); }), /refused offer/u);
+  assert.deepEqual(offers().map(entry => entry.outcome), ['committed', 'rolled-back']);
+});
+
+test('cli.io-landing-pull.offer-lock-marks-holder: clause 2: while the offer holds the lock the board write-holders folder has its marker, and it is gone after commit or rollback [C7,#11027]', t => {
+  const { board, holders } = lockedBoard(t);
+  let during = [];
+  underBoardWriteLock(board, () => { during = holders(); });
+  assert.equal(during.length, 1, 'the marker exists while the lock is held');
+  assert.ok(during[0].startsWith(`${process.pid}-`));
+  assert.deepEqual(holders(), [], 'gone after commit');
+  assert.throws(() => underBoardWriteLock(board, () => { throw new Error('refused offer'); }), /refused offer/u);
+  assert.deepEqual(holders(), [], 'gone after rollback');
 });
