@@ -120,7 +120,8 @@ test('clause 1: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, acc
 
 test('clause 2: with verify.unrelatedTrunkMoves and verify.hunkFreshness on, accept is refused VERDICT_TRUNK_MOVED naming the changed hunk header when main changes a hunk of the item patch during review [C7,#2981]', { timeout: 240_000 }, async () => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
-  const refused = await acceptWhileMainMoves(box, notes({ insert: 'pre added', replace: 'main twenty' }));
+  const refused = await acceptWhileMainMoves(box, notes({ insert: 'pre added', replace: 'item twenty' }));
+  // Main lands the very same line: it merges without a conflict, but the reviewed hunk no longer composes into a change.
   assert.equal(refused.code, 1, refused.out + refused.err);
   const { error } = JSON.parse(refused.out);
   assert.equal(error.code, 'VERDICT_TRUNK_MOVED');
