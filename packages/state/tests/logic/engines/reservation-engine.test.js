@@ -24,7 +24,7 @@ const PLACEHOLDER = "import { unassignedEngine } from './engine-next.js';";
 
 /**
  * A private copy of the engines folder and table as they stood when the reservation leaf landed: its placeholder restored,
- * and any leaf numbered after it left out, so the real landing merge can number it again without touching the repository.
+ * and any leaf numbered after it or still unnumbered left out, so the real landing merge can number it again without touching the repository.
  */
 function boardAtLanding(t) {
   const { root } = privateFixtureFiles('pullboard-reservation-engine-');
@@ -35,6 +35,7 @@ function boardAtLanding(t) {
   const landed = readEngineLeaves(join(root, FOLDER)).find(leaf => leaf.file === LEAF).number;
   if (landed !== null) {
     for (const leaf of readEngineLeaves(join(root, FOLDER))) {
+      if (leaf.number === null && leaf.file !== LEAF) { rmSync(join(root, FOLDER, leaf.file)); continue; }
       if (leaf.number === null || leaf.number < landed) continue;
       table = table.replace(new RegExp(`^\\s*${leaf.name}: ${leaf.number},\\n`, 'mu'), '');
       if (leaf.file !== LEAF) rmSync(join(root, FOLDER, leaf.file));

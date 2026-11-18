@@ -1,6 +1,7 @@
 /** The release table wired to the board's own reason list and stale limits, so callers and replays share one source [C7,#8240]. */
 import { RELEASE_REASONS } from '../../../../store/index.js';
 import { staleStateLimits } from '../../../../store/index.js';
+import { RELEASE_TWICE_ENGINE } from '../../../../state/light.js';
 import { releaseEngine } from '../../logic/table/release.table.js';
 
 /**
@@ -10,5 +11,5 @@ import { releaseEngine } from '../../logic/table/release.table.js';
  * @returns {{ rules: Readonly<Record<string, object>>, table: Readonly<object> }}
  */
 export function boardReleaseEngine() {
-  return releaseEngine({ reasons: RELEASE_REASONS, staleLimits: staleStateLimits });
+  return releaseEngine({ reasons: RELEASE_REASONS, staleLimits: staleStateLimits, releaseTwiceEngine: RELEASE_TWICE_ENGINE });
 }
