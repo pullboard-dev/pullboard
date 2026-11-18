@@ -1,10 +1,8 @@
 /** The other-board ask of pullboard add: an item whose files lie in another board's registered root asks where it belongs before it is filed [C7]. */
 import { homedir } from 'node:os';
-import { basename } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { listProjects } from '../../../../../packages/seats/index.js';
-import { dependencyReferences } from '../../../../../packages/items/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { pathTokens } from './bar.js';
 
@@ -23,15 +21,9 @@ function under(root, path) {
   return path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
 }
 
-/** The names a board answers to in `--after <board>#<id>`: its project name, handle and folder name. */
-function boardNames(project) {
-  return [project.name, project.handle, basename(project.root)].filter(Boolean);
-}
-
 /**
  * Ask where an item belongs when its bar names files under another registered board's root.
- * Why: the same work then lives on two boards; filing it where its files are, linking it with --after <board>#<id>, or
- * saying why it stays (--here "<reason>") are each a real answer, so this is an ask, not a wall. A registry that cannot
+ * Why: the same work then lives on two boards; filing it where its files are, or saying why it stays (--here "<reason>"), are each a real answer, so this is an ask, not a wall. A registry that cannot
  * be read never blocks filing.
  *
  * @param {object} ctx - The command context.
@@ -53,12 +45,9 @@ export function guardOtherBoard(ctx, item, here) {
     if (owner && owner.root !== root) other.set(owner.root, owner);
   }
   if (!other.size) return null;
-  const linked = new Set(dependencyReferences((item.after ?? []).map(String)).filter(ref => ref.kind === 'foreign').map(ref => ref.repo));
-  const unlinked = [...other.values()].filter(project => !boardNames(project).some(name => linked.has(name)));
-  if (!unlinked.length) return null;
+  const unlinked = [...other.values()];
   const names = unlinked.map(project => project.handle ?? project.name);
   if (here !== undefined) return { boards: names, reason: String(here).trim() };
-  const first = names[0];
   throw new Refused('OTHER_BOARD_ASK', `this item names files that belong to the ${names.join(', ')} board on this machine (${unlinked.map(project => project.root).join(', ')})`,
-    `file it on that board (cd there and run pullboard add), link it with --after ${first}#<id>, or file it here with --here "why this board owns the files"`);
+    `file it on that board (cd there and run pullboard add), or file it here with --here "why this board owns the files"`);
 }

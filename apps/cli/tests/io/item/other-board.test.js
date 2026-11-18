@@ -24,7 +24,7 @@ function twoBoards(t) {
 /** A one-clause bar whose clause names the given file. */
 const bar = (file) => ['--criterion', `1. the handler in ${file} returns the canonical result [test]`];
 
-test('cli.add.other-board.asks-with-three-moves: clause 1: an item naming a path in another registered board stops with OTHER_BOARD_ASK offering file-there, --after and --here [C7,#10779]', async t => {
+test('cli.add.other-board.asks-with-three-moves: clause 1: an item naming a path in another registered board stops with OTHER_BOARD_ASK offering file-there and --here [C7,#10779]', async t => {
   const { other, add } = twoBoards(t);
   const result = await add(...bar(`${other.repo}/web/handler.js`));
   assert.notEqual(result.code, 0);
@@ -32,11 +32,11 @@ test('cli.add.other-board.asks-with-three-moves: clause 1: an item naming a path
   assert.equal(error.code, 'OTHER_BOARD_ASK');
   assert.ok(error.message.includes(other.repo), 'the ask names the other board by its root');
   assert.match(error.next, /file it on that board/u);
-  assert.match(error.next, /--after repo#<id>/u);
+  assert.doesNotMatch(error.next, /--after/u);
   assert.match(error.next, /--here/u);
 });
 
-test('cli.add.other-board.here-and-after-file-it: clause 2: --here with a reason files it and records the reason as a fact; --after <board>#<id> files it linked with no ask [C7,#10779]', async t => {
+test('cli.add.other-board.here-files-it-with-reason: clause 2: --here with a reason files it and records the reason as a fact [C7,#10779]', async t => {
   const { own, other, add } = twoBoards(t);
   const file = `${other.repo}/web/handler.js`;
   const empty = await add(...bar(file), '--here', ' ');
@@ -46,9 +46,6 @@ test('cli.add.other-board.here-and-after-file-it: clause 2: --here with a reason
   const id = JSON.parse(here.out).item.item_id;
   const shown = JSON.parse((await own.runLocal(own.repo, 'show', String(id), '--json')).out);
   assert.ok(shown.thread.some(entry => entry.type === 'fact' && /the site copy lives here on purpose/u.test(entry.text ?? '')), 'the reason is a fact on the item');
-  const linked = await add(...bar(file), '--after', 'repo#7');
-  assert.equal(linked.code, 0, linked.err + linked.out);
-  assert.equal(JSON.parse(linked.out).item.item_after.toString().includes('repo#7'), true);
 });
 
 test('cli.add.other-board.own-paths-file-without-ask: clause 3: through add on two real local boards, an item naming only its own board paths files with no ask [C7,#10779]', async t => {
