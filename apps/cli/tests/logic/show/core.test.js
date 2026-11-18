@@ -18,3 +18,17 @@ test('cli.logic-show-core.core-lines-match-the-recorded-text: clause 1: coreLine
   assert.deepEqual(bare, { item: LINE, expectedBuild: null, criterion: null, check: [] }, 'an item with no bar prints only its item line');
   assert.deepEqual(coreLines({ ...ITEM, item_frozen_digest: null }, { itemLine: LINE, checkText: 'c' }).check, ['check: c'], 'no digest, no digest line');
 });
+
+const TIMING_LINE = 'check timing: exclusive gate slot; the gate runs this check alone, so runner load does not decide it';
+
+test('cli.logic-show-core.a-timed-check-prints-its-exclusive-slot-line: clause 1: coreLines with checkTiming true adds the exclusive gate slot line after the check digest [C7]', () => {
+  const lines = coreLines(ITEM, { itemLine: LINE, checkText: 'c', checkTiming: true });
+  assert.deepEqual(lines.check, ['check: c', 'check digest: abc123', TIMING_LINE]);
+  assert.deepEqual(coreLines({ ...ITEM, item_frozen_digest: null }, { itemLine: LINE, checkText: 'c', checkTiming: true }).check, ['check: c', TIMING_LINE], 'no digest, the line follows the check');
+});
+
+test('cli.logic-show-core.an-untimed-check-prints-today-s-lines: clause 1: coreLines with checkTiming false or absent returns exactly the lines it returns today [C7]', () => {
+  const plain = coreLines(ITEM, { itemLine: LINE, checkText: 'c' });
+  assert.deepEqual(coreLines(ITEM, { itemLine: LINE, checkText: 'c', checkTiming: false }), plain);
+  assert.deepEqual(plain.check, ['check: c', 'check digest: abc123']);
+});

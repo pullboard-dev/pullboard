@@ -1,0 +1,4 @@
+{
+  "cli.logic-show-core.a-timed-check-prints-its-exclusive-slot-line": {"proves":{"specs":["C7"],"claim":"coreLines with checkTiming true adds the exclusive gate slot line after the check digest."},"why":"Without it, builders read a timed item as having no exclusive slot and release it for runner load.","kind":"cell unit","inputs":["apps/cli/src/logic/show/core.js"]},
+  "cli.logic-show-core.an-untimed-check-prints-today-s-lines": {"proves":{"specs":["C7"],"claim":"coreLines with checkTiming false or absent returns exactly the lines it returned before."},"why":"Without it, the timing line could leak onto untimed items and change every show.","kind":"cell unit","inputs":["apps/cli/src/logic/show/core.js"]}
+}

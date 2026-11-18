@@ -72,6 +72,7 @@ import {
   itemLine,
   sayBrief,
 } from '../read.js';
+import { frozenCheckTiming } from '../../../../../packages/items/light.js';
 import { relayStateExists } from '../../../../../packages/store/light.js';
 import { readableRigorText } from '../../../../../packages/store/browser.js';
 import { itemCost } from '../../../../../packages/stats/light.js';
@@ -204,7 +205,7 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText, checkTiming: item.item_check_timing === true || frozenCheckTiming(item) });
   io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
