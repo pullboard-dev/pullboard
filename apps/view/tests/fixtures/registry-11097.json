@@ -1,0 +1,4 @@
+{
+  "view.flow-panel-model.one-row-per-item-and-idle-seat": {"proves":{"specs":["N26"],"claim":"The Flow panel model returns one row per flow item with its id and cause, and one entry per idle seat with its seat name and reason."},"why":"Without it the Flow panel could drop an unlanded item or an idle seat and nobody would see where the release is stuck.","kind":"cell unit","inputs":["apps/view/tests/logic/panel/flow.test.js"]},
+  "view.flow-panel-model.empty-document-gives-empty-lists": {"proves":{"specs":["N26"],"claim":"A flow document with no items and no idle seats gives empty rows and an empty idle list."},"why":"Without it an idle board could make the panel throw instead of drawing an empty state.","kind":"cell unit","inputs":["apps/view/tests/logic/panel/flow.test.js"]}
+}

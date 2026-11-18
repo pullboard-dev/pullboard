@@ -1,0 +1,3 @@
+{
+  "cli.journeys-status-writer.the-runs-store-opener-is-refused-inside": {"proves":{"specs":["C7","CD39"],"claim":"boardWriteIoProblems reports a call to openRunsStore reached from inside an atomic board write, with its chain, and reports nothing for the same call outside any write."},"why":"Without it, a runs-store handle opened inside a board write would hold the write lock across a second database unnoticed.","kind":"journey","inputs":["apps/cli/journeys/status/writer.test.js"]}
+}
