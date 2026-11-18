@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/store */
+/** @pullboard-test-input source-cell apps/cli */
 /** submittedWithoutGate drives the board submit move over a hand-written pass receipt and leaves the claimed item submitted at its committed head, with no runner gate job [C7,#9873]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
