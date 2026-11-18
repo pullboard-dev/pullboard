@@ -862,6 +862,18 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
   }, isMain, boardOpeners);
 }
 
+/**
+ * The refusal for a move whose caller may not act as the agent it names, or null. Only the coordinator's own credential
+ * moves with no agent or as the coordinator; the board key a served board shares with runners and seats must name its
+ * seat. A join names no agent: it registers one [P7,#10785].
+ */
+function moveIdentityRefusal(body, who) {
+  if (!body || typeof body !== 'object' || body.verb === 'join' || who?.coordinator) return null;
+  if (body.agent === undefined) return new Refused('AGENT_REQUIRED', 'a move with this key names its agent; only the coordinator\'s own credential moves as the coordinator', 'send agent with the seat name pullboard join gave this clone');
+  if (body.agent === COORDINATOR) return new Refused('COORDINATOR_CREDENTIAL', 'a coordinator move needs the coordinator\'s own credential, not the board key runners and seats share', 'run the move on the board host with the local CLI, or send the coordinator\'s own key as x-pullboard-coordinator-key');
+  return null;
+}
+
 /** Register a seat from another machine over the API, with a remote marker in place of a board-host path [P7]. */
 function remoteJoin(root, body, isMain, boardOpeners) {
   const { lane, model, route = 'strong', family } = body.args ?? {};
@@ -1132,9 +1144,9 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
 }
 
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
- * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
+ * @param {{ secret: string | Buffer, coordinatorSecret?: string | Buffer | null, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts } = {}) {
+export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
@@ -1165,6 +1177,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     throw new TypeError('createLocalApiHandler allowedHosts needs literal IPv4 addresses, without ports or wildcard binds');
   }
   const permittedHosts = [...new Set(allowedHosts)];
+  if (coordinatorSecret !== undefined && coordinatorSecret !== null && !String(coordinatorSecret)) throw new TypeError('createLocalApiHandler coordinatorSecret is a non-empty secret, or null for none');
+  // The coordinator's own credential: the view's session, or a loopback serve's session secret. A served board's key off
+  // loopback is shared with every runner and seat, so it never acts as the coordinator unless a separate secret is named [P7,#10785].
+  const coordinatorKey = coordinatorSecret !== undefined ? (coordinatorSecret === null ? null : Buffer.from(coordinatorSecret))
+    : personChannel === 'view' || permittedHosts.length === 0 ? key : null;
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
@@ -1269,7 +1286,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const cookieFetchSiteAllowed = fetchSite === undefined || fetchSite === 'same-origin';
       if (!ownHost || (!validKey && (!validCookie || !cookieFetchSiteAllowed))) throw new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed');
       if (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host && !permittedOrigins.has(req.headers.origin)) throw new Refused('API_ORIGIN', 'use the API from its own origin');
-      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host };
+      const givenCoordinator = Buffer.from(String(req.headers['x-pullboard-coordinator-key'] ?? ''));
+      const coordinator = (validCookie && cookieFetchSiteAllowed)
+        || (coordinatorKey !== null && (credentialMatches(given, coordinatorKey) || credentialMatches(givenCoordinator, coordinatorKey)));
+      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host, coordinator };
     },
     settings: (selected) => {
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
@@ -1277,7 +1297,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     },
     boards: () => { const listing = withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners, typeof viewPorts?.projectSummary === 'function', typeof viewPorts?.machineName === 'function' ? viewPorts.machineName() : undefined)); return materializer && !materializer.alive ? { ...listing, stateWorker: 'stopped' } : listing; },
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
-    board: (id) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}` }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
+    // A runner job call's board lookup rides the runner lane with its call, so agent moves filling the pool never starve it (#10786).
+    board: (id, _who, { runner = false } = {}) => pool ? pool.call('board', { id, projects: apiProjects().map(({ root, name, project }) => ({ root, name, project })) }, { route: `GET /api/v1/boards/${id}`, runner }) : withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
     state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
     stateJson: (board, who, seen, options) => materialized(() => materializer.stateJson(board, seen, { ...options, stateDetail }), () => projectRead(board, () => {
       const sent = localState(board, seen, options);
@@ -1308,14 +1329,18 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)), trunkPack: boardOpeners?.trunkPack && ((board, commit) => boardOpeners.trunkPack(board.root, commit)),
     health: () => (pool ? { pool: pool.health() } : {}),
-    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs` }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
+    jobs: (board, body) => pool ? pool.call('jobs', { board: { id: board.id, root: board.root }, body, now: now() }, { route: `POST /api/v1/boards/${board.id}/jobs`, runner: true }) : boardJobsCall({ board, body, now: now() }, codeIsMain, boardOpeners),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return readCostAnalytics(board, window, { read: work => projectRead(board, () => withReadBoard(board.root, work, codeIsMain, boardOpeners)), now: new Date(now()), modelPresentation: costModelPresentation, answers: costAnswers, costWindowStart, costAnalyticsSliced, coordinatorUsage: current => publicUsage(coordinatorUsage(current)) });
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
-    move: (board, body) => pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
+    move: (board, body, who) => {
+      const refused = moveIdentityRefusal(body, who);
+      if (refused) return { status: 403, body: refusalDocument(refused) };
+      return pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners);
+    },
     request: (board, body) => pool && !relayLinked(board.root) ? pool.call('request', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/requests` }) : createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),

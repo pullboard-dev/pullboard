@@ -1,0 +1,44 @@
+{
+  "cli.add.other-board.asks-with-three-moves": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "An item naming a path under another registered board's root is stopped with OTHER_BOARD_ASK naming that board and offering file-there and --here."
+    },
+    "why": "Without it, a regression that files cross-board work on the wrong board without asking would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/other-board.test.js",
+      "apps/cli/src/io/item/other-board.js"
+    ]
+  },
+  "cli.add.other-board.here-files-it-with-reason": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "--here with a reason files the item and records the reason as a fact."
+    },
+    "why": "Without it, a regression that blocks the sanctioned answer to the ask would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/other-board.test.js",
+      "apps/cli/src/io/item/other-board.js"
+    ]
+  },
+  "cli.add.other-board.own-paths-file-without-ask": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "On two real local boards, an item naming only its own board paths files with no ask."
+    },
+    "why": "Without it, a regression that asks about ordinary own-board items would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/other-board.test.js",
+      "apps/cli/src/io/item/other-board.js"
+    ]
+  }
+}

@@ -12,9 +12,11 @@ import {
 } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   statSync,
   unlinkSync,
@@ -290,6 +292,42 @@ export function residentPlace(cwd, entry, env) {
 }
 
 /**
+ * How old a slot's start lock may grow before another client may start the slot again: a starter that died before it
+ * listened never blocks its slot for longer. Why this long: on 17 Nov, at load 130, a resident took over a minute from
+ * spawn to listening.
+ */
+export const RESIDENT_START_STALE_MS = 120_000;
+
+/** The start lock a client creates beside a slot's pid file before it starts that slot's resident process. */
+export function residentStartFile(pidFile) {
+  return pidFile.replace(/\.pid$/u, '') + '.starting';
+}
+
+/**
+ * Take a slot's start lock: true when this client may start the slot's resident process, false when another client
+ * already is (the command then runs in-process, as it would anyway). The lock is a file created exclusively; the
+ * resident removes it once it listens or leaves, and a lock older than RESIDENT_START_STALE_MS is taken over.
+ * Why: while a slot's resident loaded cold under load, every concurrent command found no socket and started another,
+ * so 41 resident processes ran at once, 34 on one slot, and the load reached 130 (17 Nov).
+ */
+export function claimResidentStart(pidFile, now = Date.now()) {
+  const file = residentStartFile(pidFile);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      closeSync(openSync(file, 'wx'));
+      return true;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') return false;
+    }
+    try {
+      if (now - statSync(file).mtimeMs <= RESIDENT_START_STALE_MS) return false;
+      unlinkSync(file);
+    } catch (error) { if (error?.code !== 'ENOENT') return false; }
+  }
+  return false;
+}
+
+/**
  * Start the resident process through spawnReachable, which runs it as a one-shot launchd job where launchd exists and
  * falls back to a plain detached spawn; the command in hand still runs in-process. Why: a resident started from an app
  * inherits that app's denied Local Network permission, so the board it serves cannot reach a runner [C7,#5760].
@@ -351,7 +389,8 @@ export function runResident(argv, { entry = PULLBOARD_ENTRY, cwd = process.cwd()
       clearTimeout(waited);
       socket.destroy();
       // The start settles before the command runs in-process: a launchd job is loaded by a child the entry must outlive.
-      if (restart && starts) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
+      // Only the client holding the slot's start lock starts it; the rest run in-process while that resident loads.
+      if (restart && starts && claimResidentStart(place.pid)) Promise.resolve().then(() => start(place, entry, code.version, env)).catch(() => {}).finally(() => done(status));
       else done(status);
     };
     // A command that has not started by now waits behind another; the process never starts it past the cutoff, so

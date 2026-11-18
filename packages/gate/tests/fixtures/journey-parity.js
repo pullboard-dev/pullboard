@@ -28,10 +28,14 @@ export async function runSample(mode, { journey, cases }) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
-/** A timing field (how long a call waited in a queue) differs between any two runs for a reason that is not a behaviour difference, so it is blanked before the compare [C7]. */
+/**
+ * A timing field (how long a call waited in a queue) differs between any two runs for a reason that is not a behaviour difference, so it is
+ * blanked before the compare: as a JSON key, and as the `queueWaitSeconds: <n>` line show prints [C7].
+ */
 const TIMING_FIELDS = new Set(['queueWaitSeconds']);
+const TIMING_LINES = /\b(queueWaitSeconds): [\d.]+/gu;
 function withoutTiming(value) {
-  return JSON.stringify(value, (key, inner) => (TIMING_FIELDS.has(key) ? undefined : inner));
+  return JSON.stringify(value, (key, inner) => (TIMING_FIELDS.has(key) ? undefined : typeof inner === 'string' ? inner.replace(TIMING_LINES, '$1: <seconds>') : inner));
 }
 
 /** Every difference between two runs' records, named by call: exit code, JSON result, printed text and board state. */
