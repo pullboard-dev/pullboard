@@ -225,3 +225,4 @@ export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
 export const INFRA_RELEASE_ENGINE = engineNumber('INFRA_RELEASE_ENGINE');
 export const RELEASE_UNTOUCHED_REROUTE_ENGINE = engineNumber('RELEASE_UNTOUCHED_REROUTE_ENGINE');
 export const ADVISOR_ROLE_ENGINE = engineNumber('ADVISOR_ROLE_ENGINE');
+export const HEALTH_QUIET_ENGINE = engineNumber('HEALTH_QUIET_ENGINE');
