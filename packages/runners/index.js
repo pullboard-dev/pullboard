@@ -45,7 +45,7 @@ export { cleanupTimeoutDetails, parentChain, readCleanupTimeoutDetails, cleanupP
 
 export { committedRunnerController, archivedToolingSource } from './src/io/tooling/committed.js';
 export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/io/tooling/dirty.js';
-export { installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
+export { runnerCodeRefresh, installRunnerService, runnerServiceProblems, runnerServiceRecords, serviceFiles, serviceBoard, SERVICE_ENTRY, SERVICE_LABEL } from './src/io/service.js';
 export { localNetworkHost, serviceForm } from './src/logic/service.js';
 export { expandTestFolders } from "./src/io/pull/folders.js";
 export { mainRedUpdates } from './src/logic/main/reds.js';
