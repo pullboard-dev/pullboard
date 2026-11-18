@@ -17,6 +17,7 @@ import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
+import { relaxRequiredFamilyEnabled } from '../../../../packages/config/index.js';
 import { nextLightShapedStrong } from '../../../../packages/config/index.js';
 import { lightShaped } from '../../../../packages/seats/index.js';
 
@@ -31,6 +32,7 @@ async function gitSyncOn(ctx, board) {
   return false;
 }
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { recordCheckpoint } from './seat-checkpoint.js';
 import { sealExitCheckpoints } from './exit/checkpoint.js';
 import * as itemSessions from '../../../../packages/items/index.js';
@@ -319,7 +321,16 @@ export async function claimOrdered(ctx, board, args) {
  * @returns {(item: any) => { text: string, digest: string }}
  */
 export function freezer(ctx, options = {}) {
-  return requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  const freeze = requireModule('../../../../packages/moves/index.js').criterionFreezer({ root: ctx.info.root, isMain: ctx.info.isMain, config: ctx.config }, options);
+  return (item) => {
+    const frozen = freeze(item);
+    // With review.relaxRequiredFamily on, an item with a required review family freezes the backlog threshold, the one authority a relaxation witness is checked against [C7,#11119].
+    const relaxAt = ctx.config.verify?.familyRelaxAt;
+    if (!item.item_review_family || !Number.isSafeInteger(relaxAt) || relaxAt < 1 || !relaxRequiredFamilyEnabled()) return frozen;
+    const parsed = JSON.parse(frozen.text);
+    const text = JSON.stringify({ ...parsed, policy: { ...parsed.policy, verify: { ...parsed.policy?.verify, familyRelaxAt: relaxAt } } });
+    return { text, digest: createHash('sha256').update(text).digest('hex') };
+  };
 }
 
 /** Carry a safe main fast-forward out of the board transaction so claim can retry at the new HEAD. */
