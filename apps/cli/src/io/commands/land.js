@@ -1,5 +1,8 @@
 import { replayLanding } from '../../../../../packages/landing/index.js';
 import { replayLine } from '../../../../../packages/landing/index.js';
+import { landingStats } from '../../../../../packages/landing/index.js';
+import { landingStatsLines } from '../../../../../packages/landing/index.js';
+import { landingComposedEquality } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../../../../packages/merge/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
@@ -48,6 +51,14 @@ export async function run(io, { first, second, rest, values }) {
     const why = await withBoardRead(ctx, (board) => landWhy(board, ctx.clock.now()));
     if (values.json) io.result(why);
     else for (const line of landWhyLines(why)) io.say(line);
+    return 0;
+  }
+  if (values.stats) {
+    if (!landingComposedEquality()) throw new Refused('STATS_OFF', 'pullboard land --stats reads the composition each landing records, and landing.composedEquality is off', 'the person sets landing.composedEquality to true in the machine settings');
+    const ctx = context(io);
+    const stats = await withBoardRead(ctx, (board) => landingStats(store.landingBatches(board), { now: ctx.clock.now().getTime() }));
+    if (values.json) io.result(stats);
+    else for (const line of landingStatsLines(stats)) io.say(line);
     return 0;
   }
   const act = (work) => actOn(io, work);
