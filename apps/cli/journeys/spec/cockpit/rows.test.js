@@ -29,7 +29,7 @@ import {
 } from '../../../tests/fixtures/cockpit/harness.js';
 import { pressTab } from '../../../tests/fixtures/cockpit/stable.js';
 
-test('clause 1: spec rows read across a phone [N26,D1]', async () => {
+test('cli.journeys-spec-cockpit-rows.spec-rows-read-across-a-phone: clause 1: spec rows read across a phone [N26,D1]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { practice: 'DOCTRINE.md' });
   // Its own house rules follow the doctrine file named by this repo's config.
@@ -62,7 +62,7 @@ test('clause 1: spec rows read across a phone [N26,D1]', async () => {
 });
 
 /** Show a declined Spec row's reason separately while preserving its text and escaping markup. */
-test('a declined spec row shows its reason in the view [N26,S9]', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-rows.a-declined-spec-row-shows-its: a declined spec row shows its reason in the view [N26,S9]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME to check Spec decision reasons.');
 
@@ -123,7 +123,7 @@ test('a declined spec row shows its reason in the view [N26,S9]', { timeout: 120
   }
 });
 
-test('Spec and Doctrine line up, open on a row and decide with filled and outlined controls [N26, B26]', { timeout: 120_000 }, async (t) => {
+test('cli.journeys-spec-cockpit-rows.spec-and-doctrine-line-up-open: Spec and Doctrine line up, open on a row and decide with filled and outlined controls [N26, B26]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   if (!executable) return t.skip('Install Chrome or set PULLBOARD_CHROME for Spec layout checks.');
 
