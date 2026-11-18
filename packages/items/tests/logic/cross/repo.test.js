@@ -50,3 +50,21 @@ test('items.logic-cross-repo.blockers-keep-every-unverified-ref: clause 3: [C7] 
   const none = setup([], null);
   assert.equal(foreignBlockers(none.board, { item_after: 'child#7,child#8' }, none.ports).length, 2);
 });
+
+test('items.cross-repo.withdrawn-hold: clause 1: a foreign wait whose announced state is withdrawn yields a hold reason naming repo#id and the withdrawal [XB1,E32]', () => {
+  const { board, ports } = setup([link()], received([{ board: CHILD, id: 7, state: 'withdrawn' }]));
+  const [blocker, ...rest] = foreignBlockers(board, ITEM, ports);
+  assert.equal(rest.length, 0);
+  assert.equal(blocker.status, 'withdrawn');
+  assert.match(blocker.hold, /^child#7 was withdrawn on its own board; /u);
+});
+
+test('items.cross-repo.open-still-blocks: clause 2: an open foreign wait still blocks without a hold [XB1,E32]', () => {
+  const open = setup([link()], received([{ board: CHILD, id: 7, state: 'open' }]));
+  const [blocker, ...rest] = foreignBlockers(open.board, ITEM, open.ports);
+  assert.equal(rest.length, 0);
+  assert.equal(blocker.status, 'open');
+  assert.equal(blocker.hold, undefined);
+  const verified = setup([link()], received([{ board: CHILD, id: 7, state: 'verified' }]));
+  assert.deepEqual(foreignBlockers(verified.board, ITEM, verified.ports), []);
+});
