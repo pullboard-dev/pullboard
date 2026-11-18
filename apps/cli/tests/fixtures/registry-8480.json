@@ -1,0 +1,3 @@
+{
+  "cli.journeys-view-cold-state.a-cold-state-build-over-300-items-takes-under": {"proves":{"specs":["C7"],"claim":"A cold state build over 300 items, built through the view ports the API serves, takes under 10 s."},"why":"Without it, a regression that makes the first state build of a board with no snapshot slow again would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/view/cold-state.test.js"]}
+}
