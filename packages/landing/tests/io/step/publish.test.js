@@ -109,6 +109,24 @@ test('landing.publish.composed-equality-reproves-without-green-receipt: clause 2
     const { state, calls } = await composedBatch(t, given);
     const record = await requireSprintProof(state);
     assert.deepEqual(calls, ['static', 'packages/alpha'], `the proof ran for ${JSON.stringify(given.receipt?.('x') ?? null)} ${given.composedEquality} ${given.composedEqual}`);
-    assert.equal(record.composition, undefined);
+    assert.equal(record.composition, given.composedEqual === false && given.composedEquality !== false ? 're-proved' : undefined);
   }
+});
+
+test('landing.publish.composed-equality-reproves-differing-tree: clause 1: with landing.composedEquality on, requireSprintProof on a batch whose composedEqual is false runs the Sprint proof on the staged tree and records composition re-proved [C7,#10976]', async t => {
+  const { state, calls, tree } = await composedBatch(t, { composedEqual: false, receipt: treeId => ({ id: 'receipt-1', tree: treeId, green: true }) });
+  const record = await requireSprintProof(state);
+  assert.deepEqual(calls, ['static', 'packages/alpha'], 'the proof ran on the staged tree');
+  assert.equal(record.result, 'green');
+  assert.equal(record.composition, 're-proved');
+  assert.equal(record.tree, tree);
+  assert.equal(state.batch.exactTree.composition, 're-proved', 'the saved record carries it');
+});
+
+test('landing.publish.composed-equality-off-saves-no-composition: clause 2: with landing.composedEquality off the Sprint proof runs as before and the saved exactTree carries no composition field [C7,#10976]', async t => {
+  const { state, calls } = await composedBatch(t, { composedEquality: false, composedEqual: false });
+  const record = await requireSprintProof(state);
+  assert.deepEqual(calls, ['static', 'packages/alpha']);
+  assert.equal(record.result, 'green');
+  assert.equal('composition' in state.batch.exactTree, false, 'no composition field is saved');
 });
