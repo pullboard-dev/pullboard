@@ -306,7 +306,7 @@ export const LANGUAGES = Object.freeze([
     detect: { markers: ['cpanfile', 'Makefile.PL', 'Build.PL', 'dist.ini'], command: (names) => (names.includes('t') ? 'prove -lr t' : '') },
     tests: ['t/**/*.t'],
     toolchains: ['perl'],
-    junit: null,
+    junit: { command: `prove -lr --formatter TAP::Formatter::JUnit t > ${JUNIT_DIR}/perl.xml`, report: `${JUNIT_DIR}/perl.xml`, needs: 'the TAP::Formatter::JUnit module (cpanm TAP::Formatter::JUnit)' },
     affected: null,
     // prove with TAP::Formatter::JUnit names the suite after the script path with separators turned to underscores (t_calc_t).
     cases: { name: 'perl', inputs: [], file: row => (row.classname ? row.classname.replace(/_t$/u, '.t').replace(/_/gu, '/') : null) },

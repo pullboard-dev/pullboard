@@ -1,0 +1,26 @@
+{
+  "cli.item-folder.new-folder-git-launches": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "Opening a new item folder with no spare launches at most 3 git processes, counted by wrapping node:child_process."
+    },
+    "why": "Without it, a regression that adds git launches back to the claiming next's slowest stage would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  },
+  "cli.item-folder.same-folder-new-and-existing-branch": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A new item folder has the expected path, branch, checked-out commit and seat marker for both a new branch and an existing branch."
+    },
+    "why": "Without it, reading the branch and primary checkout from files instead of git could change the folder opened and pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  }
+}
