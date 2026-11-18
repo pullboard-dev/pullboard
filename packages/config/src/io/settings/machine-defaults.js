@@ -193,7 +193,7 @@ export const MACHINE_DEFAULTS = {
   'submit.composeAsObject': false,
   'submit.composeOnRunner': false,
   'submit.pendingFromJobRow': false,
-  'submit.proofOnly': false,
+  'submit.proofOnly': true,
   'submit.recoverFromJobRow': false,
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
