@@ -126,11 +126,13 @@ export {
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
+  releaseStaleItemRevision,
   holdsRequireOwner,
   nextIdleBlockers,
   nextAdoptPreserved,
   nextItemNotices,
   reviewCanonicalFamilies,
+  joinCoordinatorSeat,
   statsRecordCoordinatorUsage,
   reviewStarveShout,
   nextLabelBounds,
@@ -153,6 +155,8 @@ export {
   reviewReleaseReasonsRequired,
   lapsedSweepEnabled,
   derivedStateEnabled,
+  testLoadRerunEnabled,
+  testRetryStaleRecordEnabled,
   testStatusOutcomesEnabled,
   cascadeRejectEnabled,
   requireFactQuoteEnabled,
@@ -272,6 +276,7 @@ export {
 } from './src/logic/maintenance.js';
 
 export { submitProofOnly } from './src/logic/settings.js';
+export { submitComposeAsObject } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { setLocalWake } from './src/io/settings.js';

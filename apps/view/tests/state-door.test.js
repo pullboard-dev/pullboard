@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/** */
 /** The needs reader takes projectState from a module that loads no server [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -31,7 +31,7 @@ function reached(start) {
   return seen;
 }
 
-test('clause 1: the needs reader, summary and resume reach no import of serve.js, and state.js projectState is the one serve.js exports [C7]', async () => {
+test('view.x-state-door.clause-1-the-needs-reader-summary-and: clause 1: the needs reader, summary and resume reach no import of serve.js, and state.js projectState is the one serve.js exports [C7]', async () => {
   for (const entry of ['io/needs.js', 'logic/needs/summary.js', 'logic/resume.js']) {
     const files = reached(join(srcDir, entry));
     assert.ok(files.has(join(srcDir, entry)), `${entry} was read`);
