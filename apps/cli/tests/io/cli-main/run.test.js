@@ -11,6 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { captureLapsedClaims } from '../../../../../packages/health/index.js';
 import { fixture } from '../../fixtures/next/take.js';
+import { cli } from '../../fixtures/next/take.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 
 const MINUTE = 60_000;
@@ -23,9 +24,9 @@ function presence(box, seat) {
   return {
     at() { const db = open(); try { return db.prepare('SELECT at FROM heartbeat WHERE seat=?').get(key)?.at ?? null; } finally { db.close(); } },
     /** The seat's last beat was `ms` ago: the gap since its previous command. */
-    ago(ms) {
+    ago(ms, from = Date.now()) {
       const db = open();
-      try { db.prepare('INSERT INTO heartbeat(seat,at) VALUES (?,?) ON CONFLICT(seat) DO UPDATE SET at=excluded.at').run(key, new Date(Date.now() - ms).toISOString()); }
+      try { db.prepare('INSERT INTO heartbeat(seat,at) VALUES (?,?) ON CONFLICT(seat) DO UPDATE SET at=excluded.at').run(key, new Date(from - ms).toISOString()); }
       finally { db.close(); }
     },
   };
@@ -88,4 +89,16 @@ test('cli.io-cli-main-run.quiet-seat-loses-claim: clause 2: with no command for 
   beat.ago(MINUTE);
   ageCheckout(seat.path);
   assert.deepEqual(swept(box, Date.now() + 2 * MINUTE), [{ id, idle: 'seat-gone' }], 'a seat silent for 3 minutes loses its claim');
+});
+
+test('cli.io-cli-main-run.beat-reads-command-clock: clause 3: a command run through main() with an injected clock records the seat presence at that clock\'s time, not the wall clock\'s [C7,#10899]', async t => {
+  const box = await fixture(t);
+  const seat = box.seats.actor;
+  const beat = presence(box, seat);
+  // The fixture clock sits weeks before the wall clock; the seat's last beat is two fake minutes old, so the throttle lets the next beat through.
+  box.advance(Date.parse('2026-01-05T10:00:00.000Z') - box.clock.now().getTime());
+  beat.ago(2 * MINUTE, box.clock.now().getTime());
+  const ran = await cli(box, seat.path, ['whoami']);
+  assert.equal(ran.code, 0, ran.out + ran.err);
+  assert.equal(beat.at(), box.clock.now().toISOString(), 'the beat carries the injected clock\'s time');
 });

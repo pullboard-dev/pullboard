@@ -30,5 +30,20 @@
       "apps/cli/tests/fixtures/next/take.js",
       "apps/cli/tests/fixtures/process.js"
     ]
+  },
+  "cli.io-cli-main-run.beat-reads-command-clock": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "A command run through main() with an injected clock stamps the seat's presence beat with that clock's time, not the wall clock's."
+    },
+    "why": "Without it, a beat stamped by the wall clock lands in a fake-clock board's future, so a killed holder never looks gone and its claim never lapses (the liveness claim-step journeys went red on main).",
+    "kind": "journey",
+    "inputs": [
+      "apps/cli/src/io/cli-main/run.js",
+      "apps/cli/tests/fixtures/next/take.js",
+      "apps/cli/tests/fixtures/process.js"
+    ]
   }
 }
