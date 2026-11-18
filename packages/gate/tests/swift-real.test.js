@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { junitCases } from '../src/logic/junit.js';
-import { junitCommand } from '../src/logic/junit-commands.js';
+import { junitCommand } from '../src/logic/junit.js';
 import { privateFixtureFiles } from './fixtures/child.js';
 
 const FIXTURE = new URL('./fixtures/swift-pkg/', import.meta.url);
