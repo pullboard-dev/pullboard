@@ -57,7 +57,6 @@
     "unguardedWrites": [
       { "at": "packages/store/src/io/exchange.js:restoreDocument", "what": "board import and relay restore drop the machine triggers and insert any item_status" },
       { "at": "packages/outbox/src/logic/undo.js:undoQueuedWith", "what": "relay undo suspends the guards and reapplies an inverse changeset" },
-      { "at": "packages/store/src/logic/board/reland.js:relandAccepted", "what": "an ad-hoc reland move that MOVES does not declare" },
       { "at": "packages/verify/src/io/machine.js:acceptMachineSubmission", "what": "accept with every guard passed as null" },
       { "at": "packages/store/src/io/board/merged.js:merged", "what": "a second pullboard merged overwrites item_merged_commit and logs a second merged event" }
     ]

@@ -298,7 +298,6 @@ No move declares these, so the board file refuses them whatever command asks. A 
 
 - `restoreDocument` in `packages/store/src/io/exchange.js`: board import and relay restore drop the machine triggers and insert any item_status.
 - `undoQueuedWith` in `packages/outbox/src/logic/undo.js`: relay undo suspends the guards and reapplies an inverse changeset.
-- `relandAccepted` in `packages/store/src/logic/board/reland.js`: an ad-hoc reland move that MOVES does not declare.
 - `acceptMachineSubmission` in `packages/verify/src/io/machine.js`: accept with every guard passed as null.
 - `merged` in `packages/store/src/io/board/merged.js`: a second pullboard merged overwrites item_merged_commit and logs a second merged event.
 
