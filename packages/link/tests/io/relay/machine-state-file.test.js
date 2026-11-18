@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell link store */
+/** @pullboard-test-input source-cell link */
 /** @pullboard-world-pin reads machine.js to prove it builds no state.json path and takes the path from the store. The relay machine module names no state.json path of its own: it reads and writes the state file through the store's relayMachineStateFile [C7,#9587]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
