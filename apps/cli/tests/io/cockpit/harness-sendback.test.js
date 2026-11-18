@@ -1,3 +1,4 @@
+/** @pullboard-test-gui */
 /** The cockpit harness's sendBack answers its show read and reject in this process, with the same result as the real-process call [C7,U149]. */
 import assert from 'node:assert/strict';
 import {
@@ -46,14 +47,14 @@ before(async () => {
   };
 });
 
-test('clause 1: sendBack as a real process and sendBackLocal in this process both exit clean and leave the same item and board state [C7,U149]', async () => {
+test('cli.io-cockpit-harness-sendback.sendback-as-a-real-process-and-sendbacklocal: clause 1: sendBack as a real process and sendBackLocal in this process both exit clean and leave the same item and board state [C7,U149]', async () => {
   // Each helper's box refuses a non-zero exit, so reaching this point is the equal exit code.
   const real = await afterwards(viaProcess);
   assert.deepEqual(await afterwards(viaLocal), real);
   assert.equal(real.noted, true, 'the reject note is on the item');
 });
 
-test('clause 2: sendBackLocal starts no CLI process and finishes under 40 s alone [C7,U149]', { timeout: 40_000 }, () => {
+test('cli.io-cockpit-harness-sendback.sendbacklocal-starts-no-cli-process-and-finishes: clause 2: sendBackLocal starts no CLI process and finishes under 40 s alone [C7,U149]', { timeout: 40_000 }, () => {
   assert.equal(launches.local, 0, 'no node child starts for the show read or the reject');
   assert.ok(launches.real >= 2, 'the real helper does start node children, so the count is live');
 });

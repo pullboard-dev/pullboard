@@ -315,7 +315,9 @@ function fillRecords(root, revision, map, paths, directory = null) {
       const tab = record.indexOf('\t');
       const path = record.slice(tab + 1);
       if (directory && !map.has(path)) map.set(path, []);
-      map.get(path)?.push(record);
+      // A plan file listed with the folder in the first batch comes back again as a literal path in a later one: keep one record (#10657).
+      const records = map.get(path);
+      if (records && !records.includes(record)) records.push(record);
     }
   }
 }
@@ -578,20 +580,24 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   }
   const mergeHeads = mainMergeHeads(root, preMergeHook);
   const ownershipConfig = committedLaneConfig(root);
+  // laneMode off: the lane folders are only labels, so the cells of the files the claimed item's bar names are its own [C7,#8907].
+  const ownCells = ownershipConfig.laneMode === 'off' ? claimedCells(root, boardFile, agent, approvedRowPorts) : new Set();
+  /** The lane labels of a path this seat may not change; none when its cell is one of the claimed item's. */
+  const outside = (path) => (ownCells.has(cellOfPath(path)) ? [] : outOfLane(ownershipConfig, agent.agent_lane, [path]));
   const mergeTouched = mergeHeads ? [...new Set([...touched, ...mergeHeads.flatMap((mergeHead) => stagedPaths(root, mergeHead).touched)])] : touched;
   if (readCache) readCache.paths = [...new Set([...readCache.paths, ...mergeTouched])];
   // Keeping either parent's exact content of a foreign file is accepted unchanged; when that file had a real conflict
   // in this merge, the resolution still names its owner (#860).
   const kept = mergeHeads && !preMergeHook
-    ? mergeTouched.filter((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
+    ? mergeTouched.filter((path) => outside(path).length && unchangedMergePath(root, path, mergeHeads) && conflictedInMerge(root, path))
     : [];
   kept.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
   const ownershipTouched = mergeHeads
-    ? mergeTouched.filter((path) => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length || !unchangedMergePath(root, path, mergeHeads))
+    ? mergeTouched.filter((path) => !outside(path).length || !unchangedMergePath(root, path, mergeHeads))
     : touched;
   const mainOnlyStaged = mergeHeads ? new Set() : stagedMainOnlyPaths(root, ownershipTouched);
   const foreignPaths = ownershipTouched.filter((path) => !mainOnlyStaged.has(path)
-    && outOfLane(ownershipConfig, agent.agent_lane, [path]).length);
+    && outside(path).length);
   const resolved = mergeHeads && !preMergeHook
     ? foreignPaths.filter((path) => resolvedMergeConflictPath(root, path, mergeHeads))
     : [];
@@ -606,17 +612,17 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   prefetchBlobs(root, checkedForeign.flatMap(path => ['HEAD', ':index'].map(revision => importFileEntry(root, revision, path)?.oid).filter(Boolean)));
   const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
+    ownNewFile: path => !outside(path).length
       && ((writtenPaths.has(path) && Boolean(importFileEntry(root, ':index', path)))
         || (!touchedPaths.has(path) && Boolean(treeRaw(root, 'HEAD', path)))),
   })]));
   const tierChanges = new Map(checkedForeign.map(path => [path, tierRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length,
+    ownsFile: file => !outside(file).length,
   })]));
   const baselineChanges = new Map(checkedForeign.map(path => [path, baselineRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path), read: planRead,
-    ownsFile: file => !outOfLane(ownershipConfig, agent.agent_lane, [file]).length, tables: ceilingTables,
+    ownsFile: file => !outside(file).length, tables: ceilingTables,
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
@@ -633,7 +639,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
     || planChanges.get(path).allowed || tierChanges.get(path).allowed || baselineChanges.get(path).allowed);
   for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : tierChanges.get(path).allowed ? 'own-lane tier row' : baselineChanges.get(path).allowed ? 'own-lane baseline row' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
-    .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
+    .flatMap((path) => outside(path).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
       return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed at ${lines.join(', ')}` : ''}${planChanges.get(path).problem || tierChanges.get(path).problem || baselineChanges.get(path).problem ? ` (${planChanges.get(path).problem ?? tierChanges.get(path).problem ?? baselineChanges.get(path).problem})` : ''}; only exact moved-file or deleted-shim path updates, or canonical rows for owned new files, are permitted mechanically`;
@@ -682,6 +688,32 @@ export function deletedGateProblems(root, config) {
     }
   }
   return problems;
+}
+
+/** A path's cell, the codemap cell rule kept here so the hook loads no further module [C7,#8907]. */
+function cellOfPath(path) {
+  return /^(?:apps|packages)\/[^/]+(?=\/)/u.exec(path)?.[0] ?? null;
+}
+
+/** The cells of the files a claimed item's bar names: its `Files:` brief list and its recorded file inventory [C7,#8907]. */
+function namedCells(item) {
+  const listed = /^[ \t]*Files:[ \t]*\n((?:[ \t]*-[ \t]+[^\n]*(?:\n|$))+)/mu.exec(item.item_brief ?? '')?.[1] ?? '';
+  const lines = [...listed.split('\n').map(line => line.replace(/^[ \t]*-[ \t]+/u, '').trim().split(/\s+/u)[0]), ...(item.item_files ?? '').split('\n').map(line => line.trim())];
+  return new Set(lines.map(line => cellOfPath(line.replaceAll('`', ''))).filter(Boolean));
+}
+
+/** The cells the seat's claimed item owns, read from the board without changing it; none when the board cannot say [C7,#8907]. */
+function claimedCells(root, boardFile, agent, { openBoardReadOnly } = {}) {
+  if (!boardFile || !openBoardReadOnly) return new Set();
+  const folder = /-item-([1-9]\d*)$/u.exec(root)?.[1];
+  let db;
+  try {
+    db = openBoardReadOnly(boardFile);
+    const claimed = db.prepare("SELECT item_brief, item_files FROM item WHERE item_status='claimed' AND item_owner=?" + (folder ? ' AND item_id=?' : ''))
+      .all(...(folder ? [agent.agent_id, Number(folder)] : [agent.agent_id]));
+    return new Set(claimed.flatMap(item => [...namedCells(item)]));
+  } catch { return new Set(); }
+  finally { db?.close(); }
 }
 
 /** Read lane ownership from the committed checkout, so unstaged settings cannot grant new folders [L1,L3]. */

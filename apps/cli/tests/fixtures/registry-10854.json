@@ -1,0 +1,28 @@
+{
+  "cli.item-folder.checkout-workers-no-launch": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "parallelCheckout launches no git process and returns the arguments git's own answer gives, with checkout.workers set, unset, and set in a worktree config."
+    },
+    "why": "Without it, a regression where every claim launches git config for checkout.workers, or a config file read that disagrees with git, would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/item/folder.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/submit.js"
+    ]
+  },
+  "cli.item-folder.checkout-workers-include-asks-git": {
+    "proves": {
+      "specs": ["C7"],
+      "claim": "A config file with an include directive makes parallelCheckout ask git config, and the arguments match git's answer."
+    },
+    "why": "Without it, a regression where the file read ignores an included checkout.workers and overrides the user's setting would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/src/io/item/folder.js",
+      "apps/cli/tests/fixtures/child.js",
+      "packages/store/tests/fixtures/submit.js"
+    ]
+  }
+}

@@ -88,7 +88,7 @@ async function threadText(box, id) {
   return shown.thread.map(row => row.text ?? '').join('\n');
 }
 
-test("a pulled gate refuses an uncountable check and reports rises during the report-only trial [D1,D3,C7]", async t => {
+test('cli.journeys-doctrine-pulled-ratchets.a-pulled-gate-refuses-an-uncountable: a pulled gate refuses an uncountable check and reports rises during the report-only trial [D1,D3,C7]', async t => {
   const box = await checkedProject('count: 2', [NARROWED, UNCOUNTABLE]);
 
   // A check that exits other than 0 or 1 cannot count, so it refuses by name.

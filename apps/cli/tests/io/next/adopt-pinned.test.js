@@ -31,20 +31,20 @@ function pinned(t, { targetFile = null } = {}) {
   return { box, target, head, pin };
 }
 
-test('cli.next.adopt-pinned.adoptpinnedhead-merges-the-newest-handoff-pin: clause 1: adoptPinnedHead merges the newest handoff pin into the folder and returns its pin and head [C7,#9688]', t => {
+test('cli.io-next-adopt-pinned.cli-next-adopt-pinned-adoptpinnedhead-merges-the: cli.next.adopt-pinned.adoptpinnedhead-merges-the-newest-handoff-pin: clause 1: adoptPinnedHead merges the newest handoff pin into the folder and returns its pin and head [C7,#9688]', t => {
   const { box, target, head, pin } = pinned(t);
   assert.deepEqual(adoptPinnedHead(box.repo, target, ITEM), { pin, head });
   assert.ok(existsSync(join(target, 'pinned.txt')), 'the pinned file is in the folder');
   assert.equal(box.git(target, 'merge-base', '--is-ancestor', head, 'HEAD') ?? '', '', 'the pinned head is in the folder branch');
 });
 
-test('cli.next.adopt-pinned.adoptpinnedhead-returns-null-when-the-item: clause 1: adoptPinnedHead returns null when the item has no pin [C7,#9688]', t => {
+test('cli.io-next-adopt-pinned.cli-next-adopt-pinned-adoptpinnedhead-returns-null: cli.next.adopt-pinned.adoptpinnedhead-returns-null-when-the-item: clause 1: adoptPinnedHead returns null when the item has no pin [C7,#9688]', t => {
   const { box, target } = pinned(t);
   assert.equal(adoptPinnedHead(box.repo, target, ITEM + 1), null);
   assert.equal(existsSync(join(target, 'pinned.txt')), false);
 });
 
-test('cli.next.adopt-pinned.adoptpinnedhead-returns-null-and-leaves-the: clause 1: adoptPinnedHead returns null and leaves the folder clean on a merge conflict [C7,#9688]', t => {
+test('cli.io-next-adopt-pinned.cli-next-adopt-pinned-adoptpinnedhead-returns-null-2: cli.next.adopt-pinned.adoptpinnedhead-returns-null-and-leaves-the: clause 1: adoptPinnedHead returns null and leaves the folder clean on a merge conflict [C7,#9688]', t => {
   const { box, target } = pinned(t, { targetFile: 'a different take\n' });
   assert.equal(adoptPinnedHead(box.repo, target, ITEM), null);
   assert.equal(box.git(target, 'status', '--porcelain').trim(), '', 'no conflict markers or merge state remain');

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 const read = file => readFileSync(new URL(`../../../../${file}`, import.meta.url), 'utf8');
 
-test('clause 1: execution.js and run-tests.js call no sync runOnRunner and run their runner work through the pull path [C7]', () => {
+test('gate.io-pull-only-callers.execution-js-and-run-tests: clause 1: execution.js and run-tests.js call no sync runOnRunner and run their runner work through the pull path [C7]', () => {
   for (const file of ['packages/gate/src/io/execution.js', 'packages/gate/src/io/run-tests.js']) {
     assert.doesNotMatch(read(file), /\brunOnRunner\b(?!Async)/u, `${file} names the synchronous runOnRunner`);
   }
@@ -14,7 +14,7 @@ test('clause 1: execution.js and run-tests.js call no sync runOnRunner and run t
   assert.match(read('packages/gate/src/io/execution.js'), /runners\.runOnRunnerAsync\(/u, 'a profiled run on a runner awaits the pulled run');
 });
 
-test('clause 2: a runner lease refuses the synchronous profiled run and every full gate run is awaited [C7]', () => {
+test('gate.io-pull-only-callers.a-runner-lease-refuses-the: clause 2: a runner lease refuses the synchronous profiled run and every full gate run is awaited [C7]', () => {
   const execution = read('packages/gate/src/io/execution.js');
   assert.match(execution, /RUNNER_RUN_SYNC/u, 'a synchronous run on a runner is refused with its next step');
   assert.doesNotMatch(execution, /\? fullGateRun\(|: fullGateRun\(/u, 'runGate no longer runs a full gate synchronously');
@@ -24,7 +24,7 @@ test('clause 2: a runner lease refuses the synchronous profiled run and every fu
   }
 });
 
-test('clause 1: the gate slot runner service list drops the synchronous runOnRunner and keeps runOnRunnerAsync [C7]', () => {
+test('gate.io-pull-only-callers.the-gate-slot-runner-service: clause 1: the gate slot runner service list drops the synchronous runOnRunner and keeps runOnRunnerAsync [C7]', () => {
   const list = read('packages/gate/src/io/slot.js').match(/const runners = \[([^\]]*)\]/u)?.[1] ?? '';
   assert.doesNotMatch(list, /'runOnRunner'/u, 'the SSH-only synchronous service is not required of a lease');
   assert.match(list, /'runOnRunnerAsync'/u, 'the pulled run stays required');

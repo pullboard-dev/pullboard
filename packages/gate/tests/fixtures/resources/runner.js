@@ -1,4 +1,5 @@
 /** @pullboard-module-loads packages/resources/index.js packages/config/src/io/settings.js */
+/** @pullboard-world-pin reads the test manifest and tier registry to prove the uncounted doctrine file is listed beside doctrine.test.js with the same tier [C7]. */
 /** Private native queue and CLI controls for opt-in submit/review runner-only admission [C7,Q1]. */
 import assert from 'node:assert/strict';
 import {
@@ -23,11 +24,6 @@ import {
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild } from '../child.js';
-import { createE2eHelpers } from '../../../../../apps/cli/tests/fixtures/e2e.js';
-import {
-  HOST,
-  installSshStandIn,
-} from '../runner/ssh.js';
 import { fixtureAdd } from '../testkit.js';
 import { fixturePolicy } from '../testkit.js';
 import { refusalTrialFile } from '../../../index.js';
@@ -37,8 +33,6 @@ const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../../../../resour
 const DOCTRINE = pathToFileURL(resolve(import.meta.dirname, '../../../../doctrine/index.js')).href;
 const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../../../../config/src/io/settings.js')).href;
 const TEMP = [];
-const helpers = createE2eHelpers();
-after(helpers.cleanup);
 after(() => { for (const root of TEMP) rmSync(root, { recursive: true, force: true }); });
 
 /** Execute the real resource queue in a separate private machine without inheriting its caller's leases. */
@@ -158,9 +152,10 @@ const DOCTRINE_SETTLE_MS = 100_000;
  * offers a job and returns and the case settles it on the job (#10303).
  *
  * @param {import('node:test').TestContext} t - Stops the registered runner when the test ends.
- * @param {{ registerStandInAfterAdd: Function, serveRegisteredRunner: Function }} fixtures - The apps' registered-runner helpers, passed in because gate fixtures never import apps.
+ * @param {{ registerStandInAfterAdd: Function, serveRegisteredRunner: Function, helpers: object }} fixtures - The apps' registered-runner and e2e helpers, passed in because gate fixtures never import apps.
  */
-async function runnerOnlyDoctrineSetup(t, { registerStandInAfterAdd, serveRegisteredRunner }) {
+async function runnerOnlyDoctrineSetup(t, { registerStandInAfterAdd, serveRegisteredRunner, helpers }) {
+  t.after(helpers.cleanup);
   const box = helpers.project('true');
   const marker = join(box.dir, 'doctrine-bodies.jsonl');
   mkdirSync(join(box.repo, 'bin'), { recursive: true });
@@ -181,8 +176,15 @@ process.exit(lines.length?1:0);
   fixturePolicy(box, { claims: { releaseGone: false, releaseCooldownMinutes: 30, perSeat: 2 } });
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
-  const registered = await registerStandInAfterAdd(box, { requests: join(box.dir, 'doctrine-requests.jsonl'), add: () => fixtureAdd(box.run, box.repo, 'web', 'Leased doctrine control', '--specs', 'G1',
-    '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--accept-green', 'a fixture check that keeps passing', '--wait', '--json') });
+  // The add waits on no check: with the board host's local runner off, its check baseline is queued at main and stays
+  // pending, so setup runs no cold check, and the registered runner takes the pending baseline once it serves (#8886).
+  const registered = await registerStandInAfterAdd(box, { requests: join(box.dir, 'doctrine-requests.jsonl'), add: () => {
+    const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+    const previous = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+    writeFileSync(settingsFile, JSON.stringify({ ...previous, gate: { ...previous.gate, localRunner: false } }));
+    return fixtureAdd(box.run, box.repo, 'web', 'Leased doctrine control', '--specs', 'G1',
+      '--criterion', 'The ordinary submission keeps doctrine counts.', '--check', 'true', '--accept-green', 'a fixture check that keeps passing', '--json');
+  } });
   const id = JSON.parse(succeeded(registered.added).out).item.item_id;
   succeeded(box.run(box.web, 'claim', String(id)));
   succeeded(box.run(box.repo, 'settings', 'gate.runnersOnly', 'on'));
@@ -200,7 +202,7 @@ process.exit(lines.length?1:0);
   writeFileSync(ledgerFile, JSON.stringify({ version: 2, gates: 20, codes: {
     [ledgerKey]: { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 } } }) + '\n');
   await serveRegisteredRunner(t, box, registered);
-  return { box, marker, paths: registered.paths, base, id, ledgerFile, ledgerKey };
+  return { box, marker, paths: registered.paths, base, id, added: JSON.parse(registered.added.out).item, ledgerFile, ledgerKey };
 }
 
 /**
@@ -220,8 +222,12 @@ function doctrineRefusals(job) {
 
 /** Install the rising-count case alone: its one registered-worker submit needs a file of its own to stay inside the time budget [C7,D1]. */
 export function installRunnerOnlyDoctrineCase(fixtures) {
+  const { helpers } = fixtures;
   test('clause 2: runner-only doctrine refuses a rising count with RATCHET_ROSE in the registered worker [C7,D1,D3]', async t => {
-    const { box, id, ledgerFile, ledgerKey } = await runnerOnlyDoctrineSetup(t, fixtures);
+    const { box, id, added, ledgerFile, ledgerKey } = await runnerOnlyDoctrineSetup(t, fixtures);
+    await t.test('clause 1: the doctrine fixture adds its item without add --wait, so its setup runs no cold check [C7]', async () => {
+      assert.equal(added.item_check_baseline?.result, 'pending', `#${id}: its add waited on no check during setup`);
+    });
     await t.test('clause 1: the case seeds its RATCHET_ROSE trial in the refusal-trials ledger and runs no probe add or probe submit [C7,D1]', async () => {
       const ledger = JSON.parse(readFileSync(ledgerFile, 'utf8'));
       assert.deepEqual(ledger.codes[ledgerKey], { code: 'RATCHET_ROSE', start: 0, falseRefusals: 0 }, 'the ROSE row carries the identity ratchetMachineryRule returned');
@@ -236,15 +242,36 @@ export function installRunnerOnlyDoctrineCase(fixtures) {
   });
 }
 
-/** Install the uncountable and final green submits alone, with the receipts they bind to the registered worker [C7,D1,D3]. */
+/** Install the uncountable submit alone: its exit is retained rather than counted as a passing empty count [C7,D1,D3]. */
 export function installRunnerOnlyUncountedCase(fixtures) {
-  test('clause 2: runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', async t => {
-    const { box, marker, paths, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
+  const { helpers } = fixtures;
+  test('clause 1: runner-only doctrine refuses an uncountable check with RATCHET_UNCOUNTED in the registered worker [C7,D1,D3]', async t => {
+    const { box, id } = await runnerOnlyDoctrineSetup(t, fixtures);
+    await t.test('clause 3: the uncounted file sits in the test manifest and tiers beside doctrine.test.js with the same tier [C7]', () => {
+      const tiers = {};
+      for (const registry of ['test-manifest.json', 'tiers.json']) {
+        const { files } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../data/tests', registry), 'utf8'));
+        for (const name of ['doctrine.test.js', 'doctrine-uncounted.test.js']) {
+          const row = files.find(entry => entry.file === `apps/cli/journeys/resources/${name}`);
+          assert.ok(row, `${registry} lists ${name}`);
+          if (registry === 'tiers.json') tiers[name] = row.tier;
+        }
+      }
+      assert.equal(tiers['doctrine-uncounted.test.js'], tiers['doctrine.test.js']);
+    });
     const brokenCommit = helpers.commitFile(box, box.web, 'web/mode.txt', 'broken\n', 'feat(web): private uncountable control [G1]');
     assert.equal(brokenCommit.status, 0, brokenCommit.failure ?? brokenCommit.stderr);
     const broken = await submitSettled(box, fixtures, id);
     assert.deepEqual(doctrineRefusals(broken), ['RATCHET_UNCOUNTED'], JSON.stringify(broken.gate.analysis));
     assert.match(broken.gate.analysis.refusals.find(row => row.part === 'doctrine').message, /its check exited 3/u, 'the uncountable exit is retained rather than a passing empty count');
+  });
+}
+
+/** Install the ordinary submission alone: a touched existing problem keeps its count, measured only in the registered worker's candidate and baseline [C7,D1,D3]. */
+export function installRunnerOnlyOrdinaryCase(fixtures) {
+  const { HOST } = fixtures;
+  test('clause 1: runner-only doctrine counts candidate and baseline only in their real registered worker [C7,D1,D3]', async t => {
+    const { box, marker, paths, base, id } = await runnerOnlyDoctrineSetup(t, fixtures);
     writeFileSync(join(box.web, 'web/a.txt'), 'TODO old\nchanged\n');
     writeFileSync(join(box.web, 'web/mode.txt'), 'count\n');
     box.git(box.web, 'add', '-A');

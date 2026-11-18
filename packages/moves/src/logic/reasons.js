@@ -46,7 +46,8 @@ export function itemNoticeLines(board, id) {
  * @returns {string[]}
  */
 export function ownWaitingLines(board, me) {
-  return store.listItems(board).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
+  // Submitted items and claims awaiting a gate are both in flight, so the whole open list is never read for them [C7,#5329].
+  return store.listItems(board, { inFlight: true }).filter(entry => entry.item_owner === me.id && (entry.item_status === 'submitted' || store.awaitingGateOrReview(board, entry)))
     .map(entry => `#${entry.item_id} is waiting on its ${entry.item_status === 'submitted' ? 'reviewer' : 'gate'}; next offers other work`);
 }
 

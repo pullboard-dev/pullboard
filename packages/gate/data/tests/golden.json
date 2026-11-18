@@ -7,7 +7,6 @@
       "file": "apps/cli/journeys/init/gate.test.js",
       "specs": [
         "B26",
-        "C3",
         "C7",
         "H5",
         "I1",
@@ -50,17 +49,14 @@
       "file": "apps/cli/journeys/next/take.test.js",
       "specs": [
         "A6",
-        "B13",
         "B3",
         "B5",
         "C7",
         "H16",
         "I6",
         "N2",
-        "R3",
         "V1",
-        "V2",
-        "V4"
+        "V2"
       ],
       "commands": [
         "next"
@@ -146,13 +142,9 @@
       "path": "land",
       "file": "apps/cli/journeys/land/main.test.js",
       "specs": [
-        "B3",
         "C7",
-        "H5",
-        "I1",
         "Q1",
-        "Q3",
-        "R3"
+        "Q3"
       ],
       "commands": [
         "init",
@@ -211,17 +203,10 @@
       "path": "relay-pair",
       "file": "apps/cli/journeys/relay/main-pairing.test.js",
       "specs": [
-        "A4",
-        "B26",
         "H1",
-        "H2",
-        "H21",
         "H5",
-        "H7",
         "H8",
-        "H9",
-        "N26",
-        "P6"
+        "N26"
       ],
       "commands": [
         "relay on"
@@ -263,7 +248,6 @@
       "specs": [
         "A5",
         "S19",
-        "V2",
         "V3"
       ],
       "commands": [

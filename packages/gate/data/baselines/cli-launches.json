@@ -305,7 +305,7 @@
   "apps/cli/journeys/roadmap/count.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/agents/session.test.js": {
+  "apps/cli/journeys/agents/session-takeover.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/companion/companions/review.test.js": {
@@ -594,7 +594,10 @@
     "launch": 9
   },
   "apps/cli/journeys/baseline/check.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/baseline/check-part2.test.js": {
+    "launch": 1
   },
   "apps/cli/journeys/merged/receipts.test.js": {
     "launch": 3
@@ -795,7 +798,10 @@
     "launch": 3
   },
   "apps/cli/journeys/fact/e2e/tour.test.js": {
-    "launch": 2
+    "launch": 1
+  },
+  "apps/cli/journeys/fact/e2e/tour-agent-session.test.js": {
+    "launch": 1
   },
   "packages/landing/tests/logic/failures.test.js": {
     "launch": 1
@@ -1085,7 +1091,7 @@
   "apps/cli/journeys/claim/display.test.js": {
     "launch": 4
   },
-  "apps/cli/journeys/milestone/api.test.js": {
+  "apps/cli/journeys/milestone/api-part2.test.js": {
     "launch": 1
   },
   "apps/cli/journeys/init/known/main/frozen-stage.test.js": {

@@ -80,7 +80,7 @@ function fixture(t, { unsealed = [], tiers = true } = {}) {
   return { root, first };
 }
 
-test('a change inside one package runs only that package\'s tests and skips sealed packages by receipt [C7,CD44]', t => {
+test('cli.io-submit-selection.a-change-inside-one-package-runs-only: a change inside one package runs only that package\'s tests and skips sealed packages by receipt [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = selectTestTiers(root, { base: first, commit: head });
@@ -91,7 +91,7 @@ test('a change inside one package runs only that package\'s tests and skips seal
   assert.doesNotThrow(() => requireSealedSkips(root, plan));
 });
 
-test('a changed front door runs its contracts and unseals and runs its importers [C7,CD44]', t => {
+test('cli.io-submit-selection.a-changed-front-door-runs-its-contracts: a changed front door runs its contracts and unseals and runs its importers [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const zero = 0;\n' });
   const plan = selectTestTiers(root, { base: first, commit: head });
@@ -101,7 +101,7 @@ test('a changed front door runs its contracts and unseals and runs its importers
   assert.deepEqual(plan.journeys, ['test/journey.test.js'], 'journeys wait for the landing batch');
 });
 
-test('control: a plan that hides a real change from its run fails, so skip logic never reports a false green [C7,CD44]', t => {
+test('cli.io-submit-selection.a-plan-that-hides-a-real-change: control: a plan that hides a real change from its run fails, so skip logic never reports a false green [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const one = 1;\n' });
   const plan = selectTestTiers(root, { base: first, commit: head });
@@ -110,7 +110,7 @@ test('control: a plan that hides a real change from its run fails, so skip logic
   assert.throws(() => requireSealedSkips(root, { ...plan, base: null }), { code: 'SEAL_STALE' });
 });
 
-test('control: the real submit path refuses a unit or front-door contract dropped from both units and skipped, and one missing from the run [C7,CD44]', async t => {
+test('cli.io-submit-selection.the-real-submit-path-refuses-a-unit: control: the real submit path refuses a unit or front-door contract dropped from both units and skipped, and one missing from the run [C7,CD44]', async t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const two = 2;\n' });
   const config = { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] };
@@ -141,7 +141,7 @@ test('control: the real submit path refuses a unit or front-door contract droppe
     { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/base\/contract\/user\.test\.js/u });
 });
 
-test('an unchanged package with no current seal runs its tests, and a skip without a current seal receipt refuses [C7,CD44]', t => {
+test('cli.io-submit-selection.an-unchanged-package-with-no-current-seal: an unchanged package with no current seal runs its tests, and a skip without a current seal receipt refuses [C7,CD44]', t => {
   const { root, first } = fixture(t, { unsealed: ['packages/alone'] });
   const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = selectTestTiers(root, { base: first, commit: head });
@@ -155,7 +155,7 @@ test('an unchanged package with no current seal runs its tests, and a skip witho
   assert.throws(() => requireSealedSkips(root, borrowed), { code: 'SEAL_STALE', message: /packages\/alone/u });
 });
 
-test('a sealed skip must cite a receipt its current seal holds [C7,CD44]', t => {
+test('cli.io-submit-selection.a-sealed-skip-must-cite-a-receipt: a sealed skip must cite a receipt its current seal holds [C7,CD44]', t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = selectTestTiers(root, { base: first, commit: head });
@@ -163,7 +163,7 @@ test('a sealed skip must cite a receipt its current seal holds [C7,CD44]', t => 
   assert.throws(() => requireSealedSkips(root, swapped), { code: 'SEAL_STALE', message: /packages\/alone/u });
 });
 
-test('clause 1: the real gate-submit path runs a test file the bar names in a sealed package the change never reaches [C7,V4]', async t => {
+test('cli.io-submit-selection.the-real-gate-submit-path-runs-a: clause 1: the real gate-submit path runs a test file the bar names in a sealed package the change never reaches [C7,V4]', async t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const ALONE_TEST = 'packages/alone/tests/alone.test.js';
@@ -181,7 +181,7 @@ test('clause 1: the real gate-submit path runs a test file the bar names in a se
   assert.ok(proof.files.includes(ALONE_TEST) && proof.files.includes('test/journey.test.js'), `the recorded proof names both files: ${JSON.stringify(proof.files)}`);
 });
 
-test('clause 1: with no affected-tests runner configured, the bar-named files still join the proof selection and the real gate-submit path runs them [C7,V4]', async t => {
+test('cli.io-submit-selection.with-no-affected-tests-runner-configured-the: clause 1: with no affected-tests runner configured, the bar-named files still join the proof selection and the real gate-submit path runs them [C7,V4]', async t => {
   const { root, first } = fixture(t, { tiers: false });
   const ALONE_TEST = 'packages/alone/tests/alone.test.js';
   const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });

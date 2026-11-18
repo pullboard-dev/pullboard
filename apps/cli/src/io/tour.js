@@ -19,6 +19,8 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { commitWithHooks } from './tour-commit.js';
+import { ensureLocalRunner } from './runner/local.js';
+import { startLocalRunner } from './runner/local.js';
 import { slowestSteps } from '../logic/tour-steps.js';
 import { typed } from '../logic/tour-steps.js';
 import { CHECKOUT_SESSION_TOKEN_ENV } from '../../../../packages/seats/index.js';
@@ -110,6 +112,24 @@ function carryLocalWake(demoHome) {
   const caller = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = demoHome;
   try { setLocalWake(true); } finally {
+    if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
+  }
+}
+
+/**
+ * Start the demo's local runner before the first offer when the caller has runners.localWake on, so its cold start is spent
+ * while the coordinator files the item and the first claim follows its offer at once like every later one [C7,#10565].
+ * Why a swap held across the start: the runner folder is found from this process's machine home; with wake off nothing starts early.
+ *
+ * @param {string} repo - The demo board's checkout.
+ * @param {Record<string, string>} env - The demo's environment.
+ * @returns {Promise<void>}
+ */
+async function warmLocalRunner(repo, env) {
+  if (loadMachineSettings()['runners.localWake'] !== true) return;
+  const caller = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
+  try { await ensureLocalRunner(repo, { start: (root) => startLocalRunner(root, { env }) }); } finally {
     if (caller === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = caller;
   }
 }
@@ -269,6 +289,7 @@ export async function tour(io) {
     const tree = run('coordinator', 'git', ['write-tree'], { label: '', show: null });
     const root = run('coordinator', 'git', ['commit-tree', tree, '-m', 'chore: the greeter, on pullboard'], { label: '', show: null });
     run('coordinator', 'git', ['update-ref', 'HEAD', root], { label: '', show: null });
+    await warmLocalRunner(repo, env);
 
     step(1, 'The person approved one spec row. The coordinator files it as work.');
     io.say('   G1: greet(name) returns "Hello, <name>!"; a blank name greets the world: "Hello, world!"');

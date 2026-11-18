@@ -1,0 +1,3 @@
+{
+  "moves.selection.warm-files-bounded": {"proves":{"specs":["N2","C7"],"claim":"nextSelection.pick warms from exactly the seat's three latest built items through one bounded read, not the all-items list."},"why":"Listing every item, closed ones included, to find three cost next about a second per pick on a 10,689-item board under load (#10692).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]}
+}

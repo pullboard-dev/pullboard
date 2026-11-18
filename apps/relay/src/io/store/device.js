@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { approvalContext } from '../../../../../packages/link/index.js';
-import { createPersonEnrollmentStore } from '../../logic/person/enrollment/store.js';
+import { createPersonEnrollmentStore } from './enrollment.js';
 import {
   createExcludedStore,
   createExcludedTables,
@@ -78,6 +78,11 @@ export function createDeviceStore({ directory, now = Date.now }) {
       database().prepare('DELETE FROM device_session WHERE expires<=?').run(now());
       database().prepare('INSERT OR IGNORE INTO device_session VALUES(?,?,?,?)')
         .run(principal.user.id, principal.id, device, principal.expires);
+    },
+    /** Whether this session was bound to an enrolled device, so a browser with cleared storage can be told its pairing was lost. */
+    knownSession(principal) {
+      if (principal.kind !== "session" || !db && !existsSync(file)) return false;
+      return Boolean(database().prepare("SELECT 1 FROM device_session WHERE account=? AND session=? AND expires>?").get(principal.user.id, principal.id, now()));
     },
     /** A revoked phone cannot reuse its original session to bypass device routes and fetch ciphertext. */
     authorizeSession(principal) {

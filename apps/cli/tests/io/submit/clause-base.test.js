@@ -20,7 +20,7 @@ function comparison() {
   return { asked, compare };
 }
 
-test('clause 1: each [test] clause file runs at the item base and its receipt is recorded [C7]', async () => {
+test('cli.io-submit-clause-base.each-test-clause-file-runs-at-the: clause 1: each [test] clause file runs at the item base and its receipt is recorded [C7]', async () => {
   const { asked, compare } = comparison();
   const recorded = [];
   const result = await recordClauseBaseRuns('/repo', item, { gateFiles, recordedRows: [], record: async id => { recorded.push(id); } }, { compare, exists: () => true });
@@ -29,7 +29,7 @@ test('clause 1: each [test] clause file runs at the item base and its receipt is
   assert.deepEqual(result, { ran: [FILE, OTHER], skipped: [] });
 });
 
-test('clause 1: a file with a recorded base run is not run again, and a file the base lacks is skipped with its reason [C7]', async () => {
+test('cli.io-submit-clause-base.a-file-with-a-recorded-base-run: clause 1: a file with a recorded base run is not run again, and a file the base lacks is skipped with its reason [C7]', async () => {
   const { asked, compare } = comparison();
   const result = await recordClauseBaseRuns('/repo', item, { gateFiles, recordedRows: [{ file: FILE, name: 'x' }] }, { compare, exists: () => false });
   assert.deepEqual(asked, []);
@@ -39,14 +39,14 @@ test('clause 1: a file with a recorded base run is not run again, and a file the
   assert.deepEqual(none, { ran: [], skipped: [] }, 'no base commit, no run');
 });
 
-test('clause 1: an unavailable or throwing comparison is reported as skipped and never thrown [C7]', async () => {
+test('cli.io-submit-clause-base.an-unavailable-or-throwing-comparison-is-reported: clause 1: an unavailable or throwing comparison is reported as skipped and never thrown [C7]', async () => {
   const unavailable = await recordClauseBaseRuns('/repo', item, { gateFiles, recordedRows: [] }, { compare: async () => ({ unavailable: 'no runner' }), exists: () => true });
   assert.deepEqual(unavailable.skipped.map(row => row.reason), ['no runner', 'no runner']);
   const thrown = await recordClauseBaseRuns('/repo', item, { gateFiles, recordedRows: [] }, { compare: async () => { throw new Error('boom'); }, exists: () => true });
   assert.deepEqual(thrown.skipped.map(row => row.reason), ['boom', 'boom']);
 });
 
-test('clause 2: a test that fails on an assertion at base and passes at head passes the fail-before check [C7]', () => {
+test('cli.io-submit-clause-base.a-test-that-fails-on-an-assertion: clause 2: a test that fails on an assertion at base and passes at head passes the fail-before check [C7]', () => {
   const baseRows = [FILE, OTHER].map(file => ({ file, name: 'x', passed: false, skipped: false, failure: 'assertion' }));
   assert.equal(clauseReceiptProblem(item, { gateFiles, baseRows, baseCommit: BASE }), null);
   assert.match(clauseReceiptProblem(item, { gateFiles, baseRows: [], baseCommit: BASE })?.message ?? '', /no recorded run that fails on an assertion/u);
