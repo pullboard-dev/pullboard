@@ -35,9 +35,9 @@ function project(t) {
   return { dir: root, git: run, main, source };
 }
 
-test('merge.submit.checkout-false-clean: clause 1: the submit merge of main leaves git status empty, HEAD and the folder where they were [C7,V4,#3768]', t => {
+test('merge.submit.checkout-false-clean: clause 1: the submit merge of main, called with no options, leaves git status empty, HEAD and the folder where they were [C7,V4,#3768]', t => {
   const p = project(t);
-  const result = mergeSubmissionMain(p.dir, p.main, { checkout: false });
+  const result = mergeSubmissionMain(p.dir, p.main);
   assert.equal(result.merged, true);
   assert.notEqual(result.commit, p.source);
   assert.equal(p.git('status', '--porcelain=v1', '--untracked-files=all'), '');
@@ -49,8 +49,8 @@ test('merge.submit.checkout-false-clean: clause 1: the submit merge of main leav
 
 test('merge.submit.second-not-dirty: clause 2: a second submit merge from the same folder is not refused DIRTY and composes the same tree [C7,V4,#3768]', t => {
   const p = project(t);
-  const first = mergeSubmissionMain(p.dir, p.main, { checkout: false });
-  const second = mergeSubmissionMain(p.dir, p.main, { checkout: false });
+  const first = mergeSubmissionMain(p.dir, p.main);
+  const second = mergeSubmissionMain(p.dir, p.main);
   assert.equal(second.merged, true);
   assert.equal(p.git('rev-parse', `${second.commit}^{tree}`), p.git('rev-parse', `${first.commit}^{tree}`));
   assert.equal(p.git('status', '--porcelain=v1', '--untracked-files=all'), '');

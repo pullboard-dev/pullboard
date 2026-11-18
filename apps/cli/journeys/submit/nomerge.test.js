@@ -38,7 +38,7 @@ function project(t) {
 
 test('cli.journeys-submit-nomerge.a-hook-refusal-after-merging-main: clause 1: a hook refusal after merging main leaves no MERGE_HEAD and no staged changes [C7]', t => {
   const p = project(t);
-  assert.throws(() => mergeSubmissionMain(p.work, p.trunk), error => error.code === 'MERGE_CHECK_FAILED' && error.message.includes('NOT_JOINED'));
+  assert.throws(() => mergeSubmissionMain(p.work, p.trunk, { checkout: true }), error => error.code === 'MERGE_CHECK_FAILED' && error.message.includes('NOT_JOINED'));
   assert.equal(existsSync(join(p.git(p.work, 'rev-parse', '--absolute-git-dir'), 'MERGE_HEAD')), false);
   assert.equal(p.git(p.work, 'status', '--porcelain', '--untracked-files=all'), '');
   assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), p.source);
@@ -46,9 +46,9 @@ test('cli.journeys-submit-nomerge.a-hook-refusal-after-merging-main: clause 1: a
 
 test('cli.journeys-submit-nomerge.rerunning-the-submit-merge-after-the: clause 2: rerunning the submit merge after the refusal succeeds without manual cleanup [C7]', t => {
   const p = project(t);
-  assert.throws(() => mergeSubmissionMain(p.work, p.trunk), { code: 'MERGE_CHECK_FAILED' });
+  assert.throws(() => mergeSubmissionMain(p.work, p.trunk, { checkout: true }), { code: 'MERGE_CHECK_FAILED' });
   writeFileSync(p.flag, 'ok\n');
-  const result = mergeSubmissionMain(p.work, p.trunk);
+  const result = mergeSubmissionMain(p.work, p.trunk, { checkout: true });
   assert.equal(result.merged, true);
   assert.equal(p.git(p.work, 'status', '--porcelain'), '');
 });

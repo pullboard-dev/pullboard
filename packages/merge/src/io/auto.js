@@ -7,11 +7,11 @@ import { Refused } from '../../../kernel/index.js';
 /**
  * Merge an exact main commit only when Git reports no conflict, using the invoking builder’s Git identity.
  *
- * With `checkout: false` the merge is written as Git objects only: the builder's checkout, index and HEAD stay put and no
+ * By default (`checkout: false`) the merge is written as Git objects only: the builder's checkout, index and HEAD stay put and no
  * working-tree update or merge hook runs. Why: the checkout was the slowest phase of submit (4.6 s idle, 14-31 s loaded);
  * the gate only needs the composed commit, which the submit pins for the runner [C7].
  */
-export function mergeSubmissionMain(root, main, { checkout = true } = {}) {
+export function mergeSubmissionMain(root, main, { checkout = false } = {}) {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(main)) throw new Refused('NO_POLICY', 'read an exact accepted main before composing the submission');
   const env = cleanGitEnvironment();
   const source = git(root, ['rev-parse', 'HEAD'], { env });
