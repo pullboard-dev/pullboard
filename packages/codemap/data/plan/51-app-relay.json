@@ -45,7 +45,7 @@
   ["relay/passkey-http.js","apps/relay/src/logic/http/passkey.js","seed"],
   ["relay/passkeys.js","apps/relay/src/io/passkeys.js","seed"],
   ["relay/person-enrollment-http.js","apps/relay/src/logic/person/enrollment/http.js","seed"],
-  ["relay/person-enrollment-store.js","apps/relay/src/logic/person/enrollment/store.js","seed"],
+  ["relay/person-enrollment-store.js","apps/relay/src/io/store/enrollment.js","seed"],
   ["relay/retention.js","apps/relay/src/io/retention.js","seed"],
   ["relay/service-worker.js","apps/relay/src/logic/worker.js","seed"],
   ["relay/service.js","apps/relay/src/io/service.js","seed"],

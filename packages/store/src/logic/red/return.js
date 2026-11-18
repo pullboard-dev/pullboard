@@ -5,6 +5,7 @@ import { PINNED_CLAIM_RELEASE_MS } from "../pinned.js";
 import { itemPinned } from "../pinned.js";
 import { handoffRecord } from "../../io/submit/handoff/records.js";
 import { pulledGateRecords } from "../../io/submit/handoff/records.js";
+import { gateShardsUnsettled } from "../../io/submit/handoff/records.js";
 
 /** The idle limit for an unpinned claim, counted from the red return (#2640); kept beside the health reader's copy. */
 const RED_RETURN_IDLE_MS = 40 * 60_000;
@@ -49,30 +50,7 @@ export function submitGateInFlight(board, item) {
   if (item?.item_status !== 'claimed' || !item.item_owner) return false;
   // The record lives on the item's gate job, the one place hand-off state is kept [C7].
   const job = handoffRecord(board.db, item.item_id);
-  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item) || gateShardsInFlight(board, item);
-}
-
-/** How long an unsettled sharded gate keeps its claim, counted from the gate job's creation: the gate's own deadline. */
-export const GATE_SETTLE_HOLD_MS = 2 * 3_600_000;
-
-/**
- * Whether the item's newest gate job passed its checks, left its proof to shard jobs, and has not settled: a shard is
- * still open, or every shard is done but the combined result has not applied (no `note:shards.settled` step), and the
- * gate job is younger than GATE_SETTLE_HOLD_MS. Why: the gate is the board's work, and the board applies its result only
- * while the submitting seat holds the item. #8249's claim was released while its 10 shards ran [#8342], and #10883's
- * while its 32 done shards waited for their result to apply, so that gate never applied [C7,#10931].
- */
-function gateShardsInFlight(board, item) {
-  try {
-    const gate = board.db.prepare(`SELECT job_id, job_created FROM job WHERE job_kind = 'gate' AND job_item = ?
-      ORDER BY job_created DESC, rowid DESC LIMIT 1`).get(item.item_id);
-    if (!gate || !(board.clock.now().getTime() - gate.job_created < GATE_SETTLE_HOLD_MS)) return false;
-    const shards = board.db.prepare(`SELECT COUNT(*) AS total, SUM(job_step <> 'done') AS open FROM job
-      WHERE job_kind = 'gate-shard' AND job_item = ? AND job_id LIKE ? || ':shard:%'`).get(item.item_id, gate.job_id);
-    if (!shards.total) return false;
-    if (shards.open > 0) return true;
-    return board.db.prepare("SELECT 1 FROM job_step WHERE job_step_job = ? AND job_step_name = 'note:shards.settled' LIMIT 1").get(gate.job_id) === undefined;
-  } catch { return false; } // an older board has no job tables, so it holds no shards
+  return ['queued', 'running'].includes(job?.state) && job.agentId === item.item_owner || pulledGateInFlight(board, item) || gateShardsUnsettled(board, item);
 }
 
 /** Whether the claim's pulled gate job is still offered or held by a runner, as the queued hand-off record was [P7,#2561]. */
