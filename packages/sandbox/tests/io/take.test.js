@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../../../store/index.js';
+import { mainRedBuildOffer } from '../../src/io/take.js';
 import { takeSelection } from '../../src/io/take.js';
 import { nextProgress } from '../../src/io/take.js';
 import { actorClaims } from '../fixtures/ports.js';
@@ -80,4 +81,24 @@ test('sandbox.take.no-claim-still-times-out: clause 2: a run past the budget tha
       return result;
     }), error => error.code === 'NEXT_TIMEOUT', JSON.stringify([name, result]));
   }
+});
+
+test('sandbox.take.main-red-claim-worktrees-in-flight: clause 1: the claim worktrees main-red routing is handed list only in-flight items and return the claimed items\' recorded files as the whole open list does [C7,#5329]', t => {
+  const box = fixture(t);
+  const repair = box.add('Main red repair');
+  const held = box.add('Held by the builder');
+  box.add('Another open item');
+  box.claim(held);
+  const seen = [];
+  /** What recordedClaimWorktrees answers: each claimed item's files, and nothing for any other item. */
+  const recorded = items => new Map(items.filter(item => item.item_status === 'claimed').map(item => [item.item_id, { files: [`web/${item.item_id}.js`], unknown: false }]));
+  const claimWorktrees = items => {
+    seen.push(items);
+    return recorded(items);
+  };
+  const offer = mainRedBuildOffer(box.ctx, {}, { ...box.services, mainRedReworkItems: () => [repair], claimWorktrees });
+  assert.equal(seen.length, 1, `the routing read the claim worktrees once; offer ${JSON.stringify(offer)}`);
+  assert.ok(seen[0].some(item => item.item_id === held), 'the claimed item is listed');
+  assert.deepEqual([...new Set(seen[0].map(item => item.item_status))].sort(), ['claimed'], 'no open item is listed for the claim worktrees');
+  assert.deepEqual(recorded(seen[0]), recorded(store.listItems(box.board)), 'the same claimed items\' recorded files as the whole open list gives');
 });
