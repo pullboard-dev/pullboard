@@ -1,9 +1,9 @@
-/** The derived database beside a board: proof counters written there as well as to board_meta, when the setting is on [C7]. */
+/** The derived database beside a board: proof counters live there, not in board_meta, on a file board unless the setting is 0 [C7]. */
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 
-/** The setting that turns the dual write on; off unless it is exactly "1". */
+/** The setting that turns the derived database off: on for a file board unless it is exactly "0". */
 export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 /** The schema name the derived file is attached under. */
 const SCHEMA = 'proof_derived';
@@ -18,11 +18,11 @@ export function derivedPath(boardFile) {
 }
 
 /**
- * Attach the derived database to the board's connection and return its schema name, or null when the setting is off or the
+ * Attach the derived database to the board's connection and return its schema name, or null when the setting is 0 or the
  * board is not a file. Why: one connection writes both stores in the same transaction, so the two never disagree mid-event.
  */
 function attached(board) {
-  if (process.env[DERIVED_SETTING] !== '1') return null;
+  if (process.env[DERIVED_SETTING] === '0') return null;
   if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
   const databases = board.db.prepare('PRAGMA database_list').all();
   const file = databases.find(row => row.name === 'main')?.file;
