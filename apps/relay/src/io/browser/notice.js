@@ -155,7 +155,7 @@ export const RELAY_SCREEN_WORDS = Object.freeze({
 });
 
 /** Select guidance from observed inventory and key delivery, never infer why a computer has not uploaded. */
-export function emptyBoardStep({ available = [], waitingBoards = new Map(), sizeProblems = new Map(), approvedBoards = new Set(), loaded = false, browserPaired = false, failure = '', exclusions = [] } = {}) {
+export function emptyBoardStep({ available = [], waitingBoards = new Map(), sizeProblems = new Map(), approvedBoards = new Set(), loaded = false, browserPaired = false, knownDevice = false, failure = '', exclusions = [] } = {}) {
   const pair = { command: 'pullboard relay pair --new-browser', ask: 'Help me pair this browser with my boards.',
     small: 'On the computer with the boards, run this, then open the link it prints here or scan its QR.' };
   if (!loaded) return { title: 'Checking your linked boards', say: failure || 'Waiting for this account’s board list.', command: '', ask: '', small: '', waiting: failure || 'Checking your boards' };
@@ -172,6 +172,7 @@ export function emptyBoardStep({ available = [], waitingBoards = new Map(), size
   if (!available.length) return { ...RELAY_SCREEN_WORDS.share,
     say: 'No linked boards are available for this account. ' + RELAY_SCREEN_WORDS.share.say,
     ...(failure ? { title: 'Could not check your boards', say: failure, command: '', ask: '', small: '', waiting: 'Open this page again to retry.' } : {}) };
+  if (!browserPaired && knownDevice) return { ...pair, title: 'This browser lost its pairing', say: failure || 'Its site storage was cleared, so it forgot it was paired. Pair it again to open your boards.', waiting: 'Waiting for this browser to be paired again' };
   if (!browserPaired) return { ...pair, title: 'This browser is not paired', say: failure || 'Your account already has linked boards. Pair this browser to open them.', waiting: 'Waiting for this browser to be paired' };
   return { ...pair, title: 'Linked boards, none readable here', say: failure || 'The computer has not handed this browser keys for these boards yet.', waiting: 'Waiting for keys to your linked boards' };
 }
