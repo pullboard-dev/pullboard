@@ -9,7 +9,7 @@ import { statusShowUsefulBuilders } from '../../../../../packages/config/index.j
 import { readMaxUsefulBuilders } from '../../../../../packages/stats/light.js';
 import { usefulBuilderLines } from '../../../../../packages/stats/light.js';
 import { staleStateLine } from '../../../../../packages/store/index.js';
-import { lineSettings } from '../../../../../packages/state/index.js';
+import { lineSettings } from '../../../../../packages/state/light.js';
 import { routingCapacity } from '../../../../../packages/queue/light.js';
 import { foreignBlockers } from '../../../../../packages/items/light.js';
 import { readReceivedBoardState } from '../../../../../packages/store/index.js';
@@ -43,7 +43,7 @@ import {
 } from '../../../../../packages/spec/index.js';
 import {
   signingLine,
-} from '../../../../../packages/person/index.js';
+} from '../../../../../packages/person/light.js';
 import {
   submitInvariantLine,
   submitInvariantProposals,
