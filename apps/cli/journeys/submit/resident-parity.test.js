@@ -45,7 +45,7 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
   /** Submit one item whose work is the same as the other's, with the setting on or off; what the submit printed and what show lists afterwards. */
   async function submitItem(id, residentChecks) {
     fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { submit: { residentChecks } });
-    await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'true', '--json'));
+    await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', `test -f web/page-${id}.txt`, '--json'));
     await json(box.runLocal(box.web, 'claim', String(id), '--json'));
     mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, `web/page-${id}.txt`), 'built\n');
