@@ -47,6 +47,14 @@ async function clockFixture(t) {
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
     scope: { projectRoot: box.root }, isMain: true, stateDetail: 'full', now: () => clock.value, onStateBuild: () => { builds++; } });
   t.after(api.close);
+  /** The view reads row ages off the request path, so a build made before they land is never current (#10869): read until they have landed, then count builds from here. */
+  for (let attempt = 0; ; attempt++) {
+    assert.ok(attempt < 500, 'the row ages of the fixture commit landed');
+    const warm = await fetch(`http://127.0.0.1:${api.port}/api/v1/boards/${id}/state?detail=full`, { headers: { 'x-pullboard-key': secret } });
+    assert.equal(warm.status, 200);
+    if (!Object.values((await warm.json()).state.rowAgesAt ?? {}).some(at => at === null)) break;
+  }
+  builds = 0;
   /** Compare the complete authenticated native response with the uncached production reader at exactly its clock.
    * This additional cache witness makes no API2/decryption claim; that transport has its separate real oracle.
    */
