@@ -5,6 +5,10 @@ import * as store from '../../../../index.js';
 import { fixtureBoard } from '../../../../../board/tests/fixtures/board.js';
 import { heartbeatSeat } from '../../../../index.js';
 import { REVIEW_RELEASE_TWICE_ENGINE } from '../../../../../state/light.js';
+import { RELEASE_UNTOUCHED_REROUTE_ENGINE } from '../../../../../state/light.js';
+
+// The release table decides review releases from the untouched-reroute engine on, which is the newest engine the table waits for; the hold rule needs both.
+const TABLE_STARTS_AT = Math.max(REVIEW_RELEASE_TWICE_ENGINE, RELEASE_UNTOUCHED_REROUTE_ENGINE);
 
 // fixture-subject: addItem (a store unit test of review releases over a hand-built submitted item)
 const SYNTHETIC_MODEL = 'Synthetic fixture model';
@@ -13,7 +17,7 @@ const freeze = () => ({ text: '{}', digest: 'synthetic-release-twice-bar' });
 const REVIEW = { policy: 'any', familyPolicy: 'off' };
 
 /** A submitted item built by core-1 (openai), with reviewer seats core-2 and core-3 (openai) and core-4 (claude), on a board with the hold flag as asked. */
-function fixture(t, { flag, engine = REVIEW_RELEASE_TWICE_ENGINE }) {
+function fixture(t, { flag, engine = TABLE_STARTS_AT }) {
   const board = fixtureBoard(t);
   board.holdAfterTwoReleases = flag;
   board.executionEngineVersion = engine;
