@@ -110,3 +110,41 @@ test('cli.io-commands-moves.each-row-names-the-switch-that-puts: clause 3: each 
     for (const table of Object.keys(LIVE_SWITCH)) assert.equal(rows.filter(entry => entry.table === table).length, 1, `${table} listed once`);
   });
 }
+
+/** The recorded fixture board plus the live jobs the backbone reads: a main test job it serves, a gate job for an item that was never claimed (unserved), and one job of a kind it does not list. */
+function withJobs(t) {
+  const box = recorded(t);
+  const at = Date.now();
+  withFixtureBoard(boardFile(box), board => {
+    const now = '2026-11-17T12:00:00.000Z';
+    board.db.prepare('INSERT INTO item (item_id, item_lane, item_title, item_status, item_created_by, item_created_at, item_updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(8, 'core', 'never claimed', 'open', 'core-1', now, now);
+    const job = board.db.prepare('INSERT INTO job (job_id, job_kind, job_item, job_candidate, job_step, job_created, job_updated) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const step = board.db.prepare("INSERT INTO job_step (job_step_job, job_step_name, job_step_payload, job_step_at) VALUES (?, 'offered', ?, ?)");
+    for (const [id, kind, itemId] of [['main:1', 'main-test', null], ['gate:8', 'gate', 8], ['odd:8', 'odd-kind', 8]]) {
+      job.run(id, kind, itemId, 'c'.repeat(40), 'offered', at, at);
+      step.run(id, JSON.stringify({ needs: [], request: { submit: { agentId: 'core-1', digest: 'd'.repeat(64) } } }), at);
+    }
+  });
+  return box;
+}
+
+const backboneRow = async box => (await runCliInProcess(['moves', '--json'], { cwd: box.root, env: box.env }).then(ran => { const report = JSON.parse(ran.stdout); return (report.result ?? report).tables; })).find(entry => entry.table === 'backbone');
+
+test('cli.io-commands-moves.backbone-row-counts-the-live-jobs-it-compared: clause 1: moves --json gives the backbone row compared as served plus unserved jobs offered in the last 24 hours and disagreed as the unserved ones, from readBackboneRecords [C7,#10584]', async t => {
+  const row = await backboneRow(withJobs(t));
+  assert.equal(row.compared, 2);
+  assert.equal(row.disagreed, 1);
+  assert.deepEqual(row.lastDisagreements.map(entry => entry.id), [8]);
+  assert.match(row.lastDisagreements[0].differs, /^gate:8 \(serves\.gate\)$/u);
+});
+
+test('cli.io-commands-moves.backbone-row-reads-shadow-once-compared: clause 2: the backbone row reads state shadow once compared is 1 or more, and map with none [C7,#10584]', async t => {
+  assert.equal((await backboneRow(withJobs(t))).state, 'shadow');
+  const none = await backboneRow(recorded(t));
+  assert.deepEqual([none.state, none.compared, none.disagreed], ['map', 0, 0]);
+});
+
+test('cli.io-commands-moves.backbone-row-lists-unreadable-jobs-by-kind: clause 3: the JSON backbone row lists the unreadable counts per job kind, and a board with none lists none [C7,#10584]', async t => {
+  assert.deepEqual((await backboneRow(withJobs(t))).unreadable, { 'odd-kind': 1 });
+  assert.deepEqual((await backboneRow(recorded(t))).unreadable, {});
+});

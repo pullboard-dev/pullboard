@@ -19,7 +19,7 @@ const job = (values = {}) => ({ id: 'gate-job-1', kind: 'gate', item: 10314, ste
   step('section:landing', 9, 80_000),
 ], ...values });
 
-test('clause 1: every phase comes back in start order with start, end and duration in ms [C7]', () => {
+test('view.x-gate-trace.clause-1-every-phase-comes-back-in: clause 1: every phase comes back in start order with start, end and duration in ms [C7]', () => {
   const trace = gateTrace(job());
   const phases = trace.phases.filter((row) => row.type === 'phase');
   assert.deepEqual(phases.map((row) => row.name), ['section:static', 'section:cells', 'dispatch', 'READY', 'shard:a', 'shard:b', 'requeue', 'section:landing'],
@@ -32,7 +32,7 @@ test('clause 1: every phase comes back in start order with start, end and durati
   assert.equal(phases.at(-1).end, T0 + 100_000, 'the last phase of a finished job ends at its update time');
 });
 
-test('clause 1: gap rows hold the silence between consecutive phases and add up with the phases to the whole [C7]', () => {
+test('view.x-gate-trace.clause-1-gap-rows-hold-the-silence: clause 1: gap rows hold the silence between consecutive phases and add up with the phases to the whole [C7]', () => {
   const trace = gateTrace(job());
   const gaps = trace.phases.filter((row) => row.type === 'gap');
   assert.deepEqual(gaps.map((row) => [row.start - T0, row.end - T0, row.ms]), [[12_000, 14_000, 2_000], [40_000, 45_000, 5_000]], 'a gap sits only where a phase ended before the next began');
@@ -41,7 +41,7 @@ test('clause 1: gap rows hold the silence between consecutive phases and add up 
   for (let at = 1; at < trace.phases.length; at += 1) assert.equal(trace.phases[at].start, trace.phases[at - 1].end, 'rows follow each other with no overlap');
 });
 
-test('clause 2: a running gate returns the phase it is in now with its elapsed ms against the given now [C7]', () => {
+test('view.x-gate-trace.clause-2-a-running-gate-returns-the: clause 2: a running gate returns the phase it is in now with its elapsed ms against the given now [C7]', () => {
   const running = job({ step: 'shard:b', updated: T0 + 60_000, steps: job().steps.filter((row) => row.at <= T0 + 45_000) });
   const trace = gateTrace(running, { now: T0 + 52_500 });
   assert.equal(trace.running, true);
@@ -52,7 +52,7 @@ test('clause 2: a running gate returns the phase it is in now with its elapsed m
   assert.equal(gateTrace(job()).current, null, 'a finished gate has no current phase');
 });
 
-test('clause 1: an empty job has no rows and an unknown step name is a plain step [C7]', () => {
+test('view.x-gate-trace.clause-1-an-empty-job-has-no: clause 1: an empty job has no rows and an unknown step name is a plain step [C7]', () => {
   assert.deepEqual(gateTrace({ created: T0, steps: [] }).phases, []);
   assert.equal(phaseKind('mystery'), 'step');
 });

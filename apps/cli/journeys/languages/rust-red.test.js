@@ -29,7 +29,7 @@ test('clause 3: landing names the failing Rust test when main moved past a green
   box.git(repo, 'switch', '-q', 'main');
   assert.equal(verdict.code, 0, verdict.err);
   // Main moves past the submit: add now multiplies, which the item's test (and only it) catches in the merged tree.
-  writeFileSync(join(repo, 'src', 'math.rs'), MATH.replace('a + b', 'a * b'));
+  writeFileSync(join(repo, 'src/math.rs'), MATH.replace('a + b', 'a * b'));
   box.git(repo, 'add', '-A');
   const moved = box.tryGit(repo, 'commit', '-q', '-m', 'chore(web): add multiplies [G1]');
   assert.equal(moved.status, 0, moved.stderr);

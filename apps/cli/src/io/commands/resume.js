@@ -34,6 +34,7 @@ import {
   COORDINATOR,
   hunkFreshnessEnabled,
   loadConfig,
+  submitComposeAsObject,
 } from '../../../../../packages/config/index.js';
 import {
   resumeDoctrineNotes,
@@ -326,7 +327,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   for (const { item, merge } of card.mainMerges) say(mainMergeLines(item, merge, name).join('; '));
   if (isMain && diagnostics && card.staleFollowUps.count) say(`${plural(card.staleFollowUps.count, 'stale follow-up')}; list them with ${card.staleFollowUps.list}`);
   else if (!isMain && diagnostics) for (const item of card.stale) say(`stale: ${item.message}; next: ${item.next}`);
-  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  for (const item of card.staleVerdicts ?? []) say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   if (card.awaiting.length) say(`awaiting a verdict: ${card.awaiting.map((item) => `#${item.item_id} (${span(ctx, item.item_updated_at)})`).join(', ')}`);
   if (isMain) {
     for (const batch of card.landingBatches.filter((entry) => !['landed', 'blocked'].includes(entry.state))) say(`landing ${batch.id}: ${batch.state}, owner ${batch.owner}, tip ${batch.tip}; log ${batch.logPath}; next: pullboard land --adopt`);
