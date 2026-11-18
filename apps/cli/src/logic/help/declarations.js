@@ -11,14 +11,10 @@ import { gateHelp } from './gate.js';
 import { lifecycleHelp } from '../../../../../packages/state/index.js';
 import { footerHelp } from './footer.js';
 
-const publicSetupHelp = setupHelp.replace(
-  'pullboard join <lane> --model <name> [--level light] [--family <name>]',
-  'pullboard join <lane> --model <name> [--family <name>]');
-
 export const HELP_SOURCE_SECTIONS = Object.freeze([
   Object.freeze({ name: 'intro', text: introHelp }),
   Object.freeze({ name: 'outside', text: outsideHelp }),
-  Object.freeze({ name: 'setup', text: publicSetupHelp }),
+  Object.freeze({ name: 'setup', text: setupHelp }),
   Object.freeze({ name: 'work', text: workHelp }),
   Object.freeze({ name: 'coordinator', text: coordinatorHelp }),
   Object.freeze({ name: 'receipts', text: receiptsHelp }),

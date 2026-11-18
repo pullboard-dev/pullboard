@@ -330,8 +330,9 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
       const shoutRoute = /^\/api\/v1\/boards\/([^/]+)\/shouts\/([^/]+)$/.exec(url.pathname);
       const proofRoute = /^\/api\/v1\/boards\/([^/]+)\/proofs\/([^/]+)$/.exec(url.pathname);
       const itemRoute = /^\/api\/v1\/boards\/([^/]+)\/items\/([^/]+)$/.exec(url.pathname);
+      const agentRoute = /^\/api\/v1\/boards\/([^/]+)\/agents\/([^/]+)$/.exec(url.pathname);
       const trunkRoute = /^\/api\/v1\/boards\/([^/]+)\/trunk\/([^/]+)\.pack$/.exec(url.pathname);
-      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
+      const boardId = route?.[1] ?? shoutRoute?.[1] ?? itemRoute?.[1] ?? agentRoute?.[1] ?? proofRoute?.[1] ?? trunkRoute?.[1] ?? null;
       const who = await adapter.authenticate(req, { board: boardId, write: req.method === 'POST' });
       // Health answers on the request thread from what it holds, never through a handler, so a busy pool still answers it [A2,C7].
       if (url.pathname === '/api/v1/health') return json(res, 200, { ok: true, ...(await adapter.health?.(who)) });
@@ -371,7 +372,7 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
           throw error;
         }
       }
-      if (!route && !shoutRoute && !itemRoute && !proofRoute && !trunkRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
+      if (!route && !shoutRoute && !itemRoute && !agentRoute && !proofRoute && !trunkRoute) return json(res, 404, refusal(new Refused('NO_ENDPOINT', 'no API v1 endpoint here; use /api/v1/boards and a board state, item, shout, code, events, moves or requests path')));
       // A runner's job call is served ahead of agent moves when the API is busy, its board lookup too (#10786).
       const board = await adapter.board(boardId, who, { runner: route?.[2] === 'jobs' });
       if (trunkRoute) return await sendTrunkPack(req, res, board, trunkRoute[2], who);
@@ -383,6 +384,12 @@ export function createApiHandler(adapter, { pollMs = 200, tagState = false, body
         const proof = await adapter.proof(board, Number(rawId), who);
         if (!proof) return json(res, 404, refusal(new Refused('NO_ITEM', `no proof record for item #${rawId} on this board`)));
         return json(res, 200, { proof });
+      }
+      if (agentRoute) {
+        // One seat's lane and claims, read from the board's agent and item rows; the board state is never built for it [P7].
+        if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read a seat with GET; use a board move to change it');
+        if (typeof adapter.agent !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'this API adapter does not answer one seat on its own; use its board state');
+        return json(res, 200, await adapter.agent(board, decodeURIComponent(agentRoute[2]), who));
       }
       if (itemRoute) {
         if (req.method !== 'GET') throw new Refused('BAD_REQUEST', 'read an item with GET; use a board move to change it');
