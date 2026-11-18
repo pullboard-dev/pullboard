@@ -51,14 +51,15 @@ function lockedBoard(t) {
 test('cli.io-landing-pull.offer-lock-records-hold: clause 1: an offer through underBoardWriteLock() appends one row to the machine board-writes.jsonl naming its command, pid and outcome [C7,#11027]', t => {
   const { board, rows } = lockedBoard(t);
   assert.equal(underBoardWriteLock(board, () => 'offered'), 'offered');
-  const [row, ...rest] = rows();
-  assert.deepEqual(rest, []);
+  const offers = () => rows().filter(row => row.move === 'offerPulledLanding');
+  const [row, ...rest] = offers();
+  assert.deepEqual(rest, [], 'one row for one offer');
   assert.equal(row.move, 'offerPulledLanding');
   assert.equal(row.pid, process.pid);
   assert.equal(row.outcome, 'committed');
   assert.ok(typeof row.command === 'string' && row.command.length > 0);
   assert.throws(() => underBoardWriteLock(board, () => { throw new Error('refused offer'); }), /refused offer/u);
-  assert.equal(rows().at(-1).outcome, 'rolled-back');
+  assert.deepEqual(offers().map(entry => entry.outcome), ['committed', 'rolled-back']);
 });
 
 test('cli.io-landing-pull.offer-lock-marks-holder: clause 2: while the offer holds the lock the board write-holders folder has its marker, and it is gone after commit or rollback [C7,#11027]', t => {
