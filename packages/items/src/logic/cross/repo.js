@@ -35,7 +35,9 @@ export function foreignDependencyStates(board, item, { readReceivedBoardState })
   });
 }
 
-/** Every foreign prerequisite must be verified on its owning board's current authenticated announcement. */
+/** Every foreign prerequisite must be verified on its owning board's current authenticated announcement; a withdrawn one carries a hold reason, never a silent blocker [XB1]. */
 export function foreignBlockers(board, item, ports) {
-  return foreignDependencyStates(board, item, ports).filter(ref => ref.status !== 'verified');
+  return foreignDependencyStates(board, item, ports).filter(ref => ref.status !== 'verified').map(ref => (ref.status === 'withdrawn'
+    ? { ...ref, hold: `${ref.repo}#${ref.id} was withdrawn on its own board; the person rules: rebuild it, withdraw this item or relink` }
+    : ref));
 }
