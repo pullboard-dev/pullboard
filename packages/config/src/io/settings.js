@@ -619,6 +619,11 @@ export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
 }
 
+/** Whether an item released twice is held for the coordinator: off by default; only an exact `true` turns it on. */
+export function reviewHoldAfterTwoReleases() {
+  return loadMachineSettings().review?.holdAfterTwoReleases === true;
+}
+
 /** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
 export function releaseRerouteUntouched() {
   return loadMachineSettings().release?.rerouteUntouched === true;
