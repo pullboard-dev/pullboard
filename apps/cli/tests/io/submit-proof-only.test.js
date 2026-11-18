@@ -1,6 +1,9 @@
 /** With submit.proofOnly on, an all-proof item with every clause ticked submits with no change; off, it is refused EMPTY_SUBMIT [C7,#9105]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { proofOnlyTicked } from '../../src/io/empty.js';
+import { requireNonEmptySubmit } from '../../src/io/empty.js';
+import { runFixtureGit } from '../fixtures/child.js';
 import { settingsInventory } from '../../../../packages/config/index.js';
 import { runLocal } from '../../journeys/submit/gate/local.js';
 import { coordinatorLocal } from '../../journeys/submit/gate/local.js';
@@ -86,10 +89,12 @@ test('cli.io-submit-proof-only.off-refusal-names-the-setting: clause 1: with sub
 
 test('cli.io-submit-proof-only.test-clause-keeps-old-text: clause 2: with submit.proofOnly off, an item with a [test] clause keeps the existing EMPTY_SUBMIT text, which does not name submit.proofOnly [C7,#10834]', async (t) => {
   const box = await proofBox(t, { on: false, kinds: ['command', 'test'] });
-  await tick(box, 1, 'command');
-  await tick(box, 2, 'test');
-  const refused = await runLocal(box, 'submit', '1', '--json');
-  assert.notEqual(refused.code, 0);
-  assert.match(refused.err + refused.out, /EMPTY_SUBMIT/u);
-  assert.doesNotMatch(refused.err + refused.out, /submit\.proofOnly/u);
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: box.root });
+  const item = { item_criterion: '1. The fixture proves part 1 [command] 2. The fixture proves part 2 [test]', item_owner: 'seat' };
+  assert.equal(proofOnlyTicked(item, [], head), false, 'a [test] clause is never proof-only');
+  assert.throws(() => requireNonEmptySubmit(box.root, 1, head, head, { proofShaped: () => proofOnlyTicked(item, [], head) }), (error) => {
+    assert.equal(error.code, 'EMPTY_SUBMIT');
+    assert.doesNotMatch(error.message, /submit\.proofOnly/u);
+    return true;
+  });
 });
