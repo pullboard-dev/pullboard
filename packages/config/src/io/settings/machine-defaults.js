@@ -106,6 +106,7 @@ export const MACHINE_DEFAULTS = {
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.cargoFailures': false,
+  'landing.composedEquality': false,
   'landing.junitFailures': false,
   'landing.junitSignatures': false,
   'landing.parallelGates': false,
