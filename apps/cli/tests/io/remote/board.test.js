@@ -8,6 +8,7 @@ import { apiHttpBox } from '../../fixtures/api.js';
 import { runFixtureGit } from '../../fixtures/child.js';
 import { runCliInProcess } from '../../fixtures/process.js';
 import { createServer } from 'node:http';
+import { request as httpRequest } from 'node:http';
 import { FIXTURE_MODEL } from '../../fixtures/testkit.js';
 
 /** One successful versioned CLI call on the served board's own checkout, run in this process. */
@@ -32,6 +33,23 @@ async function remoteSeat(t) {
   /** Run the real CLI dispatch in the clone, awaited, so the in-process server keeps answering. */
   const run = (...args) => runCliInProcess(args, { cwd: clone, env });
   return { box, agent, item, clone, env, run };
+}
+
+
+/** A forwarding stand-in in front of the served board that records the path of every GET it relays. */
+async function pathRecorder(t, target) {
+  const paths = [];
+  const server = createServer((request, response) => {
+    paths.push(`${request.method} ${request.url}`);
+    const relay = httpRequest(new URL(request.url, target), { method: request.method, headers: { ...request.headers, host: new URL(target).host }, agent: false }, (answer) => {
+      response.writeHead(answer.statusCode, answer.headers);
+      answer.pipe(response);
+    });
+    request.pipe(relay);
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => { server.close(done); server.closeIdleConnections(); }));
+  return { paths, origin: `http://127.0.0.1:${server.address().port}` };
 }
 
 /** The board files a local board command would create or open in the clone. */
@@ -123,4 +141,18 @@ async (t) => {
     ['/api/v1/boards/fixture/moves', agent, key],
     ['/api/v1/boards/fixture/moves', seat.agent, null],
   ], 'the move as the joined seat carries its key; a move naming another seat carries none');
+});
+
+test('cli.io-remote-board.whoami-reads-the-seat-route: clause 1: whoami with board.url set requests the seat\'s agent route and never the board state, and prints the seat\'s lane [P7]', { timeout: 60_000 }, // budget: hang ceiling for fixture init, a served board and a recording relay, not a throughput claim.
+async (t) => {
+  const seat = await remoteSeat(t);
+  const relay = await pathRecorder(t, seat.box.origin);
+  assert.equal((await seat.run('settings', 'board.url', `${relay.origin}${seat.box.path}`)).status, 0);
+  assert.equal((await seat.run('settings', 'board.token', '--', seat.box.key)).status, 0);
+  relay.paths.length = 0;
+  const me = await seat.run('whoami', '--json');
+  assert.equal(me.status, 0, me.stdout + me.stderr);
+  assert.equal(JSON.parse(me.stdout).lane, 'app');
+  assert.ok(relay.paths.includes(`GET ${seat.box.path}/agents/${seat.env.PULLBOARD_AGENT}`), `the agent route was requested: ${relay.paths}`);
+  assert.deepEqual(relay.paths.filter((path) => path.endsWith('/state')), [], 'no GET .../state was requested');
 });
