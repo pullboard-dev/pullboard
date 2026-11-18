@@ -5,7 +5,7 @@ import { dashboardModel } from '../../../src/io/dashboard/model.js';
 import { dashboardData } from '../../fixtures/cockpit/data.js';
 import { releasedDashboardData } from '../../fixtures/cockpit/data.js';
 
-test('Dashboard uses summary leases, history and queue input without I/O [N26]', () => {
+test('view.x-io-dashboard-model.dashboard-uses-summary-leases-history-and-queue: Dashboard uses summary leases, history and queue input without I/O [N26]', () => {
   const input = dashboardData();
   const { now, mergeCommit } = input;
     assert.ok(input.events.length > 80, 'the seeded full prefix exceeds the recent state window');
@@ -64,7 +64,7 @@ test('Dashboard uses summary leases, history and queue input without I/O [N26]',
 });
 
 
-test('Dashboard counts matching merged records regardless of status [N26]', () => {
+test('view.x-io-dashboard-model.dashboard-counts-matching-merged-records-regardless-of: Dashboard counts matching merged records regardless of status [N26]', () => {
   const input = dashboardData();
   const commit = 'a'.repeat(40);
   const events = [...input.events];
@@ -84,7 +84,7 @@ test('Dashboard counts matching merged records regardless of status [N26]', () =
   assert.equal(model.bins.reduce((sum, bin) => sum + bin.count, 0), 3);
 });
 
-test('Dashboard after a run of live updates matches a full recompute over the same events [N26]', () => {
+test('view.x-io-dashboard-model.dashboard-after-a-run-of-live-updates: Dashboard after a run of live updates matches a full recompute over the same events [N26]', () => {
   const input = dashboardData();
   const events = input.events.filter(event => Date.parse(event.event_at) <= input.now).sort((a, b) => a.event_id - b.event_id);
   assert.ok(events.length > 80, 'the run folds many events');
@@ -112,7 +112,7 @@ test('Dashboard after a run of live updates matches a full recompute over the sa
   assert.equal(fold.state, null, 'nothing is kept past an event the clock has not reached');
 });
 
-test('Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
+test('view.x-io-dashboard-model.dashboard-counts-every-landed-item-from-its: Dashboard counts every landed item from its own row and matches commits only for the last day\'s landings [N26]', () => {
   const input = dashboardData();
   const { now } = input;
   const items = input.project.items.map(item => item.id === 2 ? { ...item, stage: 'merged' } : item);
@@ -124,7 +124,7 @@ test('Dashboard counts every landed item from its own row and matches commits on
   assert.equal(model.landed.filter(entry => entry.item.id === 2).length, 1, 'the recent landing still matches its merge event');
 });
 
-test('Dashboard counts passed review and reviewing time from the review events the board records, beside hand landings [N26]', () => {
+test('view.x-io-dashboard-model.dashboard-counts-passed-review-and-reviewing-time: Dashboard counts passed review and reviewing time from the review events the board records, beside hand landings [N26]', () => {
   const now = Date.parse('2026-11-13T16:00:00Z'), minute = 60_000;
   let id = 0;
   const event = (ago, by, kind, item, detail = {}) => ({ event_id: ++id, event_at: new Date(now - ago * minute).toISOString(), event_by: by, event_kind: kind, item_id: item, event_detail: JSON.stringify(detail) });

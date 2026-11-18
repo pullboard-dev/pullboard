@@ -5,7 +5,7 @@ import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js'
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { projectState } from '../../../src/io/serve.js';
 
-test('clause 1: a view started through node --input-type=module -e still refreshes row ages in its worker [C7]', async t => {
+test('view.x-io-live-row-ages-node-e.clause-1-a-view-started-through-node: clause 1: a view started through node --input-type=module -e still refreshes row ages in its worker [C7]', async t => {
   const project = cellProject(t, { real: true }), board = cellBoard(t, project.boardFile);
   // Under node -e the process carries the eval flags; a worker that inherited them would run the script, not the ages.
   const kept = process.execArgv;

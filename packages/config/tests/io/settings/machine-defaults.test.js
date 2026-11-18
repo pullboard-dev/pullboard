@@ -115,6 +115,7 @@ const BEFORE = {
   'landing.asyncFetch': false,
   'landing.byHand': false,
   'landing.cargoFailures': false,
+  'landing.composedEquality': false,
   'landing.junitFailures': false,
   'landing.junitSignatures': false,
   'landing.parallelGates': false,
@@ -197,6 +198,7 @@ const BEFORE = {
   'status.showUsefulBuilders': false,
   'submit.clauseMarks': false,
   'submit.composeAsObject': false,
+  'submit.composeOnRunner': false,
   'submit.pendingFromJobRow': false,
   'submit.proofOnly': false,
   'submit.recoverFromJobRow': false,
@@ -398,4 +400,33 @@ test('config.io-settings-machine-defaults.review-hold-exact-true: clause 2: revi
   assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: false } }), false);
   assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: 'true' } }), false);
   assert.equal(await reviewHoldWith({ review: { holdAfterTwoReleases: true } }), true);
+});
+
+async function composedEqualityWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { landingComposedEquality } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-composed-equality-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return landingComposedEquality();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.composed-equality-listed: clause 1: landing.composedEquality is false in MACHINE_DEFAULTS, listed with default false in BEFORE, and has a description row [C7,#10973]', () => {
+  assert.equal(MACHINE_DEFAULTS['landing.composedEquality'], false);
+  assert.equal(BEFORE['landing.composedEquality'], false);
+  assert.ok(SETTING_DESCRIPTIONS['landing.composedEquality']);
+});
+
+test('config.io-settings-machine-defaults.composed-equality-exact-true: clause 2: landingComposedEquality() is false by default, true only for an exact true, and a non-boolean value refuses BAD_MACHINE_SETTINGS [C7,#10973]', async () => {
+  assert.equal(await composedEqualityWith({}), false);
+  assert.equal(await composedEqualityWith({ landing: { composedEquality: false } }), false);
+  assert.equal(await composedEqualityWith({ landing: { composedEquality: true } }), true);
+  await assert.rejects(composedEqualityWith({ landing: { composedEquality: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /landing\.composedEquality/u.test(error.message));
 });
