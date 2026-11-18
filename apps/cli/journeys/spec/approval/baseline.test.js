@@ -18,7 +18,7 @@ async function document(box, root, ...args) {
   return JSON.parse(result.out);
 }
 
-test('malformed JSONL record shapes stay unconfirmed in status and the API [A9,S1,S19,P6]', async t => {
+test('cli.journeys-spec-approval-baseline.malformed-jsonl-record-shapes-stay-unconfirmed: malformed JSONL record shapes stay unconfirmed in status and the API [A9,S1,S19,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   for (const signed of [false, true]) {
@@ -53,7 +53,7 @@ test('malformed JSONL record shapes stay unconfirmed in status and the API [A9,S
   }
 });
 
-test("a board's approval baseline is taken once and never blesses later edits [I10,A9,S1,P6]", async t => {
+test('cli.journeys-spec-approval-baseline.a-board-s-approval-baseline-is: a board\'s approval baseline is taken once and never blesses later edits [I10,A9,S1,P6]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const sandbox = helpers.sandbox();
@@ -86,7 +86,7 @@ test("a board's approval baseline is taken once and never blesses later edits [I
     'one exact person decision confirms a changed baseline row');
 });
 
-test('an upgraded board stays pending until a coordinator command in the main checkout [I10,A9,H16,S1]', async t => {
+test('cli.journeys-spec-approval-baseline.an-upgraded-board-stays-pending-until: an upgraded board stays pending until a coordinator command in the main checkout [I10,A9,H16,S1]', async t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

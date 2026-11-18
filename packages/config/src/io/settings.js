@@ -479,9 +479,10 @@ export function reviewCanonicalFamilies() {
   return loadMachineSettings().review?.canonicalFamilies === true;
 }
 
-/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on. */
+/** Whether a lane worktree may join the coordinator lane as a second seat (#10573): off by default; only an exact `true` turns it on, under the flat key "join.coordinatorSeat" or the nested form (#10669). */
 export function joinCoordinatorSeat() {
-  return loadMachineSettings().join?.coordinatorSeat === true;
+  const settings = loadMachineSettings();
+  return settings['join.coordinatorSeat'] === true || settings.join?.coordinatorSeat === true;
 }
 
 /** Whether a coordinator move records its own session usage (#9685): off by default; only an exact `true` turns it on. */
@@ -514,6 +515,12 @@ export function testStatusOutcomesEnabled() {
 export function testLoadRerunEnabled() {
   const group = loadMachineSettings().test;
   return group?.loadRerun === true;
+}
+
+/** Whether test.retryStaleRecord is on (#10663): off by default; only an exact `true` turns it on. */
+export function testRetryStaleRecordEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.retryStaleRecord === true;
 }
 
 /** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
@@ -596,6 +603,11 @@ export function docsRegenerateOnCommit() {
   return loadMachineSettings().docs?.regenerateOnCommit === true;
 }
 
+/** Whether add and edit refuse a new test path that mirrors no source file (#10629): off by default; only an exact `true` turns it on. */
+export function itemsTestMirrorAtAdd() {
+  return loadMachineSettings().items?.testMirrorAtAdd === true;
+}
+
 /** Whether add.warnUnnamedTest is on (#9303): off by default; only an exact `true` turns it on. */
 export function addWarnUnnamedTest() {
   return loadMachineSettings().add?.warnUnnamedTest === true;
@@ -604,6 +616,11 @@ export function addWarnUnnamedTest() {
 /** Whether an untouched release counts toward the route-up rule (#9759): off by default; only an exact `true` turns it on. */
 export function releaseRerouteUntouched() {
   return loadMachineSettings().release?.rerouteUntouched === true;
+}
+
+/** Whether a stale release compares only the released item's own events (#10598): off by default; only an exact `true` turns it on. */
+export function releaseStaleItemRevision() {
+  return loadMachineSettings().release?.staleItemRevision === true;
 }
 
 /** Whether a settled hold lifts when main moves (#9699): off by default; only an exact `true` turns it on. */

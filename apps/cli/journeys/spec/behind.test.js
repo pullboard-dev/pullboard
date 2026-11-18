@@ -44,7 +44,7 @@ function commitLocalWork(box, id = 'G1') {
 }
 
 /** Main-only cited rows need a merge; a row unknown to Main still needs its historical meaning. */
-test('spec check names merge main when a cited row exists on main [S8,B6]', async () => {
+test('cli.journeys-spec-behind.spec-check-names-merge-main-when: spec check names merge main when a cited row exists on main [S8,B6]', async () => {
   for (const [id, onMain] of [['G3', true], ['X9', false]]) {
     const box = project();
     if (onMain) addMainRows(box, [id]);
@@ -71,7 +71,7 @@ test('spec check names merge main when a cited row exists on main [S8,B6]', asyn
   }
 });
 
-test('claims freeze main-only rows without changing stale, dirty or divergent worktrees [B6,V1]', async () => {
+test('cli.journeys-spec-behind.claims-freeze-main-only-rows-without: claims freeze main-only rows without changing stale, dirty or divergent worktrees [B6,V1]', async () => {
   for (const state of ['clean', 'diverged', 'untracked', 'dirty']) {
     const box = project();
     addMainRows(box, ['G3', 'G4']);

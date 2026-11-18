@@ -1,5 +1,8 @@
 /** Marker rows for further ecosystems: each language is one row of data, not more detection code [#3707,C7]. */
 
+/** Whether a pubspec.yaml declares a Flutter project: a line that is exactly `flutter:` (a key, not `sdk: flutter` or `flutter_test:`). */
+const FLUTTER_LINE = /^[ \t]*flutter:[ \t]*$/mu;
+
 /** The default `npm init` test script, which is not a real test. */
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 
@@ -73,11 +76,10 @@ export function rowMatches(row, names, contents) {
 }
 
 /*
- * LANGUAGES: one row per language, the single table the gate and landing tables are moving into [C7].
- * Rows are copied verbatim from LANGUAGE_ROWS above, the built-in detection and LANGUAGE_TESTS and toolchain ROWS in
- * ../io/config.js, the JUnit ROWS and affected rows in ./junit.js, and landing's JUNIT_FILE_ROWS
- * (packages/landing/src/logic/junit-files.js); tests/logic/language-rows.test.js proves they still agree until each
- * caller reads this table instead. A row:
+ * LANGUAGES: one row per language, the single table the gate and landing read every per-language fact from [C7].
+ * Adding a language is one row here plus one test (packages/gate/tests/logic/language-rows.test.js checks it is complete);
+ * no other file holds a per-language table. The old tables (LANGUAGE_ROWS, the toolchain and JUnit rows, the affected rows,
+ * landing's JUNIT_FILE_ROWS) are views of this one. A row:
  *   language   the id detectLanguages returns
  *   detect     { markers?, pattern?, requires?, command } matched by rowMatches in table order; 'built-in' when
  *              detectHere finds it in code; null when nothing detects it
@@ -85,8 +87,8 @@ export function rowMatches(row, names, contents) {
  *   toolchains the runner toolchains, or a function of the detected command; null when no row exists
  *   junit      { command, report, needs }: the JUnit-writing gate command, its report path and the init note; null when none
  *   affected   { affectedTests, selectionUnit } or { none: reason }; null when no row exists
- *   cases      { name, inputs, file }: the report name, the extra row fields file reads (deno: root), and the case to
- *              repo-file map; null when none
+ *   cases      { name, inputs, file }: the report name, the extra row fields file reads (inputs, deno: root), and the
+ *              case to repo-file map; null when none
  * Every row runs an open-source toolchain locally and reads an open report format (JUnit XML, exit codes).
  */
 
@@ -336,7 +338,8 @@ export const LANGUAGES = Object.freeze([
     toolchains: ['zig'],
     junit: null,
     affected: null,
-    cases: null,
+    // A Zig JUnit reporter (zig build test has no built-in one) writes the test file path (src/calc.zig) in classname and no file attribute.
+    cases: { name: 'zig', inputs: [], file: row => (row.classname && /\.zig$/u.test(row.classname) ? row.classname : null) },
   },
   {
     language: 'make',
@@ -349,8 +352,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'dart',
-    detect: null,
-    tests: [],
+    detect: { markers: ['pubspec.yaml'], command: (_names, contents) => (FLUTTER_LINE.test(contents('pubspec.yaml') ?? '') ? 'flutter test' : 'dart test') },
+    tests: ['**/*_test.dart'],
     toolchains: command => (/^\s*flutter\s/u.test(command) ? ['flutter'] : ['dart']),
     junit: null,
     affected: null,
@@ -359,8 +362,8 @@ export const LANGUAGES = Object.freeze([
   },
   {
     language: 'swift',
-    detect: null,
-    tests: [],
+    detect: { markers: ['Package.swift'], command: 'swift test' },
+    tests: ['**/Tests/**/*Tests.swift'],
     toolchains: ['swift'],
     junit: { command: `swift test --xunit-output ${JUNIT_DIR}/swift.xml`, report: `${JUNIT_DIR}/swift.xml`, needs: null },
     affected: { none: 'AFFECTED_NONE: swift has no per-file test command; run the full gate or declare affectedSuites' },

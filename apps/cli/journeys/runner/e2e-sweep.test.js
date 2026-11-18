@@ -37,7 +37,7 @@ function commitFile(box, cwd, path, text, message) {
   return box.git(cwd, 'commit', '-q', '-m', message);
 }
 
-test('sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', async () => {
+test('cli.journeys-runner-e2e-sweep.sweep-files-one-light-item-per: sweep files one light item per flagged file, in its lane; a second sweep skips what is open [N15]', async () => {
   const box = project();
   writeFileSync(join(box.dir, 'novar.mjs'), [
     "import fs from 'node:fs';",
@@ -84,7 +84,7 @@ test('sweep files one light item per flagged file, in its lane; a second sweep s
   assert.equal(pending.item_route, 'mid', 'unknown checker rules stay mid until actually diagnosed');
 });
 
-test('pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', async () => {
+test('cli.journeys-runner-e2e-sweep.pre-commit-runs-the-fixers-on: pre-commit runs the fixers on fully staged files and restages them; partly staged files are left alone [C5]', async () => {
   const box = project();
   const fixer = join(box.dir, 'trim.mjs');
   writeFileSync(fixer, "import fs from 'node:fs';\nfor (const f of process.argv.slice(2)) fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/[ \\t]+$/gm, ''));\n");
@@ -115,7 +115,7 @@ test('pre-commit runs the fixers on fully staged files and restages them; partly
   assert.equal(await committedText('docs/e.js'), 'const e = 1;   \n');
 });
 
-test('resume puts an agent back to work from the board: its claim, its branch, what came back, the next step [N19]', async () => {
+test('cli.journeys-runner-e2e-sweep.resume-puts-an-agent-back-to: resume puts an agent back to work from the board: its claim, its branch, what came back, the next step [N19]', async () => {
   const box = project();
   box.env.PULLBOARD_VIEW_FOREGROUND = '1';
   const view = await e2e.startView(box, box.repo);
@@ -155,7 +155,7 @@ test('resume puts an agent back to work from the board: its claim, its branch, w
   assert.match(back, /^next: pullboard next; pullboard claim 1, fix what the verifier found, and submit again$/m);
 });
 
-test('next takes work near your recent files; submit records them; show names related verified work [N20, N21]', async () => {
+test('cli.journeys-runner-e2e-sweep.next-takes-work-near-your-recent: next takes work near your recent files; submit records them; show names related verified work [N20, N21]', async () => {
   const box = project();
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Footer', '--specs', 'G1', '--brief', 'Files: web/footer.html');
   await fixtureAdd(box.runLocal, box.repo, 'web', 'Header', '--specs', 'G1', '--brief', 'Files: web/header.html');

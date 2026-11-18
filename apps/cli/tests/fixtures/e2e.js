@@ -78,6 +78,10 @@ export function parityText(text, dir) {
     // The detached comparison worker also writes its own thread facts at no fixed moment, so the lines and the digest's fact count follow timing, not the runtime.
     .replace(/^ +<time> +.*fact measurement <uuid>: Review comparison: .*\n/gmu, '')
     .replace(/\b\d+ fact activities\b/gu, '<n> fact activities')
+    // The add's check-baseline job runs on the loopback local runner at no fixed moment, and a seat's first delivery starts at the board head,
+    // so its event shows in the second submit's digest only when it lands after the first submit's delivery: call speed, not the runtime (#10746).
+    // Only that one digest line goes; the board's event counts still compare.
+    .replace(/^\d+ check-baseline activit(?:y|ies); details remain on the board\n?/gmu, '')
     .replace(/"pid":\d+/gu, '"pid":"<pid>"')
     // Whether init's background view starts or finds port 4890 taken depends on what else runs on the machine, not on the runtime.
     .replace(/Pullboard view is running; open [^"\\]*|Port \d+ is in use; the background view did not start\./gu, '<view state>');
@@ -115,9 +119,9 @@ export function parityRecord({ dir, env, cwd, args, result }) {
     : typeof value === 'number' && /Ms$/u.test(key ?? '') ? '<ms>' // a measured duration
     : typeof value === 'number' && key === 'pid' ? '<pid>' // a process id of a gate's test runtime
     : typeof value === 'string' ? parityText(value, dir).replace(/^disk use under \.git\/pullboard: .*$/gmu, 'disk use under .git/pullboard: <measured>')
-    // The late comparison fact is itself a background-measured value; it also moves every later event id by one.
-    : (key === 'eventId' || key === 'cursor') && typeof value === 'number' ? '<event>' // a cursor counts the late comparison fact too
-    : Array.isArray(value) ? value.filter(inner => !(inner?.type === 'fact' && /^Review comparison: /u.test(inner.text ?? ''))).map(inner => mask(inner))
+    // The late comparison fact and the gate job offer fact are background values (one runtime sees them in a thread, the other later); they also move every later event id.
+    : (key === 'eventId' || key === 'acceptEventId' || key === 'supersedes' || key === 'cursor') && typeof value === 'number' ? '<event>' // a cursor or an accept id counts the late comparison fact too
+    : Array.isArray(value) ? value.filter(inner => !(inner?.type === 'fact' && /^(?:Review comparison: |Gate job \S+ offered for )/u.test(inner.text ?? ''))).map(inner => mask(inner))
     : value && typeof value === 'object' ? Object.fromEntries([...Object.entries(value).filter(([name]) => key !== 'disk' || !DISK_MEASURED.includes(name)).map(([name, inner]) => [name, mask(inner, name)]),
       ...(key === 'disk' ? [['measurement', '<measured>']] : [])]) : value;
   return mask({ cwd, args, code: result.code, json, out: json ? null : result.out, err: result.stderr, board });

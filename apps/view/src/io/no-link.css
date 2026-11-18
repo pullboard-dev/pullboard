@@ -11,3 +11,4 @@ body { box-sizing: border-box; display: grid; place-items: center; min-height: 1
 .no-link .no-link-own { margin-top: var(--space-6); padding-top: var(--space-5); border-top: var(--border-row); }
 .no-link a { color: var(--accent-strong); font-weight: 600; text-underline-offset: 2px; }
 .no-link a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+.no-link code { font-weight: 600; color: var(--ink); }

@@ -163,5 +163,6 @@ export { readStages } from './src/io/stages.js';
 export { retainTestResultCompletion } from './src/io/test/store.js';
 export { runnerPhaseFields } from './src/io/timing.js';
 export { junitAttributes, junitCases, junitClauseTicks, junitCommand, JUNIT_LANGUAGES, cargoTestCases, affectedRow } from './src/logic/junit.js';
+export { LANGUAGES } from './src/logic/language-rows.js';
 export { evaluate as evaluateCla, appendSignatures as appendClaSignatures, readSignatures as readClaSignatures } from './src/io/check/cla.js';
 export { allTestOutcomes } from './src/io/test/outcomes.js';

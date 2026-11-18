@@ -15,13 +15,13 @@ const IN_LANE = ['apps/cli/journeys/list/board.test.js', 'a lane commits only in
 const HEADER = ['apps/cli/journeys/hooks/main.test.js', 'header format, length, case and period'];
 const CITES = ['apps/cli/journeys/hooks/main.test.js', 'feat and fix cite ids; cited ids exist'];
 const PRE_PUSH = ['apps/cli/journeys/spec/e2e/submit.test.js', 'pre-push runs the gate once per tree'];
-const MERGE_HINT = ['apps/cli/journeys/hooks/main.test.js', 'a refused merge message points to the message git writes'];
+const MERGE_HINT = ['apps/cli/journeys/hooks/main-part2.test.js', 'a refused merge message points to the message git writes'];
 const FIXERS = ['apps/cli/journeys/runner/e2e-sweep.test.js', 'pre-commit runs the fixers on fully staged files'];
 const CI = ['packages/gate/tests/ci.test.js', 'CI runs the gate on every push and pull request'];
 const BADGE = ['packages/gate/tests/ci.test.js', "the README header shows the board's own badges, not the CI status badge"];
 const BADGE_LINE = '[![gate](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml/badge.svg)](https://github.com/pullboard-dev/pullboard/actions/workflows/gate.yml)\n\n';
-const PRE_PUSH_SHARD = '        const sharded = isStampedGreen(info.root) ? null :';
-const PRE_PUSH_RUN = "        const sharded = isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });\n        if (sharded && !sharded.isGreen) problems = [sharded.problem];\n        const gate = sharded ? null : await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });\n        if (gate?.isCached)";
+const PRE_PUSH_SHARD = '      const sharded = isStampedGreen(info.root) ? null :';
+const PRE_PUSH_RUN = "      const sharded = isStampedGreen(info.root) ? null : await (await import('../hook/push.js')).pushShardGate(ctx, { say: io.say });\n      if (sharded && !sharded.isGreen) problems = [sharded.problem];\n      const gate = sharded ? null : await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });\n      if (gate?.isCached)";
 
 /** Row, the change, its edits as [file, from, to], the test that judges it, and the outcome expected. */
 const MUTANTS = [
@@ -41,8 +41,8 @@ const MUTANTS = [
   ['C1', 'a subject may end with a period', [['packages/commits/src/io/hooks.js', "if (subject.endsWith('.')) problems.push(", 'if (false) problems.push(']], HEADER, 'red'],
   ['C2', 'cited ids need not exist', [['packages/commits/src/io/hooks.js', '...idProblems(spec, ids, doctrine).map(', '...[].map(']], CITES, 'red'],
   ['C2', 'feat and fix may cite nothing', [['packages/commits/src/io/hooks.js', 'if (type && rules.requireIds.includes(type) && !ids.length && !firstItem && !rowlessLanding) {', 'if (false) {']], CITES, 'red'],
-  ['C3', 'pre-push never runs the gate', [['apps/cli/src/io/commands/hook.js', PRE_PUSH_RUN, "        const gate = { isGreen: true, isCached: false, output: '', seconds: 0, log: '' };\n        if (gate?.isCached)"]], PRE_PUSH, 'red'],
-  ['C3', 'pre-push runs the gate again on a tree that passed', [['apps/cli/src/io/commands/hook.js', PRE_PUSH_SHARD, '        const sharded =']], PRE_PUSH, 'red'],
+  ['C3', 'pre-push never runs the gate', [['apps/cli/src/io/hook/pre-push.js', PRE_PUSH_RUN, "      const gate = { isGreen: true, isCached: false, output: '', seconds: 0, log: '' };\n      if (gate?.isCached)"]], PRE_PUSH, 'red'],
+  ['C3', 'pre-push runs the gate again on a tree that passed', [['apps/cli/src/io/hook/pre-push.js', PRE_PUSH_SHARD, '      const sharded =']], PRE_PUSH, 'red'],
   ['C3', 'pre-push lets through a commit that is not checked out', [['packages/commits/src/io/hooks.js', 'if (commit !== head) problems.push(', 'if (false) problems.push(']], PRE_PUSH, 'red'],
   ['C4', 'a refused merge header does not point to the exempt message', [['packages/commits/src/io/hooks.js', ". For a merge, keep the message git writes, which is exempt: git merge --no-edit'", "'"]], MERGE_HINT, 'red'],
   ['C4', 'a refused header does not show what it saw', [['packages/commits/src/io/hooks.js', ' (saw "${header.slice(0, 60)}")', '']], HEADER, 'red'],

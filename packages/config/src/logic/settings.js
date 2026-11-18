@@ -198,7 +198,7 @@ export function loadMachineSettings() {
   if (value.gate?.reofferInfraEnd !== undefined && typeof value.gate.reofferInfraEnd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.reofferInfraEnd in ${file} must be true or false`);
   }
-  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.localWake', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase']) {
+  for (const key of ['jobs.recordLapse', 'jobs.handBackUnrunnable', 'runners.fetchConcurrent', 'runners.fetchFailFast', 'runners.localWake', 'runners.drainOnFetchFailure', 'runners.postedLineNamesCase', 'join.coordinatorSeat']) {
     if (value[key] !== undefined && typeof value[key] !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', `${key} in ${file} must be true or false`);
   }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
@@ -219,6 +219,9 @@ export function loadMachineSettings() {
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
   }
+  if (value.items?.testMirrorAtAdd !== undefined && typeof value.items.testMirrorAtAdd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.testMirrorAtAdd in ${file} must be true or false`);
+  }
   if (value.items?.typedFields !== undefined && typeof value.items.typedFields !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.typedFields in ${file} must be true or false`);
   }
@@ -228,6 +231,9 @@ export function loadMachineSettings() {
   }
   if (testGroup?.loadRerun !== undefined && typeof testGroup.loadRerun !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `test.loadRerun in ${file} must be true or false`);
+  }
+  if (testGroup?.retryStaleRecord !== undefined && typeof testGroup.retryStaleRecord !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `test.retryStaleRecord in ${file} must be true or false`);
   }
   if (value.tests?.registryStrict !== undefined && typeof value.tests.registryStrict !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `tests.registryStrict in ${file} must be true or false`);
