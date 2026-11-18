@@ -140,7 +140,8 @@ test('cli.io-commands-test.test-status-prints-the-run-state-without: clause 1: t
   const status = await box.inProcess(box.repo, 'test', '--status', run.id);
   assert.equal(status.code, 0, `${status.out}${status.err}`);
   assert.match(status.out, new RegExp(`test run ${run.id} queued: test/a\\.test\\.js`, 'u'));
-  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => name.startsWith('resident-'));
+  // The control above takes the slot start lock (resident-*.starting, #10770) though its fake starter never runs; only a pid or socket records a process.
+  const residents = readdirSync(join(commonDir, 'pullboard')).filter(name => /^resident-.*\.(pid|sock)$/u.test(name));
   assert.deepEqual(residents, [], 'no resident board process recorded itself');
 });
 
