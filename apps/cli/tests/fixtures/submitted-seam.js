@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../../packages/store/index.js';
+import { submitFixture } from './board/submit.js';
 import { onBoard } from './land/board.js';
 
 /**
@@ -43,4 +44,22 @@ export function gateJobCount(box, id) {
   // @pullboard-board-file journey: a read-only count of the gate jobs the fixture board holds for one item
   const db = new DatabaseSync(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
   try { return db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = 'gate' AND job_item = ?").get(id).n; } finally { db.close(); }
+}
+
+/**
+ * Submit a claimed item at its committed head with a hand-written pass receipt and no runner gate job, and return the receipt id.
+ * Why: a journey about a move after the submit needs the item submitted, and a pulled gate settle costs a runner round trip; the
+ * board submit move runs for real after `passReceipt` recorded the receipt, so `pullboard show` reads the item submitted at that head [C7,#9873].
+ *
+ * @param {{ repo: string, git: (cwd: string, ...args: string[]) => string }} box - The e2e project box.
+ * @param {string} cwd - The claimed item's folder; its HEAD is the committed head the submit covers.
+ * @param {number} id - A claimed item.
+ * @returns {string} The receipt id.
+ */
+export function submittedWithoutGate(box, cwd, id) {
+  const receiptId = passReceipt(box, id, cwd);
+  const commit = String(box.git(cwd, 'rev-parse', 'HEAD')).trim();
+  const tree = String(box.git(cwd, 'rev-parse', 'HEAD^{tree}')).trim();
+  onBoard(box, board => submitFixture(board, id, { agentId: store.getItem(board, id).item_owner, commit, tree }));
+  return receiptId;
 }
