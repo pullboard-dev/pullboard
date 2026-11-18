@@ -9,6 +9,9 @@ import { seatGone } from '../presence.js';
 import { itemById } from './query.js';
 import { laneHold } from './query.js';
 
+/** The coordinator lane, as the claim table names it (claim.table.js wrongLane). */
+const COORDINATOR = 'coordinator';
+
 const KINDS = Object.freeze(['add', 'edit', 'claim', 'renew', 'release', 'submit', 'accept', 'reject', 'reopen', 'withdraw', 'merged', 'escalate',
   'hold_item', 'unhold_item', 'refreeze', 'reserve', 'reject_returned', 'submit_handoff_returned', 'submit-handoff']);
 
@@ -47,6 +50,8 @@ export function claimDecision(board, id, { options, plan }) {
   const { agentId, head = null, reviewSkipped = null, buildBudgetMinutes = 30, gateWaits = null } = options;
   const row = itemById(board, id);
   const seat = db.prepare('SELECT agent_lane, agent_route FROM agent WHERE agent_id=?').get(agentId);
+  // The writer checks the lane the claim runs from; only the coordinator seat claims from a worktree outside its registered lane, so only its lane follows the claim.
+  const lane = seat?.agent_lane === COORDINATOR && typeof options.lane === 'string' ? options.lane : seat?.agent_lane;
   const waits = detailWaits(db, id);
   const deps = {};
   for (const dep of [...afterOf(row), ...waits]) {
@@ -65,7 +70,7 @@ export function claimDecision(board, id, { options, plan }) {
   const frozen = plan.frozen();
   const refresh = plan.policyRefreeze();
   const seatN = plan.seatN();
-  const snapshot = { now, actor: { id: agentId, lane: seat?.agent_lane, route: seat?.agent_route ?? null, joined: Boolean(seat) }, item: itemView(board, row), items: deps,
+  const snapshot = { now, actor: { id: agentId, lane, route: seat?.agent_route ?? null, joined: Boolean(seat) }, item: itemView(board, row), items: deps,
     claimWaiting: waits, laneHold: hold ? { by: hold.hold_by, reason: hold.hold_reason } : null, actorClaims, history, usedExitKeys: [],
     io: { checkoutOwner: null, coordinatorPaths: [], provesNothing: null, reworkWindows: null, exitCeiling: null, ledgerWritable: true, sessionCap: null, foreignBlocker: null,
       builderGone: Boolean(window && !window.otherSeatFirst && window.builder !== agentId && seatGone(board, window.builder)), buildBudgetMinutes,
