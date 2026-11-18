@@ -350,7 +350,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
-    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
+    {
+      proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+      proofShaped: () => withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+    }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -409,7 +412,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const frozenPolicyOnly = () => {
     try { const commit = JSON.parse(held.item_frozen ?? 'null')?.policy?.commit; return commit ? JSON.stringify({ policy: { commit } }) : held.item_frozen; } catch { return held.item_frozen; }
   };
-  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly() },
+  const authorizationRequest = () => ({ item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: frozenPolicyOnly(), item_brief: held.item_brief, item_files: held.item_files },
     dependencies, commit });
   if (!remoteAuthorization) localSubmissionPaths();
   const { me, claimHead } = authorizationStep('freezer-digest', () => withBoard(ctx, (board) => {
