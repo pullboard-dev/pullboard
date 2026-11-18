@@ -6,7 +6,7 @@ import { projectState } from '../../../src/io/serve.js';
 import { cellBoard } from '../../../../../packages/store/tests/fixtures/cell.js';
 import { cellProject } from '../../../../../packages/store/tests/fixtures/cell.js';
 
-test('clause 1: the API state read through viewApiPorts keeps no row ages on a first read, where plain projectState walks history [C7]', t => {
+test('view.x-io-live-api-state-later.clause-1-the-api-state-read-through: clause 1: the API state read through viewApiPorts keeps no row ages on a first read, where plain projectState walks history [C7]', t => {
   const project = cellProject(t), board = cellBoard(t, project.boardFile);
   const api = viewApiPorts.projectState(project.repo, { board });
   assert.ok(Object.values(api.rowAgesAt).every(at => at === null), 'the first API read has no kept ages, so it walked no spec or doctrine history');
