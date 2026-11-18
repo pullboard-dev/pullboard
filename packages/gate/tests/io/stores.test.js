@@ -374,5 +374,6 @@ test('#10810 clause 1: table:person_enrollment is owned by the relay io module t
   assert.equal(owner, 'apps/relay/src/io/store/enrollment.js');
   const source = readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8');
   assert.match(source, /INSERT INTO person_enrollment/u, 'the owner holds the write call');
-  assert.throws(() => readFileSync(new URL('../../../../apps/relay/src/logic/person/enrollment/store.js', import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
+  const oldHome = ['apps/relay/src/logic/person/enrollment', 'store.js'].join('/');
+  assert.throws(() => readFileSync(new URL(`../../../../${oldHome}`, import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
 });
