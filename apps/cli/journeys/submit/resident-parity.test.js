@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -46,6 +47,7 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
     fixtureMachineSettings(box.env.PULLBOARD_MACHINE_HOME, { submit: { residentChecks } });
     await json(fixtureAdd(box.runLocal, box.repo, 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'true', '--json'));
     await json(box.runLocal(box.web, 'claim', String(id), '--json'));
+    mkdirSync(join(box.web, 'web'), { recursive: true });
     writeFileSync(join(box.web, `web/page-${id}.txt`), 'built\n');
     box.git(box.web, 'add', `web/page-${id}.txt`);
     box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
