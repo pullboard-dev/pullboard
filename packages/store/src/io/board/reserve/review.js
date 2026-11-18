@@ -108,6 +108,11 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
   const witness = !enabled || !found ? null
     : prepared ? (prepared.witness ? confirmFamilyRelaxation(board, found, prepared.witness, agentId, familyRelaxAt, policy, familyPolicy, reviewHeartbeats) : null)
       : reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy, null, reviewHeartbeats);
+  // Not a guard of the move: the state machine's guards are fixed per engine, so this refusal gates itself on REVIEW_RELEASE_TWICE_ENGINE and the board flag.
+  if (found?.item_status === 'submitted') {
+    const twice = reviewReleasedTwiceBy(board, id, agentId);
+    if (twice) throw twice;
+  }
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
@@ -119,8 +124,6 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
         const cooldown = reviewReleaseCooldown(board, id, agentId);
         return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
       },
-      /** A family that released this review twice does not take it again (REVIEW_RELEASE_TWICE_ENGINE). */
-      reviewNotReleasedTwiceByFamily: () => reviewReleasedTwiceBy(board, id, agentId),
       ...reviewerChecks(board, { agentId, policy, familyPolicy, reviewHeartbeats, ...(enabled ? { relaxationFor: () => witness } : {}) }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
