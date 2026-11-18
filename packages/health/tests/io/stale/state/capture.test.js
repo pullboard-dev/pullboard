@@ -156,7 +156,7 @@ function lapsedKeptFixture(t) {
   const ctx = { clock: { now: () => new Date(now) }, config: {} };
   const capture = () => captureLapsedClaims(ctx, board, helper, { lapsedOnly: true });
   const events = () => board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
-  return { board, lapsed, live, helper, alive, advance, capture, events };
+  return { board, lapsed, live, helper, alive, advance, capture, events, seatRoot: name => join(files.root, name) };
 }
 
 test('health.capture.vetoed-lapse-no-write: clause 1: a pass that keeps every lapsed claim and leaves the scan cursor where it is captures nothing, so no maintenance write opens [C7,#10875,clause 1]', t => {
@@ -180,7 +180,9 @@ test('health.capture.cursor-move-still-captures: clause 2: a pass still captures
   assert.equal(moved?.claimScan.previous, 0);
   assert.equal(moved?.claimScan.next, f.lapsed.id, 'the cursor moves, so the pass writes it');
   maintainStaleState(f.board, { agentId: f.helper, snapshot: moved, claimsOnly: true });
-  // Seat B goes quiet for three minutes while seat A keeps writing: B's claim needs a decision with the cursor unchanged.
+  // Seat B goes quiet for three minutes and its worktree is gone while seat A keeps writing: B's claim needs a decision
+  // with the cursor unchanged. The write path observes no work, so only a gone worktree makes a live claim decidable.
+  rmSync(f.seatRoot('live'), { recursive: true, force: true });
   f.advance(3 * MINUTE);
   f.alive(f.lapsed);
   const decided = f.capture();
