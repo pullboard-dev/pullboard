@@ -17,7 +17,7 @@ function helper(frames, timers, withFrames = true) {
   return new Function('requestAnimationFrame', 'setTimeout', `${source}; return afterPaint;`)(frame, (next) => timers.push(next));
 }
 
-test('clause 1: afterPaint(fn) runs fn once, after the next paint and a fresh turn [C7,#9528]', () => {
+test('view.x-io-page-after-paint.clause-1-afterpaint-fn-runs-fn-once: clause 1: afterPaint(fn) runs fn once, after the next paint and a fresh turn [C7,#9528]', () => {
   const frames = [], timers = [], ran = [];
   helper(frames, timers)(() => ran.push('ran'));
   assert.deepEqual([ran.length, frames.length, timers.length], [0, 1, 0], 'nothing runs before the frame');
@@ -27,7 +27,7 @@ test('clause 1: afterPaint(fn) runs fn once, after the next paint and a fresh tu
   assert.deepEqual([ran.length, frames.length, timers.length], [1, 0, 0], 'fn ran once and nothing is left queued');
 });
 
-test('clause 1: a page with no frames still runs fn on the next turn [C7,#9528]', () => {
+test('view.x-io-page-after-paint.clause-1-a-page-with-no-frames: clause 1: a page with no frames still runs fn on the next turn [C7,#9528]', () => {
   const frames = [], timers = [], ran = [];
   helper(frames, timers, false)(() => ran.push('ran'));
   assert.equal(timers.length, 1);
@@ -35,14 +35,14 @@ test('clause 1: a page with no frames still runs fn on the next turn [C7,#9528]'
   assert.equal(ran.length, 1);
 });
 
-test('clause 1: the six sites in actions.js, render.js and menu.js call afterPaint [C7,#9528]', () => {
+test('view.x-io-page-after-paint.clause-1-the-six-sites-in-actions: clause 1: the six sites in actions.js, render.js and menu.js call afterPaint [C7,#9528]', () => {
   const calls = Object.fromEntries(SOURCES.map((file) => [file.name, [...file.text.matchAll(/\bafterPaint\(\(\) =>/gu)].length]));
   assert.equal(calls['actions.js'], 3, 'actions.js: the new-item press, the tab measure and the roadmap open');
   assert.equal(calls['render.js'], 2, 'render.js: the roadmap and dashboard catch-up, beside the helper');
   assert.equal(calls['menu.js'], 1, 'menu.js: the drawer pick');
 });
 
-test('clause 2: requestAnimationFrame plus setTimeout appears in one view file only [C7,#9528]', () => {
+test('view.x-io-page-after-paint.clause-2-requestanimationframe-plus-settimeout-appears-in: clause 2: requestAnimationFrame plus setTimeout appears in one view file only [C7,#9528]', () => {
   const files = SOURCES.filter((file) => file.text.split('\n').some((line) => /requestAnimationFrame|frame\(/u.test(line) && /\(\) => setTimeout\(/u.test(line))).map((file) => file.name);
   assert.deepEqual(files, ['render.js']);
 });

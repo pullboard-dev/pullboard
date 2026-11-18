@@ -38,6 +38,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   MACHINE_PROOF: 'run each frozen check on the composed tree so every clause has its own native receipt, then submit again',
   GATE_PENDING: 'take your next item now with pullboard next --take; the board holds the gate and next brings its result, or fix and resubmit if the gate went red',
   MACHINE_CLAUSE_RED: 'fix the failing command named in the message, commit and submit again (submit composes current main)',
+  TICK_FORMAT: 'write the note as clause N [kind]: evidence, or run pullboard test <the clause test file> from the item folder so a green run ticks the [test] clause itself',
   CROSS_OWNERSHIP: 'split the item so each piece names only its own lane’s folders, or shout the owning lane to build the other paths',
   ITEM_WORK_IN_SEAT: 'move the change to the item folder that pullboard claim <id> opens, commit there, and switch this seat checkout off the item branch',
   MERGED_ALREADY: 'run pullboard show <id> to read the recorded merge commit; nothing more is needed unless a different commit must land through a new item',
