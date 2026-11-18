@@ -368,7 +368,9 @@ test('rulings and the asks sit in their lists [N26]', { timeout: 180_000 }, asyn
   const openPassed = async () => {
     const key = await chrome.stable(`[...document.querySelectorAll('#feed .sx-th')].find((row) => row.querySelector('.sx-tx').textContent.includes('Passed up from web-1'))?.dataset.shoutThread ?? null`);
     assert.ok(key, 'the passed ask has its thread in the feed');
-    await click('#feed [data-shout-thread=' + JSON.stringify(key) + ']');
+    // Pressing the row would follow its answer link into the item and leave Items showing that item, so open it as the readers do.
+    await chrome.stable(`openShoutThread(${JSON.stringify(key)})`);
+    await chrome.waitFor(`!!document.querySelector('#feed [data-thread-panel=' + ${JSON.stringify(JSON.stringify(key))} + ']')`);
   };
   try {
     await confirmBaseline(view, alpha.repo);
