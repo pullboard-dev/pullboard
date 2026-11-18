@@ -23,6 +23,7 @@ import { userInfo } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Refused } from '../../../kernel/index.js';
 import { lex } from '../../../kernel/index.js';
@@ -114,6 +115,75 @@ export function serviceFiles(root = REPO, entry = SERVICE_ENTRY) {
   }
   for (const path of present) files[path] ??= readFileSync(posix.join(root, path), 'utf8');
   return files;
+}
+
+// Budget: one git archive of a trunk commit and its extraction is a few seconds; a minute covers a slow disk.
+const REFRESH_MS = 60_000;
+
+/**
+ * The runnerCode port: whether the installed app folder holds the service closure of a trunk commit, and the swap
+ * that makes it so [P7]. The closure is read from the commit's tree (a git archive extracted into a scratch folder
+ * beside the app), so the answer never depends on what the runner's own checkout holds.
+ * refresh writes the closure to app.next and renames it over app, as the installer does; board.key, the plist and
+ * serve.log live beside app and are never touched. A failure at any step removes app.next and leaves app whole.
+ *
+ * @param {{ app: string, store: string, scratch?: string, entry?: string, git?: (args: string[]) => Promise<void>, write?: (path: string, text: string) => void }} options
+ *   app: the installed app folder; store: the runner's trunk git directory; git: runs git against it (default: the git on PATH).
+ * @returns {{ changed: (commit: string) => Promise<boolean>, refresh: (commit: string) => Promise<boolean> }}
+ */
+export function runnerCodeRefresh({ app, store, scratch = `${app}.scratch`, entry = SERVICE_ENTRY, git = defaultGit(store), write = writeFileSync }) {
+  const closure = async commit => {
+    rmSync(scratch, { recursive: true, force: true });
+    mkdirSync(scratch, { recursive: true });
+    try {
+      const tar = `${scratch}.tar`;
+      await git(['archive', '--format=tar', `--output=${tar}`, commit]);
+      await new Promise((done, fail) => execFile('tar', ['-xf', tar, '-C', scratch], { timeout: REFRESH_MS }, error => error ? fail(error) : done()));
+      rmSync(tar, { force: true });
+      return { ...serviceFiles(scratch, entry), 'package.json': '{ "type": "module" }\n' };
+    } finally { rmSync(scratch, { recursive: true, force: true }); }
+  };
+  const installed = () => {
+    const files = {};
+    if (!existsSync(app)) return files;
+    for (const name of readdirSync(app, { recursive: true })) {
+      if (statSync(join(app, name)).isFile()) files[name.split(sep).join('/')] = readFileSync(join(app, name), 'utf8');
+    }
+    return files;
+  };
+  const differs = (want, have) => {
+    const paths = Object.keys(want);
+    return paths.length !== Object.keys(have).length || paths.some(path => have[path] !== want[path]);
+  };
+  return {
+    async changed(commit) { return differs(await closure(commit), installed()); },
+    async refresh(commit) {
+      const files = await closure(commit);
+      if (!differs(files, installed())) return false;
+      const next = `${app}.next`;
+      const previous = `${app}.prev`;
+      try {
+        rmSync(next, { recursive: true, force: true });
+        for (const [path, text] of Object.entries(files)) {
+          mkdirSync(dirname(join(next, path)), { recursive: true });
+          write(join(next, path), text);
+        }
+        rmSync(previous, { recursive: true, force: true });
+        renameSync(app, previous);
+        try { renameSync(next, app); } catch (error) { renameSync(previous, app); throw error; }
+      } catch (error) {
+        rmSync(next, { recursive: true, force: true });
+        throw error;
+      }
+      rmSync(previous, { recursive: true, force: true });
+      return true;
+    },
+  };
+}
+
+/** Run git in the trunk store; a non-zero exit rejects with its message. */
+function defaultGit(store) {
+  return args => new Promise((done, fail) => execFile('git', ['--git-dir', store, ...args], { timeout: REFRESH_MS }, (error, _out, stderr) => error ? fail(new Error(String(stderr || error.message).trim())) : done()));
 }
 
 /**
