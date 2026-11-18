@@ -14,6 +14,7 @@ import { configTrunkRemote } from '../../../../../packages/config/index.js';
 import { runnerDispatchMode } from '../../../../../packages/config/index.js';
 import { fencedHopEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { adaptiveBatchEnabled } from '../../../../../packages/config/index.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { mainCheckout } from '../../../../../packages/git/index.js';
@@ -31,6 +32,8 @@ import { landingChangedFiles } from '../../../../../packages/landing/index.js';
 import { relandAcceptedItems } from '../../../../../packages/landing/index.js';
 import { carryLandingHops } from '../../../../../packages/landing/index.js';
 import { landingMainReds } from '../../../../../packages/landing/index.js';
+import { startGroup } from '../../../../../packages/landing/index.js';
+import { parallelGatesEnabled } from '../../../../../packages/config/index.js';
 import { landingPriorityCompare } from '../../../../../packages/landing/index.js';
 import { ordered } from '../../../index.js';
 import { withBoard } from '../context.js';
@@ -169,6 +172,24 @@ function landingFlakes(root, policy, item, head, pairPrefix) {
   return { rerun, prefixes: rerun ? { check: pairPrefix(root, item?.item_check ?? null, config, pin), proof: pairPrefix(root, proof, config, pin) } : { check: null, proof: null } };
 }
 
+/** A changed file that is a test, for telling which accepted items share an affected test [C7,#9836]. */
+const TEST_PATH = /(?:^|\/)(?:tests|journeys)\//u;
+
+/**
+ * The batches one offer cuts `free` into, in offer order: with `parallel` off, `free` sliced into batches of `size` as the offer always cut it;
+ * with it on, one single-item batch per id of the first start group (items with disjoint files and tests), and the rest wait for the next wake [C7,#9836].
+ *
+ * @param {{ id: number, files?: string[], tests?: string[] }[]} free Entries in accept order.
+ * @param {{ size: number, parallel?: boolean }} options
+ * @returns {any[][]}
+ */
+export function landingOfferBatches(free, { size, parallel = false }) {
+  if (parallel) return startGroup(free, { parallel: true }).map(id => [free.find(entry => entry.id === id)]);
+  const batches = [];
+  for (let start = 0; start < free.length; start += size) batches.push(free.slice(start, start + size));
+  return batches;
+}
+
 /**
  * Offer the board's accepted, unmerged, unheld items as one land job, or return null when this machine lands them
  * itself (no trunk remote of record, and not pull or no local runner). While a land job is open no second automatic
@@ -201,7 +222,7 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
     // An open item a landing reopen left with its accept and green gate returns to verified first, or stays open naming its conflicts [B3,C7,#2997].
     if (!ids) await relandAcceptedItems({ root, board, base: trunkTip, write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), landingPorts: { quarantineWaivers: quarantineWaivers ?? (() => []) } });
     const all = await withoutStaleVerdicts(board, root, trunkTip, listItems(board, { all: true }), { candidate: item => !forced && !item.item_hold_at && !taken.has(item.item_id) && (!ids || ids.includes(item.item_id)),
-      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled() });
+      write: (operation, args) => ordered(ctx, board, operation, args), say: line => ctx.io.say?.(line), hunkKeyed: hunkFreshnessEnabled(), composeAsObject: submitComposeAsObject() });
     for (const id of ids ?? []) if (!all.some(item => item.item_id === id && !item.item_merged_commit)) throw new Refused('LAND_NAMED', `#${id} is not an unmerged item on this board`, 'name only items that wait to land');
     const wanted = item => !item.item_merged_commit && (ids ? ids.includes(item.item_id) && (forced || item.item_status === 'verified') : item.item_status === 'verified' && !item.item_hold_at && !taken.has(item.item_id));
     // Accept order, as the engine's selection merges: each item's newest accept event; named ids keep the order named [C7].
@@ -250,8 +271,14 @@ export async function offerPulledLanding(ctx, root, { mainPolicy, listItems, che
       const jobs = [];
       // landing.ledgerMainReds: the ledger's red-now files ride on each job, so a red main already records holds no landing [C7,U152].
       const mainReds = landingMainReds(policy.config, policy.config.landing?.ledgerMainReds === true ? redNow(testResults(board.db)) : []);
-      for (let start = 0; start < free.length; start += size) {
-        const batch = free.slice(start, start + size);
+      // With landing.parallelGates on, each entry carries its changed files and the tests among them, so the start group is the disjoint ones [C7,#9836].
+      const parallel = parallelGatesEnabled();
+      const planned = parallel ? free.map(entry => {
+        const files = landingChangedFiles(root, trunkTip, entry.commit);
+        return { ...entry, files, tests: [...files.filter(file => TEST_PATH.test(file)), ...Object.values(deferredFilesOf(board.db, [entry]) ?? {}).flat()] };
+      }) : free;
+      for (const planBatch of landingOfferBatches(planned, { size, parallel })) {
+        const batch = parallel ? planBatch.map(({ files, tests, ...entry }) => entry) : planBatch;
         // Each item's submit may have deferred test files to this landing; the job runs them on the merged tree [C7].
         const deferred = deferredFilesOf(board.db, batch);
         // The runner names a red's failing cases whether or not it pairs them; the prefixes are main's accepted policy, as the pulled gate's are [C7,H16].

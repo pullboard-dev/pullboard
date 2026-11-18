@@ -15,13 +15,13 @@ function rootWith(t, files) {
   return root;
 }
 
-test('clause 1: deno.json alone detects deno test with its test globs [C7]', (t) => {
+test('gate.io-language-js-runtimes.deno-json-alone-detects-deno: clause 1: deno.json alone detects deno test with its test globs [C7]', (t) => {
   const root = rootWith(t, { 'deno.json': '{}' });
   assert.deepEqual(detectLanguages(root), [{ language: 'deno', command: 'deno test' }]);
   assert.deepEqual(detectTestGlobs(root), ['**/*_test.ts', '**/*.test.ts', '**/*_test.js']);
 });
 
-test('clause 1: a bun lockfile without a package.json test script detects bun test with its test globs [C7]', (t) => {
+test('gate.io-language-js-runtimes.a-bun-lockfile-without-a: clause 1: a bun lockfile without a package.json test script detects bun test with its test globs [C7]', (t) => {
   const root = rootWith(t, { 'bun.lock': '' });
   assert.deepEqual(detectLanguages(root), [{ language: 'bun', command: 'bun test' }]);
   assert.deepEqual(detectTestGlobs(root), ['**/*.test.ts', '**/*.test.js', '**/*.spec.ts']);
@@ -31,7 +31,7 @@ test('clause 1: a bun lockfile without a package.json test script detects bun te
   assert.deepEqual(detectLanguages(withConfig), [{ language: 'bun', command: 'bun test' }]);
 });
 
-test('clause 1: a bun lockfile with a package.json that has no scripts.test or only the npm default still detects bun test [C7]', (t) => {
+test('gate.io-language-js-runtimes.a-bun-lockfile-with-a: clause 1: a bun lockfile with a package.json that has no scripts.test or only the npm default still detects bun test [C7]', (t) => {
   const bare = rootWith(t, { 'bun.lock': '', 'package.json': '{"name":"x"}' });
   assert.deepEqual(detectLanguages(bare), [{ language: 'bun', command: 'bun test' }]);
   const stub = rootWith(t, { 'bun.lock': '', 'package.json': JSON.stringify({ scripts: { test: 'echo "Error: no test specified" && exit 1' } }) });
@@ -40,13 +40,13 @@ test('clause 1: a bun lockfile with a package.json that has no scripts.test or o
   assert.deepEqual(detectLanguages(broken), [{ language: 'bun', command: 'bun test' }]);
 });
 
-test('clause 2: a bun lockfile with a package.json test script gives the node entry only [C7]', (t) => {
+test('gate.io-language-js-runtimes.a-bun-lockfile-with-a-package: clause 2: a bun lockfile with a package.json test script gives the node entry only [C7]', (t) => {
   const root = rootWith(t, { 'bun.lock': '', 'package.json': '{"scripts":{"test":"vitest run"}}' });
   assert.deepEqual(detectLanguages(root), [{ language: 'node', command: 'npm test' }]);
   assert.equal(detectLanguages(root).some((entry) => entry.language === 'bun'), false);
 });
 
-test('clause 2: deno stays independent of a package.json test script and lists after bun in table order [C7]', (t) => {
+test('gate.io-language-js-runtimes.deno-stays-independent-of-a: clause 2: deno stays independent of a package.json test script and lists after bun in table order [C7]', (t) => {
   const root = rootWith(t, { 'deno.jsonc': '{}', 'bun.lockb': '', 'package.json': '{"scripts":{"test":"vitest run"}}' });
   assert.deepEqual(detectLanguages(root), [{ language: 'node', command: 'npm test' }, { language: 'deno', command: 'deno test' }]);
   const both = rootWith(t, { 'deno.jsonc': '{}', 'bun.lockb': '' });

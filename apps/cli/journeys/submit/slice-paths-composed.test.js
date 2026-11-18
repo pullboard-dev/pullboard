@@ -28,14 +28,14 @@ function composed(t, paths) {
   return changedSince(root, main, box.git(root, 'rev-parse', 'HEAD').trim());
 }
 
-test('clause 1: a composed slice commit changing a path outside the slice set is refused SLICE_PATHS with slices.enforcePaths on [C7,#8809]', t => {
+test('cli.journeys-submit-slice-paths-composed.a-composed-slice-commit-changing-a: clause 1: a composed slice commit changing a path outside the slice set is refused SLICE_PATHS with slices.enforcePaths on [C7,#8809]', t => {
   const changed = composed(t, ['web/view.js', 'api/other.js']);
   const enabled = configFromSource('{"slices":{"enforcePaths":true}}').slices.enforcePaths;
   assert.throws(() => requireSlicePaths(sliceBoard(['web/view.js']), item, changed, enabled), /SLICE_PATHS.*api\/other\.js/u);
   assert.doesNotThrow(() => requireSlicePaths(sliceBoard(['web/view.js']), item, composed(t, ['web/view.js']), enabled));
 });
 
-test('clause 2: the same composed commit goes through with the setting at its default (off) [C7,#8809]', t => {
+test('cli.journeys-submit-slice-paths-composed.the-same-composed-commit-goes-through: clause 2: the same composed commit goes through with the setting at its default (off) [C7,#8809]', t => {
   const changed = composed(t, ['web/view.js', 'api/other.js']);
   const enabled = configFromSource('{}').slices.enforcePaths;
   assert.equal(enabled, false);

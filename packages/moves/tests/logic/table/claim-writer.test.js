@@ -101,6 +101,8 @@ test('moves.claim-writer.the-store-claim-and-renew-writer-applies: clause 1: the
     const board = boardFor(t, record);
     const seen = [];
     board.claimShadow = (answer) => seen.push(answer);
+    // The shadow compare runs only while the writer decides; with moves.live.claim on (its default since #8395) the table decides and compares nothing.
+    board.movesLive = { claim: false };
     const before = board.db.prepare('SELECT COALESCE(MAX(event_id),0) id FROM event').get().id;
     try { claim(board, record.move.id, optionsFor(record)); } catch (error) { unrun.push({ event: record.event.id, code: error.code, message: String(error.message).slice(0, 160) }); continue; }
     const wrote = board.db.prepare('SELECT event_kind kind, event_by by, event_detail detail FROM event WHERE event_id>? ORDER BY event_id').all(before)

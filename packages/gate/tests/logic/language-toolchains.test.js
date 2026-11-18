@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { LANGUAGE_ROWS } from '../../src/logic/language-rows.js';
-import { TOOLCHAIN_LANGUAGES } from '../../src/logic/language-toolchains.js';
-import { TOOLCHAIN_NAME } from '../../src/logic/language-toolchains.js';
-import { languageToolchains } from '../../src/logic/language-toolchains.js';
+import { TOOLCHAIN_LANGUAGES } from '../../src/io/config.js';
+import { TOOLCHAIN_NAME } from '../../src/io/config.js';
+import { languageToolchains } from '../../src/io/config.js';
 
 /** The languages detectLanguages adds in code (packages/gate/src/io/config.js) before the row table. */
 const BUILT_IN = ['node', 'go', 'rust', 'python', 'php', 'elixir', 'csharp', 'cmake', 'make'];

@@ -18,7 +18,7 @@ function served({ lapsedOn }) {
   return { ticks, runs, sentinel };
 }
 
-test('clause 1: the sentinel runs a lapsed-claim pass at least every minute, so a lapsed lease is expired within 2 minutes [C7,#8923]', async () => {
+test('cli.journeys-health-lapsed-claims.the-sentinel-runs-a-lapsed-claim: clause 1: the sentinel runs a lapsed-claim pass at least every minute, so a lapsed lease is expired within 2 minutes [C7,#8923]', async () => {
   const { ticks, runs, sentinel } = served({ lapsedOn: () => true });
   assert.ok(LAPSED_SWEEP_INTERVAL_MS * 2 <= 120_000, 'a lapse waits at most one interval for the pass and one to finish it');
   await ticks.get(LAPSED_SWEEP_INTERVAL_MS)();
@@ -26,14 +26,14 @@ test('clause 1: the sentinel runs a lapsed-claim pass at least every minute, so 
   await sentinel.close();
 });
 
-test('clause 1: with health.lapsedSweep off the sentinel runs no lapsed-claim pass [C7,#8923]', async () => {
+test('cli.journeys-health-lapsed-claims.with-health-lapsedsweep-off-the-sentinel: clause 1: with health.lapsedSweep off the sentinel runs no lapsed-claim pass [C7,#8923]', async () => {
   const { ticks, runs, sentinel } = served({ lapsedOn: () => false });
   await ticks.get(LAPSED_SWEEP_INTERVAL_MS)();
   assert.deepEqual(runs, []);
   await sentinel.close();
 });
 
-test('clause 1: health.lapsedSweep is off on an empty machine home [C7,#8923]', () => {
+test('cli.journeys-health-lapsed-claims.health-lapsedsweep-is-off-on-an: clause 1: health.lapsedSweep is off on an empty machine home [C7,#8923]', () => {
   const home = privateFixtureFiles('pullboard-lapsed-sweep-').root;
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;
@@ -41,7 +41,7 @@ test('clause 1: health.lapsedSweep is off on an empty machine home [C7,#8923]', 
   finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 });
 
-test('clause 1: a lapsed-claim pass moves only the claims the capture names, as one ordered stale-state move [C7,#8923]', async () => {
+test('cli.journeys-health-lapsed-claims.a-lapsed-claim-pass-moves-only: clause 1: a lapsed-claim pass moves only the claims the capture names, as one ordered stale-state move [C7,#8923]', async () => {
   const moves = [];
   const snapshot = { claims: [{ id: 41 }] };
   const ordered = async (ctx, board, operation, args) => { moves.push({ operation, args }); };

@@ -53,7 +53,7 @@ function assertNoWaitInRefusal(output, code) {
   assert.doesNotMatch(refusal, /\bwait\b|--wait/iu);
 }
 
-test('pending refusal defaults and rendered next steps offer work or end the turn [C7,N41,N42]', () => {
+test('cli.journeys-resume-refusals.pending-refusal-defaults-and-rendered-next: pending refusal defaults and rendered next steps offer work or end the turn [C7,N41,N42]', () => {
   const codes = ['BOARD_BUSY', 'BOARD_LANDS_ACCEPTED', 'REVIEW_NOT_READY', 'RESOURCE_BUSY', 'RUNNER_BUSY',
     'RUNNER_CAPACITY_MISMATCH', 'PERSON_REQUEST_TAKEN', 'RELAY_CONFIRMATION_PENDING', 'ITEM_HELD', 'LANE_HELD'];
   for (const code of codes) {
@@ -67,7 +67,7 @@ test('pending refusal defaults and rendered next steps offer work or end the tur
   }
 });
 
-test('native item and lane holds refuse claims with actionable next steps [C7,N41,N42]', () => {
+test('cli.journeys-resume-refusals.native-item-and-lane-holds-refuse: native item and lane holds refuse claims with actionable next steps [C7,N41,N42]', () => {
   const itemBox = project();
   const item = add(itemBox, 'web', 'Held item');
   const itemHold = itemBox.run(itemBox.repo, 'hold', String(item), '--reason', 'fixture item hold');
@@ -89,7 +89,7 @@ test('native item and lane holds refuse claims with actionable next steps [C7,N4
   assertActionable(laneClaim.err, /pullboard next/u);
 });
 
-test('resume offers another step for a held lane, blocked lane work and a pending verdict [C7,N41,N42]', () => {
+test('cli.journeys-resume-refusals.resume-offers-another-step-for-a: resume offers another step for a held lane, blocked lane work and a pending verdict [C7,N41,N42]', () => {
   const held = project();
   add(held, 'web', 'Held lane work');
   const hold = held.run(held.repo, 'hold', 'web', '--reason', 'fixture lane hold');

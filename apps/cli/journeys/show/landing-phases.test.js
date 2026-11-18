@@ -5,9 +5,11 @@ import { test } from 'node:test';
 import { boardJobQueueCall } from '../../../../packages/api/index.js';
 import { claimJob } from '../../../../packages/api/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
+import { logEvent } from '../../../../packages/store/index.js';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { makeLandProjectFixtures } from '../../tests/fixtures/land/project.js';
 import { pullQueue } from '../../tests/fixtures/pull.js';
+import { fixtureSettledMachine } from '../../../../packages/gate/tests/fixtures/testkit.js';
 
 /** The phases a land job records for a batch landing, in the order it runs them (packages/landing/src/io/runner/job.js). */
 const PHASES = [{ phase: 'merge', ms: 120 }, { phase: 'static checks', ms: 4000 }, { phase: 'cli smoke', ms: 900 }, { phase: 'push', ms: 700 }];
@@ -15,15 +17,18 @@ const PHASES = [{ phase: 'merge', ms: 120 }, { phase: 'static checks', ms: 4000 
 /**
  * An item the landing fixture built and verified, and a poster for the runner job's land receipt.
  * Why a posted receipt: a real runner landing outran the 180 s file budget; the receipt carries the same phases a runner job records [C7].
+ * Why the Local helpers: the commit (with test.inProcessHooks on), submit and accept run in this process, not as a node start-up each [C7,#10457].
  */
 async function verifiedItem(t) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const fixtures = makeLandProjectFixtures(helpers);
   const box = fixtures.landProject();
-  const entry = fixtures.itemWorktree(box, 1);
-  fixtures.submitItem(box, entry);
-  fixtures.acceptItem(box, entry);
+  fixtureSettledMachine(box.env.PULLBOARD_MACHINE_HOME, { test: { inProcessHooks: true } });
+  const entry = await fixtures.itemWorktreeLocal(box, 1);
+  await fixtures.commitItemLocal(box, entry);
+  await fixtures.submitItemLocal(box, entry);
+  await fixtures.acceptItemLocal(box, entry);
   const queue = await pullQueue(t, { ...box, boardFile: join(box.repo, '.git', 'pullboard', 'board.sqlite') });
   const land = async phases => {
     const trunk = box.git(box.repo, 'rev-parse', 'main');
@@ -32,10 +37,13 @@ async function verifiedItem(t) {
     boardJobQueueCall(queue.board, { action: 'receipt', job: 'land:1:k', runner: 'r-land', token: held.token,
       receipt: { kind: 'land', outcome: 'landed', trunk, landed: [entry.item], already: [], ...(phases ? { phases } : {}) } }, { mode: 'pull', now: 3 });
   };
-  return { box, entry, land };
+  /** Record the landed batch snapshot that carried the item, as the lander writes it, with the exact-tree record the test names. */
+  const record = exactTree => logEvent(queue.board, 'coordinator', 'landing_batch', null,
+    { batch: { id: 'b1', state: 'landed', items: [{ id: entry.item }], ...(exactTree ? { exactTree } : {}) } });
+  return { box, entry, land, record };
 }
 
-test('clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async t => {
+test('cli.journeys-show-landing-phases.show-json-for-a-landed-item: clause 1: show --json for a landed item carries landing.phases as {phase, ms} rows naming merge, static checks, cli smoke and push as the runner job recorded them [C7,#9079]', async t => {
   const { box, entry, land } = await verifiedItem(t);
   await land(PHASES);
   const shown = await box.runLocal(box.repo, 'show', String(entry.item), '--json');
@@ -45,7 +53,7 @@ test('clause 1: show --json for a landed item carries landing.phases as {phase, 
   assert.deepEqual(document.landing.phases, PHASES);
 });
 
-test('clause 2: show prints one line per phase, and an item with no recorded landing phases prints none and no error [C7,#9079]', async t => {
+test('cli.journeys-show-landing-phases.show-prints-one-line-per-phase: clause 2: show prints one line per phase, and an item with no recorded landing phases prints none and no error [C7,#9079]', async t => {
   const { box, entry, land } = await verifiedItem(t);
   // Verified but not yet landed, as an item landed before phases were kept: no phase line, no landing document, no error.
   const plain = await box.runLocal(box.repo, 'show', String(entry.item));

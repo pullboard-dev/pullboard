@@ -49,6 +49,8 @@ import { insertItem } from "./add.js";
 import { validateItemAddition } from "./add.js";
 import { appendFact } from "./fact.js";
 import { movesLiveEnabled } from "../../../../config/index.js";
+import { loadMachineSettings } from "../../../../config/index.js";
+import { boundProofReceipt } from "../receipts.js";
 import { movesShadowEnabled } from "../../../../config/index.js";
 
 /** A moves.live machine setting, a file read: call it before a board write opens, never inside one [C7,#8385]. */
@@ -120,8 +122,33 @@ export function prepareSubmit(board, id, options) {
   const sealed = boardWriteSnapshot(board);
   if (sealed.version !== snapshot.version) requireBoardWriteSnapshot(board, snapshot, 'submit');
   const prepared = Object.freeze({ ...options });
-  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed });
+  PREPARED_SUBMITS.set(prepared, { board, id, snapshot: sealed, reads: submitReads(board, id, prepared) });
   return prepared;
+}
+
+/**
+ * The reads a submit takes that do not depend on its own write: the builder-family policy, the moves.shadow and
+ * moves.live settings, and the green proofs and committed case titles a native clause inspection reads.
+ * Why here: a submit preflight dry-runs the whole submit inside one rolled-back write, so every read in submit() held
+ * the board's one write lock (756 preflight holds, 3.5 M ms in #10713). Read with no lock held and bound to the
+ * prepared snapshot, so the writer still refuses a board that changed since (#10850) [C7].
+ */
+function submitReads(board, id, options) {
+  const { commit, policyCommit = null, clausePolicyCommit, submissionProof: proof, inspectClauses, titleTicks } = options;
+  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
+  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
+  // A replayed submit decides inspection from its recorded policy in submit(); only the native seal is known here.
+  const proofs = board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE && inspectClauses === true
+    ? inspectionReads(board, id, commit, proof, titleTicks === true) : null;
+  // The moves.shadow and moves.live.submit settings are file reads, so they are read here, before any write opens [C7,#8379,#8384].
+  return { familyPolicy, proofs, shadow: board.movesShadow ?? shadowSetting(), live: (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true };
+}
+
+/** The green proofs of this exact commit and, with titleTicks, the case titles its proof files declare there. */
+function inspectionReads(board, id, commit, proof, titleTicks) {
+  return { greenFiles: greenProofFiles(board, id, commit), outcomes: greenProofOutcomes(board, id, commit),
+    cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] };
 }
 
 /**
@@ -138,11 +165,10 @@ export function prepareSubmit(board, id, options) {
  */
 export function submit(board, id, options) {
   options = prepareSubmit(board, id, options);
-  requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+  const { snapshot, reads } = PREPARED_SUBMITS.get(options);
+  requireBoardWriteSnapshot(board, snapshot, 'submit');
   const { strictRenames, agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, folderTicks: sealedFolderTicks, titleTicks: sealedTitleTicks, clausePolicyCommit, infra = null, gateGreen, companion, pulledPlan = null, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry, tooling = null } = options;
-  const familyPolicyCommit = policyCommit ?? clausePolicyCommit;
-  const familyPolicy = (board.executionEngineVersion ?? ENGINE_VERSION) >= BUILDER_FAMILY_REQUIRED_ENGINE && board.gitRoot && familyPolicyCommit
-    ? board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, familyPolicyCommit).config.verify.family : 'off';
+  const { familyPolicy, shadow, live } = reads;
   let inspect = inspectClauses === true, folderTicks = sealedFolderTicks === true, titleTicks = sealedTitleTicks === true;
   if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
     if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
@@ -165,12 +191,11 @@ export function submit(board, id, options) {
   if (note !== undefined && (typeof note !== 'string' || !note.trim() || /[\r\n\u2028\u2029]/u.test(note))) {
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
-  // The moves.shadow setting is a file read, so it is read here, before the write opens, and the commit compare is recorded under it [C7,#8379].
-  const shadow = board.movesShadow ?? shadowSetting();
-  // The moves.live.submit setting is read here too: with it on, the COMMIT table's event is the one logged [C7,#8384].
-  const live = (board.movesLive?.submit ?? movesLiveEnabled('submit')) === true;
+  const clauseInspection = (found, { greenFiles, outcomes, cases }) => clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles,
+    gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases, outcomes });
+  // shadow: the commit compare is recorded under moves.shadow; live: with moves.live.submit on, the COMMIT table's event is the one logged [C7,#8379,#8384].
   atomic(board, () => {
-    requireBoardWriteSnapshot(board, PREPARED_SUBMITS.get(options).snapshot, 'submit');
+    requireBoardWriteSnapshot(board, snapshot, 'submit');
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= STRICT_RENAME_ENGINE && strictRenames !== undefined) {
       if (!Array.isArray(strictRenames) || strictRenames.some(pair => !Array.isArray(pair) || pair.length !== 2 || !pair.every(path => typeof path === 'string' && path.length > 0))) throw new Refused('BAD_REVIEW_POLICY', 'invalid strict rename witness');
       if (strictRenames.length) board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`strict_rename:${id}`, JSON.stringify(strictRenames));
@@ -200,7 +225,7 @@ export function submit(board, id, options) {
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
         clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
-          ? clauseInspectionProblem(found, itemThread(board, id), { head: commit, greenFiles: greenProofFiles(board, id, commit), gateFiles: new Set((Array.isArray(proof?.files) ? proof.files : []).filter(file => /\.test\.js$/u.test(file))), folderTicks, titleTicks, cases: titleTicks ? committedTitleCases(board, commit, proof?.files) : [] }) : null,
+          ? clauseInspection(found, reads.proofs ?? inspectionReads(board, id, commit, proof, titleTicks)) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,
@@ -270,6 +295,12 @@ export function submit(board, id, options) {
 function greenProofFiles(board, id, commit) {
   return new Set(proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
     .flatMap(receipt => (receipt.testRuntimes ?? []).map(row => row?.file).filter(Boolean)));
+}
+
+/** The per-case outcomes every green proof of this exact commit recorded, so a file whose cases were all skipped is not proof. */
+function greenProofOutcomes(board, id, commit) {
+  return proofReceipts(board, id).filter(receipt => receipt.green === true && receipt.commit === commit)
+    .flatMap(receipt => Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : []);
 }
 
 const EDGE_FILED = /^Edge follow-up filed as #\d+/u;
@@ -342,4 +373,48 @@ export function recordedBaseRows(board, base) {
     const receipt = readGateReceipt(store, name.slice(0, -5));
     return receipt?.kind === 'main-red' && receipt.head === base && Array.isArray(receipt.testOutcomes) ? receipt.testOutcomes : [];
   });
+}
+
+/**
+ * Record the machine accept for a green pulled gate receipt on a submitted, machine-eligible item; false when the receipt
+ * is not green, names no receipts, or the item is not eligible. Why: c77c8f38cf made submit pulled-only and dropped the
+ * machine-verified path, so the receipt side is the one place the proof of a pulled gate can stand in for a reviewer [C7,#10253].
+ */
+export function acceptPulledMachine(board, run, summary) {
+  const ids = summary?.machineReceipts;
+  if (run.run_item == null || summary?.gate?.green !== true || !Array.isArray(ids) || !ids.length) return false;
+  const item = getItem(board, run.run_item);
+  if (item?.item_status !== 'submitted') return false;
+  const files = (item.item_files ?? '').split('\n').filter(Boolean);
+  const options = { commit: item.item_commit, tree: item.item_tree, policyCommit: run.run_base ?? summary.gate.source, agentId: item.item_built_by, files,
+    machineReceipts: ids.map(receiptId => boundProofReceipt(board, { receiptId })) };
+  return Boolean(acceptMachineSubmission(board, item, options, { getItem, moveItem, logEvent }));
+}
+
+/**
+ * The first failing clause of a pulled gate's machine receipts, by clause number (0 is the frozen check), or null when none
+ * failed or the item is not machine-eligible. A receipt fails when it is not green or its command exited non-zero [C7,#10254].
+ *
+ * @returns {{ clause: number, command: string, receipt: string } | null}
+ */
+export function failedMachineClause(board, run, summary) {
+  const ids = summary?.machineReceipts;
+  if (run.run_item == null || !Array.isArray(ids) || !ids.length) return null;
+  const item = getItem(board, run.run_item);
+  if (item?.item_status !== 'submitted') return null;
+  const files = (item.item_files ?? '').split('\n').filter(Boolean);
+  const authorization = machineVerificationEligible(board, item, files);
+  if (!authorization) return null;
+  const commands = [{ clause: 0, command: JSON.parse(item.item_frozen).check }, ...authorization.commands];
+  for (const [index, entry] of commands.entries()) {
+    if (ids[index] === undefined) return null;
+    const receipt = boundProofReceipt(board, { receiptId: ids[index] });
+    if (receipt.green !== true || (receipt.proof?.exitCode ?? 0) !== 0) return { clause: entry.clause, command: entry.command, receipt: receipt.id };
+  }
+  return null;
+}
+
+/** Whether a green pulled gate may record the machine accept (#10253): off by default; only an exact `true` turns it on. */
+export function machineVerifyPulledOn() {
+  return loadMachineSettings().gate?.machineVerifyPulled === true;
 }

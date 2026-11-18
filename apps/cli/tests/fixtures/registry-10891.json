@@ -1,0 +1,17 @@
+{
+  "cli.io-item-folder.defers-the-running-folder": {
+    "proves": {
+      "specs": [
+        "B5",
+        "#10891"
+      ],
+      "claim": "Inside a running command an idle item folder the command runs in waits for main to finish while other idle folders go at once; outside a command it is removed at once."
+    },
+    "why": "Without it, a cleanup that deletes the running command's own folder mid-command would pass unnoticed.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/item/folder.test.js",
+      "apps/cli/src/io/item/folder.js"
+    ]
+  }
+}

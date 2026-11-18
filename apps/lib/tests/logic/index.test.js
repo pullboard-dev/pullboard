@@ -11,18 +11,18 @@ const surfaces = [
   ['apps/lib/index.js', 'apps/lib/src/core/native-board.js', ['advanceItemSource', 'beginSentinelRun', 'board', 'closeBoard', 'decideSentinel', 'decideSpecRevisions', 'draftSpecRow', 'finishSentinelRun', 'flakeLedger', 'flakeQuarantines', 'gateRuns', 'landingWaiverFor', 'landingWaivers', 'nativeBoardPorts', 'openBoard', 'openBoardForRead', 'personProposals', 'personSigning', 'proposePersonMove', 'proposeSentinel', 'recordFlakeObservation', 'recordGateRun', 'recordPublishFinding', 'recordRowVerification', 'recordTrainLanding', 'setPersonSigning', 'waivedLandingProof'], provider1]
 ];
 
-test('the lib front door binds every provider export by identity [C7,CD60]', () => {
+test('lib.logic-index.the-lib-front-door-binds-every: the lib front door binds every provider export by identity [C7,CD60]', () => {
   for (const [old, moved, names, provider] of surfaces) {
     assert.deepEqual(Object.keys(provider).sort(), names, moved);
     for (const name of names) assert.equal(front[name], provider[name], old + '#' + name);
   }
 });
 
-test('the package entry re-exports the native board binding [C7,CD60]', () => {
+test('lib.logic-index.the-package-entry-re-exports-the: the package entry re-exports the native board binding [C7,CD60]', () => {
   assert.equal(front.board, provider1.board);
 });
 
-test('clause 1: the library openBoard and every native board export is the packages/board binding itself [C7]', () => {
+test('lib.logic-index.the-library-openboard-and-every-native: clause 1: the library openBoard and every native board export is the packages/board binding itself [C7]', () => {
   for (const name of Object.keys(provider1)) assert.equal(provider1[name], boardPackage[name], name);
   assert.equal(front.openBoard, boardPackage.openBoard);
 });

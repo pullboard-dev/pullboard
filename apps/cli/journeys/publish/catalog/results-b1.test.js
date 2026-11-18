@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { catalogGroups } from '../../../tests/fixtures/catalog/cases.js';
 
-test('clause 2: the results-b1 group of catalog cases has a real CLI exercise and adds only its declared roots [A1,C7,#9675]', { concurrency: true }, async (t) => {
+test('cli.journeys-publish-catalog-results-b1.the-results-b1-group-of-catalog: clause 2: the results-b1 group of catalog cases has a real CLI exercise and adds only its declared roots [A1,C7,#9675]', { concurrency: true }, async (t) => {
   assert.ok(catalogGroups['results-b1'].length > 0, 'the group holds cases');
   // Every private scenario finishes before the group's verdict.
   const completed = await Promise.allSettled(catalogGroups['results-b1'].map(({ name, run }) => t.test(name, run)));

@@ -28,7 +28,7 @@ function run(root, changed) {
   return { read, rows };
 }
 
-test('clause 1: with one changed file in scope the check classes read only that file, not the rest of the tree [C7]', t => {
+test('gate.io-static-scoped-reads.with-one-changed-file-in-scope: clause 1: with one changed file in scope the check classes read only that file, not the rest of the tree [C7]', t => {
   const files = tree(25);
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   const whole = run(files.root, null);
@@ -37,7 +37,7 @@ test('clause 1: with one changed file in scope the check classes read only that 
   assert.deepEqual([...scoped.read], ['packages/gate/tests/changed.test.js']);
 });
 
-test('clause 2: a red finding in the changed file is still reported with its file and line [C7]', t => {
+test('gate.io-static-scoped-reads.a-red-finding-in-the-changed: clause 2: a red finding in the changed file is still reported with its file and line [C7]', t => {
   const files = tree(3);
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   const { rows } = run(files.root, ['packages/gate/tests/changed.test.js']);
