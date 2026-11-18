@@ -10,6 +10,7 @@ import { itemProgress } from '../../../../../packages/roadmap/index.js';
 import { progressLine } from '../../../../../packages/roadmap/index.js';
 import { submitHandoff } from '../../../../../packages/store/light.js';
 import { mutationScoreLines } from '../../logic/mutate/score.js';
+import { coreLines } from '../../logic/show/core.js';
 import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
@@ -203,7 +204,8 @@ export async function run(io, { first, values }) {
     }
   });
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
-  io.say(itemLine(item, agentName, Boolean(mainMerge)));
+  const core = coreLines(item, { itemLine: itemLine(item, agentName, Boolean(mainMerge)), checkText });
+  io.say(core.item);
   if (item.item_gate_runner === 'none') io.say(`next: pullboard runner local, or pullboard submit ${item.item_id} again`);
   if (item.item_status === 'claimed' && item.item_owner === callerId) {
     // A seat builds in its item folder, never its seat checkout: naming "this checkout" sent builders to commit item work there (#3691).
@@ -213,7 +215,7 @@ export async function run(io, { first, values }) {
       : `you hold #${item.item_id}; continue building in this checkout, then run pullboard submit ${item.item_id}`);
   }
   io.say(progressLine(progress));
-  if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
+  if (core.expectedBuild) io.say(core.expectedBuild);
   if (comparison) io.say(renderVerificationComparison(comparison));
   io.say(`machine-verified: ${machine ? 'on (frozen commands; strict and sensitive changes require review)' : 'off'}`);
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
@@ -244,11 +246,8 @@ export async function run(io, { first, values }) {
   }
   if (values.detail) io.say(`usage: input ${cost.inputTokens ?? 'unknown'} (fresh ${cost.freshInputTokens ?? 'unknown'}, cached read ${cost.cacheReadInputTokens ?? 'unknown'}, cached write ${cost.cacheWriteInputTokens ?? 'unknown'}), output ${cost.outputTokens ?? 'unknown'}, ${cost.wallMs} ms${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}; models ${cost.models.join(', ') || 'unknown'}${cost.unknownReasons.length ? '; unknown: ' + cost.unknownReasons.join(', ') : ''}${dollarText(cost)}`);
   else if (cost.inputTokens != null || cost.outputTokens != null) io.say(`usage: input ${cost.inputTokens ?? 'unknown'}, output ${cost.outputTokens ?? 'unknown'}${cost.shared ? '; shared-session item split unknown' : cost.splitByTime ? '; split by time with a shared session' : ''}${dollarText(cost)}; --detail`);
-  if (item.item_criterion) io.say(`criterion: ${item.item_criterion}`);
-  if (checkText) {
-    io.say(`check: ${checkText}`);
-    if (item.item_frozen_digest) io.say(`check digest: ${item.item_frozen_digest}`);
-  }
+  if (core.criterion) io.say(core.criterion);
+  for (const line of core.check) io.say(line);
   for (const receipt of proofReceipts) {
     const hasTestRuntimes = Object.hasOwn(receipt, 'testRuntimes');
     const testRuntimes = hasTestRuntimes ? testRuntimeRows(receipt.testRuntimes) : null;

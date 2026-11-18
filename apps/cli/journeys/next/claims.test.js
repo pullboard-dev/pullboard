@@ -22,6 +22,7 @@ import { chargedText } from '../../tests/fixtures/load.js';
 import { loadClock } from '../../tests/fixtures/load.js';
 import { fixture } from '../../tests/fixtures/next/take.js';
 import { main } from '../../tests/fixtures/native.js';
+import { submitFixture } from '../../tests/fixtures/board/submit.js';
 
 const BUDGET_MS = 200;
 const CLI = new URL('../../tests/fixtures/native.js', import.meta.url).href;
@@ -177,4 +178,21 @@ test('cli.journeys-next-claims.a-plain-next-that-offers-a: clause 2: a plain nex
   assert.ok(out.includes(`#${review}`), out);
   assert.ok(!out.includes('that is your bar'), 'a review offer is not a claimed bar');
   assert.ok(Buffer.byteLength(out) < 2048, `the review offer is ${Buffer.byteLength(out)} bytes`);
+});
+
+test('cli.journeys-next-claims.children-of-an-unheld-parent-hold-one: clause 1: with claims.perSeat 1 four next calls over four children of a parent another seat holds leave one build claim, also after a queued submit [C7,#10851]', async t => {
+  const box = await fixture(t, { perSeat: 1 });
+  const parent = box.add('Umbrella held by another seat');
+  box.claim(parent);
+  const children = ['One', 'Two', 'Three', 'Four'].map(title => box.add(`Slice ${title}`, { parentId: parent, brief: `Files: web/${title.toLowerCase()}.js\nTest: the real board selects the item.` }));
+  const heldBy = seat => store.listItems(box.board).filter(item => item.item_status === 'claimed' && item.item_owner === seat.id);
+  for (let call = 0; call < 4; call += 1) await plainNext(box, box.seats.actor);
+  const held = heldBy(box.seats.actor);
+  assert.equal(held.length, 1, `four next calls leave one build claim, not ${held.map(item => '#' + item.item_id).join(' ')}`);
+  assert.ok(children.includes(held[0].item_id), 'the held claim is one of the children');
+  const head = box.git(box.seats.actor.path, 'rev-parse', 'HEAD');
+  submitFixture(box.board, held[0].item_id, { agentId: box.seats.actor.id, commit: head, tree: box.git(box.root, 'rev-parse', `${head}^{tree}`) });
+  await plainNext(box, box.seats.actor);
+  await plainNext(box, box.seats.actor);
+  assert.equal(heldBy(box.seats.actor).length, 1, 'after a queued submit the seat again holds one build claim, never two');
 });
