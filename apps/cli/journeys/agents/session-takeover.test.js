@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/person packages/resources */
+/** @pullboard-test-input source-cell apps/cli packages/api packages/person packages/resources */
 /** Checkout-session takeover: the view shout is recorded as the person, and takeover waits for an active write [B3,B7,B26,N26]. */
 import assert from 'node:assert/strict';
 import { fixtureChildMessage } from "../../tests/fixtures/child.js";

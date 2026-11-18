@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/kernel packages/person */
+/** @pullboard-test-input source-cell apps/cli packages/kernel */
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
