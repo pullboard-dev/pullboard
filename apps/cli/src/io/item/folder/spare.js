@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 import { git } from '../../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../../packages/git/index.js';
-import { nextOneGitRead } from '../../../../../../packages/config/index.js';
 
 /**
  * Tracked files a repository needs before a spare is kept.
@@ -24,11 +23,15 @@ export const SPARE_FROM_FILES = 1_000;
 /** The spare checkout's path beside a seat checkout; its name never matches an item folder, so cleanup never removes it. */
 export function spareFolderPath(seat) { return `${seat}-spare`; }
 
-/** The number of entries in a checkout's index, read from the index header without launching Git; 0 when unreadable. */
-function indexEntries(root) {
+/**
+ * The number of entries in a checkout's index, read from the index header; 0 when unreadable.
+ * The index path comes from the repository's files, and from Git only when those cannot answer (an inherited selector, a reftable store).
+ * Why: asking Git for the path cost a process, 20-22 ms under load, on every claim of a new item folder (#10864).
+ */
+export function indexEntries(root) {
   let fd;
   try {
-    fd = openSync(gitPath(root, 'index', { files: nextOneGitRead() }), 'r');
+    fd = openSync(gitPath(root, 'index', { files: true }), 'r');
     const header = Buffer.alloc(12);
     return readSync(fd, header, 0, 12, 0) === 12 && header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : 0;
   } catch { return 0; } finally { if (fd !== undefined) closeSync(fd); }
