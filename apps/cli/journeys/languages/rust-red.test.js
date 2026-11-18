@@ -8,6 +8,7 @@ import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { settleLand } from '../../tests/fixtures/land/settle.js';
 import { verifySettled } from '../../tests/fixtures/submit/settle.js';
 import { CARGO } from '../../tests/fixtures/languages/rust.js';
+import { CHECK } from '../../tests/fixtures/languages/rust.js';
 import { MATH } from '../../tests/fixtures/languages/rust.js';
 import { PASSING } from '../../tests/fixtures/languages/rust.js';
 import { UNAVAILABLE } from '../../tests/fixtures/languages/rust.js';
@@ -28,7 +29,7 @@ test('cli.journeys-languages-rust-red.landing-names-the-failing-rust-test: landi
   box.git(repo, 'switch', '-q', 'main');
   assert.equal(verdict.code, 0, verdict.err);
   // Main moves past the submit: add now multiplies, which the item's test (and only it) catches in the merged tree.
-  writeFileSync(join(repo, 'src', 'math.rs'), MATH.replace('a + b', 'a * b'));
+  writeFileSync(join(repo, 'src/math.rs'), MATH.replace('a + b', 'a * b'));
   box.git(repo, 'add', '-A');
   const moved = box.tryGit(repo, 'commit', '-q', '-m', 'chore(web): add multiplies [G1]');
   assert.equal(moved.status, 0, moved.stderr);
@@ -36,5 +37,6 @@ test('cli.journeys-languages-rust-red.landing-names-the-failing-rust-test: landi
   const settled = await settleLand(box, JSON.parse(landing.out), { deadlineMs: 100_000 });
   assert.deepEqual(settled.landed, [], `${landing.out}${landing.err}`);
   const shown = await box.runLocal(repo, 'show', built.item);
+  assert.doesNotMatch(CHECK, /adds_small_numbers/u);
   assert.match(shown.out, /Land job \S+ red:[\s\S]*item::adds_small_numbers/u);
 });

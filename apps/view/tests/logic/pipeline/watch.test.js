@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/view */
+/** @pullboard-test-input apps/view/src/io/serve.js */
 /** @pullboard-world-pin reads serve.js source to prove the address pattern that serves /<board>/pipeline; the page itself needs a browser. */
 /** The Insights Pipeline page: its sections in the approved order, and every number read from the board's items and events [N26,#6869]. */
 import assert from 'node:assert/strict';
@@ -57,7 +57,7 @@ const draw = (model, extra = {}) => pipelineWatchHtml(model, { href, itemHref: i
 const labels = html => [...html.matchAll(/<p class="dash-lbl"[^>]*>(.*?)<\/p>/gu)].map(match => match[1].replace(/<[^>]*>/gu, ''));
 const idsOf = html => [...html.matchAll(/data-pipeline-ids="([\d,]+)"/gu)].map(match => match[1].split(',').map(Number));
 
-test('clause 1: Insights lists Pipeline as its fourth page, and the page draws Time, Flow, Main, Why beside Failures, Not moving, Bouncing, Red tests and This machine in that order [N26,#6869]', () => {
+test('view.x-pipeline-watch.clause-1-insights-lists-pipeline-as-its: clause 1: Insights lists Pipeline as its fourth page, and the page draws Time, Flow, Main, Why beside Failures, Not moving, Bouncing, Red tests and This machine in that order [N26,#6869]', () => {
   assert.deepEqual(navPages({ cost: true }).filter(page => page.groupId === 'insights').map(page => page.id), ['dashboard', 'activity', 'cost', 'pipeline'], 'Pipeline is the fourth Insights page');
   assert.equal(navPages().find(page => page.id === 'pipeline').what, 'Why work isn\'t moving');
   const serve = readFileSync(new URL('../../../src/io/serve.js', import.meta.url), 'utf8');
@@ -71,7 +71,7 @@ test('clause 1: Insights lists Pipeline as its fourth page, and the page draws T
   }
 });
 
-test('clause 2: the verdict, the flow cards and the not-moving groups count the board\'s own events and items, and change when it does [N26,#6869]', () => {
+test('view.x-pipeline-watch.clause-2-the-verdict-the-flow-cards: clause 2: the verdict, the flow cards and the not-moving groups count the board\'s own events and items, and change when it does [N26,#6869]', () => {
   const { project, events } = board();
   const model = pipelineWatchModel(project, events, { now: NOW, windowMinutes: 60 });
   assert.deepEqual([...model.flow.land.ids].sort((a, b) => a - b), [9, 10], 'two landed in the hour: items 9 and 10');
@@ -116,7 +116,7 @@ test('clause 2: the verdict, the flow cards and the not-moving groups count the 
   assert.match(pipelineWatchHtml(pipelineWatchModel(project, events, { now: NOW + 3 * 3_600_000, windowMinutes: 60 }), { href }), /Nothing landed in 1 h/u, 'three hours on, nothing landed in the hour');
 });
 
-test('clause 2: a stage the board has not recorded reads a dash, never a zero or a constant [N26,#6869]', () => {
+test('view.x-pipeline-watch.clause-2-a-stage-the-board-has: clause 2: a stage the board has not recorded reads a dash, never a zero or a constant [N26,#6869]', () => {
   const { project, events } = board({ gate: false, review: false });
   const model = pipelineWatchModel(project, events, { now: NOW, windowMinutes: 60 });
   assert.equal(model.recorded.gate, false);
@@ -136,7 +136,7 @@ test('clause 2: a stage the board has not recorded reads a dash, never a zero or
   assert.match(pipelineWatchHtml(pipelineWatchModel(project, events, { now: NOW, complete: false }), { href }), /Reading|nothing to compare|—/u);
 });
 
-test('clause 2: every count and group opens its filtered Items page, and an item opens itself [N26,#6869]', () => {
+test('view.x-pipeline-watch.clause-2-every-count-and-group-opens: clause 2: every count and group opens its filtered Items page, and an item opens itself [N26,#6869]', () => {
   const { project, events } = board();
   const model = pipelineWatchModel(project, events, { now: NOW, windowMinutes: 60 });
   const html = draw(model);
@@ -159,7 +159,7 @@ test('clause 2: every count and group opens its filtered Items page, and an item
   assert.doesNotMatch(html, /href="#"/u, 'no link goes nowhere');
 });
 
-test('clause 2: This machine draws the CPU samples it is given, and the views older than main\'s head [N26,#6869]', () => {
+test('view.x-pipeline-watch.clause-2-this-machine-draws-the-cpu: clause 2: This machine draws the CPU samples it is given, and the views older than main\'s head [N26,#6869]', () => {
   const { project, events } = board();
   const machine = { cores: 12, load: [113.4, 96, 78], diskFreeGb: 24.3, minutes: 90, gateWorkers: 4, gateQueued: 0, handoffQueued: 2, runnerSlots: 120, runnerUsed: 9,
     views: [{ pid: 1, startedMs: NOW - 90 * MINUTE }, { pid: 2, startedMs: NOW - 2 * MINUTE }],

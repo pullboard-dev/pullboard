@@ -391,6 +391,9 @@ export function loadMachineSettings() {
   if (value.verify?.hunkFreshness !== undefined && typeof value.verify.hunkFreshness !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.hunkFreshness in ${file} must be true or false`);
   }
+  if (value.join?.coordinatorSeat !== undefined && typeof value.join.coordinatorSeat !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `join.coordinatorSeat in ${file} must be true or false`);
+  }
   if (value.review?.canonicalFamilies !== undefined && typeof value.review.canonicalFamilies !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.canonicalFamilies in ${file} must be true or false`);
   }
@@ -492,6 +495,9 @@ export function loadMachineSettings() {
   }
   if (value.submit?.clauseMarks !== undefined && typeof value.submit.clauseMarks !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.clauseMarks in ${file} must be true or false`);
+  }
+  if (value.submit?.composeAsObject !== undefined && typeof value.submit.composeAsObject !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `submit.composeAsObject in ${file} must be true or false`);
   }
   if (value.submit?.proofOnly !== undefined && typeof value.submit.proofOnly !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `submit.proofOnly in ${file} must be true or false`);
@@ -679,6 +685,11 @@ export function namedImportSelectionOn() {
 /** Whether a submit records its clause marks (#9440): off by default; only an exact `true` turns it on. */
 export function submitClauseMarks() {
   return loadMachineSettings().submit?.clauseMarks === true;
+}
+
+/** Whether a submit composes main as a throwaway object under refs/pullboard/compose, never a branch commit (U159): off by default; only an exact `true` turns it on. */
+export function submitComposeAsObject() {
+  return loadMachineSettings().submit?.composeAsObject === true;
 }
 
 /** Whether a submit with no change may pass for an item that is all ticked proof clauses (#9105): off by default; only an exact `true` turns it on. */

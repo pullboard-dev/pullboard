@@ -14,9 +14,11 @@ import { pushHostedItemBranch } from '../../../../../packages/runners/index.js';
 import { checkoutBranch } from '../../../../../packages/git/index.js';
 import { heartbeatCommand } from '../presence.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
+import { composeSubmissionMain } from '../../../../../packages/merge/index.js';
 import { requireNonEmptySubmit } from '../empty.js';
 import { proofOnlyTicked } from '../empty.js';
 import { submitProofOnly } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { submitClauseMarks } from '../../../../../packages/config/index.js';
 import { criterionClauses } from '../../../../../packages/state/index.js';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
@@ -329,11 +331,20 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   let mainMerge = null;
   if (!isSubmitHandoffWorker(ctx)) {
     // A conflict in recorded tool output is not composed here: the regeneration below replays the tool on main [C7,V4,V6].
-    try { mainMerge = authorizationStep('main-merge', () => mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })); }
+    // With submit.composeAsObject on, the composition is a throwaway object (parents main then head) under refs/pullboard/compose:
+    // the builder branch never gets a sync merge, and a runner can recompute the same tree from main and head [C7,U159].
+    const composeAsObject = submitComposeAsObject();
+    try {
+      mainMerge = authorizationStep('main-merge', () => (composeAsObject
+        ? composeSubmissionMain(root, acceptedMain.commit, { item: id })
+        : mergeSubmissionMain(root, acceptedMain.commit, { checkout: false })));
+    }
     catch (error) { if (error?.code !== 'MERGE_CONFLICT' || !recordedToolCommits(root, acceptedMain.commit, headCommit(root))) throw error; }
     // The composed commit exists only as objects; the builder checkout and its HEAD are not moved [C7].
     if (mainMerge) commit = mainMerge.commit;
-    if (mainMerge?.merged) {
+    if (mainMerge?.composed) {
+      ctx.io.say(`Composed main ${acceptedMain.commit.slice(0, 12)} with head ${mainMerge.source.slice(0, 12)} as ${commit.slice(0, 12)} (${mainMerge.ref}); the builder branch is unchanged; checking the composed tree.`);
+    } else if (mainMerge?.merged) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
@@ -466,7 +477,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   const { itemPulledReds: pulledReds } = await import('../submit/pull.js');
   authorizationStep('red-progress', () => withBoard(ctx, board => requireRedSubmitProgress(root, board, id, held.item_frozen_digest, companion?.commit ?? commit, acceptedMain.commit, pulledReds)));
   if (mainMerge?.merged) await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
-    text: `Builder ${held.item_owner} automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+    text: `Builder ${held.item_owner} ${mainMerge.composed ? `composed main ${acceptedMain.commit} with head ${mainMerge.source} as an object under ${mainMerge.ref}; ` : ''}automatic main merge: source ${mainMerge.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
   const barWarning = await authorizationStep('bar-warning', () => withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -500,7 +511,7 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   // A reminder never stops a submit: a handled reference this change leaves unacknowledged in the changelog is named (point 20) [C7].
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const queueStart = Date.now();
-  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
+  const queued = await (await import('../submit/pull.js')).offerSubmitGate(ctx, { held, me, commit, trunk, main: acceptedMain, claimHead, files: filesSince(root, id, claimHead, commit), requireComposition, authorize: remoteAuthorization ? authorizationRequest() : null, full: Boolean(regenerated || regeneratedFrom), companion, infra: infraRecord, composed: mainMerge?.composed && mainMerge.commit === commit ? { main: acceptedMain.commit, head: mainMerge.source, tree: mainMerge.tree } : null }, { frozenCheck, policyAt, listItems: store.listItems, pairPrefix });
   submitMark('queueing', queueStart);
   return queued;
 }

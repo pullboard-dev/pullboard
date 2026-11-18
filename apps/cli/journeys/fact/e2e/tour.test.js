@@ -100,6 +100,8 @@ test('clause 1: the tour finishes when an agent session runs it [N10]', async t 
     // The ledger holds the builder's claim and submit; the reviewer's verify passing already proves it is another session.
     assert.ok(digests.length > 0, `${name}: the builder's claim and submit are recorded`);
     assert.equal(digests.includes(sessionDigest(name, value)), false, `${name}: the caller's session is no seat's builder`);
+    const claims = offerToClaimMs(repo);
+    if (wake) assert.ok(claims.length > 0 && claims.every((ms) => ms <= 500), `${name}: with runners.localWake on every claim, the first included, follows its offer within 0.5 s: ${JSON.stringify(claims)}`);
     t.diagnostic(`offer-to-claim ms (runners.localWake ${wake ? 'on' : 'off'}, ${name}): ${JSON.stringify(offerToClaimMs(repo))}`);
     const settings = join(dirname(repo), '.pullboard-machine', 'settings.json');
     const demo = existsSync(settings) ? JSON.parse(readFileSync(settings, 'utf8')) : {};

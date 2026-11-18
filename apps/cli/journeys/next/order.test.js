@@ -35,7 +35,7 @@ import {
 } from '../../../../packages/store/index.js';
 import { resolve } from 'node:path';
 
-test('next offers the item on the longest remaining path first [N2,B13,N20]', async t => {
+test('cli.journeys-next-order.next-offers-the-item-on-the: next offers the item on the longest remaining path first [N2,B13,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const add = (title, after = []) => store.addItem(board, {
@@ -61,7 +61,7 @@ test('next offers the item on the longest remaining path first [N2,B13,N20]', as
 });
 
 /** The sharpened primary score leaves a real equal-score tie for the critical path to resolve. */
-test('equal primary scores use the longer remaining path before age [N2,B13,N20]', async t => {
+test('cli.journeys-next-order.equal-primary-scores-use-the-longer: equal primary scores use the longer remaining path before age [N2,B13,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const add = (title, after = []) => store.addItem(board, {
@@ -80,7 +80,7 @@ test('equal primary scores use the longer remaining path before age [N2,B13,N20]
   assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, long, 'the queue resolves the same equal-score tie');
 });
 
-test('a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', async t => {
+test('cli.journeys-next-order.a-file-overlap-keeps-the-hard: a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', async t => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const busy = store.register(board, { lane: 'api', path: '/soft-overlap', route: 'strong' });
@@ -98,7 +98,7 @@ test('a file overlap keeps the hard collision skip under the sharpened precedenc
     'an independent item remains offerable while the collision stays blocked');
 });
 
-test('historical review paths replay while modern reviews use age [C7,N2,B13,H16]', async t => {
+test('cli.journeys-next-order.historical-review-paths-replay-while-modern: historical review paths replay while modern reviews use age [C7,N2,B13,H16]', async t => {
   const { board, builder, reviewer } = boardFixture();
   t.after(() => store.closeBoard(board));
   const independent = submitted(board, builder, 'Older independent submission', 'strong', 1);
@@ -115,7 +115,7 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
     'modern review age precedes the critical path under coordinator37962');
 });
 
-test('recorded review selection keeps its historical path priority on replay [N2,H16]', async t => {
+test('cli.journeys-next-order.recorded-review-selection-keeps-its-historical: recorded review selection keeps its historical path priority on replay [N2,H16]', async t => {
   for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture(engine);
     const replica = openBoard(':memory:');
@@ -144,7 +144,7 @@ test('recorded review selection keeps its historical path priority on replay [N2
   }
 });
 
-test('historical reviewers keep earliest-milestone submissions first [B16,H16]', async (t) => {
+test('cli.journeys-next-order.historical-reviewers-keep-earliest-milestone-submissions: historical reviewers keep earliest-milestone submissions first [B16,H16]', async (t) => {
   const { board, builder, reviewer } = boardFixture();
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
@@ -176,7 +176,7 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
 });
 
-test('a builder gets the earliest milestone\'s open items first [B16]', async (t) => {
+test('cli.journeys-next-order.a-builder-gets-the-earliest-milestone: a builder gets the earliest milestone\'s open items first [B16]', async (t) => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
 
@@ -212,7 +212,7 @@ test('a builder gets the earliest milestone\'s open items first [B16]', async (t
   assert.notEqual(resumed.item.item_id, unlistedStrong);
 });
 
-test('a pinned eligible item is offered before an older unpinned one [B16,N2]', async (t) => {
+test('cli.journeys-next-order.a-pinned-eligible-item-is-offered: a pinned eligible item is offered before an older unpinned one [B16,N2]', async (t) => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const [older, pinned] = coreItems(board, [{ title: 'older unpinned work' }, { title: 'newer pinned work' }]);
@@ -222,7 +222,7 @@ test('a pinned eligible item is offered before an older unpinned one [B16,N2]', 
     'the pinned item leads the milestone although an older item is also open');
 });
 
-test('a pinned item whose dependency is open is skipped [B16,N2]', async (t) => {
+test('cli.journeys-next-order.a-pinned-item-whose-dependency-is: a pinned item whose dependency is open is skipped [B16,N2]', async (t) => {
   const { board, builder } = boardFixture();
   t.after(() => store.closeBoard(board));
   const [, pinned, free] = coreItems(board, [{ title: 'open prerequisite elsewhere' }, { title: 'pinned but waiting', after: [0] }, { title: 'unpinned ready work' }]);
@@ -233,7 +233,7 @@ test('a pinned item whose dependency is open is skipped [B16,N2]', async (t) => 
   assert.equal(offered, free, 'the next eligible item in the milestone is offered instead');
 });
 
-test('recorded reserve-next moves retain their versioned ordering [B16,H16]', async (t) => {
+test('cli.journeys-next-order.recorded-reserve-next-moves-retain-their: recorded reserve-next moves retain their versioned ordering [B16,H16]', async (t) => {
   assert.ok(ENGINE_VERSION >= 8, 'roadmap selection is carried by engine 8 or newer');
   for (const version of [1, 2, 3, 4, 5, 6, 7, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture(version);

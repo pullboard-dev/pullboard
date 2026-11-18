@@ -28,7 +28,7 @@ const shell = (privateCost) => cockpitMarkup({ repositoryAttribute: 'https://exa
 const tabsIn = (html) => [...html.matchAll(/class="tab[^"]*" data-tab="([a-z]+)"/gu)].map(match => match[1]);
 const stripLabels = (html) => [...html.matchAll(/<button class="(tab|tab-group-btn)[^"]*" data-(?:tab|nav-group)="[a-z]+"[^>]*>(?:<span class="group-label">)?([^<]+)/gu)].filter(match => !/role="menuitem"/u.test(match[0])).map(match => match[2]);
 
-test('clause 1: the pages are Items, Shouts, Roadmap, then Rules (Spec, Doctrine) and Insights (Dashboard, Activity, Cost, Pipeline), as in the prototype [N26]', () => {
+test('view.x-nav.clause-1-the-pages-are-items-shouts: clause 1: the pages are Items, Shouts, Roadmap, then Rules (Spec, Doctrine) and Insights (Dashboard, Activity, Cost, Pipeline), as in the prototype [N26]', () => {
   assert.deepEqual(navPages({ cost: true }).map(page => [page.group, page.name]), [
     ['Work', 'Items'], ['Work', 'Shouts'], ['Work', 'Roadmap'],
     ['Rules', 'Spec'], ['Rules', 'Doctrine'],
@@ -80,7 +80,7 @@ test('clause 1: the pages are Items, Shouts, Roadmap, then Rules (Spec, Doctrine
   }
 });
 
-test('clause 1: the strip is plain text: active ink, bold and a green dot; hover darkens the text only, never a fill, underline or pill [N26]', () => {
+test('view.x-nav.clause-1-the-strip-is-plain-text: clause 1: the strip is plain text: active ink, bold and a green dot; hover darkens the text only, never a fill, underline or pill [N26]', () => {
   const css = composeViewStyles();
   const rule = (selector) => {
     const at = css.indexOf(selector + ' {');
@@ -105,7 +105,7 @@ test('clause 1: the strip is plain text: active ink, bold and a green dot; hover
   assert.match(rule(':root[data-nav] .status'), /height: 26px/u);
 });
 
-test('clause 1: the notch holds agents, per hour and rulings, in that order, with steady figures and click hooks [N26]', () => {
+test('view.x-nav.clause-1-the-notch-holds-agents-per: clause 1: the notch holds agents, per hour and rulings, in that order, with steady figures and click hooks [N26]', () => {
   const html = notchHtml({ agents: 62, perHour: 34.4, rulings: 5 });
   assert.deepEqual([...html.matchAll(/<button class="notch-it"[^>]*data-peek="([A-Za-z]+)"[^>]*>(.*?)<\/button>/gu)].map(match => [match[1], match[2].replace(/<[^>]+>/gu, '')]),
     [['agents', '62 agents'], ['perHour', '34/h'], ['rulings', '5 rulings']]);
@@ -119,7 +119,7 @@ test('clause 1: the notch holds agents, per hour and rulings, in that order, wit
   assert.doesNotMatch(html, /release|0\.9/u, 'no release widget');
 });
 
-test('clause 2: every filter and search has its own address, a default leaves none, and the address reads back the same place [N38]', () => {
+test('view.x-nav.clause-2-every-filter-and-search-has: clause 2: every filter and search has its own address, a default leaves none, and the address reads back the same place [N38]', () => {
   const at = (place) => withPlaceQuery('?k=secret', placeQuery(place));
   assert.equal(at({ tab: 'items' }), '?k=secret', 'a plain tab keeps a plain address, the session key untouched');
   assert.equal(at({ tab: 'items', state: 'verify', lane: 'web' }), '?k=secret&state=verify&lane=web');
@@ -144,7 +144,7 @@ test('clause 2: every filter and search has its own address, a default leaves no
   }
 });
 
-test('clause 1: the sidebar lists the same pages in 28 px rows, each with its one fact, under quiet group labels, below the project switcher at the top left [N26]', () => {
+test('view.x-nav.clause-1-the-sidebar-lists-the-same: clause 1: the sidebar lists the same pages in 28 px rows, each with its one fact, under quiet group labels, below the project switcher at the top left [N26]', () => {
   const html = navSideHtml({ tab: 'items', cost: true, facts: { items: 653, shouts: 4, roadmap: '60 to go', spec: 314, doctrine: 46 }, amber: ['shouts'] });
   assert.deepEqual([...html.matchAll(/<div class="side-h">([A-Za-z]+)<\/div>/gu)].map(match => match[1]), ['Work', 'Rules', 'Insights'], 'quiet group labels, as in the strip');
   const rows = [...html.matchAll(/<button class="side-row( on)?" data-tab="([a-z]+)" type="button"[^>]*><span class="side-name">([A-Za-z]+)<\/span><span class="f( a)?" data-nav-fact="([a-z]+)">([^<]*)<\/span><\/button>/gu)];
@@ -175,7 +175,7 @@ test('clause 1: the sidebar lists the same pages in 28 px rows, each with its on
   assert.ok(served.indexOf('id="sidenav"') > served.indexOf('</main>'), 'the sidebar follows the page in the markup, so the strip\'s tabs are the first of each page [data-tab]');
 });
 
-test('clause 2: the pin flips the navigation between the top tabs and the sidebar, this device remembers it, and a phone always gets the top [N26]', () => {
+test('view.x-nav.clause-2-the-pin-flips-the-navigation: clause 2: the pin flips the navigation between the top tabs and the sidebar, this device remembers it, and a phone always gets the top [N26]', () => {
   assert.equal(navLayout({ stored: 'side', wide: true }), 'side');
   assert.equal(navLayout({ stored: 'side', wide: false }), 'top', 'a phone always gets the top tabs');
   assert.equal(navLayout({ stored: 'top', wide: true }), 'top');
@@ -214,7 +214,7 @@ test('clause 2: the pin flips the navigation between the top tabs and the sideba
   assert.equal(run({ stored: 'side', wide: false }).root.dataset.nav, 'top', 'a phone keeps the top tabs whatever the device chose');
 });
 
-test('clause 1: each page puts its own controls at the right of the strip, and the sidebar layout puts them on the title row [N26]', () => {
+test('view.x-nav.clause-1-each-page-puts-its-own: clause 1: each page puts its own controls at the right of the strip, and the sidebar layout puts them on the title row [N26]', () => {
   const labels = (html) => [...html.matchAll(/<(?:button|option)[^>]*>([^<]+)<\/(?:button|option)>/gu)].map(match => match[1]);
   assert.deepEqual(labels(pageControlsHtml({ tab: 'items' })), ['Open', 'Building', 'In review', 'All', 'List', 'Pipeline', 'New item'], 'Items: Open, Building, In review, All, List, Pipeline and New item');
   assert.match(pageControlsHtml({ tab: 'items', state: 'verify' }), /<button type="button" data-page-ctl="state" data-value="verify" class="on" aria-pressed="true">In review<\/button>/u, 'the shown state is the pressed one');
@@ -250,7 +250,7 @@ test('clause 1: each page puts its own controls at the right of the strip, and t
   assert.ok(pageRenderScript().includes('function pageControlsHtml(') && pageRenderScript().includes('function navLayout('), 'the render script carries both');
 });
 
-test('clause 2: each control\'s state is in the page address, and the address puts it back [N38]', () => {
+test('view.x-nav.clause-2-each-control-s-state-is: clause 2: each control\'s state is in the page address, and the address puts it back [N38]', () => {
   const states = [
     [{ tab: 'items', state: 'building' }, '?state=building'], [{ tab: 'items', state: 'verify' }, '?state=verify'], [{ tab: 'items', state: 'all' }, '?state=all'],
     [{ tab: 'shouts', shouts: 'you' }, '?shouts=you'], [{ tab: 'roadmap', shipped: true }, '?shipped=1'], [{ tab: 'activity', by: 'person' }, '?by=person'],
@@ -271,7 +271,7 @@ test('clause 2: each control\'s state is in the page address, and the address pu
   assert.deepEqual(opened.ids.split(',').map(Number), [6579, 6580, 5994]);
 });
 
-test('clause 1: at 900 px or less the top bar is Menu with its rulings, the project name, Search and the account, with no notch or strip [N26]', () => {
+test('view.x-nav.clause-1-at-900-px-or-less: clause 1: at 900 px or less the top bar is Menu with its rulings, the project name, Search and the account, with no notch or strip [N26]', () => {
   const html = shell(false);
   const tier = html.slice(html.indexOf('<div class="top-tier">'), html.indexOf('<div class="strip"'));
   const order = ['id="menu-btn"', '>Menu<', 'id="menu-rulings"', 'id="proj-title"', 'id="q"', 'id="account-slot"'].map(part => tier.indexOf(part));
@@ -289,7 +289,7 @@ test('clause 1: at 900 px or less the top bar is Menu with its rulings, the proj
   assert.ok(pageScriptPart4(new Proxy({}, { get: () => function stub() { return {}; } })).includes("matchMedia('(max-width: 900px)').matches ? $('page-title')"), 'the page controls move to the title row');
 });
 
-test('clause 2: Menu opens a drawer from the left with the project, agents and pace, Rulings and every page with its fact; a page picked closes it [N26]', () => {
+test('view.x-nav.clause-2-menu-opens-a-drawer-from: clause 2: Menu opens a drawer from the left with the project, agents and pace, Rulings and every page with its fact; a page picked closes it [N26]', () => {
   for (const privateCost of [true, false]) {
     const html = shell(privateCost);
     const drawer = html.slice(html.indexOf('<aside class="mdrawer"'), html.indexOf('</aside>', html.indexOf('<aside class="mdrawer"')));
@@ -319,7 +319,7 @@ test('clause 2: Menu opens a drawer from the left with the project, agents and p
   assert.ok(script.includes("if (event.target.closest('#mveil')) { event.stopPropagation(); setMenu(false); return; }"), 'the dimmed page closes it');
 });
 
-test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
+test('view.x-nav.clause-2-items-has-no-sign-in: clause 2: Items has no sign-in banner, summary panel or in-page toolbar above its list; filters and New item live in the strip [N26]', () => {
   const html = shell(false);
   const items = html.slice(html.indexOf('<section data-pane="items"'), html.indexOf('<section data-pane="shouts"'));
   for (const id of ['proof-stats', 'items-toolbar', 'items-view-switch', 'filter-toggle', 'filter-menu', 'new-item']) assert.ok(!items.includes('id="' + id + '"'), `${id} is not on the Items page`);
@@ -334,7 +334,7 @@ test('clause 2: Items has no sign-in banner, summary panel or in-page toolbar ab
   assert.match(strip, /data-page-ctl="new" aria-label="New item">New item/u, 'New item is in the strip');
 });
 
-test('clause 1: the strip\'s #new-item is the only New item on the page, and Shouts and Activity draw no in-page filter the strip holds [N26,#6721]', () => {
+test('view.x-nav.clause-1-the-strip-s-new-item: clause 1: the strip\'s #new-item is the only New item on the page, and Shouts and Activity draw no in-page filter the strip holds [N26,#6721]', () => {
   const html = shell(false);
   assert.equal([...html.matchAll(/id="new-item"/gu)].length, 0, 'the shell draws no New item of its own; the strip fills it in');
   assert.equal([...pageControlsHtml({ tab: 'items' }).matchAll(/id="new-item"/gu)].length, 1, 'the strip draws one #new-item');
@@ -351,7 +351,7 @@ test('clause 1: the strip\'s #new-item is the only New item on the page, and Sho
   assert.match(pageControlsHtml({ tab: 'activity' }), /data-value="landed"/u, 'the strip holds the Activity filters');
 });
 
-test('clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s fixed row height [N26]', () => {
+test('view.x-nav.clause-1-items-rows-are-one-card: clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s fixed row height [N26]', () => {
   const css = composeViewStyles();
   const rule = (selector) => { const at = css.indexOf(selector + ' {'); assert.ok(at >= 0, `the stylesheet has ${selector}`); return css.slice(at + selector.length + 2, css.indexOf('}', at)); };
   assert.match(rule('#chain'), /--item-row-h: 55px/u, 'the mockup\'s row: 55 px and a 2 px gap, 57 px a row, kept fixed for the windowing');
@@ -360,7 +360,7 @@ test('clause 1: Items rows are one card of mockup-shaped rows at the mockup\'s f
   assert.ok(order.every((at, n) => at >= 0 && (!n || at > order[n - 1])), `state circle, #id and title, then lane, then time and the holder chip at the right: ${order}`);
 });
 
-test('clause 1: the top right is one account control, the person\'s initial when signed in and Sign in when not, and its menu holds who they are, Settings, Theme, and Pair a phone; the Sign out row stays hidden until the view has a real sign-out [N26,#6648]', () => {
+test('view.x-nav.clause-1-the-top-right-is-one: clause 1: the top right is one account control, the person\'s initial when signed in and Sign in when not, and its menu holds who they are, Settings, Theme, and Pair a phone; the Sign out row stays hidden until the view has a real sign-out [N26,#6648]', () => {
   assert.match(accountHtml({ signedIn: true, login: 'coreyolson' }), />C<\/button>$/u, 'the initial, upper-cased');
   assert.match(accountHtml({ signedIn: false }), />Sign in<\/button>$/u);
   const text = (html) => [...html.matchAll(/<(?:b|small|button)[^>]*>(.*?)<\/(?:b|small|button)>/gu)].map((m) => m[1].replace(/<[^>]+>/gu, ''));
@@ -376,7 +376,7 @@ test('clause 1: the top right is one account control, the person\'s initial when
   assert.match(accountHtml({ signedIn: true, login: '<b>' }), /&lt;|>B</u, 'a login is text, never markup');
 });
 
-test('clause 2: the page carries no sign-in banner, and Settings is reached from the account menu only [N26,#6648]', () => {
+test('view.x-nav.clause-2-the-page-carries-no-sign: clause 2: the page carries no sign-in banner, and Settings is reached from the account menu only [N26,#6648]', () => {
   const html = cockpitMarkup({ repositoryAttribute: 'https://example.test', cssAttribute: 'view.css', hostedLocal: true, snapshot: false, readOnly: false, requestMode: false, privateCost: false, hostedMarkup: () => '', signIn: '', settingsMarkup: () => '', starMarkup: () => '' });
   assert.doesNotMatch(html, /Open your boards on any device|share-note|share-again/u, 'no banner and no second invitation');
   assert.doesNotMatch(html, /id="theme"|machine-settings-entry/u, 'the bare theme button and the machine Settings entry are gone');

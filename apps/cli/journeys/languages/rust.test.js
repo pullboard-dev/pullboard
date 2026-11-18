@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../tests/fixtures/e2e.js';
 import { BROKEN } from '../../tests/fixtures/languages/rust.js';
 import { CARGO } from '../../tests/fixtures/languages/rust.js';
+import { CHECK } from '../../tests/fixtures/languages/rust.js';
 import { UNAVAILABLE } from '../../tests/fixtures/languages/rust.js';
 import { buildAndSubmit } from '../../tests/fixtures/languages/rust.js';
 import { cargoSandbox } from '../../tests/fixtures/languages/rust.js';
@@ -35,5 +36,6 @@ test('cli.journeys-languages-rust.a-submitted-commit-with-a-failing: clause 2: a
   const board = await crateBoard(helpers);
   const red = await buildAndSubmit(board, null, BROKEN);
   assert.match(red.shown.out, /GATE_RED/u, red.text);
+  assert.doesNotMatch(CHECK, /adds_small_numbers/u);
   assert.match(red.text, /adds_small_numbers/u);
 });
