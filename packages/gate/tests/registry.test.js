@@ -82,3 +82,13 @@ test('gate.registry.io-admission-to-main: clause 1: [C7,U148] the io folders adm
   assert.deepEqual(mine, [], 'every test in those folders is titled with a registered ID');
   assert.ok(ids.length > 250);
 });
+
+test('gate.registry.logic-d: clause 2: [C7,U148] the logic test conversion, freeze-paths, journey-check, manifest-keep, progress and source tests each carry an ID in every test title and one record per ID', () => {
+  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const names = ['conversion', 'freeze-paths', 'journey-check', 'manifest-keep', 'progress', 'source/edits', 'source/loads'];
+  const files = names.map((name) => join(DIR, 'logic', 'test', `${name}.test.js`)).map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+  const { ids, findings } = registryFindings(files, records);
+  const mine = findings.filter((finding) => !finding.startsWith('registry.json:'));
+  assert.deepEqual(mine, [], 'every test in those files is titled with a registered ID');
+  assert.equal(ids.length, 45);
+});
