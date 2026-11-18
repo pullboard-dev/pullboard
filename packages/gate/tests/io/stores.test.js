@@ -368,6 +368,15 @@ test('gate.io-stores.writeownerdebt-in-stores-json-ends: #8623 clause 2: writeOw
   assert.deepEqual(storeWriteProblems(registry, read), []);
 });
 
+test('gate.io-stores.temp-owned-by-outbox-io: #10813 clause 1: table:temp is owned by the outbox io module that writes it, and the logic file holds no write call [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:temp'].owner;
+  assert.equal(owner, 'packages/outbox/src/io/relay/undo.js');
+  assert.match(readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8'), /INSERT INTO temp\.moving/u);
+  assert.doesNotMatch(readFileSync(new URL('../../../outbox/src/logic/undo.js', import.meta.url), 'utf8'), /temp\.moving/u);
+  assert.deepEqual(storeOwnerProblems(registry), []);
+});
+
 test('gate.io-stores.person-enrollment-owned-by-relay-io: #10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
   const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
   const owner = registry.stores['table:person_enrollment'].owner;

@@ -23,7 +23,7 @@ const copy = (name, count) => [
 /** Source rows for a checkout of the given files. */
 const rowsOf = files => Object.entries(files).map(([file, source]) => ({ file, source }));
 
-test('clause 1: with the setting on, a 3-line statement shape found in 3 files fails naming every file, and 2 files pass [C7,#9521]', () => {
+test('gate.logic-static-idiom-spread.with-the-setting-on-a-3: clause 1: with the setting on, a 3-line statement shape found in 3 files fails naming every file, and 2 files pass [C7,#9521]', () => {
   const three = rowsOf({
     'packages/a/src/one.js': 'export const one = 1;\n' + copy('a', 1),
     'packages/b/src/two.js': copy('b', 2),
@@ -38,7 +38,7 @@ test('clause 1: with the setting on, a 3-line statement shape found in 3 files f
   assert.deepEqual(idiomSpreadRows(three.slice(0, 2), { enabled: true }), [], 'two files are not a spread');
 });
 
-test('clause 1: imports, comments, tests and short or closing-only windows are not shapes [C7,#9521]', () => {
+test('gate.logic-static-idiom-spread.imports-comments-tests-and-short-or: clause 1: imports, comments, tests and short or closing-only windows are not shapes [C7,#9521]', () => {
   const same = 'import { a } from "./a.js";\nimport { b } from "./b.js";\nimport { c } from "./c.js";\n// a comment line\n// another comment line\n';
   const closers = '}\n}\n});\n';
   const rows = rowsOf({
@@ -53,7 +53,7 @@ test('clause 1: imports, comments, tests and short or closing-only windows are n
   assert.equal(shapesOf('a();\nb();\nc();\n').size, 0, 'a window under the length floor is not a shape');
 });
 
-test('clause 1: the requestAnimationFrame plus setTimeout idiom ceiling equals the 0 sites left on main, so any higher value fails; a 7th site still fails against a ceiling of 6 [C7,#9521,#9530]', () => {
+test('gate.logic-static-idiom-spread.the-requestanimationframe-plus-settimeout-idiom-ceiling: clause 1: the requestAnimationFrame plus setTimeout idiom ceiling equals the 0 sites left on main, so any higher value fails; a 7th site still fails against a ceiling of 6 [C7,#9521,#9530]', () => {
   const ceilings = JSON.stringify({ version: 1, idioms: { frame: { pattern: 'requestAnimationFrame\\(\\(\\) => setTimeout\\(', sites: 6 } } });
   const site = n => `  requestAnimationFrame(() => setTimeout(() => { later${n}(); }, 0));\n`;
   const files = {
@@ -75,7 +75,7 @@ test('clause 1: the requestAnimationFrame plus setTimeout idiom ceiling equals t
   assert.ok(!real.test('itemsWindowFrame = (typeof requestAnimationFrame === "function" ? requestAnimationFrame : (next) => setTimeout(next, 0))(() => { x(); });'));
 });
 
-test('clause 3: with gate.idiomSpread off, which is the default, the check reports nothing [C7,#9521]', () => {
+test('gate.logic-static-idiom-spread.with-gate-idiomspread-off-which-is: clause 3: with gate.idiomSpread off, which is the default, the check reports nothing [C7,#9521]', () => {
   const rows = rowsOf({ 'packages/a/src/one.js': copy('a', 1), 'packages/b/src/two.js': copy('b', 2), 'packages/c/src/three.js': copy('c', 3) });
   assert.deepEqual(idiomSpreadRows(rows), []);
   assert.deepEqual(idiomSpreadRows(rows, { enabled: false }), []);
