@@ -72,3 +72,9 @@ test("store.io-board-decision-answer.rulings-cause-outside-the-list-is-refused: 
   assert.throws(() => rulingsByCause(seat.board, "not-a-cause"), { code: "RULING_CAUSE" });
   assert.deepEqual(rulingsByCause(seat.board, "person-authority"), []);
 });
+
+test("store.io-board-decision-answer.rulings-lookup-is-exported-from-the-front-door: clause 3: rulingsByCause is exported from packages/store/index.js and is the function defined in answer.js [C7,#1444]", async () => {
+  const defined = await import("../../../../src/io/board/decision/answer.js");
+  assert.equal(typeof rulingsByCause, "function");
+  assert.equal(rulingsByCause, defined.rulingsByCause);
+});
