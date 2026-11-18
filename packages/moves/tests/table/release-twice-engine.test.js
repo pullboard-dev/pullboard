@@ -2,8 +2,8 @@
 /** releasedTwice skips --on and machine-fault releases only from the release-twice engine; older boards replay as before [C7,#9832]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { releaseEngine } from '../../../index.js';
-import { runTable } from '../../../index.js';
+import { releaseEngine } from '../../index.js';
+import { runTable } from '../../index.js';
 
 const FROM = 20;
 const { rules: RULES, table: TABLE } = releaseEngine({
@@ -36,7 +36,7 @@ const onRelease = { id: 7, actor: HOLDER, root: '/seats/core-1', reason: 'BLOCKE
 const run = (s, m) => runTable(TABLE, RULES, structuredClone(s), structuredClone(m));
 const twice = result => result.via.includes('released-twice');
 
-test('clause 1: from the release-twice engine, a release naming --on or an infra-fault note does not count toward releasedTwice [C7,#9832]', () => {
+test('moves.table-release-twice-engine.on-and-infra-releases-do-not-count: clause 1: from the release-twice engine, a release naming --on or an infra-fault note does not count toward releasedTwice [C7,#9832]', () => {
   for (const engine of [FROM, FROM + 3, undefined]) {
     for (const [name, move] of [['infra note', infraRelease], ['--on', onRelease]]) {
       const result = run(snapshot(engine), move);
@@ -48,7 +48,7 @@ test('clause 1: from the release-twice engine, a release naming --on or an infra
   assert.ok(twice(plain), 'an ordinary second release still counts at the new engine');
 });
 
-test('clause 2: the same two releases on a board at an older engine still count, as before [C7,#9832]', () => {
+test('moves.table-release-twice-engine.older-engine-still-counts: clause 2: the same two releases on a board at an older engine still count, as before [C7,#9832]', () => {
   for (const engine of [FROM - 1, 1, null]) {
     for (const [name, move] of [['infra note', infraRelease], ['--on', onRelease]]) {
       const result = run(snapshot(engine), move);
@@ -58,7 +58,7 @@ test('clause 2: the same two releases on a board at an older engine still count,
   }
 });
 
-test('clause 2: an earlier release in the history that named --on or an infra note counts at an older engine and not at the new one [C7,#9832]', () => {
+test('moves.table-release-twice-engine.earlier-release-counts-only-at-older-engine: clause 2: an earlier release in the history that named --on or an infra note counts at an older engine and not at the new one [C7,#9832]', () => {
   for (const detail of [{ reasonCode: 'BLOCKED', blockedOn: [8] }, { reasonCode: 'BLOCKED', reason: INFRA }]) {
     const base = snapshot(FROM);
     base.history[1] = { id: 2, kind: 'release', by: HOLDER, detail };
