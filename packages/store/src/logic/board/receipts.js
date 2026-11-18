@@ -10,6 +10,8 @@ export { HEALTH_SENTINEL_ENGINE } from "../../../../state/light.js";
 import { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 export { HEALTH_CAP_ENGINE } from "../../../../state/light.js";
 
+import { HEALTH_QUIET_ENGINE } from "../../../../state/light.js";
+
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;
 
@@ -78,7 +80,8 @@ export function healthTargets(finding, { engine, coordinator, person, lanes, age
 /**
  * Deliver one run's notices, resolved first: each finding's shouts, then its event, as earlier engines recorded them.
  * Every finding keeps its event. From HEALTH_CAP_ENGINE the run sends at most HEALTH_SHOUT_CAP shouts and one more to
- * the coordinator saying how many it held back, so a backfill never floods a feed (#940).
+ * the coordinator saying how many it held back, so a backfill never floods a feed (#940). From HEALTH_QUIET_ENGINE a
+ * resolved finding is logged and shouted to no one; an earlier engine's run replays with its original shouts.
  *
  * @param {{ resolved: any[], added: any[], engine: number, coordinator: string, targets: (finding: any) => string[],
  *   shout: (to: string, text: string) => void, log: (finding: any, cleared: boolean) => void }} run
@@ -92,7 +95,7 @@ export function deliverHealthNotices({ resolved, added, pending = [], engine, co
   for (const [finding, cleared, retry] of [...(durableCpu ? pending : []).map(entry => [entry, false, true]),
     ...resolved.map(entry => [entry, true, false]), ...added.map(entry => [entry, false, false])]) {
     let coordinatorSent = false;
-    for (const to of targets(finding)) {
+    for (const to of cleared && engine >= HEALTH_QUIET_ENGINE ? [] : targets(finding)) {
       if (capped && sent >= HEALTH_SHOUT_CAP) { held += 1; continue; }
       shout(to, healthFindingNotice(finding, cleared));
       sent += 1;
