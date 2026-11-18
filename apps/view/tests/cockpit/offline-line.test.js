@@ -13,11 +13,11 @@ function offlineLine(transport, error) {
   return runInNewContext(script.slice(from, to) + '; offlineLine', { transport })(error);
 }
 
-test('the footer asks about the local view only when the page reads from it [H5]', () => {
+test('clause 1: the footer asks about the local view only when the page reads from it [H5]', () => {
   assert.equal(offlineLine(null, new Error('Failed to fetch')), 'offline: is pullboard view still running?');
 });
 
-test('the footer on a relay page names the relay and says one next step per fault, never a raw code [H5,H17]', () => {
+test('clause 1: the footer on a relay page names the relay and says one next step per fault, never a raw code [H5,H17]', () => {
   const transport = {};
   const wait = 'offline: the relay is not answering. Wait a moment; this page tries again by itself.';
   const reload = 'offline: this page is older than the relay. Reload this page to get the new version.';
