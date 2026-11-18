@@ -1,6 +1,6 @@
 /** The file lease refuses a leased busy file and lets a claim share a leased quiet file [C7,#1441]. */
-import assert from "node:assert/strict";
-import { test } from "node:test";
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { quietFiles } from "../../index.js";
 import { requireFileLease } from "../../index.js";
 
@@ -15,7 +15,7 @@ function boardWithHolder(file) {
 /** The item being claimed, predicting one file. */
 const claiming = (file) => ({ item_id: 1, item_brief: "Files:\n- " + file, item_criterion: "" });
 
-test("items.lease.quiet-files-shared: clause 1: requireFileLease with a quiet set refuses FILE_LEASED for a leased busy file and lets the claim proceed on a leased quiet file [C7,#1441]", () => {
+test('items.lease.quiet-files-shared: clause 1: requireFileLease with a quiet set refuses FILE_LEASED for a leased busy file and lets the claim proceed on a leased quiet file [C7,#1441]', () => {
   const db = boardWithHolder("packages/items/src/a.js");
   const lease = { hubs: [] };
   const refused = (error) => error?.code === "FILE_LEASED";
