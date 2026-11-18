@@ -52,9 +52,9 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
     writeFileSync(join(box.web, `web/page-${id}.txt`), 'built\n');
     box.git(box.web, 'add', `web/page-${id}.txt`);
     box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
-    const submitted = await json(box.runLocal(box.web, 'submit', String(id), '--json', '--no-next'));
+    const submitted = await json(box.runLocal(box.web, 'submit', String(id), '--no-next'));
     const shown = await json(box.runLocal(box.web, 'show', String(id)));
-    return { printed: marks(submitted.err), shown: marks(shown.out) };
+    return { printed: marks(submitted.out + submitted.err), shown: marks(shown.out) };
   }
 
   const off = await submitItem(1, false);
