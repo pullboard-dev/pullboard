@@ -113,6 +113,7 @@ export function buildInFilelessLane(config, lane, after) {
 /**
  * A brief whose Files section stays inside the item's lane (B14), so a builder working from it
  * never runs into the lane check: an item's files sit in its lane.
+ * With laneMode off the lane folders are only labels and the claimed item's cells are its own, so any brief stands [C7,#10843].
  *
  * @param {any} ctx
  * @param {string} lane
@@ -120,6 +121,7 @@ export function buildInFilelessLane(config, lane, after) {
  * @returns {string}
  */
 export function briefInLane(ctx, lane, brief) {
+  if (ctx.config.laneMode === 'off') return brief;
   const foreign = outOfLane(ctx.config, lane, briefFiles(brief));
   if (foreign.length) {
     throw new Refused('BRIEF_LANE', `the brief names files outside the ${lane} lane: ${foreign.join(', ')}; split the item by lane, or wait on the other lane's item with --after`);
