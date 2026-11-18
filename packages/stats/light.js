@@ -27,7 +27,9 @@ export { itemCost, publicUsage } from './src/io/cost/usage.js';
  * The stats that store, verify, pages and the CLI's exit rules read or write while a board command runs: no runner, agent, review or report readers,
  * so a hot command that opens the board never loads the whole stats cell [C7,R24].
  */
-export { coordinatorMilestoneRelease } from './src/io/actions.js';
+export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/io/actions.js';
+export { coordinatorActionRise } from './src/logic/actions.js';
+export { readWorkFreeReleases } from './src/logic/work/free.js';
 export { pipelineStats } from './src/logic/pipeline.js';
 export { proofStats, proofAgentIds } from './src/io/main.js';
 export { readCapacity } from './src/io/capacity.js';
