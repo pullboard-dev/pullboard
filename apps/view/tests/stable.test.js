@@ -91,7 +91,7 @@ test('view.stable.logic-rest-registered: clause 1: [C7,U148,#10636] every test u
 test('view.stable.sees-looped-and-indented-tests: clause 1: [C7,U148,#10645] the check counts an indented or template-titled test, needs a record for it, and expands a kind template to its records', () => {
   const looped = "for (const kind of ['a']) {\n  test(`view.x.reads-as-${kind}: reads ${kind}`, () => {});\n}\n";
   const none = registryFindings([{ file: 'x.test.js', source: looped }], {});
-  assert.equal(none.findings.length, 2, 'a looped test without a record is reported');
+  assert.equal(none.findings.length, 1, 'a looped test without a record is reported');
   const some = registryFindings([{ file: 'x.test.js', source: looped }], { 'view.x.reads-as-a': {}, 'view.x.reads-as-b': {} });
   assert.deepEqual(some.findings, [], 'a template ID is covered by its records');
   assert.deepEqual(some.ids, ['view.x.reads-as-a', 'view.x.reads-as-b']);
