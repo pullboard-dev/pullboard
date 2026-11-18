@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-cell apps/cli packages/api packages/store packages/board packages/kernel packages/jobs */
+/** @pullboard-test-input source-cell apps/cli */
 /** The serve reconciler tick applies the receipts the runs inbox still holds, and opens no runs file while the flag is off [B2,P7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
