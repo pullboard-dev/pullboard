@@ -255,33 +255,38 @@
     },
     {
       "order": 48,
-      "name": "env",
-      "file": "packages/codemap/data/plan/48-env.json"
+      "name": "clock",
+      "file": "packages/codemap/data/plan/48-clock.json"
     },
     {
       "order": 49,
-      "name": "app:view",
-      "file": "packages/codemap/data/plan/49-app-view.json"
+      "name": "env",
+      "file": "packages/codemap/data/plan/49-env.json"
     },
     {
       "order": 50,
-      "name": "app:runner",
-      "file": "packages/codemap/data/plan/50-app-runner.json"
+      "name": "app:view",
+      "file": "packages/codemap/data/plan/50-app-view.json"
     },
     {
       "order": 51,
-      "name": "app:cli",
-      "file": "packages/codemap/data/plan/51-app-cli.json"
+      "name": "app:runner",
+      "file": "packages/codemap/data/plan/51-app-runner.json"
     },
     {
       "order": 52,
-      "name": "app:lib",
-      "file": "packages/codemap/data/plan/52-app-lib.json"
+      "name": "app:cli",
+      "file": "packages/codemap/data/plan/52-app-cli.json"
     },
     {
       "order": 53,
+      "name": "app:lib",
+      "file": "packages/codemap/data/plan/53-app-lib.json"
+    },
+    {
+      "order": 54,
       "name": "app:relay",
-      "file": "packages/codemap/data/plan/53-app-relay.json"
+      "file": "packages/codemap/data/plan/54-app-relay.json"
     }
   ],
   "stays": [

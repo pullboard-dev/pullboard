@@ -3,6 +3,7 @@
   "order": [
     "kernel",
     "fs",
+    "clock",
     "env",
     "git",
     "codemap",
