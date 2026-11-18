@@ -8,19 +8,19 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureGit } from '../../cli/tests/fixtures/child.js';
-import { runFixtureSetupGit } from '../../cli/tests/fixtures/child.js';
-import { relayClientFixture } from '../../cli/tests/fixtures/relay/client.js';
-import { fixtureMachineSettings } from '../../../packages/gate/tests/fixtures/testkit.js';
-import { faultProxy } from '../../../packages/pages/tests/fixtures/study.js';
-import { readRelay } from '../../../packages/pages/tests/fixtures/study.js';
+import { runFixtureGit } from '../../tests/fixtures/child.js';
+import { runFixtureSetupGit } from '../../tests/fixtures/child.js';
+import { relayClientFixture } from '../../tests/fixtures/relay/client.js';
+import { fixtureMachineSettings } from '../../../../packages/gate/tests/fixtures/testkit.js';
+import { faultProxy } from '../../../../packages/pages/tests/fixtures/study.js';
+import { readRelay } from '../../../../packages/pages/tests/fixtures/study.js';
 
 /** A linked, accepted board whose own relay.outbox is off, so only the machine's relay.queueOnFailure can queue a move. */
 async function linked(t) {
   const box = await relayClientFixture(t);
   const file = join(box.root, 'pullboard.json');
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), relay: { outbox: false } }, null, 2) + '\n');
-  const cliPath = fileURLToPath(new URL('../../cli/pullboard.js', import.meta.url));
+  const cliPath = fileURLToPath(new URL('../../pullboard.js', import.meta.url));
   writeFileSync(join(box.env.PATH, 'pullboard'), `#!/bin/sh\nexec node "${cliPath}" "$@"\n`, { mode: 0o700 });
   runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env });
   runFixtureSetupGit(['commit', '-q', '-m', 'chore(config): do not queue relay moves while the relay is down'], { cwd: box.root, env: box.env });
@@ -54,15 +54,15 @@ async function addDuring(t, fault) {
   assert.deepEqual(queuedOperations(box), ['addItem'], 'queued 1');
 }
 
-test('relay.relay-failure-study.relay-down-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study relay DOWN case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
+test('cli.journeys-relay-failure-study.relay-down-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study relay DOWN case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
   await addDuring(t, 'down');
 });
 
-test('relay.relay-failure-study.http-503-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study HTTP 503 case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
+test('cli.journeys-relay-failure-study.http-503-records-and-queues-one: clause 1: with relay.queueOnFailure on, the study HTTP 503 case records 1, queues 1 and exits 0 [H5,H17,C7]', { timeout: 300_000 }, async t => {
   await addDuring(t, '5xx');
 });
 
-test('relay.relay-failure-study.queued-move-sent-in-order: clause 2: a move queued while the relay answers 503 is sent before the next move once the relay answers, and the outbox empties [H5,H17,C7]', { timeout: 300_000 }, async t => {
+test('cli.journeys-relay-failure-study.queued-move-sent-in-order: clause 2: a move queued while the relay answers 503 is sent before the next move once the relay answers, and the outbox empties [H5,H17,C7]', { timeout: 300_000 }, async t => {
   const box = await linked(t);
   const proxy = await faultProxy(t, box);
   proxy.set({ delayMs: 0, status: 503, code: 'RELAY_UNAVAILABLE' });
