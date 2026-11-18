@@ -167,12 +167,30 @@ function citesHead(evidence, heads) {
 }
 
 /**
+ * The test files whose every case in a run was skipped, with the runner and the skipped titles. Why: a runner without the toolchain
+ * (pytest, PHP on a bare machine) skips every case yet the run is green, so a file in greenFiles proved nothing (#10653) [C7].
+ *
+ * @param {{ file: string, name: string, skipped?: boolean, runner?: string }[]} outcomes
+ * @returns {Map<string, { runner: string, titles: string[] }>}
+ */
+function skippedOnlyFiles(outcomes) {
+  const byFile = new Map();
+  for (const row of Array.isArray(outcomes) ? outcomes : []) if (row?.file) byFile.set(row.file, [...byFile.get(row.file) ?? [], row]);
+  const only = new Map();
+  for (const [file, rows] of byFile) if (rows.every(row => row.skipped === true)) only.set(file, { runner: rows.find(row => row.runner)?.runner ?? 'unknown', titles: rows.map(row => row.name) });
+  return only;
+}
+
+/**
  * A refusal naming every clause that is unticked or ticked with evidence of the wrong kind; null when all are met.
  * A test tick names a case that cites its clause, or a test file among `greenFiles`: the files a green proof of this
  * exact commit ran. Why: the gate already proved that file; refusing the submit until the builder retypes the case
  * name with "clause N" cost two or three submits per item on 6 Nov (588 tick notes in a morning) [C7].
  */
-export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), gateFiles = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [] } = {}) {
+export function clauseInspectionProblem(item, thread, { greenFiles: ranFiles = new Set(), gateFiles: gateRan = new Set(), head = null, folderTicks = false, titleTicks = false, cases = [], outcomes = [] } = {}) {
+  const skipped = skippedOnlyFiles(outcomes);
+  const greenFiles = new Set([...ranFiles].filter(file => !skipped.has(file)));
+  const gateFiles = new Set([...gateRan].filter(file => !skipped.has(file)));
   const clauses = criterionClauses(item.item_criterion);
   if (!clauses.length) return null;
   const ticks = clauseTicks(thread, item.item_owner, { criterion: item.item_criterion, head });
@@ -185,11 +203,13 @@ export function clauseInspectionProblem(item, thread, { greenFiles = new Set(), 
     const proven = () => RUN_EVIDENCE.test(tick.evidence) || [...greenFiles].some(file => file && tick.evidence.includes(file));
     if (!tick && gateCoveredFiles(clause, new Set([...gateFiles, ...greenFiles]), item, { folderTicks, titleTicks, cases }).length) continue;
     const before = problems.length;
-    if (!tick) { problems.push(`${label} has no evidence`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
+    const skipNote = () => [...skipped].filter(([file]) => (tick ? tick.evidence.includes(file) : gateCoveredFiles(clause, new Set([...gateRan, ...ranFiles]), item, { folderTicks, titleTicks, cases }).includes(file)))
+      .map(([file, row]) => ` (every case in ${file} was skipped on runner ${row.runner}: ${row.titles.join('; ')})`).join('');
+    if (!tick) { problems.push(`${label} has no evidence${skipNote()}`); if (clause.kind === null || clause.kind === 'test') testClauses.push(clause); }
     else if (clause.kind && clause.kind !== tick.kind) {
       problems.push(`${label} needs ${clause.kind} evidence, not ${tick.kind}${tick.kind === 'reasoning' ? ' (the weakest kind)' : ''}`);
     } else if (tick.kind === 'test' && !new RegExp(`\\bclause\\s+${clause.number}\\b`, 'iu').test(tick.evidence) && !proven()) {
-      problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran`);
+      problems.push(`${label} needs a named test case citing clause ${clause.number}, or a test file this commit's green proof ran${skipNote()}`);
       testClauses.push(clause);
     }
     if (problems.length > before) needed.push(clause);
