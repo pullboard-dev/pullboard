@@ -107,9 +107,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 const tools = dirname(fileURLToPath(import.meta.url)), root = process.argv[2];
+// Node start-up: boot plus the module graph above, read before the first await [C7,#10574].
+const startup = Math.round(performance.now());
 // An accepted main that predates the cli-owned module still keeps the checks in bin/.
 const cells = await import(existsSync(join(tools, 'apps/cli/src/io/cells-submit-checks.js')) ? './apps/cli/src/io/cells-submit-checks.js' : './bin/cells-submit-checks.js');
-const input = JSON.parse(readFileSync(0, 'utf8')), result = { main: input.main, source: input.source, steps: {}, notes: [] };
+const input = JSON.parse(readFileSync(0, 'utf8')), result = { main: input.main, source: input.source, steps: { startup }, notes: [] };
 const memos = await import('./apps/cli/src/io/memo.js').then(module => module.runnerFixtureMemos(cellsCache, process.env.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT ?? null)).catch(() => null); // One fixture memo for every runner (#3981).
 const selected = name => !input.parts || input.parts.includes(name);
 const outcomes = {};
@@ -206,7 +208,14 @@ try {
     const child = spawn('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, env: staticEnv, stdio: ['ignore', 'pipe', 'pipe'] }), chunks = [];
     child.stdout.on('data', chunk => chunks.push(chunk)); child.stderr.on('data', chunk => chunks.push(chunk));
     child.on('error', error => resolve({ error })); child.on('close', status => resolve({ status, output: Buffer.concat(chunks).toString('utf8') }));
-  }).then(run => { if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed'));
+  }).then(async run => { if (run.error || run.status !== 0) {
+      // gate.knownMainStatic: a finding main also has at the pinned main never refuses the item; the rest still does, and the known rows are returned [C7,#10567].
+      const split = input.knownMainStatic === true && !run.error && typeof gate.splitByMain === 'function' && typeof gate.staticFindingsOnMain === 'function'
+        ? await gate.staticFindingsOnMain(root, { ...input.config, staticChecks: input.staticChecks }, input.main, { withMainCheckout: landing.withMainCheckout }).then(mainRows => gate.splitByMain(run.output ?? '', mainRows), () => null) : null;
+      if (split?.known.length && !split.rows.length) { result.staticKnownMain = split.known.map(finding => ({ rule: finding.rule, file: finding.file })); return; }
+      if (split?.known.length) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + split.rows.join('\\n'));
+      throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + ((run.output ?? '').slice(-4000) || run.error?.message || 'static checker failed'));
+    }
     if (staticKey) gate.writeAnalysisMemo(staticKey, { green: true }); }))) : null;
   if (!input.perPart) await staticRun; else staticRun?.catch(() => {});
   if (selected('preflight') && input.composition) await part('preflight', () => step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main, input.base ?? null)));
@@ -433,7 +442,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   if (doctrine && (doctrine.mainCommit !== main || doctrine.commit !== source)) throw new TypeError('the runner doctrine hold must judge the pinned main and source');
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
+    inventory: inventory?.descriptor ?? null, ...(produce.length ? { produceInventory: produce } : {}), browserFreeChecks: request.browserFreeChecks === true, ...(loadMachineSettings().gate?.knownMainStatic === true ? { knownMainStatic: true } : {}), crossRunTests: request.crossRunTests ?? [], collectMachinery: request.collectMachinery === true, cutRows, ...(perPart ? { perPart } : {}), ...(request.parts ? { parts: request.parts } : {}), ...(doctrine ? { doctrine: { options: doctrine, entry: DOCTRINE_ENTRY } } : {}), ...(request.authorization ? { authorization: request.authorization, trunkRemote: request.trunkRemote ?? trunkRemote(root) ?? '' } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
