@@ -137,5 +137,7 @@ test('store.io-board-verify.finish-waiter-wait: clause 2: a writer that waits on
   const waitedMs = await reported;
   t.diagnostic(`verdict table read ${READ_MS} ms; waiter waited ${waitedMs} ms for the write lock`);
   assert.ok(Number.isFinite(waitedMs), 'the waiter reported its wait');
+  // With the table reads under the lock the waiter waits at least READ_MS; prepared before it, at most half of that.
+  assert.ok(waitedMs <= READ_MS / 2, `the waiter waited ${waitedMs} ms; the table read of ${READ_MS} ms must not sit inside the write lock`);
   assert.equal(store.getItem(f.board, id).item_status, 'verified');
 });
