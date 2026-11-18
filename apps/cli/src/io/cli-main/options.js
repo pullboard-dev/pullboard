@@ -148,6 +148,7 @@ const OPTIONS = {
   utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
+  stats: { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
   overflow: { type: 'string' },
