@@ -1,0 +1,44 @@
+{
+  "cli.journeys-resume-allowance.fifteen-percent-left-warns-with-seat-percent-and-reset": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a coordinator seat whose Codex session shows 15 percent left prints one warning line naming the seat, the percent left and the reset time"
+    },
+    "why": "Without it the coordinator could run out of allowance with no warning at session start.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/commands/resume.js",
+      "apps/cli/journeys/resume/allowance.test.js"
+    ]
+  },
+  "cli.journeys-resume-allowance.four-percent-is-urgent-and-no-reading-is-unknown": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a coordinator seat at 4 percent left prints one urgent line, and a seat with no rate_limits row prints its allowance as unknown"
+    },
+    "why": "Without it a nearly exhausted or unreadable allowance would pass unnoticed at session start.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/commands/resume.js",
+      "apps/cli/journeys/resume/allowance.test.js"
+    ]
+  },
+  "cli.journeys-resume-allowance.sixty-percent-left-prints-no-allowance-line": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "a coordinator seat at 60 percent left prints no allowance line"
+    },
+    "why": "Without it every resume would carry a noise line while plenty is left.",
+    "kind": "contract",
+    "inputs": [
+      "apps/cli/src/io/commands/resume.js",
+      "apps/cli/journeys/resume/allowance.test.js"
+    ]
+  }
+}
