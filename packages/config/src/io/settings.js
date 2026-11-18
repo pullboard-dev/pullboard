@@ -516,6 +516,12 @@ export function testLoadRerunEnabled() {
   return group?.loadRerun === true;
 }
 
+/** Whether test.retryStaleRecord is on (#10663): off by default; only an exact `true` turns it on. */
+export function testRetryStaleRecordEnabled() {
+  const group = loadMachineSettings().test;
+  return group?.retryStaleRecord === true;
+}
+
 /** Whether spec.requireFactQuote is on (#9551, #1124): off by default; only an exact `true` turns it on. */
 export function requireFactQuoteEnabled() {
   return loadMachineSettings().spec?.requireFactQuote === true;

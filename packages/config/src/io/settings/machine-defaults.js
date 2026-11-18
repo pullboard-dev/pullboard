@@ -191,6 +191,7 @@ export const MACHINE_DEFAULTS = {
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
   'test.loadRerun': false,
+  'test.retryStaleRecord': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
