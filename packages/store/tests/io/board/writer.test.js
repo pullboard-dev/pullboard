@@ -12,6 +12,7 @@ import { commitMove } from '../../../src/io/board/writer.js';
 import { connectBoardWriter } from '../../../src/io/board/writer.js';
 import { createBoardWriter } from '../../../src/io/board/writer.js';
 import * as store from '../../../index.js';
+import { ENGINE_VERSION } from '../../../../state/index.js';
 import { cellBoard } from '../../fixtures/cell.js';
 import { cellItem } from '../../fixtures/cell.js';
 import { cellSeat } from '../../fixtures/cell.js';
@@ -128,29 +129,46 @@ function gateRunFixture(t) {
   return { board, seat, receipt, probe, lockHeld, record: () => store.writeBoardCommand(board, 'recordGateRun', [{ agentId: seat.id, receipt, lane: 'core' }], seat.id) };
 }
 
-/** Record whether the write lock was held at each lookup of the receipt store, the read that decides a run is its gate's own receipt. */
-function watchReceiptLookups(f, onLookup = () => {}) {
-  const seen = [];
+/**
+ * Count the lookups of the board file's path (the read that finds the receipt store) made inside and outside a write transaction.
+ * The write lock's own bookkeeping makes the same lookup, so a case compares counts against a run that never binds a receipt.
+ */
+function watchLookups(f, onLookup = () => {}) {
+  const seen = { inside: 0, outside: 0, begins: 0, rollbacks: 0, open: false };
+  const exec = f.board.db.exec.bind(f.board.db);
+  f.board.db.exec = sql => {
+    if (/^\s*BEGIN/iu.test(String(sql))) { seen.open = true; seen.begins++; }
+    if (/^\s*(COMMIT|END)/iu.test(String(sql))) seen.open = false;
+    if (/^\s*ROLLBACK/iu.test(String(sql))) { seen.open = false; seen.rollbacks++; }
+    return exec(sql);
+  };
   const prepare = f.board.db.prepare.bind(f.board.db);
   f.board.db.prepare = sql => {
-    if (/PRAGMA database_list/u.test(String(sql))) { seen.push({ locked: f.lockHeld() }); onLookup(seen.length); }
+    if (/PRAGMA database_list/u.test(String(sql))) { seen[seen.open ? 'inside' : 'outside']++; onLookup(seen); }
     return prepare(sql);
   };
   return seen;
 }
 
 /** The gate-run events a run id has on the board. */
-function gateRunEvents(f) {
-  return f.board.db.prepare("SELECT event_id FROM event WHERE event_kind='gate-run' AND json_extract(event_detail,'$.run.id')=?").all(f.receipt.id);
+function gateRunEvents(f, id = f.receipt.id) {
+  return f.board.db.prepare("SELECT event_id FROM event WHERE event_kind='gate-run' AND json_extract(event_detail,'$.run.id')=?").all(id);
 }
 
 test('store.io-board-writer.gate-run-binding-before-lock: clause 1: the reads recordGateRun does before its writes run in its PREPARATIONS entry with no write transaction open [C7,#10715]', t => {
   const f = gateRunFixture(t);
-  const lookups = watchReceiptLookups(f);
+  const seen = watchLookups(f);
+  // A run recorded with an engine version set skips the receipt binding, so its lookups are the write path's own.
+  f.board.executionEngineVersion = ENGINE_VERSION;
+  const other = { ...f.receipt, id: crypto.randomUUID() };
+  store.writeBoardCommand(f.board, 'recordGateRun', [{ agentId: f.seat.id, receipt: other, lane: 'core' }], f.seat.id);
+  const own = { inside: seen.inside, outside: seen.outside };
+  f.board.executionEngineVersion = undefined;
+  seen.inside = 0; seen.outside = 0;
   const result = f.record();
   assert.equal(result.run.id, f.receipt.id);
-  assert.ok(lookups.length >= 1, 'the receipt binding is read');
-  assert.deepEqual(lookups.filter(lookup => lookup.locked), [], 'no receipt binding read happens under the write lock');
+  assert.equal(seen.inside, own.inside, 'the receipt binding adds no lookup inside the write transaction');
+  assert.ok(seen.outside > own.outside, 'the receipt binding is read before the write transaction opens');
   assert.equal(gateRunEvents(f).length, 1);
   assert.throws(() => store.writeBoardCommand(f.board, 'recordGateRun', [{ agentId: f.seat.id, receipt: { ...f.receipt, id: crypto.randomUUID() }, lane: 'core' }], f.seat.id), { code: 'GATE_RUN_UNBOUND' });
 });
@@ -158,8 +176,8 @@ test('store.io-board-writer.gate-run-binding-before-lock: clause 1: the reads re
 test('store.io-board-writer.gate-run-reprepares-when-stale: clause 2: a recordGateRun whose board changed between preparation and the writer re-prepares and still records the run once [C7,#10715]', t => {
   const f = gateRunFixture(t);
   let poked = false;
-  const lookups = watchReceiptLookups(f, () => {
-    if (poked) return;
+  const seen = watchLookups(f, state => {
+    if (poked || state.open) return;
     poked = true;
     // Another connection commits while the first preparation is still running.
     f.probe.exec('CREATE TABLE IF NOT EXISTS gate_run_poke (n INTEGER)');
@@ -167,7 +185,8 @@ test('store.io-board-writer.gate-run-reprepares-when-stale: clause 2: a recordGa
   });
   const result = f.record();
   assert.equal(result.run.id, f.receipt.id);
-  assert.ok(lookups.length >= 2, 'the stale preparation is repeated from the changed board');
-  assert.deepEqual(lookups.filter(lookup => lookup.locked), [], 'both preparations run with no write lock held');
+  assert.ok(poked, 'the board changed during the first preparation');
+  assert.ok(seen.rollbacks >= 1, 'the stale first attempt wrote nothing');
+  assert.ok(seen.begins >= 2, 'the writer opened again after preparing from the changed board');
   assert.equal(gateRunEvents(f).length, 1, 'the run is recorded once');
 });
