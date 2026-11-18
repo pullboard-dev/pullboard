@@ -55,8 +55,8 @@ function outputOf(result) {
 test('gate.run-tests-timeout.settling-test-fails-name-later: a never-settling test fails by name and later files still report [C7, V10]', (t) => {
   assert.equal(DEFAULT_TEST_TIMEOUT_MS, 660_000, '660 seconds exceeds three times the measured 213.2-second slowest test');
   const result = runFixture(t, `import { test } from 'node:test';
-test('before timeout target passes [C7,V10]', () => {});
-test('awaited timeout target [C7,V10]', async (context) => {
+test('gate.run-tests-timeout.before-timeout-target-passes: before timeout target passes [C7,V10]', () => {});
+test('gate.run-tests-timeout.awaited-timeout-target: awaited timeout target [C7,V10]', async (context) => {
   const keepAlive = setTimeout(() => {}, 30000);
   context.after(() => clearTimeout(keepAlive));
   await new Promise(() => {});
@@ -64,29 +64,29 @@ test('awaited timeout target [C7,V10]', async (context) => {
 `);
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.match(output, /test "awaited timeout target \[C7,V10\]" in .*stalled\.test\.js failed: it ran .*past the 1200ms per-test timeout/u);
-  assert.match(output, /ok \d+ - before timeout target passes \[C7,V10\]/u);
+  assert.match(output, /test "gate.run-tests-timeout.awaited-timeout-target: awaited timeout target \[C7,V10\]" in .*stalled\.test\.js failed: it ran .*past the 1200ms per-test timeout/u);
+  assert.match(output, /ok \d+ - gate.run-tests-timeout.before-timeout-target-passes: before timeout target passes \[C7,V10\]/u);
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
 test('gate.run-tests-timeout.synchronous-test-hang-named-while: a synchronous test hang is named while another file reports [C7, V10]', (t) => {
   const result = runFixture(t, `import { test } from 'node:test';
-test('synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); });
+test('gate.run-tests-timeout.synchronous-timeout-target: synchronous timeout target [C7,V10]', () => { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); });
 `);
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.match(output, /test "synchronous timeout target \[C7,V10\]" in .*stalled\.test\.js failed: it ran .*past the 1200ms per-test timeout/u);
+  assert.match(output, /test "gate.run-tests-timeout.synchronous-timeout-target: synchronous timeout target \[C7,V10\]" in .*stalled\.test\.js failed: it ran .*past the 1200ms per-test timeout/u);
   assert.match(output, /ok \d+ - later file still reports \[C7,V10\]/u);
 });
 
 test('gate.run-tests-timeout.test-owned-synchronous-cleanup-retains: test-owned synchronous cleanup retains its case budget before file exit [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
-test('cleanup inside the case budget [C7,V10]', t => {
+test('gate.run-tests-timeout.cleanup-inside-case-budget: cleanup inside the case budget [C7,V10]', t => {
   t.after(() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1500));
 });
 `, '5000', { PULLBOARD_TEST_FILE_TIMEOUT_MS: '500', PULLBOARD_TEST_IDLE_TIMEOUT_MS: '10000' });
   assert.equal(result.status, 0, outputOf(result));
-  assert.match(outputOf(result), /ok \d+ - cleanup inside the case budget/u);
+  assert.match(outputOf(result), /ok \d+ - gate.run-tests-timeout.cleanup-inside-case-budget: cleanup inside the case budget/u);
   assert.doesNotMatch(outputOf(result), /file-exit timeout/u);
 });
 
@@ -118,7 +118,7 @@ test('gate.run-tests-timeout.invalid-test-timeout-override-refuses: an invalid t
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(probe, `import { test } from 'node:test';
 import { writeFileSync } from 'node:fs';
-test('must not run [C7,V10]', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));
+test('gate.run-tests-timeout.must-not-run-target: must not run [C7,V10]', () => writeFileSync(${JSON.stringify(marker)}, 'ran'));
 `);
   const result = spawnSync(process.execPath, [runner, probe], {
     cwd: root,
@@ -132,14 +132,14 @@ test('must not run [C7,V10]', () => writeFileSync(${JSON.stringify(marker)}, 'ra
 
 test('gate.run-tests-timeout.silent-awaited-file-hung-idle: a silent awaited file is HUNG by idle CPU supervision and its sibling still passes [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
-test('idle target [C7,V10]', async () => {
+test('gate.run-tests-timeout.idle-target: idle target [C7,V10]', async () => {
   setInterval(() => {}, 10000);
   await new Promise(() => {});
 });
 `, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '250', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000' });
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "idle target \[C7,V10\]"/gu) ?? []).length, 1, output);
+  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "gate.run-tests-timeout.idle-target: idle target \[C7,V10\]"/gu) ?? []).length, 1, output);
   assert.match(output, /silent and under 1% CPU/u);
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
   assert.doesNotMatch(output, /whole-file wall limit|per-test timeout/u);
@@ -151,7 +151,7 @@ test('gate.run-tests-timeout.busy-file-reaches-per-file: clause 1: a busy file r
   const result = runFixture(t, `import { test } from 'node:test';
 const until = Date.now() + 30000;
 while (Date.now() < until) {}
-test('busy target [C7,V10]', () => {});
+test('gate.run-tests-timeout.busy-target: busy target [C7,V10]', () => {});
 `, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '250', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000',
     PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'stalled.test.js': 1500 }) });
   const output = outputOf(result);
@@ -163,7 +163,7 @@ test('busy target [C7,V10]', () => {});
 
 test('gate.run-tests-timeout.hung-landing-file-stays-red: a HUNG landing file stays red and a queued sibling runs after it [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
-test('landing idle target [C7,V10]', async () => {
+test('gate.run-tests-timeout.landing-idle-target: landing idle target [C7,V10]', async () => {
   setInterval(() => {}, 10000);
   await new Promise(() => {});
 });
@@ -171,7 +171,7 @@ test('landing idle target [C7,V10]', async () => {
     PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000' }, ['--test-concurrency=1']);
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
-  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "landing idle target \[C7,V10\]"/gu) ?? []).length, 1, output);
+  assert.equal((output.match(/HUNG file .*stalled\.test\.js.*test "gate.run-tests-timeout.landing-idle-target: landing idle target \[C7,V10\]"/gu) ?? []).length, 1, output);
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
   assert.doesNotMatch(output, /Landing gate stopped early|Files not run:/u);
 });
@@ -179,23 +179,23 @@ test('landing idle target [C7,V10]', async () => {
 test('gate.run-tests-timeout.busy-descendant-keeps-test-file: a busy descendant keeps its test file alive far past the idle timeout [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-test('working child [C7,V10]', () => {
+test('gate.run-tests-timeout.working-child: working child [C7,V10]', () => {
   execFileSync(process.execPath, ['-e', 'const end=Date.now()+12000; while(Date.now()<end) {}']);
 });
 `, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '2000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000' });
   assert.equal(result.status, 0, outputOf(result));
-  assert.match(outputOf(result), /ok \d+ - working child \[C7,V10\]/u);
+  assert.match(outputOf(result), /ok \d+ - gate.run-tests-timeout.working-child: working child \[C7,V10\]/u);
   assert.doesNotMatch(outputOf(result), /HUNG file/u);
 });
 
 test('gate.run-tests-timeout.output-from-quiet-descendant-keeps: output from a quiet descendant keeps its file alive [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-test('output child [C7,V10]', () => {
+test('gate.run-tests-timeout.output-child: output child [C7,V10]', () => {
   execFileSync(process.execPath, ['-e', "let n=0; const timer=setInterval(()=>{console.log('progress'); if(++n===8)clearInterval(timer)},300)"], { stdio: 'inherit' });
 });
 `, '10000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '10000' });
   assert.equal(result.status, 0, outputOf(result));
-  assert.match(outputOf(result), /ok \d+ - output child \[C7,V10\]/u);
+  assert.match(outputOf(result), /ok \d+ - gate.run-tests-timeout.output-child: output child \[C7,V10\]/u);
   assert.doesNotMatch(outputOf(result), /HUNG file/u);
 });
