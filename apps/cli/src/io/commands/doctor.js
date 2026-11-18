@@ -88,6 +88,9 @@ export async function run(io, { values = {} } = {}) {
   problems.push(...appDaemonProblems({ daemons: residentDaemons(ctx.info.root), runners: loadMachineSettings().runners ?? [] }));
   const { detectLanguages, languageToolchains } = await import('../../../../../packages/gate/index.js');
   problems.push(...toolchainProblems(languageToolchains(detectLanguages(ctx.info.root)).toolchains, loadMachineSettings().runners ?? []));
+  // A managed repo with no background git maintenance slows every git command as loose objects pile up (#10782).
+  const maintenanceProblem = (await import('../init/git-maintenance.js')).gitMaintenanceProblem(ctx.info.root, ctx.info.commonDir);
+  if (maintenanceProblem) problems.push(maintenanceProblem);
   const trunkProblem = trunkUpdateInsteadProblem(trunkRemote(io.cwd), ctx.info.root, 'refs/heads/main');
   if (trunkProblem) problems.push(trunkProblem);
   const outdated = outdatedSender();
