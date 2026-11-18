@@ -1,0 +1,4 @@
+{
+  "cli.journeys-runner-runners-toolchains.with-the-setting-naming-a-toolchain-a": {"proves":{"specs":["C7"],"claim":"With the setting naming a toolchain, a job goes only to the runner whose recorded toolchains include every named one."},"why":"Without it, a regression where this no longer holds would pass unnoticed: with the setting naming a toolchain, a job goes only to the runner whose recorded toolchains include every named one.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/toolchains.test.js"]},
+  "cli.journeys-runner-runners-toolchains.with-the-setting-blank-or-unset-every": {"proves":{"specs":["C7"],"claim":"With the setting blank or unset every compatible runner is still eligible."},"why":"Without it, a regression where this no longer holds would pass unnoticed: with the setting blank or unset every compatible runner is still eligible.","kind":"journey","inputs":["apps/cli/journeys/runner/runners/toolchains.test.js"]}
+}

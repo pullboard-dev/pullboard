@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { approvalContext } from '../../../../../packages/link/index.js';
-import { createPersonEnrollmentStore } from '../../logic/person/enrollment/store.js';
+import { createPersonEnrollmentStore } from './enrollment.js';
 import {
   createExcludedStore,
   createExcludedTables,

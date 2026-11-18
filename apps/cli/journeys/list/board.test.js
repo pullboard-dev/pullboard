@@ -23,7 +23,7 @@ after(e2e.cleanup);
 
 const { SPEC, project, commitFile } = e2e;
 
-test('items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', async () => {
+test('cli.journeys-list-board.items-and-commit-headers-cite-doctrine: items and commit headers cite doctrine rows by namespace; bare collisions warn [A5]', async () => {
   const box = project();
   const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Use the inherited rule', '--specs', 'doctrine:PB1'));
   assert.equal(added.code, 0, added.err);
@@ -55,7 +55,7 @@ test('items and commit headers cite doctrine rows by namespace; bare collisions 
   assert.doesNotMatch(legacyCheck.out, /DOCTRINE\.md:/u);
 });
 
-test('clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', async () => {
+test('cli.journeys-list-board.the-board-lives-in-the-git: clause 1: the board lives in the git common dir; every worktree sees it; nothing is committed [B1, B3]', async () => {
   const box = project();
   const added = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Build', 'the', 'page', '--specs', 'G1')).out.trim().split('\n');
   assert.equal(added[0], '#1');
@@ -81,14 +81,14 @@ test('clause 1: the board lives in the git common dir; every worktree sees it; n
   assert.match(fixtureJoin(box.run, box.repo, 'web').err, /MAIN_IS_COORDINATOR/);
 });
 
-test('items cite spec ids that exist [B6]', async () => {
+test('cli.journeys-list-board.items-cite-spec-ids-that-exist: items cite spec ids that exist [B6]', async () => {
   const box = project();
   const refused = (await fixtureAdd(box.runLocal, box.repo, 'web', 'Ghost', '--specs', 'G9'));
   assert.equal(refused.code, 1);
   assert.match(refused.err, /UNKNOWN_SPEC\] G9 is not in SPEC.md/);
 });
 
-test('a lane commits only inside its folders; an unjoined worktree cannot commit [L3, L4]', async () => {
+test('cli.journeys-list-board.a-lane-commits-only-inside-its: a lane commits only inside its folders; an unjoined worktree cannot commit [L3, L4]', async () => {
   const box = project();
   const loose = join(box.dir, 'loose');
   box.git(box.repo, 'worktree', 'add', '-q', loose, '-b', 'loose');
@@ -116,7 +116,7 @@ test('a lane commits only inside its folders; an unjoined worktree cannot commit
   assert.match(taken.stderr, /outside the web lane: api\/b.js/, 'a move counts where it left, not only where it lands');
 });
 
-test("a lane merges main's foreign changes but still refuses its own and non-main foreign changes [L3]", async () => {
+test('cli.journeys-list-board.a-lane-merges-main-s-foreign: a lane merges main\'s foreign changes but still refuses its own and non-main foreign changes [L3]', async () => {
   const mainChange = project();
   assert.equal((await commitFile(mainChange, mainChange.repo, 'api/main.js', 'from main', 'feat(api): main change [G2]')).status, 0);
   const preparedMerge = mainChange.tryGit(mainChange.web, 'merge', '--no-commit', '--no-ff', 'main');
