@@ -367,3 +367,12 @@ test('#8623 clause 2: writeOwnerDebt in stores.json ends empty and every store p
   assert.deepEqual(registry.writeOwnerDebt, [], 'no store is left on the debt list');
   assert.deepEqual(storeWriteProblems(registry, read), []);
 });
+
+test('#10810 clause 1: table:person_enrollment is owned by the relay io module that writes it, not a logic file [CD2]', () => {
+  const registry = JSON.parse(readFileSync(new URL(`../../../../${STORE_REGISTRY}`, import.meta.url), 'utf8'));
+  const owner = registry.stores['table:person_enrollment'].owner;
+  assert.equal(owner, 'apps/relay/src/io/store/enrollment.js');
+  const source = readFileSync(new URL(`../../../../${owner}`, import.meta.url), 'utf8');
+  assert.match(source, /INSERT INTO person_enrollment/u, 'the owner holds the write call');
+  assert.throws(() => readFileSync(new URL('../../../../apps/relay/src/logic/person/enrollment/store.js', import.meta.url)), /ENOENT/u, 'no logic file keeps the store');
+});
