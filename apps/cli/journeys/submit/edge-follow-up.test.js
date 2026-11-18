@@ -8,19 +8,26 @@ import { commitAll } from '../../tests/fixtures/submit/gate.js';
 import { put } from '../../tests/fixtures/submit/gate.js';
 
 /** A project whose item adds an import edge between two modules, submitted and settled with the setting on or off; returns the box and the item's children. */
-async function settled(t, edgeFollowUps) {
+async function settledBox(t, edgeFollowUps) {
   const { box } = await project(t, { extra: { submit: { requireInfraNote: false, autoFileMainReds: false, edgeFollowUps } } });
   put(box.root, 'src/b.js', 'export const b = 1;\n');
   put(box.root, 'src/a.js', "import './b.js';\nexport const value = 1;\n");
   commitAll(box, 'feat(core): a imports b [G1]');
   const done = await submitAndSettle(t, box);
   assert.equal(done.gate?.green, true, JSON.stringify(done.gate));
+  return box;
+}
+
+/** The item's children after a settled submit, read from the board export. */
+async function childrenOf(box, edgeFollowUps) {
   const exported = await inProcess(box, box.root, 'export', '--json');
   assert.equal(exported.code, 0, exported.err);
   const children = JSON.parse(exported.out).tables.item.filter(row => row.item_parent_id === 1);
   if (!children.length && edgeFollowUps) assert.fail(`no follow-up filed; the item's thread: ${(await inProcess(box, box.root, 'show', '1')).out.slice(-1500)}`);
   return children;
 }
+
+async function settled(t, edgeFollowUps) { return childrenOf(await settledBox(t, edgeFollowUps), edgeFollowUps); }
 
 test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit: clause 1: with submit.edgeFollowUps on, a submit whose diff adds an import edge files exactly one linked follow-up [C7]', async t => {
   const children = await settled(t, true);
@@ -30,4 +37,19 @@ test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-on-a-submit: 
 
 test('cli.journeys-submit-edge-follow-up.with-submit-edgefollowups-at-its-default: clause 2: with submit.edgeFollowUps at its default (off), the same submit files nothing [C7]', async t => {
   assert.deepEqual(await settled(t, false), []);
+});
+
+test('cli.journeys-submit-edge-follow-up.a-second-submit-of-the-same-edge: clause 1: with submit.edgeFollowUps on, a second submit of the same added import edge files no second follow-up and links the follow-up already filed [C7]', async t => {
+  const box = await settledBox(t, true);
+  const first = await childrenOf(box, true);
+  assert.equal(first.length, 1, JSON.stringify(first));
+  put(box.root, 'src/a.js', "import './b.js';\nexport const value = 2;\n");
+  commitAll(box, 'feat(core): a imports b, value 2 [G1]');
+  const again = await submitAndSettle(t, box);
+  assert.equal(again.gate?.green, true, JSON.stringify(again.gate));
+  const second = await childrenOf(box, true);
+  assert.equal(second.length, 1, `no second follow-up: ${JSON.stringify(second)}`);
+  const thread = (await inProcess(box, box.root, 'show', '1')).out;
+  const links = thread.match(/Edge follow-up filed as #\d+/gu) ?? [];
+  assert.deepEqual(links, [`Edge follow-up filed as #${first[0].item_id}`], 'the thread links the one follow-up already filed, once');
 });
