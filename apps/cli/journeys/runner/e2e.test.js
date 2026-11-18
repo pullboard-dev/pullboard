@@ -43,7 +43,7 @@ async function addDiagnosedLight(box, ...args) {
   return added;
 }
 
-test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carries a brief to whoever claims it; a light agent sees only its tier [B10, B13, B14]', async () => {
+test('cli.journeys-runner-e2e.an-item-carries-a-brief-to: clause 1: an item carries a brief to whoever claims it; clause 2: a light agent sees only its tier [B10, B13, B14]', async () => {
   const box = project();
   const bin = join(box.dir, 'runner-bin');
   const worker = join(box.dir, 'runner-worker');
