@@ -18,7 +18,7 @@ const data = {
 const html = costOverviewHtml(data, null, {});
 const text = fragment => fragment.replace(/<[^>]+>/gu, ' ').replace(/\s+/gu, ' ').trim();
 
-test('clause 1: Models shows one compact row per role with the best model, its rate, the runner-up, the sample, how settled it is and the advice [test,N26]', () => {
+test('view.x-io-cost-density.clause-1-models-shows-one-compact-row: clause 1: Models shows one compact row per role with the best model, its rate, the runner-up, the sample, how settled it is and the advice [test,N26]', () => {
   const calls = /<div class="cost-model-calls">(.*?)<\/div><div class="cost-model-table-wrap">/su.exec(html)?.[1] ?? '';
   const rows = calls.match(/<div class="cost-verdict">.*?<\/div>(?=<div class="cost-verdict">|$)/gsu) ?? [];
   assert.equal(rows.length, 2, 'one row for building and one for verifying');
@@ -29,7 +29,7 @@ test('clause 1: Models shows one compact row per role with the best model, its r
   assert.match(readFileSync(new URL('../../../src/io/cost.css', import.meta.url), 'utf8'), /\.cost-vtext \{[^}]*white-space: nowrap/u, 'a role stays on one line');
 });
 
-test('clause 2: Agent time is one dense line with its thin bar, then a row per model and per lane with hours, share and sent-back share [test,N26]', () => {
+test('view.x-io-cost-density.clause-2-agent-time-is-one-dense: clause 2: Agent time is one dense line with its thin bar, then a row per model and per lane with hours, share and sent-back share [test,N26]', () => {
   const summary = /<article class="cost-summary">(.*?)<\/article><article class="cost-chart">/su.exec(html)?.[1] ?? '';
   const line = /<div class="cost-line">(.*?)<\/div>/su.exec(summary)?.[1] ?? '';
   assert.equal(text(line), '2.0 h 4 landed items 30 min typical item 25% of items sent back, 25% of the time · 30 min');

@@ -8,6 +8,7 @@ export const workHelp = `Work
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
     [--accept-green "reason"]           keep a check that already passes on main, saying why (add and edit)
     [--not-duplicate-of "<id> why"]     file an item that reads like an open one, saying why it differs
+    [--here "reason"]                   file an item whose files belong to another board here anyway, saying why
     [--split-coordinator]               a bar naming coordinator-owned paths: file the lane part, then the coordinator piece --after it
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TEST_RUN_KIND } from '../../index.js';
 import { testRunState } from '../../index.js';
+import { testRunLines } from '../../index.js';
 
 const now = 1_000_000_000;
 const pulled = { job: 'job-1', runner: 'host-1', receipt: { status: 0, durationMs: 4000, gate: { green: true, phases: [{ status: 0, failures: [] }] } } };
@@ -26,4 +27,26 @@ test('drive.recording.a-posted-receipt-whose-worker: clause 2: a posted receipt 
     const run = testRunState(lapsed, now, { pulled });
     assert.match(run.result.notices[0], /the worker stopped before recording it/u);
   }
+});
+
+/** A red receipt from a pulled run: the phase lists the given failures and the gate the given verdicts. */
+const redPulled = (failures, verdicts) => ({ job: 'job-2', runner: 'host-1',
+  receipt: { status: 1, durationMs: 4000, gate: { green: false, verdicts, phases: [{ status: 1, failures }] } } });
+
+test('drive.recording.red-receipt-names-verdict-files: clause 1: a red receipt whose phase lists no failures names each verdict file with its first case in a failing line [C7,#10678]', () => {
+  const run = testRunState(view('test-run:1', now + 60_000), now,
+    { pulled: redPulled(null, { 'apps/x/tests/a.test.js': ['clause 1: a case [C7]'], 'apps/x/tests/b.test.js': ['/runner/work/apps/x/tests/b.test.js'] }) });
+  assert.equal(run.status, 'red');
+  assert.deepEqual(run.result.failures, []);
+  assert.deepEqual(run.result.notices.slice(1), ['failing (from the receipt): apps/x/tests/a.test.js: clause 1: a case [C7]', 'failing (from the receipt): apps/x/tests/b.test.js']);
+  assert.ok(testRunLines(run).includes('  failing (from the receipt): apps/x/tests/a.test.js: clause 1: a case [C7]'));
+});
+
+test('drive.recording.green-or-listed-receipt-adds-none: clause 2: a green receipt, or a red one whose phase lists failures, adds no verdict line and keeps its failures [C7,#10678]', () => {
+  const green = testRunState(view('test-run:1', now + 60_000), now, { pulled });
+  assert.equal(green.result.notices.length, 1);
+  const listed = [{ file: 'apps/x/tests/a.test.js', name: 'clause 1: a case', error: 'test failed' }];
+  const red = testRunState(view('test-run:1', now + 60_000), now, { pulled: redPulled(listed, { 'apps/x/tests/a.test.js': ['clause 1: a case'] }) });
+  assert.deepEqual(red.result.failures, listed);
+  assert.equal(red.result.notices.length, 1);
 });
