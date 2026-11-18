@@ -121,13 +121,15 @@ export function captureVerdictReview(root, board, item, trunk = undefined, head 
   }
 }
 
-/** Name the concrete stale proof and the required re-review without changing the original verdict. */
-export function staleVerdictRefusal(item, state) {
+/** Name the concrete stale proof and the required re-review without changing the original verdict; `composeAsObject` words the next step for a board whose re-review composes main as an object. */
+export function staleVerdictRefusal(item, state, { composeAsObject = false } = {}) {
   if (state.landingCode === 'LAND_ITEM_MOVED') return new Refused('STALE_VERDICT',
     `item #${item.item_id}: ${state.reason}; keep its landing receipt and ask the coordinator to create a correction item, then have another agent verify that correction before landing it`);
   const changed = state.file && state.commit
     ? `${JSON.stringify(state.file)} changed on main in ${state.commit}`
     : state.reason ?? 'the reviewed Git history is unavailable';
+  // With submit.composeAsObject on, the re-review runs on a fresh composition of current main, so the builder merges nothing [C7,U159].
+  if (composeAsObject) return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; another agent re-reviews a fresh composition of current main and the submitted commit: pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
   return new Refused('STALE_VERDICT', `item #${item.item_id}: ${changed}; merge current main into the submitted commit, commit a clean composition, then another agent runs pullboard verify ${item.item_id} accept --note "what was re-reviewed" before landing`);
 }
 

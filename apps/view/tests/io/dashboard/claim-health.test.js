@@ -1,4 +1,3 @@
-/** @pullboard-test-input source-cell apps/view */
 /** #6477: the Dashboard counts stalled and waiting claims apart from building [C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

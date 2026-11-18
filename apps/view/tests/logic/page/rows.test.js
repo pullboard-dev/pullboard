@@ -35,7 +35,7 @@ const draw = (state, keys, texts, note = '', scope = 'board') => patchKeyedRows(
   rows: new Map(keys.map((key, n) => [key, row(key, texts[n])])), scope });
 const nodesOf = (host) => host.parts.filter((part) => typeof part !== 'string');
 
-test('clause 2: an update replaces only the rows that changed; the rest keep their nodes and a changed row shows its new value [N26]', () => {
+test('view.x-page-rows.clause-2-an-update-replaces-only-the: clause 2: an update replaces only the rows that changed; the rest keep their nodes and a changed row shows its new value [N26]', () => {
   const { doc, host } = fakeDocument();
   let state = draw({ host, doc, nodes: new Map(), drawn: null }, ['a', 'b', 'c'], ['one', 'two', 'three']);
   const first = nodesOf(host);
@@ -51,7 +51,7 @@ test('clause 2: an update replaces only the rows that changed; the rest keep the
   assert.deepEqual(nodesOf(host), second, 'an update that changes nothing keeps every node');
 });
 
-test('clause 2: the cards around the rows can change while every row keeps its node, and a row that leaves is dropped [N26]', () => {
+test('view.x-page-rows.clause-2-the-cards-around-the-rows: clause 2: the cards around the rows can change while every row keeps its node, and a row that leaves is dropped [N26]', () => {
   const { doc, host } = fakeDocument();
   let state = draw({ host, doc, nodes: new Map(), drawn: null }, ['a', 'b', 'c'], ['one', 'two', 'three']);
   const first = nodesOf(host);
@@ -66,7 +66,7 @@ test('clause 2: the cards around the rows can change while every row keeps its n
   assert.equal(other.nodes.size, 2);
 });
 
-test('clause 2: the Roadmap hands each row to place by a key that is its release and item, told apart if one repeats [N26]', () => {
+test('view.x-page-rows.clause-2-the-roadmap-hands-each-row: clause 2: the Roadmap hands each row to place by a key that is its release and item, told apart if one repeats [N26]', () => {
   const kept = new Map();
   const slotted = [];
   const reads = [{ milestone: { name: 'Capacity', items: [1, 2] }, done: 0, total: 2, shipped: false,
