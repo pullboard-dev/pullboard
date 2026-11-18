@@ -8,7 +8,7 @@ import { cellBoard } from '../../../../../../packages/store/tests/fixtures/cell.
 import { cellProject } from '../../../../../../packages/store/tests/fixtures/cell.js';
 import { projectState } from '../../../../src/io/serve.js';
 
-test('the spec row card text carries the readable Rigor source line and no rigor-auto:%7B text [D1,S1]', t => {
+test('view.x-summary-state-rigor-source.the-spec-row-card-text-carries-the: the spec row card text carries the readable Rigor source line and no rigor-auto:%7B text [D1,S1]', t => {
   const project = cellProject(t);
   const board = cellBoard(t, project.boardFile);
   const cause = { key: 'test:x.test.js::fails', items: [{ id: 12, commits: ['a'.repeat(40)] }], occurrences: 2, neverAgain: false };
