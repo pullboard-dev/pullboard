@@ -80,18 +80,19 @@ test('verify.freshness.composed-stale: clause 1: an accept on a composition comm
 
 test('verify.freshness.composed-re-review: clause 2: with the setting on, a stale re-review is offered on a fresh composition of current main and the head, and the text never asks for a main merge [C7,U159]', t => {
   const r = repo(t);
-  const clash = r.moveMain('a.txt', { 2: 'main line two' });
-  const stale = { code: 'STALE_VERDICT', file: 'a.txt', commit: clash };
+  // A main move on the same file that Git composes cleanly (line eight, the item edits line two), so the re-review can compose it.
+  const moved = r.moveMain('a.txt', { 8: 'main line eight' });
+  const stale = { code: 'STALE_VERDICT', file: 'a.txt', commit: moved };
   const item = { item_id: 7, item_status: 'verified', item_commit: r.composition, item_claim_head: r.base };
   git(r.dir, 'checkout', '-q', '--detach', r.composition);
   const composed = composeReview(r.dir, {}, item, r.composition, { reReview: true, head: r.composition, stale, events: () => [],
-    refuseUnverifiedStack: () => {}, requireTrunkMerge: () => ({ commit: clash }), composeAsObject: true, composeMain: composeSubmissionMain });
-  const ref = composeRef(7, clash);
-  assert.equal(ref, `refs/pullboard/compose/7/${clash.slice(0, 12)}`);
+    refuseUnverifiedStack: () => {}, requireTrunkMerge: () => ({ commit: moved }), composeAsObject: true, composeMain: composeSubmissionMain });
+  const ref = composeRef(7, moved);
+  assert.equal(ref, `refs/pullboard/compose/7/${moved.slice(0, 12)}`);
   assert.equal(git(r.dir, 'rev-parse', ref), composed.commit, 'the fresh composition is kept under the compose ref');
-  assert.equal(git(r.dir, 'show', '-s', '--format=%P', composed.commit), `${clash} ${r.composition}`, 'parents are current main then the head');
+  assert.equal(git(r.dir, 'show', '-s', '--format=%P', composed.commit), `${moved} ${r.composition}`, 'parents are current main then the head');
   assert.equal(composed.review.head, composed.commit, 'the sealed review is bound to the composition');
-  assert.equal(composed.review.trunk, clash, 'against current main');
+  assert.equal(composed.review.trunk, moved, 'against current main');
   assert.equal(git(r.dir, 'rev-parse', 'HEAD'), r.composition, 'the reviewed checkout did not move');
   const text = staleVerdictRefusal(item, stale, { composeAsObject: true });
   assert.equal(text.code, 'STALE_VERDICT');
