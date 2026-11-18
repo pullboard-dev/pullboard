@@ -1,0 +1,30 @@
+{
+  "cli.io-cli-main-run-command.route-prints-one-deprecation-line-naming-level": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "runCommand prints one stderr line naming --level when the command line gave --route, and none when it gave --level."
+    },
+    "why": "Without it, the approved --level rename would never reach seats still passing --route, or would warn every seat that already moved.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cli-main/run/command.test.js",
+      "apps/cli/src/io/cli-main/run/command.js"
+    ]
+  },
+  "cli.io-cli-main-run-command.the-deprecation-line-stays-out-of-json-output": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "With --json, the stdout document and said lines are unchanged by --route; the deprecation line goes only to stderr."
+    },
+    "why": "Without it, a script parsing --json output would break on the deprecation line.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cli-main/run/command.test.js",
+      "apps/cli/src/io/cli-main/run/command.js"
+    ]
+  }
+}

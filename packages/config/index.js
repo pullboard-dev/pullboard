@@ -128,6 +128,7 @@ export {
   docsRegenerateOnCommit,
   holdsLiftSettled,
   releaseRerouteUntouched,
+  reviewHoldAfterTwoReleases,
   releaseStaleItemRevision,
   holdsRequireOwner,
   nextIdleBlockers,
@@ -279,6 +280,8 @@ export {
 
 export { submitProofOnly } from './src/logic/settings.js';
 export { submitComposeAsObject } from './src/logic/settings.js';
+export { landingComposedEquality } from './src/logic/settings.js';
+export { submitComposeOnRunner } from './src/logic/settings.js';
 export { submitClauseMarks } from './src/logic/settings.js';
 export { clauseInspectionEnabled, setClauseInspection } from './src/io/settings.js';
 export { setLocalWake } from './src/io/settings.js';

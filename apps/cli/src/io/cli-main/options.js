@@ -1,5 +1,6 @@
 /** The CLI's global switches and the command-aware argument parser [C7]. */
 import { parseArgs } from 'node:util';
+import { Refused } from '../../../../../packages/kernel/light.js';
 
 const OPTIONS = {
   criterion: { type: 'string' },
@@ -84,7 +85,7 @@ const OPTIONS = {
   source: { type: 'string' },
   section: { type: 'string' },
   blueprint: { type: 'string', multiple: true },
-  route: { type: 'string' },
+  route: { type: 'string' }, level: { type: 'string' },
   field: { type: 'string' },
   family: { type: 'string' }, 'review-family': { type: 'string' },
   model: { type: 'string' },
@@ -146,6 +147,7 @@ const OPTIONS = {
   utilization: { type: 'boolean' },
   why: { type: 'boolean' },
   replay: { type: 'boolean' },
+  stats: { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
   overflow: { type: 'string' },
@@ -237,8 +239,17 @@ export function parseCommandArgs(argv) {
   // Flow consumes a history file; show retains its existing boolean --history switch. Runner's --remove is a switch.
   const commandOptions = command === 'flow' ? { ...options, history: { type: 'string' } } : command === 'runner' ? { ...options, remove: { type: 'boolean' } } : options;
   const parsed = parseArgs({ args: argv, options: commandOptions, allowPositionals: true });
+  foldLevelIntoRoute(parsed.values);
   if (['add', 'edit'].includes(command)) refuseRepeatedFlags(argv, commandOptions);
   return parsed;
+}
+
+/** --level is the approved name for --route (U136): stored events keep route, so every reader sees the value as values.route. */
+function foldLevelIntoRoute(values) {
+  if (values.level === undefined) return;
+  if (values.route !== undefined && values.route !== values.level) throw new Refused('USAGE', `--level ${values.level} and --route ${values.route} name the same setting; give one of them`);
+  values.route = values.level;
+  delete values.level;
 }
 
 /**

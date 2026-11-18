@@ -1,0 +1,4 @@
+{
+  "cli.journeys-relay-exclusion.relay-on-clears-the-exclusion-of-a-paused": {"proves":{"specs":["H17","H5"],"claim":"On a board whose baseline upload is paused, relay on exits 0 and status then shows no relay.excluded."},"why":"Without it, a paused baseline could keep a board excluded after the person ran relay on.","kind":"journey","inputs":["apps/cli/journeys/relay/exclusion.test.js"]},
+  "cli.journeys-relay-exclusion.relay-off-then-on-ends-unexcluded": {"proves":{"specs":["H17","H5"],"claim":"A plain relay off then relay on on an unpaused board still ends with no relay.excluded."},"why":"Without it, a paused baseline could keep a board excluded after the person ran relay on.","kind":"journey","inputs":["apps/cli/journeys/relay/exclusion.test.js"]}
+}
