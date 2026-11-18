@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/git/src/io/main.js packages/moves/src/io/selection.js */
 /** next re-joins a seat to the lane with work only when the seat holds no live claim and its lane owns folders [N2,C7,#10691], and warms from the seat's three latest built items with one bounded read [N2,C7,#10692]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
