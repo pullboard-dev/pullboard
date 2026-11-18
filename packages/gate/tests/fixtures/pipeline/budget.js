@@ -25,7 +25,7 @@ const { createE2eHelpers } = await from('apps/cli/tests/fixtures/e2e.js');
 const { fixtureMachineSettings } = await from('packages/gate/tests/fixtures/testkit.js');
 const { HOST, installSshStandIn } = await from('packages/gate/tests/fixtures/runner/ssh.js');
 const { runFixtureChild } = await from('apps/cli/tests/fixtures/child.js');
-const { executionServicesSource } = await from('apps/cli/tests/fixtures/gate/execution.js');
+const { executionServicesSource } = await from('packages/gate/tests/fixtures/execution.js');
 
 /** Runner admission with a free slot, from the brief: under a second. */
 const ADMISSION_MS = 1_000;
