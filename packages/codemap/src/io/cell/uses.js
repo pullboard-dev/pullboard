@@ -25,7 +25,7 @@ process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextMo
 /**
  * Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden.
  * Why the store: a whole-repository lint report compiles tens of thousands of probe variants, about 25 s of its 29 s on
- * the Studio and 150-290 s on a loaded runner (guard.test.js, #10529); the machine-wide store keyed by source bytes,
+ * a workstation and 150-290 s on a loaded runner (guard.test.js, #10529); the machine-wide store keyed by source bytes,
  * runtime and compiler program answers every unchanged file from an earlier run, and a foreign preload skips it.
  */
 function compiles(sources) {
