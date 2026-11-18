@@ -51,6 +51,9 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
 /** The state cell's two front doors, either of which may forward an engine leaf. */
 const STATE_DOORS = new Set(['packages/state/index.js', 'packages/state/light.js']);
 
+/** The pure module light.js re-exports its engine numbers from; it forwards leaf numbers the way the doors do [C7,H16]. */
+const ENGINE_NUMBER_DOOR = 'packages/state/src/logic/engine/constants.js';
+
 /** Every name a leaf in the engines folder declares with `export const`, the only source of an engine's identity. */
 function leafEngineNames(sources) {
   const names = new Set();
@@ -81,7 +84,7 @@ function forwardedEngineNumbers(file, code, literals, leaves) {
 function stateEngineExports(sources) {
   const names = new Set();
   const leaves = leafEngineNames(sources);
-  for (const entry of sources.filter(row => STATE_DOORS.has(row.file))) {
+  for (const entry of sources.filter(row => STATE_DOORS.has(row.file) || row.file === ENGINE_NUMBER_DOOR)) {
     for (const name of doorEngineExports(sources, entry.source)) names.add(name);
     const { code, strings } = lex(entry.source);
     for (const { name } of forwardedEngineNumbers(entry.file, code, new Map(strings.map(literal => [literal.start, literal.text])), leaves)) names.add(name);
