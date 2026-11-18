@@ -92,8 +92,8 @@ test('cli.journeys-submit-resident-parity.a-submit-with-submit-residentchecks-on
 
 test('cli.journeys-submit-resident-parity.the-queued-gate-job-matches-with-residentchecks-on: clause 2: the gate job queued by the submit with submit.residentChecks on and a resident process running has the same files, checks and proof list as the one queued with it off [C7,#10697,#10938]', { timeout: 420_000 }, async (t) => {
   const { off, on } = await parityRun(t);
-  /** One item's gate job rows as their steps' payloads read, one field per line, with ids, hashes, counts and timestamps masked. */
-  const queued = rows => marks(JSON.stringify(rows.map(row => row.steps.map(step => step.payload)), null, 1));
+  /** What each gate job row asked a runner to prove: the request its offer carried, one field per line, with ids, hashes, counts and timestamps masked; the runner's own receipts and timings are not part of the ask. */
+  const queued = rows => marks(JSON.stringify(rows.map(row => row.steps.find(step => step.payload?.request)?.payload.request), null, 1));
   assert.equal(off.rows.length, 1, 'the off submit queued one gate job row');
   assert.equal(on.rows.length, 1, 'the on submit queued one gate job row');
   assert.match(JSON.stringify(on.rows[0].steps), /packages\/x\/src\/page-/u, "the on row carries the item's frozen check");
