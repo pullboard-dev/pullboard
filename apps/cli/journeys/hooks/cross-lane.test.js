@@ -22,12 +22,13 @@ after(e2e.cleanup);
 const { project } = e2e;
 
 const ALPHA = 'Files:\n- packages/alpha/src/a.js\nTest:\n- the alpha test\n';
+const DIAGNOSIS = 'Files: packages/alpha/src/a.js Change: export the alpha value Test case: the alpha value is exported';
 
 test('cli.journeys-hooks-cross-lane.claimed-cells-pass: clause 1: with laneMode off a commit touching only the cells of a claimed item from another lane passes pre-commit [C7,#8915]', async () => {
   const box = project('true');
   const lanes = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8')).lanes;
   fixturePolicy(box, { lanes: { ...lanes, web: { ...lanes.web, owns: [...lanes.web.owns, 'packages/'] } } });
-  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cell item 1', brief: ALPHA, args: ['--specs', 'G1'] });
+  fileFixtureItem(box, box.repo, { lane: 'web', title: 'Cell item 1', brief: ALPHA, diagnosis: DIAGNOSIS, args: ['--specs', 'G1'] });
   fixturePolicy(box, { laneMode: 'off', lanes });
   const seat = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', seat, '-b', 'api/one');
