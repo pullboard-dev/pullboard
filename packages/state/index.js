@@ -187,7 +187,7 @@ export const CLAIM_RETURNS_ENGINE = engineNumber('CLAIM_RETURNS_ENGINE');
 export const COORDINATOR_ACTIONS_ENGINE = engineNumber('COORDINATOR_ACTIONS_ENGINE');
 
 export { earlierHeadFacts, staleHeadClauses, staleHeadLines, linkEarlierFacts, namedEvidence } from './src/logic/stale.js';
-export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, gateCoveredFiles, testCaseTitles, testRunTickNotes, checkRunTickNotes, namesEvidence, reviewChecklist, checklistEvidenceProblem, checklistGaps, checklistReceipt } from './src/logic/clauses.js';
+export { criterionClauses, clauseCases, clauseTestFile, clauseTicks, clauseInspectionProblem, clauseInspectionSummary, gateClauseTickNotes, gateNamedFile, gateCoveredFiles, testCaseTitles, testRunTickNotes, checkRunTickNotes, namesEvidence, reviewChecklist, checklistEvidenceProblem, checklistGaps, checklistReceipt } from './src/logic/clauses.js';
 export { failBeforePassAfter, clauseTestFiles, clauseReceiptProblem, clauseReceiptNotes, clauseReceipts } from './src/logic/clause-receipt.js';
 
 export const STRICT_RENAME_ENGINE = engineNumber('STRICT_RENAME_ENGINE');
@@ -216,6 +216,7 @@ export const COORDINATOR_USAGE_ENGINE = engineNumber('COORDINATOR_USAGE_ENGINE')
 export const MILESTONE_MODE_ENGINE = engineNumber('MILESTONE_MODE_ENGINE');
 export const REVIEW_RELEASE_REASON_ENGINE = engineNumber('REVIEW_RELEASE_REASON_ENGINE');
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
+export const REVIEW_RELEASE_TWICE_ENGINE = engineNumber('REVIEW_RELEASE_TWICE_ENGINE');
 export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';

@@ -27,6 +27,8 @@ const PREPARE_ATTEMPTS = 4;
 const PREPARATIONS = Object.freeze({
   claim: (board, args) => [args[0], store.prepareClaim(board, args[0], args[1])],
   queueSubmitHandoff: (board, args) => [args[0], store.prepareQueueSubmitHandoff(board, args[0], args[1])],
+  // A submit seals its git reads, policy, settings and inspection proofs here, so its writer only writes (#10850).
+  submit: (board, args) => [args[0], store.prepareSubmit(board, args[0], args[1]), ...args.slice(2)],
   reserveNextReview: (board, args) => [prepareReserveNextReview(board, args[0]), ...args.slice(1)],
   reserveReview: (board, args) => [args[0], prepareReserveReview(board, args[0], args[1]), ...args.slice(2)],
   // A verdict on work whose gate has no captured receipt is refused before any write transaction opens (#5561).
@@ -38,6 +40,9 @@ const PREPARATIONS = Object.freeze({
   // A coordinator's bar correction freezes from git (main policy, facts, spec, test hashes); freeze it here, not under the lock.
   editItem: (board, args) => [args[0], prepareEditFreeze(board, args[0], args[1]), ...args.slice(2)],
 });
+
+/** Preparations whose seal re-reads the board and refuses BOARD_BUSY when another connection committed meanwhile; they retry. */
+const SEALED_PREPARATIONS = new Set(['queueSubmitHandoff', 'submit']);
 
 /** The rows an edit's freeze reads from the board: the item, its newest event, and the bar settings and item-keyed metadata. */
 function editFreezeRows(board, id) {
@@ -192,8 +197,8 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
       });
     } catch (error) {
       rollbackPrepared?.();
-      // Claim preparation already owns its bounded retries; only queue sealing needs this outer retry.
-      if (preparing && operation !== 'queueSubmitHandoff') throw observedWriterRecords(error);
+      // Claim preparation already owns its bounded retries; only queue and submit sealing need this outer retry (#10850).
+      if (preparing && !SEALED_PREPARATIONS.has(operation)) throw observedWriterRecords(error);
       // The lock is released here, so a final refusal can read the machine write log to name its writer (#6016).
       if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw observedWriterRecords(error);
       // Jitter outside the rolled-back transaction, so contending preparations stop retrying in step (#6016).
