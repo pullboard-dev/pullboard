@@ -26,7 +26,7 @@ const {
   sandbox, privateCheckSubmission,
 } = e2e;
 
-test('oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.oversized-single-output-lines-are-discarded: oversized single output lines are discarded with an explicit safe-scan marker [V18,V2]', async () => {
   const planted = 'sk-proj-' + 'z'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'process.stdout.write("BEGIN-LONG\\n"+"😀".repeat(17*1024)+"${planted}\\nTAIL-LONG\\n");process.exitCode=1'` });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the oversized diagnostic line must fail closed', '--json');
@@ -42,7 +42,7 @@ test('oversized single output lines are discarded with an explicit safe-scan mar
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.stream-scanning-handles-utf-8-and: stream scanning handles UTF-8 and a secret split across read chunks [V18,V2]', async () => {
   const planted = 'sk-proj-' + 'b'.repeat(40);
   const box = privateCheckSubmission({ check: `node -e 'const fs=require("node:fs"); fs.writeSync(1,"x".repeat(32766)+"😀\\n"); fs.writeSync(1,"x".repeat(32762)+"${planted}\\nTAIL-CHUNK\\n"); process.exitCode=1'` });
   const refused = await box.runLocal(box.review, 'verify', '1', 'accept', '--note', 'the streamed scanner handles chunk boundaries', '--json');
@@ -59,7 +59,7 @@ test('stream scanning handles UTF-8 and a secret split across read chunks [V18,V
   assert.match(saved, /TAIL-CHUNK/);
 });
 
-test('a check output survives the browser launch guard [V18,V2]', async () => {
+test('cli.journeys-verify-checks-output.a-check-output-survives-the-browser: a check output survives the browser launch guard [V18,V2]', async () => {
   const probe = sandbox();
   const observed = join(probe.dir, 'guard-stdio.json');
   const preload = join(probe.dir, 'observe-guard.mjs');
@@ -100,7 +100,7 @@ if (process.argv.length === 1) fs.writeFileSync(${JSON.stringify(observed)}, JSO
   assert.doesNotMatch(saved, new RegExp(planted));
 });
 
-test('a submission without a frozen check keeps the no-check pass path [V18,V2]', () => {
+test('cli.journeys-verify-checks-output.a-submission-without-a-frozen-check: a submission without a frozen check keeps the no-check pass path [V18,V2]', () => {
   assert.deepEqual(checkAtCommit('/missing/private/repository', {}), {
     state: 'pass', green: true, checked: false, report: '',
   });

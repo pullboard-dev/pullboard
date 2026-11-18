@@ -350,7 +350,10 @@ export async function submitHere(ctx, id, infra, companionInput = null) {
   }
   // submit.proofOnly (#9105): an all-proof item with every clause ticked may submit an empty head.
   authorizationStep('non-empty', () => requireNonEmptySubmit(root, id, commit, acceptedMain.commit,
-    { proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)) }));
+    {
+      proofOnly: () => submitProofOnly() && withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+      proofShaped: () => withBoard(ctx, board => proofOnlyTicked(held, store.itemThread(board, id), commit)),
+    }));
   // A test file the bar froze at claim keeps its content unless the person ruled; under the test-author split another seat wrote it [C7,V4].
   authorizationStep('test-hashes', () => withBoard(ctx, (board) => {
     const source = { atHead: committedReader(root, commit), atMain: committedReader(root, acceptedMain.commit), person: store.PERSON, seat: submitVerify?.testAuthorSplit === true ? whoAmI(ctx, board).id : null };
@@ -527,13 +530,19 @@ async function preflightHere(ctx) {
 /** Run `pullboard submit` and return its exit code. */
 /**
  * Tick the claimed item's test clauses after a green `pullboard test` run of files inside its check, as ordinary note facts.
- * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED [C7].
+ * Why: submit reads those notes, so a green runner proof no longer ends in CLAUSE_UNTICKED. For an item whose check names no test file
+ * the run's own cases tick, read from the run's log with the queued run id, so no builder retypes a note [C7].
+ * @param {any} io The command io.
+ * @param {number} itemId The claimed item.
+ * @param {string[]} files The files the run covered.
+ * @param {{ run?: string, logPath?: string|null }} [ran] The queued run id (values test-run) and the green run's log path.
  */
-export async function recordClauseTicks(io, itemId, files) {
+export async function recordClauseTicks(io, itemId, files, { run, logPath = null } = {}) {
+  const outcomes = logPath ? (await import('../test/status-outcomes.js')).statusOutcomes(logPath) ?? [] : [];
   await actOn(io, async (ctx, board, me) => {
     const found = store.getItem(board, itemId);
     if (found.item_owner !== me.id) return 0;
-    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root))) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
+    for (const text of testRunTickNotes(found, files, headCommit(ctx.info.root), { outcomes, run: run ?? null })) await ordered(ctx, board, 'appendFact', [itemId, { agentId: me.id, kind: 'note', text }]);
     return 0;
   });
 }

@@ -215,3 +215,21 @@ test('landing.junit-files.table: clause 2: every JUNIT_FILE_ROWS key and functio
   for (const key of Object.keys(BEFORE)) assert.equal(collapse(JUNIT_FILE_ROWS[key]), collapse(BEFORE[key]), key);
   assert.deepEqual(LANGUAGES.find(row => row.language === 'deno').cases.inputs, ['root']);
 });
+
+test('landing.junit-files.cmake-reads-the-cpp-row: clause 1: junitFile cmake returns the same value junitFile cpp returns for a ctest classname [C7]', () => {
+  assert.equal(junitFile('cmake', { classname: 'calc_test' }), 'calc_test');
+  assert.equal(junitFile('cmake', { classname: 'calc_test' }), junitFile('cpp', { classname: 'calc_test' }));
+});
+
+test('landing.junit-files.cmake-no-classname-is-null: clause 2: junitFile cmake returns null for a row with no classname [C7]', () => {
+  assert.equal(junitFile('cmake', {}), null);
+  assert.equal(junitFile('cmake', { classname: '' }), null);
+});
+
+test('landing.junit-files.cmake-titles-registered: clause 3: every cmake test title here carries an ID starting landing.junit-files.cmake with a registry record [C7]', () => {
+  const records = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'fixtures', 'registry.json'), 'utf8'));
+  const source = readFileSync(import.meta.filename, 'utf8');
+  const ids = [...source.matchAll(/^test\('(landing\.junit-files\.cmake-[^':\s]+): /gmu)].map(match => match[1]);
+  assert.ok(ids.length >= 3);
+  for (const id of ids) assert.ok(Object.hasOwn(records, id), id);
+});

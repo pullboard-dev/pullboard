@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture } from '../../tests/fixtures/init/ignore-box.js';
 
-test('init commits its setup files before the first worktree [I1,I2]', async t => {
+test('cli.journeys-init-ignore.init-commits-its-setup-files-before: init commits its setup files before the first worktree [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) delete box.env[key];
@@ -43,7 +43,7 @@ test('init commits its setup files before the first worktree [I1,I2]', async t =
   assert.equal(box.git('diff', '--cached', '--binary'), staged);
 });
 
-test('setup confirmation keeps the index when Git identity is missing and retries after repair [I1,I2]', async t => {
+test('cli.journeys-init-ignore.setup-confirmation-keeps-the-index-when: setup confirmation keeps the index when Git identity is missing and retries after repair [I1,I2]', async t => {
   const box = fixture(t);
   rmSync(join(box.root, 'pullboard.json'));
   for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) delete box.env[key];

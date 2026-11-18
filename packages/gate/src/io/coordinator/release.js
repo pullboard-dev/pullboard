@@ -10,9 +10,9 @@ import { releaseReceiptFile } from '../release.js';
 import { openBoardForRead } from '../../../../store/index.js';
 import { closeBoard } from '../../../../store/index.js';
 import { Refused } from '../../../../kernel/index.js';
-import { previousCoordinatorMilestone } from '../../../../stats/index.js';
-import { coordinatorActions } from '../../../../stats/index.js';
-import { coordinatorActionRise } from '../../../../stats/index.js';
+import { previousCoordinatorMilestone } from '../../../../stats/light.js';
+import { coordinatorActions } from '../../../../stats/light.js';
+import { coordinatorActionRise } from '../../../../stats/light.js';
 import { storeName } from '../store-names.js';
 
 /** Keep audit files tied to actual privately stored release envelopes. */
