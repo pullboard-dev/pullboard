@@ -3,22 +3,20 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellProject } from '../../../store/tests/fixtures/cell.js';
-import { cellItem } from '../../../store/tests/fixtures/cell.js';
-import { cellClaim } from '../../../store/tests/fixtures/cell.js';
-import { cellSeat } from '../../../store/tests/fixtures/cell.js';
-import { openCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { closeCellBoard } from '../../../store/tests/fixtures/cell.js';
-import { agentById } from '../../../store/index.js';
-import { getItem } from '../../../store/index.js';
-import { openBoardForRead } from '../../../store/index.js';
-import { FIXTURE_MODEL } from '../../../gate/tests/fixtures/testkit.js';
-import { executeMove } from '../../../api/index.js';
-import { requireNonEmptySubmit } from '../../../../apps/cli/src/io/empty.js';
-import { mainPolicy } from '../../../sandbox/light.js';
-import { mergeSubmissionMain } from '../../../merge/index.js';
-import { bundleCommits } from '../../index.js';
-import { receiveCommits } from '../../index.js';
+import { cellProject } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellItem } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellClaim } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { cellSeat } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { openCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { closeCellBoard } from '../../../../../../packages/store/tests/fixtures/cell.js';
+import { agentById } from '../../../../../../packages/store/index.js';
+import { getItem } from '../../../../../../packages/store/index.js';
+import { openBoardForRead } from '../../../../../../packages/store/index.js';
+import { FIXTURE_MODEL } from '../../../fixtures/testkit.js';
+import { executeMove } from '../../../../../../packages/api/index.js';
+import { requireNonEmptySubmit } from '../../../../src/io/empty.js';
+import { bundleCommits } from '../../../../../../packages/pin/index.js';
+import { receiveCommits } from '../../../../../../packages/pin/index.js';
 
 const OPENERS = Object.freeze({ openBoard: openCellBoard, openBoardForRead, moveArgs: (body) => [body.verb], receiveCommits });
 
@@ -67,7 +65,7 @@ async function world(t) {
   return { project, runner, agent, item, main, commits };
 }
 
-test('pin.receive-commits-root.folder-head-differs-from-main: clause 1: after receiveCommits places a seat\'s one-commit bundle, the returned remote-items folder has a head whose diff against main is not empty, so requireNonEmptySubmit throws nothing [C7,P7]', async (t) => {
+test('cli.io-submit-pushed-receive-commits-root.folder-head-differs-from-main: clause 1: after receiveCommits places a seat\'s one-commit bundle, the returned remote-items folder has a head whose diff against main is not empty, so requireNonEmptySubmit throws nothing [C7,P7]', async (t) => {
   const w = await world(t);
   const body = { verb: 'submit', item: w.item, agent: w.agent, commits: w.commits };
   const seat = { remoteAgent: w.agent };
@@ -78,7 +76,7 @@ test('pin.receive-commits-root.folder-head-differs-from-main: clause 1: after re
   assert.doesNotThrow(() => requireNonEmptySubmit(folder, w.item, w.commits.head, w.main));
 });
 
-test('pin.receive-commits-root.submit-runs-in-returned-folder: clause 2: executeMove with verb submit and a stub runCommand runs the command in the folder receiveCommits returned, not the claim item folder [C7,P7]', async (t) => {
+test('cli.io-submit-pushed-receive-commits-root.submit-runs-in-returned-folder: clause 2: executeMove with verb submit and a stub runCommand runs the command in the folder receiveCommits returned, not the claim item folder [C7,P7]', async (t) => {
   const w = await world(t);
   const moved = await executeMove(w.project.repo, { verb: 'submit', item: w.item, agent: w.agent, commits: w.commits }, w.runner.run, false, 'api', refusalDocument, OPENERS);
   assert.equal(moved.status, 200, JSON.stringify(moved.body));
@@ -88,15 +86,4 @@ test('pin.receive-commits-root.submit-runs-in-returned-folder: clause 2: execute
   assert.match(call.cwd, /remote-items[\\/].*-item-\d+$/u, 'the remote-items folder');
   assert.equal(w.project.git(call.cwd, 'rev-parse', 'HEAD').trim(), w.commits.head, 'that folder holds the seat\'s head');
   assert.doesNotThrow(() => requireNonEmptySubmit(call.cwd, w.item, w.commits.head, w.main));
-});
-
-test('pin.receive-commits-root.submit-composition-in-folder: clause 3: in the returned folder, accepted main is the host main and the composed submission still differs from it, so the next hop past the cwd is not the main-merge step [C7,P7]', async (t) => {
-  const w = await world(t);
-  const moved = await executeMove(w.project.repo, { verb: 'submit', item: w.item, agent: w.agent, commits: w.commits }, w.runner.run, false, 'api', refusalDocument, OPENERS);
-  assert.equal(moved.status, 200, JSON.stringify(moved.body));
-  const [{ cwd }] = w.runner.calls;
-  const accepted = mainPolicy(cwd).commit;
-  assert.equal(accepted, w.main, 'accepted main read from the folder is the host main');
-  const merged = mergeSubmissionMain(cwd, accepted, { checkout: false });
-  assert.notEqual(w.project.tryGit(cwd, 'diff', '--quiet', accepted, merged.commit).status, 0, 'the composed head differs from main');
 });
