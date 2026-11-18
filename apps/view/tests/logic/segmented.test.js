@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { segmentedToggle } from '../../src/logic/segmented.js';
 
-test('the shared segmented component escapes labels, values and counts and exposes each pressed state [N26]', () => {
+test('view.x-segmented.the-shared-segmented-component-escapes-labels-values: the shared segmented component escapes labels, values and counts and exposes each pressed state [N26]', () => {
   const html = segmentedToggle({ label: 'A "group"', attribute: 'data-rows', value: 'chosen', options: [
     { value: 'chosen', label: 'Chosen', count: 0 }, { value: '" onclick="unsafe', label: '<script>unsafe</script>', count: '<b>unsafe</b>' },
   ] });
