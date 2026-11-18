@@ -1,5 +1,5 @@
 /** jobs front door: the durable job store, one row per gate job or landing batch [C7]. */
-export { atomically, createJob, nameJob, writeStep, upsertProgressStep, noteLease, noteLapse, upsertArtifactStep, readArtifactSteps, touchLive, liveSince, jobView, jobsOf, leasedJobs, dropSteps } from "./src/io/store.js";
+export { atomically, setWriteHold, createJob, nameJob, writeStep, upsertProgressStep, noteLease, noteLapse, upsertArtifactStep, readArtifactSteps, touchLive, liveSince, jobView, jobsOf, leasedJobs, dropSteps } from "./src/io/store.js";
 export { endJob, takeJob, renewLease, reclaimLapsed, releaseLease, backOffLease, holdJob, releaseBackoffMs, finishJob, setJobRow, pinQueuedJob, markApplied } from "./src/io/lease.js";
 export { reserveReview, renewReview, reclaimLapsedReviews, releaseReview, reviewOffer, reviewJobId } from "./src/io/review.js";
 export { jobsPullPorts } from "./src/io/pull-ports.js";
