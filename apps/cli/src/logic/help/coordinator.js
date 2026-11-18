@@ -1,6 +1,6 @@
 /** Preserved coordinator command-group help, composed in its original display order. */
 export const coordinatorHelp = `Coordinator
-  pullboard sweep --run "<checker>" --check "<checker on {file}>" [--route light] [--max 20] [--dry-run]
+  pullboard sweep --run "<checker>" --check "<checker on {file}>" [--level light] [--max 20] [--dry-run]
                                         file one item per file a linter, type checker or test reporter flags
   pullboard land                        manual override: offer a runner land job for the accepted items
   pullboard land --replay [--since <time>]  decide each recorded batch again from its record; no tests, merges or runners

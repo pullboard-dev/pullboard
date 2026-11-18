@@ -22,6 +22,7 @@ import { dirtyFiles } from './submit.js';
 import * as store from '../../../../packages/store/index.js';
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { nextHoldAboveLoad } from '../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../packages/config/index.js';
 
 /** Next's selection, loaded at the first selection: its landing and gate loads never ride on the command's load [C7,#7081]. */
 const requireModule = createRequire(import.meta.url);
@@ -33,7 +34,26 @@ export function displayedWait(reason, agents, config) {
 }
 
 /** The board access, seat lookup, claim and item-folder helpers the moves cell's next loop calls, so it never loads the CLI. */
-export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
+/** The derived-state readers, loaded by await import only while health.derivedState is on, so next with it off loads nothing more [C7,#8945]. */
+let derivedReaders = null;
+
+/**
+ * The gate-at-head reader the moves cell hands to next's pick: with health.derivedState on and the table current for main, an item the table names answers its reason;
+ * with the setting off, a table swept at another commit, or main unresolvable, null, so pick computes the gate as before [C7,#8945].
+ *
+ * @param {string} root
+ * @param {any} board
+ * @returns {((entry: any) => string | undefined) | null}
+ */
+function derivedGateAtHead(root, board) {
+  if (!derivedReaders || !derivedStateEnabled()) return null;
+  let main;
+  try { main = derivedReaders.verdictTrunk(root, { trunkRef: derivedReaders.trunkRef }); } catch { return null; }
+  const table = derivedReaders.readDerivedState(board, { mainCommit: main, enabled: true });
+  return table ? entry => table.gateAtHead.get(String(entry.item_id)) : null;
+}
+
+export const nextPorts = Object.freeze({ derivedGateAtHead, withBoardRead, withBoard, whoAmI, idArg, ordered, claimOrdered, currentReworkRoutingPolicy,
   MainSpecMerged, checkMainVerifier, dirtyFiles, openItemFolder, liveFolderRefusal, mainLaneWork, claimWorktreeSnapshot, pickForLabelMinimum, firstUnderLabelMax });
 
 /**
@@ -46,6 +66,10 @@ export const nextPorts = Object.freeze({ withBoardRead, withBoard, whoAmI, idArg
 export async function nextOnce(ctx, values) {
   const held = loadHold(ctx, values);
   if (held) return held;
+  if (derivedStateEnabled() && !derivedReaders) {
+    const [{ readDerivedState }, { verdictTrunk }, { trunkRef }] = await Promise.all([import('../../../../packages/health/index.js'), import('../../../../packages/verify/index.js'), import('../../../../packages/git/light.js')]);
+    derivedReaders = { readDerivedState, verdictTrunk, trunkRef };
+  }
   return requireModule('../../../../packages/moves/src/io/selection.js').nextOnce(ctx, values, nextPorts);
 }
 

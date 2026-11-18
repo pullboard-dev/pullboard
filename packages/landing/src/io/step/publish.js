@@ -2,6 +2,7 @@ import { requireLandingCompanions } from '../guards.js';
 import { timedPhase } from '../timing.js';
 import { requireLandingModuleResolution } from '../guards.js';
 import { quarantineBatchGates } from '../../../../verify/index.js';
+import { receiptBlockingGreen } from '../../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../../logic/waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from '../land/envelope.js';
@@ -455,13 +456,21 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   const tree = recorded?.tree;
   // An adopted batch keeps the green proof it already holds for this tree; with landing.sprintBarTests on, that proof must carry its bar-test record [U147].
   if (recorded?.result === 'green' && (state.config.landing?.sprintBarTests !== true || recorded.barTests)) return recorded;
+  // With landing.composedEquality on, a one-item batch whose staged tree equals the proven composition lands with no retest, when the receipt on the batch is green for this same tree id, not only this commit [C7,#10975].
+  const receipt = state.batch.proof?.receipt;
+  if (state.config.landing?.composedEquality === true && tree && recorded.composedEqual === true && receipt?.tree === tree && receiptBlockingGreen(receipt)) {
+    await save(state, { exactTree: { ...recorded, result: 'green', composition: 'same-tree', receipt: receipt.id } });
+    return state.batch.exactTree;
+  }
   if (!tree) throw new Refused('LAND_EXACT_TREE', `the batch tip ${state.batch.tip} has no readable tree id, so no proof can name the tree main will point to; rebuild the batch`);
   state.say?.(`finish: proving tree ${tree} at Sprint depth before main moves`);
   // exact.js loads only when a landing proves its tree, so commands that never land skip it (closure-budget) [C7].
   const { sprintProof } = await import('../exact.js');
   const proof = await sprintProof({ tree }, ports);
   if (proof.result === 'green') {
-    await save(state, { exactTree: proof });
+    // With landing.composedEquality on, a staged tree that differs from the composition (or a multi-item batch) is re-proved here and the record says so [C7,#10976].
+    const reproved = state.config.landing?.composedEquality === true && recorded.composedEqual === false;
+    await save(state, { exactTree: reproved ? { ...proof, composition: 're-proved' } : proof });
     return state.batch.exactTree;
   }
   const barFile = proof.barFile ?? proof.file;
