@@ -476,6 +476,14 @@ export async function requireSprintProof(state, ports = state.sprintPorts ?? spr
   const barFile = proof.barFile ?? proof.file;
   const where = proof.failed === 'bar' ? `the frozen bar tests of item #${proof.item}${barFile ? ` (file ${barFile})` : ''}` : proof.failed;
   const message = `the Sprint proof is red on tree ${tree} in ${where}${proof.barFile ? '' : redFileDetail(proof)}; main was not moved, so fix ${proof.failed === 'static' ? 'the static check' : proof.failed === 'bar' ? `the bar tests of item #${proof.item}` : `the tests of ${proof.failed}`} and resubmit`;
+  // With landing.composedEquality on, a red in one item's frozen bar tests sends that item back to its lane naming the file and main-at, and the batch's other items are not blamed [C7,#10776].
+  if (state.config.landing?.composedEquality === true && proof.failed === 'bar' && Number.isInteger(proof.item)) {
+    const note = `the re-proved tree is red in the frozen bar tests of this item (file ${barFile ?? 'unknown'}) at main ${String(state.batch.base).slice(0, 12)}; main was not moved; fix that test and resubmit`;
+    await state.write('reopen', [proof.item, { agentId: 'coordinator', note }]);
+    await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: barFile ?? null, name: note }], refusal: { code: 'LAND_REPROVE_RED', message: `item #${proof.item} reopened: ${note}`, at: state.board.clock.now().toISOString() } });
+    state.say?.(`finish: item #${proof.item} reopened to its lane: ${note}`);
+    throw new Refused('LAND_REPROVE_RED', `item #${proof.item} reopened: ${note}`);
+  }
   await save(state, { exactTree: proof, state: 'blocked', failures: [{ file: null, name: message }], refusal: { code: 'LAND_EXACT_RED', message, at: state.board.clock.now().toISOString() } });
   state.say?.(`finish: ${message}`);
   throw new Refused('LAND_EXACT_RED', message);
