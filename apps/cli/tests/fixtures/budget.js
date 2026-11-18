@@ -90,7 +90,7 @@ export function scaledMedian(median, bareMedian) {
   return median / Math.max(1, bareMedian / QUIET_BARE_MS);
 }
 
-/** The best bare node CPU time of a quiet runner, in ms (user plus system of `node -e 0`); a loaded run's own best bare CPU is judged against it [C7]. */
+/** The best bare node CPU time of a quiet runner, in ms (user plus system of `node -e 0`): 25, an estimate of 80% of the quiet wall floor above, since no quiet runner was free to read it; a lower value only makes a loaded run's scaling more lenient. Loaded runs read 45 to 50 ms (runs 8f516652, 5aeeb8f1) [C7]. */
 export const QUIET_BARE_CPU_MS = 25;
 
 /** A run counts as quiet when its bare node wall median is within 10% of the quiet floor; only then is a row also judged by its wall time [C7]. */
