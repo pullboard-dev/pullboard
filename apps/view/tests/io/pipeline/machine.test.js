@@ -9,7 +9,7 @@ import { partOf } from '../../../src/io/pipeline/machine.js';
 import { queuedTickets } from '../../../src/io/pipeline/machine.js';
 import { readLeases } from '../../../src/io/pipeline/machine.js';
 
-test('clause 2: a process belongs to the part of the pipeline its command line names [N26,#6869]', () => {
+test('view.x-io-pipeline-machine.clause-2-a-process-belongs-to-the: clause 2: a process belongs to the part of the pipeline its command line names [N26,#6869]', () => {
   assert.equal(partOf('/usr/libexec/fseventsd'), 'macOS file indexing');
   assert.equal(partOf('node /x/submit-handoff-worker.js --job 4'), 'gate hand-off workers');
   assert.equal(partOf('node apps/runner/runner-controller.js'), 'runner controllers');
@@ -24,7 +24,7 @@ test('clause 2: a process belongs to the part of the pipeline its command line n
   assert.equal(partOf('mediaanalysisd'), 'other');
 });
 
-test('clause 2: CPU is averaged per part in cores, with the busiest command, and history gives each part\'s average and peak [N26,#6869]', () => {
+test('view.x-io-pipeline-machine.clause-2-cpu-is-averaged-per-part: clause 2: CPU is averaged per part in cores, with the busiest command, and history gives each part\'s average and peak [N26,#6869]', () => {
   const rows = (git, node) => [{ part: 'git', cpu: git, command: 'git status' }, { part: 'other node', cpu: node, command: 'node a.js' }, { part: 'other node', cpu: node / 2, command: 'node b.js' }];
   const parts = aggregateParts([rows(100, 200), rows(300, 400)]);
   assert.deepEqual(parts.map(part => [part.part, part.cores, part.procs, part.command]), [['other node', 4.5, 2, 'node a.js'], ['git', 2, 1, 'git status']], 'cores are the summed percentages over 100 and the samples, busiest part first');
@@ -43,7 +43,7 @@ test('clause 2: CPU is averaged per part in cores, with the busiest command, and
   assert.equal(sampler.read(T + 10 * 60_000).parts.find(part => part.part === 'git').peak, 3, 'but the peak is remembered');
 });
 
-test('clause 2: gate workers, queues and runner slots come from the machine\'s lease records, and a record it cannot read is null [N26,#6869]', async () => {
+test('view.x-io-pipeline-machine.clause-2-gate-workers-queues-and-runner: clause 2: gate workers, queues and runner slots come from the machine\'s lease records, and a record it cannot read is null [N26,#6869]', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec('CREATE TABLE resource (name TEXT, capacity INTEGER); CREATE TABLE holder (name TEXT); CREATE TABLE waiter (name TEXT)');
   db.exec("INSERT INTO resource VALUES ('runner:a', 10), ('runner:b', 5), ('runner:off', 0), ('gate', 4)");
