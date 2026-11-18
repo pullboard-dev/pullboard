@@ -79,6 +79,14 @@ function boardDigest(db) {
 }
 
 
+/** The bare node median of a quiet runner: 30.66 ms, measured in L14 diag run fe98a381 with list thin at 143.22 ms. A loaded run's own bare floor is judged against it [C7]. */
+export const QUIET_BARE_MS = 30.66;
+
+/** A row's median with the load removed: it is divided by how much slower this run's bare node is than the quiet floor, and a quiet or faster run is judged exactly as measured. */
+export function scaledMedian(median, bareMedian) {
+  return median / Math.max(1, bareMedian / QUIET_BARE_MS);
+}
+
 /** Every command the startup budgets measure, in measuring order. */
 export const STARTUP_COMMANDS = ['version', 'show', 'status', 'list', 'list thin'];
 
@@ -161,7 +169,8 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
     Object.assign(sink, report);
     // Goal: 100 ms (#1048). Each row is an audited exception at its measured runner median (#5994); rows only go down, and the 0.9.5 de-barrel item brings them to the goal.
     for (const [name, median] of Object.entries(medians)) {
-      assert.ok(median < ceilings[name], `${name} end-to-end median ${median.toFixed(2)} ms exceeds its ${ceilings[name]} ms row in startup-budget.json (goal 100 ms)`);
+      const scaled = scaledMedian(median, bareMedian);
+      assert.ok(scaled < ceilings[name], `${name} end-to-end median ${median.toFixed(2)} ms (${scaled.toFixed(2)} ms scaled by the run's bare node floor ${bareMedian.toFixed(2)} ms against the quiet ${QUIET_BARE_MS} ms) exceeds its ${ceilings[name]} ms row in startup-budget.json (goal 100 ms)`);
       if (median < 100) t.diagnostic(`${name} median ${median.toFixed(2)} ms meets the 100 ms goal; lower its row in startup-budget.json to 100`);
     }
     return report;
