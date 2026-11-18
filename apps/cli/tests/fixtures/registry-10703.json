@@ -1,0 +1,4 @@
+{
+  "cli.journeys-gate-pulled-profile.check-profile-beside-log": {"proves":{"specs":["C7"],"claim":"With gate.pulledProfilePaths on, the check profile file the settled pulled gate names exists beside its sanitized log."},"why":"Without it, a pulled gate could name a profile its runner never kept and nothing would notice.","kind":"journey","inputs":["apps/cli/journeys/gate/pulled-profile.test.js"]},
+  "cli.journeys-gate-pulled-profile.proof-profile-beside-log": {"proves":{"specs":["C7"],"claim":"With gate.pulledProfilePaths on, the proof profile file the settled pulled gate names exists beside its sanitized log."},"why":"Without it, a pulled gate could name a proof profile its runner never kept and nothing would notice.","kind":"journey","inputs":["apps/cli/journeys/gate/pulled-profile.test.js"]}
+}
