@@ -1,0 +1,3 @@
+{
+  "cli.journeys-spec-main.an-accepted-fact-must-cite-the": {"proves":{"specs":["B2"],"claim":"With spec.requireFactQuote on, the real spec check passes a source-backed fact whose quote holds its figures and exits 1 for a quote that lacks one or for no quote."},"why":"Without it, a regression where the spec check command stopped passing requireFactQuoteEnabled into lintSpec would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/spec/main.test.js"]}
+}
