@@ -707,13 +707,14 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  * @param {{ nap: (ms: number) => Promise<void> }} [options.wake] - runners.localWake: an idle wait that also ends when an offering command signals a new job (watchWake); without it the idle wait is the full idleMs [#10409].
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
+ * @param {{ session: 'gui' | 'daemon', guiRunning: () => Promise<boolean> | boolean }} [options.peer] - With it, a serve that is not the GUI-session copy claims nothing while guiRunning reports another serve of its install in a GUI session, and claims again once it reports none; the GUI copy and a serve given no peer claim as today (#10840).
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
  * @param {boolean} [options.pulledProfilePaths] - gate.pulledProfilePaths: copy each gate phase's timing profile into the job's kept folder and name it on the phase row as profileKept; default off.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, peer = null, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -993,6 +994,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   let exclusive = null;
   // The drain: whether it was announced, and when the trunk was last probed [#9024].
   let drained = false, probedAt = 0;
+  let yielding = false;
   const start = (claim, trunk) => {
     const slot = free.shift();
     let task, known;
@@ -1017,6 +1019,16 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         if (probe.status === 0) { fetchFailures = 0; trunkDown = null; drained = false; say('the trunk answers again; claiming'); continue; }
       }
       await Promise.race([nap(idleMs), ...active]); continue;
+    }
+    // One serve claims per host: a daemon copy waits idle while the GUI-session copy of its install runs, so a GUI login never leaves two serves pulling one cache (#10840).
+    if (peer && peer.session !== 'gui') {
+      const gui = await Promise.resolve().then(() => peer.guiRunning()).catch(() => false);
+      if (gui) {
+        if (!yielding) { yielding = true; say('not claiming: the GUI-session serve of this install is running'); }
+        if (once) break;
+        await Promise.race([nap(idleMs), ...active]); continue;
+      }
+      if (yielding) { yielding = false; say('the GUI-session serve is gone; claiming'); }
     }
     if (!admit({ running: active.size })) {
       if (once) { say('not claiming: the machine is over its load share'); break; }
