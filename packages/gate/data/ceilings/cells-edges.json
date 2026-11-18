@@ -1972,6 +1972,14 @@
       "cells": 1,
       "deep": 0
     },
+    "packages/gate/tests/fixtures/execution-landing.js": {
+      "cells": 1,
+      "deep": 0
+    },
+    "packages/gate/tests/fixtures/execution-runners.js": {
+      "cells": 1,
+      "deep": 0
+    },
     "packages/gate/tests/fixtures/p95.js": {
       "cells": 1,
       "deep": 0
