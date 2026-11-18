@@ -38,7 +38,7 @@ import { withGitAdapter } from '../../../../../packages/git/index.js';
 import { verdictProjector } from '../../../../../packages/verify/index.js';
 import { temporaryRepository } from '../../../tests/fixtures/board/submit.js';
 
-test('a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
+test('cli.journeys-verify-team-verdict.a-verdict-reads-stale-when-main: a verdict reads stale when main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for two real replicas, CLI checks and Git history; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
@@ -286,7 +286,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   assert.ok(existsSync(join(peer, '.git', 'pullboard', 'board.sqlite')));
 });
 
-test('an accepted verdict reads stale through the CLI once main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
+test('cli.journeys-verify-team-verdict.an-accepted-verdict-reads-stale-through: an accepted verdict reads stale through the CLI once main moves under its files [E8]', { timeout: 120_000 }, async t => { // budget: hang ceiling for one real repo and its CLI calls; not a speed target.
   const box = helpers.project();
   /** Run a fixture CLI command through the journey seam and return its output, failing on a refusal. */
   const run = async (fixture, root, ...args) => {
@@ -315,7 +315,7 @@ test('an accepted verdict reads stale through the CLI once main moves under its 
   assert.equal(stale.item_verdict, 'ACCEPT', 'the historical acceptance remains a fact');
 });
 
-test('many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
+test('cli.journeys-verify-team-verdict.many-verified-items-at-one-commit: many verified items at one commit cost one ancestry check per state build, with the same freshness [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 40 projected items; not a speed target.
   const dir = temporaryRepository(t, 'verdict-ancestry-memo-');
   const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
   git('commit', '--allow-empty', '-q', '-m', 'base');
@@ -343,7 +343,7 @@ test('many verified items at one commit cost one ancestry check per state build,
   assert.ok(states.every(state => state === null), 'every item reads fresh, as it did with a check per item');
 });
 
-test('legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
+test('cli.journeys-verify-team-verdict.legacy-receipts-on-a-cold-state: legacy receipts on a cold state build spawn a bounded number of Git processes, whatever the item count [E8,V8]', { timeout: 120_000 }, t => { // budget: hang ceiling for one real repo and 80 projected items; not a speed target.
   const dir = temporaryRepository(t, 'verdict-legacy-bounded-');
   const git = (...args) => execFileSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.com', ...args], { cwd: dir, encoding: 'utf8' }).trim();
   git('commit', '--allow-empty', '-q', '-m', 'base');
