@@ -50,8 +50,8 @@ function setReviewFolder(box, on) {
   fixturePolicy(box, { config: { ...config, verify: { ...config.verify, reviewFolder: on } } });
 }
 
-/** A project with one submitted, green item and a reviewer seat checked out at main (not at the submitted commit). */
-async function submitted(t) {
+/** A project with one submitted, green item and a reviewer seat checked out at main (not at the submitted commit), reading the policy at its trunk. */
+async function submitted(t, { folderOn = false } = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
   delete box.env.NODE_TEST_CONTEXT;
   fixturePolicy(box, { submitGate: 'landing', affectedTests: RUN });
@@ -82,6 +82,7 @@ async function submitted(t) {
   const head = box.git(builder, 'rev-parse', 'HEAD').trim();
   await ok(box, builder, 'fact', String(id), 'note', 'clause 1 [test]: web/folder.test.js, run by the check for clause 1');
   assert.equal((await settleSubmit(t, box, JSON.parse((await ok(box, builder, 'submit', String(id), '--no-next', '--json')).out))).gate.green, true, 'the fixture gate is green');
+  if (folderOn) setReviewFolder(box, true);
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   assert.equal((await joinFixtureSeat(box, reviewer, 'api', { run: box.runIn })).code, 0);
@@ -89,8 +90,7 @@ async function submitted(t) {
 }
 
 test('clause 1: with verify.reviewFolder on, next --verify prints a review folder at the submitted commit, and clause 2: the seat checkout HEAD and index are unchanged [C7,#8969]', { timeout: 240_000 }, async t => {
-  const { box, id, head, reviewer } = await submitted(t);
-  setReviewFolder(box, true);
+  const { box, id, head, reviewer } = await submitted(t, { folderOn: true });
   const before = { head: box.git(reviewer, 'rev-parse', 'HEAD').trim(), index: box.git(reviewer, 'ls-files', '-s'), status: box.git(reviewer, 'status', '--porcelain') };
   const next = await ok(box, reviewer, 'next', '--verify', String(id));
   const line = (next.out + next.err).split('\n').find(row => row.startsWith('review folder at that commit: '));
