@@ -1,3 +1,14 @@
+/** What each build reason does to the release-twice hold, printed under `pullboard release` in the full help and in `help release`. */
+export const RELEASE_REASON_LINES = Object.freeze([
+  'INELIGIBLE   too big, stale or not buildable as written: counts toward the release-twice hold',
+  'ROUTED_ELSEWHERE  belongs to another route or lane: counts toward the release-twice hold',
+  'BLOCKED      waits on other items (name them with --on): counts toward the release-twice hold',
+  'BUDGET       your budget ran out: counts toward the release-twice hold',
+  'TAKEN_OVER   another seat took the work: does not count toward the release-twice hold',
+  'OTHER        none of these: does not count toward the release-twice hold, so the item comes back to the next seat',
+  'INELIGIBLE, BLOCKED, BUDGET and ROUTED_ELSEWHERE count toward the release-twice hold; OTHER and TAKEN_OVER do not',
+]);
+
 /** Preserved work command-group help, composed in its original display order. */
 export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
@@ -136,13 +147,7 @@ export const workHelp = `Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|TAKEN_OVER|OTHER (a review: BAR|FAMILY|INFRA|TOO_LARGE) [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
-                                        INELIGIBLE   too big, stale or not buildable as written: counts toward the release-twice hold
-                                        ROUTED_ELSEWHERE  belongs to another route or lane: counts toward the release-twice hold
-                                        BLOCKED      waits on other items (name them with --on): counts toward the release-twice hold
-                                        BUDGET       your budget ran out: counts toward the release-twice hold
-                                        TAKEN_OVER   another seat took the work: does not count toward the release-twice hold
-                                        OTHER        none of these: does not count toward the release-twice hold, so the item comes back to the next seat
-                                        INELIGIBLE, BLOCKED, BUDGET and ROUTED_ELSEWHERE count toward the release-twice hold; OTHER and TAKEN_OVER do not
+${RELEASE_REASON_LINES.map(line => `                                        ${line}`).join('\n')}
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
   pullboard ship [id] [--note text]       commit staged work, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory

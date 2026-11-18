@@ -1,6 +1,7 @@
 /** Help declarations and command phrases stay independent of CLI/server initialization [N26]. */
 import { VERSION } from '../../../../packages/config/index.js';
 import { ALL_HELP } from './help/sections.js';
+import { RELEASE_REASON_LINES } from './help/work.js';
 import { WHY_EXPLANATION } from './why.js';
 import { WHY_FLAG } from './why.js';
 import { cleanFlag } from './help/flag-meanings.js';
@@ -139,6 +140,7 @@ const HELP_FLAG_EXPLANATIONS = {
 
 /** Lines a command's own help adds after its example. */
 const HELP_NOTES = {
+  release: RELEASE_REASON_LINES,
   serve: [
     'This is the board API (JSON, behind the session secret in its printed address); it serves no page.',
     'To see the board in a browser, run pullboard view.',
