@@ -100,3 +100,25 @@ test('gate.language-rows.no-new-module: clause 3: LANGUAGES lives in a module th
   }
   assert.deepEqual(LANGUAGES.find((row) => row.language === 'deno').cases.inputs, ['root'], 'the deno row declares root as an extra input');
 });
+
+test('gate.language-rows.completeness: clause 1: every LANGUAGES row with a detect facet also has tests and toolchains, every junit facet names a report path, and every cases facet declares its extra inputs [C7]', () => {
+  for (const row of LANGUAGES) {
+    const { language } = row;
+    assert.ok(Object.hasOwn(row, 'detect') && Object.hasOwn(row, 'tests') && Object.hasOwn(row, 'toolchains') && Object.hasOwn(row, 'junit') && Object.hasOwn(row, 'affected') && Object.hasOwn(row, 'cases'), `${language}: every facet is present, null when none`);
+    if (row.detect !== null) {
+      assert.ok(Array.isArray(row.tests) || typeof row.tests === 'function', `${language}: a detected language has tests`);
+      assert.ok(row.toolchains !== null && (Array.isArray(row.toolchains) || typeof row.toolchains === 'function'), `${language}: a detected language has toolchains`);
+    }
+    if (row.junit !== null) assert.ok(typeof row.junit.report === 'string' && row.junit.report.length > 0 && typeof row.junit.command === 'string', `${language}: the junit facet names a report path`);
+    if (row.cases !== null) assert.ok(Array.isArray(row.cases.inputs) && row.cases.inputs.every((input) => typeof input === 'string'), `${language}: the cases facet declares its extra inputs`);
+  }
+  assert.deepEqual(LANGUAGES.find((row) => row.language === 'deno').cases.inputs, ['root'], 'deno declares root');
+});
+
+test('gate.language-rows.no-second-table: clause 2: no gate source outside language-rows.js holds a per-language table: config.js and junit.js name no language id as an object key [C7]', () => {
+  const key = new RegExp(`(^|[{,])\\s*["']?(${LANGUAGES.map((row) => row.language).join('|')})["']?\\s*:`, 'mu');
+  for (const file of [join('io', 'config.js'), join('logic', 'junit.js')]) {
+    const lines = readFileSync(join(SRC, file), 'utf8').split('\n');
+    assert.deepEqual(lines.filter((line) => key.test(line)), [], `${file} names no language id as an object key`);
+  }
+});
