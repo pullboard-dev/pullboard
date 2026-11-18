@@ -1,0 +1,4 @@
+{
+  "cli.journeys-relay-outbox-auth.unreadable-key-moves-apply": {"proves":{"specs":["C7"],"claim":"With relay.queueOnFailure on and an unreadable board key, claim 1, shout all and answer yes each exit 0 and apply on the local board."},"why":"Without it, a regression where an unreadable key fails a local command would pass unnoticed: the unit tests cover the queueable codes, not the real linked moves.","kind":"journey","inputs":["apps/cli/journeys/relay/outbox-auth.test.js"]},
+  "cli.journeys-relay-outbox-auth.unreadable-key-moves-kept": {"proves":{"specs":["C7"],"claim":"Each move made under an unreadable key is kept in relay-outbox.unsealed.json with no key field, and none reaches the relay."},"why":"Without it, a regression that leaks the key into the key-free outbox or sends a move early would pass unnoticed.","kind":"journey","inputs":["apps/cli/journeys/relay/outbox-auth.test.js"]}
+}
