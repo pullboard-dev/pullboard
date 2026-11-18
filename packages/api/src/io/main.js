@@ -1075,7 +1075,9 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
     // board moved under, or one with an unsettled verdict, is never served again as current, but it stays the
     // base the next build extends: why, on a board that moves every second, dropping it made every build full.
     entry.uncertain = state.items.filter(item => item.verdictState?.reason).map(item => item.id);
-    if (!(after.cacheable && before.revision === after.revision) || entry.uncertain.length) entry.revision = null;
+    // A build made while the view still reads its row ages names no commit for them at a commit HEAD; no input moves when they land, so it is never current (#10869).
+    entry.rowAgesPending = Boolean(before.inputs.head) && Object.values(state.rowAgesAt ?? {}).some((at) => at === null);
+    if (!(after.cacheable && before.revision === after.revision) || entry.uncertain.length || entry.rowAgesPending) entry.revision = null;
     if (before.cacheable) {
       stateCache.delete(before.cacheId);
       stateCache.set(before.cacheId, entry);
@@ -1117,7 +1119,7 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
       const compact = entry.compact ??= compactItemSummaries(entry.summary);
       const open = entry.open ??= compactItemSummaries(openOnly(entry.summary));
       return {
-        cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, reportValidator,
+        cacheId: entry.cacheId, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION, observedAt, current: entry.revision !== null, rowAgesPending: entry.rowAgesPending === true, reportValidator,
         summary: variant(entry.summary, entry.summaryFields), compact: variant(compact, entry.compactFields ??= prepareStateJson(compact), '\0items:compact-v1'),
         open: variant(open, entry.openFields ??= prepareStateJson(open), '\0items:compact-open-v1'), finished: finishedText(entry, compactItemSummaries),
         full: full ? variant(entry.state, entry.stateJsonFields ??= prepareStateJson(entry.state)) : null, deltas, summaryText: typeof projectSummary === 'function' ? summaryTextOf(entry, projectSummary) : null,

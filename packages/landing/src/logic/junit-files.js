@@ -7,11 +7,12 @@ export const JUNIT_FILE_ROWS = Object.fromEntries(LANGUAGES.filter(row => row.ca
 
 /**
  * The repo file a failing case belongs to: the report's own file when it names one inside root, else the language row's
- * mapping of classname. Why: reports differ by language, and landing names the file a person must open, so the table
+ * mapping of classname, found by the report name or by the language name detectLanguages returns (cmake reports as cpp). Why: reports differ by language, and landing names the file a person must open, so the table
  * holds each language's rule and nothing else does [C7].
  */
 export function junitFile(language, row) {
   if (row.file) return row.file;
-  const map = Object.hasOwn(JUNIT_FILE_ROWS, language) ? JUNIT_FILE_ROWS[language] : null;
+  const named = Object.hasOwn(JUNIT_FILE_ROWS, language) ? JUNIT_FILE_ROWS[language] : null;
+  const map = named ?? LANGUAGES.find(candidate => candidate.language === language)?.cases?.file ?? null;
   return map ? map(row) : null;
 }

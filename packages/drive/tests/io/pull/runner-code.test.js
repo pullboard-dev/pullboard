@@ -1,6 +1,8 @@
+/** @pullboard-module-loads packages/drive/src/io/pull.js */
 /** A pull serve rebuilds its own runner code once the board reports a newer trunk commit, after its held jobs post [C7,P7,#10800]. */
 import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
+import { registerHooks } from 'node:module';
 import { test } from 'node:test';
 import { serveRunner } from '../../../index.js';
 import { testGit as pullGit } from '../../fixtures/git.js';
@@ -67,4 +69,12 @@ test('runners.code.n10800-clause-3-a-failed-refresh-is: #10800 clause 3: a refre
   assert.deepEqual(refreshed, ['c2', 'c3'], 'one try per new commit');
   assert.equal(said.filter(line => line.includes('runner code update to c2')).length, 1);
   assert.equal(said.filter(line => line.includes('runner code update to c3')).length, 1);
+});
+
+test('drive.pull.runner-code-lazy: #10872 clause 1: evaluating pull.js resolves no import of pull/runner-code.js, so cold commands stay inside their closure budgets [C7]', async () => {
+  const resolved = [];
+  const hooks = registerHooks({ resolve(specifier, context, next) { const found = next(specifier, context); resolved.push(found.url); return found; } });
+  try { await import(`${new URL('../../../src/io/pull.js', import.meta.url).href}?lazy-check`); } finally { hooks.deregister(); }
+  assert.ok(resolved.length > 5, `pull.js resolved ${resolved.length} imports`);
+  assert.deepEqual(resolved.filter(url => url.endsWith('/pull/runner-code.js')), []);
 });
