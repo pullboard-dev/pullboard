@@ -106,6 +106,7 @@ const BEFORE = {
   'holds.liftSettled': false,
   'holds.requireOwner': false,
   'inspection.clauses': false,
+  'items.testMirrorAtAdd': false,
   'items.typedFields': false,
   'jobs.avoidRunners': false,
   'jobs.handBackUnrunnable': false,
@@ -164,6 +165,7 @@ const BEFORE = {
   'relay.queueOnFailure': false,
   'relay.renewAfterSync': false,
   'release.rerouteUntouched': false,
+  'release.staleItemRevision': false,
   'review.canonicalFamilies': false,
   'review.relaxRequiredFamily': false,
   'review.releaseReasons': false,
@@ -198,6 +200,7 @@ const BEFORE = {
   'submit.residentChecks': false,
   'test.inProcessHooks': false,
   'test.loadRerun': false,
+  'test.retryStaleRecord': false,
   'test.statusOutcomes': false,
   'tests.registryStrict': false,
   'tests.requireDeclaredInputs': false,
@@ -333,4 +336,34 @@ test('config.io-settings-machine-defaults.clause-1-tests-requiredeclaredinputs-i
 test('config.io-settings-machine-defaults.clause-2-only-the-exact-value-true-turns: clause 2: only the exact value true turns tests.requireDeclaredInputs on [C7,#9799]', async () => {
   assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: true } }), true);
   assert.equal(await declaredInputsWith({ tests: { requireDeclaredInputs: false } }), false);
+});
+
+/** Read items.testMirrorAtAdd through a private machine home holding the given settings. */
+async function testMirrorWith(settings) {
+  const { privateFixtureFiles } = await import('../../../../gate/tests/fixtures/child.js');
+  const { fixtureMachineSettings } = await import('../../../../gate/tests/fixtures/testkit.js');
+  const { itemsTestMirrorAtAdd } = await import('../../../index.js');
+  const { mkdirSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const { root } = privateFixtureFiles('pullboard-test-mirror-at-add-');
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'machine-home');
+  try {
+    mkdirSync(process.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+    fixtureMachineSettings(process.env.PULLBOARD_MACHINE_HOME, settings);
+    return itemsTestMirrorAtAdd();
+  } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
+}
+
+test('config.io-settings-machine-defaults.items-test-mirror-at-add-listed: clause 1: items.testMirrorAtAdd is in BEFORE and MACHINE_DEFAULTS, false by default, with a description [C7,#10673]', () => {
+  assert.equal(BEFORE['items.testMirrorAtAdd'], false);
+  assert.equal(MACHINE_DEFAULTS['items.testMirrorAtAdd'], false);
+  assert.ok(SETTING_DESCRIPTIONS['items.testMirrorAtAdd']);
+});
+
+test('config.io-settings-machine-defaults.items-test-mirror-at-add-exact-true: clause 2: itemsTestMirrorAtAdd() is false by default, true only for an exact true, and a non-boolean value refuses BAD_MACHINE_SETTINGS [C7,#10673]', async () => {
+  assert.equal(await testMirrorWith({}), false);
+  assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: false } }), false);
+  assert.equal(await testMirrorWith({ items: { testMirrorAtAdd: true } }), true);
+  await assert.rejects(testMirrorWith({ items: { testMirrorAtAdd: 'yes' } }), error => error.code === 'BAD_MACHINE_SETTINGS' && /items\.testMirrorAtAdd/u.test(error.message));
 });
