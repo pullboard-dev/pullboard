@@ -1,0 +1,16 @@
+{
+  "cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "cellsSnapshotProblems returns no problems for an unchanged cellsSnapshotPair candidate, with the parsers and cache services the submit gate passes."
+    },
+    "why": "Without it, a regression where an unchanged candidate is reported as a cells problem would refuse every submit, or leave later harness cases unable to tell a real problem from noise.",
+    "kind": "cell unit",
+    "inputs": [
+      "apps/cli/tests/io/cells-submit-checks.test.js",
+      "apps/cli/tests/fixtures/cells/snapshot.js"
+    ]
+  }
+}

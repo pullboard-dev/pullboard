@@ -3,6 +3,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { runFixtureGit } from '../../../../packages/gate/tests/fixtures/child.js';
 import { cellsSnapshotPair } from '../fixtures/cells/snapshot.js';
+import { cellsSnapshotProblems } from '../../src/io/cells-submit-checks.js';
+import { commonJsIn } from '../../../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../../../packages/gate/index.js';
+import { importsIn } from '../../../../packages/gate/index.js';
+import { withImportParseCache } from '../../../../packages/gate/index.js';
 
 const git = (root, ...args) => runFixtureGit(args, { cwd: root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' } }).trim();
 const files = root => git(root, 'ls-files').split('\n').sort();
@@ -19,4 +24,15 @@ test('cli.io-cells-submit-checks.the-snapshot-pair-differs-only-by-the: clause 1
     assert.equal(same, file !== 'packages/demo/index.js', `${file} differs only when it is the edited file`);
   }
   assert.equal(git(edited.main.root, 'show', 'HEAD:packages/demo/index.js'), "export const demo = 'demo';");
+});
+
+test('cli.io-cells-submit-checks.an-unchanged-candidate-returns-no-problems: clause 1: an unchanged candidate returns no problems with the services the submit gate passes [C7,#10939]', (t) => {
+  const pair = cellsSnapshotPair(t);
+  // The same services apps/cli/src/io/submit/gate.js passes requireSubmitCells, taken from the same gate imports.
+  const problems = cellsSnapshotProblems(pair.main.root, pair.candidate.root, {
+    parsers: { importsIn, commonJsIn },
+    withImportParseCache,
+    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+  });
+  assert.deepEqual(problems, []);
 });
