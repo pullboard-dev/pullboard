@@ -136,7 +136,6 @@ export const HELP_FLAG_EXPLANATIONS = {
   '--private': 'keeps an added item in this device-local repo board, or selects that board for move IDs',
   '--level': 'sets which work the model can take',
   '--route': 'sets which work the model can take',
-  '--level': 'sets which work the model can take',
   '--source': 'where the person gave the ruling; required with --doctrine',
 };
 
