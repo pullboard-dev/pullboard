@@ -45,10 +45,6 @@ import {
   signingLine,
 } from '../../../../../packages/person/light.js';
 import {
-  submitInvariantLine,
-  submitInvariantProposals,
-} from '../../../../../packages/items/index.js';
-import {
   context,
   span,
 } from '../read.js';
@@ -64,6 +60,7 @@ export const nativeBoardRequired = false;
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
+  const { submitInvariantLine, submitInvariantProposals } = await import('../../../../../packages/items/index.js');
   const { bindProofRunner, currentProofCounters, proofCounter, ruleProofCounts, reviewQueueLine } = await import('../../../../../packages/verify/index.js');
   const { claimHealthProjection, releaseBlockingItems, staleStateSnapshot } = await import('../../../../../packages/health/index.js');
   const { stalledGates } = await import('../../../../../packages/jobs/index.js');

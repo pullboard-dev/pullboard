@@ -79,3 +79,18 @@ test('cli.io-commands-status-closure.a-twelfth-heavy-module-in-the-closure: clau
   const withTwelfth = [...inClosure, 'packages/extra/index.js'].filter((file) => !ALLOWED.includes(file));
   assert.deepEqual(withTwelfth, ['packages/extra/index.js'], 'a module outside the list is reported');
 });
+
+/** The 5 board-read modules every board command needs; no other heavy module may stay in status's static closure [#7084]. */
+const BOARD_READ = [
+  'packages/state/src/io/machine.js',
+  'packages/store/index.js',
+  'packages/store/src/io/board.js',
+  'packages/store/src/io/board/event/log.js',
+  'packages/store/src/logic/board/landing/lease.js',
+];
+
+test('cli.io-commands-status-closure.status-reaches-no-heavy-module-beyond: clause 1: the static closure of status reaches no module of the startup-heavy status row beyond the 5 board-read modules [C7,#7084]', () => {
+  const inClosure = heavyInClosure();
+  const extra = inClosure.filter((file) => !BOARD_READ.includes(file));
+  assert.deepEqual(extra, [], `status still reaches heavy modules beyond the board-read five: ${extra.join(', ')}`);
+});
