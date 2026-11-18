@@ -422,6 +422,29 @@ async function dropCheckout(git, cache, { folder, primary }, exclusive = work =>
 /** What a runner operator may hand every job beyond the runner-owned values: progress reporting and fixture markers. */
 const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+)$/u;
 
+/** The only names a job request may set for its job: test-only fixture switches, never PATH, HOME or a loader option [C7,#10848]. */
+export const JOB_ENV_NAME = /^(?:PULLBOARD_)?FIXTURE_[A-Z0-9_]+$/u;
+// Budget: a fixture switch is a short flag; a longer value is a payload, which belongs in the request's input.
+const JOB_ENV_VALUE_CHARS = 1024;
+
+/**
+ * The variables a job request's env map sets, checked: every name a fixture switch, every value a short string.
+ * Why: a variable set in the seat's shell around pullboard test never reached the runner job, so hooks-on proofs took
+ * throwaway probe commits (#10842); the request carries it instead, and nothing outside the fixture names rides along.
+ *
+ * @param {unknown} requested - The request's env map; absent or null sets nothing.
+ * @returns {Record<string, string>}
+ */
+export function requestedJobEnvironment(requested) {
+  if (requested === undefined || requested === null) return {};
+  if (typeof requested !== 'object' || Array.isArray(requested)) throw new Refused('JOB_ENV_REFUSED', 'a job request\'s env is a map of variable names to strings; next: offer the job again with a map');
+  for (const [key, value] of Object.entries(requested)) {
+    if (!JOB_ENV_NAME.test(key)) throw new Refused('JOB_ENV_REFUSED', `a job request may set only PULLBOARD_FIXTURE_* or FIXTURE_* variables, not ${key.slice(0, 80)}; next: drop it from the request`);
+    if (typeof value !== 'string' || value.length > JOB_ENV_VALUE_CHARS || value.includes('\0')) throw new Refused('JOB_ENV_REFUSED', `${key} in a job request is not a string of at most ${JOB_ENV_VALUE_CHARS} characters; next: shorten it`);
+  }
+  return { ...requested };
+}
+
 /**
  * A pulled job's own environment and the folders it lives in: a per-job HOME and temp folder beside the checkout, and
  * PULLBOARD_RUNNER_JOB, as a pushed runner builds it, plus the runner's shared cache folder and a machine home inside the job's HOME.
@@ -432,9 +455,11 @@ const PASSED_ENV = /^(?:PULLBOARD_TEST_PROGRESS|PULLBOARD_CHROME|(?:PULLBOARD_)?
  * @param {string} name - The job's checkout name.
  * @param {string} job - The job id, carried as PULLBOARD_RUNNER_JOB.
  * @param {NodeJS.ProcessEnv} [host] - The runner service's environment, read for PATH and the passed names only.
+ * @param {unknown} [requested] - The job request's env map: fixture switches the job's own caller set, over the host's [#10848].
  * @returns {{ env: Record<string, string>, folder: string }}
  */
-export function jobEnvironment(cache, name, job, host = process.env) {
+export function jobEnvironment(cache, name, job, host = process.env, requested = null) {
+  const asked = requestedJobEnvironment(requested);
   const folder = join(cache, 'env', name), home = join(folder, 'home'), temporary = join(folder, 'tmp');
   try { rmSync(folder, { recursive: true, force: true, maxRetries: 3 }); } catch { /* a stale folder a writer still fills is the prune's; its home and tmp are made below */ }
   // One cache per runner that every job's keyed caches outlive the job in; a job's own HOME and TMPDIR start empty (#8233).
@@ -445,7 +470,7 @@ export function jobEnvironment(cache, name, job, host = process.env) {
   // The job's own machine pool: without it the job's run read the OS account's ~/.pullboard, and on the board host a
   // pulled gate shard saw the real runners there and fanned out onto them, holding their pools for 37 min (#8361).
   const machine = join(home, '.pullboard');
-  return { env: { ...passed, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
+  return { env: { ...passed, ...asked, ...childEnvironment({ safePath, workerId: job }, home, temporary, machine), PULLBOARD_RUNNER_SHARED_CACHE: shared }, folder };
 }
 
 /**
@@ -879,7 +904,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
   /** Fetch, run and report one claimed argv job while runClaim renews its lease; isLost reads whether the lease moved. */
   const runHeld = async (claim, trunk, slot, held, isLost, whenLost, claimedAt = Date.now(), self = () => null, known = () => {}) => {
     // A job offered with no run carries its argv and stdin in its request, which only the claim's holder reads [P7].
-    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null;
+    let run = claim.run ?? [], input = null, also = claim.base ? [claim.base] : [], named = null, timed = false, ref = null, requestedEnv = null;
     const requestStart = Date.now();
     if (!run.length) {
       let asked;
@@ -892,12 +917,20 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
         named = Array.isArray(request.input?.data?.files) ? request.input.data.files.length : null;
         also = [...new Set([...also, ...(Array.isArray(request.commits) ? request.commits : [])])];
         ref = typeof request.ref === 'string' ? request.ref : null;
+        requestedEnv = request.env ?? null;
         // A gate frozen with exclusive check timing holds the runner: nothing else is claimed from here until it ends [C7,#8187].
         timed = request.input?.data?.checkTiming === true;
         if (timed) exclusive = claim.job;
       }
     }
     known();
+    // A request whose env names anything but a fixture switch never runs here: it goes back naming JOB_ENV_REFUSED [#10848].
+    try { requestedJobEnvironment(requestedEnv); }
+    catch (refusal) {
+      const reason = `[${refusal.code}] ${refusal.message}`; say(`releasing ${claim.job}: ${reason}`);
+      await reliably({ action: 'release', ...held, reason }).catch(error => { if (error.code !== 'JOB_LEASE_MOVED') throw error; });
+      return { job: claim.job, outcome: 'released' };
+    }
     const requestMs = Date.now() - requestStart;
     // A job whose request carries its input runs the gate bootstrap, a gate's or a pulled test's, and prints one receipt line [P7].
     const gate = input !== null;
@@ -933,7 +966,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const startup = { version: 1, requestMs, fetchMs: checkout.phases.fetchMs, checkoutMs: checkout.phases.checkoutMs,
       reused: checkout.reused, totalMs: started - claimedAt };
     liveEnvironments.add(name);
-    const job = jobEnvironment(cache, name, claim.job), tag = randomBytes(8).toString('hex');
+    const job = jobEnvironment(cache, name, claim.job, process.env, requestedEnv), tag = randomBytes(8).toString('hex');
     // The job's full output stays on this runner by job id; the receipt says where, beside its digest [P7].
     const kept = keepFolder(cache, claim.job, claim.attempt);
     // The run's test reporter appends each file's state to this file; it is posted as the job's progress step, lease-checked like the receipt (#5823).
