@@ -1,10 +1,13 @@
 /** @pullboard-test-input apps/cli/tests/** apps/cli/journeys/** */
 /** Every cli-app test, in its tests and journeys folders, carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#10476,#10541]. */
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { privateFixtureFiles } from '../../../packages/gate/tests/fixtures/child.js';
 import { registryStrictEnabled as registryStrict } from '../../../packages/config/index.js';
 
 /** An ID is dotted (cli.area.slug); other `word:` titles in this wide cell are not IDs. */
@@ -44,9 +47,30 @@ function testFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
 }
 
+/** Every registry file under `journeys`, nested folders included: a registry-<id>.json a lane keeps beside its own journeys. */
+function journeyRegistryFiles(journeys) {
+  return readdirSync(journeys, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? journeyRegistryFiles(join(journeys, entry.name)) : /^registry-[0-9a-z]+\.json$/u.test(entry.name) ? [join(journeys, entry.name)] : []));
+}
+
+/** The records of the fixtures folder's registry*.json plus every journey-local registry-<id>.json, and each ID written in more than one file. */
+function loadRecords(fixtures, journeys) {
+  const files = [...readdirSync(fixtures).filter((name) => /^registry(?:-\d+[a-z]?)?\.json$/u.test(name)).sort().map((name) => join(fixtures, name)), ...journeyRegistryFiles(journeys).sort()];
+  const records = {};
+  const duplicates = [];
+  for (const file of files) {
+    for (const [id, record] of Object.entries(JSON.parse(readFileSync(file, 'utf8')))) {
+      if (id in records) duplicates.push(id);
+      records[id] = record;
+    }
+  }
+  return { records, duplicates };
+}
+
 test('cli.stable.complete: clause 1: [C7,U148] every registered test has a stable ID and one complete record; an unregistered test is reported and fails only with tests.registryStrict on', (t) => {
   // Each slice keeps its records in its own registry*.json so parallel slices never conflict.
-  const records = Object.assign({}, ...readdirSync(join(DIR, 'fixtures')).filter((name) => /^registry(?:-\d+[a-z]?)?\.json$/u.test(name)).sort().map((name) => JSON.parse(readFileSync(join(DIR, 'fixtures', name), 'utf8'))));
+  // A lane that may not edit the fixtures folder keeps its records in a registry-<id>.json beside its journeys; those count the same.
+  const { records, duplicates } = loadRecords(join(DIR, 'fixtures'), join(DIR, '..', 'journeys'));
+  assert.deepEqual(duplicates, [], 'no ID is recorded in two registry files');
   const files = [...testFiles(DIR), ...testFiles(join(DIR, '..', 'journeys'))].sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
   assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
@@ -65,6 +89,29 @@ test('cli.stable.complete: clause 1: [C7,U148] every registered test has a stabl
     assert.ok(KINDS.includes(record.kind), `${id}: kind is one of ${KINDS.join(', ')}`);
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
+});
+
+/** A throwaway fixtures folder and journeys folder, each holding the given registry files. */
+function withRegistries({ fixtures, journeys }, check) {
+  const root = privateFixtureFiles('cli-stable-registries-').root;
+  mkdirSync(join(root, 'fixtures'));
+  mkdirSync(join(root, 'journeys', 'shout'), { recursive: true });
+  for (const [name, records] of Object.entries(fixtures)) writeFileSync(join(root, 'fixtures', name), JSON.stringify(records));
+  for (const [name, records] of Object.entries(journeys)) writeFileSync(join(root, 'journeys', name), JSON.stringify(records));
+  check(loadRecords(join(root, 'fixtures'), join(root, 'journeys')));
+}
+
+test('cli.stable.journey-local-registries: clause 1: [C7,U148] records in a registry-<id>.json beside journeys count toward cli.stable.complete the same as records in the fixtures folder registry*.json', () => {
+  withRegistries({ fixtures: { 'registry-1.json': { 'cli.a.one': {} } }, journeys: { 'shout/registry-2.json': { 'cli.a.two': {} } } }, ({ records, duplicates }) => {
+    assert.deepEqual(Object.keys(records).sort(), ['cli.a.one', 'cli.a.two']);
+    assert.deepEqual(duplicates, []);
+  });
+});
+
+test('cli.stable.journey-local-duplicate-id: clause 2: [C7,U148] a test id recorded both beside a journey and in the fixtures folder is still refused as a duplicate', () => {
+  withRegistries({ fixtures: { 'registry-1.json': { 'cli.a.one': {} } }, journeys: { 'shout/registry-2.json': { 'cli.a.one': {} } } }, ({ duplicates }) => {
+    assert.deepEqual(duplicates, ['cli.a.one']);
+  });
 });
 
 test('cli.stable.journeys-registered: clause 2: [C7,U148] every test under the journeys add, agents, baseline, blueprint, cells, claim, companion and decisions folders has a registered cli.<area>.<slug> title ID', () => {

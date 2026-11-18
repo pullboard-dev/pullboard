@@ -1,0 +1,4 @@
+{
+  "cli.io-commands-add.json-carries-level": {"proves": {"specs": ["C7"], "claim": "add --json prints level equal to route beside the item."}, "why": "Without it a client reading level from join and route from add reads two names for one fact.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/add.js", "apps/cli/tests/io/commands/add.test.js"]},
+  "cli.io-commands-add.edit-and-worktree-json-carry-level": {"proves": {"specs": ["C7"], "claim": "edit --json and worktree --json print level equal to route."}, "why": "Without it a client reading level from join and route from edit or worktree reads two names for one fact.", "kind": "journey", "inputs": ["apps/cli/src/io/commands/edit.js", "apps/cli/src/io/commands/worktree.js", "apps/cli/tests/io/commands/add.test.js"]}
+}
