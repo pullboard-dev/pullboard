@@ -60,7 +60,7 @@ async function recorded(root, commit) {
 const NUMBERED = { 'packages/state/src/logic/engines/new-rule-engine.js': 'export const NEW_RULE_ENGINE = 1;\n' };
 const PLACEHOLDER = { 'packages/state/src/logic/engines/new-rule-engine.js': "import { unassignedEngine } from './engine-next.js';\nexport const NEW_RULE_ENGINE = unassignedEngine();\n" };
 
-test('clause 1: with gate.runnersOnly on, the cells-plan check spawns only git ls-tree and git cat-file, no node or test process [C7]', async () => {
+test('landing.runners-only.with-gate-runnersonly-on-the-cells: clause 1: with gate.runnersOnly on, the cells-plan check spawns only git ls-tree and git cat-file, no node or test process [C7]', async () => {
   const { root, commit } = repoWith(NUMBERED);
   const { spawned, outcome } = await recorded(root, commit);
   assert.equal(outcome, null, 'a numbered engine passes');
@@ -69,7 +69,7 @@ test('clause 1: with gate.runnersOnly on, the cells-plan check spawns only git l
   assert.ok(spawned.some(command => command[1] === 'cat-file'), 'the engine blob was read from the object store');
 });
 
-test('clause 2: with gate.runnersOnly on, an unnumbered engine placeholder on the checked commit still refuses LAND_ENGINE_UNNUMBERED [C7]', async () => {
+test('landing.runners-only.with-gate-runnersonly-on-an-unnumbered: clause 2: with gate.runnersOnly on, an unnumbered engine placeholder on the checked commit still refuses LAND_ENGINE_UNNUMBERED [C7]', async () => {
   const { root, commit } = repoWith(PLACEHOLDER);
   const { spawned, outcome } = await recorded(root, commit);
   assert.equal(outcome?.code, 'LAND_ENGINE_UNNUMBERED');

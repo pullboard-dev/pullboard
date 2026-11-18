@@ -9,6 +9,7 @@ import * as store from '../../../../../packages/store/light.js';
 import { mainMergeFor } from '../read.js';
 import { verdictProjector } from '../read.js';
 import { repoInfo } from '../../../../../packages/git/light.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/light.js';
 
 /**
  * The rows `pullboard list` would print from `cwd`, or null when the full path must run it: no readable board, a
@@ -24,7 +25,7 @@ export function thinListRows({ cwd, lane, all, clock = store.systemClock }) {
   if (!board.current || board.drifted) { store.closeBoard(board); return null; }
   try {
     const rows = store.listItems(board, { lane, all });
-    const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project;
+    const project = verdictProjector(info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project;
     const items = rows.map(project);
     const merging = new Set(rows.filter(item => !['verified', 'withdrawn'].includes(item.item_status) && mainMergeFor(board, item.item_id)).map(item => item.item_id));
     return { items, needsRescope: store.allItemsNeedingRescope(board), agents: store.listAgents(board), merging };

@@ -63,3 +63,22 @@ export function repeatedStopAlarm(board, { insertShout, landingBatches }) {
   const { code, subject } = stops[0];
   return shoutOnce(board, insertShout, `stop:${code}:${subject}`, `Landing stopped ${REPEATS} batches in a row for ${code}; it names ${subject}`);
 }
+
+/**
+ * The sentinel's landing self-check: reads the real comparison cache and landing batches, and records each new alarm as a
+ * blocker shout to the coordinator through the ordered shout move. A standing fault is shouted once.
+ *
+ * @param {object} ctx the command context
+ * @param {object} board
+ * @param {Function} ordered the CLI's ordered-move runner
+ * @param {{ comparisons: (root: string) => object[], landingBatches: Function }} ports the comparison cache reader and batch reader, handed in so this cell takes no new cross-cell edge
+ * @returns {Promise<number>} how many shouts were recorded
+ */
+export async function shoutLandingSelfCheck(ctx, board, ordered, { comparisons, landingBatches }) {
+  const pending = [];
+  const collect = (_board, message) => { pending.push(message); };
+  mainComparisonAlarm(board, comparisons(ctx.info.root), { insertShout: collect });
+  repeatedStopAlarm(board, { insertShout: collect, landingBatches });
+  for (const message of pending) await ordered(ctx, board, 'shout', [message]);
+  return pending.length;
+}

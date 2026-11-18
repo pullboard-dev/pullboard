@@ -111,9 +111,12 @@ import { drainedRunnerHosts } from '../../../config/index.js';
 import { jobReserve } from '../../../config/index.js';
 import { fencedHopEnabled } from '../../../config/index.js';
 import { codeStampCacheEnabled } from '../../../config/index.js';
+import { milestoneDeltaEnabled } from '../../../config/index.js';
 import { endStaleJobsEnabled } from '../../../config/index.js';
+import { receiptMissingCauseEnabled } from '../../../config/index.js';
 import { redFactLocationEnabled } from '../../../config/index.js';
 import { settleOnMainReceiptEnabled } from '../../../config/index.js';
+import { recordLapseEnabled } from '../../../config/index.js';
 import { reofferTrunkBusyEnabled } from '../../../config/index.js';
 import { jobsAvoidRunnersEnabled } from '../../../config/index.js';
 import { gateClaimHop } from './hop.js';
@@ -121,6 +124,7 @@ import { boardJobQueueCall } from './gate.js';
 import { boardQueueMode } from './jobs.js';
 import { trunkRemote } from '../../../config/index.js';
 import { typedFieldsEnabled } from '../../../config/index.js';
+import { hunkFreshnessEnabled } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
 import { RELAY_HEALTH_FILE } from '../../../link/index.js';
 import { relayCanaryNeeds } from '../../../link/index.js';
@@ -503,7 +507,7 @@ const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** The sibling-cell functions an item detail reads, given to its reader on each thread. */
-const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled };
+const DETAIL_CELLS = { fitFile, loadConfig, localDependencyIds, SUMMARY_KEYS, verifiedPasskeyRowDecision, projectItemSpecApprovals, specApprovalState, verdictProjector, typedFieldsEnabled, hunkFreshnessEnabled };
 /** How many recent builds of each board a server keeps as possible delta bases. */
 const DELTA_BASES = 24;
 
@@ -517,6 +521,7 @@ function jsonDigest(value) {
  * its entry order and each entry's digest. A list whose keys repeat or are missing is a whole field.
  */
 function fingerprint(state) {
+  const derived = milestoneDeltaEnabled();
   const fields = new Map();
   const lists = new Map();
   for (const [field, value] of Object.entries(state)) {
@@ -524,7 +529,7 @@ function fingerprint(state) {
     const key = Object.hasOwn(DELTA_KEYS, field) ? DELTA_KEYS[field] : null;
     const ids = key && Array.isArray(value) ? value.map((entry) => entry?.[key]) : null;
     if (ids && ids.every((id) => typeof id === 'number' || typeof id === 'string') && new Set(ids).size === ids.length) {
-      const own = field === 'milestones' ? milestoneWithoutPace : (entry) => entry;
+      const own = field === 'milestones' ? (entry) => milestoneWithoutPace(entry, derived) : (entry) => entry;
       lists.set(field, { key, ids, digests: new Map(value.map((entry) => [entry[key], jsonDigest(own(entry))])) });
     } else fields.set(field, jsonDigest(value));
   }
@@ -857,6 +862,18 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
   }, isMain, boardOpeners);
 }
 
+/**
+ * The refusal for a move whose caller may not act as the agent it names, or null. Only the coordinator's own credential
+ * moves with no agent or as the coordinator; the board key a served board shares with runners and seats must name its
+ * seat. A join names no agent: it registers one [P7,#10785].
+ */
+function moveIdentityRefusal(body, who) {
+  if (!body || typeof body !== 'object' || body.verb === 'join' || who?.coordinator) return null;
+  if (body.agent === undefined) return new Refused('AGENT_REQUIRED', 'a move with this key names its agent; only the coordinator\'s own credential moves as the coordinator', 'send agent with the seat name pullboard join gave this clone');
+  if (body.agent === COORDINATOR) return new Refused('COORDINATOR_CREDENTIAL', 'a coordinator move needs the coordinator\'s own credential, not the board key runners and seats share', 'run the move on the board host with the local CLI, or send the coordinator\'s own key as x-pullboard-coordinator-key');
+  return null;
+}
+
 /** Register a seat from another machine over the API, with a remote marker in place of a board-host path [P7]. */
 function remoteJoin(root, body, isMain, boardOpeners) {
   const { lane, model, route = 'strong', family } = body.args ?? {};
@@ -1127,9 +1144,9 @@ export function createStateSnapshots({ projects = listApiProjects, scope, isMain
 }
 
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
- * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
+ * @param {{ secret: string | Buffer, coordinatorSecret?: string | Buffer | null, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts } = {}) {
+export function createLocalApiHandler({ secret, coordinatorSecret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts, statePorts, onStateRecord, handlerPorts } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
   if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
@@ -1160,6 +1177,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     throw new TypeError('createLocalApiHandler allowedHosts needs literal IPv4 addresses, without ports or wildcard binds');
   }
   const permittedHosts = [...new Set(allowedHosts)];
+  if (coordinatorSecret !== undefined && coordinatorSecret !== null && !String(coordinatorSecret)) throw new TypeError('createLocalApiHandler coordinatorSecret is a non-empty secret, or null for none');
+  // The coordinator's own credential: the view's session, or a loopback serve's session secret. A served board's key off
+  // loopback is shared with every runner and seat, so it never acts as the coordinator unless a separate secret is named [P7,#10785].
+  const coordinatorKey = coordinatorSecret !== undefined ? (coordinatorSecret === null ? null : Buffer.from(coordinatorSecret))
+    : personChannel === 'view' || permittedHosts.length === 0 ? key : null;
   const snapshots = createStateSnapshots({ projects, scope, isMain, onStateBuild, onItemBuild, now, boardOpeners, viewPorts });
   const { withSnapshot } = snapshots;
   // With statePorts, a worker keeps each board's state built and a state read only serves its latest text.
@@ -1264,7 +1286,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const cookieFetchSiteAllowed = fetchSite === undefined || fetchSite === 'same-origin';
       if (!ownHost || (!validKey && (!validCookie || !cookieFetchSiteAllowed))) throw new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed');
       if (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host && !permittedOrigins.has(req.headers.origin)) throw new Refused('API_ORIGIN', 'use the API from its own origin');
-      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host };
+      const givenCoordinator = Buffer.from(String(req.headers['x-pullboard-coordinator-key'] ?? ''));
+      const coordinator = (validCookie && cookieFetchSiteAllowed)
+        || (coordinatorKey !== null && (credentialMatches(given, coordinatorKey) || credentialMatches(givenCoordinator, coordinatorKey)));
+      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host, coordinator };
     },
     settings: (selected) => {
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
@@ -1310,7 +1335,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     },
     events: (board, after, _who, limit) => pool ? pool.call('events', { root: board.root, after, limit }, { route: `GET /api/v1/boards/${board.id}/events` }) : withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners, limit)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
-    move: (board, body) => pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
+    move: (board, body, who) => {
+      const refused = moveIdentityRefusal(body, who);
+      if (refused) return { status: 403, body: refusalDocument(refused) };
+      return pool ? pool.call('move', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/moves` }) : executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners);
+    },
     request: (board, body) => pool && !relayLinked(board.root) ? pool.call('request', { root: board.root, body, personChannel }, { route: `POST /api/v1/boards/${board.id}/requests` }) : createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
     revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, relayOrdering: boardOpeners.relayOrdering, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, checkpointWorker: boardOpeners.checkpointWorker, openBoard: boardOpeners.openBoard, nativeBoardPorts: boardOpeners.nativeBoardPorts, outboxFields: boardOpeners.outboxFields, outboxPolicy: boardOpeners.outboxPolicy, flushOutbox: boardOpeners.flushOutbox, queueMove: boardOpeners.queueMove, outboxHasPendingCreatedItem: boardOpeners.outboxHasPendingCreatedItem, say() {}, err() {} }),
@@ -1326,7 +1355,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
 async function boardJobsCall({ board, body, now }, isMain, boardOpeners) {
   // On a relay-linked board a receipt's engine moves are ordered through the relay, so every replica sees the gate's result (#7562).
   const ordered = relayLinked(board.root) ? [] : null;
-  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
+  const answer = await withBoard(board.root, current => boardJobQueueCall(Object.assign(current, { gitRoot: current.gitRoot ?? board.root }), body, { mode: boardQueueMode(current.db, () => 'pull'), now, drained: drainedRunnerHosts, reserve: jobReserve, recordLapse: recordLapseEnabled(), avoidRunners: jobsAvoidRunnersEnabled(), hop: gateClaimHop(fencedHopEnabled()), endStale: endStaleJobsEnabled(), receiptMissingCause: receiptMissingCauseEnabled(), redLocation: redFactLocationEnabled(), settleOnMainReceipt: settleOnMainReceiptEnabled(), reofferTrunkBusy: reofferTrunkBusyEnabled(), trunk: () => trunkRemote(board.root) ?? board.root, ordered }), isMain, boardOpeners);
   if (!ordered) return answer;
   return { ...answer, relayed: await relayReceiptMoves(board.root, ordered, boardOpeners) };
 }

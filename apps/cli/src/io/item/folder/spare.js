@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { git } from '../../../../../../packages/git/index.js';
 import { tryGit } from '../../../../../../packages/git/index.js';
 import { gitPath } from '../../../../../../packages/git/index.js';
+import { nextOneGitRead } from '../../../../../../packages/config/index.js';
 
 /**
  * Tracked files a repository needs before a spare is kept.
@@ -22,7 +23,7 @@ export function spareFolderPath(seat) { return `${seat}-spare`; }
 function indexEntries(root) {
   let fd;
   try {
-    fd = openSync(gitPath(root, 'index'), 'r');
+    fd = openSync(gitPath(root, 'index', { files: nextOneGitRead() }), 'r');
     const header = Buffer.alloc(12);
     return readSync(fd, header, 0, 12, 0) === 12 && header.toString('latin1', 0, 4) === 'DIRC' ? header.readUInt32BE(8) : 0;
   } catch { return 0; } finally { if (fd !== undefined) closeSync(fd); }

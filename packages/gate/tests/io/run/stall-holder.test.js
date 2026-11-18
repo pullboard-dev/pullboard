@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 
 const REPO = join(import.meta.dirname, '../../../../..');
 
-test('clause 1: a slot holder with no live process is released, and the slot log names who held it and why [C7]', async t => {
+test('gate.io-run-stall-holder.a-slot-holder-with-no-live: clause 1: a slot holder with no live process is released, and the slot log names who held it and why [C7]', async t => {
   const { reclaimHolders } = await import(pathToFileURL(join(REPO, 'packages/resources/src/io/liveness.js')).href);
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());

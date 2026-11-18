@@ -36,13 +36,13 @@ const generate = (g) => ({
   breaks: BREAKS,
 });
 
-test('seeded gives the same sequence for the same seed and a different one for another [C7,#8066]', () => {
+test('moves.cases.seeded-gives-the-same-sequence-for-the: seeded gives the same sequence for the same seed and a different one for another [C7,#8066]', () => {
   const take = seed => { const g = seeded(seed); return [g.rand(), g.rand(), g.int(100)]; };
   assert.deepEqual(take(7), take(7));
   assert.notDeepEqual(take(7), take(8));
 });
 
-test('tableCases reports every guard or outcome no generated case reaches [C7,#8066]', () => {
+test('moves.cases.table-cases-reports-every-guard-or-outcome-no: tableCases reports every guard or outcome no generated case reaches [C7,#8066]', () => {
   const full = tableCases(TABLE, RULES, generate, { seed: 1, count: 200 });
   assert.deepEqual(full.unreached, { guards: [], outcomes: [], followups: [] });
   const only = tableCases(TABLE, RULES, () => ({ snapshot: { item: { status: 'open', owner: 'a' } }, move: { actor: 'a' } }), { seed: 1, count: 5 });
@@ -50,7 +50,7 @@ test('tableCases reports every guard or outcome no generated case reaches [C7,#8
   assert.deepEqual(only.unreached.outcomes, ['noted', 'plain']);
 });
 
-test('tableCases reports a refusal that returns a patch or events, and none for a sound engine [C7,#8066]', () => {
+test('moves.cases.table-cases-reports-a-refusal-that-returns-a: tableCases reports a refusal that returns a patch or events, and none for a sound engine [C7,#8066]', () => {
   assert.deepEqual(tableCases(TABLE, RULES, generate, { seed: 3, count: 100 }).writingRefusals, []);
   const leaky = (table, rules, snapshot, move) => {
     const result = runTable(table, rules, snapshot, move);
@@ -61,17 +61,17 @@ test('tableCases reports a refusal that returns a patch or events, and none for 
   assert.equal(report.writingRefusals[0].row === 'claimed' || report.writingRefusals[0].row === 'mine', true);
 });
 
-test('tableCases reports a broken fact that does not refuse, when the engine ignores the guard [C7,#8066]', () => {
+test('moves.cases.table-cases-reports-a-broken-fact-that-does: tableCases reports a broken fact that does not refuse, when the engine ignores the guard [C7,#8066]', () => {
   const blind = (table, rules, snapshot, move) => runTable({ ...table, guards: [] }, rules, snapshot, move);
   const report = tableCases(TABLE, RULES, generate, { seed: 3, count: 100, run: blind });
   assert.equal(report.unbroken.length > 0, true);
 });
 
-test('the same seed gives the same report [C7,#8066]', () => {
+test('moves.cases.the-same-seed-gives-the-same-report: the same seed gives the same report [C7,#8066]', () => {
   assert.deepEqual(tableCases(TABLE, RULES, generate, { seed: 9, count: 50 }), tableCases(TABLE, RULES, generate, { seed: 9, count: 50 }));
 });
 
-test('breakOne turns a valid outcome into a refusal when a guard requires the broken fact, else it stays valid [C7,#8066]', () => {
+test('moves.cases.break-one-turns-a-valid-outcome-into-a: breakOne turns a valid outcome into a refusal when a guard requires the broken fact, else it stays valid [C7,#8066]', () => {
   const made = generate(seeded(1)); made.snapshot = { item: { status: 'claimed', owner: 'a' } }; made.move = { name: 'release', actor: 'a', note: 'why' };
   assert.equal(runTable(TABLE, RULES, structuredClone(made.snapshot), made.move).refused, undefined);
   for (const fact of ['claimed', 'mine']) {

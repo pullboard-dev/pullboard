@@ -25,7 +25,7 @@ function history(t, { conflict = false } = {}) {
   return { root, base, tip };
 }
 
-test('clause 1: squashOnto writes one commit whose only parent is base, with the merge-tree tree and the given message [C7,#9218]', t => {
+test('landing.squash.squashonto-writes-one-commit-whose-only: clause 1: squashOnto writes one commit whose only parent is base, with the merge-tree tree and the given message [C7,#9218]', t => {
   const { root, base, tip } = history(t);
   const message = 'feat(landing): squash\n\nPullboard-Item: #9218';
   const result = squashOnto(root, { base, tip, message, item: 9218 });
@@ -34,7 +34,7 @@ test('clause 1: squashOnto writes one commit whose only parent is base, with the
   assert.equal(git(root, 'log', '-1', '--format=%B', result.commit), message);
 });
 
-test('clause 2: refs/pullboard/items/<item> points at tip and a conflicting tip returns the conflict, not a commit [C7,#9218]', t => {
+test('landing.squash.refs-pullboard-items-item-points-at: clause 2: refs/pullboard/items/<item> points at tip and a conflicting tip returns the conflict, not a commit [C7,#9218]', t => {
   const { root, base, tip } = history(t);
   squashOnto(root, { base, tip, message: 'feat: squash', item: 9218 });
   assert.equal(git(root, 'rev-parse', itemKeepRef(9218)), tip);

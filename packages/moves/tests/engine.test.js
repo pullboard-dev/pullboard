@@ -82,7 +82,7 @@ function boardRows(board, itemId) {
   };
 }
 
-test('authenticated relay senders bind every move and refusals preserve replica prefixes [H2,H9,H3,H16]', (t) => {
+test('moves.engine.authenticated-relay-senders-bind-every-move: authenticated relay senders bind every move and refusals preserve replica prefixes [H2,H9,H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const claim = claimMove(one, item, 'web-1');
@@ -136,7 +136,7 @@ test('authenticated relay senders bind every move and refusals preserve replica 
   assert.equal(replayCursor(two), cases.length + 2);
 });
 
-test('person sessions delegate native agent moves under the shared sender policy [H2,H9,H16]', (t) => {
+test('moves.engine.person-sessions-delegate-native-agent-moves: person sessions delegate native agent moves under the shared sender policy [H2,H9,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const move = claimMove(copies[0], item, 'web-1');
   delete move.actor;
@@ -148,7 +148,7 @@ test('person sessions delegate native agent moves under the shared sender policy
   for (const board of copies) assert.equal(store.getItem(board, item).item_owner, 'web-1');
 });
 
-test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
+test('moves.engine.authenticated-coordinator-milestones-replay-reject-foreign: authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
@@ -168,7 +168,7 @@ test('authenticated coordinator milestones replay and reject foreign sender iden
   assert.deepEqual(store.events(one), store.events(two));
 });
 
-test('person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
+test('moves.engine.person-answer-channel-replays-identically-agent: person answer channel replays identically on agent and plain replicas [B26,H16]', t => {
   const questions = [];
   const { copies } = engineCopies(t, source => {
     questions.push(...['view', 'terminal', 'legacy'].map(channel => store.shout(source, {
@@ -203,7 +203,7 @@ test('person answer channel replays identically on agent and plain replicas [B26
   }
 });
 
-test('missing relay senders are refused deterministically without poisoning a later legitimate move id [H2,H16]', t => {
+test('moves.engine.missing-relay-senders-refused-deterministically-without: missing relay senders are refused deterministically without poisoning a later legitimate move id [H2,H16]', t => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const move = claimMove(one, item, 'web-1');
@@ -227,7 +227,7 @@ test('missing relay senders are refused deterministically without poisoning a la
   assert.deepEqual(exportBoard(one).tables, exportBoard(two).tables);
 });
 
-test('sealed shouts cannot bypass addressee, already answered or person decision rules [H16,B26]', t => {
+test('moves.engine.sealed-shouts-cannot-bypass-addressee-already: sealed shouts cannot bypass addressee, already answered or person decision rules [H16,B26]', t => {
   const questions = [];
   const { copies } = engineCopies(t, source => {
     const lanes = ['web'];
@@ -275,7 +275,7 @@ test('sealed shouts cannot bypass addressee, already answered or person decision
   assert.deepEqual(exportBoard(copies[0]).tables, exportBoard(copies[1]).tables);
 });
 
-test('future engine relay records stop before every sender shape without changing a replica [H16]', t => {
+test('moves.engine.future-engine-relay-records-stop-before: future engine relay records stop before every sender shape without changing a replica [H16]', t => {
   const { copies, item } = engineCopies(t);
   const move = { ...claimMove(copies[0], item, 'web-1'), engine: ENGINE_VERSION + 1 };
   for (const sender of [undefined, {}, { kind: 'person', userId: 'fixture-user' }, { kind: 'agent', userId: 'fixture-user', agent: 'web-2' }]) {
@@ -288,7 +288,7 @@ test('future engine relay records stop before every sender shape without changin
   }
 });
 
-test('a refused answerDecision is not attributed to an item sharing its shout id [H16]', t => {
+test('moves.engine.refused-answerdecision-attributed-item-sharing-shout: a refused answerDecision is not attributed to an item sharing its shout id [H16]', t => {
   const { copies, item, source } = engineCopies(t);
   const [board] = copies;
   const shoutId = store.shout(source, {
@@ -305,7 +305,7 @@ test('a refused answerDecision is not attributed to an item sharing its shout id
   assert.equal(store.events(board).at(-1).item_id, null, 'a shout id must not be mistaken for an item id');
 });
 
-test('fallback refusal identity hashes operation arguments when no ciphertext digest is supplied [H16]', t => {
+test('moves.engine.fallback-refusal-identity-hashes-operation-arguments: fallback refusal identity hashes operation arguments when no ciphertext digest is supplied [H16]', t => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
   const move = claimMove(board, item, 'web-1');
@@ -316,7 +316,7 @@ test('fallback refusal identity hashes operation arguments when no ciphertext di
   assert.throws(() => refuseRelayMove(board, changed, envelope), { code: 'RELAY_CURSOR' }, 'changed contents cannot reuse an earlier refusal receipt');
 });
 
-test('released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
+test('moves.engine.released-engine-3-stops-background-completion: released engine 3 stops a background completion before changing rows or its cursor [V2,H16]', async t => {
   const { copies, item } = engineCopies(t);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-release-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -352,7 +352,7 @@ test('released engine 3 stops a background completion before changing rows or it
   }
 });
 
-test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
+test('moves.engine.engine-6-client-meets-item-hold: an engine 6 client meets an item hold and is told to upgrade [H16,M1]', async t => {
   const { copies, item } = engineCopies(t);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-engine-release-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -399,7 +399,7 @@ test('an engine 6 client meets an item hold and is told to upgrade [H16,M1]', as
   assert.equal(appliedSequence(board), 1, 'the hold refusal does not advance the old client cursor');
 });
 
-test('a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
+test('moves.engine.relay-refusal-receipt-failure-rolls-back: a relay refusal receipt failure rolls back its log and cursor together [H2,H16]', t => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
   const before = exportBoard(board);
@@ -409,7 +409,7 @@ test('a relay refusal receipt failure rolls back its log and cursor together [H2
   assert.equal(appliedSequence(board), 0);
 });
 
-test('the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
+test('moves.engine.same-sealed-claim-replays-identical-rows: the same sealed claim replays to identical rows and sequence retries are idempotent [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const moveOne = claimMove(one, item, 'web-1');
@@ -448,7 +448,7 @@ test('the same sealed claim replays to identical rows and sequence retries are i
   assert.deepEqual(exportBoard(one), beforeChangedId, 'the same id cannot name changed operation contents');
 });
 
-test('refusals are stable, newer engines name both versions, and gaps/unknown moves do not mutate [H3,H16]', (t) => {
+test('moves.engine.refusals-stable-newer-engines-name-both: refusals are stable, newer engines name both versions, and gaps/unknown moves do not mutate [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const first = claimMove(one, item, 'web-1');
@@ -489,7 +489,7 @@ test('refusals are stable, newer engines name both versions, and gaps/unknown mo
   assert.equal(replayCursor(one), beforeNewerCursor);
 });
 
-test('an unexpected storage failure rolls back the partial transition and its cursor [H3,H16]', (t) => {
+test('moves.engine.unexpected-storage-failure-rolls-back-partial: an unexpected storage failure rolls back the partial transition and its cursor [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
   const before = boardRows(board, item);
@@ -501,7 +501,7 @@ test('an unexpected storage failure rolls back the partial transition and its cu
   assert.equal(replayCursor(board), 0, 'unexpected storage damage cannot be consumed as an engine refusal');
 });
 
-test('nested atomic moves roll back refused writes while their outer receipt can commit [H3,H16]', (t) => {
+test('moves.engine.nested-atomic-moves-roll-back-refused: nested atomic moves roll back refused writes while their outer receipt can commit [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
   const original = store.getItem(board, item).item_title;
@@ -579,7 +579,7 @@ function withoutRelayMetadata(document) {
   };
 }
 
-test('an acknowledged same-board checkpoint replaces divergent rows and retains its receipt [H3,H16]', (t) => {
+test('moves.engine.acknowledged-same-board-checkpoint-replaces-divergent: an acknowledged same-board checkpoint replaces divergent rows and retains its receipt [H3,H16]', (t) => {
   const { source, replica, item, document } = snapshotFixture(t);
   assert.notDeepEqual(exportBoard(replica), document, 'replica starts occupied and divergent');
   assert.equal(appliedSequence(source), 1);
@@ -594,7 +594,7 @@ test('an acknowledged same-board checkpoint replaces divergent rows and retains 
   assert.deepEqual(engineReceipt(replica, RECEIPT_ID), engineReceipt(source, RECEIPT_ID));
 });
 
-test('wrong-board, mismatched/backward coverage and newer-engine checkpoints leave all rows untouched [H3,H16]', (t) => {
+test('moves.engine.wrong-board-mismatched-backward-coverage-newer: wrong-board, mismatched/backward coverage and newer-engine checkpoints leave all rows untouched [H3,H16]', (t) => {
   const { replica, document } = snapshotFixture(t);
 
   const wrongBoard = cloneDocument(document);
@@ -614,7 +614,7 @@ test('wrong-board, mismatched/backward coverage and newer-engine checkpoints lea
   refusalLeavesRowsAlone(replica, futureEngine, 1, 'ENGINE_VERSION');
 });
 
-test('starting a relay epoch preserves board rows and events while clearing receipts and resetting sequence [H3,H16]', (t) => {
+test('moves.engine.starting-relay-epoch-preserves-board-rows: starting a relay epoch preserves board rows and events while clearing receipts and resetting sequence [H3,H16]', (t) => {
   const { source, document } = snapshotFixture(t);
   const before = exportBoard(source);
   assert.ok(engineReceipt(source, RECEIPT_ID));
@@ -632,7 +632,7 @@ test('starting a relay epoch preserves board rows and events while clearing rece
 });
 
 
-test('a failed durable receipt rolls back an otherwise successful move and its cursor [H3,H16]', (t) => {
+test('moves.engine.failed-durable-receipt-rolls-back-otherwise: a failed durable receipt rolls back an otherwise successful move and its cursor [H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const board = copies[0];
   const before = exportBoard(board);
@@ -643,7 +643,7 @@ test('a failed durable receipt rolls back an otherwise successful move and its c
   assert.equal(replayCursor(board), 0);
 });
 
-test('engine 65 keeps an ordinary claim available without a return window [B13,H16]', t => {
+test('moves.engine.engine-65-keeps-ordinary-claim-available: engine 65 keeps an ordinary claim available without a return window [B13,H16]', t => {
   const { copies: [board], item } = engineCopies(t, undefined, 65);
   const move = { ...claimMove(board, item, 'web-2'), engine: 65 };
   const result = applyEngineMove(board, move, { sequence: 1, at: CLAIM_AT });
@@ -651,7 +651,7 @@ test('engine 65 keeps an ordinary claim available without a return window [B13,H
   assert.equal(store.getItem(board, item).item_owner, 'web-2');
 });
 
-test('return-window engine admission uses the receipt time rather than replica clocks [B13,H16]', t => {
+test('moves.engine.return-window-engine-admission-uses-receipt: return-window engine admission uses the receipt time rather than replica clocks [B13,H16]', t => {
   const { copies: [insideClock, expiredClock], item } = engineCopies(t, board => {
     board.clock = { now: () => new Date('2026-10-07T16:00:00.000Z') };
     const id = store.listItems(board)[0].item_id;
@@ -674,7 +674,7 @@ test('return-window engine admission uses the receipt time rather than replica c
   assert.equal(store.getItem(insideClock, item).item_owner, 'web-2');
 });
 
-test('the engine version is the highest feature engine [C7,V4]', () => {
+test('moves.engine.engine-version-highest-feature-engine: the engine version is the highest feature engine [C7,V4]', () => {
   const entries = Object.entries(ENGINE_REGISTRY);
   assert.ok(entries.length > 0, 'the registry names at least one feature engine');
   for (const [name, engine] of entries) assert.ok(Number.isSafeInteger(engine) && engine > 0, `feature ${name} declares a positive whole engine number`);
@@ -696,7 +696,7 @@ test('the engine version is the highest feature engine [C7,V4]', () => {
   assert.doesNotMatch(readFileSync(new URL('../../state/src/io/machine.js', import.meta.url), 'utf8'), /Math\.max\([A-Z_]+ENGINE,/u, 'packages/state/src/io/machine.js lists no engine by name');
 });
 
-test('a feature engine or command file name outside letters, digits, underscore and hyphen is refused by discovery [C7,V4]', () => {
+test('moves.engine.feature-engine-command-file-name-outside: a feature engine or command file name outside letters, digits, underscore and hyphen is refused by discovery [C7,V4]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-discovery-'));
   try {
     writeFileSync(join(directory, 'check-alpha-engine.js'), 'export const CHECK_ALPHA_ENGINE = 70;\n');
@@ -709,7 +709,7 @@ test('a feature engine or command file name outside letters, digits, underscore 
 });
 
 
-test('engine 93 item messages replay and older broadcasts keep their recorded meaning [B7,H3,H16]', (t) => {
+test('moves.engine.engine-93-item-messages-replay-older: engine 93 item messages replay and older broadcasts keep their recorded meaning [B7,H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
   const legacy = { ...prepareEngineMove(one, 'shout', [{ from: 'web-1', to: 'all', text: 'old broadcast', lanes: ['web'] }]), engine: 92 };
@@ -734,7 +734,7 @@ test('engine 93 item messages replay and older broadcasts keep their recorded me
   }
 });
 
-test('outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
+test('moves.engine.outside-author-facts-exact-owner-approval: outside author facts and exact owner approval replay without manufacturing a native builder [H3,H16,B26]', async t => {
   const { createHash } = await import('node:crypto');
   const outsideIntake = await import('../../state/light.js');
   const { copies: [one, two] } = engineCopies(t);
@@ -772,7 +772,7 @@ test('outside author facts and exact owner approval replay without manufacturing
 });
 
 
-test('state runtime ports preserve native events and duplicate receipts [C7,H16]', (t) => {
+test('moves.engine.state-runtime-ports-preserve-native-events: state runtime ports preserve native events and duplicate receipts [C7,H16]', (t) => {
   const control = fixtureBoard(t);
   const supplied = fixtureBoard(t);
   const calls = [];
@@ -797,7 +797,7 @@ test('state runtime ports preserve native events and duplicate receipts [C7,H16]
   assert.deepEqual(engineReceipt(board, move.id), engineReceipt(control, move.id));
 });
 
-test('state refuses a missing runtime port before invoking origin callbacks [C7,H16]', (t) => {
+test('moves.engine.state-refuses-missing-runtime-port-before: state refuses a missing runtime port before invoking origin callbacks [C7,H16]', (t) => {
   const board = fixtureBoard(t);
   const unbound = { ...board, enginePorts: undefined };
   let called = false;

@@ -75,7 +75,7 @@ export function claimDecision(board, id, { options, plan }) {
     deferred: { barProblem: null, lineCapacity: null, reworkRouting: plan.reworkRouting()?.applies ? { applies: true } : null, exitContinuation: null,
       submitAdmission: plan.admission ?? null, submitOutcome: plan.outcome ?? null } };
   const move = { id, actor: agentId, leaseMs: options.leaseMs, itemFolder: options.itemFolder === true, autoNext: options.autoNext === true, reviewSkipped,
-    adoptCorrection: plan.adopts === true, routeCap: options.routeCap ?? null, exitRules: options.exitRules ?? null, exitClaimKey: options.exitClaimKey, factId: randomUUID() };
+    adoptCorrection: plan.adopts === true, routeCap: options.routeCap ?? null, shapedStrong: options.shapedStrong === true, exitRules: options.exitRules ?? null, exitClaimKey: options.exitClaimKey, factId: randomUUID() };
   return runClaimTable(snapshot, move);
 }
 

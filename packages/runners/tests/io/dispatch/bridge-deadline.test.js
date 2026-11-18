@@ -6,7 +6,7 @@ import { bridgeResult } from '../../../src/io/dispatch.js';
 
 const PLAIN_NODE_TEST = 'node --test apps/cli/journeys/cells/seals.test.js';
 
-test('clause 1: a verify check that is plain node --test gets a bridge deadline and ends as RUNNER_BRIDGE_DEADLINE [C7]', () => {
+test('runners.bridge-deadline.a-verify-check-that-is-plain: clause 1: a verify check that is plain node --test gets a bridge deadline and ends as RUNNER_BRIDGE_DEADLINE [C7]', () => {
   const now = 5_000_000;
   const options = { runner: { host: 'runner-52' }, privateCheck: { check: PLAIN_NODE_TEST, timeoutMs: 600_000 }, runnerWaitDeadline: now + 30_000 };
   const deadline = bridgeDeadlineMs(options, now);
@@ -17,7 +17,7 @@ test('clause 1: a verify check that is plain node --test gets a bridge deadline 
     'a bridge past its deadline refuses with its code and next step, so withGateSlot frees the runner slot');
 });
 
-test('clause 1: a request with no timeout of its own keeps its existing unbounded bridge [C7]', () => {
+test('runners.bridge-deadline.a-request-with-no-timeout-of: clause 1: a request with no timeout of its own keeps its existing unbounded bridge [C7]', () => {
   assert.equal(bridgeDeadlineMs({ runner: { host: 'runner-52' } }, 1), null);
   assert.equal(bridgeDeadlineMs({ timeoutMs: 0 }, 1), null);
 });

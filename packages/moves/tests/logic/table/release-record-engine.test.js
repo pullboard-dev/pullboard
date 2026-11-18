@@ -29,19 +29,19 @@ function recordedBoard(engineOf) {
 const read = engineOf => readReleaseRecords(recordedBoard(engineOf), { since: HISTORY.since, only: HISTORY.releases });
 const verdicts = records => replayTable(RELEASE.table, RELEASE.rules, records.release, { cut: HISTORY.since });
 
-test('clause 1: release-records.js hands the table the engine each recorded release was written at, in the replay state [C7,#9831]', () => {
+test('moves.release-record-engine.release-records-js-hands-the-table: clause 1: release-records.js hands the table the engine each recorded release was written at, in the replay state [C7,#9831]', () => {
   const records = read(id => (id % 2 === 0 ? 14 : 15));
   assert.equal(records.release.length, 55);
   for (const record of records.release) assert.equal(record.snapshot.engine, record.event.id % 2 === 0 ? 14 : 15);
   assert.ok(records.reclaim.every(record => !('engine' in record.snapshot)));
 });
 
-test('clause 1: a release recorded by an older engine with none stamped reads as engine null [C7,#9831]', () => {
+test('moves.release-record-engine.a-release-recorded-by-an-older: clause 1: a release recorded by an older engine with none stamped reads as engine null [C7,#9831]', () => {
   const records = read(() => undefined);
   assert.ok(records.release.every(record => record.snapshot.engine === null));
 });
 
-test('clause 2: the 65-record replay gives the same verdicts as before with no rule reading the engine yet [C7,#9831]', () => {
+test('moves.release-record-engine.the-65-record-replay-gives-the: clause 2: the 65-record replay gives the same verdicts as before with no rule reading the engine yet [C7,#9831]', () => {
   const bare = verdicts(read(() => undefined));
   const stamped = verdicts(read(() => 14));
   assert.deepEqual(bare.disagreements, []);

@@ -3,15 +3,21 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { DEFAULT_NEXT_STEPS } from '../../../../packages/state/index.js';
 import { NEXT_STEPS } from '../../src/logic/step/words.js';
-import { successfulNext } from '../../../../packages/config/index.js';
+import {
+  SEAT_LOOP,
+  successfulNext,
+} from '../../../../packages/config/index.js';
 import { requireManualLanding } from '../../../../packages/merge/index.js';
 import {
   fixture,
   cli,
 } from '../../tests/fixtures/next/take.js';
+import { fixture as initFixture } from '../../tests/fixtures/init/ignore-box.js';
 import { fixtureBoard } from '../../tests/fixtures/board.js';
 import { submitFixture } from '../../tests/fixtures/board/submit.js';
 import { main } from '../../tests/fixtures/native.js';
@@ -36,6 +42,21 @@ test('clause 1: defaults, move refusals and the init loop never suggest a timed 
     assert.doesNotMatch(error.next, /--wait|\bwait\b/iu);
     return true;
   });
+});
+
+test('clause 1: worker loop step 2 says next printed the bar and show is for thread and history [N41,C7]', () => {
+  assert.match(SEAT_LOOP, /\n2\. .next. printed your bar; .pullboard show <id>. only for the thread and history\.\n/u);
+  assert.doesNotMatch(SEAT_LOOP, /your bar, frozen at claim/u);
+});
+
+test('clause 1: a real init into an empty project writes AGENTS.md step 2 as next printed the bar [N41,C7]', async t => {
+  const box = initFixture(t);
+  rmSync(join(box.root, 'pullboard.json'));
+  const initialized = await box.output('init');
+  assert.equal(initialized.code, 0, initialized.stderr);
+  const written = readFileSync(join(box.root, 'AGENTS.md'), 'utf8');
+  assert.match(written, /\n2\. .next. printed your bar; .pullboard show <id>. only for the thread and history\.\n/u);
+  assert.doesNotMatch(written, /your bar, frozen at claim/u);
 });
 
 test('native held item and lane claim messages offer work without telling the seat to wait [N42,C7]', async t => {

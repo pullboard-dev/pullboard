@@ -22,7 +22,7 @@ async function held(t, releaseReasons) {
   return { box, id };
 }
 
-test('clause 1: with review.releaseReasons on, a review release with no reason or an outside reason is refused naming the four [C7,#8921]', async t => {
+test('cli.journeys-release-review-reason-required.with-review-releasereasons-on-a-review: clause 1: with review.releaseReasons on, a review release with no reason or an outside reason is refused naming the four [C7,#8921]', async t => {
   const { box, id } = await held(t, true);
   for (const extra of [[], ['--reason', 'OTHER']]) {
     const refused = await cli(box, box.seats.actor.path, ['release', String(id), '--note', NOTE, ...extra]);
@@ -37,7 +37,7 @@ test('clause 1: with review.releaseReasons on, a review release with no reason o
   assert.equal(store.getItem(box.board, id).item_review_by, null);
 });
 
-test('clause 2: review.releaseReasons is off by default and, off, a review release with a reason outside the four works as today [C7,#8921]', async t => {
+test('cli.journeys-release-review-reason-required.review-releasereasons-is-off-by-default: clause 2: review.releaseReasons is off by default and, off, a review release with a reason outside the four works as today [C7,#8921]', async t => {
   const { box, id } = await held(t, false);
   const released = await cli(box, box.seats.actor.path, ['release', String(id), '--note', NOTE, '--reason', 'OTHER']);
   assert.equal(released.code, 0, released.out + released.err);

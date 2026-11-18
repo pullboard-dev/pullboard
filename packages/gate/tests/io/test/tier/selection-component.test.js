@@ -31,18 +31,18 @@ function select(t, files, option, tree = sources) {
   return selectTestTiers(root, { base, commit: git(root, 'rev-parse', 'HEAD').trim(), ...option });
 }
 
-test('clause 1: a change to a front door selects the T2 test that reaches it [C7,#9788]', t => {
+test('gate.io-test-tier-selection-component.a-change-to-a-front-door: clause 1: a change to a front door selects the T2 test that reaches it [C7,#9788]', t => {
   const plan = select(t, { 'packages/math/index.js': 'export { add } from "./src/add.js";\nexport const two = 2;\n' }, { componentTier: true });
   assert.ok(plan.units.includes(DOORS_TEST), `the T2 test runs: ${plan.units}`);
 });
 
-test('clause 2: a change to an internal file of that cell does not select the T2 test [C7,#9788]', t => {
+test('gate.io-test-tier-selection-component.a-change-to-an-internal-file: clause 2: a change to an internal file of that cell does not select the T2 test [C7,#9788]', t => {
   const plan = select(t, { 'packages/math/src/add.js': 'export const add = (a, b) => b + a;\n' }, { componentTier: true });
   assert.ok(!plan.units.includes(DOORS_TEST), `the T2 test stays out: ${plan.units}`);
   assert.ok(!plan.journeys.includes(DOORS_TEST), 'and it is no journey');
 });
 
-test('clause 3: a tiers file with no T2 row selects what it does today [C7,#9788]', t => {
+test('gate.io-test-tier-selection-component.a-tiers-file-with-no-t2: clause 3: a tiers file with no T2 row selects what it does today [C7,#9788]', t => {
   const { [DOORS_TEST]: _, ...rest } = sources;
   const tree = { ...rest, 'test/deep.test.js': 'import "../packages/text/index.js";\nimport "../packages/math/src/add.js";\n' };
   const change = { 'packages/math/src/add.js': 'export const add = (a, b) => b + a;\n' };

@@ -29,7 +29,7 @@ function landing(t) {
   return { payload, workdir: work.root, at: ref => runFixtureSetupGit(['rev-parse', '--verify', '--quiet', ref], { cwd: bare.root, env: ENV }), expect };
 }
 
-test('clause 1: a shardProof land job renews its lease before each fetch and ends in one landed receipt [test] [C7,#9250]', async t => {
+test('landing.shard-proof-land.a-shardproof-land-job-renews-its: clause 1: a shardProof land job renews its lease before each fetch and ends in one landed receipt [test] [C7,#9250]', async t => {
   const { payload, workdir } = landing(t);
   let renewals = 0;
   const receipt = await runLandingJob(payload, { workdir, renew: () => { renewals += 1; return true; } });
@@ -37,7 +37,7 @@ test('clause 1: a shardProof land job renews its lease before each fetch and end
   assert.ok(renewals >= 3, `renewed before the item fetch, the trunk fetch and the check (saw ${renewals})`);
 });
 
-test('clause 1: a shardProof land job whose lease moved while it fetched stops with lease-lost and leaves trunk where it was [test] [C7,#9250]', async t => {
+test('landing.shard-proof-land.a-shardproof-land-job-whose-lease: clause 1: a shardProof land job whose lease moved while it fetched stops with lease-lost and leaves trunk where it was [test] [C7,#9250]', async t => {
   const { payload, workdir, at, expect } = landing(t);
   const receipt = await runLandingJob(payload, { workdir, renew: () => false });
   assert.equal(receipt.outcome, 'lease-lost');

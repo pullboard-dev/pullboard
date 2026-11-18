@@ -17,5 +17,5 @@ export function planViewApproval(row, checkout, person) {
     return { action: 'left', row: row.id, command: 'pullboard spec apply', why: `the checkout has uncommitted changes, so ${row.id} was not committed` };
   }
   const verb = row.decision === 'approve' ? 'approve' : 'decline';
-  return { action: 'apply-and-commit', row: row.id, message: `spec: ${verb} ${row.id}`, author: `${person.name} <${person.email}>` };
+  return { action: 'apply-and-commit', row: row.id, message: `docs(spec): ${verb} ${row.id}`, author: `${person.name} <${person.email}>` };
 }

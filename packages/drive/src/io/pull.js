@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { childEnvironment } from '../../../kernel/light.js';
 import { PROGRESS_ENV } from './progress.js';
+import { keepGateProfiles } from './pull/profiles.js';
 import { watchProgress } from './progress.js';
 import { pathProcesses } from './leftovers.js';
 import { reapLeftovers } from './leftovers.js';
@@ -92,8 +93,10 @@ export function unrunnableLandReason(payload) {
 const LANDING_REF = /^refs\/pullboard\/landing\/[\w.-]{1,200}$/u;
 /** The line a gate job prints its receipt on; apps/cli's submit writes the same prefix into the job it offers. */
 export const GATE_RECEIPT = 'PULLBOARD_GATE_RECEIPT ';
-// Budget: a gate receipt line stays under the board's 64 KiB receipt limit; a longer line is output, not a receipt.
-const RECEIPT_LINE_BYTES = 60 * 1024;
+// Budget: one receipt call carries a receipt inline up to this size, under the board's 64 KiB receipt size and its 100,000-byte
+// API body; a larger receipt's gate goes ahead as receiptPart calls of RECEIPT_PART_CHARS characters, as many as it takes [C7,#10774].
+const RECEIPT_INLINE_BYTES = 60 * 1024;
+const RECEIPT_PART_CHARS = 16 * 1024;
 /** The variable a job finds its kept-output folder in; apps/cli's gate entry writes each phase's full output there. */
 export const RUNNER_OUTPUT_ENV = 'PULLBOARD_RUNNER_OUTPUT';
 // Budget: the runner keeps the output of its newest 40 jobs, each job's own stream capped at 8 MiB, under <cache>/output.
@@ -471,9 +474,47 @@ function keepFolder(cache, job, attempt) {
 }
 
 /**
+ * The queue calls that post one receipt: the receipt itself when it fits one call, else its gate's JSON text as
+ * receiptPart calls, then the receipt naming them by count, bytes and sha256, which the board joins [C7,#10771,#10774].
+ * Why: a sharded gate's receipt names its proof files in full; past 60 KiB it was dropped and read as a gate that printed no receipt.
+ *
+ * @param {Record<string, any>} receipt
+ * @returns {Record<string, any>[]}
+ */
+function receiptCalls(receipt) {
+  const gate = receipt?.gate;
+  if (!gate || typeof gate !== 'object' || Buffer.byteLength(JSON.stringify(receipt)) <= RECEIPT_INLINE_BYTES) return [{ action: 'receipt', receipt }];
+  const text = JSON.stringify(gate), parts = [];
+  for (let at = 0; at < text.length; at += RECEIPT_PART_CHARS) parts.push(text.slice(at, at + RECEIPT_PART_CHARS));
+  const envelope = { ...receipt, gateParts: { count: parts.length, bytes: Buffer.byteLength(text), sha256: createHash('sha256').update(text).digest('hex') } };
+  delete envelope.gate;
+  return [...parts.map((part, index) => ({ action: 'receiptPart', part: { index, count: parts.length, text: part } })), { action: 'receipt', receipt: envelope }];
+}
+
+/**
+ * Post one receipt through `call` under the held claim, in parts when it is over one call. A board that takes no receipt
+ * parts (JOB_ACTION) gets a red receipt naming the receipt's size instead, so the gate still ends and says why [C7,#10774].
+ *
+ * @param {(body: Record<string, unknown>) => Promise<any>} call
+ * @param {{ job: string, runner: string, token: string }} held
+ * @param {Record<string, any>} receipt
+ * @returns {Promise<any>} The board's answer to the receipt call.
+ */
+async function postReceiptCalls(call, held, receipt) {
+  const calls = receiptCalls(receipt), last = calls[calls.length - 1];
+  try { for (const body of calls.slice(0, -1)) await call({ ...body, ...held }); }
+  catch (error) {
+    if (error?.code !== 'JOB_ACTION') throw error;
+    const why = `the gate receipt is ${last.receipt.gateParts.bytes} bytes, more than one queue call carries, and this board takes no receiptPart calls; update the board, then submit again`;
+    return call({ action: 'receipt', ...held, receipt: { ...receipt, gate: { version: 1, green: false, error: why } } });
+  }
+  return call({ ...last, ...held });
+}
+
+/**
  * Run a job's argv in its checkout, in its own process group so a lost lease or the ceiling stops all of it. `input`,
- * when given, is written to its stdin. The last stdout line starting with `receiptLine` is kept whole, apart from the
- * output tail, so a receipt longer than the tail still reaches the board.
+ * when given, is written to its stdin. The last stdout line starting with `receiptLine` is kept whole at any length,
+ * apart from the output tail; any other line is dropped as soon as its start shows it is not a receipt [#10774].
  *
  * @param {string[]} argv
  * @param {string} cwd
@@ -484,20 +525,28 @@ function keepFolder(cache, job, attempt) {
 export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, input = null, receiptLine = null, keep = null } = {}) {
   const child = spawn(argv[0], argv.slice(1), { cwd, env, detached: true, stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
   const digest = createHash('sha256');
-  let bytes = 0, tail = Buffer.alloc(0), partial = '', line = null;
+  let bytes = 0, tail = Buffer.alloc(0), partial = Buffer.alloc(0), skip = false, line = null;
+  const prefix = receiptLine === null ? null : Buffer.from(receiptLine);
+  const opens = row => row.length >= prefix.length && row.subarray(0, prefix.length).equals(prefix);
   const take = chunk => {
     // The kept copy is the stream's first KEPT_JOB_BYTES; the receipt's tail carries its end.
     if (keep && bytes < KEPT_JOB_BYTES) { try { appendFileSync(keep, chunk.subarray(0, KEPT_JOB_BYTES - bytes), { mode: 0o600 }); } catch { keep = null; } }
     digest.update(chunk); bytes += chunk.length;
     tail = Buffer.concat([tail, chunk]); if (tail.length > TAIL_BYTES) tail = tail.subarray(tail.length - TAIL_BYTES);
   };
-  /** Keep the newest whole stdout line that starts with the receipt prefix; longer than a receipt may be is not one. */
+  /** Keep the newest whole stdout line that starts with the receipt prefix, by bytes so a character split across chunks survives. */
   const scan = chunk => {
-    if (receiptLine === null) return;
-    const rows = (partial + chunk.toString('utf8')).split('\n');
-    partial = rows.pop();
-    if (partial.length > RECEIPT_LINE_BYTES) partial = '';
-    for (const row of rows) if (row.startsWith(receiptLine)) line = row;
+    if (prefix === null) return;
+    let rest = partial.length ? Buffer.concat([partial, chunk]) : chunk, at;
+    partial = Buffer.alloc(0);
+    while ((at = rest.indexOf(10)) !== -1) {
+      const row = rest.subarray(0, at); rest = rest.subarray(at + 1);
+      if (skip) { skip = false; continue; }
+      if (opens(row)) line = row.toString('utf8');
+    }
+    if (skip) return;
+    if (rest.length >= prefix.length && !opens(rest)) { skip = true; return; }
+    partial = Buffer.from(rest);
   };
   child.stdout.on('data', chunk => { take(chunk); scan(chunk); }); child.stderr.on('data', take);
   if (input !== null) { child.stdin.on('error', () => { /* a job that exits before reading its input is judged by its exit */ }); child.stdin.end(input); }
@@ -507,7 +556,7 @@ export function runJob(argv, cwd, { ceilingMs = CEILING_MS, env = process.env, i
     child.on('error', error => { take(Buffer.from(String(error.message))); });
     child.on('close', (status, signal) => {
       clearTimeout(ceiling);
-      if (receiptLine !== null && partial.startsWith(receiptLine)) line = partial;
+      if (prefix !== null && !skip && opens(partial)) line = partial.toString('utf8');
       resolve({ status, signal, outputSha256: digest.digest('hex'), outputBytes: bytes, tail: tail.toString('utf8'), line });
     });
   });
@@ -655,14 +704,16 @@ export function localLoadAdmits({ load, cores, share, running = 1 }) {
  *   of these kinds run in this process instead of as an argv: a landing merges and pushes trunk itself. The handler's
  *   result is the receipt; renew extends the lease and reads false once another runner holds the job. Its cache is the
  *   slot's own folder, the serve's cache for slot 0.
+ * @param {{ nap: (ms: number) => Promise<void> }} [options.wake] - runners.localWake: an idle wait that also ends when an offering command signals a new job (watchWake); without it the idle wait is the full idleMs [#10409].
  * @param {(commit: string) => Promise<{ file: string } | null>} [options.trunkPack] - Where a cold cache takes a shared
  *   trunk pack; default the board's, boardTrunkPack.
  * @param {PullGit} [options.git] - The Git launches checkouts use; without it every claimed job is released.
+ * @param {boolean} [options.pulledProfilePaths] - gate.pulledProfilePaths: copy each gate phase's timing profile into the job's kept folder and name it on the phase row as profileKept; default off.
  * @param {(folder: string) => void} [options.removeFolder] - Removes a finished job's environment folder; a failure is said and left to the prune, never a stopped serve.
  * @returns {Promise<{ jobs: Array<{ job: string, outcome: 'posted' | 'released' | 'lost', receipt?: object }>, waits: number[], slots: number }>}
  */
 export async function serveRunner({ board, key, runner, capabilities = hostCapabilities(), cache = join(homedir(), '.pullboard-runner', 'pull'),
-  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
+  once = false, jobs: jobsSetting = process.env.PULLBOARD_RUNNER_JOBS, cores = availableParallelism(), signal, admit = () => true, fetchImpl = fetch, sleep = null, say = () => {}, timing = {}, handlers = {}, trunkPack, unreachableHint, git, fetchFailFast = false, wake = null, drainOnFetchFailure = false, handBackUnrunnable = false, fetchConcurrent = false, postedLineNamesCase = false, pulledProfilePaths = false, pruneYields = false, prune: pruneStores = pruneRunnerStores, pruneYielding = pruneRunnerStoresYielding, removeFolder = folder => rmSync(folder, { recursive: true, force: true, maxRetries: 3 }) }) {
   const endpoint = boardEndpoint(board, key);
   const pack = trunkPack ?? boardTrunkPack(endpoint, fetchImpl, join(cache, 'packs'));
   const host = hostname().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 40) || 'runner';
@@ -771,7 +822,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
       liveEnvironments.delete(name);
     }
     try {
-      await reliably({ action: 'receipt', ...held, receipt });
+      await postReceiptCalls(reliably, held, receipt);
       say(`posted ${claim.job}: ${receipt?.outcome ?? 'done'}`);
       return { outcome: 'posted', receipt };
     } catch (error) {
@@ -907,6 +958,8 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (survivors.length) say(`killed ${survivors.length} leftover process(es) of ${claim.job}: ${survivors.join(' ')}`);
     await progress.stop(); rmSync(progressFile, { force: true });
     // A leftover writer still filling tmp failed this with ENOTEMPTY and stopped the whole serve, draining 10 slots (#6307).
+    // With gate.pulledProfilePaths on, each phase's timing profile is copied beside its log in the kept folder and named on its row (profileKept); the copy comes before the job's folder, which holds the profiles, is removed [C7,#9614].
+    const keptGate = gate && pulledProfilePaths && kept ? keepGateProfiles(kept, gateReceipt(result, claim.candidate, 0).gate) : null;
     try { removeFolder(job.folder); } catch (error) { say(`left ${name}'s environment folder to the prune: ${error?.code ?? error}`); }
     liveEnvironments.delete(name);
     if (signal?.aborted && !lost) {
@@ -919,11 +972,11 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     const exclusiveEvidence = timed ? { timing: true, exclusive: true, unfencedClients: [], occupiedSlots: slots, admittedAt: new Date(started).toISOString(), finishedAt: new Date(finishedAt).toISOString() } : {};
     // With runners.postedLineNamesCase on, a red job's posted line ends naming its first failing case, so serve.log shows it without the board [#9084].
     const postedCase = outcome => { const named = postedLineNamesCase && outcome.status !== 0 ? firstFailingCase(outcome.tail) : ''; return named ? `; ${named}` : ''; };
-    const receipt = { ...exclusiveEvidence, ...(gate ? gateReceipt(result, claim.candidate, Date.now() - started)
+    const receipt = { ...exclusiveEvidence, ...(gate ? { ...gateReceipt(result, claim.candidate, Date.now() - started), ...(keptGate ? { gate: keptGate } : {}) }
       : { status: result.status, signal: result.signal, commit: claim.candidate, run, outputSha256: result.outputSha256,
         outputBytes: result.outputBytes, tail: result.tail, durationMs: Date.now() - started }), startup, ...(kept ? { output: { runner: id, folder: kept } } : {}) };
     try {
-      const answer = await reliably({ action: 'receipt', ...held, receipt });
+      const answer = await postReceiptCalls(reliably, held, receipt);
       say(`posted ${claim.job}: exit ${result.status}${gate ? `, gate ${receipt.gate.green ? 'green' : 'red'}` : ''}${answer?.relayed ? `; ${answer.relayed.moves} board moves sent to the relay` : ''}${answer?.applied?.outcome ? `; board: ${answer.applied.outcome}${answer.applied.reason ? ` (${answer.applied.reason})` : ''}` : ''}${postedCase(result)}`);
       // A relay-linked board orders the receipt's moves through the relay; one it refused is named here, never lost (#7562).
       for (const why of answer?.relayed?.refused ?? []) say(`${claim.job}: the relay refused a receipt move: ${why}`);
@@ -975,7 +1028,7 @@ export async function serveRunner({ board, key, runner, capabilities = hostCapab
     if (!answer.claim) {
       // A one-job runner, such as a sandbox or an ephemeral CI container, exits on an empty queue instead of idling [P7].
       if (once) { say('nothing to claim: the queue is empty'); break; }
-      await Promise.race([nap(idleMs), ...active]); continue;
+      await Promise.race([wake ? (stopped ? Promise.race([wake.nap(idleMs), stopped]) : wake.nap(idleMs)) : nap(idleMs), ...active]); continue;
     }
     lastTrunk = answer.trunk;
     const task = start(answer.claim, answer.trunk);

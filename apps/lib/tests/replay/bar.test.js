@@ -49,7 +49,7 @@ function signature(board,id,agent='core-2') {
     coverage:{version:1,sourceMain:SHA,sourceCheck:current.item_check,policyKey:'d'.repeat(64),timeoutMs:300000,runner:'node --test',required:[],files:[]}};
 }
 
-test('[B4,V1,H16] readiness activation, authored revision, signature and claim replay in two independent SQLite copies',t=>{
+test('lib.replay-bar.readiness-activation-authored-revision-signature-and: [B4,V1,H16] readiness activation, authored revision, signature and claim replay in two independent SQLite copies',t=>{
   const boards=copies(t);dispatch(boards,'setBarReady',[{agentId:'coordinator',enabled:true}]);
   const id=dispatch(boards,'addItem',[item()]);
   const sealed=prepareEngineMove(boards[0],'claim',[id,{agentId:'core-1',lane:'core',leaseMs:7200000,freeze:()=>({text:'{"rows":[]}',digest:'e'.repeat(64)})}],{id:'too-old-bar-claim',actor:'core-1'});
@@ -62,7 +62,7 @@ test('[B4,V1,H16] readiness activation, authored revision, signature and claim r
   assert.equal(barReadiness(boards[1],store.getItem(boards[1],id), {}, boards[1].runtimePorts.verification).missing.length,0);
 });
 
-test('[B26,V1,H16] a person-authority revision and agent signature replay without manufacturing a parent',t=>{
+test('lib.replay-bar.a-person-authority-revision-and-agent: [B26,V1,H16] a person-authority revision and agent signature replay without manufacturing a parent',t=>{
   const boards=copies(t);dispatch(boards,'setBarReady',[{agentId:'coordinator',enabled:true}]);
   const id=dispatch(boards,'addItem',[item(true)],'coordinator',true);
   dispatch(boards,'signBar',[id,signature(boards[0],id,'core-1')],'core-1');
@@ -71,7 +71,7 @@ test('[B26,V1,H16] a person-authority revision and agent signature replay withou
   assert.ok(Object.values(status.revision.authors).every(author=>author.authority==='person' && author.parent===null && author.session===null));
 });
 
-test('bar readiness reads a real SQLite query view without native capabilities [C7,B4,V1]', t => {
+test('lib.replay-bar.bar-readiness-reads-a-real-sqlite: bar readiness reads a real SQLite query view without native capabilities [C7,B4,V1]', t => {
   const [board] = copies(t);
   store.setBarReady(board, { agentId: 'coordinator', enabled: true });
   const id = store.addItem(board, item());

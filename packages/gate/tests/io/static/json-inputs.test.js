@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/gate */
 /** The tree registry classes list the gate data files they read, so landing.staticAffectedOnly can run only those for a changed data file [C7,#9077]. */
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
@@ -31,7 +32,7 @@ function dataFiles(dir = '') {
   return readdirSync(new URL(dir, DATA_URL), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? dataFiles(`${dir}${entry.name}/`) : entry.name.endsWith('.json') ? [`${DATA}/${dir}${entry.name}`] : []);
 }
 
-test('clause 2: each registry class that reads a gate data .json file declares it in jsonInputs [C7,#9077]', () => {
+test('gate.io-static-json-inputs.each-registry-class-that-reads-a: clause 2: each registry class that reads a gate data .json file declares it in jsonInputs [C7,#9077]', () => {
   for (const [name, modules] of Object.entries(MODULES)) {
     const check = STATIC_TREE_CHECKS.find(row => row.name === name);
     assert.ok(check, `${name} is a tree class`);
@@ -44,7 +45,7 @@ test('clause 2: each registry class that reads a gate data .json file declares i
   for (const check of STATIC_TREE_CHECKS) for (const stem of check.jsonInputs ?? []) assert.ok(files.some(file => file.endsWith(`/${stem}.json`)), `${check.name} lists ${stem}, which must be a gate data file`);
 });
 
-test('clause 2: a changed gate data file runs the classes that list it and no class that reads other paths only [C7,#9077]', () => {
+test('gate.io-static-json-inputs.a-changed-gate-data-file-runs: clause 2: a changed gate data file runs the classes that list it and no class that reads other paths only [C7,#9077]', () => {
   const ran = staticClassesFor([`${DATA}/baselines/cli-launches.json`]).map(check => check.name);
   assert.ok(ran.includes('cli-launches'));
   assert.ok(ran.includes('layout') && ran.includes('doctrine'), 'the classes that read every path still run');

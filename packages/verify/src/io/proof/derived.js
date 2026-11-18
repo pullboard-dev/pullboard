@@ -9,6 +9,8 @@ export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
 const SCHEMA = 'proof_derived';
 /** Boards whose derived file is attached, by connection. */
 const ATTACHED = new WeakMap();
+/** The prepared upsert, by connection: preparing it per call made a replay on a file board far slower than reusing one [C7,#9020]. */
+const PUT = new WeakMap();
 
 /** The derived file's path beside a board file: `<board file>.proof-derived.sqlite`, the way the presence database sits beside it. */
 export function derivedPath(boardFile) {
@@ -22,10 +24,14 @@ export function derivedPath(boardFile) {
 function attached(board) {
   if (process.env[DERIVED_SETTING] !== '1') return null;
   if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
-  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+  const databases = board.db.prepare('PRAGMA database_list').all();
+  const file = databases.find(row => row.name === 'main')?.file;
   const schema = file ? SCHEMA : null;
-  if (schema) {
+  // A wrapper around the same connection (a read proxy) is a new key above but already carries the attachment; attaching twice is refused.
+  if (schema && !databases.some(row => row.name === SCHEMA)) {
     board.db.prepare(`ATTACH DATABASE ? AS ${SCHEMA}`).run(derivedPath(file));
+    // WAL, like the board: in rollback-journal mode a reader's snapshot holds a lock that makes a second connection's event write wait BOARD_BUSY.
+    board.db.exec(`PRAGMA ${SCHEMA}.journal_mode=WAL`);
     board.db.exec(`CREATE TABLE IF NOT EXISTS ${SCHEMA}.proof_counter(meta_key TEXT PRIMARY KEY, meta_value TEXT) WITHOUT ROWID`);
   }
   ATTACHED.set(board.db, schema);
@@ -36,7 +42,8 @@ function attached(board) {
 export function writeDerived(board, pairs) {
   const schema = attached(board);
   if (!schema) return;
-  const put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`);
+  let put = PUT.get(board.db);
+  if (!put) PUT.set(board.db, put = board.db.prepare(`INSERT INTO ${schema}.proof_counter(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value`));
   for (let at = 0; at < pairs.length; at += 2) put.run(pairs[at], pairs[at + 1]);
 }
 

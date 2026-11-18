@@ -34,7 +34,7 @@ function probe(moduleURL, root, env) {
 }
 
 /** A cheaper provenance read retains checkout authority and the persistent schema refusal boundary [A5,A6,C7]. */
-test('[A5,A6,C7] one provenance read preserves main branch detached and absent-main authority', t => {
+test('lib.schema.one-provenance-read-preserves-main-branch-detached: [A5,A6,C7] one provenance read preserves main branch detached and absent-main authority', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-main-authority-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const primary = join(directory, 'primary');

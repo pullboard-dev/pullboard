@@ -13,21 +13,21 @@ function refusal(code = 'RELAY_UNAVAILABLE') {
 
 afterEach(() => setRelayStatus(null));
 
-test('clause 1: with a status of relay off set, a RELAY_UNAVAILABLE refusal carries relayCause relay_off [C7]', () => {
+test('relay.io-browser-cause-attach.with-a-status-of-relay-off: clause 1: with a status of relay off set, a RELAY_UNAVAILABLE refusal carries relayCause relay_off [C7]', () => {
   setRelayStatus({ relayOn: false, machine: 'studio' });
   const error = attachRelayCause(refusal());
   assert.equal(error.relayCause.cause, 'relay_off');
   assert.equal(error.relayCause.machine, 'studio');
 });
 
-test('clause 2: with a status that excludes the board set, the refusal carries relayCause excluded [C7]', () => {
+test('relay.io-browser-cause-attach.with-a-status-that-excludes-the: clause 2: with a status that excludes the board set, the refusal carries relayCause excluded [C7]', () => {
   setRelayStatus({ relayOn: true, machine: 'studio', excluded: { name: 'quant', by: 'corey', reason: 'private' } });
   const error = attachRelayCause(refusal());
   assert.equal(error.relayCause.cause, 'excluded');
   assert.equal(error.relayCause.by, 'corey');
 });
 
-test('clause 3: with no status set, the refusal carries no relayCause [C7]', () => {
+test('relay.io-browser-cause-attach.with-no-status-set-the-refusal: clause 3: with no status set, the refusal carries no relayCause [C7]', () => {
   assert.equal(getRelayStatus(), null);
   assert.equal('relayCause' in attachRelayCause(refusal()), false);
   setRelayStatus({ relayOn: false });

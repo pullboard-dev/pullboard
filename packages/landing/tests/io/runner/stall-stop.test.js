@@ -41,7 +41,7 @@ function clockAt() {
   };
 }
 
-test('clause 1: a land job with no progress for 120000 ms stops and records the landingStallDescription reason [C7,#8749]', async t => {
+test('landing.stall-stop.a-land-job-with-no-progress: clause 1: a land job with no progress for 120000 ms stops and records the landingStallDescription reason [C7,#8749]', async t => {
   const box = landFixture(t, { stallStop: true });
   const before = box.tip();
   const clock = clockAt();
@@ -58,7 +58,7 @@ test('clause 1: a land job with no progress for 120000 ms stops and records the 
   assert.deepEqual(receipt.returned, [], 'no item goes back to its builder');
 });
 
-test('clause 2: a land job that progresses inside the window keeps running and lands [C7,#8749]', async t => {
+test('landing.stall-stop.a-land-job-that-progresses-inside: clause 2: a land job that progresses inside the window keeps running and lands [C7,#8749]', async t => {
   const box = landFixture(t, { stallStop: true });
   const before = box.tip();
   const clock = clockAt();
@@ -75,7 +75,7 @@ test('clause 2: a land job that progresses inside the window keeps running and l
   assert.notEqual(box.tip(), before);
 });
 
-test('clause 1: with landing.stallStop off, a quiet check is never stopped [C7,#8749]', async t => {
+test('landing.stall-stop.with-landing-stallstop-off-a-quiet: clause 1: with landing.stallStop off, a quiet check is never stopped [C7,#8749]', async t => {
   const box = landFixture(t);
   const clock = clockAt();
   const checks = async () => { clock.advance(10 * LANDING_STALL_MS); return { ok: true }; };

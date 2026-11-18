@@ -33,18 +33,18 @@ for (const runsStore of [false, true]) {
   });
 }
 
-test('clause 1: a composed submit recovers the builder head its companions were composed onto [C7,#9825]', t => {
+test('cli.io-submit-recover-job-row.a-composed-submit-recovers-the-builder-head: clause 1: a composed submit recovers the builder head its companions were composed onto [C7,#9825]', t => {
   const { board, job } = offered(t, { companion: true });
   assert.deepEqual(gateOfferFromJobRow(board, { me: 'core-1', id: 9825, source: SOURCE }), { job: job.id, onto: HEAD });
 });
 
-test('clause 2: a job row offered by another seat, or for another source, recovers nothing [C7,#9825]', t => {
+test('cli.io-submit-recover-job-row.a-job-row-offered-by-another-seat: clause 2: a job row offered by another seat, or for another source, recovers nothing [C7,#9825]', t => {
   const { board } = offered(t);
   assert.equal(gateOfferFromJobRow(board, { me: 'core-2', id: 9825, source: SOURCE }), null);
   assert.equal(gateOfferFromJobRow(board, { me: 'core-1', id: 9825, source: 'd'.repeat(40) }), null);
 });
 
-test('clause 3: with submit.recoverFromJobRow off, recovery from the job row does nothing and reads no board [C7,#9825]', async t => {
+test('cli.io-submit-recover-job-row.with-submit-recoverfromjobrow-off-recovery-from-the: clause 3: with submit.recoverFromJobRow off, recovery from the job row does nothing and reads no board [C7,#9825]', async t => {
   const home = cellSandbox(t).dir;
   const saved = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = home;

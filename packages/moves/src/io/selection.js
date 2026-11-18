@@ -31,11 +31,15 @@ import { focusReviewFirst } from '../../../roadmap/index.js';
 import { focusReasons } from '../../../roadmap/index.js';
 import { milestoneFocus } from '../../../roadmap/index.js';
 import { laneNames } from '../../../seats/index.js';
+import { lightShaped } from '../../../seats/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { machineSettingsFile } from '../../../config/index.js';
 import { nextReadinessCache } from '../../../config/index.js';
 import { nextLabelBounds } from '../../../config/index.js';
 import { nextCapBuilders } from '../../../config/index.js';
+import { nextLightShapedStrong } from '../../../config/index.js';
+import { nextRouteByTier } from '../../../config/index.js';
+import { tierOmissions } from './tier-routing.js';
 import { nextReadinessCheck } from '../../../config/index.js';
 import { headCommit } from '../../../git/index.js';
 import { resolveCommit } from '../../../git/index.js';
@@ -58,7 +62,7 @@ const requireModule = createRequire(import.meta.url);
  * @typedef {{ withBoardRead: Function, withBoard: Function, whoAmI: Function, idArg: Function, ordered: Function,
  *   claimOrdered: Function, currentReworkRoutingPolicy: Function, MainSpecMerged: Function, checkMainVerifier: Function,
  *   dirtyFiles: Function, openItemFolder: Function, liveFolderRefusal: Function,
- *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function }} NextPorts
+ *   mainLaneWork: Function, claimWorktreeSnapshot: Function, pickForLabelMinimum: Function, firstUnderLabelMax: Function }} NextPorts
  */
 
 /**
@@ -319,6 +323,17 @@ function builderRework(board, items, agents, me) {
     && item.item_built_by !== me.id && seats.get(item.item_built_by) === item.item_lane && !store.seatGone(board, item.item_built_by));
 }
 
+/**
+ * Whether next may re-join this seat to another lane: it holds no live claim, and its lane owns folders [N2,C7,#10691].
+ * Why: an item folder belongs to its seat only while its branch is <seat lane>/item-<id>, so a move strands every held
+ * folder (pre-commit NOT_JOINED); and a lane that owns no folders seats verifiers, which a move turned into builders.
+ */
+function movable(config, items, me) {
+  const lane = config.lanes?.[me.lane];
+  if (lane && !(lane.owns ?? []).length) return false;
+  return !items.some(entry => entry.item_status === 'claimed' && entry.item_owner === me.id);
+}
+
 /** Whether this seat's own claim is one it may keep building here: its lane, route and runnable filter (#2978). */
 function keepsClaim(me, item, values, laneOff = false) {
   return (laneOff || item.item_lane === me.lane) && store.ROUTES.includes(me.route) && store.ROUTES.includes(item.item_route)
@@ -365,9 +380,10 @@ const LABEL_PICK_DEPTH = 40;
  * @param {any} selection - The options the queue top was chosen with.
  * @param {{ item: any }} queueTop - The queue's own answer.
  * @param {Function} pickForLabelMinimum - The queue cell's pure pick, handed in by the command line.
+ * @param {Function} firstUnderLabelMax - The queue cell's pure skip of items whose label is at its max, handed in the same way.
  * @returns {any} The answer to use: the queue's, or one for the label's top item.
  */
-function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMinimum) {
+function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMinimum, firstUnderLabelMax) {
   const declared = ctx.config.labels;
   if (!declared || !Object.keys(declared).length) return queueTop;
   const focus = milestoneFocus(board, { milestones: store.milestones });
@@ -381,7 +397,11 @@ function labelMinimumPick(ctx, board, items, selection, queueTop, pickForLabelMi
     answer = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   }
   const pick = pickForLabelMinimum(declared, items, candidates);
-  return pick ? answers.get(pick.item_id) : queueTop;
+  if (pick) return answers.get(pick.item_id);
+  // A label at its max beats a pin: the first candidate under every max is offered, and when none is the queue offers nothing [#9165].
+  const free = firstUnderLabelMax(declared, items, candidates);
+  if (free) return answers.get(free.item_id);
+  return candidates.length ? { item: null, reasons: ['every item next could offer carries a label already at its maximum (next.labelBounds)'] } : queueTop;
 }
 
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
@@ -422,13 +442,15 @@ function nextPick(ctx, board, values, ports) {
   // queue.contention (off unless a project turns it on): the recent conflict rate of each file steers next [C7,#8527].
   const contention = ctx.config.queue?.contention === true ? { threshold: ctx.config.queue.contentionThreshold ?? 1,
     rates: conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()) } : null;
+  // next.routeByTier (off by default): items routed to another tier are left out of this seat's pick [C7,#8800].
+  const tierLeftOut = nextRouteByTier() ? tierOmissions(ctx.config, board, items, me) : [];
   const selection = { ...(laneOff ? { lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR) } : {}), buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, routeCap: me.route, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}) };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: [...(values.omitIds ?? []), ...tierLeftOut], observeIdle: values.observeIdle,
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles, ...(contention ? { contention } : {}), ...(ctx.config.next?.wholeItemsFirst === true ? { wholeItemsFirst: true } : {}), ...(values.idleBlockers === true ? { idleBlockers: true } : {}), ...(nextLightShapedStrong() ? { lightShapedStrong: true } : {}) };
   const queueTop = store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
-  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum) : queueTop;
+  const own = nextLabelBounds() && queueTop.item && queueTop.item.item_status !== 'claimed' ? labelMinimumPick(ctx, board, items, selection, queueTop, ports.pickForLabelMinimum, ports.firstUnderLabelMax) : queueTop;
   // Other lanes are only named, never claimed (otherLaneWork), so the session this seat shares never decides what next serves (GH #27).
   // An empty look at other lanes never replaces this lane's own answer: its holds and skips are what the seat must read.
   const reworks = own.item ? [] : builderRework(board, items, agents, me);
@@ -470,9 +492,11 @@ function nextPick(ctx, board, values, ports) {
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
   // laneMode off: a light seat is offered an open light item from any lane, so it neither moves nor only names it [C7,#8940].
   const crossLane = ctx.config.laneMode === 'off' && me.route === 'light' && item.item_route === 'light';
-  if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) ? otherLaneWork(me, item, reasons)
-    : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
-  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
+  if (!laneOff && item.item_lane !== me.lane && !crossLane) return values.moved || store.agentLaneLocked(board, me.id) || !movable(ctx.config, items, me)
+    ? otherLaneWork(me, item, reasons) : { move: { from: me.lane, lane: item.item_lane, item: item.item_id }, reasons: reasons ?? [] };
+  // next.lightShapedStrong: the selection already found no free light item, so a light-shaped strong item is this light seat's to take [C7,#9568].
+  const shapedStrong = selection.lightShapedStrong === true && me.route === 'light' && item.item_route === 'strong' && lightShaped(item);
+  if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !shapedStrong && !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
   if (!held && store.diagnoseWanted(board, item, me.route)) return { diagnose: item, reasons: reasons ?? [] };
   return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };

@@ -44,7 +44,7 @@ function landing(t, { epochs, hops }) {
   return { root: repo.root, remote, tip, state, saves, fence, trunk: () => runFixtureGit(['rev-parse', TRUNK], { cwd: remote }) };
 }
 
-test('clause 2: with gate.fencedHop on, publish saves each item epoch on the batch before it pushes trunk [C7,#8326]', async t => {
+test('landing.hops.with-gate-fencedhop-on-publish-saves: clause 2: with gate.fencedHop on, publish saves each item epoch on the batch before it pushes trunk [C7,#8326]', async t => {
   const { root, remote, tip, state, saves, fence, trunk } = landing(t, { epochs: 3 });
   const saved = await pushCarryingHops(state, state.batch, { pushRoot: root, remote, enabled: true });
   assert.deepEqual(saves.map(each => [each.name, each.hops]), [['recordLandingBatch', [{ item: ITEM, epoch: 3 }]]], 'the batch was saved once, carrying the gate row epoch');
@@ -54,7 +54,7 @@ test('clause 2: with gate.fencedHop on, publish saves each item epoch on the bat
   assert.notEqual(fence(), '', 'the push moved the fence to the carried epoch');
 });
 
-test('clause 2: a resumed batch that already carries its epochs pushes under them without saving again [C7,#8326]', async t => {
+test('landing.hops.a-resumed-batch-that-already-carries: clause 2: a resumed batch that already carries its epochs pushes under them without saving again [C7,#8326]', async t => {
   const { root, remote, tip, state, saves, trunk } = landing(t, { epochs: 2, hops: [{ item: ITEM, epoch: 2 }] });
   const saved = await pushCarryingHops(state, state.batch, { pushRoot: root, remote, enabled: true });
   assert.deepEqual(saves, [], 'no second save');
@@ -62,7 +62,7 @@ test('clause 2: a resumed batch that already carries its epochs pushes under the
   assert.equal(trunk(), tip);
 });
 
-test('clause 2: with gate.fencedHop off, publish saves no epochs and makes the plain push [C7,#8326]', async t => {
+test('landing.hops.with-gate-fencedhop-off-publish-saves: clause 2: with gate.fencedHop off, publish saves no epochs and makes the plain push [C7,#8326]', async t => {
   const { root, remote, tip, state, saves, fence, trunk } = landing(t, { epochs: 2 });
   await pushCarryingHops(state, state.batch, { pushRoot: root, remote, enabled: false });
   assert.deepEqual(saves, [], 'nothing is saved with the setting off');

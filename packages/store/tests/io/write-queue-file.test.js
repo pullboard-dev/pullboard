@@ -4,6 +4,8 @@
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -32,7 +34,7 @@ for (let n = 0; n < 4; n++) {
 await Promise.all(writes);
 `;
 
-test('clause 1: writes submitted to the file queue by two processes against one directory apply one at a time in submission order [C7,#8163]', async () => {
+test('store.io-write-queue-file.writes-submitted-to-the-file-queue: clause 1: writes submitted to the file queue by two processes against one directory apply one at a time in submission order [C7,#8163]', async () => {
   const dir = privateFixtureFiles('pullboard-wqf-').root;
   const log = join(dir, 'log.txt');
   appendFileSync(log, '');
@@ -53,7 +55,7 @@ test('clause 1: writes submitted to the file queue by two processes against one 
   assert.deepEqual(queue.result('a3'), { ok: true, value: 'a3' });
 });
 
-test('clause 2: a caller that dies after submitting finds its write\'s result in the result file when it asks again with the same write id [C7,#8163]', async () => {
+test('store.io-write-queue-file.a-caller-that-dies-after-submitting: clause 2: a caller that dies after submitting finds its write\'s result in the result file when it asks again with the same write id [C7,#8163]', async () => {
   const dir = privateFixtureFiles('pullboard-wqf-').root;
   const log = join(dir, 'log.txt');
   const dying = `
@@ -73,7 +75,7 @@ test('clause 2: a caller that dies after submitting finds its write\'s result in
   assert.equal(queue.result('missing'), null);
 });
 
-test('clause 3: a failed write stores its error in its own result file and the writes behind it still apply [C7,#8163]', async () => {
+test('store.io-write-queue-file.a-failed-write-stores-its-error: clause 3: a failed write stores its error in its own result file and the writes behind it still apply [C7,#8163]', async () => {
   const dir = privateFixtureFiles('pullboard-wqf-').root;
   const queue = createFileWriteQueue(dir);
   const order = [];
@@ -86,4 +88,18 @@ test('clause 3: a failed write stores its error in its own result file and the w
   assert.deepEqual(order, ['f1', 'f2', 'f3']);
   assert.ok(existsSync(join(dir, 'f2.result')));
   assert.deepEqual(queue.result('f2'), { ok: false, error: { code: 'BOOM', message: 'boom' } });
+});
+
+test('store.io-write-queue-file.prune-removes-results-and-marks-older: clause 4: prune removes results and marks older than the keep time and never a pending write [C7,#10089]', () => {
+  const { root } = privateFixtureFiles('pullboard-wqf-prune-');
+  const queue = createFileWriteQueue(root);
+  const names = ['old.result', 'old.mark', 'old.pending', 'new.result'];
+  for (const name of names) writeFileSync(join(root, name), '{}');
+  const past = new Date(Date.now() - 5000);
+  for (const name of names.slice(0, 3)) utimesSync(join(root, name), past, past);
+  assert.equal(queue.prune(1000), 2);
+  assert.deepEqual([existsSync(join(root, 'old.result')), existsSync(join(root, 'old.mark')), existsSync(join(root, 'old.pending')), existsSync(join(root, 'new.result'))], [false, false, true, true]);
+  writeFileSync(join(root, 'again.result'), '{}');
+  queue.forget('again');
+  assert.equal(existsSync(join(root, 'again.result')), false, 'forget drops one stored outcome');
 });

@@ -39,7 +39,7 @@ function acquire(project, runners, extra = {}) {
     runnerProvider: () => runners, runnerLoadPolicyProvider: () => ({ enabled: true, ceiling: 90 }), ...extra });
 }
 
-test('a job goes to the idle runner, never the one at 10x its cores [C7]', async t => {
+test('runners.loaded.a-job-goes-to-the-idle: a job goes to the idle runner, never the one at 10x its cores [C7]', async t => {
   const project = box(t);
   const lease = await acquire(project, [runner('overloaded-host', 108), runner('idle-host', 1.4)]);
   try {
@@ -49,7 +49,7 @@ test('a job goes to the idle runner, never the one at 10x its cores [C7]', async
   } finally { lease.release(); }
 });
 
-test('with two runners free, the lower load per core wins even with less headroom in cores [C7,#5578]', async t => {
+test('runners.loaded.with-two-runners-free-the-lower: with two runners free, the lower load per core wins even with less headroom in cores [C7,#5578]', async t => {
   const project = box(t);
   const small = { ...runner('four-core', 1), cores: 4 };
   const big = runner('ten-core', 4);
@@ -59,7 +59,7 @@ test('with two runners free, the lower load per core wins even with less headroo
   } finally { lease.release(); }
 });
 
-test('the 2 Nov loads: the runner with the most headroom wins and the overloaded one is skipped [C7]', async t => {
+test('runners.loaded.the-2-nov-loads-the-runner: the 2 Nov loads: the runner with the most headroom wins and the overloaded one is skipped [C7]', async t => {
   const project = box(t);
   const loads = { '.56': 108, '.52': 16, '.53': 13, '.55': 4.9, '.54': 1.9, '.51': 1.4 };
   const lease = await acquire(project, Object.entries(loads).map(([host, load]) => runner(host, load)));
@@ -69,7 +69,7 @@ test('the 2 Nov loads: the runner with the most headroom wins and the overloaded
   } finally { lease.release(); }
 });
 
-test('jobs admitted after a reading count as load, so back-to-back jobs spread [C7]', async t => {
+test('runners.loaded.jobs-admitted-after-a-reading-count: jobs admitted after a reading count as load, so back-to-back jobs spread [C7]', async t => {
   const project = box(t);
   const runners = [runner('first-host', 1), runner('second-host', 1.5)];
   const first = await acquire(project, runners);
@@ -80,7 +80,7 @@ test('jobs admitted after a reading count as load, so back-to-back jobs spread [
   } finally { second.release(); first.release(); }
 });
 
-test('an overloaded-only pool queues the job instead of failing it, then admits it once a runner has headroom [C7]', async t => {
+test('runners.loaded.an-overloaded-only-pool-queues-the: an overloaded-only pool queues the job instead of failing it, then admits it once a runner has headroom [C7]', async t => {
   const project = box(t);
   const runners = [runner('first-host', 40), runner('second-host', 16)];
   let waited;
@@ -96,7 +96,7 @@ test('an overloaded-only pool queues the job instead of failing it, then admits 
   try { assert.equal(lease.runner.host, 'second-host'); } finally { lease.release(); }
 });
 
-test('an overloaded reading keeps its runner skipped after it goes stale; an old one does not [C7]', async t => {
+test('runners.loaded.an-overloaded-reading-keeps-its-runner: an overloaded reading keeps its runner skipped after it goes stale; an old one does not [C7]', async t => {
   const project = box(t);
   const ago = ms => new Date(Date.now() - ms).toISOString();
   let lease = await acquire(project, [runner('stale-overloaded', 50, ago(120_000)), runner('unread-host', 0, ago(600_000))]);
@@ -105,7 +105,7 @@ test('an overloaded reading keeps its runner skipped after it goes stale; an old
   try { assert.equal(lease.runner.host, 'long-ago-overloaded', 'a reading past the hold is unknown, not overloaded'); } finally { lease.release(); }
 });
 
-test('a runner with a recent cleanup timeout is skipped while a healthy runner is free [C7]', async t => {
+test('runners.loaded.a-runner-with-a-recent-cleanup: a runner with a recent cleanup timeout is skipped while a healthy runner is free [C7]', async t => {
   const project = box(t);
   const runners = [runner('failing-host', 1), runner('healthy-host', 3)];
   const warm = await acquire(project, runners);
@@ -123,7 +123,7 @@ test('a runner with a recent cleanup timeout is skipped while a healthy runner i
   } finally { lease.release(); }
 });
 
-test('a busy runner records its live load reading instead of being refused as busy [C7]', async t => {
+test('runners.loaded.a-busy-runner-records-its-live: a busy runner records its live load reading instead of being refused as busy [C7]', async t => {
   const project = box(t);
   const file = join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const registered = { host: 'busy-host', slots: 9, browser: 6, gui: true, cores: 10, memoryMB: 16384 };
@@ -138,7 +138,7 @@ test('a busy runner records its live load reading instead of being refused as bu
   } finally { lease.release(); }
 });
 
-test('a measured fleet with default settings dispatches by live load, measured before admission; only an explicit off disables it [C7]', async t => {
+test('runners.loaded.a-measured-fleet-with-default-settings: a measured fleet with default settings dispatches by live load, measured before admission; only an explicit off disables it [C7]', async t => {
   const project = box(t);
   const measured = { host: 'unread-host', slots: 9, browser: 6, cores: 10, memoryMB: 16384 };
   writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { timingRunner: false }, runners: [measured] }));

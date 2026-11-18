@@ -24,7 +24,7 @@ function strictSnapshot(g, id) {
 /** The state a snapshot's item reads after a table result: the patch applied and the events appended. */
 const reads = (s, result) => landingOf({ ...s.item, ...result.patch }, result.events);
 
-test('clause 1: no strict item is ever seen landed through the select table, the setting on or off, or through the merged table with the setting on and a counting receipt [M2,#8872]', () => {
+test('moves.landing-strict-generated.no-strict-item-is-ever-seen: clause 1: no strict item is ever seen landed through the select table, the setting on or off, or through the merged table with the setting on and a counting receipt [M2,#8872]', () => {
   let selected = 0, published = 0;
   for (let seed = 1; seed <= CASES; seed++) {
     const g = seeded(seed), id = 100 + seed;
@@ -44,7 +44,7 @@ test('clause 1: no strict item is ever seen landed through the select table, the
   assert.ok(selected > 100 && published > 100, `only ${selected} selections and ${published} publishes`);
 });
 
-test('clause 2: the merged table with the setting off or without a publish, and the record table land outcome, emit only merged events, so landingOf reads landed [M2,#8872]', () => {
+test('moves.landing-strict-generated.the-merged-table-with-the-setting: clause 2: the merged table with the setting off or without a publish, and the record table land outcome, emit only merged events, so landingOf reads landed [M2,#8872]', () => {
   for (let seed = 1; seed <= CASES; seed++) {
     const g = seeded(seed), id = 100 + seed;
     const s = strictSnapshot(g, id);

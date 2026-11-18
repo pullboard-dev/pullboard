@@ -97,7 +97,6 @@
     "apps/cli/journeys/relay/local/origin.test.js": 1,
     "apps/cli/journeys/relay/machine/race.test.js": 1,
     "apps/cli/journeys/relay/machine/storage.test.js": 1,
-    "apps/cli/journeys/relay/main.test.js": 1,
     "apps/cli/journeys/relay/membership.test.js": 1,
     "apps/cli/journeys/relay/mint.test.js": 1,
     "apps/cli/journeys/relay/outbox.test.js": 1,

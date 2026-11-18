@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-cell packages/items */
 /** Explicit native session capture never treats an omitted identity as a person shell [V1,B3,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

@@ -17,7 +17,7 @@ function sites(source) {
   return testWaitSites(source, 'test/example.test.js').map(({ path, line, kind }) => ({ path, line, kind }));
 }
 
-test('the wait lint names real timer aliases, sleeps and sole-resolver promises [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-real-timer: the wait lint names real timer aliases, sleeps and sole-resolver promises [C7]', () => {
   const source = [
     "import { setTimeout as delay } from 'node:timers/promises';",
     'await delay(20);',
@@ -30,7 +30,7 @@ test('the wait lint names real timer aliases, sleeps and sole-resolver promises 
 });
 
 /** Preserve coverage for wrapped timeout callbacks that only resolve their Promise. */
-test('the wait lint names wrapped sole-resolver timer callbacks [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-wrapped-sole: the wait lint names wrapped sole-resolver timer callbacks [C7]', () => {
   const source = [
     'await new Promise(resolve => setTimeout(() => resolve(), 20));',
     'await new Promise(resolve => setTimeout(() => { resolve(); }, 20));',
@@ -41,7 +41,7 @@ test('the wait lint names wrapped sole-resolver timer callbacks [C7]', () => {
 });
 
 /** Cover timer waits that reach the test through native callback and promisify forms. */
-test('the wait lint names multi-argument executors, promisified timers and test completion timers [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-multi-argument: the wait lint names multi-argument executors, promisified timers and test completion timers [C7]', () => {
   const source = [
     "import { promisify } from 'node:util';",
     'const wait = promisify(setTimeout);',
@@ -54,7 +54,7 @@ test('the wait lint names multi-argument executors, promisified timers and test 
 });
 
 /** Cover default and namespace ESM bindings with the same bounded timer wait patterns. */
-test('the wait lint resolves default imports and callback-style completion parameters [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-resolves-default-imports: the wait lint resolves default imports and callback-style completion parameters [C7]', () => {
   const source = [
     "import { promisify as toPromise } from 'node:util';",
     'const pause = toPromise(setTimeout);',
@@ -75,7 +75,7 @@ test('the wait lint resolves default imports and callback-style completion param
   assert.deepEqual(sites(source), [3, 6, 9, 10, 12, 14, 15].map(line => ({ path: 'test/example.test.js', line, kind: 'sleep' })));
 });
 
-test('the wait lint names fixed-delay polling and its actual line [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-fixed-delay: the wait lint names fixed-delay polling and its actual line [C7]', () => {
   const source = [
     "import { setTimeout as delay } from 'node:timers/promises';",
     'const INTERVAL = 25;',
@@ -91,7 +91,7 @@ test('the wait lint names fixed-delay polling and its actual line [C7]', () => {
 });
 
 /** Cover inline and named callbacks on positive-delay fixed intervals. */
-test('the wait lint names active fixed-interval callbacks [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-active-fixed: the wait lint names active fixed-interval callbacks [C7]', () => {
   const source = [
     'const h = setInterval(() => { if (ok()) { clearInterval(h); go(); } }, 200);',
     '/** Check the observable condition. */',
@@ -101,12 +101,12 @@ test('the wait lint names active fixed-interval callbacks [C7]', () => {
   assert.deepEqual(sites(source), [1, 4].map(line => ({ path: 'test/example.test.js', line, kind: 'poll' })));
 });
 
-test('the wait lint distinguishes a following wait from a one-statement poll body [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-distinguishes-a-following: the wait lint distinguishes a following wait from a one-statement poll body [C7]', () => {
   const source = "import {setTimeout as delay} from 'node:timers/promises';\nwhile (!ready()) observe();\nawait delay(20);\n";
   assert.deepEqual(sites(source), [{ path: 'test/example.test.js', line: 3, kind: 'sleep' }]);
 });
 
-test('the wait lint names fixed TCP binds and connects including constant aliases [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-names-fixed-tcp: the wait lint names fixed TCP binds and connects including constant aliases [C7]', () => {
   const source = [
     'const FIXED = 31337;',
     'const PORT = FIXED;',
@@ -120,7 +120,7 @@ test('the wait lint names fixed TCP binds and connects including constant aliase
   assert.deepEqual(sites(source), [3, 4, 5].map(line => ({ path: 'test/example.test.js', line, kind: 'port' })));
 });
 
-test('the wait lint leaves deadline failures, event watchdogs and ephemeral ports clean [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-leaves-deadline-failures: the wait lint leaves deadline failures, event watchdogs and ephemeral ports clean [C7]', () => {
   const source = [
     'setTimeout(() => reject(new Error("late")), 1000);',
     'setTimeout(() => child.kill(), 1000);',
@@ -136,7 +136,7 @@ test('the wait lint leaves deadline failures, event watchdogs and ephemeral port
   assert.deepEqual(sites(source), []);
 });
 
-test('the wait lint ignores quoted fixtures, comments and regexes while retaining interpolated code [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-ignores-quoted-fixtures: the wait lint ignores quoted fixtures, comments and regexes while retaining interpolated code [C7]', () => {
   const source = [
     '// await sleep(100); server.listen(4000);',
     'const fixture = "await sleep(100); server.listen(4000);";',
@@ -147,7 +147,7 @@ test('the wait lint ignores quoted fixtures, comments and regexes while retainin
 });
 
 /** Generated executable fixtures are real test programs; their source location stays in the authoring file. */
-test('the wait lint scans fixed polls in emitted JavaScript and node-shebang fixture templates [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-scans-fixed-polls: the wait lint scans fixed polls in emitted JavaScript and node-shebang fixture templates [C7]', () => {
   const source = [
     "writeFileSync(join(repo, 'child.js'), `",
     'const wait = setInterval(() => { if (ready()) { clearInterval(wait); finish(); } }, 5);',
@@ -168,7 +168,7 @@ test('the wait lint scans fixed polls in emitted JavaScript and node-shebang fix
 });
 
 /** A quoted example becomes fixture source only at an explicit program-producing write. */
-test('the wait lint leaves unwritten templates and written text examples alone [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-leaves-unwritten-templates: the wait lint leaves unwritten templates and written text examples alone [C7]', () => {
   const source = [
     'const example = `setInterval(check, 20);`;',
     "writeFileSync('notes.txt', `setInterval(check, 20);`);",
@@ -181,7 +181,7 @@ test('the wait lint leaves unwritten templates and written text examples alone [
 });
 
 /** An escaped child placeholder is literal template text and cannot swallow a later timer diagnostic. */
-test('the wait lint retains generated polls after escaped template placeholders [C7]', () => {
+test('gate.io-test-waits.the-wait-lint-retains-generated-polls: the wait lint retains generated polls after escaped template placeholders [C7]', () => {
   const source = [
     "writeFileSync('child.js', `",
     "const text = '\\${example}';",
@@ -191,7 +191,7 @@ test('the wait lint retains generated polls after escaped template placeholders 
   assert.deepEqual(sites(source), [{ path: 'test/example.test.js', line: 3, kind: 'poll' }]);
 });
 
-test('the wait debt baseline refuses new files, category swaps and growth and only tightens [C7]', () => {
+test('gate.io-test-waits.the-wait-debt-baseline-refuses-new: the wait debt baseline refuses new files, category swaps and growth and only tightens [C7]', () => {
   const original = testWaitSites('await sleep(5);\nserver.listen(1234);', 'test/example.test.js');
   const baseline = testWaitCounts(original);
   assert.deepEqual(testWaitGrowth(original, baseline), []);
@@ -205,13 +205,13 @@ test('the wait debt baseline refuses new files, category swaps and growth and on
   assert.deepEqual(baseline, { 'test/example.test.js': { sleep: 1, port: 1 } }, 'a refused update mutates no existing allowance');
 });
 
-test('the repository has no new sleeps, fixed poll intervals or fixed TCP ports [C7]', () => {
+test('gate.io-test-waits.the-repository-has-no-new-sleeps: the repository has no new sleeps, fixed poll intervals or fixed TCP ports [C7]', () => {
   const baseline = JSON.parse(readFileSync(new URL('../../../data/baselines/test-waits-baseline.json', import.meta.url), 'utf8'));
   assert.deepEqual(testWaitGrowth(testWaitReport(ROOT), baseline), []);
 });
 
 /** Catch inline promisified waits without treating unrelated functions as timers. */
-test('inline promisified timers are waits [C7]', () => {
+test('gate.io-test-waits.inline-promisified-timers-are-waits: inline promisified timers are waits [C7]', () => {
   const source = [
     "import { promisify as p } from 'node:util';",
     "import util from 'node:util';",

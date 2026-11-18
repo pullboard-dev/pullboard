@@ -56,7 +56,7 @@ function land(box, work) {
   box.sh('merge', '-q', '--no-ff', '-m', 'merge item', 'item');
 }
 
-test('a fixture view-lane test move lands with no hand edit: every registry row follows the rename and the counts fall [C7,V24]', async t => {
+test('landing.derived-registries.a-fixture-view-lane-test-move: a fixture view-lane test move lands with no hand edit: every registry row follows the rename and the counts fall [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => {
     mkdirSync(join(box.root, 'apps/view/tests'), { recursive: true });
@@ -73,7 +73,7 @@ test('a fixture view-lane test move lands with no hand edit: every registry row 
   assert.equal(box.sh('diff', '--cached', '--name-only').trim().split('\n').length, 3, 'the three rows are staged for the merge');
 });
 
-test('a removed test loses its rows and the derived counts only fall [C7,V24]', async t => {
+test('landing.derived-registries.a-removed-test-loses-its-rows: a removed test loses its rows and the derived counts only fall [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => box.sh('rm', '-q', 'test/gone.test.js'));
   await stageTestRegistries(box.root, 'HEAD^1', SCRIPT);
@@ -83,7 +83,7 @@ test('a removed test loses its rows and the derived counts only fall [C7,V24]', 
   assert.deepEqual(box.read(TIERS).files.map(row => row.file), ['apps/view/tests/keep.test.js', 'test/moves.test.js']);
 });
 
-test('a landing that would raise the root count is refused and leaves the registries as they were [C7,V24]', async t => {
+test('landing.derived-registries.a-landing-that-would-raise-the: a landing that would raise the root count is refused and leaves the registries as they were [C7,V24]', async t => {
   const box = repo(t);
   land(box, () => box.put('test/extra.test.js', 'import assert from "node:assert/strict";\nassert.ok(true);\n'));
   const before = readFileSync(join(box.root, CELLS), 'utf8');

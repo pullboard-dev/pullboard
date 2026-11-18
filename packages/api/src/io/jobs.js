@@ -13,6 +13,7 @@ import { upsertProgressStep } from '../../../jobs/index.js';
 import { upsertArtifactStep } from '../../../jobs/index.js';
 import { readArtifactSteps } from '../../../jobs/index.js';
 import { finishJob } from '../../../jobs/index.js';
+import { dropSteps } from '../../../jobs/index.js';
 import { releaseLease } from '../../../jobs/index.js';
 import { renewLease } from '../../../jobs/index.js';
 import { JOB_CLASSES } from '../../../jobs/index.js';
@@ -25,6 +26,7 @@ import { touchLive } from '../../../jobs/index.js';
 import { liveSince } from '../../../jobs/index.js';
 import { endJob } from '../../../jobs/index.js';
 import { noteLease } from '../../../jobs/index.js';
+import { noteLapse } from '../../../jobs/index.js';
 import { setJobRow } from '../../../jobs/index.js';
 import { moveGateClaimHop } from './hop.js';
 import { queueOffer } from './queue.js';
@@ -101,6 +103,8 @@ const ARTIFACT_COUNT = 16;
 const ARTIFACT_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u;
 /** A repository-relative test path: never absolute, never climbing out, never a host or checkout folder. */
 const RELATIVE_FILE = /^(?!\/)(?![A-Za-z]:)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\0\n\r\\]{1,1024}$/u;
+/** The artifact name a part of a gate receipt too large for one call waits under, by index at the claim's attempt, until its receipt joins the parts [C7,#10771]. */
+const RECEIPT_PART = 'receipt-part.';
 /** The per-file states a progress step may say. */
 const PROGRESS_STATES = new Set(['waiting', 'running', 'green', 'red']);
 
@@ -308,7 +312,7 @@ export function boardQueueMode(db, wanted) {
  * @returns {{ job: string, kind: string, needs: string[], run: string[], payload?: Record<string, unknown>, item: number | null, candidate: string | null, base: string | null, attempt: number, leaseUntil: number, token: string } | null}
  *   null when no open job matches. The candidate and run tell a runner what to fetch and execute [P7]; payload only when the offer carried one.
  */
-export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false }) {
+export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = null, cores = null, ram = null, now = Date.now(), leaseMs = LEASE_MS, drained = [], reserve = null, maxAttempts = JOB_MAX_ATTEMPTS, onRunaway = null, onRepeatClaim = null, hop = null, avoidRunners = false, recordLapse = false }) {
   runnerId(runner);
   // A drained runner (`pullboard runner drain`) finishes the jobs it holds and is offered no new one.
   if (drained.includes(runner)) return null;
@@ -333,9 +337,12 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
       if (isPushShard(row) && now - liveSince(db, row.job_id) > PUSH_ALIVE_MS) { endAbandoned(db, row, { now }); continue; }
       // A job claimed this many times is a runaway: it ends here and no runner takes it again.
       if (row.job_attempt >= maxAttempts) { endRunaway(db, row, { now, ended }); continue; }
+      // jobs.recordLapse: what the earlier claim held and last wrote, read before this claim overwrites the lease [C7,#9247].
+      const lapsed = recordLapse && row.job_attempt >= 1 ? lapseOf(db, row, now) : null;
       const taken = db.prepare("UPDATE job SET job_lease_owner = ?, job_lease_until = ?, job_attempt = job_attempt + 1, job_updated = ? WHERE job_id = ? AND job_lease_until < ? AND job_step IN ('offered', 'claimed')")
         .run(runner, now + leaseMs, now, row.job_id, now);
       if (taken.changes !== 1) continue;
+      if (lapsed) noteLapse(db, row.job_id, lapsed, now);
       const { job_attempt: attempt } = db.prepare('SELECT job_attempt FROM job WHERE job_id = ?').get(row.job_id);
       const token = randomBytes(24).toString('base64url');
       // With gate.fencedHop on, a gate job's runner owns its item's hop row; a hop another live runner holds refuses the claim HOP_FENCED [C7,#8352].
@@ -352,6 +359,21 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, jobs = n
   for (const runaway of ended) { try { onRunaway?.(runaway); } catch { /* a shout that cannot send leaves the job ended */ } }
   for (const repeat of repeated) { try { onRepeatClaim?.(repeat); } catch { /* a shout that cannot send leaves the claim made */ } }
   return claimed;
+}
+
+/**
+ * What the earlier claim of a job whose lease ran out held: its runner, attempt and lease end, when it last renewed or wrote a step, and the last step it wrote.
+ * Why: a lapse left no record, so six claims of one land job could not be told from a runner that never started [C7,#9247].
+ *
+ * @returns {{ runner: string | null, attempt: number, leaseUntil: number, lastAt: number | null, lastStep: string | null } | null} null when no runner ever held the job.
+ */
+function lapseOf(db, row, now) {
+  const held = db.prepare('SELECT job_lease_owner AS owner, job_lease_until AS until FROM job WHERE job_id = ?').get(row.job_id);
+  if (!held?.owner || held.until >= now) return null;
+  // A renewal of a gate job leaves a note: step; any other kind's last sign of life is its newest step.
+  const last = db.prepare("SELECT job_step_name AS name, job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  const noted = db.prepare("SELECT job_step_name AS name FROM job_step WHERE job_step_job = ? AND job_step_name NOT LIKE 'note:%' AND job_step_name <> 'lapsed' ORDER BY job_step_at DESC, rowid DESC LIMIT 1").get(row.job_id);
+  return { runner: held.owner, attempt: row.job_attempt, leaseUntil: held.until, lastAt: last?.at ?? null, lastStep: noted?.name ?? null };
 }
 
 /** acquireOrEnd's answer for a gate job it ended because its hop is over. */
@@ -546,7 +568,9 @@ function shadowed(db, move, now, write) {
       const decided = answer.threw ? { threw: answer.threw } : answer.refused ? { refused: answer.refused.code } : { job: answer.patch?.job };
       let result;
       try { result = write(); } catch (error) {
-        seen = { move: move.name, job: move.job, decided, wrote: { refused: error.code } };
+        // A hop fence is the gate hop table's refusal, composed into the writer's move: the job table that patched has the hop's refusal to follow, so the compare reads it as the same refusal [C7,#9784].
+        const hopFence = error.code === 'HOP_FENCED' && !answer.threw && !answer.refused ? { refused: error.code } : decided;
+        seen = { move: move.name, job: move.job, decided: hopFence, wrote: { refused: error.code } };
         throw error;
       }
       shadow.seen({ move: move.name, job: move.job, decided, wrote: { job: jobSnapshot(db, move.job, now).job } });
@@ -720,9 +744,56 @@ function releaseHeld(db, { job, runner, token, reason, backoff, draining, now, h
 }
 
 /**
+ * Keep one part of a gate receipt too large for one call, for the job's current claim; the receipt that follows names
+ * its parts in gateParts and the board joins them. Each part is one queue call, so a receipt of any size is that many
+ * parts. A part is kept as an artifact of the attempt, outside the artifact count; posting an index again replaces it.
+ * Why: a sharded gate's receipt names its proof files in full; past 64 KiB it was dropped and read as a gate that printed no receipt (#10771).
+ *
+ * @param {import('node:sqlite').DatabaseSync} db
+ * @param {{ job: string, runner: string, token: string, part: { index: number, count: number, text: string }, now?: number }} request
+ * @returns {{ job: string, attempt: number, index: number, recorded: boolean }}
+ */
+export function postReceiptPart(db, { job, runner, token, part, now = Date.now() }) {
+  const { index, count, text } = part ?? {};
+  if (!Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(index) || index < 0 || index >= count || typeof text !== 'string') {
+    throw new Refused('JOB_RECEIPT', 'a receipt part is { index, count, text }: a whole index under its count and that slice of the receipt gate JSON text');
+  }
+  return atomically(db, () => {
+    const { attempt } = heldBy(db, job, runner, token);
+    upsertArtifactStep(db, job, attempt, `${RECEIPT_PART}${index}`, { name: `${RECEIPT_PART}${index}`, encoding: 'utf8', body: text }, now);
+    return { job, attempt, index, recorded: true };
+  });
+}
+
+/** The receipt with its gate joined from the parts posted at this attempt, which are then dropped; a missing part or a join that does not match gateParts refuses [C7,#10771]. */
+function joinedGate(db, job, attempt, receipt) {
+  const { gateParts, ...rest } = receipt;
+  const { count, bytes, sha256 } = gateParts && typeof gateParts === 'object' ? gateParts : {};
+  if (!Number.isSafeInteger(count) || count < 1 || !Number.isSafeInteger(bytes) || typeof sha256 !== 'string') {
+    throw new Refused('JOB_RECEIPT', 'gateParts is { count, bytes, sha256 } of the parts posted with receiptPart');
+  }
+  const rows = db.prepare(`SELECT job_step_id AS id, job_step_name AS name, job_step_payload AS payload FROM job_step WHERE job_step_job = ? AND job_step_seq = ? AND job_step_name LIKE 'artifact:${RECEIPT_PART}%'`).all(job, attempt);
+  const texts = new Map(rows.map(row => [Number(row.name.slice(`artifact:${RECEIPT_PART}`.length)), readPayload(db, row.payload).body]));
+  const indexes = Array.from({ length: count }, (_, index) => index);
+  const missing = indexes.filter(index => typeof texts.get(index) !== 'string');
+  if (missing.length) throw new Refused('JOB_RECEIPT', `gateParts names ${count} parts and part ${missing.slice(0, 5).join(', ')} was never posted; post every part, then the receipt`);
+  const text = indexes.map(index => texts.get(index)).join('');
+  const digest = createHash('sha256').update(text).digest('hex');
+  if (digest !== sha256 || Buffer.byteLength(text) !== bytes) {
+    throw new Refused('JOB_RECEIPT', `the joined receipt parts (${Buffer.byteLength(text)} bytes, sha256 ${digest.slice(0, 12)}) do not match gateParts; post the parts again`);
+  }
+  let gate = null;
+  try { gate = JSON.parse(text); } catch { gate = null; }
+  if (!gate || typeof gate !== 'object' || Array.isArray(gate)) throw new Refused('JOB_RECEIPT', 'the joined receipt parts are not a JSON object');
+  dropSteps(db, rows.map(row => row.id));
+  return { ...rest, gate };
+}
+
+/**
  * Record the receipt for a job's current claim under that job and mark it done. Only the runner whose token the
  * current claim returned may post; a runner whose lease lapsed may still post while no other runner has claimed the
- * job since. Posting the same attempt's receipt again returns the stored one.
+ * job since. Posting the same attempt's receipt again returns the stored one. A receipt with gateParts takes its gate
+ * from the parts posted with receiptPart; its posted envelope stays under the receipt size [#10771].
  *
  * @param {import('node:sqlite').DatabaseSync} db
  * @param {{ job: string, runner: string, token: string, receipt: Record<string, unknown>, now?: number, leaseMs?: number, hop?: { table: Function } | null }} request - hop: from gateClaimHop, null with gate.fencedHop off.
@@ -736,9 +807,14 @@ export function postReceipt(db, { job, runner, token, receipt, now = Date.now(),
     // A cancelled job (its gate was withdrawn) takes no receipt and stays cancelled, as a receipt after done stores nothing [C7,#3860].
     if (held.step === 'cancelled') return { job, attempt: held.attempt, receipt, recorded: false };
     const { attempt } = held;
+    const whole = receipt.gateParts ? joinedGate(db, job, attempt, receipt) : receipt;
     // With gate.fencedHop on, a gate job lands only while its claim still owns the item's hop: a resubmit ended it, so the old job is refused HOP_FENCED [C7,#8353].
     if (hop && held.hopEpoch !== undefined) finishClaimHop(db, hop, { job, runner, epoch: held.hopEpoch, now, leaseMs });
-    const written = writeStep(db, job, 'receipt', { runner, attempt, receipt }, { seq: attempt, now });
+    // A pulled gate job's receipt carries the seconds it waited for a runner: its first claim minus its enqueue time [C7].
+    const first = db.prepare("SELECT job_step_at AS at FROM job_step WHERE job_step_job = ? AND job_step_name = 'claimed' ORDER BY job_step_id LIMIT 1").get(job);
+    const created = db.prepare('SELECT job_created AS created FROM job WHERE job_id = ?').get(job)?.created;
+    const timed = whole.gate && typeof whole.gate === 'object' && first && Number.isFinite(created) ? { ...whole, queueWaitSeconds: Math.max(0, Math.round((first.at - created) / 100) / 10) } : whole;
+    const written = writeStep(db, job, 'receipt', { runner, attempt, receipt: timed }, { seq: attempt, now });
     finishJob(db, job, runner, { now });
     return { job, attempt, receipt: written.payload.receipt, recorded: written.written };
   }));
@@ -811,7 +887,7 @@ export function jobArtifacts(db, job) {
 }
 
 /**
- * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'shardReceipts' | 'release' | 'progress' | 'artifact' | 'receipt', ... }`.
+ * Answer one queue call as the board API carries it: `{ action: 'claim' | 'request' | 'renew' | 'shards' | 'shardReceipts' | 'release' | 'progress' | 'artifact' | 'receiptPart' | 'receipt', ... }`.
  * The queue answers only while the machine runs runner jobs by pull, so today's path never sees it. A claim also names
  * the board's trunk remote, the one place a runner fetches the candidate from, kept apart from the board host [P7].
  *
@@ -824,11 +900,11 @@ export function jobArtifacts(db, job) {
  * @param {{ mode: string, now?: number, trunk?: () => string | null, reserve?: () => Record<string, number> | null, onReceipt?: ((posted: { job: string, attempt: number, receipt: Record<string, unknown> }) => object) | null }} options - mode is the machine's gate.runnerDispatch.
  * @returns {object}
  */
-export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false }) {
+export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => null, onReceipt = null, drained = () => [], reserve = () => null, onRunaway = null, onRepeatClaim = null, hop = null, queue = null, avoidRunners = false, recordLapse = false }) {
   if (mode !== 'pull') throw new Refused('JOBS_NOT_PULL', 'this board serves its runner job queue only when gate.runnerDispatch is pull; set it with pullboard settings');
   const { action, runner, capabilities, kinds, jobs, cores, ram, job, token, receipt, progress, reason, backoff } = body ?? {};
   if (action === 'claim') {
-    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners });
+    const claim = claimJob(db, { runner, capabilities, kinds: kinds ?? null, jobs: jobs ?? null, cores: cores ?? null, ram: ram ?? null, now, drained: drained(), reserve: reserve(), onRunaway, onRepeatClaim, hop, avoidRunners, recordLapse });
     return { claim, ...(claim ? { trunk: trunk() } : {}) };
   }
   if (action === 'request') return jobRequest(db, { job, runner, token });
@@ -838,6 +914,8 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
   if (action === 'release') return releaseJob(db, { job, runner, token, reason, backoff, draining: drained().includes(runner), now, hop });
   if (action === 'progress') return postProgress(db, { job, runner, token, progress, now });
   if (action === 'artifact') return postArtifact(db, { job, runner, token, artifact: body.artifact, now });
+  // A gate receipt too large for one call comes first as parts, kept in the store its receipt posts to [#10771].
+  if (action === 'receiptPart') return postReceiptPart(queue ? queue.runs.db : db, { job, runner, token, part: body.part, now });
   if (action === 'receipt') {
     // With runs_store on (queue set) the job lives in the runs file, so the receipt posts there [B2,P7].
     const home = queue ? queue.runs.db : db;
@@ -847,5 +925,5 @@ export function jobQueueCall(db, body, { mode, now = Date.now(), trunk = () => n
     try { return { ...posted, applied: onReceipt(posted) }; }
     catch (error) { if (!error?.code) throw error; return { ...posted, applied: { applied: false, outcome: 'refused', reason: `${error.code}: ${error.message}` } }; }
   }
-  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact or receipt');
+  throw new Refused('JOB_ACTION', 'a job queue call names its action: claim, request, renew, shards, shardReceipts, release, progress, artifact, receiptPart or receipt');
 }

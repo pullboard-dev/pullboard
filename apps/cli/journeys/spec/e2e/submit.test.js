@@ -23,7 +23,7 @@ const {
   startView, LIGHT_BRIEF,
 } = e2e;
 
-test('a red gate refuses submit [V4]', async t => {
+test('cli.journeys-spec-e2e-submit.a-red-gate-refuses-submit-v4: a red gate refuses submit [V4]', async t => {
   const box = project();
   writeFileSync(join(box.repo, 'RED'), 'red');
   box.git(box.repo, 'add', 'RED');
@@ -41,7 +41,7 @@ test('a red gate refuses submit [V4]', async t => {
   assert.equal(JSON.parse((await box.runIn(box.repo, 'show', '1', '--json')).out).item_status, 'claimed');
 });
 
-test('pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', async () => {
+test('cli.journeys-spec-e2e-submit.pre-push-runs-the-gate-once: pre-push runs the gate once per tree and pushes only the checked-out commit [C3]', async () => {
   const box = project();
   const remote = join(box.dir, 'remote.git');
   box.git(box.dir, 'init', '-q', '--bare', remote);
@@ -59,7 +59,7 @@ test('pre-push runs the gate once per tree and pushes only the checked-out commi
   assert.match(notHere.stderr, /is not checked out/);
 });
 
-test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', async t => {
+test('cli.journeys-spec-e2e-submit.next-claims-the-next-free-item: next claims the next free item in its folder; --verify names the next to check [N2,B5]', async t => {
   const box = project();
   await fixtureAdd(box.runIn, box.repo, 'web', 'Page', '--specs', 'G1');
   await fixtureAdd(box.runIn, box.repo, 'web', 'Second page', '--specs', 'G1', '--after', '1');

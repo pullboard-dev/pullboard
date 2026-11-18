@@ -38,7 +38,7 @@ async function read(root, commit, instance) {
 /** A graph as plain, comparable data. */
 const plain = graph => ({ edges: [...graph.edges].sort(([a], [b]) => (a < b ? -1 : 1)), unknown: graph.unknown.map(row => JSON.stringify(row)).sort() });
 
-test('clause 1: graphAt builds the checkout graph from ls-tree and cat-file and makes no worktree or checkout [C7,#3359]', async t => {
+test('landing.composition-graph-from-objects.graphat-builds-the-checkout-graph-from: clause 1: graphAt builds the checkout graph from ls-tree and cat-file and makes no worktree or checkout [C7,#3359]', async t => {
   const { root } = fixture(t);
   const commit = git(root, 'rev-parse', 'HEAD').trim();
   const { graph, commands } = await read(root, commit, 'objects');
@@ -51,7 +51,7 @@ test('clause 1: graphAt builds the checkout graph from ls-tree and cat-file and 
   assert.deepEqual(plain(graph), plain(checkout), 'the same edges and unknown rows as the checkout inventory');
 });
 
-test('clause 2: the graph is cached by tree id in the pullboard folder of the git dir, and a second process runs no ls-tree [C7,#3359]', async t => {
+test('landing.composition-graph-from-objects.the-graph-is-cached-by-tree: clause 2: the graph is cached by tree id in the pullboard folder of the git dir, and a second process runs no ls-tree [C7,#3359]', async t => {
   const { root } = fixture(t);
   const commit = git(root, 'rev-parse', 'HEAD').trim(), tree = git(root, 'rev-parse', 'HEAD^{tree}').trim();
   const directory = join(root, '.git', 'pullboard', 'module-graphs'), entry = keyedResultPath(directory, tree);
@@ -68,7 +68,7 @@ test('clause 2: the graph is cached by tree id in the pullboard folder of the gi
   assert.equal(JSON.parse(readFileSync(entry, 'utf8')).tree, tree, 'and is stored again');
 });
 
-test('clause 2: only the newest 32 cached graphs are kept [C7,#3359]', async t => {
+test('landing.composition-graph-from-objects.only-the-newest-32-cached-graphs: clause 2: only the newest 32 cached graphs are kept [C7,#3359]', async t => {
   const { root } = fixture(t);
   const commit = git(root, 'rev-parse', 'HEAD').trim(), tree = git(root, 'rev-parse', 'HEAD^{tree}').trim();
   const directory = join(root, '.git', 'pullboard', 'module-graphs'), entry = keyedResultPath(directory, tree);

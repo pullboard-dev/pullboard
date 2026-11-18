@@ -19,7 +19,7 @@ const ports = { jobs, mainTestKind: 'main-test', queueMainTest: (db, at) => {
   return id;
 }, itemSubmittedAt: (db, item, candidate) => submitted.get(item) === candidate };
 
-test('clause 1: finishAwaitingVerdicts ends a job whose item is no longer submitted at its candidate with a withdrawn step and no verdict [SM16]', (t) => {
+test('gate.io-main-verdict-item-state.finishawaitingverdicts-ends-a-job-whose-item: clause 1: finishAwaitingVerdicts ends a job whose item is no longer submitted at its candidate with a withdrawn step and no verdict [SM16]', (t) => {
   const db = fixtureBoard(t).db;
   const candidate = 'a'.repeat(40);
   submitted.set(7, candidate);

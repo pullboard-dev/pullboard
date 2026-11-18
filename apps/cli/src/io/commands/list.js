@@ -1,5 +1,6 @@
 import { listThinRead } from '../../../../../packages/config/light.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { thinListRows } from '../list/thin.js';
 import { trunkRef } from '../../../../../packages/sandbox/light.js';
@@ -30,7 +31,7 @@ export async function run(io, { first, values }) {
   const thin = listThinRead() && values.field === undefined ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
   const { items, agents, merging, needsRescope = [], fieldIndex } = thin ?? await withBoardRead(ctx, async (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
-    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project);
+    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     const fieldIndex = values.field === undefined ? undefined : (await import('../../../../../packages/store/index.js')).fieldIndex(board, { enabled: true });
     if (values.json) return { items, fieldIndex, needsRescope: store.allItemsNeedingRescope(board) };

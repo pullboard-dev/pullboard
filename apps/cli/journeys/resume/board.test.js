@@ -90,7 +90,7 @@ beforeEach(() => {
   registerPreGrant(board, [['coordinator', '/repo', { family: 'Fixture Coordinator' }], ['web', '/repo-web-1', { family: 'Fixture Builder One' }], ['web', '/repo-web-2', { family: 'Fixture Builder Two' }], ['api', '/repo-api-1', { family: 'Fixture Reviewer' }]]);
 });
 
-test('[B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
+test('cli.journeys-resume-board.notes-in-parentheses-are-not-paths: [B14] notes in parentheses are not paths, and a foreign path still refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-brief-files-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const repo = join(directory, 'repo');
@@ -137,14 +137,14 @@ test('[B14] notes in parentheses are not paths, and a foreign path still refuses
   assert.deepEqual(briefFiles(unclosed), ['src/a.js', 'api/x.js']);
 });
 
-test('agents are numbered per lane; one coordinator; a worktree joins once [B3]', () => {
+test('cli.journeys-resume-board.agents-are-numbered-per-lane-one: agents are numbered per lane; one coordinator; a worktree joins once [B3]', () => {
   assert.deepEqual(store.listAgents(board).map((agent) => agent.agent_id), ['coordinator', 'web-1', 'web-2', 'api-1']);
   assert.equal(store.register(board, { lane: 'web', path: '/repo-web-1' }), 'web-1');
   assert.throws(() => store.register(board, { lane: 'api', path: '/repo-web-1' }), /ALREADY_JOINED/);
   assert.throws(() => store.register(board, { lane: 'coordinator', path: '/elsewhere' }), /ONE_COORDINATOR/);
 });
 
-test('[O8] model labels follow stable agent ids into moves and configured display names', () => {
+test('cli.journeys-resume-board.model-labels-follow-stable-agent-ids: [O8] model labels follow stable agent ids into moves and configured display names', () => {
   const id = store.register(board, { lane: 'api', path: '/repo-api-2', model: 'gpt-6-luna' });
   assert.equal(id, 'api-2');
   assert.equal(store.agentAt(board, '/repo-api-2').agent_model, 'gpt-6-luna');
@@ -166,12 +166,12 @@ test('[O8] model labels follow stable agent ids into moves and configured displa
   assert.equal(JSON.parse(legacyClaim.event_detail).model, 'unknown', 'moves by older agents record their missing model explicitly');
 });
 
-test('the coordinator follows the main checkout when the repo moves [B3,B34]', () => {
+test('cli.journeys-resume-board.the-coordinator-follows-the-main-checkout: the coordinator follows the main checkout when the repo moves [B3,B34]', () => {
   assert.equal(store.board_ensureCoordinator(board, '/moved/repo'), 'coordinator');
   assert.equal(store.agentAt(board, '/moved/repo').agent_id, 'coordinator');
 });
 
-test('[N26,A2] milestones stay ordered and only the coordinator can edit them', () => {
+test('cli.journeys-resume-board.milestones-stay-ordered-and-only-the: [N26,A2] milestones stay ordered and only the coordinator can edit them', () => {
   const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Build' });
   const second = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Publish' });
   addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Release', note: 'Ship it', items: [first] });
@@ -208,7 +208,7 @@ test('[N26,A2] milestones stay ordered and only the coordinator can edit them', 
   assert.equal(store.getItem(board, second).item_status, 'verified', 'removing a milestone leaves its item untouched');
 });
 
-test('[H3,H16] captured milestone operations replay identically on SQLite replicas', (t) => {
+test('cli.journeys-resume-board.captured-milestone-operations-replay-identically-on: [H3,H16] captured milestone operations replay identically on SQLite replicas', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-milestone-replay-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const clock = { now: () => new Date('2026-10-08T00:00:00.000Z') };
@@ -248,7 +248,7 @@ test('[H3,H16] captured milestone operations replay identically on SQLite replic
   assert.equal(roadmap(left)[0].items[0].status, 'claimed');
 });
 
-test('a claim is a lease: renewable by its holder, free again once it lapses [B4]', () => {
+test('cli.journeys-resume-board.a-claim-is-a-lease-renewable: a claim is a lease: renewable by its holder, free again once it lapses [B4]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   claimAs(id, 'web-1', 'web');
   assert.throws(() => claimAs(id, 'web-2', 'web'), /HELD/);
@@ -262,7 +262,7 @@ test('a claim is a lease: renewable by its holder, free again once it lapses [B4
   assert.equal(store.getItem(board, id).item_owner, 'web-2');
 });
 
-test('the first claim freezes the criterion; later claims keep it [V2]', () => {
+test('cli.journeys-resume-board.the-first-claim-freezes-the-criterion: the first claim freezes the criterion; later claims keep it [V2]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
   store.release(board, id, 'web-1', 'Hand the frozen criterion to another builder.', 'OTHER');
@@ -271,7 +271,7 @@ test('the first claim freezes the criterion; later claims keep it [V2]', () => {
   assert.equal(store.getItem(board, id).item_frozen_digest, 'digest:Page');
 });
 
-test('submit needs your claim and finished children [V4]', () => {
+test('cli.journeys-resume-board.submit-needs-your-claim-and-finished: submit needs your claim and finished children [V4]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Part', parentId: id });
   assert.throws(() => submitFixture(board, id, { agentId: 'web-1', commit: SHA_A, tree: 't' }), /NOT_YOURS/);
@@ -311,14 +311,14 @@ function rejectRevision(id, commit, note) {
   });
 }
 
-test('the builder never verifies its own work [V1]', () => {
+test('cli.journeys-resume-board.the-builder-never-verifies-its-own: the builder never verifies its own work [V1]', () => {
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-1', decision: 'ACCEPT' }), /SELF_VERIFY/);
   assert.equal(verdict(id, { agentId: 'web-2', decision: 'ACCEPT' }).reason, 'CRITERION_MET');
 });
 
 /** A verifier can release its live review reservation for another verifier [V15]. */
-test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
+test('cli.journeys-resume-board.a-verifier-releases-its-reserved-review: a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
   const durable = openBoard(repositoryBoardFile(directory), clock);
   try {
@@ -351,7 +351,7 @@ test('a verifier releases its reserved review; another verifier can take it, and
   }
 });
 
-test('under verify: coordinator, lane work is the coordinator\'s to verify [V9]', () => {
+test('cli.journeys-resume-board.under-verify-coordinator-lane-work-is: under verify: coordinator, lane work is the coordinator\'s to verify [V9]', () => {
   const id = submitted();
   assert.throws(
     () => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', policy: 'coordinator' }),
@@ -360,7 +360,7 @@ test('under verify: coordinator, lane work is the coordinator\'s to verify [V9]'
   verdict(id, { agentId: 'coordinator', decision: 'ACCEPT', policy: 'coordinator' });
 });
 
-test('a verdict against a moved criterion is refused [V2, V3]', () => {
+test('cli.journeys-resume-board.a-verdict-against-a-moved-criterion: a verdict against a moved criterion is refused [V2, V3]', () => {
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', digest: 'digest:moved' }), /CRITERIA_CHANGED/);
   const result = store.refreeze(board, id, { agentId: 'coordinator', freeze: () => ({ text: 'x', digest: 'digest:moved' }) });
@@ -369,7 +369,7 @@ test('a verdict against a moved criterion is refused [V2, V3]', () => {
   assert.throws(() => store.refreeze(board, id, { agentId: 'web-2', freeze }), /COORDINATOR_ONLY/);
 });
 
-test('ACCEPT needs CRITERION_MET; REJECT needs a reason code and a note [V5]', () => {
+test('cli.journeys-resume-board.accept-needs-criterion-met-reject-needs: ACCEPT needs CRITERION_MET; REJECT needs a reason code and a note [V5]', () => {
   const id = submitted();
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'ACCEPT', reason: 'OTHER' }), /BAD_REASON/);
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'REJECT' }), /BAD_REASON/);
@@ -378,7 +378,7 @@ test('ACCEPT needs CRITERION_MET; REJECT needs a reason code and a note [V5]', (
   assert.throws(() => verdict(id, { agentId: 'web-2', decision: 'MAYBE' }), /BAD_DECISION/);
 });
 
-test('REJECT reopens the item; resubmitting a rejected head is refused [V6]', () => {
+test('cli.journeys-resume-board.reject-reopens-the-item-resubmitting-a: REJECT reopens the item; resubmitting a rejected head is refused [V6]', () => {
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'REJECT', reason: 'BEHAVIOR_MISMATCH', note: 'title missing' });
   const item = store.getItem(board, id);
@@ -391,7 +391,7 @@ test('REJECT reopens the item; resubmitting a rejected head is refused [V6]', ()
   assert.equal(store.getItem(board, id).item_status, 'verified');
 });
 
-test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t) => {
+test('cli.journeys-resume-board.a-rejected-commit-resubmits-after-its: a rejected commit resubmits after its bar is corrected [V4,B3]', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-corrected-reject-'));
   const repo = join(directory, 'repo');
   mkdirSync(repo);
@@ -522,7 +522,7 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
     .every((event) => !Object.hasOwn(JSON.parse(event.event_detail), 'criterionDigest')));
 });
 
-test('every verdict binds the submitted commit and the frozen digest [V8]', () => {
+test('cli.journeys-resume-board.every-verdict-binds-the-submitted-commit: every verdict binds the submitted commit and the frozen digest [V8]', () => {
   const id = submitted();
   verdict(id, { agentId: 'web-2', decision: 'ACCEPT', head: SHA_B });
   const [recorded] = store.verdictsFor(board, id);
@@ -532,7 +532,7 @@ test('every verdict binds the submitted commit and the frozen digest [V8]', () =
   assert.throws(() => verdict(id, { agentId: 'api-1', decision: 'ACCEPT' }), /NOT_SUBMITTED/);
 });
 
-test('merged and withdraw are the coordinator\'s, and only for the right states [R3]', () => {
+test('cli.journeys-resume-board.merged-and-withdraw-are-the-coordinator: merged and withdraw are the coordinator\'s, and only for the right states [R3]', () => {
   const id = submitted();
   assert.throws(() => store.merged(board, id, { agentId: 'coordinator', commit: SHA_B }), /NOT_VERIFIED/);
   verdict(id, { agentId: 'web-2', decision: 'ACCEPT' });
@@ -543,7 +543,7 @@ test('merged and withdraw are the coordinator\'s, and only for the right states 
   assert.throws(() => store.withdraw(board, id, { agentId: 'coordinator', reason: 'again' }), /CLOSED/);
 });
 
-test('shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
+test('cli.journeys-resume-board.shouts-reach-a-lane-an-agent: shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   store.shout(board, { from: 'coordinator', to: 'web', text: 'web: rebase', lanes });
   store.shout(board, { from: 'api-1', to: 'web-2', text: 'web-2: schema changed', lanes });
@@ -558,7 +558,7 @@ test('shouts reach a lane, an agent or all; inbox marks them read [B7]', () => {
   assert.deepEqual(store.inbox(board, 'web-1').map((shout) => shout.shout_text), ['web: rebase', 'all: gate is slow']);
 });
 
-test('a shout can ask for a decision; it stays open until someone answers it [B21]', () => {
+test('cli.journeys-resume-board.a-shout-can-ask-for-a: a shout can ask for a decision; it stays open until someone answers it [B21]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const ask = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'ship the page today or tomorrow?', lanes, decision: true });
   const note = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'fyi: the gate is slow', lanes });
@@ -572,7 +572,7 @@ test('a shout can ask for a decision; it stays open until someone answers it [B2
   assert.equal(store.getShout(board, ask).shout_text, 'ship the page today or tomorrow?', 'an answer is a new shout; the ask is never edited');
 });
 
-test('an agent answers its lane decision and the reply reaches the asker [B21,B27]', () => {
+test('cli.journeys-resume-board.an-agent-answers-its-lane-decision: an agent answers its lane decision and the reply reaches the asker [B21,B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const ask = store.shout(board, { from: 'web-1', to: 'api', text: 'Should the endpoint retry?', lanes, decision: true });
   const answer = store.answerDecision(board, ask, { agentId: 'api-1', text: 'Retry once.', lanes });
@@ -584,7 +584,7 @@ test('an agent answers its lane decision and the reply reaches the asker [B21,B2
   assert.deepEqual(store.openDecisions(board, 'api'), []);
 });
 
-test('an agent cannot answer another lane decision [B21,B27]', () => {
+test('cli.journeys-resume-board.an-agent-cannot-answer-another-lane: an agent cannot answer another lane decision [B21,B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const ask = store.shout(board, { from: 'web-1', to: 'api', text: 'Should the endpoint retry?', lanes, decision: true });
   assert.throws(
@@ -594,7 +594,7 @@ test('an agent cannot answer another lane decision [B21,B27]', () => {
   assert.deepEqual(store.openDecisions(board, 'api').map(({ shout_id }) => shout_id), [ask]);
 });
 
-test('the decisions store query accepts multiple recipients once in shout order [B21,B27]', () => {
+test('cli.journeys-resume-board.the-decisions-store-query-accepts-multiple: the decisions store query accepts multiple recipients once in shout order [B21,B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const laneAsk = store.shout(board, { from: 'web-1', to: 'api', text: 'lane?', lanes, decision: true });
   const directAsk = store.shout(board, { from: 'web-1', to: 'api-1', text: 'direct?', lanes, decision: true });
@@ -606,7 +606,7 @@ test('the decisions store query accepts multiple recipients once in shout order 
   assert.deepEqual(store.openDecisions(board, 'web').map(({ shout_id }) => shout_id), [otherLaneAsk]);
 });
 
-test('decisions climb to the person and answers return to the first asker [B25, B26, B27]', () => {
+test('cli.journeys-resume-board.decisions-climb-to-the-person-and: decisions climb to the person and answers return to the first asker [B25, B26, B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const original = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship today?', lanes, decision: true });
   assert.throws(() => store.shout(board, { from: 'web-1', to: 'person', text: 'Ship today?', lanes, decision: true }), /B26_PERSON_DECISION.*ask your coordinator/);
@@ -632,7 +632,7 @@ test('decisions climb to the person and answers return to the first asker [B25, 
   assert.equal(delivered[0].shout_answers, original, 'the notice closes the first asker’s decision');
 });
 
-test('only the coordinator can pass an open coordinator decision [B27]', () => {
+test('cli.journeys-resume-board.only-the-coordinator-can-pass-an: only the coordinator can pass an open coordinator decision [B27]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const ask = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Ship?', lanes, decision: true });
   assert.throws(() => store.passDecision(board, ask, { agentId: 'web-1', note: 'please', lanes }), /COORDINATOR_ONLY/);
@@ -640,7 +640,7 @@ test('only the coordinator can pass an open coordinator decision [B27]', () => {
   assert.equal(store.openDecisions(board, 'coordinator')[0].shout_id, ask);
 });
 
-test('a shout can carry typed evidence: attempt or receipt, outcome, item and commit [B22]', () => {
+test('cli.journeys-resume-board.a-shout-can-carry-typed-evidence: a shout can carry typed evidence: attempt or receipt, outcome, item and commit [B22]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   const id = submitted();
   const evidence = { kind: 'receipt', outcome: 'measured', item: id, commit: SHA_A };
@@ -655,7 +655,7 @@ test('a shout can carry typed evidence: attempt or receipt, outcome, item and co
   assert.equal(store.getShout(board, store.shout(board, { from: 'web-2', to: 'coordinator', text: 'no evidence', lanes })).shout_evidence_kind, null);
 });
 
-test('every move lands in the event log; stats count items and verdicts [R1, R2]', () => {
+test('cli.journeys-resume-board.every-move-lands-in-the-event: every move lands in the event log; stats count items and verdicts [R1, R2]', () => {
   // Before milestone placement (2a3a0f7555) and automatic escalation (d2a669b629) the log holds only the moves themselves.
   board.executionEngineVersion = Math.min(MILESTONE_PLACEMENT_ENGINE, AUTO_ESCALATE_ENGINE) - 1;
   const id = submitted();
@@ -667,7 +667,7 @@ test('every move lands in the event log; stats count items and verdicts [R1, R2]
   assert.equal(stats.rejected, 1);
 });
 
-test('summary reads expire a held claim at its deadline without changing its stored owner [B4,R1]', () => {
+test('cli.journeys-resume-board.summary-reads-expire-a-held-claim: summary reads expire a held claim at its deadline without changing its stored owner [B4,R1]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'A short claim' });
   claimAs(id, 'web-1', 'web');
   assert.equal(store.stats(board).items.claimed, 1);
@@ -682,7 +682,7 @@ test('summary reads expire a held claim at its deadline without changing its sto
   assert.equal(stored.item_owner, 'web-1');
 });
 
-test('an item can wait on others: claiming it is refused until they are verified [B8]', () => {
+test('cli.journeys-resume-board.an-item-can-wait-on-others: an item can wait on others: claiming it is refused until they are verified [B8]', () => {
   const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Store module' });
   const user = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses the store', after: [contract] });
   assert.throws(() => claimAs(user, 'api-1', 'api'), /BLOCKED.*#2 waits on #1 \(open, web lane\)/);
@@ -696,7 +696,7 @@ test('an item can wait on others: claiming it is refused until they are verified
   assert.throws(() => store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Late', after: [dropped] }), /WITHDRAWN/);
 });
 
-test('a board made by an older version is migrated on open [O3]', () => {
+test('cli.journeys-resume-board.a-board-made-by-an-older: a board made by an older version is migrated on open [O3]', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-migrate-'));
   try {
     const file = join(dir, 'board.sqlite');
@@ -723,7 +723,7 @@ test('a board made by an older version is migrated on open [O3]', () => {
   }
 });
 
-test('next finds the oldest free item in your lane, or says what everything waits on [N2, N13]', () => {
+test('cli.journeys-resume-board.next-finds-the-oldest-free-item: next finds the oldest free item in your lane, or says what everything waits on [N2, N13]', () => {
   const contract = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Contract' });
   const later = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Uses it', after: [contract] });
   assert.deepEqual(store.nextFor(board, { agentId: 'api-1', lane: 'api' }), { item: null, reasons: [`#${later} waits on #${contract} (open, web lane)`] });
@@ -742,7 +742,7 @@ test('next finds the oldest free item in your lane, or says what everything wait
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, contract);
 });
 
-test('an item carries a brief; editing it changes how to build, never what [B10]', () => {
+test('cli.journeys-resume-board.an-item-carries-a-brief-editing: an item carries a brief; editing it changes how to build, never what [B10]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Help text', brief: '  Copy how add prints.  ' });
   assert.equal(store.getItem(board, id).item_brief, 'Copy how add prints.');
   claimAs(id, 'web-1', 'web');
@@ -775,7 +775,7 @@ const routed = (title, route, extra = {}) => {
   return id;
 };
 
-test('routes are tiers: an agent claims and verifies its tier and below, its own first [B13]', () => {
+test('cli.journeys-resume-board.routes-are-tiers-an-agent-claims: routes are tiers: an agent claims and verifies its tier and below, its own first [B13]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   store.register(board, { lane: 'web', path: '/repo-web-4', route: 'mid' });
   assert.throws(() => store.register(board, { lane: 'web', path: '/repo-web-3' }), /ALREADY_JOINED.*routed light/);
@@ -800,7 +800,7 @@ test('routes are tiers: an agent claims and verifies its tier and below, its own
   assert.equal(claimAs(light, 'web-4', 'web').renewed, false);
 });
 
-test('below strong, an item is buildable cold: files, a test, a criterion and a check [B14]', () => {
+test('cli.journeys-resume-board.below-strong-an-item-is-buildable: below strong, an item is buildable cold: files, a test, a criterion and a check [B14]', () => {
   assert.throws(() => routed('No files', 'light', { brief: 'Change: x' }), /NO_BRIEF.*Files: section.*Test: section/);
   assert.throws(() => routed('No check', 'mid', { check: '' }), /NO_BRIEF.*--check, the command that proves it/);
   assert.throws(() => routed('No criterion', 'light', { criterion: ' ' }), /NO_BRIEF.*--criterion/);
@@ -809,7 +809,7 @@ test('below strong, an item is buildable cold: files, a test, a criterion and a 
   assert.equal(store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Loose', route: 'strong' }) > id, true);
 });
 
-test('changing a criterion or a check drops the frozen bar, in the open; the next claim freezes anew [B14]', () => {
+test('cli.journeys-resume-board.changing-a-criterion-or-a-check: changing a criterion or a check drops the frozen bar, in the open; the next claim freezes anew [B14]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   claimAs(id, 'web-1', 'web');
   store.release(board, id, 'web-1', 'Release the claim before correcting its criterion.', 'OTHER');
@@ -820,7 +820,7 @@ test('changing a criterion or a check drops the frozen bar, in the open; the nex
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
 });
 
-test('edit after an expired claim reopens it and names its holder [B13]', () => {
+test('cli.journeys-resume-board.edit-after-an-expired-claim-reopens: edit after an expired claim reopens it and names its holder [B13]', () => {
   const edits = [
     { title: 'Criterion', change: { criterion: 'the new criterion' } },
     { title: 'Check', change: { check: 'node --test' } },
@@ -854,7 +854,7 @@ test('edit after an expired claim reopens it and names its holder [B13]', () => 
   assert.equal(store.events(board, { itemId: live }).some((entry) => entry.event_kind === 'edit'), false);
 });
 
-test('escalate frees an item one tier up, with what was tried attached [B15]', () => {
+test('cli.journeys-resume-board.escalate-frees-an-item-one-tier: escalate frees an item one tier up, with what was tried attached [B15]', () => {
   store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   const id = routed('Rename', 'light');
   claimAs(id, 'web-3', 'web');
@@ -873,7 +873,7 @@ test('escalate frees an item one tier up, with what was tried attached [B15]', (
   assert.deepEqual(JSON.parse(first.event_detail), { from: 'light', to: 'mid', note: 'check failed twice', attempt: 'refs/pullboard/attempts/1/abc', model: 'unknown' }, 'the failure and the pinned attempt travel with it');
 });
 
-test('two failed attempts at a route escalate the item one route up [B15,B13]', () => {
+test('cli.journeys-resume-board.two-failed-attempts-at-a-route: two failed attempts at a route escalate the item one route up [B15,B13]', () => {
   const id = routed('Automatic escalation', 'light');
   claimAs(id, 'web-1', 'web');
   store.release(board, id, 'web-1', 'Return the claim without recording a failed attempt.', 'OTHER');
@@ -897,7 +897,7 @@ test('two failed attempts at a route escalate the item one route up [B15,B13]', 
   assert.ok(detail.rejections.every((entry) => entry.verdictId && entry.eventId && entry.digest && entry.at));
 });
 
-test('a hand escalation starts a new route rejection count [B15,B13]', () => {
+test('cli.journeys-resume-board.a-hand-escalation-starts-a-new: a hand escalation starts a new route rejection count [B15,B13]', () => {
   const id = routed('Manual route reset', 'light');
   rejectRevision(id, SHA_A, 'old-route reject');
   assert.equal(store.getItem(board, id).item_route, 'light');
@@ -916,7 +916,7 @@ test('a hand escalation starts a new route rejection count [B15,B13]', () => {
   ]);
 });
 
-test('a coordinator route edit starts a new rejection count [B15,B13]', () => {
+test('cli.journeys-resume-board.a-coordinator-route-edit-starts-a: a coordinator route edit starts a new rejection count [B15,B13]', () => {
   const id = routed('Edited route reset', 'light');
   rejectRevision(id, SHA_A, 'old light-route reject');
   store.editItem(board, id, { agentId: 'coordinator', route: 'mid' });
@@ -935,7 +935,7 @@ test('a coordinator route edit starts a new rejection count [B15,B13]', () => {
   ]);
 });
 
-test('two send-backs at the strongest route record no escalation [B15,B13,H16]', () => {
+test('cli.journeys-resume-board.two-send-backs-at-the-strongest: two send-backs at the strongest route record no escalation [B15,B13,H16]', () => {
   board.executionEngineVersion = ROUTE_CALIBRATION_ENGINE - 1; // 45922a6670 escalates a same-route TEST_FAILURE at once from this engine
   const id = routed('Strong rework notice', 'strong');
   rejectRevision(id, SHA_A, 'first strong send-back: missing output');
@@ -967,7 +967,7 @@ test('two send-backs at the strongest route record no escalation [B15,B13,H16]',
   assert.equal(store.events(board, { itemId: id }).filter(event => event.event_kind === 'escalate').length, 0);
 });
 
-test('an item at strong stays at strong after more failures [B15,B13]', () => {
+test('cli.journeys-resume-board.an-item-at-strong-stays-at: an item at strong stays at strong after more failures [B15,B13]', () => {
   board.executionEngineVersion = AUTO_ESCALATE_ENGINE;
   const id = routed('Strong ceiling', 'strong');
   rejectRevision(id, SHA_A, 'strong reject one');
@@ -1023,7 +1023,7 @@ for (const version of [50, 51, 52, 53, STRONG_REJECTION_NOTICE_ENGINE]) {
   });
 }
 
-test('engine 40 reject moves replay without automatic escalation [B15,H16]', () => {
+test('cli.journeys-resume-board.engine-40-reject-moves-replay-without: engine 40 reject moves replay without automatic escalation [B15,H16]', () => {
   const id = routed('Legacy engine', 'light');
   const legacyFreeze = (item) => ({
     text: JSON.stringify({
@@ -1054,7 +1054,7 @@ test('engine 40 reject moves replay without automatic escalation [B15,H16]', () 
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 0);
 });
 
-test('engine 43 reject moves replay without automatic escalation [B15,H16]', () => {
+test('cli.journeys-resume-board.engine-43-reject-moves-replay-without: engine 43 reject moves replay without automatic escalation [B15,H16]', () => {
   const id = routed('Legacy engine', 'light');
   const legacyFreeze = (item) => ({
     text: JSON.stringify({
@@ -1085,7 +1085,7 @@ test('engine 43 reject moves replay without automatic escalation [B15,H16]', () 
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 0);
 });
 
-test('engine 49 reject moves replay without automatic escalation [B15,H16]', () => {
+test('cli.journeys-resume-board.engine-49-reject-moves-replay-without: engine 49 reject moves replay without automatic escalation [B15,H16]', () => {
   const id = routed('Legacy engine', 'light');
   const legacyFreeze = (item) => ({
     text: JSON.stringify({
@@ -1116,7 +1116,7 @@ test('engine 49 reject moves replay without automatic escalation [B15,H16]', () 
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 0);
 });
 
-test('a fresh claim records where the work started; submit records what it changed, reworks included [N21]', () => {
+test('cli.journeys-resume-board.a-fresh-claim-records-where-the: a fresh claim records where the work started; submit records what it changed, reworks included [N21]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const claimAt = (head) => store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze, head });
   claimAt(SHA_A);
@@ -1130,7 +1130,7 @@ test('a fresh claim records where the work started; submit records what it chang
   assert.deepEqual(store.itemFiles(store.getItem(board, id)), ['web/page.js', 'web/page.test.js', 'web/empty.js']);
 });
 
-test('related items: verified work that touched the same files, the most shared first [N21]', () => {
+test('cli.journeys-resume-board.related-items-verified-work-that-touched: related items: verified work that touched the same files, the most shared first [N21]', () => {
   const build = (title, files) => {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
     claimAs(id, 'web-1', 'web');
@@ -1151,7 +1151,7 @@ test('related items: verified work that touched the same files, the most shared 
   assert.deepEqual(store.relatedItems(board, store.getItem(board, loose)), []);
 });
 
-test('within a tier, next takes the item nearest your recent work and names the shared files [N20]', () => {
+test('cli.journeys-resume-board.within-a-tier-next-takes-the: within a tier, next takes the item nearest your recent work and names the shared files [N20]', () => {
   const footer = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Footer', brief: 'Files: web/footer.js' });
   const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav', brief: 'Files: web/header.js, web/nav.js' });
   assert.equal(store.nextFor(board, { agentId: 'web-1', lane: 'web' }).item.item_id, footer, 'with nothing warm, the oldest');
@@ -1164,7 +1164,7 @@ test('within a tier, next takes the item nearest your recent work and names the 
   assert.equal(store.nextFor(board, { agentId: midAgent, lane: 'web', warm: ['web/footer.js'] }).item.item_id, mid, 'a mid agent never gets strong work');
 });
 
-test('a held lane takes no new claims and says who held it and why; claimed work goes on [N22]', () => {
+test('cli.journeys-resume-board.a-held-lane-takes-no-new: a held lane takes no new claims and says who held it and why; claimed work goes on [N22]', () => {
   const page = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   const nav = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Nav' });
   claimAs(page, 'web-1', 'web');
@@ -1182,7 +1182,7 @@ test('a held lane takes no new claims and says who held it and why; claimed work
   assert.deepEqual(store.events(board).map((event) => event.event_kind).filter((kind) => kind.endsWith('hold')), ['hold', 'unhold']);
 });
 
-test('peeking shows the newest unread shouts and leaves them unread [N19]', () => {
+test('cli.journeys-resume-board.peeking-shows-the-newest-unread-shouts: peeking shows the newest unread shouts and leaves them unread [N19]', () => {
   const lanes = ['coordinator', 'web', 'api'];
   for (const text of ['one', 'two', 'three']) store.shout(board, { from: 'coordinator', to: 'web-1', text, lanes });
   assert.deepEqual(store.peekShouts(board, 'web-1').map((shout) => shout.shout_text), ['two', 'three']);
@@ -1191,7 +1191,7 @@ test('peeking shows the newest unread shouts and leaves them unread [N19]', () =
   assert.deepEqual(store.peekShouts(board, 'web-1'), []);
 });
 
-test('with only work above its tier open in its lane, next names it and the reroute [B16]', () => {
+test('cli.journeys-resume-board.with-only-work-above-its-tier: with only work above its tier open in its lane, next names it and the reroute [B16]', () => {
   const light = store.register(board, { lane: 'web', path: '/repo-web-3', route: 'light' });
   const strong = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Design the cache', route: 'strong' });
   assert.deepEqual(store.nextFor(board, { agentId: light, lane: 'web' }).reasons, [
@@ -1207,7 +1207,7 @@ test('with only work above its tier open in its lane, next names it and the rero
   ], 'a blocked item of your own tier does not hide the work above it');
 });
 
-test('a builder reworks its own rejected item beside its one claim; nothing else doubles up [B5]', () => {
+test('cli.journeys-resume-board.a-builder-reworks-its-own-rejected: a builder reworks its own rejected item beside its one claim; nothing else doubles up [B5]', () => {
   const rejected = (title) => {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title });
     claimAs(id, 'web-1', 'web');
@@ -1233,7 +1233,7 @@ test('a builder reworks its own rejected item beside its one claim; nothing else
   assert.equal(store.claim(board, aside, { agentId: 'web-2', lane: 'web', leaseMs: 2 * HOUR, freeze, itemFolder: true }).renewed, false);
 });
 
-test('[O3] declared families travel through native snapshots; unknown registration remains allowed and fresh review refuses', async (t) => {
+test('cli.journeys-resume-board.declared-families-travel-through-native-snapshots: [O3] declared families travel through native snapshots; unknown registration remains allowed and fresh review refuses', async (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-families-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const previousHome = process.env.PULLBOARD_HOME;
@@ -1433,7 +1433,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   assert.match(JSON.parse(quotedModel.stdout).prompt, /pass --model 'Model " \$x'/);
 });
 
-test('[O2,O3,H16] historical family policy controls review order and refuses unknown or matching families', () => {
+test('cli.journeys-resume-board.historical-family-policy-controls-review-order: [O2,O3,H16] historical family policy controls review order and refuses unknown or matching families', () => {
   // Preserve the original off/prefer/require control under its predecessor execution origin.
   board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
   store.register(board, { lane: 'web', path: '/repo-web-1', family: 'Family Alpha' });

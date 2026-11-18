@@ -34,7 +34,7 @@ function queuedFixture(t, { rivalFirst = false } = {}) {
   return { board, builder, id, later, start };
 }
 
-test('clause 1: startSubmitHandoff for the job the same seat queued is admitted after its claim lease lapses [C7]', t => {
+test('store.io-queued-red-grant.startsubmithandoff-for-the-job-the-same: clause 1: startSubmitHandoff for the job the same seat queued is admitted after its claim lease lapses [C7]', t => {
   const { board, builder, later, start } = queuedFixture(t);
   assert.doesNotThrow(() => requireAgentGrant(board, start(builder), later));
   assert.throws(() => requireAgentGrant(board, start(builder, QUEUED_START_GRANT_ENGINE - 1), later), { code: 'AGENT_GRANT_EXPIRED' },
@@ -43,12 +43,12 @@ test('clause 1: startSubmitHandoff for the job the same seat queued is admitted 
   assert.throws(() => requireAgentGrant(board, other, later), { code: 'AGENT_GRANT_EXPIRED' }, 'only the queued job itself starts');
 });
 
-test('clause 2: startSubmitHandoff stays refused once another seat has claimed the item [C7]', t => {
+test('store.io-queued-red-grant.startsubmithandoff-stays-refused-once-another-seat: clause 2: startSubmitHandoff stays refused once another seat has claimed the item [C7]', t => {
   const { board, builder, later, start } = queuedFixture(t, { rivalFirst: true });
   assert.throws(() => requireAgentGrant(board, start(builder), later), { code: /^AGENT_GRANT_/u });
 });
 
-test('clause 2: no board_meta hand-off row exists and the queued start reads the gate job on the real grant path [C7]', t => {
+test('store.io-queued-red-grant.no-board-meta-hand-off-row: clause 2: no board_meta hand-off row exists and the queued start reads the gate job on the real grant path [C7]', t => {
   const { board, builder, id, later, start } = queuedFixture(t);
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'submit_handoff*'").get().n, 0);
   assert.equal(board.db.prepare("SELECT job_item FROM job WHERE job_id='job-1'").get().job_item, id);

@@ -11,6 +11,8 @@ import { withFileLock } from '../../../../../outbox/index.js';
 
 /** Resolve only the repository-owned private audit directory. */
 export function mainAuditDirectory(info) { return join(info.commonDir, 'pullboard', 'main-audits'); }
+/** The wake timer's two files under the audit directory: its lock guard and its record; state.js owns both stores, so every site builds them here. */
+export function timerFiles(directory) { return { guard: join(directory, 'timer.guard.sqlite'), timer: join(directory, 'timer.json') }; }
 /** Establish the first explicit rollout boundary once under a short private file lock, without reading the board. */
 export async function activateMainAudits(root, afterEventId, boardId) {
   if (typeof boardId !== 'string' || !boardId || boardId.length > 128) throw new Error('main audit activation needs the native board identity');

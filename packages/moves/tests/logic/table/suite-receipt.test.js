@@ -8,11 +8,11 @@ const ITEM = { commit: 'c1', digest: 'd1', group: 'core' };
 const GOOD = { kind: 'suite', suite: 'full', group: 'core', green: true, trusted: true, leased: true, commit: 'c1', digest: 'd1', base: 'b1' };
 const counts = (receipt, base = 'b1', item = ITEM) => receiptCounts(receipt, { kind: 'suite', item, base });
 
-test('clause 1: a green, trusted, leased full-suite receipt for the item\'s group counts at its commit, digest and the current base [M2,#9324]', () => {
+test('moves.suite-receipt.a-green-trusted-leased-full-suite-receipt: clause 1: a green, trusted, leased full-suite receipt for the item\'s group counts at its commit, digest and the current base [M2,#9324]', () => {
   assert.equal(counts(GOOD), true);
 });
 
-test('clause 2: a partial suite, another group, an older base, a red or an untrusted receipt does not count [M2,#9324]', () => {
+test('moves.suite-receipt.a-partial-suite-another-group-an-older: clause 2: a partial suite, another group, an older base, a red or an untrusted receipt does not count [M2,#9324]', () => {
   assert.equal(counts({ ...GOOD, suite: 'partial' }), false, 'a partial suite');
   assert.equal(counts({ ...GOOD, suite: undefined }), false, 'a receipt that names no suite');
   assert.equal(counts({ ...GOOD, group: 'view' }), false, 'another group');
@@ -29,7 +29,7 @@ test('clause 2: a partial suite, another group, an older base, a red or an untru
   assert.equal(counts(null), false, 'no receipt');
 });
 
-test('clause 3: the screen kind still counts exactly as before [M2,#9324]', () => {
+test('moves.suite-receipt.the-screen-kind-still-counts-exactly-as: clause 3: the screen kind still counts exactly as before [M2,#9324]', () => {
   const screen = { kind: 'screen', green: true, trusted: true, leased: true, commit: 'c1', digest: 'd1', base: 'b1' };
   const screenCounts = (receipt, base = 'b1') => receiptCounts(receipt, { kind: 'screen', item: ITEM, base });
   assert.equal(screenCounts(screen), true, 'a screen needs no suite or group');
