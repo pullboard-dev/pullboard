@@ -248,6 +248,34 @@ export async function serveOnce(box, url, runner, env = {}, { deadlineMs = 120_0
 }
 
 /**
+ * Start `pullboard runner serve <url> --as <runner>` as its own process that keeps serving, for a journey that acts while it serves.
+ * Resolves once the serve prints its first line (its stop handlers are on by then) with the runner's pid and environment, a
+ * stop() that signals that one pid, and closed, which resolves with the serve's exit code after it ends. The environment is
+ * runnerEnv's, so machineSettings reach the runner process as serveOnce passes them [P7,#7301,#9880].
+ *
+ * @param {object} box - The fixture box.
+ * @param {string} url - The board URL the runner is given.
+ * @param {string} runner - The runner name.
+ * @param {Record<string, string>} [env] - Extra variables.
+ * @param {{ machineSettings?: object, readyMs?: number }} [options]
+ * @returns {Promise<{ pid: number, env: Record<string, string>, output: () => string, stop: () => void, closed: Promise<number | null> }>}
+ */
+export async function serveBackground(box, url, runner, env = {}, { machineSettings, readyMs = 60_000 } = {}) {
+  const clean = runnerEnv(box, runner, env, machineSettings);
+  const child = spawn(process.execPath, [BIN, 'runner', 'serve', url, '--as', runner, '--directory', join(box.runnerHome, runner)],
+    { cwd: box.runnerHome, env: clean, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  const closed = new Promise(done => child.once('close', code => done(code)));
+  const first = new Promise(done => {
+    const heard = chunk => { output += chunk; done(); };
+    child.stdout.on('data', heard); child.stderr.on('data', heard);
+    child.once('close', done);
+  });
+  await Promise.race([first, new Promise(done => setTimeout(done, readyMs).unref())]);
+  return { pid: child.pid, env: clean, output: () => output, stop: () => { try { process.kill(child.pid, 'SIGTERM'); } catch { /* it already exited */ } }, closed };
+}
+
+/**
  * A gate receipt's phase rows with `profileKept` on each row whose timing profile sits beside its kept log in `folder`:
  * `<kept>.profile.json`, as the gate writes it. A row with no kept log, or no profile there, comes back unchanged.
  * Why: the shipped runner names the profiles it kept the same way, and the board reads them back by role [C7,#7301].
