@@ -1068,7 +1068,7 @@ export function applyJobReceipt(board, posted, ports = {}) {
  * The note a land job's returned item carries back to its builder: only a merge conflict asks for a main merge; a red tree or a refused push
  * says fix, commit and resubmit, since submit composes current main [C7,U159].
  */
-export function landReturnNote(reason, why) {
+export function returnedItemNote(reason, why) {
   return reason === 'conflict' ? `${why}; merge current main, resolve the conflict, commit and resubmit` : `${why}; fix it, commit and resubmit (submit composes current main)`;
 }
 
@@ -1097,7 +1097,7 @@ function returnLandedReds(board, job, named, receipt, separate) {
       // A static guard red is the item's own source, not a held landing: it goes back to its builder as the inline lander did [#7492].
       if (separate && !row.guard) store.holdItem(board, row.id, { agentId: 'coordinator', reason: `${why}; fix it on current main and resubmit, or lift the hold` });
       else {
-        store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: landReturnNote(row.reason, why) });
+        store.reopen(board, row.id, { agentId: 'coordinator', withdrawVerdict: true, note: returnedItemNote(row.reason, why) });
         if (item.item_built_by) store.persistShout(board, { from: 'coordinator', to: item.item_built_by, text: `#${row.id} is back with you: ${why}`.slice(0, 600) });
       }
       back.push(row.id);
