@@ -10,6 +10,7 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { checkoutCommonDir } from '../../../git/index.js';
 import { blobOid } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { git } from '../../../git/index.js';
@@ -98,7 +99,8 @@ export function mainFactDigest(value) {
 
 /** Open private local derived data, refusing symlinked or non-private storage. */
 function openCache(root, home) {
-  const common = home ? null : resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
+  // Git's files name the common directory without a launch; Git answers only when they cannot (#10823).
+  const common = home ? null : checkoutCommonDir(root, { env: cleanGitEnvironment() }) ?? resolve(root, git(root, ['rev-parse', '--git-common-dir'], { env: cleanGitEnvironment() }));
   const directory = home ? join(home, 'main-facts') : join(common, 'pullboard-main-facts');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const parent = lstatSync(directory);
