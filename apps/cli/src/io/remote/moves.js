@@ -9,6 +9,7 @@ import { boardPath } from './board.js';
 import { reportRemoteRefusal } from './board.js';
 import { requestJson } from './board.js';
 import { seatAgent } from './board.js';
+import { seatKey } from './board.js';
 
 // Budget: a move runs one CLI command on the board host, a submit's gate handoff included; slower is unreachable.
 const MOVE_TIMEOUT_MS = 120_000;
@@ -89,7 +90,7 @@ export async function runRemoteMove(io, parsed, remote) {
     // Off by default: board.commits bundle sends the clone's commits with its submit, and pushed names the commit it pushed [P7,C7].
     const commits = await (await import('../submit/push-ref.js')).carriedCommits(remote, body, io.cwd);
     if (commits) body.commits = commits;
-    const moved = await requestJson(remote, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
+    const moved = await requestJson({ ...remote, seatKey: seatKey(io.cwd, agent) }, `${await boardPath(remote)}/moves`, body, MOVE_TIMEOUT_MS);
     const board = new URL(remote.url).origin;
     io.result?.(moved.result ?? moved);
     sayResult(io, body.verb, body.item, moved.result ?? moved, board);
