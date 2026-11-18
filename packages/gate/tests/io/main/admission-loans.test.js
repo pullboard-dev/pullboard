@@ -1,6 +1,6 @@
 /** @pullboard-test-input packages/gate/src/io/browser/admission.js packages/gate/src/io/run/tests.js */
 /** A test file waiting on a nested run lends its place, and every loan is returned or refused cleanly [C7]. */
-import { executionServices } from '../../../../../apps/cli/tests/fixtures/gate/execution.js';
+import { executionServices } from '../../fixtures/execution.js';
 import { withGateSlot } from '../../../index.js';
 import { awaitNestedRun } from '../../../index.js';
 import { waitFor } from '../../../../../apps/cli/tests/fixtures/gate/resource.js';
