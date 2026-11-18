@@ -19,6 +19,9 @@ import {
   personMode,
 } from '../entry.js';
 
+/** The evidence kinds a clause tick declares, as the state cell's clauseTicks reads them (EVIDENCE_KINDS in packages/state/src/logic/clauses.js). */
+const TICK_KINDS = ['test', 'command', 'screenshot', 'measurement', 'reasoning'].join('|');
+
 /**
  * The refusal for a note that starts with a clause number and names an evidence kind but is not "clause N [kind]: evidence", or null.
  * Why: clauseTicks ignores such a note without a word (#10589 builders wrote "clause 1: [test] run <id> ..."), so accept refused
@@ -29,9 +32,9 @@ import {
  */
 export function tickFormatProblem(kind, text) {
   const note = String(text ?? '').trim();
-  const names = new RegExp(`\\[(?:${store.EVIDENCE_KINDS.join('|')})\\]`, 'iu');
+  const names = new RegExp(`\\[(?:${TICK_KINDS})\\]`, 'iu');
   if (kind !== 'note' || !/^clause\s+\d+\b/iu.test(note) || !names.test(note)) return null;
-  const form = new RegExp(`^clause \\d+ \\[(?:${store.EVIDENCE_KINDS.join('|')})\\]:\\s*\\S`, 'u');
+  const form = new RegExp(`^clause \\d+ \\[(?:${TICK_KINDS})\\]:\\s*\\S`, 'u');
   if (form.test(note)) return null;
   return new Refused('TICK_FORMAT', 'a clause tick reads "clause N [kind]: evidence" (such as "clause 1 [test]: green run <id>, case <title>"); a green pullboard test run from the item folder ticks [test] clauses itself, so run it there instead of typing the note', 'pullboard test <the clause test file> from the item folder, or write the note as clause N [kind]: evidence');
 }
