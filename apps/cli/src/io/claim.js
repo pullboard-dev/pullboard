@@ -17,6 +17,8 @@ import { requireHandoffActive } from '../../../../packages/state/light.js';
 import { requestedCommandMove } from '../../../../packages/state/index.js';
 import { gitSyncLinked } from '../../../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../../../packages/config/index.js';
+import { nextLightShapedStrong } from '../../../../packages/config/index.js';
+import { lightShaped } from '../../../../packages/seats/index.js';
 
 /**
  * Route a write through Git only once origin accepted the board's first push [C7]; a marker it never
@@ -59,6 +61,8 @@ import { isReturnedRework } from '../../../../packages/store/index.js';
 import { sealReworkRoutingPolicy } from '../../../../packages/store/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../../../../packages/store/index.js';
 import { maintenanceDurations } from '../../../../packages/config/index.js';
+import { relayQueueOnFailureEnabled } from '../../../../packages/config/index.js';
+import { flakesRereadRatchetEnabled } from '../../../../packages/config/index.js';
 import { lapsedSweepEnabled } from '../../../../packages/config/index.js';
 import { createRequire } from 'node:module';
 import { sessionRoute } from './route.js';
@@ -119,7 +123,10 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
   const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
+  // The re-read setting is read here, at the caller, and travels in the move's args so a replica replays the same decision (#10085).
+  if (operation === 'recordLandingBatch' && args[0] && args[0].rereadRatchet === undefined) args = [{ ...args[0], rereadRatchet: flakesRereadRatchetEnabled() }, ...args.slice(1)];
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
+  ctx.io.relayQueueOnFailure ??= relayQueueOnFailureEnabled;
   // Every engine-27 registration records the seat that made it: the coordinator from the main
   // checkout, the joined agent from its worktree, or `machine` for a join no seat made (#579).
   if (operation === 'register' && args[0] && args[0].createdBy === undefined) {
@@ -274,7 +281,7 @@ export async function claimOrdered(ctx, board, args) {
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(refreshPolicy && !adoptCorrection ? { refreshPolicy: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
-    ...(routeCap ? { routeCap } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
+    ...(routeCap ? { routeCap } : {}), ...(nextLightShapedStrong() && lightShaped(held) ? { shapedStrong: true } : {}), ...(Number.isSafeInteger(ctx.config.claims?.perSeat) ? { perSeat: ctx.config.claims.perSeat } : {}),
     // The gate waits and N this computer reads travel in the move, so a replay after an outage decides alike (#7775).
     ...store.claimAdmission(board, args[0], args[1].agentId, Number.isSafeInteger(ctx.config.claims?.perSeat) ? ctx.config.claims.perSeat : null, { runs: store.boardRunsReader(board, ctx.file) }),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);

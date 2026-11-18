@@ -41,7 +41,7 @@ provideGateHopTable(leaseMs => ({ hop, now }, { name, actor, epoch }) => {
 
 const claim = (db, runner, now) => claimJob(db, { runner, now, leaseMs: LEASE, hop: gateClaimHop(true) });
 
-test('clause 1: a runner that releases a gate job claims it again at once with gate.fencedHop on, at its own hop epoch [C7,#8439]', t => {
+test('api.jobs-release-hop.runner-releases-gate-job-claims: clause 1: a runner that releases a gate job claims it again at once with gate.fencedHop on, at its own hop epoch [C7,#8439]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   const { released, until } = releaseJob(db, { job: first.job, runner: 'r1', token: first.token, reason: 'busy', now: 6000 });
@@ -54,7 +54,7 @@ test('clause 1: a runner that releases a gate job claims it again at once with g
   assert.throws(() => renewJob(db, { job: first.job, runner: 'r1', token: first.token, now: until + 2, leaseMs: LEASE, hop: gateClaimHop(true) }), 'the released claim\'s token stays dead');
 });
 
-test('clause 2: while the first runner holds the hop, another runner is still refused the released gate job HOP_FENCED [C7,#8439]', t => {
+test('api.jobs-release-hop.while-first-runner-holds-hop: clause 2: while the first runner holds the hop, another runner is still refused the released gate job HOP_FENCED [C7,#8439]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   const { until } = releaseJob(db, { job: first.job, runner: 'r1', token: first.token, reason: 'busy', now: 6000 });
@@ -66,13 +66,13 @@ test('clause 2: while the first runner holds the hop, another runner is still re
   assert.deepEqual([readGateHop(db, ITEM).owner, readGateHop(db, ITEM).epoch], ['r1', 1], 'the refused claim left r1\'s hop as it was');
 });
 
-test('clause 2: a runner holding one live gate claim on the item is refused a second, so two claims never share an epoch [C7,#8439]', t => {
+test('api.jobs-release-hop.runner-holding-live-gate-claim: clause 2: a runner holding one live gate claim on the item is refused a second, so two claims never share an epoch [C7,#8439]', t => {
   const db = board(t, ['gate:7:a', 'gate:7:b']);
   claim(db, 'r1', 5000);
   assert.throws(() => claim(db, 'r1', 5001), { code: 'HOP_FENCED' });
 });
 
-test('clause 1: a stopping runner that hands back its gate job lease frees its hop, so a second runner claims the job at once and runs it without HOP_FENCED [C7,#8700]', t => {
+test('api.jobs-release-hop.stopping-runner-hands-back-gate: clause 1: a stopping runner that hands back its gate job lease frees its hop, so a second runner claims the job at once and runs it without HOP_FENCED [C7,#8700]', t => {
   for (const draining of [true, false]) {
     const db = board(t);
     const first = claim(db, 'r1', 5000);
@@ -87,7 +87,7 @@ test('clause 1: a stopping runner that hands back its gate job lease frees its h
   }
 });
 
-test('clause 1: a busy release keeps the runner\'s hop, and a stopping release frees only a hop the runner still drives at its epoch [C7,#8700]', t => {
+test('api.jobs-release-hop.busy-release-keeps-runner-hop: clause 1: a busy release keeps the runner\'s hop, and a stopping release frees only a hop the runner still drives at its epoch [C7,#8700]', t => {
   const db = board(t);
   const first = claim(db, 'r1', 5000);
   releaseJob(db, { job: first.job, runner: 'r1', token: first.token, reason: 'busy', now: 6000, hop: gateClaimHop(true) });

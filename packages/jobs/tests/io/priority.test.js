@@ -33,13 +33,13 @@ function claim(db, { reserve = null, slots = null } = {}) {
   return first.row.job_id;
 }
 
-test('a runner claims the highest priority class first: interactive, gate, landing, then background [C7]', t => {
+test('jobs.priority.class-order: a runner claims the highest priority class first: interactive, gate, landing, then background [C7]', t => {
   const db = mixedQueue(t);
   assert.deepEqual([1, 2, 3, 4].map(() => claim(db, { reserve: {}, slots: 8 })), ['test:1', 'gate:1', 'land:1', 'main-test:1']);
   assert.equal(claim(db, { reserve: {}, slots: 8 }), null, 'the queue is empty once every class is taken');
 });
 
-test('a class with a reserve still gets its reserved slot under full load [C7]', t => {
+test('jobs.priority.reserved-slot: a class with a reserve still gets its reserved slot under full load [C7]', t => {
   const queue = () => {
     const { db } = cellBoard(t, ':memory:');
     for (let n = 1; n <= 6; n += 1) offer(db, `test:${n}`, 'test', 'interactive', n);
@@ -54,7 +54,7 @@ test('a class with a reserve still gets its reserved slot under full load [C7]',
   assert.deepEqual([1, 2, 3, 4].map(() => claim(unreserved, { reserve: { interactive: 0.5 }, slots: 4 })), ['test:1', 'test:2', 'test:3', 'test:4']);
 });
 
-test('with no priority setting the claim order is unchanged: landings, then test runs, then the rest by age [C7]', t => {
+test('jobs.priority.default-order: with no priority setting the claim order is unchanged: landings, then test runs, then the rest by age [C7]', t => {
   const db = mixedQueue(t);
   assert.deepEqual([1, 2, 3, 4].map(() => claim(db, { slots: 4 })), ['land:1', 'test:1', 'main-test:1', 'gate:1']);
 });

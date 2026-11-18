@@ -3,6 +3,6 @@
 import { test } from 'node:test';
 import { fleetTestResultReuse } from '../../fixtures/fleet.js';
 
-test('the runner fleet reuses exact receipts across machines and gate stages [C7]', {
+test('runners.reporter-fleet.the-runner-fleet-reuses-exact-receipts: the runner fleet reuses exact receipts across machines and gate stages [C7]', {
   timeout: 120_000, // budget: seven real worker-capsule round trips, committed checkouts and verified cleanup.
 }, fleetTestResultReuse);

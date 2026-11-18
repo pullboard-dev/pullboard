@@ -62,7 +62,7 @@ function fixtureRepo() {
   return { fixture, common, root: join(pullboard, 'submit-handoffs'), redFolder };
 }
 
-test('clause 1: the sweep keeps the output log of a red gate while its item is open, claimed or submitted, and removes it once the item landed or was withdrawn [C7,#3381]', t => {
+test('gate.io-main-retained.the-sweep-keeps-the-output-log: clause 1: the sweep keeps the output log of a red gate while its item is open, claimed or submitted, and removes it once the item landed or was withdrawn [C7,#3381]', t => {
   const repo = fixtureRepo();
   t.after(() => rmSync(repo.fixture.root, { recursive: true, force: true }));
   const submitted = repo.redFolder('job-submitted', 1);
@@ -74,7 +74,7 @@ test('clause 1: the sweep keeps the output log of a red gate while its item is o
   for (const kept of [submitted, claimed]) assert.ok(existsSync(join(kept, 'output', 'run-1', 'output.log')), kept);
 });
 
-test('clause 2: the failing assertion lines of a retained gate log give file:line, error, expected and actual for each failing case [C7,#3381]', t => {
+test('gate.io-main-retained.the-failing-assertion-lines-of-a: clause 2: the failing assertion lines of a retained gate log give file:line, error, expected and actual for each failing case [C7,#3381]', t => {
   const repo = fixtureRepo();
   t.after(() => rmSync(repo.fixture.root, { recursive: true, force: true }));
   assert.deepEqual(failedAssertionLines(LOG), [
@@ -88,7 +88,7 @@ test('clause 2: the failing assertion lines of a retained gate log give file:lin
   assert.deepEqual(retainedGateAssertions(repo.common, 'job-missing'), []);
 });
 
-test('clause 2: show prints each retained failing assertion with the gate red prefix [C7,#3381]', async () => {
+test('gate.io-main-retained.show-prints-each-retained-failing-assertion: clause 2: show prints each retained failing assertion with the gate red prefix [C7,#3381]', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../../../../../apps/cli/src/io/commands/show.js', import.meta.url), 'utf8');
   assert.match(source, /retainedGateAssertions\(ctx\.info\.commonDir, queuedJobId\)/u);

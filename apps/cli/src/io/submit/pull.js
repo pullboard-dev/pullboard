@@ -44,6 +44,7 @@ import { deliverSubmitActivity } from '../submit.js';
 import { ANALYSIS_ENTRY } from './gate.js';
 import { BOOTSTRAP } from './gate.js';
 import { submitTableReplay } from './gate.js';
+import { pushPinToolingEnabled } from '../../../../../packages/config/index.js';
 import { tableReplayEnabled } from '../../../../../packages/config/index.js';
 import { DOCTRINE_ENTRY } from './gate.js';
 import { inventoryCommits } from './remote.js';
@@ -54,14 +55,14 @@ import { specFailureFiles } from '../../logic/runner/output.js';
 import { fitReceipt } from '../../logic/runner/output.js';
 import { tapCaseErrors } from '../../logic/runner/output.js';
 import { FAILURE_DIAGNOSTICS_SOURCE } from '../../../../../packages/kernel/index.js';
-import { checkpointAfterMove } from '../../../../../packages/stats/index.js';
+import { checkpointAfterMove } from '../../../../../packages/stats/light.js';
 import { usageCheckpointWorkerEntrypoint } from '../checkpoint.js';
 
 /**
  * The tooling tree that judges this submit (RFC 0007 SC7), for the board to record with the submit it applies, so review
  * reuses the pulled gate's receipts only under the same tooling; an unreadable pin records none and nothing is reused [C7].
  */
-function pulledTooling(root, commit) {
+export function pulledTooling(root, commit) {
   try { return { tooling: toolingFor(root, commit).tooling }; } catch { return {}; }
 }
 
@@ -489,10 +490,23 @@ export function landingShardGate() {
  * A gate-shard job's request with no gate job behind it: main's trusted gate entry run on one shard of files, the
  * request offerProofShards gives a submit proof's shard. Why: the pre-push full gate offers its files the same way [P7,#7743].
  *
- * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string } }} fields
+ * @param {{ main: string, source: string, shard: { index: number, of: number, files: string[], command: string }, tooling?: string }} fields - tooling: the pinned tooling tree, when push.pinTooling sends it.
  */
-export function gateShardRequest({ main, source, shard }) {
-  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main] };
+export function gateShardRequest({ main, source, shard, tooling }) {
+  return { run: gateJobRun(), input: { main, entry: GATE_JOB_ENTRY, data: { main, source, shard } }, commits: [main], ...(tooling ? { tooling } : {}) };
+}
+
+/**
+ * The tooling field a pre-push shard request carries: with push.pinTooling on, the same tooling tree the item gate records
+ * for this commit (pulledTooling), so a shard receipt keys the way a gate receipt does; off or unreadable, none [C7,#9373].
+ *
+ * @param {string} root
+ * @param {string} commit
+ * @param {boolean} [enabled]
+ * @returns {{ tooling?: string }}
+ */
+export function pushShardTooling(root, commit, enabled = pushPinToolingEnabled()) {
+  return enabled ? pulledTooling(root, commit) : {};
 }
 
 /**
@@ -538,14 +552,15 @@ export function pairRequest(root, { main, config, source, check }, pairPrefix) {
  * @param {object} ctx
  * @param {{ held: object, me: { id: string }, commit: string, trunk: { commit: string }, main: { commit: string, config: object },
  *   claimHead: string | null, files: string[], requireComposition: boolean, authorize: boolean, full: boolean,
- *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null }} submission - files: what the
+ *   companion?: { version: number, source: string, sourceTree: string, commit: string, tree: string, digest: string } | null, infra?: object | null,
+ *   composed?: { main: string, head: string, tree: string } | null }} submission - composed: set when the submitted commit is a submit.composeAsObject composition, so a runner recomputes its tree from main and head and refuses COMPOSITION_MISMATCH [U159]. files: what the
  *   item's commits changed since its claim, which the board records when the receipt submits the item. companion: the
  *   attached companions composed onto the builder head, or null. infra: the drafted infra note the receipt records with the submit.
  * @param {{ frozenCheck: Function, policyAt: Function, listItems: Function, pairPrefix?: Function }} ports - The sandbox and store reads the submit command
  *   already holds; pairPrefix names a paired rerun's runner when flakes.rerun is on; tableReplay is the move-table replay hook, which a test hands in its own.
  * @returns {Promise<number>} The exit code.
  */
-export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
+export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, claimHead, files, requireComposition, authorize, full, companion = null, infra = null, composed = null }, { frozenCheck, policyAt, listItems, pairPrefix, tableReplay = submitTableReplay(ctx.info.root) }) {
   const { root } = ctx.info;
   const id = held.item_id;
   // With gate.tableReplay on, a submit whose files change a move table is held to what the board recorded before any job row is offered; off, nothing runs [C7,#8121].
@@ -575,6 +590,7 @@ export async function offerSubmitGate(ctx, { held, me, commit, trunk, main, clai
   const check = frozen ? mappedCheck(root, frozen, { commit: source }) : frozen;
   const request = gateJobRequest({ main: main.commit, source, trunk: trunk.commit, base: claimHead, check,
     criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null,
+    ...(composed ? { compositionTriple: composed } : {}),
     config, crossRunTests: namedProofTests(root, held, source, { crossRunTests: crossRun.tests }), cutRows: withBoard(ctx, board => landedCutItemRows(board.db)),
     produceInventory: inventoryCommits(root, main.commit, source), doctrine, browserFreeChecks: browserFreeChecksEnabled(), checkTiming: frozenCheckTiming(held),
     authorization: authorize === true ? { item: { item_id: held.item_id, item_lane: held.item_lane, item_claim_head: held.item_claim_head, item_frozen: held.item_frozen } } : authorize || null });

@@ -14,7 +14,7 @@ import { writeStep } from '../../index.js';
 const database = t => cellBoard(t, ':memory:').db;
 const refused = code => error => error.code === code;
 
-test('createJob stores a queued job once, and creating an id that exists returns the stored job unchanged [C7]', t => {
+test('jobs.store.create-once: createJob stores a queued job once, and creating an id that exists returns the stored job unchanged [C7]', t => {
   const db = database(t);
   const made = createJob(db, { id: 'gate:1', kind: 'gate', item: 7, candidate: 'a'.repeat(40), base: 'b'.repeat(40), now: 1000 });
   assert.deepEqual({ id: made.id, kind: made.kind, item: made.item, step: made.step, attempt: made.attempt, leaseOwner: made.leaseOwner, created: made.created },
@@ -28,7 +28,7 @@ test('createJob stores a queued job once, and creating an id that exists returns
   assert.throws(() => createJob(db, { id: 'x' }), refused('JOB_FIELDS'));
 });
 
-test('nameJob fills what a job lacked and never moves a named job onto another candidate [C7]', t => {
+test('jobs.store.name-fills-only: nameJob fills what a job lacked and never moves a named job onto another candidate [C7]', t => {
   const db = database(t);
   createJob(db, { id: 'gate:2', kind: 'gate', now: 1 });
   const named = nameJob(db, 'gate:2', { item: 4, candidate: 'c'.repeat(40) });
@@ -37,7 +37,7 @@ test('nameJob fills what a job lacked and never moves a named job onto another c
   assert.deepEqual([second.item, second.candidate, second.base], [4, 'c'.repeat(40), 'e'.repeat(40)]);
 });
 
-test('writeStep appends in order, the current step is the last written, and a repeat of the same key writes nothing [C7]', t => {
+test('jobs.store.step-append-order: writeStep appends in order, the current step is the last written, and a repeat of the same key writes nothing [C7]', t => {
   const db = database(t);
   createJob(db, { id: 'gate:3', kind: 'gate', now: 1 });
   assert.deepEqual(writeStep(db, 'gate:3', 'running', { runner: 'one' }, { now: 10 }), { written: true, payload: { runner: 'one' } });
@@ -53,7 +53,7 @@ test('writeStep appends in order, the current step is the last written, and a re
   assert.throws(() => writeStep(db, 'gate:none', 'running'), refused('JOB_MISSING'));
 });
 
-test('writeStep inside the caller\'s transaction joins it and rolls back with it [C7]', t => {
+test('jobs.store.step-joins-transaction: writeStep inside the caller\'s transaction joins it and rolls back with it [C7]', t => {
   const db = database(t);
   createJob(db, { id: 'gate:4', kind: 'gate', now: 1 });
   db.exec('BEGIN');
@@ -63,7 +63,7 @@ test('writeStep inside the caller\'s transaction joins it and rolls back with it
   assert.deepEqual(jobView(db, 'gate:4').steps, []);
 });
 
-test('jobView is null for an unknown job, and jobsOf lists one kind oldest first, optionally for one item [C7]', t => {
+test('jobs.store.views-and-lists: jobView is null for an unknown job, and jobsOf lists one kind oldest first, optionally for one item [C7]', t => {
   const db = database(t);
   assert.equal(jobView(db, 'nope'), null);
   createJob(db, { id: 'b', kind: 'gate', item: 1, now: 20 });
@@ -76,7 +76,7 @@ test('jobView is null for an unknown job, and jobsOf lists one kind oldest first
   assert.throws(() => jobsOf(db, {}), refused('JOB_FIELDS'));
 });
 
-test('leasedJobs lists only a kind\'s jobs with a live lease that are not done [C7]', t => {
+test('jobs.store.leased-live-only: leasedJobs lists only a kind\'s jobs with a live lease that are not done [C7]', t => {
   const db = database(t);
   for (const id of ['live', 'lapsed', 'free', 'other']) createJob(db, { id, kind: id === 'other' ? 'landing' : 'gate', now: 1 });
   takeJob(db, 'live', 'w1', { now: 1000, leaseMs: 500 });

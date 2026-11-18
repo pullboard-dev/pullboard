@@ -5,7 +5,7 @@ import { costPerMinute } from '../../src/logic/runner-rates.js';
 
 const SAMPLE = { price: 360, months: 30, watts: 60, kwhPrice: 0.08 };
 
-test('clause 1: costPerMinute is price over payoff minutes plus watts times the kWh price per minute, about 0.00036 for the sample card [C7]', () => {
+test('config.logic-runner-cost.clause-1-costperminute-is-price-over: clause 1: costPerMinute is price over payoff minutes plus watts times the kWh price per minute, about 0.00036 for the sample card [C7]', () => {
   const payoffMinutes = SAMPLE.months * 30 * 24 * 60;
   const expected = SAMPLE.price / payoffMinutes + (SAMPLE.watts / 1000) * SAMPLE.kwhPrice / 60;
   assert.equal(costPerMinute(SAMPLE), expected);

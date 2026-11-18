@@ -25,27 +25,27 @@ function fixture(t, files) {
 /** Generate literal forwards, preserving real graph traversal rather than mocking the reader. */
 function forwards(names) { return names.map(name => `export * from './${name}.js';`).join('\n'); }
 
-test('subset copy deduplicates a diamond of pure shims without dropping its body [C7,P3]', t => {
+test('runners.graph.subset-copy-deduplicates-a-diamond-of: subset copy deduplicates a diamond of pure shims without dropping its body [C7,P3]', t => {
   const f = fixture(t, { 'entry.js': forwards(['left', 'right']), 'left.js': forwards(['body']),
     'right.js': forwards(['body']), 'body.js': 'export const value = 7;\n' });
   assert.deepEqual(f.copy().sort(), ['body.js', 'entry.js', 'left.js', 'right.js']);
   assert.equal(readFileSync(join(f.destination, 'body.js'), 'utf8'), 'export const value = 7;\n');
 });
 
-test('subset copy permits a wide barrel beyond the old aggregate chain count [C7,P3]', t => {
+test('runners.graph.subset-copy-permits-a-wide-barrel: subset copy permits a wide barrel beyond the old aggregate chain count [C7,P3]', t => {
   const names = Array.from({ length: 80 }, (_, i) => `body${i}`);
   const files = Object.fromEntries(names.map(name => [`${name}.js`, `export const ${name} = 1;`]));
   const f = fixture(t, { ...files, 'entry.js': forwards(names) });
   assert.equal(f.copy().length, 81);
 });
 
-test('subset copy refuses a true ancestry cycle before copying any selected source [C7,P3]', t => {
+test('runners.graph.subset-copy-refuses-a-true-ancestry: subset copy refuses a true ancestry cycle before copying any selected source [C7,P3]', t => {
   const f = fixture(t, { 'entry.js': forwards(['next']), 'next.js': forwards(['entry']) });
   assert.throws(f.copy, /cyclic shim chain at entry\.js/u);
   assert.equal(existsSync(f.destination), false);
 });
 
-test('subset copy retains the independent shim depth bound [C7,P3]', t => {
+test('runners.graph.subset-copy-retains-the-independent-shim: subset copy retains the independent shim depth bound [C7,P3]', t => {
   const files = { 'entry.js': forwards(['step0']) };
   for (let i = 0; i < 66; i++) files[`step${i}.js`] = forwards([`step${i + 1}`]);
   files['step66.js'] = 'export const end = 1;';
@@ -54,7 +54,7 @@ test('subset copy retains the independent shim depth bound [C7,P3]', t => {
   assert.equal(existsSync(f.destination), false);
 });
 
-test('subset copy refuses an over-budget broad DAG even when depth is shallow [C7,P3]', t => {
+test('runners.graph.subset-copy-refuses-an-over-budget: subset copy refuses an over-budget broad DAG even when depth is shallow [C7,P3]', t => {
   const branches = Array.from({ length: 65 }, (_, i) => `branch${i}`);
   const leaves = Array.from({ length: 65 }, (_, i) => `leaf${i}`);
   const files = { 'entry.js': forwards(branches) };

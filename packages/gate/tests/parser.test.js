@@ -22,7 +22,7 @@ import { fixture } from '../../landing/tests/fixtures/plan.js';
 import { privateFixtureFiles } from './fixtures/child.js';
 import { runFixtureChild } from './fixtures/child.js';
 
-test('one owned parser controller serves import and multiple binding batches, then exits [C7,P3]', async t => {
+test('gate.parser.one-owned-parser-controller-serves: one owned parser controller serves import and multiple binding batches, then exits [C7,P3]', async t => {
   const sources = ["import value from './leaf.js'; export default value;", "import('./dynamic.js');",
     "const require = value => value; require('node:fs');", "throw new Error('source must never execute');"];
   const modules = Array.from({ length: 300 }, (_, index) => ({ file: `leaf-${index}.js`,
@@ -55,7 +55,7 @@ test('one owned parser controller serves import and multiple binding batches, th
   finally { clearInterval(keepAlive); }
 });
 
-test('compiler rotations hand off to a fresh supervisor without losing replies [C7,P3]', t => {
+test('gate.parser.compiler-rotations-hand-off-fresh: compiler rotations hand off to a fresh supervisor without losing replies [C7,P3]', t => {
   const original = childProcess.spawn;
   let starts = 0;
   t.mock.method(childProcess, 'spawn', (...args) => {
@@ -75,7 +75,7 @@ test('compiler rotations hand off to a fresh supervisor without losing replies [
   assert.equal(starts, 2, 'the controller replaces its supervisor and can close at a rotation boundary');
 });
 
-test('the real lint CLI starts one parser controller per cold run and prints unchanged report bytes [C7,P3]', t => {
+test('gate.parser.real-lint-cli-starts-one: the real lint CLI starts one parser controller per cold run and prints unchanged report bytes [C7,P3]', t => {
   const box = fixture(t);
   const files = privateFixtureFiles('pullboard-parser-count-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -118,7 +118,7 @@ syncBuiltinESMExports();
 });
 
 /** Real worker requests continue when filesystem watch hints are lost [C7,P3]. */
-test('parser drains unhinted atomic requests after startup [C7,P3]', async t => {
+test('gate.parser.parser-drains-unhinted-atomic-requests: parser drains unhinted atomic requests after startup [C7,P3]', async t => {
   const files = privateFixtureFiles('pullboard-parser-lost-hint-');
   const protocol = join(files.root, 'protocol');
   mkdirSync(protocol);
@@ -152,7 +152,7 @@ await import(${JSON.stringify(pathToFileURL(entry).href)});`);
   assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./second.js'] }] });
 });
 
-test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', async t => {
+test('gate.parser.slow-real-batch-worker-survives: a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', async t => {
   const files = privateFixtureFiles('pullboard-parser-delay-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200);\n");

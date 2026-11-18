@@ -78,7 +78,7 @@ async function fixture(t) {
     set(value) { clock = value; }, at: () => clock, advance(days) { clock += days * DAY; } };
 }
 
-test('[H18] warnings begin at sixty days on authorized contact; compaction and restart preserve activity', async (t) => {
+test('relay.io-retention.warnings-begin-at-sixty-days-on: [H18] warnings begin at sixty days on authorized contact; compaction and restart preserve activity', async (t) => {
   const box = await fixture(t);
   const start = box.at();
   box.set(start + 60 * DAY - 1);
@@ -126,7 +126,7 @@ test('[H18] warnings begin at sixty days on authorized contact; compaction and r
   assert.deepEqual(readdirSync(box.data), before, 'unauthorized contact cannot mutate retention');
 });
 
-test('[H18] ninety-day expiry unlinks data and credentials while preserving the other board and person session', async (t) => {
+test('relay.io-retention.ninety-day-expiry-unlinks-data-and: [H18] ninety-day expiry unlinks data and credentials while preserving the other board and person session', async (t) => {
   const box = await fixture(t);
   box.advance(89);
   assert.equal((await box.call(A)).status, 200);
@@ -142,7 +142,7 @@ test('[H18] ninety-day expiry unlinks data and credentials while preserving the 
   assert.deepEqual(box.auth.pendingCleanup(), []);
 });
 
-test('[H18] explicit unlink removes managed backups immediately and a durable crash intent is finished after restart', async (t) => {
+test('relay.io-retention.explicit-unlink-removes-managed-backups-immediately: [H18] explicit unlink removes managed backups immediately and a durable crash intent is finished after restart', async (t) => {
   const box = await fixture(t);
   const saved = box.retention.backup();
   assert.equal(saved.written.length, 2);
@@ -176,7 +176,7 @@ test('[H18] explicit unlink removes managed backups immediately and a durable cr
   await box.auth.linkBoard(box.signed.token, B, 'fixture/repository-2');
 });
 
-test('[H18] SQLite backups contain current compacted state, stay private, and prune only after fourteen days', async (t) => {
+test('relay.io-retention.sqlite-backups-contain-current-compacted-state: [H18] SQLite backups contain current compacted state, stay private, and prune only after fourteen days', async (t) => {
   const box = await fixture(t);
   box.journal(A, (db) => { db.append(2, box.payload, 'move', PERSON); db.saveSnapshot(1, box.payload, PERSON); });
   const at = box.at();
@@ -213,7 +213,7 @@ test('[H18] SQLite backups contain current compacted state, stay private, and pr
   assert.deepEqual(readdirSync(box.backups), ['operator.txt']);
 });
 
-test('[H18] maintenance is daily, retries storage failures, and refuses symlink or invalid-clock deletion', async (t) => {
+test('relay.io-retention.maintenance-is-daily-retries-storage-failures: [H18] maintenance is daily, retries storage failures, and refuses symlink or invalid-clock deletion', async (t) => {
   const box = await fixture(t);
   const first = box.relay.maintenance();
   assert.equal(first.written.length, 2);
@@ -236,7 +236,7 @@ test('[H18] maintenance is daily, retries storage failures, and refuses symlink 
   assert.deepEqual(readdirSync(box.backups), before);
 });
 
-test('[H18] a never-uploaded link expires from its original link time without manufacturing a journal', async (t) => {
+test('relay.io-retention.a-never-uploaded-link-expires-from: [H18] a never-uploaded link expires from its original link time without manufacturing a journal', async (t) => {
   const box = await fixture(t);
   const C = 'c'.repeat(32);
   await box.auth.linkBoard(box.signed.token, C, 'fixture/repository-3');
@@ -251,7 +251,7 @@ test('[H18] a never-uploaded link expires from its original link time without ma
 });
 
 
-test('[H18] a move holding the shared process lock refreshes activity before an expiry decision', async (t) => {
+test('relay.io-retention.a-move-holding-the-shared-process: [H18] a move holding the shared process lock refreshes activity before an expiry decision', async (t) => {
   const box = await fixture(t);
   const code = `
     import { createRelayAuth } from ${JSON.stringify(new URL('../../index.js', import.meta.url).href)};

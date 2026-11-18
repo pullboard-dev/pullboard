@@ -16,7 +16,7 @@ export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([
   'packages/codemap/src/io/cell/scripts/lints.js', 'apps/cli/src/io/cells/backlog.js', 'packages/codemap/src/io/cells/move.js',
   'packages/codemap/src/io/cells/snapshots.js', 'packages/codemap/src/io/cells/door.js', 'packages/codemap/src/io/cells/shims.js',
   'packages/codemap/src/io/cells/git.js', 'packages/codemap/src/io/cells/placement.js', 'packages/codemap/src/io/cells/move/tool.js',
-  'packages/codemap/src/io/cells/plan/cuts.js', 'packages/codemap/src/io/cells/scripts/cache.js', 'packages/codemap/src/io/cells/scripts/plan.js',
+  'packages/codemap/src/io/cells/plan/cuts.js', 'apps/cli/src/io/cells/cache.js', 'packages/codemap/src/io/cells/scripts/plan.js',
   'packages/resources/src/io/handoff/worker/detach.js', 'packages/pages/src/logic/sealed.js', 'packages/spec/src/io/signature.js',
   'packages/keys/src/io/relay.js', 'packages/keys/src/logic/device.js', 'packages/person/src/io/main.js', 'packages/person/src/logic/request.js',
   'packages/spec/src/io/row/decisions.js', 'packages/spec/src/io/row/stale.js', 'packages/spec/src/io/approval.js',

@@ -9,7 +9,7 @@ import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
 import { cellSeat } from '../../../../store/tests/fixtures/cell.js';
 import { CELL_CONFIG } from '../../../../store/tests/fixtures/cell.js';
-import { runFixtureGit } from '../../../../../apps/cli/tests/fixtures/child.js';
+import { runFixtureGit } from '../../../../gate/tests/fixtures/child.js';
 import * as store from '../../../../store/index.js';
 import { prepareItemPatchSubmit } from '../../../../items/index.js';
 import { boardJobQueueCall } from '../../../index.js';
@@ -20,7 +20,7 @@ import { provideCompanionInheritance } from '../../../index.js';
 const FILE = 'test/affected.test.js';
 const CASE = 'the affected case';
 
-test('an opted-in submit with a docs companion files its untouched main failure on pull, with no runner and no wait [V4,B3,C7]', { timeout: 30_000 }, // budget: one real fixture repo and one in-process board, no runner.
+test('api.gate-companion-autofile.opted-submit-docs-companion-files: an opted-in submit with a docs companion files its untouched main failure on pull, with no runner and no wait [V4,B3,C7]', { timeout: 30_000 }, // budget: one real fixture repo and one in-process board, no runner.
 t => {
   const config = { ...CELL_CONFIG, affectedTests: 'node --test', submit: { autoFileMainReds: true },
     lanes: { ...CELL_CONFIG.lanes, tests: { owns: ['test/'], specs: [] } } };

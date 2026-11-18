@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { privateFixtureFiles } from '../../../cli/tests/fixtures/child.js';
 import { scopedEnvironment } from '../../src/io/worker/environment.js';
 
-test('clause 1: a job whose PATH holds an older global pullboard runs the checkout CLI by name, and a non-job temporary folder leaves PATH alone [C7]', () => {
+test('runner.checkout-cli-path.a-job-whose-path-holds-an-older: clause 1: a job whose PATH holds an older global pullboard runs the checkout CLI by name, and a non-job temporary folder leaves PATH alone [C7]', () => {
   const files = privateFixtureFiles('runner-checkout-cli-');
   const dir = files.root;
   try {

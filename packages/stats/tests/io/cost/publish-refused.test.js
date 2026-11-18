@@ -19,7 +19,7 @@ function board() {
   return { written, ordered };
 }
 
-test('a refused shared group is isolated and every item revision still publishes [N26]', async () => {
+test('stats.publish-refused.a-refused-shared-group-is-isolated: a refused shared group is isolated and every item revision still publishes [N26]', async () => {
   const { written, ordered } = board();
   const slice = [item(1), item(2), shared(), item(3), item(4)];
   const refused = await writeSlice({}, {}, 'seat', slice, ordered);
@@ -27,7 +27,7 @@ test('a refused shared group is isolated and every item revision still publishes
   assert.deepEqual(written.sort((a, b) => a - b), [1, 2, 3, 4]);
 });
 
-test('a clean slice goes in one write and an error that is not a refusal still throws [N26]', async () => {
+test('stats.publish-refused.a-clean-slice-goes-in-one: a clean slice goes in one write and an error that is not a refusal still throws [N26]', async () => {
   let calls = 0;
   assert.equal(await writeSlice({}, {}, 'seat', [item(1), item(2)], async () => { calls++; }), 0);
   assert.equal(calls, 1);

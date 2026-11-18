@@ -1,4 +1,5 @@
-/** Every queue-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9795]. @pullboard-test-input source-cell packages/queue */
+/** @pullboard-test-input source-cell packages/queue */
+/** Every queue-cell test carries a stable ID in its own title and one complete record, never derived from its path [C7,U148,#9795]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';

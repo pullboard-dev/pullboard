@@ -23,18 +23,18 @@ function verdict(file, name, options) {
   return compared.cases[0].onMain;
 }
 
-test('clause 1: with excuseTiming off a read-startup case whose signature differs from main\'s reads onMain false (#9755) [C7]', () => {
+test('api.gate-excuse-timing.excusetiming-off-read-startup-case: clause 1: with excuseTiming off a read-startup case whose signature differs from main\'s reads onMain false (#9755) [C7]', () => {
   assert.equal(verdict(FILE, 'clause 1: reports within 200 ms'), false);
   assert.equal(verdict(FILE, 'clause 1: reports within 200 ms', { excuseTiming: false }), false);
 });
 
-test('clause 2: with excuseTiming on the same case reads onMain true, and a case outside the timing table stays false (#9755) [C7]', () => {
+test('api.gate-excuse-timing.excusetiming-same-case-reads-onmain: clause 2: with excuseTiming on the same case reads onMain true, and a case outside the timing table stays false (#9755) [C7]', () => {
   assert.equal(verdict(FILE, 'clause 1: reports within 200 ms', { excuseTiming: true }), true);
   assert.equal(verdict(FILE, 'clause 2: some other case', { excuseTiming: true }), false);
   assert.equal(verdict('apps/cli/tests/io/commands/other.test.js', 'clause 1: reports within 200 ms', { excuseTiming: true }), false);
 });
 
-test('clause 2: a host\'s provideTimingExcuse answer turns the excuse on for every comparison until it is removed (#9755) [C7]', () => {
+test('api.gate-excuse-timing.host-providetimingexcuse-answer-turns-excuse: clause 2: a host\'s provideTimingExcuse answer turns the excuse on for every comparison until it is removed (#9755) [C7]', () => {
   try {
     provideTimingExcuse(() => true);
     assert.equal(verdict(FILE, 'clause 1: reports within 200 ms'), true);

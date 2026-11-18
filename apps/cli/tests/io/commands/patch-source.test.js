@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
 import { fixtureAdd } from '../../fixtures/testkit.js';
 
-test('clause 2: [V1,V17,C7] the ITEM_PATCH_SOURCE refusal says to keep the item folder branch as the source and never merge the seat checkout head', async t => {
+test('cli.io-commands-patch-source.v1-v17-c7-the-item-patch-source: clause 2: [V1,V17,C7] the ITEM_PATCH_SOURCE refusal says to keep the item folder branch as the source and never merge the seat checkout head', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');

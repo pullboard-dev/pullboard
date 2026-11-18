@@ -52,7 +52,7 @@ function shardedLand(t, flag) {
   return { board, home, answer };
 }
 
-test('clause 1: with runs_store on, the gate-shard offer goes through queueRun and each shard has a queued run row [B2,P7]', t => {
+test('api.shard-queue.runs-store-gate-shard-offer: clause 1: with runs_store on, the gate-shard offer goes through queueRun and each shard has a queued run row [B2,P7]', t => {
   const { board, home, answer } = shardedGate(t, true);
   assert.deepEqual(answer.shards, ['gate:s:shard:1', 'gate:s:shard:2']);
   for (const id of answer.shards) {
@@ -63,7 +63,7 @@ test('clause 1: with runs_store on, the gate-shard offer goes through queueRun a
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = ?").get(SHARD_JOB_KIND).n, 0, 'the board writes no shard job row');
 });
 
-test('clause 2: with runs_store on, the land-proof shard offer goes through queueRun and each shard has a queued run row [B2,P7]', t => {
+test('api.shard-queue.runs-store-land-proof-shard: clause 2: with runs_store on, the land-proof shard offer goes through queueRun and each shard has a queued run row [B2,P7]', t => {
   const { board, home, answer } = shardedLand(t, true);
   assert.deepEqual(answer, { sharded: true, shards: [1, 2, 3].map(n => `land:1:k:shard:${n}`) });
   for (const id of answer.shards) {
@@ -73,7 +73,7 @@ test('clause 2: with runs_store on, the land-proof shard offer goes through queu
   assert.equal(board.db.prepare("SELECT COUNT(*) AS n FROM job WHERE job_kind = ?").get(SHARD_JOB_KIND).n, 0, 'the board writes no shard job row');
 });
 
-test('clause 3: with runs_store off, both shard offers write the same board job rows as on main and no run row [B2,P7]', t => {
+test('api.shard-queue.runs-store-off-both-shard: clause 3: with runs_store off, both shard offers write the same board job rows as on main and no run row [B2,P7]', t => {
   const gate = shardedGate(t, false), land = shardedLand(t, false);
   assert.deepEqual(gate.answer.shards, ['gate:s:shard:1', 'gate:s:shard:2']);
   assert.deepEqual(land.answer.shards, [1, 2, 3].map(n => `land:1:k:shard:${n}`));

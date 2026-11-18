@@ -92,20 +92,20 @@ function reject(box, config, former = false) {
   return id;
 }
 
-test('clause 1: recording a reject with claim.returnToBoard releases the builder hold with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]', t => {
+test('store.logic-board-claim.recording-a-reject-with-claim-returntoboard: clause 1: recording a reject with claim.returnToBoard releases the builder hold with no first refusal and next offers it to a free seat of the lane [C7,V4,H16]', t => {
   const box = fixture(t);
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30, returnToBoard: true } });
   onTheBoard(box, id);
 });
 
-test('clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
+test('store.logic-board-claim.with-claim-returntoboard-off-a-reject: clause 1: with claim.returnToBoard off a reject still reserves its builder for the configured window [C7,V4]', t => {
   const box = fixture(t);
   const id = reject(box, { claim: { reopenFirstRefusalMinutes: 30 } }, true);
   assert.equal(store.firstRefusal(box.board, id)?.builder, box.seats.builder.id);
   assert.notEqual(offered(box, box.seats.actor), id);
 });
 
-test('clause 1: with claim.returnToBoard off a red gate still keeps the builder claim, so the setting is what returns it [C7,V4]', t => {
+test('store.logic-board-claim.with-claim-returntoboard-off-a-red: clause 1: with claim.returnToBoard off a red gate still keeps the builder claim, so the setting is what returns it [C7,V4]', t => {
   const box = fixture(t);
   box.board.gitRoot = box.root;
   const id = box.add('Kept red');

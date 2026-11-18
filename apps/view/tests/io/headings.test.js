@@ -8,7 +8,7 @@ import { costOverviewHtml } from '../../src/io/cost/overview.js';
 
 const file = name => readFileSync(new URL('../../src/' + name, import.meta.url), 'utf8');
 
-test('clause 1: one shared class per header level, and Cost and Settings headers sit outside their cards [N26]', () => {
+test('view.x-io-headings.clause-1-one-shared-class-per-header: clause 1: one shared class per header level, and Cost and Settings headers sit outside their cards [N26]', () => {
   const main = file('io/main.css');
   assert.match(main, /\.hd1 \{[^}]*10\.5px[^}]*uppercase/u, 'level 1: the sheet section header');
   assert.match(main, /\.hd2 \{[^}]*12\.5px[^}]*text-transform: none/u, 'level 2: the sheet sub-head');
@@ -27,11 +27,11 @@ test('clause 1: one shared class per header level, and Cost and Settings headers
   for (const gone of [/\.cost-heading/u, /\.settings-head h2/u, /\.ghead h3/u, /\.detail h3 \{/u, /\.cost-sec h2/u]) assert.doesNotMatch(main + file('io/cost.css'), gone, 'the per-page heading style is gone: ' + gone);
 });
 
-test('clause 2: Cost has no page heading and no in-page window control [N26]', () => {
+test('view.x-io-headings.clause-2-cost-has-no-page-heading: clause 2: Cost has no page heading and no in-page window control [N26]', () => {
   const html = costOverviewHtml({ window: '30d', totals: {}, days: [], builders: { rows: [] }, verifiers: { rows: [] }, longest: [] }, null, {});
   assert.doesNotMatch(html, /<h1|data-cost-window|cost-periods|Today<\/button>/u);
 });
 
-test('the stylesheets that carry the page headings are brace-balanced, so no rule swallows the ones after it [N26]', () => {
+test('view.x-io-headings.the-stylesheets-that-carry-the-page-headings: the stylesheets that carry the page headings are brace-balanced, so no rule swallows the ones after it [N26]', () => {
   for (const name of ['io/main.css', 'io/cost.css']) { const css = file(name); assert.equal(css.split('{').length, css.split('}').length, name + ': every block is closed'); }
 });

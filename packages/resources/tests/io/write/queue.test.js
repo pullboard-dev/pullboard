@@ -55,7 +55,7 @@ function percentile(samples, share) {
   return sorted[Math.min(sorted.length - 1, Math.ceil(share * sorted.length) - 1)];
 }
 
-test('clause 1: queued writes apply in arrival order by one writer, and a release appends without waiting for a held writer [C7,#3084]', async t => {
+test('resources.queue.queued-writes-apply-in-arrival-order: clause 1: queued writes apply in arrival order by one writer, and a release appends without waiting for a held writer [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   const db = new DatabaseSync(file);
   db.exec('CREATE TABLE applied (seq INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL)');
@@ -84,7 +84,7 @@ test('clause 1: queued writes apply in arrival order by one writer, and a releas
   db.close();
 });
 
-test('clause 1: a lease release during another writer\'s transaction returns at once, never sees SLOT_DB_LOCKED, and lands when that writer leaves [C7,#3084]', async t => {
+test('resources.queue.a-lease-release-during-another-writer: clause 1: a lease release during another writer\'s transaction returns at once, never sees SLOT_DB_LOCKED, and lands when that writer leaves [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   const lease = await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: 4, scope: 'machine', agent: 'handoff-worker' });
   /** Count the dispatcher's lease rows straight from the file, without joining the write queue. */
@@ -120,7 +120,7 @@ test('clause 1: a lease release during another writer\'s transaction returns at 
 
 // A take used to ask Git for the caller's repository root every time (~14 ms of a ~18 ms take); the root is now
 // read once per directory per process, so take p99 is ~10 ms at load average ~25.
-test('clause 2: at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', async t => {
+test('resources.queue.at-1-000-simulated-seats-and: clause 2: at 1,000 simulated seats and 60 handoff workers, the dispatcher\'s slot take and release return within 50 ms at p99 [C7,#3084]', async t => {
   const { home, file } = machinePool(t);
   (await takeResource({ name: HANDOFF_WORKER_RESOURCE, capacity: 60, scope: 'machine', agent: 'handoff-worker' })).release();
   const db = new DatabaseSync(file);

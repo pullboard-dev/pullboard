@@ -16,7 +16,7 @@ function offerCensus(db, count, cap) {
 
 const take = (db, runner, now) => claimJob(db, { runner, cores: 10, jobs: 10, now });
 
-test('clause 1: with census.jobsPerRunner set to N, a runner holding N census test jobs is offered no further census job until one ends, while non-census jobs are offered as on main [C7,#9136]', t => {
+test('api.census-cap.census-jobsperrunner-set-runner-holding: clause 1: with census.jobsPerRunner set to N, a runner holding N census test jobs is offered no further census job until one ends, while non-census jobs are offered as on main [C7,#9136]', t => {
   const db = boardWith(t);
   offerCensus(db, 6, 2);
   const first = take(db, 'kiln', 100), second = take(db, 'kiln', 101);
@@ -31,7 +31,7 @@ test('clause 1: with census.jobsPerRunner set to N, a runner holding N census te
   assert.equal(take(db, 'kiln', 108), null);
 });
 
-test('clause 2: with census.jobsPerRunner unset (the default), offers are exactly as on main, and census.jobsPerRunner is a described setting [C7,#9136]', t => {
+test('api.census-cap.census-jobsperrunner-unset-default-offers: clause 2: with census.jobsPerRunner unset (the default), offers are exactly as on main, and census.jobsPerRunner is a described setting [C7,#9136]', t => {
   const db = boardWith(t);
   offerCensus(db, 6, null);
   const taken = [100, 101, 102, 103, 104, 105].map(now => take(db, 'kiln', now)?.job);
@@ -45,7 +45,7 @@ test('clause 2: with census.jobsPerRunner unset (the default), offers are exactl
   assert.match(described.description, /runner slot counts are unchanged/u);
 });
 
-test('clause 3: under the cap, census jobs are still offered heaviest first [C7,#9136]', t => {
+test('api.census-cap.under-cap-census-jobs-still: clause 3: under the cap, census jobs are still offered heaviest first [C7,#9136]', t => {
   const db = boardWith(t);
   // The census offers its plan heaviest first; job 1 is the heaviest.
   offerCensus(db, 5, 1);

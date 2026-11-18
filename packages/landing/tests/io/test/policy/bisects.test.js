@@ -21,7 +21,7 @@ function base(t) {
   return { root, head: git('rev-parse', 'HEAD') };
 }
 
-test('a failure in a file absent on base is the batch\'s own, with no base comparison asked [C7,#2947]', async t => {
+test('landing.bisects.a-failure-in-a-file-absent: a failure in a file absent on base is the batch\'s own, with no base comparison asked [C7,#2947]', async t => {
   const { root, head } = base(t);
   const state = { batch: { root, base: head } };
   const failure = { file: 'new.test.js', name: 'the new case' };
@@ -29,7 +29,7 @@ test('a failure in a file absent on base is the batch\'s own, with no base compa
   assert.deepEqual(split, { known: [], own: [failure] });
 });
 
-test('a file present on base whose comparison is unavailable still holds the batch [C7,#2947]', async t => {
+test('landing.bisects.a-file-present-on-base-whose: a file present on base whose comparison is unavailable still holds the batch [C7,#2947]', async t => {
   const { root, head } = base(t);
   const state = { batch: { root, base: head } };
   const split = await splitBaseRed(state, [{ file: 'old.test.js', name: 'case' }], async () => ({ main: head, files: [], unavailable: 'runner unavailable' }));

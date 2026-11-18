@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 import { relative } from 'node:path';
+import { gitSpawn } from '../../../../git/index.js';
 import { timeoutDetail } from './deadline.js';
 import { watchDeadline } from './deadline.js';
 
@@ -155,7 +156,7 @@ export function ledgerProofCheck(proof, { env = process.env, waivers = [], now =
     const dirtyCount = new Promise(done => {
       if (!reuseGate || !proof.ledger?.files?.length) return done(0);
       let out = '';
-      const git = spawn('git', ['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
+      const git = gitSpawn(['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
       git.stdout.on('data', chunk => { out += chunk.toString('utf8'); });
       git.on('error', () => done(0));
       git.on('close', () => done(out.split('\0').filter(Boolean).length));

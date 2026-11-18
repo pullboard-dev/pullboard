@@ -118,7 +118,7 @@ const returnsClaim = (before, m) => !m.stale && before.item?.status !== 'submitt
 
 /**
  * The release rules over an injected reason list and stale-limit rule.
- * Snapshot: `{ revision, item, actor: { id, route, joined }, owner, diagnosed, firstRefusalBuilder, items, history, lastClaim, ownerLastClaimId, ownerLastLease, ownerRegisteredPath, io }`.
+ * Snapshot: `{ revision, itemRevision, item, actor: { id, route, joined }, owner, diagnosed, firstRefusalBuilder, items, history, lastClaim, ownerLastClaimId, ownerLastLease, ownerRegisteredPath, io }`.
  * Move: `{ id, actor, root, reason, note, on, now, worktreeSnapshot, stale }`; `stale` is the coordinator's captured observation.
  * Why: each guard below is one fact, so its refusal, its trace and `pullboard explain` never drift apart.
  */
@@ -133,7 +133,8 @@ function releaseRules(board) {
     const limit = row?.blocker === true ? limits.blocker : limits.claim;
     const folderGone = typeof row?.seatFolderMissing === 'string' && row.seatFolderMissing === s.ownerRegisteredPath;
     if (s.item.status !== 'claimed' || s.item.owner !== row?.actor || s.item.id !== row?.id || s.item.leaseUntil !== row?.leaseUntil
-      || (c.leaseLapse !== true && !(s.item.leaseUntil > m.now)) || s.ownerLastClaimId !== row?.claimEventId || c.observedRevision !== s.revision) return STALE_CHANGED;
+      || (c.leaseLapse !== true && !(s.item.leaseUntil > m.now)) || s.ownerLastClaimId !== row?.claimEventId
+      || (Number.isSafeInteger(c.itemRevision) ? c.itemRevision !== s.itemRevision : c.observedRevision !== s.revision)) return STALE_CHANGED;
     if (!folderGone && (observed === null || last === null || row.evidence?.complete !== true || row.limitMs !== limit || observed - last < limit)) {
       return 'complete activity evidence does not establish the configured stale interval';
     }

@@ -14,7 +14,7 @@ const gateFiles = new Set([A, B, OTHER]);
 const row = (file, name, passed = true, skipped = false) => ({ file, name, passed, skipped });
 const cases = [row(A, 'clause 1: the checklist prints'), row(B, 'suite > clause 1: the checklist prints once'), row(A, 'clause 2: it is sorted'), row(OTHER, 'clause 12: unrelated'), row(OTHER, 'no clause here')];
 
-test('clause 1: with titleTicks on, gateCoveredFiles covers a clause naming no file by the changed tests holding a case titled with its number, and covers nothing with it off [C7]', () => {
+test('state.logic-title-ticks.clause-1-with-titleticks-on: clause 1: with titleTicks on, gateCoveredFiles covers a clause naming no file by the changed tests holding a case titled with its number, and covers nothing with it off [C7]', () => {
   assert.deepEqual(gateCoveredFiles(clause(1), gateFiles, item(), { titleTicks: true, cases }), [A, B]);
   assert.deepEqual(gateCoveredFiles(clause(2), gateFiles, item(), { titleTicks: true, cases }), [A]);
   assert.deepEqual(gateCoveredFiles(clause(3), gateFiles, item(), { titleTicks: true, cases }), [], 'no case titled clause 3; clause 12 does not count');
@@ -24,7 +24,7 @@ test('clause 1: with titleTicks on, gateCoveredFiles covers a clause naming no f
   assert.deepEqual(gateCoveredFiles(clause(1), gateFiles, item(), { titleTicks: false, cases }), []);
 });
 
-test('clause 2: with titleTicks on, gateClauseTickNotes ticks the clause only when every case titled with its number passed in the gate run [C7]', () => {
+test('state.logic-title-ticks.clause-2-with-titleticks-on: clause 2: with titleTicks on, gateClauseTickNotes ticks the clause only when every case titled with its number passed in the gate run [C7]', () => {
   const green = [row(A, 'clause 1: the checklist prints'), row(A, 'clause 2: it is sorted')];
   const notes = gateClauseTickNotes(item(), [], { gateFiles, outcomes: green, head: HEAD, titleTicks: true });
   assert.equal(notes.length, 2);

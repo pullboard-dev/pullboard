@@ -16,7 +16,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-test('the HTTP-served browser module import closure includes the SSE transport asset [H5,H16]', async t => {
+test('relay.logic-browser-card.the-http-served-browser-module-import: the HTTP-served browser module import closure includes the SSE transport asset [H5,H16]', async t => {
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Error('public assets must not authenticate'); } });
   const server = createServer(async (request, response) => {
     try {
@@ -57,7 +57,7 @@ test('the HTTP-served browser module import closure includes the SSE transport a
 });
 
 
-test('the relay stylesheet includes shared stage and item-row rules without unresolved markers [N26,H5]', async t => {
+test('relay.logic-browser-card.the-relay-stylesheet-includes-shared-stage: the relay stylesheet includes shared stage and item-row rules without unresolved markers [N26,H5]', async t => {
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Error('public assets must not authenticate'); } });
   const server = createServer(async (request, response) => { if (!await handler(request, response)) response.writeHead(404).end(); });
   server.listen(0, '127.0.0.1');
@@ -78,7 +78,7 @@ function moduleTree(t, files) {
   return root;
 }
 
-test('a public URL collision cannot replace a real relative package dependency [H5,H16,C7]', t => {
+test('relay.logic-browser-card.a-public-url-collision-cannot-replace: a public URL collision cannot replace a real relative package dependency [H5,H16,C7]', t => {
   const root = moduleTree(t, {
     'packages/demo/src/entry.js': "import { value } from './collision.js'; export { value };\n",
     'packages/demo/src/collision.js': "export const value = 'correct';\n",
@@ -91,7 +91,7 @@ test('a public URL collision cannot replace a real relative package dependency [
   assert.match(served.get('/relay/entry.js'), /\.\/m\/packages\/demo\/src\/collision\.js/u);
 });
 
-test('a relay file may name a public module that has no file of that name, as a virtual alias [H5,H16,C7]', t => {
+test('relay.logic-browser-card.a-relay-file-may-name-a: a relay file may name a public module that has no file of that name, as a virtual alias [H5,H16,C7]', t => {
   const root = moduleTree(t, {
     'apps/relay/src/io/deploy/browser-entry.js': "import { keys } from './device-keys.js';\nexport const loaded = keys;\n",
     'packages/keys/src/logic/keys.js': "export const keys = 'keys';\n",
@@ -101,7 +101,7 @@ test('a relay file may name a public module that has no file of that name, as a 
   assert.deepEqual([...served.keys()].sort(), ['/relay/device-keys.js', '/relay/entry.js']);
 });
 
-test('the served relay graph keeps each moved package module at its repository path, and it loads [H5,H16,C7]', async t => {
+test('relay.logic-browser-card.the-served-relay-graph-keeps-each: the served relay graph keeps each moved package module at its repository path, and it loads [H5,H16,C7]', async t => {
   const root = moduleTree(t, {
     'relay/entry.js': "import { keys } from '../packages/keys/src/core/keys.js';\nimport { flat } from './flat.js';\nexport const loaded = keys + flat;\n",
     'relay/flat.js': "export const flat = 'flat';\n",
@@ -121,7 +121,7 @@ test('the served relay graph keeps each moved package module at its repository p
   assert.equal((await import(pathToFileURL(join(out, 'relay/entry.js')).href)).loaded, 'Refusedflat');
 });
 
-test('a served relay module that reaches a Node builtin or a missing file refuses by name [H5,H16,C7]', t => {
+test('relay.logic-browser-card.a-served-relay-module-that-reaches: a served relay module that reaches a Node builtin or a missing file refuses by name [H5,H16,C7]', t => {
   const root = moduleTree(t, {
     'relay/entry.js': "import { shell } from '../src/shell.js';\nexport const loaded = shell;\n",
     'src/shell.js': "import { readFileSync } from 'node:fs';\nexport const shell = readFileSync;\n",

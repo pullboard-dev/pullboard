@@ -17,7 +17,7 @@ function jobKinds(board) {
   return board.db.prepare('SELECT job_kind AS kind FROM job ORDER BY job_kind').all().map(row => row.kind);
 }
 
-test('a gate offered as a pull job settles the submit with no dispatcher row on the board [C7,#8172]', t => {
+test('api.gate-pull-settles.gate-offered-pull-job-settles: a gate offered as a pull job settles the submit with no dispatcher row on the board [C7,#8172]', t => {
   const repo = cellRepo(t, { real: true });
   const board = cellBoard(t, repo.boardFile, undefined, { real: true, gitRoot: repo.root });
   board.gitRoot = repo.root;

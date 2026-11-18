@@ -23,7 +23,7 @@ function boardWith(t, flag) {
   return { board, queue };
 }
 
-test('clause 1: with runs_store on, the baseline offer goes through queueRun and the board holds a queued run row for it [B2,P7]', t => {
+test('api.baseline-queue.runs-store-baseline-offer-goes: clause 1: with runs_store on, the baseline offer goes through queueRun and the board holds a queued run row for it [B2,P7]', t => {
   const { board, queue } = boardWith(t, true);
   const job = offerCheckBaseline(board.db, { item: 9004, expected: EXPECTED, command: 'npm test', queue });
   const run = boardRun(board.db, job.id);
@@ -34,7 +34,7 @@ test('clause 1: with runs_store on, the baseline offer goes through queueRun and
   assert.equal(board.db.prepare('SELECT COUNT(*) AS n FROM run').get().n, 1, 'and queues no second run');
 });
 
-test('clause 2: with runs_store off, the baseline offer writes the same board job rows as on main and no run row [B2,P7]', t => {
+test('api.baseline-queue.runs-store-off-baseline-offer: clause 2: with runs_store off, the baseline offer writes the same board job rows as on main and no run row [B2,P7]', t => {
   const { board, queue } = boardWith(t, false);
   assert.equal(queue, null);
   const job = offerCheckBaseline(board.db, { item: 9004, expected: EXPECTED, command: 'npm test', queue });

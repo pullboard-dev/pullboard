@@ -38,11 +38,11 @@ async function onMain(settings) {
   }
 }
 
-test('clause 1: with gate.excuseMainTimingReds on, the only red read-startup case counts as main\'s red [C7,#9756]', async () => {
+test('cli.journeys-gate-excuse-main-timing.with-gate-excusemaintimingreds-on-the-only: clause 1: with gate.excuseMainTimingReds on, the only red read-startup case counts as main\'s red [C7,#9756]', async () => {
   assert.equal(await onMain({ gate: { excuseMainTimingReds: true } }), true);
 });
 
-test('clause 2: with the setting off, or unset, the same gate stays red [C7,#9756]', async () => {
+test('cli.journeys-gate-excuse-main-timing.with-the-setting-off-or-unset: clause 2: with the setting off, or unset, the same gate stays red [C7,#9756]', async () => {
   assert.equal(await onMain({ gate: { excuseMainTimingReds: false } }), false);
   assert.equal(await onMain({}), false);
 });

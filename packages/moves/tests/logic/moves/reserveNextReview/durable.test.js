@@ -27,7 +27,7 @@ function withBoard(name, body) {
   try { return body(board.db); } finally { closeCellBoard(board); }
 }
 
-test('clause 1: a silent reviewer loses the reservation within 2 minutes, the item is offered again and the lapse is recorded [C7]', () => {
+test('moves.reserve-next-review-durable.a-silent-reviewer-loses-the-reservation-within: clause 1: a silent reviewer loses the reservation within 2 minutes, the item is offered again and the lapse is recorded [C7]', () => {
   withBoard('lapse', (db) => {
     assert.deepEqual(reserveReview(db, 7, 'rev-a', { now: 1_000 }), { reserved: true, holder: 'rev-a' });
     assert.equal(jobView(db, 'review:7').kind, 'review');
@@ -49,7 +49,7 @@ test('clause 1: a silent reviewer loses the reservation within 2 minutes, the it
   });
 });
 
-test('clause 1: a reviewer that keeps renewing keeps the reservation and nothing is reclaimed [C7]', () => {
+test('moves.reserve-next-review-durable.a-reviewer-that-keeps-renewing-keeps-the: clause 1: a reviewer that keeps renewing keeps the reservation and nothing is reclaimed [C7]', () => {
   withBoard('live', (db) => {
     reserveReview(db, 8, 'rev-a', { now: 1_000 });
     for (let at = 60_000; at <= 10 * 60_000; at += 60_000) {
@@ -70,7 +70,7 @@ function reviewSeat(box, name) {
   return { id, lane: 'review', path };
 }
 
-test('clause 1: next --verify holds the review as a jobs-cell lease and reclaims a silent reviewer after 2 minutes with the lapse recorded [C7]', async t => {
+test('moves.reserve-next-review-durable.next-verify-holds-the-review-as-a: clause 1: next --verify holds the review as a jobs-cell lease and reclaims a silent reviewer after 2 minutes with the lapse recorded [C7]', async t => {
   const box = fixture(t, { reviewers: true });
   const id = box.add('Review whose reviewer goes silent');
   box.submit(id);
@@ -112,7 +112,7 @@ function assertEnded(box, id) {
   assert.deepEqual(job.steps.map(step => [step.name, step.payload.reviewer]), [['reserved', box.seats.sibling.id], ['released', box.seats.sibling.id]]);
 }
 
-test('SM5: withdraw releases the item\'s review job in its own transaction [C7]', async t => {
+test('moves.reserve-next-review-durable.sm5-withdraw-releases-the-item-s-review-job: SM5: withdraw releases the item\'s review job in its own transaction [C7]', async t => {
   const { box, id } = await reservedOnBoard(t);
   assert.throws(() => store.withdraw(box.board, id, { agentId: 'coordinator', reason: ' ' }), error => error.code === 'NOTE_REQUIRED');
   assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused withdrawal leaves the job alone');
@@ -120,7 +120,7 @@ test('SM5: withdraw releases the item\'s review job in its own transaction [C7]'
   assertEnded(box, id);
 });
 
-test('SM5: reopen releases the item\'s review job in its own transaction [C7]', async t => {
+test('moves.reserve-next-review-durable.sm5-reopen-releases-the-item-s-review-job: SM5: reopen releases the item\'s review job in its own transaction [C7]', async t => {
   const { box, id } = await reservedOnBoard(t);
   assert.throws(() => store.reopen(box.board, id, { agentId: 'coordinator', note: '' }), error => error.code === 'NOTE_REQUIRED');
   assert.equal(jobView(box.board.db, `review:${id}`).leaseOwner, box.seats.sibling.id, 'a refused reopen leaves the job alone');
@@ -128,7 +128,7 @@ test('SM5: reopen releases the item\'s review job in its own transaction [C7]', 
   assertEnded(box, id);
 });
 
-test('SM5: a verdict releases the item\'s review job in its own transaction [C7]', async t => {
+test('moves.reserve-next-review-durable.sm5-a-verdict-releases-the-item-s-review: SM5: a verdict releases the item\'s review job in its own transaction [C7]', async t => {
   const { box, id } = await reservedOnBoard(t);
   const item = store.getItem(box.board, id);
   const verdict = { agentId: box.seats.sibling.id, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'The real fixture succeeds.', head: item.item_commit, digest: item.item_frozen_digest, policy: 'any' };

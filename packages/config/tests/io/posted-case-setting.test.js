@@ -19,7 +19,7 @@ function row(settings) {
   } finally { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; }
 }
 
-test('clause 3: runners.postedLineNamesCase is a described setting, off by default, and on only for an exact true stored flat (#9084) [C7]', () => {
+test('config.io-posted-case-setting.clause-3-runners-postedlinenamescase-is: clause 3: runners.postedLineNamesCase is a described setting, off by default, and on only for an exact true stored flat (#9084) [C7]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

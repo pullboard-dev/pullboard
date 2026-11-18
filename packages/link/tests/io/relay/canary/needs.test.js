@@ -54,13 +54,13 @@ function assertQueued(box, count, label = 'the local queued-move count stays acc
   }
 }
 
-test('offline canary needs retain alerts and do not create a relay link or board [C7,H5]', t => {
+test('link.canary-needs.offline-retains-no-link: offline canary needs retain alerts and do not create a relay link or board [C7,H5]', t => {
   const box = fixture(t);
   assertQueued(box, 0);
   assert.equal(existsSync(join(box.root, '.git', 'pullboard', 'board.sqlite')), false);
 });
 
-test('canary queue counts prefer the modern summary and retain the sealed legacy fallback [C7,H5]', t => {
+test('link.canary-needs.counts-prefer-modern: canary queue counts prefer the modern summary and retain the sealed legacy fallback [C7,H5]', t => {
   const box = fixture(t);
   box.link();
   writeFileSync(outboxFile(box.file), 'opaque legacy fixture; count reads never unseal it');
@@ -81,7 +81,7 @@ test('canary queue counts prefer the modern summary and retain the sealed legacy
   assertQueued(box, 0, 'an orphaned summary is not a linked queue');
 });
 
-test('canary count reads preserve private-file and link validation without migrating metadata [C7,H5]', t => {
+test('link.canary-needs.reads-keep-validation: canary count reads preserve private-file and link validation without migrating metadata [C7,H5]', t => {
   const box = fixture(t);
   const state = box.link();
   assert.deepEqual(readRelayLink(box.file), state);

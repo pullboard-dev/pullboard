@@ -45,7 +45,7 @@ function greenRun(source, { tooling = TOOLING, green = true } = {}) {
     executionRunner: 'runner-a', executionSource: { commit: source.commit, tree: source.tree, tooling: { sha256: tooling } }, remoteWallMs: 64_000, seconds: 64 };
 }
 
-test('clause 2: only the same tree, the same files and the same runner tooling reuse a recorded green run [C7]', t => {
+test('gate.io-shards-green.only-the-same-tree-the-same: clause 2: only the same tree, the same files and the same runner tooling reuse a recorded green run [C7]', t => {
   const repo = repository(t);
   const first = repo.commit();
   const wanted = { tree: first.tree, head: first.commit, runner: RUNNER, files: [FILE], tooling: TOOLING, folder: repo.folder };
@@ -67,7 +67,7 @@ test('clause 2: only the same tree, the same files and the same runner tooling r
   assert.equal(reusableGreenRun({ ...wanted, tree: second.tree, head: second.commit }), null);
 });
 
-test('clause 2: only a plain runner command over test files is a check a recorded run can stand in for [C7]', () => {
+test('gate.io-shards-green.only-a-plain-runner-command-over: clause 2: only a plain runner command over test files is a check a recorded run can stand in for [C7]', () => {
   assert.deepEqual(plainCheckRun(`${RUNNER} ./${FILE}`), { runner: RUNNER, files: [FILE] });
   assert.equal(plainCheckRun(`${RUNNER} ${FILE} && rm -rf x`), null);
   assert.equal(plainCheckRun(`! ${RUNNER} ${FILE}`), null);
@@ -98,14 +98,14 @@ function mergedHead(t, touch) {
   return { wanted, root: repo.root, merged, files };
 }
 
-test('clause 1: a main merge that changes no file the check imports keeps the earlier green run [C7]', t => {
+test('gate.io-shards-green.a-main-merge-that-changes-no: clause 1: a main merge that changes no file the check imports keeps the earlier green run [C7]', t => {
   const { wanted, root, merged } = mergedHead(t, 'docs/other.txt');
   const reused = reusableProof(root, wanted);
   assert.equal(reused?.isGreen, true);
   assert.equal(reused.executionSource.commit, merged.commit, 'the run is rebound to the merged head');
 });
 
-test('clause 2: a main merge that touches the test file or anything it imports reruns the check [C7]', t => {
+test('gate.io-shards-green.a-main-merge-that-touches-the: clause 2: a main merge that touches the test file or anything it imports reruns the check [C7]', t => {
   for (const touch of ['test/lib/helper.js', 'test/one.test.js']) {
     const { wanted, root } = mergedHead(t, touch);
     assert.equal(reusableProof(root, wanted), null, `${touch} is in the closure`);

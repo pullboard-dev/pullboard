@@ -7,12 +7,12 @@ import { test } from 'node:test';
 import { bindBoardView as fromProviders } from '../src/io/providers.js';
 import { bindBoardView as fromBarrel } from '../index.js';
 
-test('clause 1: bindBoardView imported from providers.js is the function the board barrel exports [C7]', () => {
+test('board.own-providers.bindboardview-imported-from-providers-function: clause 1: bindBoardView imported from providers.js is the function the board barrel exports [C7]', () => {
   assert.equal(typeof fromProviders, 'function');
   assert.equal(fromBarrel, fromProviders);
 });
 
-test('clause 2: importing providers.js does not load the board barrel, because its only import is node:module [C7]', () => {
+test('board.own-providers.importing-providers-does-load-board: clause 2: importing providers.js does not load the board barrel, because its only import is node:module [C7]', () => {
   const source = readFileSync(new URL('../src/io/providers.js', import.meta.url), 'utf8');
   const specifiers = [...source.matchAll(/^import .* from '([^']+)';$/gmu)].map(match => match[1]);
   assert.deepEqual(specifiers, ['node:module']);

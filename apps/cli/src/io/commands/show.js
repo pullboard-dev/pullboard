@@ -14,8 +14,14 @@ import { queuedGateLines } from '../../logic/show/gate.js';
 import { supersededStop } from '../../logic/show/gate.js';
 import { pulledRedLines } from '../../logic/show/gate.js';
 import { pulledWaitingLines } from '../../logic/show/gate.js';
+import { queueWaitLines } from '../../logic/show/gate.js';
+import { landingPhaseLines } from '../../logic/show/gate.js';
+import { exactTreeLine } from '../../logic/show/gate.js';
+import { exactTreeOf } from '../../logic/show/gate.js';
 import { loadMachineSettings } from '../../../../../packages/config/index.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
+import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { submitComposeAsObject } from '../../../../../packages/config/index.js';
 import { localUsage } from '../../../../../packages/config/index.js';
 import { dollarText } from '../../../../../packages/config/index.js';
 import { trunkRef } from '../../../../../packages/git/light.js';
@@ -24,6 +30,7 @@ import { reviewEligibility } from '../../../../../packages/verify/index.js';
 import { showReviewPacket } from '../../../../../packages/verify/index.js';
 import { gatePanel } from '../../../../../packages/jobs/index.js';
 import { jobsOf } from '../../../../../packages/jobs/index.js';
+import { jobView } from '../../../../../packages/jobs/index.js';
 import { settledGate } from '../../../../../packages/jobs/index.js';
 import { withBoardRead } from '../board/read.js';
 import {
@@ -76,13 +83,36 @@ export const nativeBoardRequired = false;
  * The item's newest gate job as its step and, once done, the gate its receipt recorded; null when it has none.
  * Why: a pulled submit returns queued at once, and this is how a script reads the gate's settled verdict [C7,#6821].
  */
-export function newestGateJob(db, id, receipts = []) {
+export function newestGateJob(db, id, receipts = [], { runs = null } = {}) {
+  if (runs) return newestRunGateJob(db, id, receipts, runs);
   let job;
   try { job = jobsOf(db, { kind: 'gate', item: id }).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
   if (!job) return null;
   // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
   const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
   return { id: job.id, step: job.step, gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+}
+
+/**
+ * The item's newest gate with runs_store on: its outcome from the board's run row, its live step and receipt from the
+ * runs file, which this only reads. A receipt the runs file no longer keeps falls back to the run row's capped summary [B2,#9013].
+ *
+ * @param {import('node:sqlite').DatabaseSync} db - The board's handle.
+ * @param {number} id
+ * @param {{ id: string }[]} receipts
+ * @param {{ db: import('node:sqlite').DatabaseSync | null }} runs - The read-only runs holder (boardRunsReader).
+ */
+function newestRunGateJob(db, id, receipts, runs) {
+  let run;
+  try { run = db.prepare("SELECT * FROM run WHERE run_kind = 'gate' AND run_item = ? ORDER BY run_created, rowid").all(id).at(-1); } catch (error) { if (/no such table/u.test(error.message)) return null; throw error; }
+  if (!run) return null;
+  const live = runs.db ? jobView(runs.db, run.run_job) : null;
+  const posted = live?.steps.find(step => step.name === 'receipt')?.payload ?? null;
+  let summary = null;
+  try { summary = run.run_state === 'done' ? JSON.parse(run.run_summary ?? 'null') : null; } catch { summary = null; }
+  const step = run.run_state === 'done' ? 'done' : live?.step ?? run.run_state;
+  return { id: run.run_job, step, ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
+    gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
 /** Run `pullboard show` and return its exit code. */
@@ -93,12 +123,15 @@ export async function run(io, { first, values }) {
   if (values.review) { const full = await import('../../../../../packages/store/index.js'); return showReviewPacket(ctx, id, (work) => withBoardRead(ctx, (board) => work(board, full)), { json: values.json }); }
   const prices = loadMachineSettings().costPrices;
   const { fields, links, item, queuedSubmit, queuedJobId, gateJob, gateText, verdicts, moves, thread, related, reviewer, agents, mainMerge, submits, approval, cost, proofReceipts, independence, progress, machine } = await withBoardRead(ctx, async (board) => {
-    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).project(store.getItem(board, id));
+    const item = verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project(store.getItem(board, id));
     const failureLines = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`main_red_failure_lines:${id}`);
     if (failureLines) item.main_red_failure_lines = JSON.parse(failureLines.meta_value);
     // A landed item keeps the timed phases of the landing that merged it, as its landing receipt said them [C7,#8960].
     const landingPhases = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`landing_phases:${id}`);
     if (landingPhases) item.landing_phases = JSON.parse(landingPhases.meta_value);
+    // The exact-tree record of the landing batch that carried a landed item sits beside its phases; an older landing has none [V16,V38].
+    const exactTree = item.item_merged_commit ? exactTreeOf(board.db, id) : undefined;
+    if (exactTree) item.landing_exact_tree = exactTree;
     // Typed fields load the full store only while items.typedFields is on: with it off the read is what it was [C7,#9352].
     const fields = typedFieldsEnabled() ? (await import('../../../../../packages/store/index.js')).itemFields(board, id, { enabled: true }) : [];
     // Free related links (#9356) load beside the fields, so with the setting off no link is read and show is as it was [C7].
@@ -114,7 +147,10 @@ export async function run(io, { first, values }) {
       approval: specApprovalState(ctx.info.root, { board, config: ctx.config, ids: itemSpecIds(item) }, { store, verifiedPasskeyRowDecision }), cost: itemCost(board, id, prices) };
     // JSON retains every public detail field; text-only labels and related-item searches add nothing to it. It also names
     // the newest gate job and, once done, its receipt's gate: a pulled gate keeps no hand-off record to read instead [C7].
-    const gateJob = newestGateJob(board.db, id, result.proofReceipts);
+    // The full store loads only when this board keeps its runs in a runs file: the light store has no runs reader [B2,#9013].
+    const runsOn = (() => { try { return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('runs_store')?.meta_value === '1'; } catch { return false; } })();
+    const runs = runsOn ? (await import('../../../../../packages/store/index.js')).boardRunsReader(board, ctx.file) : null;
+    const gateJob = newestGateJob(board.db, id, result.proofReceipts, { runs });
     if (values.json) return { ...result, gateJob, fields, links };
     const history = store.events(board, { itemId: id });
     return { ...result, gateJob, fields, links, moves: history.filter((event) => ['attempt', 'escalate'].includes(event.event_kind)),
@@ -135,7 +171,7 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, ...(fields.length ? { fields } : {}), ...(links.length ? { relatedLinks: links } : {}), progress, machineVerification: machine, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), ...(gateJob ? { gateJob } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), ...(item.landing_phases || item.landing_exact_tree ? { landing: { ...(item.landing_phases ? { phases: item.landing_phases } : {}), ...(item.landing_exact_tree ? { exactTree: item.landing_exact_tree } : {}) } } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   // Keep the read usable from an unjoined checkout, and avoid registering a coordinator just to print status.
@@ -166,6 +202,7 @@ export async function run(io, { first, values }) {
   for (const line of queuedGateLines(queuedSubmit, gateText)) io.say(line);
   for (const line of pulledRedLines(gateJob, item)) io.say(line);
   for (const line of pulledWaitingLines(gateJob, item)) io.say(line);
+  for (const line of queueWaitLines(gateJob)) io.say(line);
   // A finished red gate keeps its full log while the item is open; its failing assertions print here [C7,#3381].
   if (queuedJobId && queuedSubmit && !['queued', 'running', 'green'].includes(queuedSubmit.state) && queuedSubmit.gateGreen !== true) {
     // The gate cell loads only for a finished red gate or a recorded check baseline: a plain read never pays for it [C7].
@@ -180,7 +217,7 @@ export async function run(io, { first, values }) {
     }
   }
   if (item.item_status === 'verified' && approvalQualification) io.say(approvalQualification);
-  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state).message);
+  if (item.item_verdict_state) io.say(staleVerdictRefusal(item, item.item_verdict_state, { composeAsObject: submitComposeAsObject() }).message);
   io.say(`review tier: ${independence.tier}${independence.requiredFamily ? `; required family ${independence.requiredFamily}` : ''}`);
   io.say(`eligible reviewers: ${independence.ready ? independence.eligible.join(', ') || 'none' : 'not submitted'}`);
   // One line per builder parent session: the reason a seat under it is not offered the review, with no coordinator fact [V1,B3,C7].
@@ -266,6 +303,8 @@ export async function run(io, { first, values }) {
   for (const receipt of clauseReceipts(thread)) io.say(`fail-before, pass-after receipt, clause ${receipt.number}: ${receipt.text}`);
   for (const line of mainMerge ? mainMergeLines(item, mainMerge, agentName) : []) io.say(line);
   if (item.item_merged_commit) io.say(`merged as ${item.item_merged_commit}`);
+  for (const line of landingPhaseLines(item.landing_phases)) io.say(line);
+  if (item.landing_exact_tree) io.say(exactTreeLine(item.landing_exact_tree));
   if (item.item_withdrawn_reason) io.say(`withdrawn: ${item.item_withdrawn_reason}`);
   io.say('thread:');
   for (const entry of thread) {

@@ -73,7 +73,7 @@ function drive(board, record) {
 
 const records = recorded().release.filter(record => !record.move.stale);
 
-test('clause 1: the store release writer agrees with the release table on every replayed release [C7,#8246]', t => {
+test('moves.release-writer.the-store-release-writer-agrees-with: clause 1: the store release writer agrees with the release table on every replayed release [C7,#8246]', t => {
   const { rules, table } = boardReleaseEngine();
   assert.ok(records.length >= 50, 'the replay holds the board\'s ordinary and review releases');
   const disagreements = [];
@@ -87,7 +87,7 @@ test('clause 1: the store release writer agrees with the release table on every 
   assert.deepEqual(disagreements, []);
 });
 
-test('clause 1: the writer refuses with the table\'s code and words, and writes nothing [C7,#8246]', t => {
+test('moves.release-writer.the-writer-refuses-with-the-table: clause 1: the writer refuses with the table\'s code and words, and writes nothing [C7,#8246]', t => {
   const record = records.find(entry => entry.snapshot.item.status === 'claimed' && !entry.move.on);
   const board = boardFor(t, record);
   const events = () => board.db.prepare('SELECT COUNT(*) n FROM event').get().n;

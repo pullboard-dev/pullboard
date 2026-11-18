@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'board.hotState'));
 }
 
-test('clause 1: board.hotState is a described machine setting whose default is off [C7,#9723]', () => {
+test('config.io-settings-hot-state-setting.clause-1-board-hotstate-is-a-described: clause 1: board.hotState is a described machine setting whose default is off [C7,#9723]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);
@@ -34,7 +34,7 @@ test('clause 1: board.hotState is a described machine setting whose default is o
   assert.match(unset.description ?? JSON.stringify(unset), /hot state/u);
 });
 
-test('clause 2: reading board.hotState through the settings reader returns false when unset, true only for an exact true [C7,#9723]', () => {
+test('config.io-settings-hot-state-setting.clause-2-reading-board-hotstate-through: clause 2: reading board.hotState through the settings reader returns false when unset, true only for an exact true [C7,#9723]', () => {
   assert.equal(withSettings({}, hotStateEnabled), false);
   assert.equal(withSettings({ board: { hotState: true } }, hotStateEnabled), true);
   assert.throws(() => withSettings({ board: { hotState: 'yes' } }, hotStateEnabled), /board\.hotState/u);

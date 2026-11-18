@@ -14,7 +14,7 @@ function claudeLog(model, ...prompts) {
   return Buffer.from(prompts.map(([input, read, write]) => JSON.stringify({ type: 'assistant', message: { model, usage: { input_tokens: input, cache_read_input_tokens: read, cache_creation_input_tokens: write }, content: [] } })).join('\n') + '\n');
 }
 
-test('clause 1: a seat whose last call prompt exceeds the ceiling ends after its claim settles, counted across claims [C7]', () => {
+test('stats.calls.a-seat-whose-last-call-prompt: clause 1: a seat whose last call prompt exceeds the ceiling ends after its claim settles, counted across claims [C7]', () => {
   // Two claims in one session: the first call was small, the newest prompt (input + cached reads + cache writes) is over 200000.
   const last = nativeLastPrompt('claude', claudeLog('claude-sonnet-5-5', [100, 1000, 0], [500, 190_000, 10_000]));
   assert.deepEqual(last, { tokens: 200_500, model: 'claude-sonnet-5-5' });
@@ -28,7 +28,7 @@ test('clause 1: a seat whose last call prompt exceeds the ceiling ends after its
   assert.equal(exitContextDecision(policy, nativeLastPrompt('codex', codex)).context, 250_000);
 });
 
-test('clause 2: contextCeiling defaults to 100000 for Haiku and 200000 otherwise, is settable, and unknown usage never ends a session [C7]', () => {
+test('stats.calls.contextceiling-defaults-to-100000-for-haiku: clause 2: contextCeiling defaults to 100000 for Haiku and 200000 otherwise, is settable, and unknown usage never ends a session [C7]', () => {
   assert.equal(contextCeiling(policy, 'claude-haiku-5-5'), 100_000);
   assert.equal(contextCeiling(policy, 'claude-sonnet-5-5'), 200_000);
   assert.equal(contextCeiling({ ...policy, contextCeiling: 50_000 }, 'claude-sonnet-5-5'), 50_000);

@@ -37,7 +37,7 @@ function deadPid() {
   return spawnSync(process.execPath, ['-e', '']).pid;
 }
 
-test('a refresh starts only when none runs and none started within the spacing window [C7]', (t) => {
+test('landing.flight.a-refresh-starts-only-when-none: a refresh starts only when none runs and none started within the spacing window [C7]', (t) => {
   const files = refreshFlightFiles(folder(t));
   assert.equal(claimRefreshStart(files), true, 'the first start is free');
   assert.equal(claimRefreshStart(files), false, 'a second start within the window is refused');
@@ -52,7 +52,7 @@ test('a refresh starts only when none runs and none started within the spacing w
   assert.equal(existsSync(files.lock), false, 'letting go removes the lock');
 });
 
-test('one refresh lock per machine: a live holder keeps it, a dead or replaced holder loses it [C7]', (t) => {
+test('landing.flight.one-refresh-lock-per-machine-a: one refresh lock per machine: a live holder keeps it, a dead or replaced holder loses it [C7]', (t) => {
   const files = refreshFlightFiles(folder(t));
   const first = holdRefreshFlight(files);
   assert.ok(first);
@@ -67,7 +67,7 @@ test('one refresh lock per machine: a live holder keeps it, a dead or replaced h
   assert.equal(runningRefresh(files), null, 'a lock past its lifetime names no running refresh, even when its pid is alive again');
 });
 
-test('a second refresh process exits at once, and a launch is skipped while one runs [C7]', (t) => {
+test('landing.flight.a-second-refresh-process-exits-at: a second refresh process exits at once, and a launch is skipped while one runs [C7]', (t) => {
   const dir = folder(t);
   const home = join(dir, 'machine-home');
   const files = refreshFlightFiles(home);
@@ -83,7 +83,7 @@ test('a second refresh process exits at once, and a launch is skipped while one 
   assert.equal(spawnDetachedRefresh(root, SHA_A, SHA_B), false, 'no child starts while a refresh runs');
 });
 
-test('a refresh runs without a checkout lease token or agent session id [C7]', () => {
+test('landing.flight.a-refresh-runs-without-a-checkout: a refresh runs without a checkout lease token or agent session id [C7]', () => {
   const env = refreshEnvironment({ PATH: '/usr/bin', PULLBOARD_CHECKOUT_SESSION_TOKEN: 'token', CLAUDE_CODE_SESSION_ID: 'session', CODEX_SESSION_ID: 'codex', CODEX_THREAD_ID: 'thread' });
   assert.deepEqual(env, { PATH: '/usr/bin' });
 });

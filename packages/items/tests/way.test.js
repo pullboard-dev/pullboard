@@ -43,7 +43,7 @@ function companion(root) {
   return patch;
 }
 
-test('main changing an unrelated hunk of the companion\'s file still composes, with no coordinator step [C7]', t => {
+test('items.way.unrelated-hunk-composes: main changing an unrelated hunk of the companion\'s file still composes, with no coordinator step [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-3way-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
@@ -59,7 +59,7 @@ test('main changing an unrelated hunk of the companion\'s file still composes, w
   assert.deepEqual([...composed.paths], [FILE]);
 });
 
-test('a true overlap is refused, naming the conflicting file and hunk [C7]', t => {
+test('items.way.true-overlap-refused: a true overlap is refused, naming the conflicting file and hunk [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-3way-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
@@ -71,7 +71,7 @@ test('a true overlap is refused, naming the conflicting file and hunk [C7]', t =
     && /conflicts with the head: file web\/serve\.js; hunk @@ -7,7 \+7,7 @@/u.test(error.message));
 });
 
-test('matching deletions are clean when another companion change remains [C7]', t => {
+test('items.way.matching-deletions-clean: matching deletions are clean when another companion change remains [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-delete-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
@@ -91,7 +91,7 @@ test('matching deletions are clean when another companion change remains [C7]', 
   assert.match(runFixtureGit(['show', `${composed.commit}:web/other.js`], { cwd: root }), /other = 2/u);
 });
 
-test('an executable-bit change survives an unrelated content merge [C7]', t => {
+test('items.way.exec-bit-survives: an executable-bit change survives an unrelated content merge [C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-mode-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });

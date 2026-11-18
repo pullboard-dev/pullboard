@@ -11,20 +11,20 @@ const item = { item_id: 9, item_criterion: `1. The thing holds in ${FILE} [test]
 const row = (name, passed, extra = {}) => ({ file: FILE, name, passed, skipped: false, ...extra });
 const proof = baseRows => ({ gateFiles: new Set([FILE]), baseRows, baseCommit: BASE });
 
-test('clause 1: a [test] clause with no recorded run at base is refused [C7]', () => {
+test('state.logic-clause-receipt.clause-1-a-clause-with-no-recorded-run: clause 1: a [test] clause with no recorded run at base is refused [C7]', () => {
   const refused = clauseReceiptProblem(item, proof([]));
   assert.equal(typeof refused.next, 'string');
   assert.match(refused.message, /clause 1 names .*zero tests ran at base/u);
   assert.equal(clauseReceiptProblem(item, proof([row('x', false, { failure: 'assertion' })])), null);
 });
 
-test('clause 2: a load error, zero tests or a skip at base is not a failing run [C7]', () => {
+test('state.logic-clause-receipt.clause-2-a-load-error-zero-tests-or-a: clause 2: a load error, zero tests or a skip at base is not a failing run [C7]', () => {
   for (const base of [[row('x', false, { failure: 'error' })], [], [{ ...row('x', false), skipped: true }], [row('x', true)]]) {
     assert.match(clauseReceiptProblem(item, proof(base))?.message ?? '', /no recorded run that fails on an assertion/u);
   }
 });
 
-test('clause 3: the receipt is one thread note, stored once, and the show lines read it back [C7]', () => {
+test('state.logic-clause-receipt.clause-3-the-receipt-is-one-thread-note: clause 3: the receipt is one thread note, stored once, and the show lines read it back [C7]', () => {
   const run = { gateFiles: new Set([FILE]), baseRows: [row('x', false, { failure: 'assertion' })], outcomes: [row('x', true)], head: HEAD, baseCommit: BASE };
   const [text] = clauseReceiptNotes(item, [], run);
   assert.match(text, /^receipt for clause 1: .* failed on an assertion at base bbbbbbbbbbbb \(x\) and passed at head cccccccccccc$/u);

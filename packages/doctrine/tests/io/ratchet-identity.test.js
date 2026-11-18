@@ -77,7 +77,7 @@ function roseError(box) {
 /** The submit rules the refusal was held against at main. */
 const rulesAt = (box) => checkRulesAt(box.item, box.main).filter((rule) => rule.runs === 'submit');
 
-test('clause 1: ratchetMachineryRule equals the machineryRule on a RATCHET_ROSE refusal for the same main and rules [C7,#9790]', () => {
+test('doctrine.io-ratchet-identity.clause-1-ratchetmachineryrule-equals-the: clause 1: ratchetMachineryRule equals the machineryRule on a RATCHET_ROSE refusal for the same main and rules [C7,#9790]', () => {
   const box = repo();
   const error = roseError(box);
   assert.equal(error.code, 'RATCHET_ROSE');
@@ -85,7 +85,7 @@ test('clause 1: ratchetMachineryRule equals the machineryRule on a RATCHET_ROSE 
   assert.equal(ratchetMachineryRule(box.item, box.main, rulesAt(box)), error.machineryRule);
 });
 
-test('clause 2: ratchetMachineryRule changes when the rules change, and is null for an unreadable main [C7,#9790]', () => {
+test('doctrine.io-ratchet-identity.clause-2-ratchetmachineryrule-changes: clause 2: ratchetMachineryRule changes when the rules change, and is null for an unreadable main [C7,#9790]', () => {
   const box = repo();
   const rules = rulesAt(box);
   const same = ratchetMachineryRule(box.item, box.main, rules);

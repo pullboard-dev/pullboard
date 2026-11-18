@@ -29,7 +29,7 @@ function fixture(t) {
 
 const pending = board => store.listItems(board, { all: true }).filter(item => item.item_title.startsWith('Main red:'));
 
-test('clause 1: the same known-main red filed twice leaves one open item that gains a fact [B3,C7,H16,V4]', async t => {
+test('landing.main-red-dedupe.the-same-known-main-red-filed: clause 1: the same known-main red filed twice leaves one open item that gains a fact [B3,C7,H16,V4]', async t => {
   const { board, state, say } = fixture(t);
   await fileKnownMainReds(state, [{ file: FILE, name: 'case one' }]);
   assert.deepEqual(say, []);
@@ -42,7 +42,7 @@ test('clause 1: the same known-main red filed twice leaves one open item that ga
   assert.match(facts[0].text, /case one/u);
 });
 
-test('clause 1: an audit item and a post-land item for the same case are one cause [B3,C7,H16,V4]', t => {
+test('landing.main-red-dedupe.an-audit-item-and-a-post: clause 1: an audit item and a post-land item for the same case are one cause [B3,C7,H16,V4]', t => {
   const audit = auditFailureItem({ failures: [{ file: FILE, name: 'case one' }], landings: [], lane: 'api' });
   const items = [{ item_id: 7, item_status: 'open', item_title: audit.title, item_brief: audit.brief, item_criterion: audit.criterion }];
   const { owned, fresh } = splitMainReds(items, [{ file: FILE, name: 'case one' }]);
@@ -50,7 +50,7 @@ test('clause 1: an audit item and a post-land item for the same case are one cau
   assert.equal(fresh.length, 0);
 });
 
-test('clause 2: the post-land suite files a red again as a fact, not a second item [B3,C7,H16,V4]', async t => {
+test('landing.main-red-dedupe.the-post-land-suite-files-a: clause 2: the post-land suite files a red again as a fact, not a second item [B3,C7,H16,V4]', async t => {
   const { board, state } = fixture(t);
   const { root } = privateFixtureFiles('main-red-');
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -68,7 +68,7 @@ test('clause 2: the post-land suite files a red again as a fact, not a second it
   assert.equal(pending(board).length, 1, 'two reds of one case file one item');
 });
 
-test('clause 3: a different file or case still files its own item [B3,C7,H16,V4]', async t => {
+test('landing.main-red-dedupe.a-different-file-or-case-still: clause 3: a different file or case still files its own item [B3,C7,H16,V4]', async t => {
   const { board, state } = fixture(t);
   await fileKnownMainReds(state, [{ file: FILE, name: 'case one' }]);
   const { owned, fresh } = splitMainReds(store.listItems(board, { all: true }), [{ file: FILE, name: 'case two' }, { file: 'api/other.test.js', name: 'case one' }]);

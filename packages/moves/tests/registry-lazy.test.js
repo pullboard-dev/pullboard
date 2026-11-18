@@ -15,7 +15,7 @@ import { lazyMoves } from '../index.js';
 /** A stand-in base table of next steps, so the cell proves the merge without loading the state cell. */
 const DEFAULT_NEXT_STEPS = { BASE_STEP: 'run the base step', GOOD_STEP: 'overridden by a move' };
 
-test('clause 2: each move and its state engine resolve through the lazy registry on first use exactly as the eager registry resolved them [C7]', () => {
+test('moves.registry-lazy.resolves-like-eager: clause 2: each move and its state engine resolve through the lazy registry on first use exactly as the eager registry resolved them [C7]', () => {
   const eager = discoverMoves();
   const lazy = lazyMoves();
   // First use: each operation is named before anything lists or orders the registry.
@@ -40,7 +40,7 @@ test('clause 2: each move and its state engine resolve through the lazy registry
   for (const [code, step] of Object.entries(expected)) assert.equal(steps[code], step, `${code} keeps its next step`);
 });
 
-test('clause 2: naming one move loads only its own module, and listing the moves still refuses a broken declaration [C7]', () => {
+test('moves.registry-lazy.loads-one-module: clause 2: naming one move loads only its own module, and listing the moves still refuses a broken declaration [C7]', () => {
   const fixture = privateFixtureFiles('pullboard-lazy-moves-');
   const folder = fixture.root;
   const write = fixture.write;

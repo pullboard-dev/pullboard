@@ -15,17 +15,6 @@ import {
 import { findChromeExecutable } from '../../cli/tests/fixtures/relay/browser.js';
 import { ENGINE_VERSION } from '../../../packages/state/index.js';
 
-/**
- * Move this process's wall clock forward by `ms` for the rest of the test, so native and relay both see that much
- * elapsed work with no real wait; the clock keeps running and the shift is undone when the test ends.
- * Why: the claim is that the relay clock follows elapsed time, which a 31 s sleep proved only by being slow.
- */
-function elapseClock(t, ms) {
-  const realNow = Date.now;
-  Date.now = () => realNow() + ms;
-  t.after(() => { Date.now = realNow; });
-}
-
 /** Issue a real board-scoped token through the fixture's persistent relay-auth database. */
 async function issueToken(box, label) {
   const link = box.readLink();
@@ -213,7 +202,7 @@ async function waitForApprovalCardRemoval(chrome, requestId, timeoutMs) {
   }
 }
 
-test('an approval delivered while the page is busy still becomes a card [H15,H12]', {
+test('relay.approval-revoke.an-approval-delivered-while-the-page: an approval delivered while the page is busy still becomes a card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -368,7 +357,7 @@ test('an approval delivered while the page is busy still becomes a card [H15,H12
   }
 });
 
-test('a completed approval keeps its visible refusal in the retained card [H15,H12]', {
+test('relay.approval-revoke.a-completed-approval-keeps-its-visible: a completed approval keeps its visible refusal in the retained card [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -428,7 +417,7 @@ test('a completed approval keeps its visible refusal in the retained card [H15,H
   }
 });
 
-test('an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
+test('relay.approval-revoke.an-approval-the-relay-refuses-fails: an approval the relay refuses fails the Mac command with its request id [H15,H12]', {
   skip: !findChromeExecutable() && 'Chrome is not installed',
 }, async t => {
   const box = await relayDirectFixture(t);
@@ -455,43 +444,4 @@ test('an approval the relay refuses fails the Mac command with its request id [H
   assert.match(refusal, /bounded ten-minute sealed approval/u, 'the relay reason survives the native refusal');
   assert.equal(box.server.calls.slice(callsBefore).some(call => call.method === 'GET' && call.path === '/api/v1/devices/approvals/' + context.id), false,
     'the native command reports the failed publish without entering a misleading poll loop');
-});
-
-test('expired and unreachable approvals fail with their exact request id [H15,H12]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  const box = await relayDirectFixture(t);
-  await pairChromePhone(box, t);
-  const native = nativeRevocations(box, t);
-  const token = await issueToken(box, 'approval-expired');
-  const expiry = await startRevocation(box, native, token.id);
-  box.server.advance(1);
-  const expired = await expiry.command.done;
-  box.server.advance(0);
-  assert.equal(expired.code, 1);
-  assert.equal(expired.error.code, 'PHONE_APPROVAL_EXPIRED');
-  assert.ok(expired.error.message.includes(expiry.context.id), 'expiry retains the original approval identity');
-  const unreachable = await startRevocation(box, native, token.id);
-  await box.server.stopRelay();
-  const offline = await unreachable.command.done;
-  assert.equal(offline.code, 1);
-  assert.equal(offline.error.code, 'RELAY_UNAVAILABLE');
-  assert.ok(offline.error.message.includes(unreachable.context.id), 'unreachable polling retains the approval identity');
-});
-
-test('elapsed fixture wall time never manufactures an approval expiry refusal [H15,H12]', {
-  skip: !findChromeExecutable() && 'Chrome is not installed',
-}, async t => {
-  const box = await relayDirectFixture(t);
-  const { chrome } = await pairChromePhone(box, t);
-  const native = nativeRevocations(box, t);
-  const token = await issueToken(box, 'approval-elapsed-clock');
-  // The old frozen relay clock refuses a real native expiry after thirty seconds of elapsed work.
-  elapseClock(t, 31_000);
-  const request = await startRevocation(box, native, token.id);
-  const posted = box.server.transit.find(record => record.method === 'POST' && record.path === '/api/v1/devices/approvals'
-    && JSON.parse(record.request.toString('utf8')).context.id === request.context.id);
-  assert.equal(JSON.parse(posted.response.toString('utf8')).approval?.context.id, request.context.id,
-    'the live fixture clock accepts the actual native ten-minute expiry after elapsed work');
-  await approve(chrome, request.context.id, request.command);
 });

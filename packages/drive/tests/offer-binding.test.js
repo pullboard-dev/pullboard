@@ -14,7 +14,7 @@ const files = privateFixtureFiles('pullboard-offer-binding-');
 after(() => rmSync(files.root, { recursive: true, force: true }));
 
 /** The production driver offers each shard with the gate's tree, base tree and attempt, which a pull runner signs [C7]. */
-test('driveOnce offers shards with the gate base, tooling pin and attempt [C7]', async t => {
+test('drive.offer-binding.driveonce-offers-shards-with-the: driveOnce offers shards with the gate base, tooling pin and attempt [C7]', async t => {
   const repo = join(files.root, 'repo');
   files.write('repo/a.txt', 'a\n');
   runFixtureGit(['-C', repo, 'init', '-q']);

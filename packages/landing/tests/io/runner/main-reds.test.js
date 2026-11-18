@@ -32,7 +32,7 @@ function mainFixture(t) {
   return { root, earlier, base, item };
 }
 
-test('clause 1: a land job whose only reds are files redNow records red on main at the base lands with those files named [C7,#8556]', async t => {
+test('landing.main-reds.a-land-job-whose-only-reds: clause 1: a land job whose only reds are files redNow records red on main at the base lands with those files named [C7,#8556]', async t => {
   const box = mainFixture(t);
   // red.test.js: red at an earlier main commit, still the newest row; later.test.js: red at the base itself.
   const mainReds = landingMainReds(ON, [red('tests/red.test.js', 10, box.earlier), red('tests/later.test.js', 12, box.base), red('tests/later.test.js', 5, box.earlier, 'other')]);
@@ -44,7 +44,7 @@ test('clause 1: a land job whose only reds are files redNow records red on main 
   assert.deepEqual(reran, [], 'no case-for-case rerun on the base was needed');
 });
 
-test('clause 2: a land job with a red redNow does not record on main is held [C7,#8556]', async t => {
+test('landing.main-reds.a-land-job-with-a-red: clause 2: a land job with a red redNow does not record on main is held [C7,#8556]', async t => {
   const box = mainFixture(t);
   // green.test.js is red only at the item's own commit, which is not on main; red.test.js is red on main.
   const mainReds = landingMainReds(ON, [red('tests/red.test.js', 10, box.earlier), red('tests/green.test.js', 11, box.item)]);
@@ -58,7 +58,7 @@ test('clause 2: a land job with a red redNow does not record on main is held [C7
   assert.equal(await mainOwnedReds({ root: box.root, base: box.base }, [failures[0]], { mainReds: cleared, rerun: async () => null }), null);
 });
 
-test('clause 3: with landing.ledgerMainReds off, a land job behaves as today [C7,#8556]', async t => {
+test('landing.main-reds.with-landing-ledgermainreds-off-a-land: clause 3: with landing.ledgerMainReds off, a land job behaves as today [C7,#8556]', async t => {
   const box = mainFixture(t);
   const rows = [red('tests/red.test.js', 10, box.earlier)];
   assert.deepEqual(landingMainReds({}, rows), [], 'off by default: no ledger reds ride on the job');

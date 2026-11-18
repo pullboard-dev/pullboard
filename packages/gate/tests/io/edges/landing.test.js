@@ -12,7 +12,7 @@ import { readPlan } from '../../../../codemap/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../../../', import.meta.url));
 
-test('the actual landing import graph has no edge into native quarantine [C7,CD64]', () => {
+test('gate.io-edges-landing.the-actual-landing-import-graph-has: the actual landing import graph has no edge into native quarantine [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);
   const landing = plan.cells.find(cell => cell.name === 'landing');
   assert.ok(landing, 'the real committed plan identifies landing');

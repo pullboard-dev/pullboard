@@ -18,7 +18,7 @@ function collect(events) {
   return collector.finish(true, events.length);
 }
 
-test('clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', () => {
+test('gate.io-test-failure-kinds.an-assertion-failure-is-recorded-as: clause 1: an assertion failure is recorded as assertion, a load error as error [C7]', () => {
   const failed = (cause) => ({ message: 'x', failureType: 'testCodeFailure', cause });
   const rows = collect([
     ['test:fail', 'a.test.js', 'asserts', failed({ code: 'ERR_ASSERTION', name: 'AssertionError' })],
@@ -33,7 +33,7 @@ test('clause 1: an assertion failure is recorded as assertion, a load error as e
   assert.equal(rows.find(row => row.file === 'b.test.js').failure, 'error');
 });
 
-test('clause 2: a receipt keeps the failure kinds of its outcomes [C7]', () => {
+test('gate.io-test-failure-kinds.a-receipt-keeps-the-failure-kinds: clause 2: a receipt keeps the failure kinds of its outcomes [C7]', () => {
   const testOutcomes = [{ file: 'test/a.test.js', name: 'x', passed: false, skipped: false, failure: 'assertion' }];
   const receipt = receiptFields({ version: 1, id: '11111111-1111-4111-8111-111111111111', kind: 'main-red',
     tree: 'a'.repeat(40), head: 'b'.repeat(40), main: 'c'.repeat(40), command: 'd'.repeat(64), green: false,
@@ -43,14 +43,14 @@ test('clause 2: a receipt keeps the failure kinds of its outcomes [C7]', () => {
   assert.deepEqual(receipt?.testOutcomes, testOutcomes);
 });
 
-test('clause 2: the base comparison refuses a file the base commit does not hold [C7]', async () => {
+test('gate.io-test-failure-kinds.the-base-comparison-refuses-a-file: clause 2: the base comparison refuses a file the base commit does not hold [C7]', async () => {
   const root = join(import.meta.dirname, '../../../../..');
   const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   await assert.rejects(runClauseBaseComparison(root, head, 'test/no-such-file.test.js'), /NO_BASE_FILE|does not exist at the item's base/u);
   await assert.rejects(runClauseBaseComparison(root, 'main', 'x.test.js'), /base commit/u);
 });
 
-test('clause 3: rows recorded before the failure field still read as valid [C7]', () => {
+test('gate.io-test-failure-kinds.rows-recorded-before-the-failure-field: clause 3: rows recorded before the failure field still read as valid [C7]', () => {
   const old = [{ file: 'test/a.test.js', name: 'x', passed: false, skipped: false }];
   assert.deepEqual(testOutcomeFields(old), old);
   assert.equal(testOutcomeFields([{ ...old[0], failure: 'other' }]), null);

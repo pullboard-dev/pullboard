@@ -12,6 +12,8 @@ import { isClean } from '../../../../git/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { untracked } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/index.js';
+import { hunkFreshnessEnabled } from '../../../../config/index.js';
+import { runnerOnlyCompose } from '../../../../config/index.js';
 import { landingSquashEnabled } from '../../../../config/index.js';
 import { squashOnto } from '../land/squash.js';
 import { checkLandingMessages } from '../../logic/message.js';
@@ -20,6 +22,7 @@ import { tightenLandingDoctrine } from '../doctrine.js';
 import { scanRidesRunner } from '../scan.js';
 import { amendLandingEngines } from '../derive.js';
 import { firstContainingCommit } from '../first.js';
+import { composeFollowingMain } from './compose.js';
 import { composeOnRunner } from './compose.js';
 import { deriveOnRunner } from './derive.js';
 import { commitDerived } from './derive.js';
@@ -28,12 +31,29 @@ import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { landingHooks } from './selection.js';
 
-/** Append a durable snapshot before or after each external side effect. */
+/**
+ * The batch's exact-tree record with `tree` set to the tree id of `tip`, the tree main will point to if the batch lands [V16,RFC 0011 ET1].
+ * Why: a proof keyed by a tip or a past main can stand for a tree it never ran on; the tree id names exactly what lands.
+ * A tip whose tree cannot be read drops the record, so a stale tree id never outlives the tip it was read from.
+ */
+export function exactTreeRecord(root, tip, previous) {
+  const read = tryGit(root, ['rev-parse', '--verify', '-q', `${tip}^{tree}`]);
+  const tree = read.status === 0 ? read.stdout.trim() : '';
+  if (!/^[a-f0-9]{40,64}$/u.test(tree)) return undefined;
+  // A proof recorded for another tree is dropped with it: only the tree id carries over to a new tip [V16,V37].
+  return previous?.tree === tree ? previous : { tree };
+}
+
+/** Append a durable snapshot before or after each external side effect; every snapshot carries the tree id of its tip [V16]. */
 export async function save(state, patch) {
   const conflicts = [...new Map([...(state.batch.conflicts ?? []), ...(patch.conflicts ?? [])].map((entry) => [entry.id, entry])).values()];
   const resolutions = [...new Map([...(state.batch.resolutions ?? []), ...(patch.resolutions ?? [])]
     .map(entry => [JSON.stringify(entry), entry])).values()];
-  state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...state.batch, ...patch, conflicts, resolutions }, revision: state.batch.revision ?? 0 }]);
+  const batch = { ...state.batch, ...patch, conflicts, resolutions };
+  const exactTree = batch.tip ? exactTreeRecord(batch.root, batch.tip, batch.exactTree) : undefined;
+  if (exactTree) batch.exactTree = exactTree;
+  else delete batch.exactTree;
+  state.batch = await state.write('recordLandingBatch', [{ agentId: 'coordinator', batch, revision: state.batch.revision ?? 0 }]);
   return state.batch;
 }
 
@@ -61,7 +81,7 @@ async function resetDirtyOnce(state) {
 function baseVerdicts(state, base) {
   state.baseVerdicts ??= new Map();
   if (!state.baseVerdicts.has(base)) state.baseVerdicts.set(base, verdictProjector(state.root, state.board, { main: base },
-    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem }));
+    { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() }));
   return state.baseVerdicts.get(base);
 }
 
@@ -86,11 +106,14 @@ export async function mergeGroup(state, items) {
   const squash = landingSquashEnabled();
   const onRunner = deriveRidesRunner(state);
   // A named batch's merges, gate repoints and derived files are built by one runner job; this checkout only takes its commit [C7,#5585].
-  const composed = onRunner && items.length ? await composeOnRunner(state, items.map(entry => {
+  const compose = runnerOnlyCompose() ? composeFollowingMain : composeOnRunner;
+  const composed = onRunner && items.length ? await compose(state, items.map(entry => {
     const item = store.getItem(state.board, entry.id ?? entry.item_id);
     const message = messages.get(item.item_id);
     return { id: item.item_id, commit: landedCommit(item), header: message.header, trailers: message.trailers };
   })) : null;
+  // With landing.runnerOnlyCompose on, a batch the runner could not compose stops here: nothing is merged on the coordinator [C7,#10246].
+  if (onRunner && !composed && runnerOnlyCompose()) throw new Refused('LAND_RUNNER_REQUIRED', `the runner could not compose landing batch ${batch.id} and landing.runnerOnlyCompose is on, so nothing was merged here; fix the runner (pullboard runners) and let the landing retry, or turn landing.runnerOnlyCompose off to merge on the coordinator`);
   if (onRunner && !composed) state.say('the runner could not compose this batch; its items were merged on the coordinator');
   if (composed) {
     for (const engine of composed.assigned) state.say(`engine ${engine.name}: ${engine.number}`);

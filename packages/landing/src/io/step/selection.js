@@ -17,11 +17,15 @@ import * as store from '../../../../store/index.js';
 import { tryGit } from '../../../../git/index.js';
 import { landingLeaseState } from '../../../../store/index.js';
 import { sameEnvironment } from '../../../../verify/light.js';
+import { hunkFreshnessEnabled } from '../../../../config/index.js';
 import { staleVerdictRefusal } from '../../../../verify/index.js';
 import { verdictProjector } from '../../../../verify/index.js';
 import { cachedMainComparison } from '../main/red.js';
 import { compareMainFailures } from '../main/red.js';
 import { cachedFailureSignatures } from '../main/matches.js';
+import { landingEntry } from '../../logic/land/entry.js';
+import { testDefectHoldMessage } from '../../logic/land/entry.js';
+export { landingEntry, testDefectHoldMessage };
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {
@@ -111,10 +115,6 @@ export function defectReleasedWithoutRun(root, board, trunk, defect, landingPort
   return Boolean(landingPorts) && (defect.names ?? []).every(name => nativeLandingWaiverFor(board, { file: defect.test, name }, landingPorts));
 }
 
-/** The LAND_TEST_DEFECT refusal text for the defects holding a trunk, naming each repair item and its live status [C7]. */
-export function testDefectHoldMessage(held) {
-  return `this trunk is held by ${held.map(defect => `#${defect.item ?? '?'} (${defect.status ?? 'status unreadable'}; ${defect.test})`).join(', ')}; correct the committed test or ask an approver for an expiring waiver`;
-}
 
 /**
  * Close each defect on this trunk whose recorded failing cases pass in a recorded run at the trunk commit, one
@@ -171,12 +171,6 @@ export function environmentWarnings(board, items, environment) {
   });
 }
 
-/** Keep the submitted identity and, when different, its sealed checked composition. */
-export function landingEntry(item) {
-  return { id: item.item_id, commit: item.item_commit,
-    ...(item.item_landing_commit !== item.item_commit ? { reviewedCommit: item.item_landing_commit } : {}),
-    ...(item.item_withdrawn_dependencies?.length ? { withdrawnDependencies: item.item_withdrawn_dependencies } : {}) };
-}
 
 /**
  * Whether a dependency no longer holds an item back: merged, or withdrawn [C7].
@@ -213,7 +207,7 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   // landing.first in accepted trunk policy: these items go ahead of the accept order, in the order listed [C7].
   const pinned = new Map(first.map((id, index) => [id, index]));
   const all = listItems(board, { all: true });
-  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
+  const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, hunkKeyed: hunkFreshnessEnabled() });
   // A coordinator's named landing takes the named items at their named proven commits whatever their status [C7,#5559].
   const proven = named ? new Map(named.map(({ id, commit }) => [id, commit])) : null;
   const pending = all.filter((item) => (proven ? proven.has(item.item_id) && item.item_status !== 'withdrawn' : item.item_status === 'verified') && !item.item_merged_commit)

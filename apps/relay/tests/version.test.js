@@ -16,7 +16,7 @@ import { VERIFIER_STANDING_ENGINE } from '../../../packages/state/index.js';
 const A = 'a'.repeat(32); // no board credential has ever existed
 const B = 'b'.repeat(32); // historical board credential, even after revocation
 
-test('relay enforces the minimum engine ever required by each board [H16,H3]', async t => {
+test('relay.version.relay-enforces-the-minimum-engine-ever: relay enforces the minimum engine ever required by each board [H16,H3]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-relay-version-'));
   const provider = await githubFixture(t);
   let time = Date.now();

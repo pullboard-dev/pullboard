@@ -25,7 +25,7 @@ function row(settings) {
   return withSettings(settings, () => settingsInventory([], null, { defaultViewPort: () => 0, DEFAULT_VIEW_PORT: 0 }).settings.find(r => r.key === 'landing.reuseContractResults'));
 }
 
-test('clause 1: landing.reuseContractResults is a described setting, off by default, on only for an exact true [C7,#9301]', () => {
+test('config.io-reuse-contract-results-setting.clause-1-landing-reusecontractresults-is: clause 1: landing.reuseContractResults is a described setting, off by default, on only for an exact true [C7,#9301]', () => {
   const unset = row({});
   assert.equal(unset.default, false);
   assert.equal(unset.value, false);

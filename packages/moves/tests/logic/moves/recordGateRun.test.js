@@ -29,7 +29,7 @@ function running(t) {
   return { box, id, reviewer: box.seats.outside };
 }
 
-test('clause 1: next --verify skips an item while its gate runs and offers it once the gate receipt exists [C7,V4]', async t => {
+test('moves.record-gate-run.next-verify-skips-an-item-while-its: clause 1: next --verify skips an item while its gate runs and offers it once the gate receipt exists [C7,V4]', async t => {
   const { box, id } = running(t);
   const waiting = await next(box, { verify: true, wait: 0 });
   assert.notEqual(waiting.item?.item_id, id, JSON.stringify(waiting));
@@ -39,7 +39,7 @@ test('clause 1: next --verify skips an item while its gate runs and offers it on
   assert.equal(offered.item.item_id, id, 'the finished gate makes it reviewable');
 });
 
-test('clause 1: a direct reserve of an item whose gate has no result is refused with the reason, then succeeds [C7,V4]', async t => {
+test('moves.record-gate-run.a-direct-reserve-of-an-item-whose: clause 1: a direct reserve of an item whose gate has no result is refused with the reason, then succeeds [C7,V4]', async t => {
   const { box, id, reviewer } = running(t);
   await assert.rejects(next(box, { verify: true, verifyId: String(id) }), { code: 'GATE_PENDING' });
   assert.equal(store.getItem(box.board, id).item_review_by, null, 'nothing was reserved');
@@ -48,7 +48,7 @@ test('clause 1: a direct reserve of an item whose gate has no result is refused 
   assert.equal(store.getItem(box.board, id).item_review_by, reviewer.id);
 });
 
-test('clause 2: a reject finding no gate receipt is refused and never recorded toward the send-back hold [C7,V4]', async t => {
+test('moves.record-gate-run.a-reject-finding-no-gate-receipt-is: clause 2: a reject finding no gate receipt is refused and never recorded toward the send-back hold [C7,V4]', async t => {
   const { box, id, reviewer } = running(t);
   gate(box, id, 'green');
   await next(box, { verify: true, verifyId: String(id) });
@@ -63,7 +63,7 @@ test('clause 2: a reject finding no gate receipt is refused and never recorded t
   assert.equal(rejects, 0);
 });
 
-test('clause 1: an incomplete hand-off with no proof receipt is neither offered, reserved nor given a verdict [C7,V4]', async t => {
+test('moves.record-gate-run.an-incomplete-hand-off-with-no-proof-receipt: clause 1: an incomplete hand-off with no proof receipt is neither offered, reserved nor given a verdict [C7,V4]', async t => {
   const { box, id, reviewer } = running(t);
   gate(box, id, 'incomplete');
   const offered = await next(box, { verify: true, wait: 0 });
@@ -77,7 +77,7 @@ test('clause 1: an incomplete hand-off with no proof receipt is neither offered,
   assert.equal(box.board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='reject'").get(id).n, 0);
 });
 
-test('clause 2: a green hand-off with no captured receipt is still refused, and is offered once the receipt exists [C7,V4]', async t => {
+test('moves.record-gate-run.a-green-hand-off-with-no-captured-receipt: clause 2: a green hand-off with no captured receipt is still refused, and is offered once the receipt exists [C7,V4]', async t => {
   const { box, id, reviewer } = running(t);
   gate(box, id, 'green', { receipt: false });
   await assert.rejects(next(box, { verify: true, verifyId: String(id) }), { code: 'GATE_PENDING' });
