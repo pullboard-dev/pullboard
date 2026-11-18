@@ -1,14 +1,18 @@
 /** Opening a new item folder with no spare launches at most 3 git processes and makes the same folder as before [C7,#10821,#5329]. */
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
+import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openItemFolder } from '../../../src/io/item/folder.js';
+import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
 import { gitPath } from '../../../../../packages/git/index.js';
 import { repoInfo } from '../../../../../packages/git/index.js';
@@ -88,4 +92,60 @@ test('cli.item-folder.same-folder-new-and-existing-branch: clause 2: the folder 
   assert.equal(existing, itemFolderPath(ctx.info.root, 8));
   assert.ok(existsSync(existing));
   assert.deepEqual(identity(existing), { top: existing, branch: 'core/item-8', commit: main, marker: { version: 1, seat: ME.id, item: 8 } });
+});
+
+/** Make this process's Git read no machine config or inherited selector, so the cases below see only the repository's own files; undone after the test. */
+function noMachineConfig(t) {
+  const files = privateFixtureFiles('pullboard-item-folder-config-');
+  const keys = ['GIT_CONFIG', 'GIT_CONFIG_COUNT', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_SYSTEM', 'GIT_DIR', 'GIT_COMMON_DIR', 'GIT_WORK_TREE', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'];
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  for (const key of keys) delete process.env[key];
+  process.env.GIT_CONFIG_GLOBAL = join(files.root, 'none');
+  process.env.GIT_CONFIG_NOSYSTEM = '1';
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    rmSync(files.root, { recursive: true, force: true });
+  });
+}
+
+/** What Git itself says checkout.workers is for a checkout, as the arguments parallelCheckout must return. */
+function gitsAnswer(path) {
+  const asked = childProcess.spawnSync('git', ['config', '--get', 'checkout.workers'], { cwd: path, encoding: 'utf8' });
+  return asked.status === 0 ? [] : ['-c', 'checkout.workers=0'];
+}
+
+test('cli.item-folder.checkout-workers-no-launch: clause 1: parallelCheckout launches no git process and returns what git returns, with checkout.workers set, unset, and set in a worktree config [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { primary, seat } = repository(t);
+  const cases = [['unset', () => {}, ['-c', 'checkout.workers=0']],
+    ['set in the repository config', () => runFixtureGit(['config', 'checkout.workers', '2'], { cwd: primary }), []]];
+  for (const [name, arrange, expected] of cases) {
+    arrange();
+    const { launches, result } = await countingGit(() => [parallelCheckout(seat), parallelCheckout(primary)]);
+    assert.deepEqual(result, [expected, expected], name);
+    assert.deepEqual(result[0], gitsAnswer(seat), `${name}: the same arguments as git`);
+    assert.equal(launches, 0, `${name}: launched ${launches} git processes`);
+  }
+  // A worktree's own config counts only where the repository turns per-worktree config on.
+  runFixtureGit(['config', '--unset', 'checkout.workers'], { cwd: primary });
+  runFixtureGit(['config', 'extensions.worktreeConfig', 'true'], { cwd: primary });
+  runFixtureGit(['config', '--worktree', 'checkout.workers', '3'], { cwd: seat });
+  const { launches, result } = await countingGit(() => [parallelCheckout(seat), parallelCheckout(primary)]);
+  assert.deepEqual(result, [[], ['-c', 'checkout.workers=0']], 'set in the seat\'s worktree config only');
+  assert.deepEqual(result[0], gitsAnswer(seat));
+  assert.deepEqual(result[1], gitsAnswer(primary));
+  assert.equal(launches, 0, `a worktree config launched ${launches} git processes`);
+});
+
+test('cli.item-folder.checkout-workers-include-asks-git: clause 2: a config file with an include directive falls back to git config and matches git [C7,#5329]', async t => {
+  noMachineConfig(t);
+  const { primary, seat } = repository(t);
+  const extra = join(privateFixtureFiles('pullboard-item-folder-include-').root, 'extra');
+  t.after(() => rmSync(dirname(extra), { recursive: true, force: true }));
+  writeFileSync(extra, '[checkout]\n\tworkers = 5\n');
+  appendFileSync(join(primary, '.git', 'config'), `[include]\n\tpath = ${extra}\n`);
+  const { launches, result } = await countingGit(() => parallelCheckout(seat));
+  assert.deepEqual(result, []);
+  assert.deepEqual(result, gitsAnswer(seat), 'the included setting counts, as it does for git');
+  assert.ok(launches >= 1, 'an include directive is answered by git');
 });
