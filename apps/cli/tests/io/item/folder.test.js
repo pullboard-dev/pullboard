@@ -11,6 +11,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { liveFolderRefusal } from '../../../src/io/item/folder.js';
 import { openItemFolder } from '../../../src/io/item/folder.js';
 import { parallelCheckout } from '../../../src/io/item/folder.js';
 import { itemFolderPath } from '../../../src/io/item/folder.js';
@@ -201,4 +202,22 @@ test('cli.io-item-folder.defers-the-running-folder: clause 2: inside a running c
   const outside = await openItemFolder(ctx, ME, 9);
   assert.equal(removeIdleFolder(outside, outside, { seat, running: [outside] }), true, 'outside a command nothing waits');
   assert.equal(existsSync(outside), false);
+});
+
+test('cli.item-folder.live-folder-no-launch: clause 1: liveFolderRefusal launches no git process for an item whose folder does not exist and answers as git does for no checkout, one elsewhere, a locked one and a spaced path [C7,#10862]', async t => {
+  const { primary, seat, ctx } = repository(t);
+  const me = { id: 'seat-x', lane: 'web' };
+  const root = dirname(seat);
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-7', join(root, 'elsewhere')], { cwd: primary });
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-8', join(root, 'locked-away')], { cwd: primary });
+  runFixtureGit(['worktree', 'lock', join(root, 'locked-away')], { cwd: primary });
+  mkdirSync(join(root, 'spaced dir'));
+  runFixtureGit(['worktree', 'add', '-q', '-b', 'web/item-9', join(root, 'spaced dir', `${seat.split('/').pop()}-item-9`)], { cwd: primary });
+  const answers = [];
+  for (const id of [6, 7, 8, 9]) { const refusal = await liveFolderRefusal(ctx, null, me, id); answers.push(refusal && refusal.code); }
+  // The no-checkout item answers from Git's files alone; the other three go on to the same checks as before, which may read Git.
+  assert.deepEqual(answers, [null, 'ITEM_FOLDER_PROTECTED', 'ITEM_FOLDER_PROTECTED', null], 'no checkout, one elsewhere, a locked one and a spaced path');
+  const none = await countingGit(() => liveFolderRefusal(ctx, null, me, 6));
+  assert.equal(none.result, null);
+  assert.equal(none.launches, 0, `an item with no folder and no checkout launched ${none.launches} git processes`);
 });
