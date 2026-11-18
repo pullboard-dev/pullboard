@@ -23,7 +23,7 @@ import { activityWords } from '../../src/logic/activity/words.js';
 import { viewTestProblems } from '../../src/io/coverage.js';
 import { ruleListModel } from '../../src/logic/rules.js';
 
-test('Spec and Doctrine selection keeps local decisions, inherited defaults and addressed rows explicit [N26,B26,C7]', () => {
+test('view.x-main.spec-and-doctrine-selection-keeps-local-decisions: Spec and Doctrine selection keeps local decisions, inherited defaults and addressed rows explicit [N26,B26,C7]', () => {
   const rows = [
     { id: 'G1', section: 'Goals', status: 'draft' },
     { id: 'G2', section: 'Goals', status: 'pending', decision: { decision: 'decline' } },
@@ -58,7 +58,7 @@ test('Spec and Doctrine selection keeps local decisions, inherited defaults and 
   assert.equal(JSON.stringify(rows), before, 'selection does not rewrite decisions or reorder source rows');
 });
 
-test('shared view rows render item, spec and doctrine presentation data without browser state [N26,C7]', () => {
+test('view.x-main.shared-view-rows-render-item-spec-and: shared view rows render item, spec and doctrine presentation data without browser state [N26,C7]', () => {
   const item = Object.freeze({ attributes: 'data-item="12"', title: 'Use <tags> & "quotes"', state: 'building',
     primary: '<span>#12</span>Use &lt;tags&gt;', secondary: '<span>web</span>', rightTop: '<time>2m</time>',
     rightBottom: '<span class="chip busy">web-1</span>', classes: 'on gated ' });
@@ -79,7 +79,7 @@ test('shared view rows render item, spec and doctrine presentation data without 
 });
 
 
-test('Items selection applies explicit search, state, lane and rank observations without page state [N26,C7]', () => {
+test('view.x-main.items-selection-applies-explicit-search-state-lane: Items selection applies explicit search, state, lane and rank observations without page state [N26,C7]', () => {
   const items = Object.freeze([
     { id: 4, lane: 'web', status: 'open', updatedAt: '2026-10-28T12:00:00Z' },
     { id: 2, lane: 'api', status: 'claimed', updatedAt: '2026-10-28T11:00:00Z' },
@@ -117,7 +117,7 @@ test('Items selection applies explicit search, state, lane and rank observations
   assert.throws(() => selectItemsView({ items, stateById: { 4: { state: 'open' } }, state: 'active' }), /stateById must be a Map/u);
 });
 
-test('lifecycle diagram HTML follows supplied declarations and counts without replay or browser geometry [N26,M1,C7]', () => {
+test('view.x-main.lifecycle-diagram-html-follows-supplied-declarations-and: lifecycle diagram HTML follows supplied declarations and counts without replay or browser geometry [N26,M1,C7]', () => {
   const flow = { initial: 'open', states: ['open', 'claimed', 'submitted', 'verified', 'withdrawn'].map(id => ({ id,
     final: ['verified', 'withdrawn'].includes(id), means: 'Meaning <' + id + '>', entry: [] })),
     moves: [['claim', ['open'], 'claimed'], ['submit', ['claimed'], 'submitted'], ['accept', ['submitted'], 'verified'],
@@ -144,7 +144,7 @@ test('lifecycle diagram HTML follows supplied declarations and counts without re
 });
 
 
-test('timeline HTML preserves supplied move and fact order, lapse rows, stays, replacements and code links [N26,B33,C7]', () => {
+test('view.x-main.timeline-html-preserves-supplied-move-and-fact: timeline HTML preserves supplied move and fact order, lapse rows, stays, replacements and code links [N26,B33,C7]', () => {
   const at = minute => new Date(Date.UTC(2026, 9, 28, 12, minute)).toISOString();
   const flow = Object.freeze({ initial: 'open', states: Object.freeze([
     Object.freeze({ id: 'open', final: false }), Object.freeze({ id: 'claimed', final: false }),
@@ -188,7 +188,7 @@ test('timeline HTML preserves supplied move and fact order, lapse rows, stays, r
   assert.match(malformed, /<div class="tl-code"><\/div>/u, 'a truthy code reference keeps its wrapper even when formatted code HTML is empty');
 });
 
-test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped titles from seeded data [N26,N38,C7]', () => {
+test('view.x-main.pipeline-html-keeps-stage-order-oldest-arrival: pipeline HTML keeps stage order, oldest arrival, selected item and escaped titles from seeded data [N26,N38,C7]', () => {
   const input = Object.freeze([
     Object.freeze({ id: 9, title: 'Later <ready>', stage: 'open', stageKey: 'ready', stageHtml: '<b>Ready</b>', since: '2026-10-28T12:00:00Z', href: '#item/9', ageHtml: '<time>1m</time>' }),
     Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'blocked', stageHtml: '<b>Blocked</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
@@ -210,7 +210,7 @@ test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped
   assert.ok(!empty.includes('data-item='));
 });
 
-test('Needs row adapters retain each call identity and its permitted action from plain data [N26,B26,C7]', () => {
+test('view.x-main.needs-row-adapters-retain-each-call-identity: Needs row adapters retain each call identity and its permitted action from plain data [N26,B26,C7]', () => {
   const revision = { kind: 'spec-revision', id: 'G1', reason: 'Revise the rule' };
   const calls = [{ kind: 'draft', count: 2 }, { kind: 'rigor-draft' }, { kind: 'sentinel-draft' }, { kind: 'agent-approved' },
     revision, { kind: 'decision', id: 7, ref: 'web-1', text: 'Choose <words>', at: 'decision-time' },
@@ -235,7 +235,7 @@ test('Needs row adapters retain each call identity and its permitted action from
   assert.equal(JSON.stringify(calls), before, 'adapting and rendering do not consume input calls');
 });
 
-test('render logic receives its clock and the source policy refuses ambient clock or global acquisition [N26,C7]', () => {
+test('view.x-main.render-logic-receives-its-clock-and-the: render logic receives its clock and the source policy refuses ambient clock or global acquisition [N26,C7]', () => {
   assert.throws(() => dashboardModel({}, []), /explicit clock reading/u);
   const now = Date.parse('2026-10-28T12:00:00Z');
   assert.equal(dashboardModel({}, [], { now }).now, now);
@@ -258,7 +258,7 @@ test('render logic receives its clock and the source policy refuses ambient cloc
   }
 });
 
-test('Needs HTML keeps grouped calls, exact confirmation identities and compact overflow without a browser [N26,B26,C7]', () => {
+test('view.x-main.needs-html-keeps-grouped-calls-exact-confirmation: Needs HTML keeps grouped calls, exact confirmation identities and compact overflow without a browser [N26,B26,C7]', () => {
   const at = '2026-10-28T12:00:00Z';
   const approvals = [1, 2, 3, 4].map(n => ({ kind: 'agent-approved', id: 'G' + n, approvedAt: at,
     actions: [{ verb: 'spec-approve', args: { ids: 'G' + n } }] }));
@@ -320,7 +320,7 @@ test('Needs HTML keeps grouped calls, exact confirmation identities and compact 
   assert.equal(needsPanelHtml(needsPanelModel([], { holds: [] })), '');
 });
 
-test('Home rule HTML counts approved rows and gate declarations without implying execution [N26,C7]', () => {
+test('view.x-main.home-rule-html-counts-approved-rows-and: Home rule HTML counts approved rows and gate declarations without implying execution [N26,C7]', () => {
   const rows = Object.freeze([{ status: 'approved', gate: 'node check.js' }, { status: 'approved', gate: 'none' },
     { status: 'approved', gate: '  ' }, { status: 'draft', gate: 'node draft.js' }, { status: 'wont', gate: 'node retired.js' }]);
   const html = homeRules(rows);
@@ -332,7 +332,7 @@ test('Home rule HTML counts approved rows and gate declarations without implying
   assert.match(homeRules(null), /<dd>0<\/dd>/u);
 });
 
-test('Roadmap headers display supplied counts, estimates and without deriving a board [N26,C7]', () => {
+test('view.x-main.roadmap-headers-display-supplied-counts-estimates-and: Roadmap headers display supplied counts, estimates and without deriving a board [N26,C7]', () => {
   const summary = { total: 10, left: 8, landed: 2, landing: 1, review: 3, building: 1, waiting: 2, held: 1,
     estimate: { low: 2, high: 4 }, pace: { last6h: 2, last2h: 1 }, window: '6h', needsYou: [7, 'other#8'] };
   const milestone = { name: '0.9 <release>', target: '2026-10-29T12:00:00Z', pastTarget: true, summary };
@@ -358,7 +358,7 @@ test('Roadmap headers display supplied counts, estimates and without deriving a 
   assert.equal(roadmapSummary({ ...milestone, summary: { ...summary, held: -1 } }), null);
 });
 
-test('Roadmap item HTML retains blockers, provenance and escaped detail from explicit display inputs [N26,C7]', () => {
+test('view.x-main.roadmap-item-html-retains-blockers-provenance-and: Roadmap item HTML retains blockers, provenance and escaped detail from explicit display inputs [N26,C7]', () => {
   const item = { id: 7, lane: 'web', status: 'open', blockedBy: [8], criterion: 'Keep <all> words. A second sentence.',
     builtBy: 'web-1', verifiedBy: 'tests-1', specs: ['G1'], verdict: { decision: 'REJECT', reason: 'TEST_FAILURE',
       note: 'TEST_FAILURE: First <reason>. More detail.', by: 'tests-1', at: 'rejected-at' },
@@ -388,7 +388,7 @@ test('Roadmap item HTML retains blockers, provenance and escaped detail from exp
   assert.deepEqual({ item, context }, before);
 });
 
-test('timeline references keep URLs and absolute paths as literal prose [N26,B23]', () => {
+test('view.x-main.timeline-references-keep-urls-and-absolute-paths: timeline references keep URLs and absolute paths as literal prose [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
   const literals = [
     ['https://example.test/src/example.js#958', 'https://example.test/src/example.js#958'],
@@ -409,7 +409,7 @@ test('timeline references keep URLs and absolute paths as literal prose [N26,B23
   }
 });
 
-test('timeline prose ratios and diff prefixes stay text while a hash beside a slash stays a hash [N26,B23]', () => {
+test('view.x-main.timeline-prose-ratios-and-diff-prefixes-stay: timeline prose ratios and diff prefixes stay text while a hash beside a slash stays a hash [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
   const refs = [];
   const text = `2/2 Items24/25 clamp/words/grouping/references a/test/cockpit/agents.test.js ${sha}/tree${sha}`;
@@ -420,7 +420,7 @@ test('timeline prose ratios and diff prefixes stay text while a hash beside a sl
   assert.ok(html.includes('data-copy="' + sha + '"><code class="inline sha" title="' + sha + '">' + sha.slice(0, 12) + '</code></button>/tree' + sha), 'a commit followed by a slash retains its copyable hash chip');
 });
 
-test('timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
+test('view.x-main.timeline-text-keeps-quoted-words-escapes-markup: timeline text keeps quoted words, escapes markup and binds only detected references [N26,B23]', () => {
   const sha = 'abcdef1234567890abcdef1234567890abcdef12';
   const text = `A <script>ONE_CLAIM</script> says #2; src/example.js:2@${sha}; README.md:1@${sha}; ${sha}; 2026-10-28T12:34:56Z. ../outside.js stays text.`;
   const refs = [];
@@ -467,7 +467,7 @@ const foldCalls = [
 ];
 const foldProject = { holds: [], spec: [{ id: 'G1', text: 'G1 text', gate: 'gate G1', agentApproval: { agent: 'core-1', approvedAt: foldAt, commit: 'a'.repeat(40) } }] };
 
-test('Items folds Rigor drafts proposing the same change into one row with its count, inside one collapsed group [N26]', () => {
+test('view.x-main.items-folds-rigor-drafts-proposing-the-same: Items folds Rigor drafts proposing the same change into one row with its count, inside one collapsed group [N26]', () => {
   const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
   assert.equal(model.questions.length, 4, 'three same-file drafts fold into one row; the other file, the decision and the sentinel stay');
   const folded = model.questions.find(row => row.folded);
@@ -490,7 +490,7 @@ test('Items folds Rigor drafts proposing the same change into one row with its c
   assert.equal(itemsNeedsHtml({ questions: [], approvals: [], drafts: 0 }), '');
 });
 
-test('Items chips name who or what each row waits on, ids stay whole, and sent-back reasons are plain words [N26]', () => {
+test('view.x-main.items-chips-name-who-or-what-each: Items chips name who or what each row waits on, ids stay whole, and sent-back reasons are plain words [N26]', () => {
   const model = itemsNeedsModel(needsPanelModel(foldCalls, foldProject, { person: true }));
   const chip = kind => model.questions.find(row => row.source.kind === kind).action;
   assert.equal(chip('decision'), 'Your decision');
