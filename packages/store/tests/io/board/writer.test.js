@@ -100,7 +100,7 @@ test('store.io-board-writer.a-socket-path-too-long-for: a socket path too long f
 });
 
 const SHA = 'a'.repeat(40);
-const DIGEST = 'digest:gate-run';
+const DIGEST = 'e'.repeat(64);
 
 /** A real board file, a claimed item, its stored gate receipt, and a second connection that says whether the write lock is held. */
 function gateRunFixture(t) {
