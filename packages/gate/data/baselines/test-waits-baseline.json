@@ -210,7 +210,7 @@
   "apps/relay/tests/fixtures/relay-server-fixture.js": {
     "sleep": 2
   },
-  "apps/cli/tests/fixtures/gate/resource.js": {
+  "packages/gate/tests/fixtures/resource.js": {
     "sleep": 3
   },
   "apps/cli/tests/fixtures/resources/pool.js": {
