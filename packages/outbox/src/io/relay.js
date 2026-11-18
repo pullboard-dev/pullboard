@@ -510,6 +510,31 @@ async function queueUnsealed(link, { operation, args, command, move, applyLocall
 }
 
 /**
+ * Fold the key-free outbox into the sealed outbox once the board key reads again: every entry in file order, and the file removed only after the sealed write (#9894, #9411).
+ * Behind relay.queueOnFailure. A key that still cannot be read leaves the file untouched and the moves keep waiting; an entry already sealed is not sealed twice.
+ */
+async function foldUnsealed(link) {
+  const { root, file, state, io, localRecords } = link;
+  const where = unsealedOutboxFile(file);
+  if (!existsSync(where)) return;
+  try { if (io?.relayQueueOnFailure?.() !== true) return; } catch { return; }
+  let key;
+  try { key = readBoardKey(state.board); } catch { return; }
+  await withOutboxGuard(file, async () => {
+    const sealed = outboxFile(file);
+    const outbox = await readOutbox(sealed, key, state.board) ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
+    const known = new Set(outbox.moves.map(row => row.move.id));
+    for (const entry of JSON.parse(readFileSync(where, 'utf8'))) {
+      if (!known.has(entry.move.id)) outbox.moves.push({ ...entry, refs: bindRefs(outbox, entry.move) });
+    }
+    bumpGeneration(file);
+    await writeOutbox(sealed, key, state.board, outbox);
+    saveOutboxSummary(link, outbox);
+    rmSync(where, { force: true });
+  });
+}
+
+/**
  * Queue a move on an accepted link, then make it on this machine (#922, #1013). The caller holds the outbox guard.
  * The first queued move seals the board as the relay last ordered it; the move is written before it is applied, so
  * a crash between the two leaves it queued and the next rebuild starts from that image anyway. A move this board
@@ -954,6 +979,7 @@ async function recoverParked(link) {
  * `recover`, once only parked moves remain, the board's checkpoint is published over them and they are resolved (#6693).
  */
 export async function flushOutbox(link, { recover = false } = {}) {
+  await foldUnsealed(link);
   await flushRounds(link);
   if (recover) return recoverParked(link);
 }
