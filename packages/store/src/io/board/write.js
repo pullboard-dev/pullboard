@@ -211,7 +211,7 @@ function writeBoardDirect(board, operation, args, actor, { prepareInWriter } = {
     const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(args[0]);
     // A leased file whose recent conflict rate is under queue.contentionThreshold is quiet and shared, not refused [C7,#1441].
     const quiet = item && board.fileLease.quietThreshold !== undefined
-      ? new Set(quietFiles(predictedFiles(item), conflictRates(store.eventsOfKinds(board, [reopen, hold_item]), board.clock.now()), board.fileLease.quietThreshold)) : undefined;
+      ? new Set(quietFiles(predictedFiles(item), conflictRates(store.eventsOfKinds(board, ['reopen', 'hold_item']), board.clock.now()), board.fileLease.quietThreshold)) : undefined;
     if (item) requireFileLease(board.db, item, actor, board.fileLease, board.clock.now().toISOString(), quiet);
   }
   requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION, ...(board.itemsInGate > 0 ? { itemsInGate: board.itemsInGate } : {}) });
