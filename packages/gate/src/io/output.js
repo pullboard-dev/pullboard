@@ -1,3 +1,4 @@
+import { fileSystemAdapter } from '../../../fs/index.js';
 import { environmentProblem } from '../../../config/index.js';
 import { testOutcomeFields } from './test/outcomes.js';
 import { sourcePreparationFields } from '../../light.js';
@@ -5,12 +6,10 @@ import { sourcePreparationFields } from '../../light.js';
  * What a gate run leaves for people and agents: the digest of its output and its sanitized timing profile. Trusted
  * policy checks write both, so they live apart from the gate's queue and runners, which a board read never needs [C7].
  */
-import {
-  mkdirSync,
-  writeFileSync,
-} from 'node:fs';
 import { dirname } from 'node:path';
 import { secretsIn } from '../../../commits/index.js';
+
+const fs = fileSystemAdapter();
 
 const DIGEST_CHARS = 3000;
 const TAIL_CHARS = 1000;
@@ -145,7 +144,7 @@ export function writeTimingProfile(path, profile) {
         .map(([key, value]) => [key, sanitize(value, `execution tooling ${key}`)])),
     } } : {}),
   };
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  writeFileSync(path, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 });
+  fs.mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  fs.writeFile(path, `${JSON.stringify(sanitized, null, 2)}\n`, { mode: 0o600 });
   return sanitized;
 }
