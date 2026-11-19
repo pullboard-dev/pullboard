@@ -11,7 +11,7 @@ import { fixtureMachineSettings } from '../../../gate/tests/fixtures/testkit.js'
 import { FLAKE_RATCHET_ENGINE } from '../../../state/light.js';
 import { NATIVE_FLAKE_ENGINE } from '../../../state/light.js';
 import * as store from '../../../store/index.js';
-import { openCellBoard as openBoard } from '../../../store/tests/fixtures/cell.js';
+import { openCellBoard as openBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { submitFixture } from '../../../store/tests/fixtures/submit.js';
 import { landingFlakeRatchet } from '../../index.js';
 
