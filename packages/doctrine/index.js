@@ -10,3 +10,4 @@ export * from './src/io/bundle/import.js';
 export { encodeBundle } from './src/logic/bundle/encode.js';
 export { signBundle, verifyBundle } from './src/io/bundle/verify.js';
 export { signWaiver, waiverPermits } from './src/io/bundle/waiver.js';
+export { standardDecisionLine } from './src/logic/standard-decision.js';
