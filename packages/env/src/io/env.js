@@ -6,12 +6,18 @@
 /**
  * Build an environment adapter over a source of name to value pairs.
  * @param {Record<string, string | undefined>} [source] defaults to the real process environment
- * @returns {{ get: (name: string, fallback?: string) => string | undefined, has: (name: string) => boolean, all: () => Record<string, string | undefined> }}
+ * @returns {{ get: (name: string, fallback?: string) => string | undefined, has: (name: string) => boolean, all: () => Record<string, string | undefined>, set: (name: string, value: string) => void, delete: (name: string) => void }}
  */
 export function environmentAdapter(source = process.env) {
   return {
     get: (name, fallback) => (source[name] === undefined ? fallback : source[name]),
     has: (name) => source[name] !== undefined,
     all: () => ({ ...source }),
+    set: (name, value) => {
+      source[name] = value;
+    },
+    delete: (name) => {
+      delete source[name];
+    },
   };
 }
