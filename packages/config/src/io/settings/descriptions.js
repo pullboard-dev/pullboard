@@ -383,6 +383,7 @@ const ROWS = [
   ['commits.noCoAuthor', 'No co-author lines', 'Commits with co-author trailers are refused.', 'Commits', 'on/off'],
   ['commits.noEmoji', 'No emoji', 'Commit messages with emoji are refused.', 'Commits', 'on/off'],
   ['commits.noHostName', 'No computer name', 'Submit refuses commits that name this computer; off only warns.', 'Commits', 'on/off'],
+  ['commits.quotedNames', 'Quoted names', 'Names whose quoted words commits may not carry.', 'Commits', 'list'],
   ['commits.requireIds', 'Types that cite specs', 'Commit types whose header must cite a spec id.', 'Commits', 'list'],
   ['commits.types', 'Commit types', 'The types a commit header may start with.', 'Commits', 'list'],
   ['protect.allowed', 'Protected-file exceptions', 'File patterns allowed even though they match a protected one.', 'Protection', 'list'],
@@ -406,6 +407,7 @@ const ROWS = [
   ['line.reviewsFirst', 'Reviews first', 'Reviews are offered before new builds.', 'Line', 'on/off'],
   ['line.reworkSameFamily', 'Same-family rework', 'After the original builder is gone, returned work first goes to live seats in the builder’s model family.', 'Line', 'on/off'],
   ['line.takeoverMinutes', 'Takeover wait', 'How long an inactive claim waits before another builder may take it over.', 'Line', 'minutes'],
+  ['line.tune', 'Self-tuning line', 'The line controller adjusts its own knobs from replayed board flow; off keeps every knob as set.', 'Line', 'on/off'],
   ['line.wipPerReviewer', 'Work per reviewer', 'How many items may be in progress for each active reviewer.', 'Line', 'ratio'],
 ];
 
