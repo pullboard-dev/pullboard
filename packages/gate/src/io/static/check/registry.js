@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importStyleViolations } from '../style.js';
@@ -15,6 +16,9 @@ import { cellsEdgeProblems } from '../../edges.js';
 import { CELLS_EDGES_CEILINGS } from '../../edges.js';
 import { assumptionProblems } from '../../../../../codemap/index.js';
 import { syncSpawnProblems } from '../../../../../codemap/index.js';
+import { scanSource } from '../../../../../codemap/index.js';
+import { jsdocFindings } from '../../../logic/jsdoc.js';
+import { jsdocCheckEnabled } from '../../../../../config/index.js';
 import { fixedWallMargins } from '../../budgets.js';
 import { EXPORT_ONLY_CEILINGS } from '../../../logic/export/only.js';
 import { declaredDoorFiles } from '../../../logic/export/only.js';
@@ -36,6 +40,13 @@ import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
 
+/** Every cell folder: each directory directly under packages and apps. */
+function cellFolders(root) {
+  return ['packages', 'apps'].flatMap(group => {
+    try { return readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
+  });
+}
+
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
  *
@@ -45,6 +56,23 @@ import { inlineStyleProblems } from '../inline-style.js';
 function growthCheck(check) {
   return ({ root, files, text, previous }) => files.flatMap(file => check(root, [file], text).slice(check(root, [file], previous).length)
     .map(row => `${row.path}:${row.line}: ${row.text}`));
+}
+
+/**
+ * The exported functions of changed source files with no JSDoc summary or a stale @param name, as one row per function;
+ * the line is 1 because only the count is compared against main (growthCheck) [C7,#1807].
+ *
+ * @param {string} root
+ * @param {string[]} files
+ * @param {(file: string) => string} read
+ * @returns {{ path: string, line: number, text: string }[]}
+ */
+function jsdocProblems(root, files, read) {
+  return files.filter(file => /\.[cm]?js$/u.test(file) && !isTestSource(file)).flatMap(file => jsdocFindings(scanSource(file, read(file) ?? '').functions
+    .filter(fn => fn.exported)
+    .map(fn => ({ file, name: fn.name, params: fn.params.map(param => param.name ?? param.raw),
+      jsdoc: fn.jsdoc && { summary: fn.jsdoc.summary, params: fn.jsdoc.params.map(param => param.name).filter(name => !name.includes('.')) } })))
+    .map(row => ({ path: row.file, line: 1, text: `exported function ${row.name}: ${row.problem}` })));
 }
 
 /** Whether a path is a test source the wall-clock and wait checks judge. */
@@ -129,10 +157,10 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (!staged && !files.some(file => /\.[cm]?js$/u.test(file)) ? [] : staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/logic/export/only.js).
-  { name: 'export-only', run: ({ sources, text }) => {
+  { name: 'export-only', run: ({ root, sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
-    return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
+    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => existsSync(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
   { name: 'markdown-allowlist', run: ({ root, text }) => {
@@ -147,6 +175,8 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'default-export', run: ({ sources }) => defaultExportProblems(sources).map(row => `${row.path}:${row.line}: ${row.text}`) },
   { name: 'empty-catch', run: growthCheck(emptyCatchProblems) },
   { name: 'file-size', run: growthCheck(fileSizeProblems) },
+  // With gate.jsdocCheck on (default off), an exported function with no JSDoc summary or a stale @param name in a changed file fails only when it is new against main (packages/gate/src/logic/jsdoc.js) [#1807].
+  { name: 'jsdoc', run: context => (jsdocCheckEnabled() ? growthCheck(jsdocProblems)(context) : []) },
   // No new style= attribute or element .style write in apps/view; each file keeps main's count and never gains one (packages/gate/src/io/static/inline-style.js).
   { name: 'inline-style', run: growthCheck(inlineStyleProblems) },
   { name: 'test-inputs', run: context => growthCheck((root, files, read) => testInputProblems(root, files, read, requireDeclaredInputsEnabled()))(context) },

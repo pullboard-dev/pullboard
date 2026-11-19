@@ -42,13 +42,39 @@ const DIR = import.meta.dirname;
 const KINDS = ['cell unit', 'contract', 'journey', 'harness'];
 const ID = /^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$/u;
 
+/** A registry file: registry.json, or a per-item registry-<id>.json that keeps one item's records out of the shared file. */
+const REGISTRY_FILE = /^registry(?:-\d+[a-z]?)?\.json$/u;
+
+/**
+ * The records of every registry file among `names`, read through `read`, and each ID recorded in more than one file.
+ * Why: every new test appending its record to one registry.json made accepted items conflict at merge; per-item files never collide.
+ */
+function mergeRecords(names, read) {
+  const records = {};
+  const duplicates = [];
+  for (const name of names.filter((entry) => REGISTRY_FILE.test(entry)).sort()) {
+    for (const [id, record] of Object.entries(JSON.parse(read(name)))) {
+      if (Object.hasOwn(records, id)) duplicates.push(`${id} (${name})`);
+      records[id] = record;
+    }
+  }
+  return { records, duplicates };
+}
+
+/** This cell's records: fixtures/registry.json plus every fixtures/registry-<id>.json. */
+function loadRecords(dir) {
+  const fixtures = join(dir, 'fixtures');
+  return mergeRecords(readdirSync(fixtures), (name) => readFileSync(join(fixtures, name), 'utf8'));
+}
+
 /** Every test file under this cell's tests folder, nested folders included. */
 function testFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? testFiles(join(dir, entry.name)) : entry.name.endsWith('.test.js') ? [join(dir, entry.name)] : []));
 }
 
 test('resources.registry.complete: clause 1: [C7,U148] every registered test has a stable ID and one complete record; an unregistered test is reported and fails only with tests.registryStrict on', (t) => {
-  const records = JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8'));
+  const { records, duplicates } = loadRecords(DIR);
+  assert.deepEqual(duplicates, [], 'no ID is recorded in two registry files');
   const files = testFiles(DIR).sort().map((file) => ({ file, source: readFileSync(file, 'utf8') }));
   const { ids, findings } = registryFindings(files, records);
   assert.deepEqual([...new Set(ids)].sort(), ids.slice().sort(), 'no ID is used by two tests');
@@ -63,4 +89,20 @@ test('resources.registry.complete: clause 1: [C7,U148] every registered test has
     assert.ok(KINDS.includes(record.kind), `${id}: kind is one of ${KINDS.join(', ')}`);
     assert.ok(Array.isArray(record.inputs) && record.inputs.length > 0, `${id}: declares its inputs`);
   }
+});
+
+test('resources.registry.per-item-files: clause 1: [C7] the registry loader returns a record kept only in a registry-<id>.json in the fixtures folder, merged with packages/resources/tests/fixtures/registry.json', () => {
+  const { records } = loadRecords(DIR);
+  assert.ok(records['resources.registry.per-item-files'], 'the record of this case, kept only in fixtures/registry-11953.json, is loaded');
+  const shared = Object.keys(JSON.parse(readFileSync(join(DIR, 'fixtures', 'registry.json'), 'utf8')));
+  assert.ok(shared.length > 0 && shared.every((id) => records[id]), 'every record of packages/resources/tests/fixtures/registry.json is loaded too');
+  const files = { 'registry.json': '{"a.one":{}}', 'registry-12.json': '{"a.two":{}}', 'notes.json': '{"a.three":{}}' };
+  const merged = mergeRecords(Object.keys(files), (name) => files[name]);
+  assert.deepEqual(Object.keys(merged.records).sort(), ['a.one', 'a.two'], 'registry.json and registry-<id>.json merge; another json file is no registry');
+  assert.deepEqual(merged.duplicates, []);
+});
+
+test('resources.registry.duplicate-across-files: clause 2: [C7] an ID recorded in two registry files is reported as a duplicate, and resources.registry.complete fails on any duplicate', () => {
+  const files = { 'registry.json': '{"a.one":{}}', 'registry-12.json': '{"a.one":{}}' };
+  assert.deepEqual(mergeRecords(Object.keys(files), (name) => files[name]).duplicates, ['a.one (registry.json)']);
 });

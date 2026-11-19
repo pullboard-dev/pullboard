@@ -1,7 +1,7 @@
 /** On a relay-linked board a pulled gate's receipt hands its engine moves to the relay; a local board applies them at once [C7,H3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellClaim } from '../../../../store/tests/fixtures/cell.js';
 import { cellItem } from '../../../../store/tests/fixtures/cell.js';
 import { cellRepo } from '../../../../store/tests/fixtures/cell.js';
