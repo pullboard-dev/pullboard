@@ -78,7 +78,7 @@ async function listenAfter(status, { localSession = null, localReadBase = '' } =
   const listenFrom = live.indexOf('async function listen(entry)');
   const listenTo = live.indexOf('/**', listenFrom);
   assert.ok(from >= 0 && to > from && listenFrom >= 0 && listenTo > listenFrom, 'the generated page contains its status line and its stream listener');
-  const text = { live: '' };
+  const text = { textContent: "" };
   const calls = { expired: 0, timers: 0 };
   const entry = { boards: [{ id: 'b', root: '/r', shown: 0 }], cursor: '', status: 'up', offline: false, failures: 0 };
   const context = {
@@ -89,7 +89,7 @@ async function listenAfter(status, { localSession = null, localReadBase = '' } =
   };
   const page = runInNewContext(live.slice(from, to) + live.slice(listenFrom, listenTo) + '; ({ listen, liveLine })', context);
   await page.listen(entry);
-  return { line: text.live, calls, entry };
+  return { line: text.textContent, calls, entry };
 }
 
 test('view.cockpit-live.refused-shows-link-line: a local view that refuses its own page stops retrying and shows one plain open-the-link-again line [N26]', async () => {
