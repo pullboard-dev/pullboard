@@ -120,6 +120,8 @@ function familyReads(board) {
 
 test('store.next.derived-seat-family-used: clause 1: nextFor given a derivedSeatFamily answer uses it for the seat and builder families of its review family check, and no seatFamily or builderFamilyOf read runs for an id it names [C7,#11383]', t => {
   const { board, first, second } = submittedPair(t);
+  // Below the critical-path engine the queue order ties for these two items, so the family preference alone orders the offer.
+  board.executionEngineVersion = 100;
   const families = { 'rev-1': 'anthropic', 'same-1': 'anthropic', 'other-1': 'openai' };
   const before = nextFor(board, REVIEW);
   assert.equal(before.item?.item_id, first, 'with no family known for any seat the lower id is offered');
