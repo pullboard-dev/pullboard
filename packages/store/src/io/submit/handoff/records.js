@@ -101,7 +101,9 @@ export function handoffRecords(db, { live = false } = {}) {
   const payload = db.prepare('SELECT job_step_payload AS payload FROM job_step WHERE job_step_id = ?');
   for (const key of keys) {
     if (records.has(key.item)) continue;
-    const record = recordOf(payload.get(key.step).payload);
+    const row = payload.get(key.step);
+    if (!row) continue;
+    const record = recordOf(row.payload);
     if (record !== undefined) records.set(key.item, record);
   }
   return records;
