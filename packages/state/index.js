@@ -219,6 +219,7 @@ export const REVIEW_RELEASE_REASON_ENGINE = engineNumber('REVIEW_RELEASE_REASON_
 export const RECAPTURE_SUBMIT_HANDOFF_ENGINE = engineNumber('RECAPTURE_SUBMIT_HANDOFF_ENGINE');
 export const REVIEW_RELEASE_TWICE_ENGINE = engineNumber('REVIEW_RELEASE_TWICE_ENGINE');
 export const RESERVATION_ENGINE = engineNumber('RESERVATION_ENGINE');
+export const CLEAR_RESERVATION_ENGINE = engineNumber('CLEAR_RESERVATION_ENGINE');
 export const WITHDRAW_AS_MET_ENGINE = engineNumber('WITHDRAW_AS_MET_ENGINE');
 export const READINESS_ENGINE = engineNumber('READINESS_ENGINE');
 export { DEFAULT_NEXT_STEPS } from './src/logic/defaults.js';
