@@ -1,5 +1,7 @@
 import { requireBarPathsOnMain } from '../item/bar.js';
 import { requireTestMirror } from '../item/bar.js';
+import { requireCellTestFixture } from '../item/bar.js';
+import { itemsBarRulesAtAdd } from '../../../../../packages/config/index.js';
 import { itemsTestMirrorAtAdd } from '../../../../../packages/config/index.js';
 import { requireOwnLaneCheck } from '../lane.js';
 import { guardBar } from '../../../../../packages/state/index.js';
@@ -108,6 +110,7 @@ export async function run(io, args) {
     if (change.check) refuseCheckPullboardTest(change.check);
     await requireBarPathsOnMain(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check });
     await requireTestMirror(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check }, itemsTestMirrorAtAdd());
+    await requireCellTestFixture(ctx, { criterion: change.criterion ?? before.item_criterion, check: change.check ?? before.item_check, brief: before.item_brief }, itemsBarRulesAtAdd(), me.id === 'coordinator' || Boolean(asPerson));
   }
   const { item, next, command, widened, evidenceWarnings = [] } = store.validateItemEdit(board, id, change);
   if ((me.id === 'coordinator' || widened) && ['item_criterion', 'item_check', 'item_after', 'item_check_timing'].some(key => next[key] !== item[key])) {

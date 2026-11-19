@@ -99,6 +99,52 @@ export function requireRegistryRecord(tracked, named, isTest) {
   }
 }
 
+/** The cell a path sits in, as the gate names it: `apps/<x>` or `packages/<x>`; null for any other path. */
+const cellPrefix = path => /^(?:apps|packages)\/[^/]+/u.exec(path)?.[0] ?? null;
+
+/**
+ * The fixture files a bar names that a named test of another cell may not import: a `<cell>/tests/fixtures/` file whose cell
+ * holds none of the named tests and that the listing does not name as a pure helper (#11740).
+ * Why: the cell-test rule lets a test import its own cell, a lower cell's front door, a leaf front door or a listed pure helper,
+ * and a fixture file is none of the doors, so every unlisted other-cell fixture fails the static gate.
+ *
+ * @param {string[]} named The paths the bar names.
+ * @param {string[]} helpers The listed pure helper paths.
+ * @param {(path: string) => boolean} isTest The codemap's test-file predicate, passed in so this module never names a test file itself.
+ * @returns {{ test: string, fixture: string }[]}
+ */
+export function crossCellFixtures(named, helpers, isTest) {
+  const tests = named.filter(isTest);
+  const cells = new Set(tests.map(cellPrefix));
+  return named
+    .filter(path => /^(?:apps|packages)\/[^/]+\/tests\/fixtures\//u.test(path) && !cells.has(cellPrefix(path)) && !helpers.includes(path))
+    .flatMap(fixture => (tests.length ? [{ test: tests[0], fixture }] : []));
+}
+
+/**
+ * Refuse a bar whose test file imports a tests/fixtures file of another cell that the pure-helper listing does not name, as the
+ * cell-test rule would at the static gate (#11740), behind items.barRulesAtAdd. The coordinator and person filers may name any path.
+ *
+ * @param {any} ctx
+ * @param {{ criterion?: string, check?: string, brief?: string }} bar
+ * @param {boolean} on The items.barRulesAtAdd machine setting; off accepts any fixture.
+ * @param {boolean} [exempt] The filer is the coordinator or the person.
+ */
+export async function requireCellTestFixture(ctx, bar, on, exempt = false) {
+  if (!on || exempt) return;
+  const root = ctx.info.root;
+  const { TEST_CELL_LISTING } = await import('../../../../../packages/gate/index.js');
+  const { isDefaultTestFile } = await import('../../../../../packages/codemap/index.js');
+  const listed = tryGit(root, ['show', `${trunkBranch(root)}:${TEST_CELL_LISTING}`]);
+  if (listed.status !== 0) return;
+  let helpers;
+  try { helpers = Object.keys(JSON.parse(listed.stdout).pureHelpers ?? {}); } catch { return; }
+  const [bad] = crossCellFixtures(barPaths(bar), helpers, isDefaultTestFile);
+  if (!bad) return;
+  throw new Refused('CELL_TEST_FIXTURE', `the bar names ${bad.fixture}, a fixture of another cell than the test ${bad.test}, and it is not a listed pure helper; the cell-test rule refuses the import`,
+    `use a fixture in the test's own cell, the front door of a cell below it, a leaf cell's front door, or a pure helper listed in ${TEST_CELL_LISTING}`);
+}
+
 /** Refuse an added or edited bar that names a path missing from main [C7]. */
 export async function requireBarPathsOnMain(ctx, bar) {
   const refusal = await missingPathRefusal(ctx, bar);
