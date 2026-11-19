@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -52,4 +53,20 @@ test('cli.io-commands-runner-discover.toolchain-auto-with-nothing-answering-reco
   assert.equal(ran.status, 0, output);
   assert.equal(toolchains, undefined);
   assert.match(output, /found no toolchain; none recorded/u);
+});
+
+/** Make the registration ssh stand-in wait this long before it answers, as a loaded runner or a slow link would. */
+function delaySsh(bin, ms) {
+  const real = join(bin, 'ssh-answers');
+  renameSync(join(bin, 'ssh'), real);
+  writeFileSync(join(bin, 'ssh'), `#!/usr/bin/env node\nconst { spawnSync } = require('node:child_process');\nsetTimeout(() => { const ran = spawnSync(${JSON.stringify(real)}, process.argv.slice(2), { stdio: 'inherit' }); process.exitCode = ran.status ?? 255; }, ${ms});\n`);
+  chmodSync(join(bin, 'ssh'), 0o755);
+}
+
+test('cli.io-commands-runner-discover.registration-probe-answering-after-four-seconds-registers: clause 1: runner add with an ssh stand-in that waits 4 seconds before it answers registers the runner and exits 0 [C7]', async t => {
+  const box = runnerBox(t, {});
+  delaySsh(join(box.box.root, '..', 'discover-bin'), 4000);
+  const { ran, output } = await add(box);
+  assert.equal(ran.status, 0, output);
+  assert.match(output, /registered runner discover-fixture\.invalid/u);
 });
