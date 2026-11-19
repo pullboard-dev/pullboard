@@ -58,7 +58,7 @@ function sameHunks(root, reviewed, merged) {
 /**
  * True when the checked change merges onto main without conflict and every path it touched carries the same
  * patch after the merge as it did against its reviewed trunk [E8,V8,#2896].
- * Why: main touching a shared file (packages/codemap/data/plan/cells.json) said nothing about the reviewed change, yet it made
+ * Why: main touching a file the change did not touch said nothing about the reviewed change, yet it made
  * every other accept stale and each needed a re-review of identical work.
  * With verify.hunkFreshness on (#9438) the patches are compared hunk by hunk instead of as one patch id per path, so only
  * a changed hunk of the submit's own patch makes the review stale; the caller reads the setting and passes `hunkKeyed`, so the light read door never loads the config package.
