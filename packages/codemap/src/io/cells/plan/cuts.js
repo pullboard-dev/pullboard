@@ -17,8 +17,11 @@ export { ownedStayProblems, processEntry, retiredProblems } from '../../../../in
 
 /** The engine's checks, reading rename metadata through the snapshot-aware reader. */
 export const checkCuts = (root, plan, name, options = {}) => engineCheckCuts(root, plan, name, { readPathMap, ...options });
+/** The entry files a plan places in the wrong cell, read through the snapshot-aware path map. */
 export const entryPlacementProblems = (root, plan, files, sharedMap) => planEntryProblems(root, plan, files, sharedMap, readPathMap);
+/** The files a merge adds in a place the plan does not allow, compared against the base tree. */
 export const addedPlacementProblems = (baseRoot, mergedRoot, readers) => engineAddedPlacementProblems(baseRoot, mergedRoot, { readPathMap, ...readers });
+/** The imports that reach into a cell past its front door, read through the snapshot-aware path map. */
 export const frontDoorBypasses = (root, plan, name, options = {}) => engineFrontDoorBypasses(root, plan, name, { readPathMap, ...options });
 
 /** Read existing items through the real joined CLI; one exact stable title identifies one importing cell's item. */

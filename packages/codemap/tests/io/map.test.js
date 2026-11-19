@@ -2,6 +2,7 @@
 /** The item slice seeds from the paths and names an item gives, ranks what is closest, and fits a small default budget [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { parseJsdoc } from '../../src/io/map.js';
 import { renderItemSlice } from '../../src/io/map.js';
 
 /** One scanned function as the map stores it. */
@@ -81,4 +82,12 @@ test('clause 2: named modules come before their one-hop neighbours, at most ten 
   assert.ok(small.length <= 1500 * 4, `default slice is ${small.length} characters`);
   assert.match(small, /Omitted context is not evidence of no relationship\./u);
   assert.ok(renderItemSlice(wide, hub, { budget: 4000 }).length > 1500 * 4, 'an explicit larger budget still prints more');
+});
+
+test('codemap.map.jsdoc-tags-at-line-start: clause 1: parseJsdoc reads param, returns and throws tags only where the tag opens a JSDoc line [C7]', () => {
+  const prose = parseJsdoc('/** Parse a block: first sentence, @param names and types, @returns type, @throws. */');
+  assert.deepEqual([prose.params, prose.returns, prose.throws], [[], null, []], 'a tag named in prose is no tag');
+  const tagged = parseJsdoc('/**\n * Add two numbers.\n * @param {number} a - The first.\n * @param [b] - The second.\n * @returns {number} The sum.\n * @throws {Error} Never.\n */');
+  assert.deepEqual(tagged.params, [{ name: 'a', type: 'number', optional: false }, { name: 'b', type: null, optional: true }]);
+  assert.deepEqual([tagged.summary, tagged.returns, tagged.throws], ['Add two numbers.', 'number', ['Error']]);
 });
