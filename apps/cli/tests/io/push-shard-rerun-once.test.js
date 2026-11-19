@@ -7,7 +7,7 @@ import { endJobs } from '../../../../packages/api/index.js';
 import { jobViews } from '../../../../packages/api/index.js';
 import { offerJob } from '../../../../packages/api/index.js';
 import { postReceipt } from '../../../../packages/api/index.js';
-import { cellBoard } from '../../../../packages/store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../packages/board/tests/fixtures/cell-board.js';
 import { awaitPushShards } from '../../src/io/hook/push.js';
 
 const green = { status: 0, gate: { green: true, phases: [] } };
