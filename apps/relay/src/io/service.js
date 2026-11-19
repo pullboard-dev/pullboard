@@ -20,6 +20,7 @@ import { refusalDocument } from '../../../cli/index.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
+import { createPushSubscriptions } from './push/subscriptions.js';
 import { createDeviceStore } from './store/device.js';
 import { createDeviceHandler } from '../logic/http/device.js';
 import { createPairingStore } from '../logic/pairing/store.js';
@@ -149,7 +150,7 @@ function sender(who, personOnly = false) {
 }
 
 /** Create a private relay handler; the caller owns sign-in lifecycle and service shutdown. */
-export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES }) {
+export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin, now = Date.now, backupsDirectory, maintenanceMs = 60_000, accountStorageBytes, boardLinkAuthority, moveBodyBytes = RELAY_MOVE_BODY_BYTES, push = {} }) {
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
@@ -186,7 +187,9 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     return typeof approver === 'boolean' ? { ...who, approver } : who;
   }
 
-  const deviceStore = createDeviceStore({ directory: root, now });
+  // Push is off unless the caller reports relay.push on and names its sender; a revoked device's subscription ends with its pairing [C7].
+  const pushStore = createPushSubscriptions({ directory: root, enabled: () => false, fetch: undefined, vapidKey: '', vapidPublic: '', subject: '', now, ...push });
+  const deviceStore = createDeviceStore({ directory: root, now, onRevoke: (account, id) => pushStore.revoke(account, id) });
   // Auth handlers share this same auth object, so revoked sessions cannot mint a new reader elsewhere.
   const releaseSessionGuard = auth.addSessionGuard?.(principal => deviceStore.authorizeSession(principal));
   const deviceHandler = createDeviceHandler({
@@ -400,11 +403,30 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     throw error;
   }
 
+  /** Serve the push routes: the config a paired page reads (the VAPID public key, while relay.push is on) and the device's subscription with its chosen kinds [C7]. */
+  async function pushHandler(req, res) {
+    const route = /^\/api\/v1\/push\/(config|subscribe)$/u.exec(new URL(req.url ?? '/', 'http://127.0.0.1').pathname);
+    if (!route) return false;
+    try {
+      const who = deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, req.method !== 'GET')));
+      if (who.kind !== 'session') throw new Refused('HUMAN_REQUIRED', 'Sign in as the person on the paired phone to use push notifications.');
+      if (route[1] === 'config' && req.method === 'GET') { apiJson(res, 200, { enabled: pushStore.enabled(), vapidPublicKey: pushStore.publicKey() }); return true; }
+      if (route[1] !== 'subscribe' || req.method !== 'POST') throw new Refused('NO_ENDPOINT', 'Read push/config or send push/subscribe.');
+      if (!pushStore.enabled()) throw new Refused('PUSH_OFF', 'Phone wake-up notifications are off on this relay; turn relay.push on to store a subscription.');
+      const body = await readApiBody(req, { maxBytes: 8192 });
+      if (!/^device-[0-9a-f]{32}$/u.test(body?.device ?? '') || deviceStore.status(who.user.id, body.device).revoked !== false) throw new Refused('DEVICE_NOT_ENROLLED', 'Pair this device from the linked Mac before subscribing it to notifications.');
+      pushStore.subscribe(who.user.id, body.device, body.subscription, body.kinds);
+      apiJson(res, 200, { subscribed: true, kinds: pushStore.kinds(who.user.id, body.device) });
+    } catch (error) { apiJson(res, apiStatus(error), apiRefusal(error, refusalDocument)); }
+    return true;
+  }
+
   /** Add authenticated snapshot replacement and deletion to the common versioned read/move paths. */
   async function handle(req, res) {
     if (await passkeys(req, res)) return;
     if (await pagesHandler(req, res)) return;
     if (await deviceHandler(req, res)) return;
+    if (await pushHandler(req, res)) return;
     if (await pairing(req, res)) return;
     if (await keyRequests(req, res)) return;
     if (await vault(req, res)) return;
@@ -487,7 +509,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); pushStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
   return handle;
 }
 
