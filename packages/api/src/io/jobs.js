@@ -587,12 +587,13 @@ export const JOB_WRITE_BOUND_MS = 5000;
 
 /**
  * Run a job write in one transaction that gives the lock up when it ran past the bound: the write rolls back and refuses JOB_WRITE_TIMEOUT,
- * so one slow write can never hold every seat off the board for minutes. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
+ * so one slow write can never hold every seat off the board for minutes. Only time holding the lock counts, never time waiting for it. A db may carry its own `jobWriteBoundMs` (a test) [C7,#11029].
  */
 function boundedAtomically(db, work) {
   const bound = db.jobWriteBoundMs ?? JOB_WRITE_BOUND_MS;
-  const started = Date.now();
   return atomically(db, () => {
+    // The clock starts once BEGIN IMMEDIATE holds the lock: time spent waiting for it is bounded by the busy timeout, not by this bound [C7,#11914].
+    const started = Date.now();
     const result = work();
     const took = Date.now() - started;
     if (took > bound) throw new Refused('JOB_WRITE_TIMEOUT', `a job write held the board lock for ${took} ms, over the ${bound} ms bound; it was rolled back`, 'retry the call');
