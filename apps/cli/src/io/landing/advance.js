@@ -24,6 +24,7 @@ import { SETTLED_FILE } from '../../../../../packages/gate/index.js';
 import { landingLeaseState } from '../../../../../packages/store/index.js';
 import { openLandingJob } from '../../../../../packages/api/index.js';
 import { takeLandingResource } from '../../../../../packages/landing/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 
 /** The gate with the move-table replay wired to this repository's board, so a changed table is checked against what the board recorded [C7,#8073]. */
 const runSubmitGate = (dir, config, options) => gateRun(dir, config, { ...options,
@@ -34,7 +35,7 @@ const [root, token, ...extra] = process.argv.slice(2);
 if (extra.length || typeof root !== 'string' || !isAbsolute(root)
   || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) throw new Error('source-advance requires an explicit root and UUID');
 // These source changes require real reruns; a reused result cannot become fresh source-advance evidence.
-process.env.PULLBOARD_TEST_REUSE = '0';
+environmentAdapter().set('PULLBOARD_TEST_REUSE', '0');
 await runSourceAdvances(root, token, {
   nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
   executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, context, ordered, withBoard, runSubmitGate, withFileLock, readMainAudit, saveMainAudit, settledFile: SETTLED_FILE, landingLeaseState, openLandingJob, takeLandingResource,
