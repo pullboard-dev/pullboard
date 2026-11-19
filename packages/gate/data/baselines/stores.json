@@ -1147,6 +1147,10 @@
       "kind": "json",
       "owner": "packages/runners/src/io/checkouts.js"
     },
+    "sources.json": {
+      "kind": "json",
+      "owner": "packages/codemap/src/io/module/imports.js"
+    },
     "starting.json": {
       "kind": "json",
       "owner": "packages/drive/src/io/local.js"
