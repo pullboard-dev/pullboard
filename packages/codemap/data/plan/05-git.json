@@ -1,0 +1,58 @@
+{
+ "order": 5,
+ "name": "git",
+ "kind": "package",
+ "root": "packages/git",
+ "frontDoor": "packages/git/index.js",
+ "pureDoor": "packages/git/browser.js",
+ "lightFrontDoor": "packages/git/light.js",
+ "paths": [
+  ["src/committed-file-reader.js","packages/git/src/io/committed.js","seed"],
+  ["src/git-adapter.js","packages/git/src/io/adapter.js","rule"],
+  ["src/git-launch-baseline.json","packages/git/src/io/launch/baseline.json","rule"],
+  ["src/git-launch-ratchet.js","packages/git/src/io/launch/ratchet.js","rule"],
+  ["src/git-memory.js","packages/git/src/io/memory.js","rule"],
+  ["src/git.js","packages/git/src/io/main.js","seed"],
+  ["src/pre-push-receipts.js","packages/git/src/io/receipts.js","imports"],
+  ["src/push-native-evidence.js","packages/git/src/io/evidence.js","imports"],
+  ["src/queued-item-lease.js","packages/git/src/io/lease.js","imports"],
+  ["src/source-advance-nudge.js","packages/git/src/io/nudge.js","imports"],
+  ["src/trunk-revision.js","packages/git/src/io/trunk/revision.js","seed"],
+  ["src/worktree.js","packages/git/src/io/worktree.js","seed"],
+  ["test/git-provenance.test.js","packages/git/tests/io/main.test.js","seed"],
+  ["src/git-child-selectors.js","packages/git/src/logic/selectors.js","imports"],
+  ["src/git-landing-batches.js","packages/git/src/logic/batches.js","imports"],
+  ["src/git-trunk-ref.js","packages/git/src/io/trunk/ref.js","imports"],
+  ["test/flakes-fixture.js","packages/git/tests/fixtures/flakes.js","rule"],
+  ["test/flakes-fixture.test.js","packages/git/tests/flakes.test.js","rule"]
+ ],
+ "reexports": ["packages/git/index.js","packages/git/index.js"],
+ "imports": [
+  {"cell":"kernel","imports":5,"before":true},
+  {"cell":"config","imports":1,"before":false},
+  {"cell":"store","imports":2,"before":false},
+  {"cell":"sandbox","imports":2,"before":false},
+  {"cell":"gate","imports":3,"before":false},
+  {"cell":"landing","imports":1,"before":false},
+  {"cell":"flakes","imports":1,"before":false},
+  {"cell":"app:cli","imports":2,"before":false}
+ ],
+ "cuts": [],
+ "ratchets": {
+  "legacySource": -1,
+  "shims": 14,
+  "boundaries": 1,
+  "strays": -1,
+  "documents": 0,
+  "cyclesIfUncut": 2,
+  "assetReads": 1
+ },
+ "item": {
+  "lane": "core",
+  "title": "Cells move 2/43: git moves into packages/git behind shims",
+  "criterion": "Cells move 2 of 43 (RFC 0006; plan entry 2 in packages/codemap/data/plan/cells.json): the 18 paths the entry lists for package git move with git mv to their planned targets under packages/git, and packages/git/index.js is the front door, re-exporting the 14 modules other code imports. Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline. First the import from earlier cells into it that the entry lists as cuts is gone, each cut by an item in the importing cell, so no cycle between cells forms. The cell lint counts change as the entry states (legacySource -1, shims +14, boundaries +1) and none rises; node packages/codemap/src/io/cells/scripts/plan.js --moved git passes, and the full suite passes on Node 22.13 and 24.",
+  "specs": ["C7","doctrine:CD60","doctrine:CD64"],
+  "check": "node packages/codemap/src/io/cells/scripts/plan.js --moved git",
+  "after": ["kernel"]
+ }
+}
