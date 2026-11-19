@@ -31,3 +31,17 @@ test('api.jobs-claim-order.landing-job-outranks-both-test: clause 2: a landing j
   const claim = (now) => claimJob(db, { runner: 'r1', now, leaseMs: 60000 })?.job;
   assert.deepEqual([claim(5000), claim(5001), claim(5002)], ['land:1:x', 'test:abc:one', 'gate:1:shard:1']);
 });
+
+test('api.jobs-claim-order.aged-test-job-outranks-shards: clause 1: a runner holding a test job is handed a test job offered 2 minutes earlier before the queued shards, while a test job offered seconds earlier still yields to them [C7,#11190]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-claim-order-aged-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  for (let i = 1; i <= 40; i++) offerJob(db, { id: `gate:1:shard:${i}`, kind: 'gate-shard', now: 1000 + i });
+  offerJob(db, { id: 'test:held', kind: 'test', now: 2000 });
+  const claim = (now) => claimJob(db, { runner: 'r1', now, leaseMs: 600000 })?.job;
+  assert.equal(claim(5000), 'test:held');
+  offerJob(db, { id: 'test:aged', kind: 'test', now: 6000 });
+  offerJob(db, { id: 'test:fresh', kind: 'test', now: 125_000 });
+  assert.equal(claim(126_000), 'test:aged', 'a test job offered 2 minutes before the claim goes first');
+  assert.equal(claim(126_001), 'gate:1:shard:1', 'the shards follow in their order');
+  assert.equal(claim(126_002), 'gate:1:shard:2', 'a test job offered seconds before still yields to them');
+});
