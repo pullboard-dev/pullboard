@@ -43,9 +43,9 @@ test('config.io-settings.relax-required-family-enabled: clause 1: relaxRequiredF
 
 test('config.io-settings.adapter-lint-github-enabled: clause 1: adapterLintGithubEnabled() reads false when unset and true only when gate.adapterLintGithub is set true, and a non-boolean is refused BAD_MACHINE_SETTINGS [C7,#1429]', () => {
   assert.equal(withSettings({}, adapterLintGithubEnabled), false);
-  assert.equal(withSettings({ 'gate.adapterLintGithub': false }, adapterLintGithubEnabled), false);
-  assert.equal(withSettings({ 'gate.adapterLintGithub': true }, adapterLintGithubEnabled), true);
-  assert.throws(() => withSettings({ 'gate.adapterLintGithub': 'yes' }, adapterLintGithubEnabled), { code: 'BAD_MACHINE_SETTINGS' });
+  assert.equal(withSettings({ gate: { adapterLintGithub: false } }, adapterLintGithubEnabled), false);
+  assert.equal(withSettings({ gate: { adapterLintGithub: true } }, adapterLintGithubEnabled), true);
+  assert.throws(() => withSettings({ gate: { adapterLintGithub: 'yes' } }, adapterLintGithubEnabled), { code: 'BAD_MACHINE_SETTINGS' });
 });
 
 test('config.io-settings.adapter-lint-github-described: clause 2: describeSetting(gate.adapterLintGithub) names the GitHub adapter and MACHINE_DEFAULTS holds the setting false [C7,#1429]', () => {
