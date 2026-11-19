@@ -31,9 +31,10 @@ async function installedPlist({ bin, home, root }, extra) {
   let out = '';
   Object.assign(process.env, { PATH: `${bin}:${saved.PATH}`, HOME: home });
   Object.defineProperty(process, 'stdin', { value: Readable.from([Buffer.from(JSON.stringify(plan))]), configurable: true });
-  process.stdout.write = chunk => { out += String(chunk); return true; };
+  // The test runner's own events share this stream, so only the installer's reply line is taken and everything else goes on to the real stream.
+  process.stdout.write = (chunk, ...rest) => { if (typeof chunk === 'string' && chunk.startsWith('{"installed"')) { out += chunk; return true; } return write.call(process.stdout, chunk, ...rest); };
   try { await runnerServiceInstaller(); } finally { Object.assign(process.env, saved); Object.defineProperty(process, 'stdin', stdin); process.stdout.write = write; }
-  return readFileSync(JSON.parse(out.trim().split('\n').at(-1)).plist, 'utf8');
+  return readFileSync(JSON.parse(out.trim()).plist, 'utf8');
 }
 
 test('runners.io-service-plist-env.installer-writes-jobs-and-ceiling: clause 1: given a plan with jobs 10 and ceilingMs 2400000, the installer writes a LaunchAgent plist whose EnvironmentVariables holds PULLBOARD_RUNNER_JOBS 10 and PULLBOARD_RUNNER_RUN_CEILING_MS 2400000 [C7,#11871]', async t => {
