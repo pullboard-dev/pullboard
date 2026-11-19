@@ -84,7 +84,13 @@ export function newestGateJob(db, id, receipts = [], { runs = null } = {}) {
   if (!job) return null;
   // The receipt's plan, counts and log read back in the inline gate's shape; a receipt without them reads as it was [P7].
   const posted = job.steps.find(step => step.name === 'receipt')?.payload ?? null;
-  return { id: job.id, step: job.step, gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+  return { id: job.id, step: job.step, ...settleOf(job.steps), gate: settledGate(job.id, posted, new Set(receipts.map(receipt => receipt.id))) };
+}
+
+/** The outcome of a gate job's newest note:shards.settled step, as { settle }; none while no such step exists [C7,#11935]. */
+function settleOf(steps) {
+  const outcome = steps.filter(step => step.name === 'note:shards.settled').at(-1)?.payload?.outcome;
+  return typeof outcome === 'string' ? { settle: outcome } : {};
 }
 
 /**
@@ -105,7 +111,7 @@ function newestRunGateJob(db, id, receipts, runs) {
   let summary = null;
   try { summary = run.run_state === 'done' ? JSON.parse(run.run_summary ?? 'null') : null; } catch { summary = null; }
   const step = run.run_state === 'done' ? 'done' : live?.step ?? run.run_state;
-  return { id: run.run_job, step, ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
+  return { id: run.run_job, step, ...settleOf(live?.steps ?? []), ...(run.run_outcome ? { outcome: run.run_outcome } : {}),
     gate: settledGate(run.run_job, posted ?? (summary ? { receipt: summary } : null), new Set(receipts.map(receipt => receipt.id))) };
 }
 
