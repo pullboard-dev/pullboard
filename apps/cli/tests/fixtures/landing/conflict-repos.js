@@ -27,13 +27,25 @@ function diverge(file, base, mainText, itemText) {
   return { root: files.root, main, head, file };
 }
 
+/** The file and the three texts of the mechanical-only conflict: the base, main's version and the item head's version, each appending a different plan row. */
+export function mechanicalOnlyConflictTexts() {
+  return { file: SHARD_FILE, base: shard([1, 2]), main: shard([1, 2, 3]), item: shard([1, 2, 4]) };
+}
+
+/** The file and the three texts of the real conflict: main and the item head change the same line of one source file. */
+export function realConflictTexts() {
+  const text = value => `export const limit = ${value};\nexport const other = 1;\n`;
+  return { file: SOURCE_FILE, base: text(1), main: text(2), item: text(3) };
+}
+
 /** Main and the item head each append a different row to one cells-plan shard: git alone conflicts, the mechanical merge does not. */
 export function mechanicalOnlyConflictRepo() {
-  return diverge(SHARD_FILE, shard([1, 2]), shard([1, 2, 3]), shard([1, 2, 4]));
+  const { file, base, main, item } = mechanicalOnlyConflictTexts();
+  return diverge(file, base, main, item);
 }
 
 /** Main and the item head change the same line of one source file: a conflict no mechanical rule resolves. */
 export function realConflictRepo() {
-  const text = value => `export const limit = ${value};\nexport const other = 1;\n`;
-  return diverge(SOURCE_FILE, text(1), text(2), text(3));
+  const { file, base, main, item } = realConflictTexts();
+  return diverge(file, base, main, item);
 }
