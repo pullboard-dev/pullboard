@@ -6,13 +6,7 @@ import {
   createHash,
   randomUUID,
 } from 'node:crypto';
-import {
-  existsSync,
-  mkdtempSync,
-  mkdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { fileSystemAdapter } from '../../../fs/index.js';
 import {
   isAbsolute,
   join,
@@ -27,6 +21,8 @@ import {
 import {
   mainPolicy,
 } from './trusted/policy.js';
+
+const fs = fileSystemAdapter();
 
 const SANDBOX_CONTAINER_HOME = '/home/sandbox';
 
@@ -44,28 +40,28 @@ function client(executable, args, options) {
 /** Docker clients receive only deliberately constructed runtime discovery, never the host's credentials. */
 function clientEnvironment(directory, endpoint) {
   const home = join(directory, 'client-home');
-  mkdirSync(home);
+  fs.mkdir(home);
   const config = join(home, '.docker');
-  mkdirSync(config);
-  writeFileSync(join(config, 'config.json'), '{}\n');
+  fs.mkdir(config);
+  fs.writeFile(join(config, 'config.json'), '{}\n');
   return { PATH: '/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin', HOME: home, DOCKER_CONFIG: config, DOCKER_HOST: endpoint };
 }
 
 /** Materialize only reachable Git objects into a private, independent source repository, never an operational mount. */
 function exportSource(root, commit, directory) {
   const target = join(directory, 'source-' + randomUUID());
-  mkdirSync(target);
+  fs.mkdir(target);
   const home = join(directory, 'export-home-' + randomUUID());
-  mkdirSync(home);
+  fs.mkdir(home);
   const template = join(home, 'empty-template');
-  mkdirSync(template);
+  fs.mkdir(template);
   // New private export has no inherited Git config, templates, hooks, worktree pointer or alternates.
   const env = { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', GIT_NO_REPLACE_OBJECTS: '1' };
   git(target, ['init', '-q', '--template=' + template], { env });
   git(target, ['fetch', '-q', '--no-tags', '--no-write-fetch-head', '--no-recurse-submodules', root, commit], { env });
   git(target, ['checkout', '-q', '--detach', commit], { env });
   const tree = git(target, ['rev-parse', 'HEAD^{tree}'], { env }).trim();
-  if (existsSync(join(target, '.git', 'objects', 'info', 'alternates')) || existsSync(join(target, '.git', 'commondir')) || existsSync(join(target, '.git', 'pullboard'))) {
+  if (fs.exists(join(target, '.git', 'objects', 'info', 'alternates')) || fs.exists(join(target, '.git', 'commondir')) || fs.exists(join(target, '.git', 'pullboard'))) {
     throw new Refused('SANDBOX_EXPORT', 'the private export is not independent; restore Git object access before sandbox verification');
   }
   return { target, tree };
@@ -112,8 +108,8 @@ export async function verifyOutsideSandbox(root, item, policy, lease) {
   const exportRoot = runtime.exportRoot ?? join(repoInfo(root).commonDir, 'pullboard', 'sandbox-exports');
   let directory;
   try {
-    mkdirSync(exportRoot, { recursive: true, mode: 0o700 });
-    directory = mkdtempSync(join(exportRoot, 'pullboard-outside-'));
+    fs.mkdir(exportRoot, { recursive: true, mode: 0o700 });
+    directory = fs.mkdtemp(join(exportRoot, 'pullboard-outside-'));
   } catch { throw new Refused('SANDBOX_EXPORT', 'create a writable private sandbox.exportRoot shared with the configured Docker daemon, then verify again'); }
   try {
     const environment = clientEnvironment(directory, runtime.endpoint);
@@ -125,12 +121,12 @@ export async function verifyOutsideSandbox(root, item, policy, lease) {
     const runs = [];
     const id = randomUUID();
     const outputDirectory = join(repoInfo(root).commonDir, 'pullboard', 'outside-check-output', String(item.item_id), id);
-    mkdirSync(outputDirectory, { recursive: true });
+    fs.mkdir(outputDirectory, { recursive: true });
     const logs = [];
     /** Retain bounded output and its digest, independently of the temporary export. */
     const record = (role, stage, result) => {
       const name = `${role}-${stage}.log`;
-      writeFileSync(join(outputDirectory, name), result.output);
+      fs.writeFile(join(outputDirectory, name), result.output);
       logs.push({ role, stage, exitCode: result.exitCode, sha256: createHash('sha256').update(result.output).digest('hex') });
       return result;
     };
@@ -159,11 +155,11 @@ export async function verifyOutsideSandbox(root, item, policy, lease) {
       if (gate.exitCode !== 0 || criterion.exitCode !== 0) throw new Refused('CHECK_RED', `outside ${role} sandbox check is red; return the failing behavior to its author\n${(gate.output + criterion.output).slice(-12000)}`);
       runs.push({ role, image, imageId: imageFacts.Id, environment: actual, exitCode: 0, network: 'none', credentials: false, home: 'empty', baselineExit: before.exitCode });
     }
-    writeFileSync(join(outputDirectory, 'manifest.json'), JSON.stringify({ commit: item.item_commit, tree: item.item_tree, digest: item.item_frozen_digest, runs, logs }, null, 2) + '\n');
+    fs.writeFile(join(outputDirectory, 'manifest.json'), JSON.stringify({ commit: item.item_commit, tree: item.item_tree, digest: item.item_frozen_digest, runs, logs }, null, 2) + '\n');
     const receipt = { id, item: item.item_id, logs, version: 1, provider: 'docker', commit: item.item_commit, tree: item.item_tree, digest: item.item_frozen_digest, at: new Date().toISOString(), runs };
-    writeFileSync(join(outputDirectory, 'receipt.json'), JSON.stringify(receipt) + '\n');
+    fs.writeFile(join(outputDirectory, 'receipt.json'), JSON.stringify(receipt) + '\n');
     return receipt;
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    fs.rm(directory, { recursive: true, force: true });
   }
 }
