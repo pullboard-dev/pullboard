@@ -32,8 +32,9 @@ export const LINE_CAP = 1500;
 /** How many lines of non-test code one change may add, net, before Rigor names it. */
 export const GROWTH_BUDGET = 400;
 
-/** How long one test run inside a mutation or control may take. */
 const fs = fileSystemAdapter();
+
+/** How long one test run inside a mutation or control may take. */
 const TEST_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
