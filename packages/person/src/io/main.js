@@ -5,12 +5,13 @@ import {
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
+import { environmentAdapter } from "../../../env/index.js";
 
 /**
  * Tell whether this shell arrived over SSH by any of its markers [B26].
  * One list serves the person check and relay on's SSH path, so a marker one honours the other honours too.
  */
-export function remoteShell(environment = process.env) {
+export function remoteShell(environment = environmentAdapter().all()) {
   return SSH_SHELL_MARKERS.some((name) => Boolean(environment[name]));
 }
 
@@ -36,7 +37,7 @@ export function personCommand(main, words) {
 }
 
 /** Refuse terminal person actions in an agent shell; only the authenticated view adapter supplies view. */
-export function requirePersonChannel(channel = 'terminal', environment = process.env, { command } = {}) {
+export function requirePersonChannel(channel = 'terminal', environment = environmentAdapter().all(), { command } = {}) {
   const relay = command ? `the person pastes this into their own terminal (not an agent's), or answers in pullboard view: ${command}` : undefined;
   if (!['terminal', 'view'].includes(channel)) {
     throw new Refused('B26_PERSON_CHANNEL', 'person actions use the terminal or the view; run pullboard view, the person’s channel');
@@ -51,7 +52,7 @@ export function requirePersonChannel(channel = 'terminal', environment = process
 }
 
 /** Permit only relay-on's SSH device flow for a person; agent terminals stay refused. */
-export function requireRelayOnChannel(channel = 'terminal', environment = process.env) {
+export function requireRelayOnChannel(channel = 'terminal', environment = environmentAdapter().all()) {
   if (!['terminal', 'view'].includes(channel)) {
     throw new Refused('B26_PERSON_CHANNEL', 'person actions use the terminal or the view; run pullboard view, the person’s channel');
   }

@@ -2531,6 +2531,7 @@
     "outbox->store",
     "pages->store",
     "person->store",
+    "person->env",
     "sandbox->store",
     "seats->git",
     "sentinels->store",
