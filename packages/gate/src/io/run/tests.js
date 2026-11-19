@@ -6,15 +6,17 @@
  * plain string spawned by Node, so this file holds no import edge. The child names this shim as the runner its Chrome
  * guardian watches, so a SIGKILL of the shim frees Chrome the way a SIGKILL of the runner did.
  */
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import {
   dirname,
   resolve,
 } from 'node:path';
 
+const fs = fileSystemAdapter();
+
 const root = resolve(import.meta.dirname, '../../../../..');
-const bin = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).bin.pullboard;
+const bin = JSON.parse(fs.readFile(resolve(root, 'package.json'), 'utf8')).bin.pullboard;
 const launcher = resolve(root, dirname(bin), 'src/io/run/tests.js');
 const child = spawn(process.execPath, [...process.execArgv, launcher, ...process.argv.slice(2)], {
   stdio: 'inherit',
