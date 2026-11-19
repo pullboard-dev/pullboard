@@ -8,7 +8,7 @@ import { boardClaimEngine } from '../../../index.js';
 import { readClaimRecords } from '../../../index.js';
 import { runTable } from '../../../index.js';
 import { claim } from '../../../../store/index.js';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 
 const HISTORY = JSON.parse(readFileSync(new URL('../../fixtures/table/claim-history.json', import.meta.url), 'utf8'));
 const STAMP = '2026-01-01T00:00:00.000Z';
