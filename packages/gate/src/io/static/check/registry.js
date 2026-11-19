@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { importStyleViolations } from '../style.js';
@@ -35,6 +36,13 @@ import { BOARD_FILE_BASELINE } from '../../board/baseline.js';
 import { boardOpensCheckOn } from '../../../../../config/index.js';
 import { layoutProblems } from '../layout.js';
 import { inlineStyleProblems } from '../inline-style.js';
+
+/** Every cell folder: each directory directly under packages and apps. */
+function cellFolders(root) {
+  return ['packages', 'apps'].flatMap(group => {
+    try { return readdirSync(join(root, group), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${group}/${entry.name}`); } catch { return []; }
+  });
+}
 
 /**
  * Per-file checks that judge a file against the same file on accepted main, so only newly added problems fail.
@@ -129,10 +137,10 @@ export const STATIC_CHECKS = Object.freeze([
   { name: 'engine-folder', run: ({ root, files, staged, engineSources }) => (!staged && !files.some(file => /\.[cm]?js$/u.test(file)) ? [] : staged ? engineFolderViolations(engineSources) : engineFolderProblems(root))
     .filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`) },
   // A file of only exports outside a cell's index.js may leave the ceilings, never join them (packages/gate/src/logic/export/only.js).
-  { name: 'export-only', run: ({ sources, text }) => {
+  { name: 'export-only', run: ({ root, sources, text }) => {
     let allowed;
     try { allowed = JSON.parse(text(EXPORT_ONLY_CEILINGS)).files ?? []; } catch { return []; } // a project without the ceilings file has nothing to judge
-    return exportOnlyProblems(sources, allowed, declaredDoorFiles(text)).map(row => `${row.path}:${row.line}: ${row.text}`);
+    return exportOnlyProblems(sources, allowed, declaredDoorFiles(cellFolders(root), file => existsSync(join(root, file)))).map(row => `${row.path}:${row.line}: ${row.text}`);
   } },
   // With the allowlist's "enforce" switch on (default off), only .md files on the allowlist may be committed; the whole tracked tree is judged, so an old stray fails too (packages/gate/src/logic/markdown/allowlist.js).
   { name: 'markdown-allowlist', run: ({ root, text }) => {
