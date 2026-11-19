@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { deliverHealthNotices } from '../../../src/logic/board/receipts.js';
 import { healthTargets } from '../../../src/logic/board/receipts.js';
 import { HEALTH_QUIET_ENGINE } from '../../../../state/light.js';
+import { HEALTH_EPISODE_ENGINE } from '../../../../state/light.js';
 
 const finding = (key) => ({ key, cause: 'STUCK_BUILD', item: 7, subject: '#7', title: 'sits', since: '2026-11-18T00:00:00Z', why: 'no commit', owner: 'core-1', next: 'ask the builder' });
 
@@ -45,4 +46,24 @@ test('store.logic-board-receipts.clause-1-only-the-owner-hears: clause 1: from H
 test('store.logic-board-receipts.clause-2-older-engine-targets-unchanged: clause 2: below HEALTH_QUIET_ENGINE healthTargets still returns the coordinator and the known owner [A6,H16,#1479]', () => {
   assert.deepEqual(healthTargets(finding('a'), context(HEALTH_QUIET_ENGINE - 1)), ['coordinator', 'core-1']);
   assert.deepEqual(healthTargets({ ...finding('b'), owner: 'ghost-9' }, context(HEALTH_QUIET_ENGINE - 1)), ['coordinator']);
+});
+
+/** Deliver one added finding at `engine`, with its key resolved `minutes` before now; returns the shouts and logs. */
+function deliverFlap(engine, minutes) {
+  const now = '2026-11-19T10:00:00.000Z';
+  const resolvedAt = new Date(Date.parse(now) - minutes * 60_000).toISOString();
+  const shouts = [];
+  const logs = [];
+  deliverHealthNotices({ resolved: [], added: [finding('flap')], recentlyResolved: new Map([['flap', resolvedAt]]), now, engine, coordinator: 'coordinator',
+    targets: () => ['coordinator'], shout: (to, text) => shouts.push([to, text]), log: (found, cleared) => logs.push([found.key, cleared]) });
+  return { shouts, logs };
+}
+
+test('store.logic-board-receipts.flap-within-30-minutes-is-not-reshouted: clause 1: from HEALTH_EPISODE_ENGINE an added finding that resolved under 30 minutes before now is logged and shouted to no one, shouts after 30 minutes, and below the engine nothing changes [C7,#1479]', () => {
+  const quick = deliverFlap(HEALTH_EPISODE_ENGINE, 10);
+  assert.deepEqual(quick.shouts, []);
+  assert.deepEqual(quick.logs, [['flap', false]]);
+  assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE, 30).shouts.length, 1, 'at 30 minutes it shouts as before');
+  assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE, 45).shouts.length, 1);
+  assert.equal(deliverFlap(HEALTH_EPISODE_ENGINE - 1, 10).shouts.length, 1, 'below the engine the flap rule does not apply');
 });
