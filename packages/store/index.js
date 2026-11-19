@@ -2,6 +2,7 @@ export { exitSessionIdentity, exitedSession, exitContinuationProblem, exitContin
 export { exitClaim, recordExitProgress, exitClaimDecision, releaseExitClaim, capturedExitRules, requireExitActive } from './src/logic/exit/rules/claim.js';
 export { validateKnownMainAutofile, fileKnownMainAutofile, filePulledMainReds } from './src/logic/known/main/autofile.js';
 export { boardNotWritable, requireBoardWriteAccess, boardBusyError } from './src/io/board/access.js';
+export { withItemSnapshot, refreshItemSnapshot } from './src/io/board/read/light.js';
 export { boardBusyError as board_busy_boardBusyError, boardWriteBusyError, beginImmediateQueued, recordedWriteLock } from './src/io/board/busy.js';
 export { captureBoardChanges, beginCapture } from './src/io/board/capture.js';
 export { recordCapacityWeek, capacityWeeks } from './src/io/board/capacity-week.js';
@@ -21,7 +22,7 @@ export { relateItems, relatedLinks } from './src/io/board/item/related.js';
 export { validateItemDependencies } from './src/io/board/item/dependencies.js';
 export * from "./light.js";
 export { boardLinkEnvelope, boardLinkEnvelopeDigest, boardLinkDeliveryReceipt, createBoardLinkCapability } from './src/io/board/link/envelope.js';
-export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
+export { createBoardLinkFileTransport, createBoardLinkRelayTransport, deliverBoardState, resendPendingBoardStates, receiveBoardState, readReceivedBoardState } from './src/io/board/link/relay.js';
 export { createSshBoardLinkAuthority } from './src/io/board/link/ssh.js';
 export { approveBoardLink, verifyBoardLink, revokeBoardLink, readBoardLinks, applyBoardLink, commitVerifiedBoardLink, authorizeBoardLink, boardStateAnnouncement, discloseBoardState, resolveBoardReference, boardItemReference } from './src/io/board/link.js';
 export { boardMembersDocument, boardMembersBytes, readBoardMembers, setBoardMembers } from './src/io/board/members.js';

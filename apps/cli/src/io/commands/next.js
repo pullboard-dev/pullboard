@@ -74,6 +74,7 @@ import { sayMapSlice } from '../../../../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../worktree.js';
 import { deliverOwnTestRuns } from '../../../../../packages/drive/index.js';
 import { deliverTestRunsWhenReady } from '../../../../../packages/drive/index.js';
+import { environmentAdapter } from '../../../../../packages/env/index.js';
 import { createRequire } from 'node:module';
 
 /** Next's wait reasons, loaded at the first answer that words them [C7,#7081]. */
@@ -116,19 +117,25 @@ export async function nextHere(io, values) {
   const progress = nextProgress(io, { monitor }), previous = io.nextPhase;
   io.nextPhase = progress.enter;
   try {
-    const code = await nextWithProgress(io, values, progress);
+    delete io.lagSilent;
+    // One item list serves every phase of this next between its own writes, instead of a full read per phase and per other seat's commit [C7,N2,#12010].
+    const code = await store.withItemSnapshot(() => nextWithProgress(io, values, progress));
+    // An item folder is cut from current main, so the seat checkout's lag says nothing about that build [U159].
+    if (!io.lagSilent) sayLag(io, context(io));
     sayCoordinatorCallouts(io);
     return code;
   }
   catch (error) {
     // A refusal such as refuseNextIdle or refuseWhileBuilding ends the next too; the builder still hears the call-outs [N2,C7].
+    try { sayLag(io, context(io)); } catch { /* the lag line is best effort on a refusal */ }
     sayCoordinatorCallouts(io);
     throw error;
   }
   finally {
     progress.stop(); await monitor?.close();
-    if (process.env.PULLBOARD_NEXT_PROFILE) sayNextProfile(io, progress.profile());
+    if (environmentAdapter().get('PULLBOARD_NEXT_PROFILE')) sayNextProfile(io, progress.profile());
     if (previous === undefined) delete io.nextPhase; else io.nextPhase = previous;
+    delete io.lagSilent;
     if (previousDefaultLoop === undefined) delete io.defaultLoop; else io.defaultLoop = previousDefaultLoop;
   }
 }
@@ -195,7 +202,7 @@ async function nextWithProgress(io, values, progress) {
       for (const line of lines) io.say(line);
     }
   });
-  sayLag(io, ctx);
+  // The lag line prints after the answer (nextHere), so a next that hands out an item folder stays silent about the seat [U159].
   // review.starveShout (off by default): a green submission no seat may review reaches the coordinator once, naming the guards [C7,#9682].
   if (reviewStarveShout()) await withBoard(ctx, board => shoutStarvedReviews(ctx, board, ordered));
   // A seat's queued test runs come back first, like a red gate: green or red, failing tests, log [C7].
@@ -226,6 +233,8 @@ async function nextWithProgress(io, values, progress) {
   let wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
   let wakeVersion = wake?.version();
   try { for (;;) {
+    // Each pass (a retry, a --wait wake) reads the items again; only the calls within one pass share the list [#12010].
+    store.refreshItemSnapshot();
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -319,6 +328,7 @@ async function nextWithProgress(io, values, progress) {
       // next.itemNotices (off by default): the shouts and rulings that name this item ride on the build instruction [C7,#8787].
       const notices = !review && !found.waitingOffer && nextItemNotices() ? withBoardRead(ctx, board => reasons().itemNoticeLines(board, item.item_id)) : [];
       io.result?.({ item, review, ...(notices.length ? { notices } : {}), ...(returned ? { returned } : {}), ...(comparison ? { comparison } : {}), held: Boolean(found.held), ...(found.waitingOffer ? { waitingOffer: true } : {}), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.itemFolder ? { itemFolder: found.itemFolder, holder: found.holder } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(more.length ? { more: more.map(next => ({ item: next.item, itemFolder: next.itemFolder })) } : {}) });
+      if (!review && found.itemFolder) io.lagSilent = true;
       const here = cdTo(!review && found.itemFolder ? found.itemFolder : ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (found.landed) {

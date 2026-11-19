@@ -1,0 +1,4 @@
+{
+  "moves.selection.compose-landing-on": {"proves":{"specs":["C7"],"claim":"clause 1: with slices.composeLanding true the who handed to the review offer and the default offer carries composeLanding true."},"why":"Production wiring turns the slices.composeLanding setting on for next and review offers (#11345).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]},
+  "moves.selection.compose-landing-off": {"proves":{"specs":["C7"],"claim":"clause 2: with slices.composeLanding unset the who carries no composeLanding and the offer is unchanged."},"why":"Production wiring turns the slices.composeLanding setting on for next and review offers (#11345).","kind":"contract","inputs":["packages/moves/src/io/selection.js","packages/moves/tests/io/selection.test.js","packages/moves/tests/fixtures/next.js"]}
+}
