@@ -6,10 +6,6 @@ import { withDerivedFamily } from '../../../../items/index.js';
  * agent; the session reads that board's sealed snapshot with the key and then works as that agent. The link it saves
  * holds neither the token nor the key, so nothing secret lands on disk, and its scope is the token's one board.
  */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../git/index.js';
 import { Refused } from '../../../../kernel/light.js';
@@ -22,6 +18,9 @@ import { saveLink } from '../relay.js';
 import { readBoardKey } from '../../../../keys/index.js';
 import { appliedSequence } from '../../../../state/index.js';
 import { importBoard } from '../../../../store/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const TOKEN = /^pa_[A-Za-z0-9_-]{43}$/u;
 /** Link files this process has already matched to the environment's board, so each command asks the relay once. */
@@ -34,7 +33,7 @@ const CHECKED = new Set();
  * @returns {string | null}
  */
 function linkedBoard(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8'))?.board ?? null; } catch { return null; }
+  try { return JSON.parse(fs.readFile(file, 'utf8'))?.board ?? null; } catch { return null; }
 }
 
 /**
@@ -50,7 +49,7 @@ function linkedBoard(file) {
 export async function environmentLink(root, file, io) {
   const token = process.env.PULLBOARD_RELAY_TOKEN;
   if (token === undefined || process.env.PULLBOARD_RELAY_KEY === undefined || CHECKED.has(file)) return false;
-  const linked = existsSync(file);
+  const linked = fs.exists(file);
   if (linked && !TOKEN.test(token)) return false;
   if (!TOKEN.test(token)) throw new Refused('AUTH_REQUIRED', 'set PULLBOARD_RELAY_TOKEN to one agent token for this board, never in command arguments');
   const url = relayOrigin(process.env.PULLBOARD_RELAY_URL || DEFAULT_RELAY);
@@ -94,7 +93,7 @@ export async function environmentLink(root, file, io) {
 export function environmentAgent(root, board) {
   if (process.env.PULLBOARD_RELAY_TOKEN === undefined) return null;
   let state;
-  try { state = JSON.parse(readFileSync(join(repoInfo(root).commonDir, 'pullboard', 'relay.json'), 'utf8')); } catch { return null; }
+  try { state = JSON.parse(fs.readFile(join(repoInfo(root).commonDir, 'pullboard', 'relay.json'), 'utf8')); } catch { return null; }
   const agent = state?.environment?.agent;
   return typeof agent === 'string' ? withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(agent)) ?? null : null;
 }

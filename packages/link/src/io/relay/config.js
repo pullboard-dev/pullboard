@@ -1,16 +1,14 @@
 /** pullboard.json names the repository's linked board, so every clone finds it [E12]. */
 import { isDeepStrictEqual } from 'node:util';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CONFIG_FILE } from '../../../../config/index.js';
 import { loadConfig } from '../../../../config/index.js';
 import { nameBehindDeviceEnabled } from '../../../../config/index.js';
 import { renewAfterSyncEnabled } from '../../../../config/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** Whether engine.nameBehindDevice is on (#9828): the one place the relay cell reads it, so a caller passes the answer in before a move is prepared. */
 export function behindDeviceSetting() {
@@ -22,7 +20,7 @@ export const renewOn = () => renewAfterSyncEnabled();
 
 /** The board id this checkout's pullboard.json names, or null. */
 export function namedBoard(root) {
-  if (!existsSync(join(root, CONFIG_FILE))) return null;
+  if (!fs.exists(join(root, CONFIG_FILE))) return null;
   return loadConfig(root).relay?.board ?? null;
 }
 
@@ -32,8 +30,8 @@ export function namedBoard(root) {
  */
 export function writeNamedBoard(root, board) {
   const file = join(root, CONFIG_FILE);
-  if (!existsSync(file)) return false;
-  const text = readFileSync(file, 'utf8');
+  if (!fs.exists(file)) return false;
+  const text = fs.readFile(file, 'utf8');
   const value = JSON.parse(text);
   if (value.relay?.board === board) return false;
   const expected = { ...value, relay: { ...(value.relay ?? {}), board } };
@@ -45,7 +43,7 @@ export function writeNamedBoard(root, board) {
       : text.replace(/("relay"\s*:\s*\{[^{}]*"board"\s*:\s*)"[0-9a-f]{32}"/u, (_, head) => head + JSON.stringify(board));
   let parsed;
   try { parsed = JSON.parse(edited); } catch { parsed = undefined; }
-  writeFileSync(file, isDeepStrictEqual(parsed, expected) ? edited : JSON.stringify(expected, null, 2) + '\n');
+  fs.writeFile(file, isDeepStrictEqual(parsed, expected) ? edited : JSON.stringify(expected, null, 2) + '\n');
   return true;
 }
 
@@ -62,7 +60,7 @@ export function onlyNamedBoardChanged(root) {
   };
   try {
     const committed = execFileSync('git', ['show', 'HEAD:' + CONFIG_FILE], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    return isDeepStrictEqual(withoutBoard(committed), withoutBoard(readFileSync(join(root, CONFIG_FILE), 'utf8')));
+    return isDeepStrictEqual(withoutBoard(committed), withoutBoard(fs.readFile(join(root, CONFIG_FILE), 'utf8')));
   } catch { return false; }
 }
 
@@ -72,10 +70,10 @@ export function onlyNamedBoardChanged(root) {
  */
 export function nameBoardInConfig(root, board, io) {
   const file = join(root, CONFIG_FILE);
-  const prior = existsSync(file) ? readFileSync(file, 'utf8') : null;
+  const prior = fs.exists(file) ? fs.readFile(file, 'utf8') : null;
   if (writeNamedBoard(root, board)) io.err(`pullboard: pullboard.json now names board ${board.slice(0, 8)}; commit it so every clone of this repository joins this board`);
   return (cleanup) => {
     try { cleanup(); } catch { /* The refusal names the next step. */ }
-    if (prior !== null) writeFileSync(file, prior);
+    if (prior !== null) fs.writeFile(file, prior);
   };
 }
