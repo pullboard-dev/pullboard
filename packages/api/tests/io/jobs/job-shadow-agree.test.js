@@ -2,7 +2,7 @@
 /** @pullboard-test-input packages/api/src/io/jobs.js */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { cellBoard } from '../../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { readShadow } from '../../../../store/index.js';
 import { claimJob } from '../../../index.js';
 import { offerJob } from '../../../index.js';
