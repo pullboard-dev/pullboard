@@ -7,6 +7,7 @@ import {
 } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 
 export const SENTENCE = 'I have read CLA.md and I agree to it.';
 const SIGNATURES = '.github/cla-signatures.json';
@@ -105,12 +106,12 @@ async function pages(url, headers) {
 }
 
 /** Load the pull request's commits and comments from the event, or from a fixture file for tests. */
-async function loadPullRequest() {
-  if (process.env.CLA_PR_FILE) return { ...JSON.parse(readFileSync(process.env.CLA_PR_FILE, 'utf8')), live: false };
-  const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+async function loadPullRequest(environment = environmentAdapter()) {
+  if (environment.get('CLA_PR_FILE')) return { ...JSON.parse(readFileSync(environment.get('CLA_PR_FILE'), 'utf8')), live: false };
+  const event = JSON.parse(readFileSync(environment.get('GITHUB_EVENT_PATH'), 'utf8'));
   const number = event.pull_request?.number ?? event.issue?.number;
-  const api = `${process.env.GITHUB_API_URL ?? 'https://api.github.com'}/repos/${process.env.GITHUB_REPOSITORY}`;
-  const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${process.env.GITHUB_TOKEN}` };
+  const api = `${environment.get('GITHUB_API_URL', 'https://api.github.com')}/repos/${environment.get('GITHUB_REPOSITORY')}`;
+  const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${environment.get('GITHUB_TOKEN')}` };
   const commits = (await pages(`${api}/pulls/${number}/commits`, headers)).map((c) => ({ sha: c.sha, login: c.author?.login ?? null, id: c.author?.id ?? null, message: c.commit?.message ?? '', parents: c.parents ?? [] }));
   const comments = (await pages(`${api}/issues/${number}/comments`, headers)).map((c) => ({ id: c.id, user_id: c.user?.id, login: c.user?.login, body: c.body, url: c.html_url, created_at: c.created_at }));
   let head = event.pull_request?.head?.sha;
@@ -130,9 +131,9 @@ async function postStatus(pr, ok, description) {
 }
 
 /** Run the check, print every problem, and set the exit code. */
-async function main() {
-  const pr = await loadPullRequest();
-  const result = evaluate(pr, readSignatures(process.env.CLA_SIGNATURES_FILE ?? resolve(SIGNATURES)));
+async function main(environment = environmentAdapter()) {
+  const pr = await loadPullRequest(environment);
+  const result = evaluate(pr, readSignatures(environment.get('CLA_SIGNATURES_FILE') ?? resolve(SIGNATURES)));
   if (result.problems.length) {
     process.stderr.write(result.problems.join('\n') + '\n');
     process.exitCode = 1;

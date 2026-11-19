@@ -2,6 +2,7 @@
 import { cachedMainFact } from '../../../../../codemap/index.js';
 import { mainFactToolIdentity } from '../../../../../codemap/index.js';
 import { machineHome } from '../../../../../resources/index.js';
+import { environmentAdapter } from '../../../../../env/index.js';
 import { foreignNodeOptions } from '../../test/isolation.js';
 
 const STRING_MAPS = ['unknown', 'undeclared', 'modules', 'blobs'];
@@ -55,12 +56,12 @@ function decode(value) {
 }
 
 /** Cache only an exact object-verified commit under the controller's actual analyzer/runtime identity. */
-export function cachedAffectedGraph(root, commit, derive) {
-  if (!/^[a-f0-9]{40,64}$/u.test(commit) || foreignNodeOptions(process.env.NODE_OPTIONS)) return derive();
+export function cachedAffectedGraph(root, commit, derive, environment = environmentAdapter()) {
+  if (!/^[a-f0-9]{40,64}$/u.test(commit) || foreignNodeOptions(environment.get('NODE_OPTIONS'))) return derive();
   const tool = mainFactToolIdentity();
   if (!tool) return derive();
   const identity = { version: 1, commit, tool, node: process.versions.node,
-    executable: process.execPath, nodeOptions: process.env.NODE_OPTIONS ?? null };
+    executable: process.execPath, nodeOptions: environment.get('NODE_OPTIONS') ?? null };
   const value = cachedMainFact(root, 'affected-graph', identity, () => encode(derive()), validGraph, { home: machineHome() });
   return decode(value);
 }
