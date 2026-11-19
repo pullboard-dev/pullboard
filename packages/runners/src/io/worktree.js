@@ -7,7 +7,6 @@ import { writeFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitSpawn } from '../../../git/light.js';
-import { createSshAdapter } from './adapter/ssh.js';
 import { shellWord } from './tooling/remote.js';
 import { sshEnvironment } from './tooling/remote.js';
 
@@ -70,9 +69,11 @@ export function hostedFolderScript({ folder, origin, branch, base, hooksPath }) 
  * @param {{ ssh?: string, timeoutMs?: number, adapter?: { run: Function } }} [options] The SSH client, an optional wall bound, and an ssh adapter (a fake in a test).
  * @returns {Promise<{ status: number|null, signal: string|null, stdout: string, stderr: string, host: string, error: string|null }>} The run.
  */
-export async function runOnRunnerShell(runner, script, { ssh = 'ssh', timeoutMs = 0, adapter = createSshAdapter() } = {}) {
+export async function runOnRunnerShell(runner, script, { ssh = 'ssh', timeoutMs = 0, adapter = null } = {}) {
   if (!HOST.test(runner?.host ?? '')) throw new Error('hosted item folder needs a registered runner host');
-  const run = await adapter.run(runner, script, { ssh, env: sshEnvironment(), timeoutMs: timeoutMs > 0 ? timeoutMs : MAX_TIMER_MS });
+  // Loaded when a hosted folder is first run, so status and next do not load the adapter with this file [C7].
+  const sshAdapter = adapter ?? (await import('./adapter/ssh.js')).createSshAdapter();
+  const run = await sshAdapter.run(runner, script, { ssh, env: sshEnvironment(), timeoutMs: timeoutMs > 0 ? timeoutMs : MAX_TIMER_MS });
   return {
     status: run.status, signal: run.signal ?? null,
     stdout: run.stdout.toString('utf8').slice(-OUTPUT_LIMIT), stderr: run.stderr.slice(-OUTPUT_LIMIT),
