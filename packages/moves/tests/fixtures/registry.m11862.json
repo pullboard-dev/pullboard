@@ -1,0 +1,32 @@
+{
+  "moves.selection.cross-ownership-passed-over": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 1: an item whose claim is refused CROSS_OWNERSHIP is passed over, reported once, and the next claimable item is offered."
+    },
+    "why": "A refused claim ended next with the refusal, so one item naming paths no lane owns stopped every seat in that lane (#11862).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/io/selection.js",
+      "packages/moves/tests/io/selection.test.js",
+      "packages/moves/tests/fixtures/next.js"
+    ]
+  },
+  "moves.selection.wait-never-offers-refused": {
+    "proves": {
+      "specs": [
+        "C7"
+      ],
+      "claim": "clause 2: with wait above 0, an item whose claim refuses for the calling seat is never returned to it."
+    },
+    "why": "A waiting seat was offered an item its own claim then refused, so the wait returned at once and never blocked (#11862).",
+    "kind": "contract",
+    "inputs": [
+      "packages/moves/src/io/selection.js",
+      "packages/moves/tests/io/selection.test.js",
+      "packages/moves/tests/fixtures/next.js"
+    ]
+  }
+}
