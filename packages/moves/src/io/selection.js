@@ -148,10 +148,6 @@ export async function nextOnce(ctx, values, ports) {
   // caller's next loop. Selecting again under the write lock held BOARD_BUSY for seconds (#2978).
   const { me: holder, held, shared, reasons, reviewSkipped, lightReserved } = looked;
   let item = looked.item;
-  if (Number(values.wait) > 0 && !looked.held) {
-    const current = withBoardRead(ctx, board => store.getItem(board, looked.item.item_id));
-    if (current.item_status === 'open') return { ...looked, item: current, review: false, waitingOffer: true };
-  }
   // next.readinessCheck (off by default): an item whose readiness command exits non-zero is passed over and named [C7,#8793].
   const notReady = !held && nextReadinessCheck() ? readinessFailure(ctx, withBoardRead(ctx, board => store.getItem(board, looked.item.item_id))) : null;
   if (notReady) return { retry: true, skipItem: item.item_id, retryDetail: { phase: 'readiness', item: item.item_id, code: 'NOT_READY', message: notReady } };
