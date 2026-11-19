@@ -1,0 +1,5 @@
+{
+  "cli.io-read-seat-folder.names-seat": {"proves":{"specs":["C7"],"claim":"identifyCaller in a folder whose marker names a joined seat that no longer holds the item refuses NOT_JOINED naming the seat folder and the item number."},"why":"A seat that ran a command from its item folder after submit was told only to join a lane.","kind":"contract","inputs":["apps/cli/src/io/read.js","apps/cli/src/io/item/folder/identity.js"]},
+  "cli.io-read-seat-folder.plain-folder-unchanged": {"proves":{"specs":["C7"],"claim":"A worktree with no marker keeps its NOT_JOINED text, and an item folder whose seat still holds the claim still resolves the seat."},"why":"The hint must not change plain folders or live item folders.","kind":"contract","inputs":["apps/cli/src/io/read.js","apps/cli/src/io/item/folder/identity.js"]},
+  "cli.io-read-seat-folder.real-status": {"proves":{"specs":["C7"],"claim":"The real status command in such a folder reads the seat path in its refusal."},"why":"The refusal must reach the person through the real command, not only the function.","kind":"contract","inputs":["apps/cli/src/io/read.js","apps/cli/src/io/item/folder/identity.js"]}
+}
