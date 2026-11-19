@@ -147,6 +147,7 @@ export const MACHINE_DEFAULTS = {
   'next.oneGitRead': false,
   'next.readinessCache': false,
   'next.readinessCheck': false,
+  'next.returnedFirst': false,
   'next.routeByTier': false,
   'push.pinTooling': false,
   'push.recordTiming': false,
