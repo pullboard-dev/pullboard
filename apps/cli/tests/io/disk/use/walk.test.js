@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { utimesSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pruneDisk } from '../../../../src/io/disk/use.js';
@@ -11,14 +11,18 @@ import { DAYS } from '../../../fixtures/disk-use.js';
 import { NOW } from '../../../fixtures/disk-use.js';
 import { fixture } from '../../../fixtures/disk-use.js';
 
-test('cli.io-disk-use-walk.retention-walks-a-folder-of-200000-entries: retention walks a folder of 200000 entries without a stack overflow and finds its newest file [C7]', (t) => {
+test('cli.io-disk-use-walk.retention-walks-a-folder-of-200000-entries: retention walks a folder of 200000 entries without a stack overflow and finds its newest file [C7]', async (t) => {
   const dir = fixture(t);
   const big = join(dir, 'flake-evidence', 'flake-big-6666');
   mkdirSync(big, { recursive: true });
-  for (let i = 0; i < 200_000; i++) {
-    const file = join(big, `f${i}`);
-    writeFileSync(file, '');
-    utimesSync(file, DAYS(90), DAYS(90));
+  // Created in parallel chunks: one open, one timestamp set and one close per file, so the setup does not dominate the case.
+  const age = DAYS(90);
+  for (let start = 0; start < 200_000; start += 500) {
+    await Promise.all(Array.from({ length: 500 }, async (_, k) => {
+      const handle = await open(join(big, 'f' + (start + k)), 'w');
+      await handle.utimes(age, age);
+      await handle.close();
+    }));
   }
   // The one fresh file is the newest; if the walk lost it the entry would look 90 days old and be removed.
   utimesSync(join(big, 'f123456'), DAYS(5), DAYS(5));
