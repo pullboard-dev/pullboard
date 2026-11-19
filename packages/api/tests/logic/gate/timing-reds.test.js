@@ -25,3 +25,11 @@ test('api.gate-timing-reds.sametimingred-false-when-two-case: clause 3: sameTimi
   const main = { file: FILE, name: 'clause 1: another wording' };
   assert.equal(sameTimingRed(gate, main), false);
 });
+
+test('api.gate-timing-reds.sametimingred-true-store-light-load: clause 4: sameTimingRed is true for the store light-door cold-load case failing on gate and main under one name, and false for another case of that file [C7,#11815]', () => {
+  const file = 'packages/store/tests/io/light-load.test.js';
+  const name = 'store.io-light-load.packages-store-light-js-loads-cold: clause 2: packages/store/light.js loads cold in under 100 ms of module work [C7]';
+  assert.equal(sameTimingRed({ file, name, signature: 'a' }, { file, name, signature: 'b' }), true);
+  const other = { file, name: 'store.io-other.something: clause 1: something else' };
+  assert.equal(sameTimingRed(other, other), false);
+});

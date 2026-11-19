@@ -93,6 +93,7 @@ export {
   canaryDirectPushEnabled,
   requireJourneyPathEnabled,
   adapterLintClockEnabled,
+  jsdocCheckEnabled,
   adapterLintEnvEnabled,
   adapterLintTimersEnabled,
   viewTimerLayoutEnabled,
