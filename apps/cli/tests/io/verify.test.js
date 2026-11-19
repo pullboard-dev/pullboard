@@ -79,12 +79,18 @@ async function mergedHeadItem(t, laterEdit) {
   writeFileSync(join(box.repo, 'web/main-moves.txt'), 'main moves\n');
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: main moves');
-  box.git(box.web, 'merge', '-q', '--no-edit', 'main');
+  await ok(box.web, 'release', '1', '--reason', 'OTHER', '--note', 'handing the item to a second seat');
+  const second = join(box.dir, 'second-holder');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'main');
+  assert.equal(joinFixtureSeat(box, second, 'web').code, 0);
+  await ok(second, 'claim', '1');
+  box.git(second, 'checkout', '-q', '--detach', ticked);
+  box.git(second, 'merge', '-q', '--no-edit', 'main');
   if (laterEdit) {
-    writeFileSync(join(box.web, 'web/item-1.js'), 'export const complete = false;\n');
-    box.git(box.web, 'commit', '-q', '-am', 'fix(web): change fixture 1 after the tick [G1]');
+    writeFileSync(join(second, 'web/item-1.js'), 'export const complete = false;\n');
+    box.git(second, 'commit', '-q', '-am', 'fix(web): change fixture 1 after the tick [G1]');
   }
-  const submitted = box.git(box.web, 'rev-parse', 'HEAD');
+  const submitted = box.git(second, 'rev-parse', 'HEAD');
   helpers.historicalCheckSubmission(box, submitted, 'web-2');
   const review = join(box.dir, 'merge-tick-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, submitted);
