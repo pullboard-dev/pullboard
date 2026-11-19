@@ -49,7 +49,10 @@ async function boxWithReturnedItem(t, setting) {
   writeFileSync(file, JSON.stringify(setting === undefined ? settings : { ...settings, next: { returnedFirst: setting } }));
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim();
   withFixtureBoard(join(box.repo, '.git/pullboard/board.sqlite'), board => {
+    // The seed stands in for a reject move, so it opens the move guard that only moveItem opens.
+    board.db.exec('INSERT INTO temp.moving VALUES (1)');
     board.db.prepare("UPDATE item SET item_status = 'open', item_verdict = 'REJECT', item_built_by = 'web-1', item_owner = NULL WHERE item_id = ?").run(item.item_id);
+    board.db.exec('DELETE FROM temp.moving');
     board.db.prepare("INSERT INTO verdict (item_id, verdict_by, verdict_decision, verdict_reason, verdict_note, verdict_commit, verdict_digest, verdict_head, verdict_at) VALUES (?, 'reviewer-1', 'REJECT', 'BEHAVIOR_MISMATCH', 'the clause is not proven', ?, 'd', ?, '2026-11-19T00:00:00Z')").run(item.item_id, commit, commit);
   });
   return { box, id: item.item_id };
