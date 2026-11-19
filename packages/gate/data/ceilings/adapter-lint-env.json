@@ -90,7 +90,6 @@
     "packages/config/src/logic/scratch/folder.js": 2,
     "packages/doctrine/src/io/fast.js": 2,
     "packages/drive/src/logic/policy.js": 1,
-    "packages/flakes/src/io/native.js": 1,
     "packages/gate/src/io/check/signoffs.js": 3,
     "packages/gate/src/io/coordinator/guard.js": 2,
     "packages/gate/src/io/gui/admission.js": 1,
