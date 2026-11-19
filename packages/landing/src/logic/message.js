@@ -5,6 +5,7 @@ import {
   parseCommitMessage,
 } from '../../../commits/index.js';
 import { landingRows } from '../../../commits/index.js';
+import { checkRangeMessages } from '../../../commits/light.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../spec/index.js';
@@ -86,6 +87,25 @@ export function checkLandingMessages(items, { spec, typeOf = () => null }) {
     messages.set(item.item_id, built);
   }
   return messages;
+}
+
+/**
+ * Check the messages of each item's own commits (those in its checked commit and not in `base`) before a batch merges [C7,#11265].
+ * Why: checkLandingMessages reads only the message Pullboard generates, so a Co-Authored-By trailer or a home-folder path in an item commit reached main through the merge.
+ *
+ * @param {string} root
+ * @param {string} base
+ * @param {any[]} items
+ * @param {(item: any) => string} commitOf - The item's checked landing commit.
+ * @returns {Promise<void>}
+ */
+export async function checkLandingCommits(root, base, items, commitOf) {
+  for (const item of items) {
+    try { await checkRangeMessages(root, `${base}..${commitOf(item)}`, { noCoAuthor: true }); } catch (error) {
+      if (!(error instanceof Refused)) throw error;
+      throw new Refused('LAND_HEADER', `the commits of #${item.item_id} fail the landing message check (${error.message}); nothing merged`, error.hint);
+    }
+  }
 }
 
 /** The trunk spec a landing orders rows by, or none when the repo has no spec file. */
