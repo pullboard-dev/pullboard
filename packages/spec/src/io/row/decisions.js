@@ -221,6 +221,13 @@ export function planRowApply(root, config, records, { passkeyDecision = () => fa
     const parsed = loadSpec(root, { ...config, spec: file });
     const matches = parsed.rows.filter((row) => row.id === record.id);
     if (verifiedPasskey && matches[0]?.signers?.length) throw new Refused('PERSON_SIGNER_REQUIRED', `${record.id} names its SSH signers ${matches[0].signers.join(', ')}`, 'a passkey does not claim any named SSH identity');
+    if (record.kind === 'doctrine' && record.source === '' && matches.length === 0) {
+      // A standard default has no repo line: append its decision line once [#2007].
+      const tail = lines.at(-1) === '' ? lines.length - 1 : lines.length;
+      lines.splice(tail, 0, record.replacement);
+      change.after = lines.join('\n');
+      continue;
+    }
     const index = matches.length === 1 ? matches[0].line - 1 : -1;
     const source = index < 0 ? '' : lines[index].replace(/\r$/u, '');
     if (source !== record.source && source !== record.replacement) throw new Refused('STALE_ROW_DECISION', `${record.id}'s exact row changed after the person's decision; ask the person to approve its current text again`);
