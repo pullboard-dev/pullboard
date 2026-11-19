@@ -1,0 +1,3 @@
+{
+  "config.io-main.commits-quoted-names-is-a-list": {"proves":{"specs":["C7"],"claim":"configFromSource loads commits.quotedNames as [] when unset and as given when a list, and configProblems refuses a non-list with a problem naming commits.quotedNames."},"why":"The setting is the first of three for a guard that refuses verbatim quotes of a configured person in commit messages; a wrong shape must not load silently.","kind":"cell unit","inputs":["packages/config/src/io/main.js","packages/config/tests/io/main.test.js"]}
+}
