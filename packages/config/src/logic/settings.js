@@ -213,6 +213,9 @@ export function loadMachineSettings() {
   if (value['runners.coresPerShard'] !== undefined && !(Number.isSafeInteger(value['runners.coresPerShard']) && value['runners.coresPerShard'] >= 1 && value['runners.coresPerShard'] <= 5)) {
     throw new Refused('BAD_MACHINE_SETTINGS', `runners.coresPerShard in ${file} must be a whole number from 1 through 5`);
   }
+  if (value['runners.jobWorkerFactor'] !== undefined && !(typeof value['runners.jobWorkerFactor'] === 'number' && value['runners.jobWorkerFactor'] >= 1 && value['runners.jobWorkerFactor'] <= 4)) {
+    throw new Refused('BAD_MACHINE_SETTINGS', `runners.jobWorkerFactor in ${file} must be a number from 1 to 4`);
+  }
   if (value.gate?.settleOnMainReceipt !== undefined && typeof value.gate.settleOnMainReceipt !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `gate.settleOnMainReceipt in ${file} must be true or false`);
   }
@@ -230,6 +233,9 @@ export function loadMachineSettings() {
   }
   if (value.engine?.nameBehindDevice !== undefined && typeof value.engine.nameBehindDevice !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `engine.nameBehindDevice in ${file} must be true or false`);
+  }
+  if (value.items?.barRulesAtAdd !== undefined && typeof value.items.barRulesAtAdd !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `items.barRulesAtAdd in ${file} must be true or false`);
   }
   if (value.items?.testMirrorAtAdd !== undefined && typeof value.items.testMirrorAtAdd !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `items.testMirrorAtAdd in ${file} must be true or false`);
@@ -404,6 +410,9 @@ export function loadMachineSettings() {
   if (value.add?.warnUnnamedTest !== undefined && typeof value.add.warnUnnamedTest !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `add.warnUnnamedTest in ${file} must be true or false`);
   }
+  if (value.line?.tune !== undefined && typeof value.line.tune !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `line.tune in ${file} must be true or false`);
+  }
   if (value.verify?.soloLowStakes !== undefined && typeof value.verify.soloLowStakes !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `verify.soloLowStakes in ${file} must be true or false`);
   }
@@ -436,6 +445,9 @@ export function loadMachineSettings() {
   }
   if (value.review?.releaseReasons !== undefined && typeof value.review.releaseReasons !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `review.releaseReasons in ${file} must be true or false`);
+  }
+  if (value.health?.adviceThroughNext !== undefined && typeof value.health.adviceThroughNext !== 'boolean') {
+    throw new Refused('BAD_MACHINE_SETTINGS', `health.adviceThroughNext in ${file} must be true or false`);
   }
   if (value.health?.lapsedSweep !== undefined && typeof value.health.lapsedSweep !== 'boolean') {
     throw new Refused('BAD_MACHINE_SETTINGS', `health.lapsedSweep in ${file} must be true or false`);
@@ -889,6 +901,11 @@ export function browserFreeChecksEnabled() {
 /** Whether verdict freshness compares the submit's own hunks: off by default; only an exact `true` turns it on; it lives here so the light door reads it with no io settings module [C7,#9438,#10170]. */
 export function hunkFreshnessEnabled() {
   return loadMachineSettings().verify?.hunkFreshness === true;
+}
+
+/** Whether items.typedFields is on (#9350): off by default; only an exact `true` turns it on; it lives here so list reads it through the light door [C7]. */
+export function typedFieldsEnabled() {
+  return loadMachineSettings().items?.typedFields === true;
 }
 
 /** Offer a gate job once more after an infrastructure end only when this machine opted in [C7,#9633]. */
