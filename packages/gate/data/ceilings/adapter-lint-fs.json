@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "total": 1443,
+  "total": 1435,
   "files": {
     "apps/cli/src/io/beater.js": 4,
     "apps/cli/src/io/blueprint.js": 1,
@@ -68,10 +68,6 @@
     "apps/cli/src/io/scale.js": 5,
     "apps/cli/src/io/setup.js": 6,
     "apps/cli/src/io/skills.js": 1,
-    "apps/cli/src/io/spec.js": 1,
-    "apps/cli/src/io/static/view.js": 5,
-    "apps/cli/src/io/submit.js": 1,
-    "apps/cli/src/io/submit/cache.js": 1,
     "apps/cli/src/io/submit/gate.js": 15,
     "apps/cli/src/io/submit/pull.js": 7,
     "apps/cli/src/io/submit/remote.js": 6,
