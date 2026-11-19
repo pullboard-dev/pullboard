@@ -80,11 +80,12 @@ function holdsTestJob(db, runner, now) {
 // Budget: a test job offered this long before the claim keeps its place ahead of gate shards, so a reviewer's comparison run is not starved by a shard backlog [C7,#11190].
 const TEST_JOB_AGED_MS = 120_000;
 
-/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id. */
+/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id; a census job (its offer carries censusPerRunner) never ages ahead of shards, so census stays lowest priority [C7]. */
 function agedTestJobs(db, ordered, now) {
   const ids = ordered.filter(({ row }) => row.job_kind === 'test').map(({ row }) => row.job_id);
   if (!ids.length) return new Set();
-  return new Set(db.prepare("SELECT job_id FROM job WHERE job_kind = 'test' AND job_created <= ? AND job_id IN (SELECT value FROM json_each(?))")
+  return new Set(db.prepare(`SELECT job.job_id FROM job JOIN job_step AS step ON step.job_step_job = job.job_id AND step.job_step_name = 'offered' AND step.job_step_seq = 0
+    WHERE job.job_kind = 'test' AND job.job_created <= ? AND job.job_id IN (SELECT value FROM json_each(?)) AND json_extract(step.job_step_payload, '$.censusPerRunner') IS NULL`)
     .all(now - TEST_JOB_AGED_MS, JSON.stringify(ids)).map(({ job_id: id }) => id));
 }
 
