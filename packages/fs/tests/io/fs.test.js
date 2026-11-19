@@ -43,3 +43,31 @@ test('fs.adapter.kernel-gains-no-export: clause 2: the kernel exports no file-sy
   assert.equal('fileSystemAdapter' in kernelLight, false);
   assert.equal(typeof fileSystemAdapter, 'function');
 });
+
+test('fs.adapter.descriptors-streams-watch-pass-through: clause 1: open, close, read, write, fstat, fsync, createReadStream, createWriteStream and watch reach the injected source with their arguments and return its answer [C7]', () => {
+  const calls = [];
+  const names = { open: 'openSync', close: 'closeSync', read: 'readSync', write: 'writeSync', fstat: 'fstatSync', fsync: 'fsyncSync',
+    createReadStream: 'createReadStream', createWriteStream: 'createWriteStream', watch: 'watch' };
+  const source = Object.fromEntries(Object.values(names).map(name => [name, (...args) => { calls.push([name, args]); return `${name}-result`; }]));
+  const fs = fileSystemAdapter(source);
+  for (const [method, name] of Object.entries(names)) {
+    assert.equal(fs[method]('a', 2), `${name}-result`, `${method} returns the source's answer`);
+    assert.deepEqual(calls.pop(), [name, ['a', 2]], `${method} calls ${name} with its arguments`);
+  }
+});
+
+test('fs.adapter.promises-pass-through: clause 2: promises passes readFile, readdir, stat, rm, mkdtemp, open, readlink and glob to the source promises, and with no source reaches node:fs/promises [C7]', async () => {
+  const calls = [];
+  const names = ['readFile', 'readdir', 'stat', 'rm', 'mkdtemp', 'open', 'readlink', 'glob'];
+  const promises = Object.fromEntries(names.map(name => [name, async (...args) => { calls.push([name, args]); return `${name}-result`; }]));
+  const fs = fileSystemAdapter({ promises });
+  for (const name of names) {
+    assert.equal(await fs.promises[name]('a', 2), `${name}-result`, `${name} returns the source's answer`);
+    assert.deepEqual(calls.pop(), [name, ['a', 2]], `${name} is called with its arguments`);
+  }
+  const dir = fileURLToPath(new URL('.', import.meta.url));
+  const real = fileSystemAdapter();
+  assert.match(await real.promises.readFile(join(dir, 'fs.test.js'), 'utf8'), /file-system adapter returns/);
+  assert.ok((await real.promises.readdir(dir)).includes('fs.test.js'));
+  assert.equal((await real.promises.stat(join(dir, 'fs.test.js'))).isFile(), true);
+});
