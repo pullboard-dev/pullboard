@@ -1,3 +1,4 @@
+/** @pullboard-module-loads packages/jobs/index.js */
 import { createRequire } from 'node:module';
 import { clauseReceipts } from '../../../../../packages/state/index.js';
 import { itemProgress } from '../../../../../packages/roadmap/light.js';
