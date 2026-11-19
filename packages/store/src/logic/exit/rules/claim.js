@@ -17,8 +17,8 @@ import {
 export { exitedSession, exitContinuationSummary } from "./continuation.js";
 import { exitRulesDecision } from "../../../../../stats/light.js";
 import { exitRulesConfigProblems } from "../../../../../config/index.js";
-import { EXIT_RULES_ENGINE } from "../../../../../state/index.js";
-import { ENGINE_VERSION } from "../../../../../state/index.js";
+import { EXIT_RULES_ENGINE } from "../../../../../state/light.js";
+import { ENGINE_VERSION } from "../../../../../state/light.js";
 import { Refused } from "../../../../../kernel/index.js";
 
 /** Read one exact claim's immutable policy; renewals never grant a fresh budget. */
