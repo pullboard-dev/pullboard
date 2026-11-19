@@ -18,6 +18,9 @@ import { runFixtureGit } from '../../../../../gate/tests/fixtures/child.js';
 import { queueTestRun } from '../../../../../drive/index.js';
 import { testRunItem } from '../../../../../drive/index.js';
 import { captureLapsedClaims } from '../../../../index.js';
+import { withdraw } from '../../../../../store/index.js';
+import { dependencyWaiters } from '../../../../../items/index.js';
+import { dependencyWaitedIds } from '../../../../src/io/stale/state/capture.js';
 
 const MINUTE = 60_000;
 
@@ -188,4 +191,36 @@ test('health.capture.cursor-move-still-captures: clause 2: a pass still captures
   const decided = f.capture();
   assert.equal(decided?.claimScan.next, decided?.claimScan.previous, 'the cursor stays put');
   assert.deepEqual(decided.claims.map(row => [row.id, row.idle]), [[f.live.id, 'seat-gone']]);
+});
+
+test('health.capture.waiters-read-once: clause 1: a lapsed-claim pass over several claims reads the waiting dependents once, not once per claim row [C7,#11998,clause 1]', t => {
+  const f = fixture(t);
+  const [quiet, alive] = f.holders;
+  const dependent = addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Waits on both claims', criterion: 'Work' });
+  f.board.db.prepare('UPDATE item SET item_after=? WHERE item_id=?').run(`${quiet.id},${alive.id}`, dependent);
+  const db = f.board.db, prepare = db.prepare.bind(db);
+  let reads = 0;
+  db.prepare = sql => { if (/item_after/u.test(sql)) reads += 1; return prepare(sql); };
+  t.after(() => { delete db.prepare; });
+  captureLapsedClaims({ clock: { now: () => new Date(f.now()) }, config: {} }, f.board, 'nobody');
+  assert.equal(reads, 1, 'one read of the dependents for the whole pass, where main read them once per claim row');
+});
+
+test('health.capture.waiters-same-answer: clause 1: the once-per-pass waited set names exactly the ids the per-id dependents query finds [C7,#11998,clause 1]', t => {
+  const board = fixtureBoard(t);
+  register(board, { lane: 'coordinator', path: '/nonexistent/coordinator' });
+  const after = (value, status = 'open') => {
+    const id = addItem(board, { by: 'coordinator', lane: 'core', title: `After ${value}`, criterion: 'Work' });
+    board.db.prepare('UPDATE item SET item_after=? WHERE item_id=?').run(value, id);
+    if (status === 'withdrawn') withdraw(board, id, { agentId: 'coordinator', reason: 'fixture' });
+    return id;
+  };
+  after('5');
+  after('15,25');
+  after('105');
+  after('7', 'withdrawn');
+  after('');
+  const waited = dependencyWaitedIds(board);
+  assert.deepEqual([...waited].sort(), ['105', '15', '25', '5']);
+  for (let id = 1; id <= 120; id += 1) assert.equal(waited.has(String(id)), dependencyWaiters(board, id).length > 0, `#${id}`);
 });
