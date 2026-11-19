@@ -1,6 +1,7 @@
 /** Read-only links between spec rows, their tests, board items and sign-offs. */
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
+import { environmentAdapter } from '../../../env/index.js';
 
 /**
  * A copy of the current environment without Git's repository overrides, so a scan always reads the
@@ -9,7 +10,7 @@ import { resolve } from 'node:path';
  * @returns {NodeJS.ProcessEnv}
  */
 function gitEnvironment() {
-  return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  return Object.fromEntries(Object.entries(environmentAdapter().all()).filter(([key]) => !key.startsWith('GIT_')));
 }
 
 /**

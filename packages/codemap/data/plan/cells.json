@@ -2479,6 +2479,7 @@
     "landing->verify",
     "verify->kernel",
     "verify->state",
+    "verify->env",
     "runners->kernel",
     "runners->resources",
     "runners->transport",

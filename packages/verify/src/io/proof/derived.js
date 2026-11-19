@@ -2,6 +2,7 @@
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { environmentAdapter } from '../../../../env/index.js';
 
 /** The setting that turns the derived database off: on for a file board unless it is exactly "0". */
 export const DERIVED_SETTING = 'PULLBOARD_PROOF_DERIVED_DB';
@@ -22,7 +23,7 @@ export function derivedPath(boardFile) {
  * board is not a file. Why: one connection writes both stores in the same transaction, so the two never disagree mid-event.
  */
 function attached(board) {
-  if (process.env[DERIVED_SETTING] === '0') return null;
+  if (environmentAdapter().get(DERIVED_SETTING) === '0') return null;
   if (ATTACHED.has(board.db)) return ATTACHED.get(board.db);
   const databases = board.db.prepare('PRAGMA database_list').all();
   const file = databases.find(row => row.name === 'main')?.file;
