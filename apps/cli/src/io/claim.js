@@ -183,7 +183,8 @@ export async function ordered(ctx, board, operation, args, { prepareInWriter } =
     await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
-    const heartbeat = requested ? (await import('./presence.js')).heartbeatCommand : null;
+    const { heartbeatCommand, claimHeartbeatOverlaps } = requested ? await import('./presence.js') : {};
+    const heartbeat = requested ? (io, options) => heartbeatCommand(io, { ...options, overlaps: claimHeartbeatOverlaps(io) }) : null;
     if (requested && operation === 'submit') heartbeat(ctx.io, { ctx, board });
     /** Observe a committed requested write before its relay checkpoint captures the presentation. */
     const observeRequested = () => {

@@ -1,0 +1,16 @@
+{
+  "cli.stable.journeys-registered-local-records": {
+    "proves": {
+      "specs": [
+        "C7",
+        "U148"
+      ],
+      "claim": "a shout journey recorded only in a registry file under the journeys folder passes the journeys-registered-10550 check, and one with no record in either place fails it."
+    },
+    "why": "Without it a record the view lane keeps beside a shout journey would be invisible to the check and turn it red when the view slice lands.",
+    "kind": "harness",
+    "inputs": [
+      "apps/cli/tests/stable.test.js"
+    ]
+  }
+}
