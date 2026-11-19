@@ -26,7 +26,7 @@ const row = (id, files, status = 'submitted', title = 'work') => ({
 });
 
 test('items.planning.same-plan: clause 1: on a fixture code map itemCollisionPlan returns the blockers, warnings and tests for a shared body, call-adjacent pairs with and without mapped tests, a disjoint pair and an unknown path that keeps file custody [N2,N20,C7]', () => {
-  const candidate = row(1, ['packages/a/src/one.js', 'packages/c/src/caller.js', 'packages/d/src/caller.js']);
+  const candidate = row(1, ['packages/a/src/one.js', 'packages/c/src/caller.js']);
   const flying = [
     candidate,
     row(2, ['packages/a/src/one.js']),
@@ -39,12 +39,18 @@ test('items.planning.same-plan: clause 1: on a fixture code map itemCollisionPla
   assert.deepEqual(itemCollisionPlan({}, candidate, flying, new Map(), MAP), {
     blockers: [
       '#1 waits for #2 (submitted) on functions packages/a/src/one.js#shared',
-      '#1 waits for #4: call-adjacent functions have no mapped tests',
     ],
     warnings: [
       '#1 is call-adjacent to #3: packages/c/src/caller.js#caller -> packages/c/src/callee.js#callee; cross-run tests: packages/c/tests/callee.test.js, packages/c/tests/caller.test.js',
     ],
     tests: ['packages/c/tests/callee.test.js', 'packages/c/tests/caller.test.js'],
+  });
+  // A pair whose modules have no mapped tests waits, and an item that names only that pair is not held by the tested pair above.
+  const untested = row(9, ['packages/d/src/caller.js']);
+  assert.deepEqual(itemCollisionPlan({}, untested, [untested, ...flying.slice(1)], new Map(), MAP), {
+    blockers: ['#9 waits for #4: call-adjacent functions have no mapped tests'],
+    warnings: [],
+    tests: [],
   });
   const ghost = row(7, ['packages/z/src/ghost.js']);
   assert.deepEqual(itemCollisionPlan({}, ghost, [ghost, ...flying.slice(1)], new Map(), MAP), {
