@@ -42,7 +42,9 @@ export const BASELINE_TABLES = ['packages/gate/data/tests/test-fixtures.json', '
 /**
  * Split a ceiling document into its per-file rows (every row as `{rule: n}`) and the rest of the document.
  * A table whose shape says `files` keeps its rows under that key; `bare` rows are counts, read as `{ count: n }`;
- * a `total` beside the rows may fall but never rise, so it is not part of the rest.
+ * a `total` beside the rows may fall but never rise, so it is not part of the rest. A bare table that stores no total
+ * is judged by the sum of its rows, so no slice has to edit one shared line and two slices that delete different
+ * rows merge clean; a stored total still compares as written.
  *
  * @param {{ files?: boolean, bare?: boolean } | undefined} shape
  * @param {any} doc
@@ -53,7 +55,8 @@ function ceilingParts(shape, doc) {
   if (!nested) return { rows: doc, rest: '', total: null };
   const { files, total, ...rest } = doc;
   const rows = Object.fromEntries(Object.entries(files).map(([file, row]) => [file, nested.bare ? { count: row } : row]));
-  return { rows, rest: JSON.stringify(rest), total: typeof total === 'number' ? total : null };
+  const summed = nested.bare ? Object.values(files).reduce((sum, count) => sum + count, 0) : null;
+  return { rows, rest: JSON.stringify(rest), total: typeof total === 'number' ? total : summed };
 }
 
 /** Whether the table's own check vouches that a newly listed file's row was split from a listed file; a throw refuses. */

@@ -2,10 +2,6 @@
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 import {
-  lstatSync,
-  mkdirSync,
-} from 'node:fs';
-import {
   join,
   resolve,
 } from 'node:path';
@@ -43,6 +39,8 @@ import { createStorageQuota } from './quota.js';
 import { createPasskeyHandler } from '../logic/http/passkey.js';
 import { createUploadStatusHandler } from '../logic/status.js';
 import { createRelayBoardLinks } from './board/links.js';
+import { fileSystemAdapter } from '../../../../packages/fs/index.js';
+const fs = fileSystemAdapter();
 
 const SNAPSHOT_BODY = SNAPSHOT_BODY_BYTES;
 /** A sealed move is base64 text, so a 136 KB move needs about 180 KB; the hosted relay takes up to 10 MB, while the local API keeps its 100 KB default (GitHub #14, #6707). */
@@ -154,8 +152,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   const origin = trustedOrigin(publicOrigin);
   if (typeof directory !== 'string' || !directory.trim() || !auth) throw new Refused('RELAY_CONFIG', 'configure a private relay directory and sign-in component');
   const root = resolve(directory);
-  mkdirSync(root, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(root);
+  fs.mkdir(root, { recursive: true, mode: 0o700 });
+  const stat = fs.lstat(root);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0) throw new Refused('RELAY_STORAGE', 'use a private directory with mode 700 for relay storage');
   // Older custom auth adapters remain explicitly API1-only, never an unmetered API2 transport.
   const quota = auth.storageAccount && auth.storageBoards ? createStorageQuota({ directory: root, auth, limitBytes: accountStorageBytes }) : null;
@@ -250,7 +248,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     const file = join(root, identity(id) + '.journal.sqlite');
     if (!create) {
       try {
-        const entry = lstatSync(file);
+        const entry = fs.lstat(file);
         if (!entry.isFile() || entry.isSymbolicLink()) throw new Refused('RELAY_STORAGE', 'restore this board as a private regular journal');
       } catch (error) {
         if (error.code === 'ENOENT') throw new Refused('NO_BOARD', 'upload the sealed snapshot for this linked board first');
@@ -266,7 +264,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
 
   /** Collect expired staging and read pins without opening a missing board or decoding its opaque bytes. */
   function collectPages(id) {
-    try { lstatSync(join(root, identity(id) + '.journal.sqlite')); }
+    try { fs.lstat(join(root, identity(id) + '.journal.sqlite')); }
     catch (error) { if (error.code === 'ENOENT') return; throw error; }
     auth.withBoard(id, () => {
       const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
@@ -293,7 +291,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
    */
   auth.setRegistrationClaims?.((id, target) => {
     const file = join(root, identity(id) + '.journal.sqlite');
-    try { if (!lstatSync(file).isFile()) return null; } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+    try { if (!fs.lstat(file).isFile()) return null; } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
     return auth.withBoard(id, () => {
       const journal = createRelayJournal({ directory: root, boardId: id, maxBytes: STORED_BYTES, now: () => new Date(now()) });
       try { return journal.registrationFor(target); } finally { journal.close(); }
