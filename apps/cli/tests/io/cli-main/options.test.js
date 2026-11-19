@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseCommandArgs } from '../../../src/io/cli-main/options.js';
+import { selectedHelp } from "../../../src/io/help.js";
 import { runCommand } from '../../../src/io/cli-main/run/command.js';
 import { after } from 'node:test';
 import { createE2eHelpers } from '../../fixtures/e2e.js';
@@ -52,9 +53,7 @@ test('cli.io-cli-main-options.review-key-and-help: clause 2: --json carries a re
   const result = JSON.parse(added.out);
   assert.equal(result.review, 'standard');
   assert.equal(result.review_tier, result.review);
-  const said = [];
-  await runCommand(['help', 'edit'], { jsonMode() {}, say: line => said.push(line), result() {}, err() {} });
-  const help = said.join('\n');
+  const help = selectedHelp("help", "edit", undefined, [], {}).text;
   assert.match(help, /--review strict/);
   assert.doesNotMatch(help, /--review-tier/);
 });
