@@ -1,8 +1,4 @@
 /** Read-only, allowlisted settings projection for the local API [O5,O6]. */
-import {
-  existsSync,
-  readFileSync,
-} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -27,6 +23,8 @@ import { Refused } from '../../../../kernel/index.js';
 import { describeSetting } from './descriptions.js';
 import { MACHINE_DEFAULTS } from './machine-defaults.js';
 import { environmentProblem } from '../main.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fileSystem = fileSystemAdapter();
 
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false, 'withdraw.review': false, 'withdraw.refuseLanded': false, 'release.liftTwiceHold': false,
@@ -39,9 +37,9 @@ const OPTIONAL_REPO_DEFAULTS = {
 
 /** Read one optional object without migrations, writes, or parser diagnostics containing its bytes. */
 function readObject(file) {
-  if (!existsSync(file)) return {};
+  if (!fileSystem.exists(file)) return {};
   try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fileSystem.readFile(file, 'utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     return value;
   } catch { throw new Refused('BAD_SETTINGS', `cannot read settings in ${file}; restore a JSON object`); }
@@ -210,7 +208,7 @@ function repositorySettings(rows, board, { performanceCores }) {
   const relay = readObject(relayFile);
   const deletedFile = join(info.commonDir, 'pullboard', 'relay-deleted.json');
   const relayContext = { scope: 'board', board: board.id, root: info.root, file: relayFile, raw: { relay } };
-  add(rows, { ...relayContext, file: deletedFile }, 'relay.deleted', false, { value: existsSync(deletedFile), origin: existsSync(deletedFile) ? 'configured' : 'default' });
+  add(rows, { ...relayContext, file: deletedFile }, 'relay.deleted', false, { value: fileSystem.exists(deletedFile), origin: fileSystem.exists(deletedFile) ? 'configured' : 'default' });
   for (const [key, fallback] of Object.entries({ 'relay.url': null, 'relay.board': null, 'relay.agent': null, 'relay.personReauth': false, 'relay.keyStorage': null })) add(rows, relayContext, key, fallback);
   const environmentToken = process.env.PULLBOARD_RELAY_TOKEN;
   add(rows, relayContext, 'relay.token', 'not set', { secret: true, value: environmentToken ?? relay.token,
@@ -219,9 +217,9 @@ function repositorySettings(rows, board, { performanceCores }) {
   const keyFile = join(process.env.PULLBOARD_HOME || join(homedir(), '.pullboard'), 'relay-keys', board.id + '.key');
   const keyEnvironment = process.env.PULLBOARD_RELAY_KEY;
   add(rows, { ...relayContext, file: keyFile }, 'relay.key', 'not set', { secret: true,
-    value: existsSync(keyFile) || keyEnvironment !== undefined || relay.keyStorage === 'keychain',
-    origin: existsSync(keyFile) || keyEnvironment !== undefined || relay.keyStorage === 'keychain' ? 'configured' : 'default',
-    source: existsSync(keyFile) ? keyFile : keyEnvironment !== undefined ? 'environment:PULLBOARD_RELAY_KEY' : relay.keyStorage === 'keychain' ? 'system keychain' : keyFile });
+    value: fileSystem.exists(keyFile) || keyEnvironment !== undefined || relay.keyStorage === 'keychain',
+    origin: fileSystem.exists(keyFile) || keyEnvironment !== undefined || relay.keyStorage === 'keychain' ? 'configured' : 'default',
+    source: fileSystem.exists(keyFile) ? keyFile : keyEnvironment !== undefined ? 'environment:PULLBOARD_RELAY_KEY' : relay.keyStorage === 'keychain' ? 'system keychain' : keyFile });
 }
 
 /** Include board-owned line inputs in the existing read-only inventory, without exposing reasons or window evidence. */
@@ -248,7 +246,7 @@ function boardLineSettings(rows, board) {
 function registeredBoard(project) {
   const info = repoInfo(project.root);
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (!existsSync(file)) return null;
+  if (!fileSystem.exists(file)) return null;
   const db = new DatabaseSync(file, { readOnly: true });
   try {
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='board_meta'").get()) return null;

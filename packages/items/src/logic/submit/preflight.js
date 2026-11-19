@@ -76,22 +76,6 @@ function trunkSources(root, env) {
     ...(remotes.status === 0 ? remotes.stdout.split('\n').filter(Boolean) : [])])];
 }
 
-/** The cells-plan index whose presence on accepted main turns placement on. */
-const CELLS_PLAN_INDEX = 'packages/codemap/data/plan/cells.json';
-
-/**
- * Whether accepted main carries a cells plan, so placement has anything to check.
- * Why: with no plan, placement is this one read; a submit then skips the placement receipt, whose key hashes the
- * checker's import closure (about 1,700 files, 0.7-4 s on a loaded runner) before any test may start (#5752) [C7].
- *
- * @param {string} root
- * @param {string} base
- * @returns {boolean}
- */
-export function hasCellsPlan(root, base) {
-  return Boolean(readTrunkEntry(root, base, CELLS_PLAN_INDEX).stdout);
-}
-
 /**
  * Deprecated no-op (#6365): plan placement is dropped, so this never refuses. It stays exported only so its importers
  * keep loading; #6368 and #6369 remove the callers and #6370 deletes it.
