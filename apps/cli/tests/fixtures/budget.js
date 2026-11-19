@@ -163,7 +163,7 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
       thread:store.itemThread(board,4),progress:itemProgress(board,4),machineVerification:null,checkText:'',agentApproved:[],approvalQualification:'',reviewEligibility:eligibility}));
     const samples=Object.fromEntries(startupCommands(options).map(name=>[name,[]]));
     const cpuSamples=Object.fromEntries(Object.keys(samples).map(name=>[name,[]]));
-    // 'list thin' is list with list.thinRead on in the child's machine settings; the file exists only while that child runs [C7,#9090].
+    // 'list' pins list.thinRead off and 'list thin' pins it on in the child's machine settings (on is the default); the file exists only while that child runs [C7,#9090].
     const settingsFile=join(root,'private-machine','settings.json');
     const childEnvironment={...process.env,PULLBOARD_FIXTURE_BOARD:'1',PULLBOARD_HOME:join(root,'private-home'),PULLBOARD_MACHINE_HOME:join(root,'private-machine'),GIT_CONFIG_GLOBAL:'/dev/null',GIT_CONFIG_NOSYSTEM:'1'};
     for(const name of ['PULLBOARD_RELAY_TOKEN','PULLBOARD_RELAY_KEY']) delete childEnvironment[name];
@@ -177,9 +177,9 @@ export async function assertStartupBudgets(t, sink = {}, options = {}) {
       for(const name of Object.keys(samples)) {
       const thin=name==='list thin';
       const args=name==='version'?['--version','--json']:name==='show'?['show','4','--json']:[thin?'list':name,'--json'];
-      if(thin){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:true}})); }
+      if(thin||name==='list'){ mkdirSync(join(root,'private-machine'),{recursive:true}); writeFileSync(settingsFile,JSON.stringify({list:{thinRead:thin}})); }
       const {result,wallMs:milliseconds,cpuMs}=measuredSpawn([code,...args],{cwd:root,encoding:'utf8',env:childEnvironment,maxBuffer:16*1024*1024});
-      if(thin) unlinkSync(settingsFile);
+      if(thin||name==='list') unlinkSync(settingsFile);
       assert.equal(result.status,0,`${name} round ${round}: ${result.error?.message ?? result.stderr ?? result.stdout}`);
       const data=JSON.parse(result.stdout);
       assert.equal(data.version,1);

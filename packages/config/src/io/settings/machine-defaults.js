@@ -123,7 +123,7 @@ export const MACHINE_DEFAULTS = {
   'landing.staticParallelMax': null,
   'landing.strictFullSuite': false,
   'launch.reachableDispatcher': false,
-  'list.thinRead': false,
+  'list.thinRead': true,
   'machine.holdHeavyAboveLoad': false,
   'machine.loadCeiling': null,
   'maintenance.retireIdleHours': 3,
