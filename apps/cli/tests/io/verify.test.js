@@ -74,6 +74,7 @@ async function mergedHeadItem(t, mainFile) {
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): complete fixture 1 [G1]');
   const ticked = box.git(box.web, 'rev-parse', 'HEAD');
+  await ok(box.web, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
   mkdirSync(join(box.repo, mainFile, '..'), { recursive: true });
   writeFileSync(join(box.repo, mainFile), 'main moves\n');
   box.git(box.repo, 'add', '-A');
@@ -85,7 +86,6 @@ async function mergedHeadItem(t, mainFile) {
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, submitted);
   assert.equal(joinFixtureSeat(box, review, 'api').code, 0);
   assert.equal(box.run(review, 'next', '--verify', '1', '--json').code, 0);
-  await ok(box.web, 'fact', '1', 'note', `clause 1 [reasoning]: read web/item-1.js at ${ticked}: it exports complete`);
   return { box, review };
 }
 
