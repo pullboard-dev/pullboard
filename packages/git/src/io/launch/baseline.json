@@ -35,7 +35,6 @@
     "apps/cli/src/io/current.js": 1,
     "apps/cli/src/io/pinned/tool/build.js": 2,
     "apps/cli/src/io/resident/client.js": 1,
-    "apps/runner/src/io/handoff.js": 2,
     "apps/runner/src/io/worker/handoff.js": 1,
     "apps/view/src/io/state.js": 1
   }
