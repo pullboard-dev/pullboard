@@ -39,6 +39,7 @@ import {
   mainPolicy,
 } from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
+import { environmentAdapter } from "../../../env/index.js";
 import { runProfiledShellAsync } from "../../../gate/index.js";
 import { runFrozenProof } from "../../../gate/index.js";
 import {
@@ -390,7 +391,7 @@ export async function diagnoseLandingRed({ root, base, output, role, flakes, hea
   if (flakes.rerun === true) {
     let main = null;
     try {
-      const { NODE_TEST_CONTEXT, ...env } = process.env;
+      const { NODE_TEST_CONTEXT, ...env } = environmentAdapter().all();
       pairs = await pairReds({ root, phases: [{ role, status: 1, failures }], flakes, mainRoot: () => (main = baseTree(root, base)), env });
     } catch { pairs = null; } finally { if (main) dropBaseTree(root, main); }
   }
