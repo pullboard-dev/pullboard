@@ -107,3 +107,13 @@ test('cli.journeys-imports-closure-budget.cold-claim-skips-the-spec-module: a co
   assert.ok(run.urls.size > 0, run.stderr);
   assert.equal(run.urls.has(spec), false, 'pullboard claim 1 loaded apps/cli/src/io/spec.js: import coordinatorFile from apps/cli/src/io/coordinator-file.js');
 });
+
+test('cli.journeys-imports-closure-budget.cold-show-trimmed-modules: a cold pullboard show 1 loads none of the review-retry modules and at most 525 modules in all [C7,#11943]', () => {
+  const run = commandLoads('show 1');
+  const dropped = ['packages/verify/src/logic/verdict/retry.js', 'packages/merge/index.js', 'packages/merge/src/io/trunk.js', 'packages/merge/src/io/compose.js'];
+  const loadedDrops = dropped.filter(file => [...run.urls].some(url => url.endsWith(`/${file}`)));
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^#1 +claimed /u, "a cold show 1 still prints the item line");
+  assert.deepEqual(loadedDrops, [], `a cold show loaded ${loadedDrops.join(', ')}: the comparison loads the review-retry composition only when its base run fails`);
+  assert.ok(run.urls.size <= 525, `a cold show 1 loaded ${run.urls.size} modules, over the 525 the env adapter slices need: keep the retry composition out of the cold path`);
+});
