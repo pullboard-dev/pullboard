@@ -161,3 +161,32 @@ test('commits.io-hooks.commit-msg-refuses-a-quote: clause 1: commitMsgProblems r
   assert.deepEqual(commitMsgProblems(body, { rules: { ...rules, quotedNames: [] }, spec }), []);
   assert.deepEqual(commitMsgProblems('chore: tidy the notes\n\nSam reviewed it.\n', { rules, spec }), []);
 });
+
+/** A fixture repo whose base commit holds an older quoting line; the staged change adds `line` to a second file. */
+function quotingChange(t, line) {
+  const graph = fixtureCommittedGraph('pullboard-quoted-names-'), root = graph.root;
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  graph.put('notes/old.txt', 'Sam said "an older line"\n');
+  graph.put('notes/new.txt', 'plain\n');
+  graph.commit();
+  graph.put('notes/new.txt', `plain\n${line}\n`);
+  runFixtureSetupGit(['add', '-A'], { cwd: root });
+  return root;
+}
+
+/** The pre-commit refusals for that staged change with the given quoted names. */
+function quotingProblems(root, quotedNames) {
+  return preCommitProblems({ root, isMain: true, agent: null, config: { protect: { blocked: [], allowed: [], secrets: false }, commits: { quotedNames } },
+    approvedRowPorts: { checkLoosening: () => [] } });
+}
+
+test('commits.io-hooks.pre-commit-refuses-an-added-quote: clause 1: with commits.quotedNames Sam, a staged added line quoting Sam is refused naming file and line; an unchanged older line and the same line with no names pass [C7,#11301]', t => {
+  const quote = 'Sam said "ship it"';
+  const root = quotingChange(t, quote);
+  const problems = quotingProblems(root, ['Sam']);
+  assert.equal(problems.length, 1, problems.join('\n'));
+  assert.match(problems[0], /^notes\/new\.txt:2 quotes a configured person/u);
+  assert.deepEqual(quotingProblems(root, []), []);
+  const older = quotingChange(t, 'a plain added line');
+  assert.deepEqual(quotingProblems(older, ['Sam']), []);
+});
