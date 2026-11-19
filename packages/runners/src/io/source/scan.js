@@ -10,24 +10,16 @@ import { loadKeyedResult } from '../keyed.js';
 import { saveKeyedResult } from '../keyed.js';
 import { sharedCacheFolder } from '../keyed.js';
 import { fileURLToPath } from 'node:url';
-import { closeSync } from 'node:fs';
-import { openSync } from 'node:fs';
-import { readSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { fstatSync } from 'node:fs';
+import { fileSystemAdapter } from '../../../../fs/index.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { existsSync } from 'node:fs';
-import { linkSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { scratchFolder } from '../../../../config/index.js';
 import { storeName } from '../store-names.js';
+
+const fs = fileSystemAdapter();
 
 export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
@@ -38,15 +30,15 @@ export function sourceGit(root, args, options = {}) {
   });
   if (result.error?.code === 'ENOBUFS') {
     const directory = scratchFolder('pullboard-source-count-');
-    const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
+    const fd = fs.open(join(directory, 'stdout'), 'w+', 0o600);
     try {
       const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
         cwd: root, env: cleanGitEnvironment(), input: options.input, stdio: ['pipe', fd, 'pipe'], maxBuffer: MAX_BLOB_BYTES,
       });
       if (counted.status !== 0) throw new Refused('RUNNER_SOURCE', 'cannot read the exact committed source; check Git and retry the run');
-      const bytes = fstatSync(fd).size;
+      const bytes = fs.fstat(fd).size;
       throw new Refused('RUNNER_SOURCE', `committed source scan produced ${bytes} bytes, exceeding its ${options.maxBuffer ?? MAX_BLOB_BYTES}-byte bound`);
-    } finally { closeSync(fd); rmSync(directory, { recursive: true, force: true }); }
+    } finally { fs.close(fd); fs.rm(directory, { recursive: true, force: true }); }
   }
   if (result.status !== 0) throw new Refused('RUNNER_SOURCE', 'cannot read the exact committed source; check Git and retry the run');
   return result.stdout;
@@ -64,7 +56,7 @@ let toolingTree;
  */
 export function scannerTree() {
   if (toolingTree === undefined) {
-    try { toolingTree = JSON.parse(readFileSync(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
+    try { toolingTree = JSON.parse(fs.readFile(TOOLING_MANIFEST, 'utf8')).tree; } catch { toolingTree = null; }
     if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(toolingTree ?? '')) toolingTree = null;
   }
   return toolingTree;
@@ -189,11 +181,11 @@ function scanSourceObjects(root, source) {
           bytes += pending[end].size + pending[end].object.length + 32;
           end++;
         } while (end < pending.length && bytes + pending[end].size + pending[end].object.length + 32 <= MAX_BLOB_BYTES);
-        const output = openSync(scan, 'wx', 0o600);
+        const output = fs.open(scan, 'wx', 0o600);
         try { sourceGit(root, ['cat-file', '--batch'], {
           input: pending.slice(start, end).map(({ object }) => object + '\n').join(''), stdio: ['pipe', output, 'pipe'],
-        }); } finally { closeSync(output); }
-        const descriptor = openSync(scan, 'r');
+        }); } finally { fs.close(output); }
+        const descriptor = fs.open(scan, 'r');
         try {
           for (let index = start; index < end; index++) {
             const { object, path, size } = pending[index];
@@ -205,13 +197,13 @@ function scanSourceObjects(root, source) {
               .map((text, line) => ({ path, line: line + 1, text })));
             if (findings.length) throw new Refused('RUNNER_SECRET', `source leak scan refused ${findings[0]}; remove the secret before remote execution`);
           }
-          if (readSync(descriptor, Buffer.alloc(1), 0, 1, null) !== 0) {
+          if (fs.read(descriptor, Buffer.alloc(1), 0, 1, null) !== 0) {
             throw new Refused('RUNNER_SOURCE', 'unexpected current source records; retry from the committed repository');
           }
-        } finally { closeSync(descriptor); rmSync(scan, { force: true }); }
+        } finally { fs.close(descriptor); fs.rm(scan, { force: true }); }
         start = end;
       }
-    } finally { rmSync(scratch, { recursive: true, force: true }); }
+    } finally { fs.rm(scratch, { recursive: true, force: true }); }
     if (pending.length) known.save(blobs.map(({ object }) => object));
   }
   const commit = sourceGit(root, ['cat-file', 'commit', source.commit]);
@@ -277,7 +269,7 @@ const SCAN_LOCK_POLL_MS = 50;
 function cleanHistoryFile(root, policies) {
   const common = sourceGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
   const digest = createHash('sha256').update(JSON.stringify(policies)).digest('hex').slice(0, 32);
-  const partial = existsSync(join(common, 'shallow')) || existsSync(join(common, 'info', 'grafts'));
+  const partial = fs.exists(join(common, 'shallow')) || fs.exists(join(common, 'info', 'grafts'));
   const home = process.env.PULLBOARD_MACHINE_HOME || join(process.env.HOME || homedir(), '.pullboard');
   return join(partial ? join(common, 'pullboard') : home, 'history-scan', storeName(digest));
 }
@@ -285,7 +277,7 @@ function cleanHistoryFile(root, policies) {
 /** Read the cached clean commits, newest first; a missing or unreadable cache is empty. */
 function cleanHistory(file) {
   try {
-    const value = JSON.parse(readFileSync(file, 'utf8'));
+    const value = JSON.parse(fs.readFile(file, 'utf8'));
     return Array.isArray(value) ? value.filter(commit => /^[a-f0-9]{40,64}$/u.test(commit)) : [];
   } catch { return []; }
 }
@@ -295,16 +287,16 @@ function cleanHistory(file) {
  * renames it into place, or links it as a lock. Every history-scan state file is written here, once.
  */
 function staged(file, body) {
-  mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
+  fs.mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const temporary = `${file}.${process.pid}.${randomUUID()}`;
-  writeFileSync(temporary, body, { mode: 0o600 });
+  fs.writeFile(temporary, body, { mode: 0o600 });
   return temporary;
 }
 
 /** Replace a history-scan state file whole, so a reader never sees it half written. */
 function record(file, body) {
   const temporary = staged(file, body);
-  try { renameSync(temporary, file); } catch (error) { rmSync(temporary, { force: true }); throw error; }
+  try { fs.rename(temporary, file); } catch (error) { fs.rm(temporary, { force: true }); throw error; }
 }
 
 /** Block this thread briefly; protectHistory is synchronous, so a waiter cannot yield. */
@@ -315,7 +307,7 @@ function pause(ms) {
 /** Whether a scan lock's holder has exited or held it past any real scan, so a waiter may replace it. */
 function staleScanLock(lock) {
   try {
-    const { pid, at } = JSON.parse(readFileSync(lock, 'utf8'));
+    const { pid, at } = JSON.parse(fs.readFile(lock, 'utf8'));
     if (!(Date.now() - at < SCAN_LOCK_STALE_MS)) return true;
     try { process.kill(pid, 0); return false; } catch (error) { return error.code === 'ESRCH'; }
   } catch (error) { return error.code !== 'ENOENT'; }
@@ -337,12 +329,12 @@ function takeScan(lock, settled) {
     try {
       pending = staged(lock, JSON.stringify({ pid: process.pid, at: Date.now() }));
       // A hard link either creates the complete lock or fails because another caller holds it.
-      linkSync(pending, lock);
-      return () => rmSync(lock, { force: true });
+      fs.link(pending, lock);
+      return () => fs.rm(lock, { force: true });
     } catch (error) {
       if (error.code !== 'EEXIST') return () => {};
-    } finally { if (pending) rmSync(pending, { force: true }); }
-    if (staleScanLock(lock)) rmSync(lock, { force: true });
+    } finally { if (pending) fs.rm(pending, { force: true }); }
+    if (staleScanLock(lock)) fs.rm(lock, { force: true });
     else pause(SCAN_LOCK_POLL_MS);
   }
 }
@@ -368,9 +360,9 @@ export function protectHistory(root, source, policies) {
   if (cleanHistory(file).includes(source.commit)) return;
   const blocked = `${file}.${source.commit}.blocked`;
   const refuse = () => new Refused('RUNNER_SECRET', 'selected history includes a blocked private path; keep this run local or remove that private history');
-  const release = takeScan(`${file}.${source.commit}.lock`, () => existsSync(blocked) || cleanHistory(file).includes(source.commit));
+  const release = takeScan(`${file}.${source.commit}.lock`, () => fs.exists(blocked) || cleanHistory(file).includes(source.commit));
   try {
-    if (existsSync(blocked)) throw refuse();
+    if (fs.exists(blocked)) throw refuse();
     const clean = cleanHistory(file);
     if (clean.includes(source.commit)) return;
     const base = clean.find(commit => gitSpawnSync(['--no-replace-objects', 'merge-base', '--is-ancestor', commit, source.commit],
@@ -399,7 +391,7 @@ export function protectHistory(root, source, policies) {
 export function objectRecord(descriptor) {
   const header = [];
   const byte = Buffer.alloc(1);
-  while (readSync(descriptor, byte, 0, 1, null)) {
+  while (fs.read(descriptor, byte, 0, 1, null)) {
     if (byte[0] === 10) break;
     if (header.length > 200) throw new Refused('RUNNER_SOURCE', 'invalid source object header; keep this run local');
     header.push(byte[0]);
@@ -411,10 +403,10 @@ export function objectRecord(descriptor) {
   const data = Buffer.alloc(size);
   let offset = 0;
   while (offset < size) {
-    const read = readSync(descriptor, data, offset, size - offset, null);
+    const read = fs.read(descriptor, data, offset, size - offset, null);
     if (!read) throw new Refused('RUNNER_SOURCE', 'incomplete history object; retry from the committed repository');
     offset += read;
   }
-  if (readSync(descriptor, byte, 0, 1, null) !== 1 || byte[0] !== 10) throw new Refused('RUNNER_SOURCE', 'incomplete history object; retry from the committed repository');
+  if (fs.read(descriptor, byte, 0, 1, null) !== 1 || byte[0] !== 10) throw new Refused('RUNNER_SOURCE', 'incomplete history object; retry from the committed repository');
   return { object: match[1], type: match[2], data };
 }
