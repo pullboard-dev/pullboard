@@ -11,6 +11,7 @@ import { STATIC_CHECKS } from '../../../heavy.js';
 import { CELLS_EDGES_CEILINGS } from '../../../src/io/edges.js';
 import { CELLS_EDGES_CEILINGS as SELECTION_CEILINGS } from '../../../src/io/test/tier/selection.js';
 import { CLOCK_CEILING_FILE } from '../../../src/io/adapter-lints/clock.js';
+import { ENV_CEILING_FILE } from '../../../src/io/adapter-lints/env.js';
 import { FS_CEILING_FILE } from '../../../src/io/adapter-lints/fs.js';
 import { SSH_CEILING_FILE } from '../../../src/io/adapter-lints/ssh.js';
 import { LOAD_BEARING_CEILINGS } from '../../../src/logic/load/bearing.js';
@@ -59,4 +60,12 @@ test('gate.ceiling-rows.leaf-path: clause 2: the cells-edges ceiling path comes 
   const reached = gateClosure('src/io/changed/scripts/static.js');
   assert.ok(reached.has(resolve(GATE, 'src/io/edges.js')), 'the walk reaches the path\'s owner, so it follows the checker');
   assert.equal(reached.has(resolve(GATE, 'src/io/test/tier/selection.js')), false, 'the one-second staged checker (#2571) loads no test tier selection');
+});
+
+test('gate.ceiling-rows.no-stored-total: clause 1: the env and fs adapter-lint ceiling files hold version and files only, so no slice edits a shared total line [C7,#11937]', () => {
+  for (const table of [ENV_CEILING_FILE, FS_CEILING_FILE]) {
+    const doc = JSON.parse(readFileSync(resolve(GATE, '../..', table), 'utf8'));
+    assert.deepEqual(Object.keys(doc), ['version', 'files'], table);
+    assert.ok(Object.values(doc.files).every(count => Number.isInteger(count) && count > 0), `${table} rows are positive counts`);
+  }
 });
