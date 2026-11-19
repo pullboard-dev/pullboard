@@ -604,7 +604,8 @@ export function settleTestActions(runDir, { store, stage, commit, landing, code 
         const at = new Date().toISOString();
         storeTestResult(store, { version: VERSION, key: staged.key, file: staged.file, ...plan.inputs[staged.file],
           status: 'pass', stage, commit, node: process.version, at, tap,
-          origin: { machine: plan.machine, stage, commit, at, ...(plan.request ? { request: plan.request } : {}) } });
+          // A green is staged only by a file process that exited 0, so the row says so: the controller no longer needs the whole job to have exited 0 to trust it [#11102].
+          origin: { machine: plan.machine, stage, commit, at, fileExit: 0, ...(plan.request ? { request: plan.request } : {}) } });
       }
     }
   } catch (error) {
