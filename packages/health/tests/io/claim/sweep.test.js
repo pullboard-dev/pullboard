@@ -14,6 +14,7 @@ import { claim } from '../../../../store/index.js';
 import { logEvent } from '../../../../store/index.js';
 import { register } from '../../../../store/index.js';
 import { listItems } from '../../../../store/index.js';
+import { release } from '../../../../store/index.js';
 import { openCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { closeCellBoard } from '../../../../board/tests/fixtures/cell-board.js';
 import { cellBoard } from '../../../../board/tests/fixtures/cell-board.js';
@@ -119,12 +120,12 @@ test('health.io-claim-sweep.counts-silent-sweeps: recordClaimSilence counts one 
 });
 
 test('health.io-claim-sweep.sign-of-life-ends-silence: a heartbeat or an item-folder commit also ends the silence [C7,#12091,clause 1]', t => {
-  const { board, id, count } = silentClaim(t);
+  const { board, id, seat, count } = silentClaim(t);
   assert.equal(count(61), 1);
   assert.equal(count(70, { seats: (_board, owners) => owners.map(seat => ({ ...seat, heartbeatAt: new Date(T0 + 65 * 60_000).toISOString() })) }), 0);
   assert.equal(count(130, { seats: () => [], commitAt: () => new Date(T0 + 100 * 60_000).toISOString() }), 0);
   assert.equal(count(161, { seats: () => [], commitAt: () => new Date(T0 + 100 * 60_000).toISOString() }), 1);
-  board.db.prepare("UPDATE item SET item_status='open', item_owner=NULL WHERE item_id=?").run(id);
+  release(board, id, seat, 'finished', undefined, 'OTHER');
   assert.equal(count(170), 0, 'a claim that ended is no longer counted');
 });
 
