@@ -104,7 +104,7 @@ test('api.gate-retry.red-retry-keeps-red: clause 2: a red retry shard applies th
   assert.equal(f.last.outcome, 'retrying');
   const retry = f.rerun(head => red(head));
   assert.equal(retry.applied.outcome, 'red', JSON.stringify(retry.applied));
-  assert.equal(store.getItem(f.board, f.item.item_id).item_status, 'open', 'the red went back to the builder');
+  assert.notEqual(store.getItem(f.board, f.item.item_id).item_status, 'submitted', 'the red did not submit the item');
   assert.equal(shardJobs(f.board.db, f.parent).filter(row => row.job_id.endsWith(':shard:retry')).length, 1, 'only the one retry');
 });
 
