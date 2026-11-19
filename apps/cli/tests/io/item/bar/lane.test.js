@@ -21,7 +21,10 @@ function rules(on) {
 }
 
 /** File a web item through the real CLI as the given seat folder. */
-const add = (box, cwd, criterion) => cli(box, cwd, ['add', 'web', 'Web page', '--specs', 'G1', '--route', 'strong', '--criterion', criterion, '--brief', BRIEF]);
+/** Titles that share no words, so the duplicate guard never reads one add as another. */
+const TITLES = ['Quartz lantern', 'Harbor meadow', 'Copper tundra', 'Velvet orchard', 'Saffron glacier'];
+let filed = 0;
+const add = (box, cwd, criterion) => cli(box, cwd, ['add', 'web', TITLES[filed++ % TITLES.length], '--specs', 'G1', '--route', 'strong', '--criterion', criterion, '--brief', BRIEF]);
 
 test('cli.io-item-bar-lane.foreign-path-refused: clause 1: with items.barRulesAtAdd on, add and edit by a web seat refuse a bar naming docs/spec.md, a docs-lane file on main, LANE_FOREIGN_PATH naming the path and the lane [C7,#11739]', async t => {
   const box = await fixture(t, { files: FILES });
