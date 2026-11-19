@@ -2551,7 +2551,6 @@
     "sync->store",
     "apps/cli->kernel",
     "apps/cli->git",
-    "apps/cli->fs",
     "apps/cli->codemap",
     "apps/cli->api",
     "health->state",
