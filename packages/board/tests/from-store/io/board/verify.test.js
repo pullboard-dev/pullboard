@@ -72,14 +72,13 @@ function verdictEvents(f, id) {
 }
 
 test('board.verify.finish-reads-before-lock: clause 1: the reads a verdict needs that do not depend on its write run before the write lock, and the verdict events are unchanged [C7,#10868]', async t => {
-  // Loaded here so main, which has no such export, still runs this file's measurement case.
-  const { prepareVerdictFacts } = await import('../../../../../store/src/io/board/verify.js');
+  const { prepareVerdictFacts } = await import('../../../../../store/index.js');
   const f = fixture(t);
   const prepared = f.submitted('prepared verdict');
   const plain = f.submitted('plain verdict');
   f.current();
   const seen = watchTableReads(f);
-  const facts = prepareVerdictFacts(f.board, prepared, accept(f, prepared));
+  const facts = await prepareVerdictFacts(f.board, prepared, accept(f, prepared));
   assert.ok(facts, 'the verdict reads were prepared');
   for (const name of Object.keys(TABLE_READS)) assert.ok(seen.some(read => read.name === name), `the ${name} read ran while preparing`);
   assert.deepEqual(seen.filter(read => read.locked), [], 'no table read ran under the write lock while preparing');

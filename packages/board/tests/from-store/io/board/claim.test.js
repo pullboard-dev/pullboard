@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { claimRows } from '../../../../../store/src/io/board/claim.js';
+import { claimRows } from '../../../../../store/index.js';
 import { admitSubmit } from '../../../../../store/index.js';
 import { events } from '../../../../../store/index.js';
 import { cellBoard } from '../../../fixtures/cell-board.js';
