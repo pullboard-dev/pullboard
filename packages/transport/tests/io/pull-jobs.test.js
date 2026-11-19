@@ -13,7 +13,7 @@ import { jobView } from '../../../jobs/index.js';
 import { jobsPullPorts } from '../../../jobs/index.js';
 import { checkSignedResult } from '../../../receipt/index.js';
 import { resultStatement } from '../../../receipt/index.js';
-import { cellBoard } from '../../../store/tests/fixtures/cell.js';
+import { cellBoard } from '../../../board/tests/fixtures/cell-board.js';
 import { boardPullAdapter } from '../../index.js';
 import { pullStatement } from '../../src/io/pull.js';
 
