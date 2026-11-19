@@ -93,14 +93,16 @@ export function handoffRecords(db, { live = false } = {}) {
     return records;
   }
   if (!hasJobTables(db)) return records;
-  const rows = db.prepare(`SELECT j.job_item AS item, s.job_step_payload AS payload FROM job j
+  // Keys only: the payloads of a big board total megabytes, and an ORDER BY over them spills a temp file (#11920).
+  const keys = db.prepare(`SELECT j.job_item AS item, s.job_step_id AS step FROM job j
     JOIN job_step s ON s.job_step_id = (SELECT MAX(job_step_id) FROM job_step WHERE job_step_job = j.job_id AND job_step_name NOT LIKE 'note:%')
-    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}
-    ORDER BY s.job_step_id DESC`).iterate();
-  for (const row of rows) {
-    if (records.has(row.item)) continue;
-    const record = recordOf(row.payload);
-    if (record !== undefined) records.set(row.item, record);
+    WHERE j.job_kind = 'gate' AND j.job_item IS NOT NULL${live ? " AND j.job_item IN (SELECT item_id FROM item WHERE item_status NOT IN ('verified', 'withdrawn'))" : ''}`).all();
+  keys.sort((a, b) => b.step - a.step);
+  const payload = db.prepare('SELECT job_step_payload AS payload FROM job_step WHERE job_step_id = ?');
+  for (const key of keys) {
+    if (records.has(key.item)) continue;
+    const record = recordOf(payload.get(key.step).payload);
+    if (record !== undefined) records.set(key.item, record);
   }
   return records;
 }

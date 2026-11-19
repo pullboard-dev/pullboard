@@ -49,3 +49,6 @@ export function fileWatchdogLimits(file, env = process.env, system = { load: 0, 
 export function fileIdleHung({ quietMs, cpuMicros }, idleMs) {
   return quietMs >= idleMs && cpuMicros < quietMs * 10;
 }
+
+/** How many test workers a pulled job may use: its share of the runner's cores, set by the serve that runs it [P7,#5919]. */
+export const JOB_WORKERS_ENV = 'PULLBOARD_JOB_WORKERS';
