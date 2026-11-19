@@ -10,7 +10,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { startChrome } from '../../../../../apps/cli/tests/fixtures/chrome.js';
+import { startChrome } from '../../fixtures/chrome.js';
 
 /** Prove a missing DevTools port is a single diagnostic failure, with stderr and elapsed time. */
 test('gate.io-clone-startup.a-missing-devtools-port-fails-once: a missing DevTools port fails once with stderr and elapsed launch time [C7]', async (t) => {

@@ -26,6 +26,8 @@ import { createPairingStore } from '../logic/pairing/store.js';
 import { createPairingHandler } from '../logic/pairing/http.js';
 import { createKeyRequestStore } from './store/request.js';
 import { createKeyRequestHandler } from '../logic/http/request.js';
+import { createVaultStore } from './store/vault.js';
+import { createVaultHandler } from '../logic/http/vault.js';
 import { createRelayBrowserHandler } from './browser/page.js';
 import { VERIFIER_STANDING_ENGINE } from '../../../../packages/state/index.js';
 import {
@@ -210,6 +212,8 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   });
   const keyRequestStore = createKeyRequestStore({ now });
   const keyRequests = createKeyRequestHandler({ authenticate: (req, id, write) => authorizedRequest(req, id, write), requests: keyRequestStore });
+  const vaultStore = createVaultStore({ directory: root });
+  const vault = createVaultHandler({ authenticate: async (req, write) => deviceStore.authorizeSession(await auth.authenticate(credential(req, origin, write))), vaults: vaultStore, http: { apiJson, apiRefusal, apiStatus, readApiBody, refusalDocument } });
   /** Refuse an old or ambiguous client before the opaque journal can return or accept board records. */
   async function authorizedRequest(req, id, write = false) {
     const who = await authorized(credential(req, origin, write), id, write);
@@ -392,7 +396,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     if (boardLinkAuthority) boardLinks = createRelayBoardLinks({ directory: root, authority: boardLinkAuthority,
       authorize: authorizedRequest, auth, withJournal, store: storing, now });
   } catch (error) {
-    clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); quota?.close();
+    clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); vaultStore.close(); quota?.close();
     throw error;
   }
 
@@ -403,6 +407,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
     if (await deviceHandler(req, res)) return;
     if (await pairing(req, res)) return;
     if (await keyRequests(req, res)) return;
+    if (await vault(req, res)) return;
     try {
       if (browser && await browser(req, res)) return;
       let url;
@@ -482,7 +487,7 @@ export function createRelayHandler({ directory, auth, pollMs = 200, publicOrigin
   handle.maintenance = maintain;
   handle.backup = retention.backup;
   handle.maintenanceStatus = () => ({ error: maintenanceError });
-  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); quota?.close(); boardLinks?.close(); };
+  handle.close = () => { clearInterval(timer); common.close(); releaseSessionGuard?.(); deviceStore.close(); vaultStore.close(); quota?.close(); boardLinks?.close(); };
   return handle;
 }
 
