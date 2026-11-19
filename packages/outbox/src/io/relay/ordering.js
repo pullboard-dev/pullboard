@@ -3,6 +3,7 @@
  * sealed move as its actor. Built over relay.js's own link and transport helpers, which it cannot import without a
  * cycle, as the checkpoint publisher is.
  */
+import { environmentAdapter } from '../../../../env/index.js';
 import { join } from 'node:path';
 import * as store from '../../../../store/index.js';
 import * as conflictRecords from './conflict.js';
@@ -30,6 +31,9 @@ import {
   nameNextSeat,
   seatReceipt,
 } from '../../../../link/index.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /**
  * Build catch-up and send over relay.js's helpers.
@@ -162,7 +166,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
         return;
       } catch (error) {
         if (error.code === 'AUTH_REQUIRED' && !renewedAgentToken && actor !== 'machine' && actor !== 'person'
-            && process.env.PULLBOARD_RELAY_TOKEN === undefined && state.agentTokens?.[actor]?.token) {
+            && environment.get('PULLBOARD_RELAY_TOKEN') === undefined && state.agentTokens?.[actor]?.token) {
           // An expired cache renews only through the seat's creator; a live one the relay refused was revoked.
           if (state.agentTokens[actor].expires > Date.now()) {
             state.agentTokens[actor].revoked = true;
