@@ -1,12 +1,11 @@
 /** The light-door cold-load check judges a door against main measured in the same run, so machine load alone never refuses a change [C7]. */
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { privateFixtureFiles } from '../fixtures/child.js';
+import { edgesExitStatus } from '../fixtures/edges-cli.js';
 import { LIGHT_DOOR_BUDGET_MS } from '../../src/io/edges.js';
 import { lightDoorProblems } from '../../src/io/edges.js';
 import { lightDoorRefused } from '../../src/io/edges.js';
@@ -82,8 +81,7 @@ test('gate.io-edges.a-wall-only-slowdown-passes-and-cpu-growth-fails: clause 1: 
 });
 
 test('gate.io-edges.no-cold-load-flag-skips-doors: clause 1: edges.js exits 1 on a CPU-burning light door by default, 0 with --no-cold-load, and still exits 1 on an edge violation with the flag [C7]', () => {
-  const edges = fileURLToPath(new URL('../../src/io/edges.js', import.meta.url));
-  const run = (root, ...flags) => spawnSync(process.execPath, [edges, root, ...flags], { encoding: 'utf8' }).status;
+  const run = edgesExitStatus;
   const slow = tree(SLOW);
   assert.equal(run(slow), 1, 'by default the slow door is refused');
   assert.equal(run(slow, '--no-cold-load'), 0, 'the flag skips the cold-load measure');
