@@ -1,6 +1,7 @@
 import { listThinRead } from '../../../../../packages/config/light.js';
 import { typedFieldsEnabled } from '../../../../../packages/config/index.js';
 import { hunkFreshnessEnabled } from '../../../../../packages/config/index.js';
+import { derivedStateEnabled } from '../../../../../packages/config/index.js';
 import { Refused } from '../../../../../packages/kernel/index.js';
 import { thinListRows } from '../list/thin.js';
 import { trunkRef } from '../../../../../packages/sandbox/light.js';
@@ -22,6 +23,19 @@ import {
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;
 
+/**
+ * The main commit and the verdict reader of the derived-state table, or null when the table is not current for main [C7,#11373].
+ * Why lazy: the health and verify cells load only with health.derivedState on, so the cold path of list loads nothing more with it off.
+ * An item with no row answers undefined, and the projector computes its freshness as before.
+ */
+async function derivedVerdictTable(root, board) {
+  const [{ readDerivedState }, { verdictTrunk }] = await Promise.all([import('../../../../../packages/health/index.js'), import('../../../../../packages/verify/index.js')]);
+  let main;
+  try { main = verdictTrunk(root, { trunkRef }); } catch { return null; }
+  const table = readDerivedState(board, { mainCommit: main, enabled: true });
+  return table ? { main, derived: item => table.verdicts.get(String(item.item_id)) } : null;
+}
+
 /** Run `pullboard list` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
@@ -31,7 +45,9 @@ export async function run(io, { first, values }) {
   const thin = listThinRead() && values.field === undefined ? thinListRows({ cwd: io.cwd, lane: first, all: values.all, clock: ctx.clock }) : null;
   const { items, agents, merging, needsRescope = [], fieldIndex } = thin ?? await withBoardRead(ctx, async (board) => {
     const rows = store.listItems(board, { lane: first, all: values.all });
-    const items = rows.map(verdictProjector(ctx.info.root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled() }).project);
+    // With health.derivedState on and the table swept at the current main, the verdict freshness comes from its rows [C7,#11373].
+    const table = derivedStateEnabled() ? await derivedVerdictTable(ctx.info.root, board) : null;
+    const items = rows.map(verdictProjector(ctx.info.root, board, table ? { main: table.main } : {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef, hunkKeyed: hunkFreshnessEnabled(), ...(table ? { derived: table.derived } : {}) }).project);
     // JSON returns these complete rows; agent names and merge labels belong only to the text rendering.
     const fieldIndex = values.field === undefined ? undefined : (await import('../../../../../packages/store/index.js')).fieldIndex(board, { enabled: true });
     if (values.json) return { items, fieldIndex, needsRescope: store.allItemsNeedingRescope(board) };
