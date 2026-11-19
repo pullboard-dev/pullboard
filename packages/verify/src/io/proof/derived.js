@@ -32,7 +32,8 @@ function attached(board) {
   if (schema && !databases.some(row => row.name === SCHEMA)) {
     board.db.prepare(`ATTACH DATABASE ? AS ${SCHEMA}`).run(derivedPath(file));
     // WAL, like the board: in rollback-journal mode a reader's snapshot holds a lock that makes a second connection's event write wait BOARD_BUSY.
-    board.db.exec(`PRAGMA ${SCHEMA}.journal_mode=WAL`);
+    // SQLite refuses the switch inside a transaction (a first attach inside an atomic move); WAL is kept in the file, so a later attach sets it.
+    if (!board.db.isTransaction) board.db.exec(`PRAGMA ${SCHEMA}.journal_mode=WAL`);
     board.db.exec(`CREATE TABLE IF NOT EXISTS ${SCHEMA}.proof_counter(meta_key TEXT PRIMARY KEY, meta_value TEXT) WITHOUT ROWID`);
   }
   ATTACHED.set(board.db, schema);
