@@ -1,8 +1,4 @@
 /** After a train batch lands, one full suite compares with the previous batch's result and files each new red as a Main red [C7,H16]. */
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { renameSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { defaultItemRoute } from '../../../../items/index.js';
 import { criterionCells } from '../../../../items/index.js';
@@ -12,6 +8,9 @@ import { mainRedEvidenceLines } from '../../../../items/index.js';
 import { fileMainRed } from '../../../../items/index.js';
 import { typedRequests } from '../../../../store/index.js';
 import { getItem } from '../../../../store/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 /** One case is its file and its exact test name. */
 const keyOf = (file, name) => JSON.stringify([file, name]);
@@ -32,17 +31,17 @@ const rootCause = mainRedRootCause;
 /** Read the previous result; an absent or unreadable file is no baseline, said loudly by the caller. */
 function readPrevious(path) {
   try {
-    const value = JSON.parse(readFileSync(path, 'utf8'));
+    const value = JSON.parse(fs.readFile(path, 'utf8'));
     return value?.version === 1 && Array.isArray(value.failures) ? value : null;
   } catch { return null; }
 }
 
 /** Replace the stored result atomically so a crash never leaves half a baseline. */
 function writePrevious(path, value) {
-  mkdirSync(dirname(path), { recursive: true });
+  fs.mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
-  writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`);
-  renameSync(temporary, path);
+  fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`);
+  fs.rename(temporary, path);
 }
 
 /** The replacement a request names: "superseded by #N" or "duplicate of #N", with the phrase kept as the withdrawal reason. */
