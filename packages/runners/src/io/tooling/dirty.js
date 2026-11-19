@@ -1,10 +1,12 @@
 /** Observe dirty primary tooling without granting it execution authority or blocking checks [O5,C7]. */
 import { gitSpawnSync } from '../../../../git/index.js';
-import { lstatSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+
+const fs = fileSystemAdapter();
 
 const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 
@@ -35,7 +37,7 @@ export function observeDirtyRunnerTooling(now, previous = [], root = TOOL_ROOT) 
     cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
   });
   let indexedAt = Number(now);
-  try { const stat = lstatSync(indexPath.stdout.trim()); indexedAt = Math.max(stat.mtimeMs, stat.ctimeMs); } catch { /* A missing index cannot prove an old staged edit. */ }
+  try { const stat = fs.lstat(indexPath.stdout.trim()); indexedAt = Math.max(stat.mtimeMs, stat.ctimeMs); } catch { /* A missing index cannot prove an old staged edit. */ }
   for (let index = 0; index < rows.length; index++) {
     const row = rows[index];
     if (!row) continue;
@@ -44,10 +46,10 @@ export function observeDirtyRunnerTooling(now, previous = [], root = TOOL_ROOT) 
     for (const path of paths) {
       if (!path || !/^(?:package\.json$|(?:src|bin)\/|apps\/lib\/src\/|packages\/[^/]+\/(?:src\/|(?:index|core)\.js$))/u.test(path)) continue;
       let changedAt;
-      try { const stat = lstatSync(join(root, path)); changedAt = Math.max(stat.mtimeMs, stat.ctimeMs); }
+      try { const stat = fs.lstat(join(root, path)); changedAt = Math.max(stat.mtimeMs, stat.ctimeMs); }
       catch {
         // Deletions have no inode clock. A containing-directory change is a conservative later witness.
-        try { const stat = lstatSync(dirname(join(root, path))); changedAt = Math.max(stat.mtimeMs, stat.ctimeMs); } catch { continue; }
+        try { const stat = fs.lstat(dirname(join(root, path))); changedAt = Math.max(stat.mtimeMs, stat.ctimeMs); } catch { continue; }
       }
       if (![' ', '?'].includes(row[0])) changedAt = Math.max(changedAt, indexedAt);
       files.set(path, { path, changedAt });
