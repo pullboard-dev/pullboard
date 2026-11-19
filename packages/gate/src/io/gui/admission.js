@@ -1,15 +1,16 @@
 /** Explicit test-file desktop requirements, independent of Chrome command-line flags [C7,V4]. */
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { explicitCheckFiles } from '../browser/admission.js';
 import { cleanGitEnvironment } from '../../../../git/index.js';
 import { git } from '../../../../git/index.js';
+import { fileSystemAdapter } from '../../../../fs/index.js';
+const fs = fileSystemAdapter();
 
 /** Only an explicit file annotation requests a GUI; --headless does not establish this capability. */
 export function testsNeedGui(root, files) {
   return files.some(file => {
-    try { return headerNeedsGui(readFileSync(resolve(root, file), 'utf8')); }
+    try { return headerNeedsGui(fs.readFile(resolve(root, file), 'utf8')); }
     catch { return false; } // Missing files retain their normal execution failure; they cannot add an inferred capability.
   });
 }
