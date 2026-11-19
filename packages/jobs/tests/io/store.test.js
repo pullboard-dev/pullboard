@@ -1,6 +1,9 @@
 /** The job store keeps one row per gate job or landing batch with an append-only, idempotent step log [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { spawn } from 'node:child_process';
+import { join } from 'node:path';
+import { privateFixtureFiles } from '../../../../apps/cli/tests/fixtures/child.js';
 import { cellBoard } from '../../../store/tests/fixtures/cell.js';
 import { atomically } from '../../index.js';
 import { createJob } from '../../index.js';
@@ -116,4 +119,54 @@ test('jobs.store.hold-port-skips-savepoint: clause 2: an atomically() call neste
   atomically(db, () => { calls.push('work'); });
   db.exec('COMMIT');
   assert.deepEqual(calls, ['work']);
+});
+
+/** A child process that holds BEGIN IMMEDIATE on `file` for `holdMs`, then commits; resolves once it holds the lock. */
+async function holdBoard(t, file, holdMs) {
+  const script = `const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(process.argv[1]); db.exec('BEGIN IMMEDIATE'); process.stdout.write('held\\n'); setTimeout(() => { db.exec('COMMIT'); db.close(); }, ${holdMs});`;
+  const child = spawn(process.execPath, ['-e', script, file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  t.after(() => child.kill());
+  await new Promise((resolve, reject) => { child.stdout.once('data', resolve); child.once('error', reject); child.once('exit', reject); });
+  return child;
+}
+
+/** A real board file with the production job tables, its handle on busy_timeout 0, so only atomically's own wait counts. */
+function heldBoard(t) {
+  const files = privateFixtureFiles('pullboard-jobs-busy-');
+  const file = join(files.root, 'board.sqlite');
+  const db = cellBoard(t, file, undefined, { real: true }).db;
+  db.exec('PRAGMA busy_timeout = 0');
+  return { db, file };
+}
+
+test('jobs.store.busy-retries-then-succeeds: clause 1: with a second connection holding BEGIN IMMEDIATE and releasing it after 300 ms, atomically on a handle with busy_timeout 0 waits and runs its work, and the work commits [C7]', async t => {
+  const { db, file } = heldBoard(t);
+  await holdBoard(t, file, 300);
+  const result = atomically(db, () => createJob(db, { id: 'gate:busy', kind: 'gate', now: 1 }).id);
+  assert.equal(result, 'gate:busy');
+  assert.equal(db.isTransaction, false);
+  assert.equal(jobView(db, 'gate:busy').id, 'gate:busy', 'the work committed');
+});
+
+test('jobs.store.busy-surfaces-board-busy: clause 2: with the lock held past the bound, atomically throws Refused BOARD_BUSY, not a SQLITE error, and leaves the handle outside a transaction with its own busy_timeout restored [C7]', async t => {
+  const { db, file } = heldBoard(t);
+  db.exec('PRAGMA busy_timeout = 123');
+  await holdBoard(t, file, 2500);
+  const calls = [];
+  setWriteHold(stubHold(calls));
+  t.after(() => setWriteHold(null));
+  assert.throws(() => atomically(db, () => 1, { boundMs: 300 }), refused('BOARD_BUSY'));
+  assert.equal(db.isTransaction, false);
+  assert.equal(db.prepare('PRAGMA busy_timeout').get().timeout, 123);
+  assert.deepEqual(calls, ['prepare', 'discard:marker'], 'the write hold stays paired');
+});
+
+test('jobs.store.offer-sequence-busy: clause 3: the createJob then writeStep sequence offerJob runs inside atomically, on the held database, throws BOARD_BUSY instead of ERR_SQLITE_ERROR [C7]', async t => {
+  const { db, file } = heldBoard(t);
+  await holdBoard(t, file, 2500);
+  assert.throws(() => atomically(db, () => {
+    createJob(db, { id: 'gate:offer', kind: 'gate', now: 1 });
+    writeStep(db, 'gate:offer', 'offered', {}, { now: 2 });
+  }, { boundMs: 300 }), refused('BOARD_BUSY'));
+  assert.equal(jobView(db, 'gate:offer'), null, 'nothing was written');
 });
