@@ -92,13 +92,25 @@ function holdsTestJob(db, runner, now) {
   return Boolean(db.prepare("SELECT 1 FROM job WHERE job_kind = 'test' AND job_lease_owner = ? AND job_lease_until >= ? AND job_step IN ('offered', 'claimed') LIMIT 1").get(runner, now));
 }
 
-/** The claim order with item gate shards moved ahead of the first test job; every other job keeps its place and each group its age order. */
-function shardsBeforeTests(ordered) {
+// Budget: a test job offered this long before the claim keeps its place ahead of gate shards, so a reviewer's comparison run is not starved by a shard backlog [C7,#11190].
+const TEST_JOB_AGED_MS = 120_000;
+
+/** The ids among these test jobs that were offered TEST_JOB_AGED_MS or more before this claim, read in one query keyed by job_id. */
+function agedTestJobs(db, ordered, now) {
+  const ids = ordered.filter(({ row }) => row.job_kind === 'test').map(({ row }) => row.job_id);
+  if (!ids.length) return new Set();
+  return new Set(db.prepare("SELECT job_id FROM job WHERE job_kind = 'test' AND job_created <= ? AND job_id IN (SELECT value FROM json_each(?))")
+    .all(now - TEST_JOB_AGED_MS, JSON.stringify(ids)).map(({ job_id: id }) => id));
+}
+
+/** The claim order with item gate shards moved ahead of the first fresh test job; an aged test job, and every other job, keeps its place and each group its age order. */
+function shardsBeforeTests(ordered, aged) {
   const firstTest = ordered.findIndex(({ row }) => row.job_kind === 'test');
   if (firstTest < 0) return ordered;
   const isShard = ({ row }) => row.job_kind === SHARD_JOB_KIND;
+  const isAged = ({ row }) => aged.has(row.job_id);
   const tail = ordered.slice(firstTest);
-  return [...ordered.slice(0, firstTest), ...tail.filter(isShard), ...tail.filter(entry => !isShard(entry))];
+  return [...ordered.slice(0, firstTest), ...tail.filter(isAged), ...tail.filter(entry => isShard(entry) && !isAged(entry)), ...tail.filter(entry => !isShard(entry) && !isAged(entry))];
 }
 
 /** A runner id or a capability: a plain name, so it reads the same in a log, a URL and SQL. */
@@ -372,8 +384,8 @@ export function claimJob(db, { runner, capabilities = [], kinds = null, except =
     };
     const ordered = claimableJobs(db, { runner, now, limit: SCAN_ROWS, reserve, slots: jobs,
       runnable: (row, offer) => (!only || only.has(row.job_kind)) && !skip?.has(row.job_kind) && !(shardsFull && row.job_kind === SHARD_JOB_KIND) && !overBudget(row.job_kind) && !censusFull(offer) && !(avoidRunners === true && (offer.avoid ?? []).includes(runner)) && (offer.needs ?? []).every(need => has.has(need)) });
-    // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates; one holding none still takes a test job first [C7,#11146].
-    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered) : ordered;
+    // A runner already holding a test job is offered queued item gate shards before further test jobs, so a burst of builder runs cannot starve the gates, but a test job that waited TEST_JOB_AGED_MS keeps its place so a reviewer's comparison run is not starved either; one holding none still takes a test job first [C7,#11146].
+    const offered = reserve === null && holdsTestJob(db, runner, now) ? shardsBeforeTests(ordered, agedTestJobs(db, ordered, now)) : ordered;
     for (const { row, offer } of offered) {
       const { needs = [], run = [], payload = null } = offer;
       // A push shard whose pushing gate stopped renewing it is no one's work: it ends here, never rerun (#7805).

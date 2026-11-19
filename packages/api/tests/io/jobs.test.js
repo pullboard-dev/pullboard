@@ -334,3 +334,15 @@ test('api.jobs.no-cores-and-shard-cap-unchanged: clause 3: a claim reporting no 
   const { take, now } = budgetBoard(t, { cores: 10, shards: 3, tests: 0, offered: [['gate:11148:shard:extra', 'gate-shard']] });
   assert.equal(take(now), null, 'the per-runner cap of floor(10 / 3) shards holds');
 });
+
+test('api.jobs.claims-aged-test-before-shards-over-claim-action: clause 3: over the claim action a runner holding one test job and offered a 3-minute-old test job and queued shards is handed the test job [C7,#11190]', (t) => {
+  const { root } = privateFixtureFiles('pullboard-jobs-aged-test-');
+  const { db } = cellBoard(t, join(root, 'board.sqlite'));
+  offerJob(db, { id: 'test:one', kind: 'test', now: 1000 });
+  offerJob(db, { id: 'test:old', kind: 'test', now: 2000 });
+  offerJob(db, { id: 'gate:9:shard:1', kind: 'gate-shard', now: 3000 });
+  const claim = (now) => jobQueueCall(db, { action: 'claim', runner: 'r-a', capabilities: [] }, { mode: 'pull', now }).claim?.job;
+  assert.equal(claim(181_000), 'test:one', 'a runner holding no test job takes the oldest test job');
+  assert.equal(claim(182_000), 'test:old', 'a runner holding a test job is handed the 3-minute-old test job before the queued shard');
+  assert.equal(claim(182_001), 'gate:9:shard:1');
+});
