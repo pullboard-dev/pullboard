@@ -2529,6 +2529,7 @@
     "link->store",
     "merge->git",
     "outbox->store",
+    "outbox->env",
     "pages->store",
     "person->store",
     "sandbox->store",

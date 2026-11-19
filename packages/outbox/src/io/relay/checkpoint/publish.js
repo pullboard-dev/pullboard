@@ -3,6 +3,7 @@
  * record the reply. Inside a command all of it runs under the relay lock, as before; the background publisher reads
  * and seals before the lock and uploads outside it, so moves never wait on either.
  */
+import { environmentAdapter } from '../../../../../env/index.js';
 import {
   clearUploadPauseNotices,
   permanentUploadRefusal,
@@ -20,6 +21,9 @@ import {
 } from '../../relay.js';
 import { withOutboxGuard } from '../guard.js';
 import { Refused } from '../../../../../kernel/index.js';
+
+/** The environment this file reads, through the one adapter [C7]. */
+const environment = environmentAdapter();
 
 /**
  * Build the checkpoint publisher over relay.js's own link and transport helpers, which it cannot import without a cycle.
@@ -64,7 +68,7 @@ export function checkpointPublisher({ request, saveLink, loadLink, linkFile, rea
    * credential, an upload pause not yet over, or a definitive rejection of this same image).
    */
   async function stageCheckpoint(root, file, state, io, prepared, { probe = true } = {}) {
-    if (!state.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) return null;
+    if (!state.token?.startsWith('pm_') || environment.get('PULLBOARD_RELAY_TOKEN')) return null;
     const resumed = Boolean(state.checkpointRefusal);
     if (state.checkpointRefusal && uploadPauseType(state.checkpointRefusal)) {
       // The background publisher probes before taking the lock; a pause that appeared since waits for its next pass.
@@ -133,7 +137,7 @@ export function checkpointPublisher({ request, saveLink, loadLink, linkFile, rea
     const linked = loadLink(file);
     if (!linked || linked.unlinking) return false;
     // Without a machine credential nothing is uploaded, so the board is not read (stageCheckpoint decides the same).
-    if (!linked.token?.startsWith('pm_') || process.env.PULLBOARD_RELAY_TOKEN) return false;
+    if (!linked.token?.startsWith('pm_') || environment.get('PULLBOARD_RELAY_TOKEN')) return false;
     // A pending recovery or an unacknowledged send is settled by a command's own sync first, never published around.
     if (linked.recovery || linked.pending) return false;
     const paused = Boolean(linked.checkpointRefusal && uploadPauseType(linked.checkpointRefusal));
